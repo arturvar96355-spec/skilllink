@@ -16,6 +16,7 @@ import {
   computeProgressPercent,
   findCurrentStage,
   isAutoManaged,
+  isDueSoon,
   isOverdue,
 } from '@/modules/workflow/workflow.rules'
 import { toStageDto } from '@/modules/workflow/workflow.service'
@@ -46,6 +47,7 @@ function toCurrentStage(stages: StageSummary[], now: Date): CurrentStageDto | nu
     status: current.status,
     deadline: toIso(current.deadline),
     isOverdue: isOverdue(current.deadline, current.status, now),
+    isDueSoon: isDueSoon(current.deadline, current.status, now),
   }
 }
 
@@ -58,6 +60,7 @@ function toProgress(stages: StageSummary[], now: Date): CooperationProgressDto {
     cancelledStages: countable.filter((stage) => stage.status === 'CANCELLED').length,
     totalStages: countable.length,
     overdueStages: countable.filter((stage) => isOverdue(stage.deadline, stage.status, now)).length,
+    dueSoonStages: countable.filter((stage) => isDueSoon(stage.deadline, stage.status, now)).length,
     blockedStages: countable.filter((stage) => stage.status === 'BLOCKED').length,
   }
 }

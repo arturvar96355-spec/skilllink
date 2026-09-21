@@ -1,5 +1,6 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
 import { CONTROL_POINT_STAGES, CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
 import { STAGE_STATUS_LABELS } from '@/shared/contracts/labels'
 
@@ -252,3 +253,29 @@ export function isOverdue(
   if (status === 'COMPLETED' || status === 'CANCELLED') return false
   return deadline.getTime() < now.getTime()
 }
+
+/**
+ * Срок ещё не вышел, но выйдет со дня на день.
+ *
+ * Система создана, чтобы успевать, а не отчитываться о пропущенном: просрочка —
+ * это уже случившаяся неприятность, а здесь остаётся время её предотвратить.
+ * Порог — `DEADLINE_WARNING_DAYS`, помечен TEMP.
+ *
+ * Просроченный этап сюда не попадает: у него своя пометка, и показывать один
+ * этап в двух состояниях значило бы считать его дважды.
+ */
+export function isDueSoon(
+  deadline: Date | null,
+  status: StageStatus,
+  now: Date = new Date(),
+): boolean {
+  if (!deadline) return false
+  if (status === 'COMPLETED' || status === 'CANCELLED') return false
+
+  const remainingMs = deadline.getTime() - now.getTime()
+  if (remainingMs < 0) return false
+
+  return remainingMs <= DEADLINE_WARNING_DAYS * DAY_MS
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000

@@ -1,7 +1,9 @@
+import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
 import type { StageStatus } from '@/shared/contracts/enums'
 import {
+  isDueSoon,
   isControlPoint,
   findBlockingStages,
   assertControlPointReady,
@@ -435,5 +437,45 @@ describe('контрольные точки (гибридный порядок �
         ]),
       ),
     ).not.toThrow()
+  })
+})
+
+describe('срок вот-вот выйдет', () => {
+  const now = new Date('2026-09-22T12:00:00.000Z')
+  const inDays = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+
+  it('этап в пределах порога считается «скоро»', () => {
+    expect(isDueSoon(inDays(1), 'IN_PROGRESS', now)).toBe(true)
+    expect(isDueSoon(inDays(DEADLINE_WARNING_DAYS), 'IN_PROGRESS', now)).toBe(true)
+  })
+
+  it('за пределами порога — ещё не «скоро»', () => {
+    expect(isDueSoon(inDays(DEADLINE_WARNING_DAYS + 1), 'IN_PROGRESS', now)).toBe(false)
+    expect(isDueSoon(inDays(30), 'NOT_STARTED', now)).toBe(false)
+  })
+
+  it('просроченный этап в «скоро» не попадает', () => {
+    // Иначе один этап считался бы дважды: и как просроченный, и как предстоящий.
+    expect(isOverdue(inDays(-1), 'IN_PROGRESS', now)).toBe(true)
+    expect(isDueSoon(inDays(-1), 'IN_PROGRESS', now)).toBe(false)
+  })
+
+  it('два признака никогда не верны одновременно', () => {
+    for (const days of [-30, -3, -0.5, 0, 0.5, 3, 4, 30]) {
+      const deadline = inDays(days)
+      for (const status of ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED'] as const) {
+        expect(isOverdue(deadline, status, now) && isDueSoon(deadline, status, now)).toBe(false)
+      }
+    }
+  })
+
+  it('закрытый этап не предупреждает о сроке', () => {
+    // Завершённому и отменённому этапу срок уже не важен.
+    expect(isDueSoon(inDays(1), 'COMPLETED', now)).toBe(false)
+    expect(isDueSoon(inDays(1), 'CANCELLED', now)).toBe(false)
+  })
+
+  it('без срока предупреждать не о чем', () => {
+    expect(isDueSoon(null, 'IN_PROGRESS', now)).toBe(false)
   })
 })
