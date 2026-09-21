@@ -1600,6 +1600,42 @@ async function main(): Promise<void> {
     clearSession()
   }
 
+  // ── 23. Спецификация OpenAPI ───────────────────────────────────────────────
+  step('23. Спецификация OpenAPI')
+
+  const spec = await call<Record<string, never>>('GET', '/api/openapi.json')
+  check('GET /api/openapi.json отвечает 200', spec.status === 200)
+
+  const document = spec.body as unknown as {
+    openapi?: string
+    paths?: Record<string, Record<string, { summary?: string; responses?: Record<string, unknown> }>>
+    tags?: unknown[]
+  }
+  check('это OpenAPI 3.1', document.openapi === '3.1.0', document.openapi)
+  check(
+    'описаны все пути',
+    Object.keys(document.paths ?? {}).length > 40,
+    `${Object.keys(document.paths ?? {}).length} путей`,
+  )
+  check('операции сгруппированы по разделам', (document.tags?.length ?? 0) > 5)
+
+  const operations = Object.values(document.paths ?? {}).flatMap((methods) =>
+    Object.values(methods),
+  )
+  check(
+    'у каждой операции есть краткое описание',
+    operations.every((operation) => (operation.summary ?? '').length > 0),
+    `${operations.length} операций`,
+  )
+  check(
+    'у каждой операции описаны ответы',
+    operations.every((operation) => Object.keys(operation.responses ?? {}).length > 0),
+  )
+
+  // Спецификация должна описывать живой сервер, а не расходиться с ним.
+  const gapsSpec = document.paths?.['/api/skills/gaps']?.get
+  check('описан эндпоинт дефицита навыков', Boolean(gapsSpec))
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Успешно: ${passed}${RESET}`)
