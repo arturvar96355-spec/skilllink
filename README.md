@@ -99,6 +99,8 @@ npm run dev
 | `npm test` | Модульные тесты (Vitest) |
 | `npm run smoke` | Сквозной сценарий против запущенного сервера |
 | `npm run probe` | Пробник: изоляция ролей, целостность состояний, кривой ввод |
+| `npm run volume` | Наполнить **отдельную** базу объёмом, близким к реальному |
+| `npm run bench` | Замерить время ответа против запущенного сервера |
 | `docker compose --profile app up -d --build` | Собрать и поднять приложение в контейнере |
 | `npm run openapi` | Пересобрать `docs/openapi.json` |
 | `npm run db:migrate` | Создать и применить миграцию |
@@ -152,6 +154,25 @@ npm run smoke
 
 Сценарий переключает пользователя через cookie и отдельно проверяет, что представитель вуза
 не видит чужие вузы, аналитику и внутренние комментарии к этапам.
+
+### Скорость на объёме
+
+Утверждения о скорости можно проверить, а не принимать на слово. Наполнение работает
+только с базой, в имени которой есть `volume` — чтобы случайный запуск не стёр рабочие
+данные.
+
+```bash
+createdb skilllink_volume
+DATABASE_URL="postgresql://skilllink:skilllink@localhost:5432/skilllink_volume" npm run db:deploy
+DATABASE_URL="postgresql://skilllink:skilllink@localhost:5432/skilllink_volume" npm run db:seed
+DATABASE_URL="postgresql://skilllink:skilllink@localhost:5432/skilllink_volume" \
+  VOLUME_UNIVERSITIES=1000 npm run volume
+```
+
+Затем поднять сервер на этой базе и в другом окне выполнить `npm run bench`.
+
+На 1 000 вузов, 6 000 программ и 42 000 этапов самая медленная страница отвечает
+за 35 мс. Медиана из семи прогонов, первый отбрасывается как прогревочный.
 
 ## Демонстрационный сценарий
 
