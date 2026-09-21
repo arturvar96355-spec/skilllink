@@ -31,6 +31,8 @@ export async function list(
 
 export interface DemandResult {
   data: SkillDemandDto[]
+  /** Сколько строк подходит под фильтры всего — до обрезания по `limit`. */
+  total: number
   period: string | null
   isMock: boolean
 }
@@ -40,13 +42,14 @@ export async function demand(user: CurrentUser, query: SkillDemandQuery): Promis
   assertCan(user, 'ANALYTICS')
 
   const period = query.period ?? (await repo.latestPeriod())
-  if (!period) return { data: [], period: null, isMock: false }
+  if (!period) return { data: [], total: 0, period: null, isMock: false }
 
   // Нормируем по всей выборке периода, а не по отфильтрованной странице:
   // иначе масштаб зависел бы от фильтров и показатели нельзя было бы сравнивать.
-  const [rows, all] = await Promise.all([
+  const [rows, all, total] = await Promise.all([
     repo.findDemand(query, period),
     repo.findDemandForPeriod(period),
+    repo.countDemand(query, period),
   ])
   const normalizeValue = demandNormalizer(all.map((row) => row.value))
 
@@ -64,6 +67,7 @@ export async function demand(user: CurrentUser, query: SkillDemandQuery): Promis
       confidence: row.confidence,
       isMock: row.isMock,
     })),
+    total,
     period,
     isMock: rows.some((row) => row.isMock),
   }
@@ -71,6 +75,8 @@ export async function demand(user: CurrentUser, query: SkillDemandQuery): Promis
 
 export interface GapResult {
   data: SkillGapDto[]
+  /** Сколько дефицитов найдено всего — до обрезания по `limit`. */
+  total: number
   period: string | null
   programId: string | null
   isMock: boolean
@@ -84,7 +90,9 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
   assertCan(user, 'ANALYTICS')
 
   const period = query.period ?? (await repo.latestPeriod())
-  if (!period) return { data: [], period: null, programId: query.programId ?? null, isMock: false }
+  if (!period) {
+    return { data: [], total: 0, period: null, programId: query.programId ?? null, isMock: false }
+  }
 
   if (query.programId) {
     const program = await prisma.educationalProgram.findUnique({
@@ -145,7 +153,10 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
   filtered.sort((a, b) => b.gap - a.gap)
 
   return {
+    // `total` считается до обрезания: система, которая существует ради показа
+    // дефицитов, не должна занижать их число из-за размера страницы.
     data: filtered.slice(0, query.limit),
+    total: filtered.length,
     period,
     programId: query.programId ?? null,
     isMock: demandRows.some((row) => row.isMock),

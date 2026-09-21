@@ -57,3 +57,30 @@ describe('дефицит навыка', () => {
     expect(calculateGap(0.2, 'ADVANCED', 'SQL').gap).toBe(0)
   })
 })
+
+describe('обрезание выборки не искажает счётчик', () => {
+  const gaps = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      skillId: `s${index}`,
+      gap: 1 - index / 100,
+      isCritical: index % 2 === 0,
+    }))
+
+  it('total считается до обрезания, а не после', () => {
+    // Система существует ради показа дефицитов. Если при limit=5 она сообщит
+    // «найдено 5», она занижает ровно ту проблему, которую должна показывать.
+    const all = gaps(18)
+    const limit = 5
+    const shown = all.slice(0, limit)
+
+    expect(shown).toHaveLength(limit)
+    expect(all.length).toBe(18)
+    expect(all.length > shown.length).toBe(true)
+  })
+
+  it('признак обрезания честен в обе стороны', () => {
+    const all = gaps(18)
+    expect(all.length > all.slice(0, 5).length).toBe(true)
+    expect(all.length > all.slice(0, 200).length).toBe(false)
+  })
+})

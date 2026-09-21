@@ -798,6 +798,37 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Сводки не выдают обрезанную выборку за полную ──────────────────────────
+  step('Счётчик не занижается обрезанием')
+
+  for (const path of ['/api/skills/gaps', '/api/skills/demand', '/api/analytics/programs']) {
+    const full = await call<unknown[]>('GET', `${path}?limit=200`)
+    const fullMeta = (full.body as { meta?: { total?: number; truncated?: boolean } }).meta
+    const fullTotal = fullMeta?.total ?? 0
+
+    if (fullTotal < 2) {
+      check(`${path}: данных хватает для проверки`, true, 'выборка мала, проверка пропущена')
+      continue
+    }
+
+    const short = await call<unknown[]>('GET', `${path}?limit=1`)
+    const shortMeta = (short.body as { meta?: { total?: number; truncated?: boolean } }).meta
+
+    check(
+      `${path}: total не уменьшается при обрезании`,
+      shortMeta?.total === fullTotal,
+      `при limit=1 total=${shortMeta?.total}, на полной выборке ${fullTotal}`,
+    )
+    check(
+      `${path}: обрезание отмечено признаком`,
+      shortMeta?.truncated === true && fullMeta?.truncated === false,
+    )
+    check(
+      `${path}: отдано ровно столько, сколько просили`,
+      (short.body.data?.length ?? 0) === 1,
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

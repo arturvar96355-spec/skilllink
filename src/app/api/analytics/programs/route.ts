@@ -12,5 +12,7 @@ export const GET = handle(async (request) => {
   const user = await getCurrentUser()
   const { limit } = parseQuery(request, querySchema)
   const { data, total } = await service.programRating(user, { limit })
-  return okList(data, { page: 1, pageSize: data.length, total })
+  // Сводка с ограничением, а не страница: `total` — сколько программ с рейтингом
+  // всего, `truncated` — видно ли, что выборка обрезана.
+  return okList(data, { page: 1, pageSize: data.length, total, truncated: total > data.length })
 })
