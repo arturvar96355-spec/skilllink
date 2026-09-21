@@ -356,7 +356,13 @@ curl -s -X PUT http://localhost:3000/api/programs/PROGRAM_ID/skills \
 
 ### POST /api/programs/:id/archive
 
-Право: `WRITE`.
+Право: `WRITE`. Архивная программа скрыта из списков; показать её можно
+параметром `includeArchived=true`.
+
+### POST /api/programs/:id/restore
+
+Право: `WRITE`. Возврат программы из архива в статус `ACTIVE`.
+Отклоняется, если вуз программы находится в архиве.
 
 ---
 

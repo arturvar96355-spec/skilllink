@@ -257,6 +257,15 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'WRITE',
     errors: READ_ERRORS,
   },
+  {
+    method: 'post',
+    path: '/api/programs/{id}/restore',
+    tag: 'Программы',
+    summary: 'Вернуть программу из архива',
+    description: 'Отклоняется, если вуз программы находится в архиве.',
+    permission: 'WRITE',
+    errors: WRITE_ERRORS,
+  },
 
   // ── Навыки ────────────────────────────────────────────────────────────────
   {
