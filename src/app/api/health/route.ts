@@ -15,6 +15,28 @@ import { handle, ok } from '@/shared/http'
 export const GET = handle(async () => {
   const now = () => new Date().toISOString()
 
+  // Приложение без секрета подписи стартует, но каждый запрос падает на проверке
+  // прав: сессию не прочитать. Проверка живости обязана это видеть — иначе
+  // контейнер считается здоровым, оркестратор пускает на него трафик,
+  // а пользователь получает 500 на всём, кроме самой проверки живости.
+  const secretMissing =
+    process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET?.trim()
+
+  if (secretMissing) {
+    return ok(
+      {
+        status: 'misconfigured',
+        database: 'unknown',
+        schema: 'unknown',
+        hint:
+          'Не задан AUTH_SECRET — приложение не сможет обслуживать запросы. Сгенерируйте: ' +
+          'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"',
+        time: now(),
+      },
+      503,
+    )
+  }
+
   if (!process.env.DATABASE_URL) {
     return ok(
       {
