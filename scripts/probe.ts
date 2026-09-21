@@ -663,6 +663,49 @@ async function main(): Promise<void> {
       'страница за пределами выборки пуста',
       farPage.status === 200 && (farPage.body.data?.length ?? -1) === 0,
     )
+
+    // Сортировка по рейтингу считается в приложении, а не в SQL: страницу приходится
+    // резать вручную. Обход по страницам обязан дать ровно то же, что одна выдача —
+    // без потерь, без повторов, в том же порядке.
+    const wholeList = await call<Array<{ id: string }>>(
+      'GET',
+      '/api/universities?pageSize=100&sort=-rating',
+    )
+    const expectedOrder = (wholeList.body.data ?? []).map((row) => row.id)
+
+    const collected: string[] = []
+    for (let page = 1; page <= 40; page += 1) {
+      const chunk = await call<Array<{ id: string }>>(
+        'GET',
+        `/api/universities?pageSize=3&page=${page}&sort=-rating`,
+      )
+      const rows = chunk.body.data ?? []
+      if (rows.length === 0) break
+      collected.push(...rows.map((row) => row.id))
+    }
+
+    check(
+      'постраничный обход по рейтингу ничего не теряет',
+      collected.length === expectedOrder.length,
+      `собрано ${collected.length}, ожидалось ${expectedOrder.length}`,
+    )
+    check('постраничный обход не повторяет записи', new Set(collected).size === collected.length)
+    check(
+      'порядок при обходе по страницам совпадает с одной выдачей',
+      collected.join(',') === expectedOrder.join(','),
+    )
+
+    // Отбор по рейтингу не должен ослаблять остальные фильтры.
+    const withRegion = await call<Array<{ region: string; rating: { score: number | null } }>>(
+      'GET',
+      '/api/universities?pageSize=100&withRating=true&minRating=1&region=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3',
+    )
+    check(
+      'фильтр по рейтингу не отменяет фильтр по региону',
+      (withRegion.body.data ?? []).every(
+        (row) => row.region === 'Санкт-Петербург' && row.rating.score !== null,
+      ),
+    )
   }
 
   // ── Итог ───────────────────────────────────────────────────────────────────
