@@ -587,6 +587,84 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Рейтинг вуза: не должен становиться каналом утечки ─────────────────────
+  step('Рейтинг вуза не раскрывает чужие данные')
+
+  if (rep) {
+    actAs(rep.id)
+
+    // Рейтинг — аналитика. Представителю вуза закрыт не только сам показатель,
+    // но и любые производные от него: по фильтру и порядку сортировки можно было бы
+    // восстановить баллы чужих вузов, ни разу их не увидев.
+    for (const [query, title] of [
+      ['withRating=true', 'запрос рейтинга'],
+      ['minRating=10', 'фильтр по нижней границе'],
+      ['maxRating=90', 'фильтр по верхней границе'],
+      ['sort=-rating', 'сортировка по рейтингу'],
+      ['sort=rating', 'сортировка по рейтингу по возрастанию'],
+    ] as const) {
+      const response = await call(`GET`, `/api/universities?${query}`)
+      check(`представителю вуза закрыт ${title}`, response.status === 403)
+    }
+
+    const plainList = await call<Array<{ rating: unknown }>>('GET', '/api/universities')
+    check(
+      'обычный список представителю по-прежнему доступен',
+      plainList.status === 200,
+    )
+    check(
+      'но рейтинга в нём нет',
+      (plainList.body.data ?? []).every((row) => row.rating === null),
+    )
+
+    const ownCard = await call<{ rating: unknown }>(
+      'GET',
+      `/api/universities/${rep.universityId}`,
+    )
+    check(
+      'в карточке своего вуза представителю рейтинг тоже не отдаётся',
+      ownCard.status === 200 && ownCard.body.data?.rating === null,
+    )
+
+    actAs(null)
+  }
+
+  {
+    // Пустой результат — это пустой результат, а не ошибка и не весь список.
+    const impossibleRange = await call<unknown[]>(
+      'GET',
+      '/api/universities?minRating=100&maxRating=0',
+    )
+    check(
+      'встречный диапазон не превращается в полный список',
+      impossibleRange.status === 200 && (impossibleRange.body.data?.length ?? -1) === 0,
+    )
+
+    const meta = await call<unknown[]>('GET', '/api/universities?minRating=100&maxRating=0')
+    check(
+      'счётчик total при пустом отборе тоже ноль',
+      ((meta.body as { meta?: { total?: number } }).meta?.total ?? -1) === 0,
+    )
+
+    for (const query of ['minRating=-1', 'maxRating=101', 'minRating=abc', 'sort=-ratings']) {
+      const response = await call('GET', `/api/universities?${query}`)
+      check(
+        `кривой параметр ?${query} не роняет реестр`,
+        response.status === 422 || response.status === 200,
+      )
+    }
+
+    // Страница за пределами выборки не должна отдавать чужие строки.
+    const farPage = await call<unknown[]>(
+      'GET',
+      '/api/universities?sort=-rating&page=500&pageSize=20',
+    )
+    check(
+      'страница за пределами выборки пуста',
+      farPage.status === 200 && (farPage.body.data?.length ?? -1) === 0,
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

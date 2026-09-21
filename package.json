@@ -19,7 +19,9 @@
     "db:studio": "prisma studio",
     "smoke": "tsx scripts/smoke.ts",
     "openapi": "tsx scripts/openapi.ts",
-    "probe": "tsx scripts/probe.ts"
+    "probe": "tsx scripts/probe.ts",
+    "volume": "tsx scripts/volume.ts",
+    "bench": "tsx scripts/bench.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -22,14 +22,38 @@ export const UNIVERSITY_SORT_FIELDS = [
   'updatedAt',
 ] as const
 
+/**
+ * Сортировка по рейтингу вынесена отдельно: рейтинг считается в приложении,
+ * в базе его нет, поэтому SQL по нему не сортирует (пункт 7.2 ТЗ).
+ */
+export const UNIVERSITY_RATING_SORT = 'rating'
+
+/** Числа из query приходят строками. */
+const ratingBoundSchema = z.coerce
+  .number()
+  .min(0, 'Рейтинг не может быть меньше 0')
+  .max(100, 'Рейтинг не может быть больше 100')
+
 export const universityListQuerySchema = paginationSchema.extend({
   /** Поиск по названию, краткому названию, городу, региону и названиям программ. */
   q: z.string().trim().min(1).max(200).optional(),
   status: multiStatusSchema.optional(),
   region: multiStringSchema.optional(),
   city: multiStringSchema.optional(),
-  /** `name` или `-updatedAt`: минус означает убывание. */
+  /** `name`, `-updatedAt` или `-rating`: минус означает убывание. */
   sort: z.string().optional(),
+  /** Нижняя граница рейтинга вуза, 0..100 (пункт 7.2 ТЗ). */
+  minRating: ratingBoundSchema.optional(),
+  /** Верхняя граница рейтинга вуза, 0..100. */
+  maxRating: ratingBoundSchema.optional(),
+  /**
+   * Считать и вернуть рейтинг каждого вуза. По умолчанию не считается:
+   * это отдельный проход по всем программам, а реестру он нужен не всегда.
+   */
+  withRating: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((value) => value === 'true')
+    .optional(),
   /** По умолчанию архивные записи в списке не показываются. */
   includeArchived: z
     .union([z.literal('true'), z.literal('false')])
@@ -38,6 +62,16 @@ export const universityListQuerySchema = paginationSchema.extend({
 })
 
 export type UniversityListQuery = z.infer<typeof universityListQuerySchema>
+
+/** Нужен ли этому запросу расчёт рейтингов: он стоит отдельного запроса к базе. */
+export function needsRating(query: UniversityListQuery): boolean {
+  return (
+    query.withRating === true ||
+    query.minRating !== undefined ||
+    query.maxRating !== undefined ||
+    query.sort?.replace(/^-/, '') === UNIVERSITY_RATING_SORT
+  )
+}
 
 export const contactInputSchema = z.object({
   fullName: z.string().trim().min(2, 'Укажите ФИО контактного лица').max(200),

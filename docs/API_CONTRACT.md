@@ -170,8 +170,19 @@ curl -s http://localhost:3000/api/health
 | `status` | enum[] | `NEW`, `IN_PROGRESS`, `ACTIVE`, `PAUSED`, `ARCHIVED` |
 | `region` | string[] | Точное совпадение региона |
 | `city` | string[] | Точное совпадение города |
-| `sort` | string | `name`, `city`, `region`, `status`, `createdAt`, `updatedAt` (по умолчанию `name`) |
+| `sort` | string | `name`, `city`, `region`, `status`, `createdAt`, `updatedAt`, `rating` (по умолчанию `name`) |
 | `includeArchived` | `true`/`false` | По умолчанию архивные скрыты |
+| `withRating` | `true`/`false` | Считать рейтинг вуза. По умолчанию **нет**: это отдельный проход по всем программам |
+| `minRating`, `maxRating` | number 0..100 | Отбор по рейтингу вуза (пункт 7.2 ТЗ) |
+
+**Рейтинг вуза.** Требует права `ANALYTICS`: представителю вуза любой из четырёх
+параметров выше вернёт `403`, иначе по отклику списка можно было бы восстановить баллы
+чужих вузов. Без этих параметров поле `rating` равно `null` — это «не запрашивали»,
+а не «нет данных».
+
+Отбор `minRating`/`maxRating` отсекает вузы без рассчитанного балла: `minRating=0`
+означает «есть рейтинг», а не «любой вуз». При `sort=rating` вузы без балла уходят
+в конец при обоих направлениях — «Нет данных» не участвует в ранжировании (решение 8).
 
 ```bash
 curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageSize=10"
@@ -191,14 +202,35 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
   "cooperationCount": 2,
   "activeCooperationCount": 2,
   "isMock": true,
+  "rating": null,
   "updatedAt": "2026-09-21T07:23:11.101Z",
   "archivedAt": null
 }
 ```
 
+Поле `rating` при `withRating=true` (`UniversityRatingDto`):
+
+```json
+{
+  "universityId": "cmuax8g4t0008v2rl4bg3v2kn",
+  "score": 82.1,
+  "basis": "estimate",
+  "explanation": "Балл вуза — среднее по программам; учтено 2 из 2 программ, показатели нормированы внутри всей выборки программ",
+  "programCount": 2,
+  "ratedProgramCount": 2,
+  "topProgram": { "programId": "…", "name": "Программная инженерия", "score": 100 }
+}
+```
+
+`score: null` — «Нет данных», показывать как «Нет данных», а не 0 (решение 8).
+`topProgram` раскрывает балл: это сильнейшая программа вуза.
+
 ### GET /api/universities/:id
 
 Право: `READ`. Карточка вуза (раздел 7.3 ТЗ). Ошибка: `NOT_FOUND`.
+
+Рейтинг в карточке считается **всегда** и параметра не требует: карточка — то место,
+где балл нужно раскрыть сильнейшей программой. Представителю вуза приходит `null`.
 
 Дополнительно к полям списка (`UniversityDto`):
 

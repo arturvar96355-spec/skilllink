@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PROGRAM_RATING_WEIGHTS } from '@/shared/config/analytics.config'
-import { calculateRatings, type RatingInput } from './rating'
+import { aggregateUniversityRatings, calculateRatings, type RatingInput } from './rating'
 
 const program = (overrides: Partial<RatingInput> & { programId: string }): RatingInput => ({
   applicationCount: null,
@@ -72,5 +72,74 @@ describe('рейтинг программ', () => {
       program({ programId: 'single', applicationCount: 250, studentCount: 90, groupCount: 3 }),
     ])
     expect(ratings.get('single')?.score).toBe(100)
+  })
+})
+
+describe('рейтинг вуза', () => {
+  const programs = [
+    { programId: 'p1', applicationCount: 100, studentCount: 100, groupCount: 10, metricsSource: 'MANUAL' as const },
+    { programId: 'p2', applicationCount: 50, studentCount: 50, groupCount: 5, metricsSource: 'MANUAL' as const },
+    { programId: 'p3', applicationCount: 0, studentCount: 0, groupCount: 0, metricsSource: 'MANUAL' as const },
+    { programId: 'p4', applicationCount: null, studentCount: null, groupCount: null, metricsSource: null },
+  ]
+  const links = [
+    { programId: 'p1', programName: 'Сильная', universityId: 'u1' },
+    { programId: 'p3', programName: 'Слабая', universityId: 'u1' },
+    { programId: 'p2', programName: 'Средняя', universityId: 'u2' },
+    { programId: 'p4', programName: 'Без данных', universityId: 'u3' },
+  ]
+
+  function aggregate() {
+    return aggregateUniversityRatings(links, calculateRatings(programs))
+  }
+
+  it('считает балл вуза по его программам', () => {
+    const rating = aggregate().get('u1')
+    expect(rating?.score).not.toBeNull()
+    expect(rating?.programCount).toBe(2)
+    expect(rating?.ratedProgramCount).toBe(2)
+  })
+
+  it('раскрывает сильнейшую программу — балл должен быть объяснимым', () => {
+    expect(aggregate().get('u1')?.topProgram?.name).toBe('Сильная')
+  })
+
+  it('вуз без заполненных показателей получает «Нет данных», а не ноль', () => {
+    const rating = aggregate().get('u3')
+    expect(rating?.score).toBeNull()
+    expect(rating?.basis).toBe('none')
+    expect(rating?.explanation).toContain('Нет данных')
+  })
+
+  it('программа без данных не тянет средний балл вниз', () => {
+    // u2 — одна средняя программа. Если бы «нет данных» считалось нулём,
+    // вуз с такой же средней программой плюс пустой получил бы вдвое меньше.
+    const withEmpty = aggregateUniversityRatings(
+      [...links, { programId: 'p4', programName: 'Без данных', universityId: 'u2' }],
+      calculateRatings(programs),
+    )
+    expect(withEmpty.get('u2')?.score).toBe(aggregate().get('u2')?.score)
+    expect(withEmpty.get('u2')?.ratedProgramCount).toBe(1)
+    expect(withEmpty.get('u2')?.programCount).toBe(2)
+  })
+
+  it('оценочные данные хотя бы одной программы делают весь балл оценочным', () => {
+    const rating = aggregateUniversityRatings(
+      [{ programId: 'p1', programName: 'Сильная', universityId: 'u1' }],
+      calculateRatings([{ ...programs[0]!, metricsSource: 'MOCK' as const }, programs[1]!]),
+    ).get('u1')
+    expect(rating?.basis).toBe('estimate')
+  })
+
+  it('вуз без программ в карту не попадает — подставлять ноль нечем', () => {
+    expect(aggregate().has('u-без-программ')).toBe(false)
+  })
+
+  it('балл вуза не выходит за шкалу 0..100', () => {
+    for (const rating of aggregate().values()) {
+      if (rating.score === null) continue
+      expect(rating.score).toBeGreaterThanOrEqual(0)
+      expect(rating.score).toBeLessThanOrEqual(100)
+    }
   })
 })
