@@ -275,6 +275,11 @@ export function LoginForm() {
 }
 ```
 
+Проверено в браузере целиком: `signIn` авторизует, `useSession` сразу отдаёт
+`fullName` и `role`, `signOut` возвращает состояние `unauthenticated`. Типы
+сессии расширены — `session.user.role` и `session.user.universityId` доступны
+без приведения.
+
 Пока своей страницы входа нет, работает встроенная: `http://localhost:3000/api/auth/signin`.
 Когда сделаете свою по адресу `/login` — скажите Сергею, он вернёт настройку
 `pages: { signIn: '/login' }`, и перенаправления пойдут на неё.
