@@ -324,7 +324,7 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 | Экран | Источник требования | Состояние API |
 | --- | --- | --- |
 | Лента событий вуза | ТЗ 7.3 «Последние события» | `GET /api/universities/:id/events` — готов, отдаёт человекочитаемые события |
-| Рейтинг вуза и фильтр по нему | ТЗ 7.2, 7.3 | готов: `?withRating=true`, `?minRating`, `?sort=-rating`. Методика — `TODO: PM DECISION` |
+| Рейтинг вуза и фильтр по нему | ТЗ 7.2, 7.3 | готов: приходит по умолчанию, `?minRating`, `?sort=-rating`. Методику утвердил Артур |
 | Групповые операции по IT-продукту | Концепция | `POST /api/products/:id/release` — готов, с предпросмотром до применения |
 | Журнал действий | ТЗ 15 | `GET /api/audit` — готов, только для администратора |
 | Выгрузка и загрузка реестров | P2 | `GET /api/export`, `POST /api/import` — готовы, CSV для Excel |
