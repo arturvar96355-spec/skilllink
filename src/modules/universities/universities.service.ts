@@ -1,7 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -9,13 +9,17 @@ import type {
   UniversityDto,
   UniversityListItemDto,
 } from '@/shared/contracts/university'
+import type { UniversityRatingDto } from '@/shared/contracts/rating'
+import * as analyticsService from '@/modules/analytics/analytics.service'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './universities.repo'
 import { assertCanArchive, assertNotArchived } from './universities.rules'
-import type {
-  CreateUniversityInput,
-  UniversityListQuery,
-  UpdateUniversityInput,
+import {
+  needsRating,
+  UNIVERSITY_RATING_SORT,
+  type CreateUniversityInput,
+  type UniversityListQuery,
+  type UpdateUniversityInput,
 } from './universities.schema'
 
 function toContactDto(row: {
@@ -36,9 +40,32 @@ function toContactDto(row: {
   }
 }
 
+/**
+ * Вуз без действующих программ в карту рейтингов не попадает: считать там нечего.
+ * Но строка реестра должна объяснять пустоту, а не отдавать голый null.
+ */
+function ratingFor(
+  universityId: string,
+  ratings: ReadonlyMap<string, UniversityRatingDto> | null,
+): UniversityRatingDto | null {
+  if (!ratings) return null
+  return (
+    ratings.get(universityId) ?? {
+      universityId,
+      score: null,
+      basis: 'none',
+      explanation: 'Нет данных: у вуза нет действующих программ',
+      programCount: 0,
+      ratedProgramCount: 0,
+      topProgram: null,
+    }
+  )
+}
+
 function toListItem(
   row: repo.UniversityListRow,
   activeCooperations: number,
+  rating: UniversityRatingDto | null = null,
 ): UniversityListItemDto {
   return {
     id: row.id,
@@ -51,15 +78,20 @@ function toListItem(
     cooperationCount: row._count.cooperations,
     activeCooperationCount: activeCooperations,
     isMock: row.isMock,
+    rating,
     updatedAt: toIsoRequired(row.updatedAt),
     archivedAt: toIso(row.archivedAt),
   }
 }
 
-function toDetail(row: repo.UniversityDetailRow, activeCooperations: number): UniversityDto {
+function toDetail(
+  row: repo.UniversityDetailRow,
+  activeCooperations: number,
+  rating: UniversityRatingDto | null = null,
+): UniversityDto {
   const contacts = row.contacts.map(toContactDto)
   return {
-    ...toListItem(row, activeCooperations),
+    ...toListItem(row, activeCooperations, rating),
     address: row.address,
     website: row.website,
     description: row.description,
@@ -76,11 +108,69 @@ export async function list(
   query: UniversityListQuery,
 ): Promise<{ data: UniversityListItemDto[]; meta: PageMeta }> {
   assertCan(user, 'READ')
-  const { rows, total } = await repo.findMany(query, universityScope(user))
+
+  // Рейтинг — аналитика: представителю вуза он недоступен даже как фильтр,
+  // иначе по отклику списка можно было бы восстановить баллы чужих вузов.
+  const wantsRating = needsRating(query)
+  if (wantsRating) assertCan(user, 'ANALYTICS')
+
+  const ratings = wantsRating ? await analyticsService.universityRatings(user) : null
+
+  const restrictToIds =
+    ratings && (query.minRating !== undefined || query.maxRating !== undefined)
+      ? [...ratings.values()]
+          .filter(
+            (rating) =>
+              rating.score !== null &&
+              (query.minRating === undefined || rating.score >= query.minRating) &&
+              (query.maxRating === undefined || rating.score <= query.maxRating),
+          )
+          .map((rating) => rating.universityId)
+      : undefined
+
+  const pagination = { page: query.page, pageSize: query.pageSize }
+  const sortsByRating = ratings !== null && query.sort?.replace(/^-/, '') === UNIVERSITY_RATING_SORT
+
+  if (sortsByRating) {
+    // Рейтинга в базе нет, поэтому порядок и страница считаются здесь.
+    // Вузы без балла уходят в конец при любом направлении: «Нет данных» — это
+    // не ноль и не максимум, оно просто не участвует в ранжировании (решение 8).
+    const descending = query.sort?.startsWith('-') ?? false
+    const matchedIds = await repo.findIds(query, universityScope(user), restrictToIds)
+
+    const ordered = matchedIds.slice().sort((left, right) => {
+      const leftScore = ratingFor(left, ratings)?.score ?? null
+      const rightScore = ratingFor(right, ratings)?.score ?? null
+      if (leftScore === null && rightScore === null) return 0
+      if (leftScore === null) return 1
+      if (rightScore === null) return -1
+      return descending ? rightScore - leftScore : leftScore - rightScore
+    })
+
+    const skip = (pagination.page - 1) * pagination.pageSize
+    const pageIds = ordered.slice(skip, skip + pagination.pageSize)
+    const rows = await repo.findByIds(pageIds)
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const activeByUniversity = await repo.countActiveCooperations(pageIds)
+
+    return {
+      data: pageIds.flatMap((id) => {
+        const row = byId.get(id)
+        return row
+          ? [toListItem(row, activeByUniversity.get(id) ?? 0, ratingFor(id, ratings))]
+          : []
+      }),
+      meta: pageMeta(pagination, ordered.length),
+    }
+  }
+
+  const { rows, total } = await repo.findMany(query, universityScope(user), restrictToIds)
   const activeByUniversity = await repo.countActiveCooperations(rows.map((row) => row.id))
   return {
-    data: rows.map((row) => toListItem(row, activeByUniversity.get(row.id) ?? 0)),
-    meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
+    data: rows.map((row) =>
+      toListItem(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings)),
+    ),
+    meta: pageMeta(pagination, total),
   }
 }
 
@@ -90,7 +180,13 @@ export async function getById(user: CurrentUser, id: string): Promise<University
   // Чужой вуз для представителя — NOT_FOUND, существование записи не раскрывается.
   if (!row) throw notFound('Вуз не найден')
   const activeByUniversity = await repo.countActiveCooperations([row.id])
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0)
+
+  // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
+  // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
+  // в отличие от реестра, где включается параметром. Представителю вуза — null.
+  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+
+  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
 
 export async function create(
@@ -118,7 +214,13 @@ export async function update(
 
   const row = await repo.update(id, input)
   const activeByUniversity = await repo.countActiveCooperations([row.id])
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0)
+
+  // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
+  // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
+  // в отличие от реестра, где включается параметром. Представителю вуза — null.
+  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+
+  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
 
 /** Архивирование вместо удаления: история сотрудничества должна сохраняться. */
@@ -143,5 +245,11 @@ export async function restore(user: CurrentUser, id: string): Promise<University
   if (!existing) throw notFound('Вуз не найден')
   const row = await repo.update(id, { archivedAt: null, status: 'IN_PROGRESS' })
   const activeByUniversity = await repo.countActiveCooperations([row.id])
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0)
+
+  // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
+  // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
+  // в отличие от реестра, где включается параметром. Представителю вуза — null.
+  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+
+  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }

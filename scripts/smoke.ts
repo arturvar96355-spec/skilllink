@@ -1817,6 +1817,100 @@ async function main(): Promise<void> {
   const hugeLimit = await fetchRaw('/api/export?dataset=universities&limit=999999')
   check('слишком большая выгрузка отклоняется', hugeLimit.status === 422)
 
+  // ── Рейтинг вуза (пункт 7.2 ТЗ) ────────────────────────────────────────────
+  step('Рейтинг вуза и фильтрация по нему')
+
+  const r_noRating = await call<{ rating: unknown }[]>('GET', '/api/universities?pageSize=3')
+  check(
+    'по умолчанию рейтинг не считается',
+    r_noRating.body.data?.every((row) => row.rating === null) === true,
+  )
+
+  type RatedRow = {
+    id: string
+    name: string
+    rating: {
+      score: number | null
+      basis: string
+      explanation: string
+      programCount: number
+      ratedProgramCount: number
+      topProgram: { programId: string; name: string; score: number } | null
+    }
+  }
+
+  const r_rated = await call<RatedRow[]>('GET', '/api/universities?pageSize=100&withRating=true')
+  const r_ratedRows = r_rated.body.data ?? []
+  check('withRating=true возвращает рейтинг у каждой строки', r_ratedRows.every((row) => row.rating !== null))
+  check(
+    'балл не выходит за шкалу 0..100',
+    r_ratedRows.every((row) => row.rating.score === null || (row.rating.score >= 0 && row.rating.score <= 100)),
+  )
+  check(
+    'у каждого балла есть человекочитаемое пояснение',
+    r_ratedRows.every((row) => row.rating.explanation.length > 10),
+  )
+  check(
+    'вуз без заполненных показателей получает null, а не ноль',
+    r_ratedRows.every((row) => row.rating.ratedProgramCount > 0 || row.rating.score === null),
+  )
+  check(
+    'учтённых программ не больше, чем всего',
+    r_ratedRows.every((row) => row.rating.ratedProgramCount <= row.rating.programCount),
+  )
+  check(
+    'у посчитанного балла раскрыта сильнейшая программа',
+    r_ratedRows.every((row) => row.rating.score === null || row.rating.topProgram !== null),
+  )
+
+  const r_desc = await call<RatedRow[]>('GET', '/api/universities?pageSize=100&sort=-rating')
+  const r_descScores = (r_desc.body.data ?? []).map((row) => row.rating.score)
+  const r_descNumbers = r_descScores.filter((score): score is number => score !== null)
+  check(
+    'сортировка по убыванию рейтинга действительно убывающая',
+    r_descNumbers.every((score, index) => index === 0 || r_descNumbers[index - 1]! >= score),
+  )
+  check(
+    'вузы без балла уходят в конец списка',
+    r_descScores.findIndex((score) => score === null) === -1 ||
+      r_descScores.findIndex((score) => score === null) >= r_descNumbers.length,
+  )
+
+  const r_asc = await call<RatedRow[]>('GET', '/api/universities?pageSize=100&sort=rating')
+  const r_ascNumbers = (r_asc.body.data ?? [])
+    .map((row) => row.rating.score)
+    .filter((score): score is number => score !== null)
+  check(
+    'сортировка по возрастанию рейтинга действительно возрастающая',
+    r_ascNumbers.every((score, index) => index === 0 || r_ascNumbers[index - 1]! <= score),
+  )
+
+  const r_threshold = r_descNumbers.length > 0 ? Math.floor(r_descNumbers[r_descNumbers.length - 1]!) : 0
+  const r_filtered = await call<RatedRow[]>(
+    'GET',
+    `/api/universities?pageSize=100&minRating=${r_threshold}&withRating=true`,
+  )
+  check(
+    'фильтр minRating не пропускает вузы ниже порога (пункт 7.2 ТЗ)',
+    (r_filtered.body.data ?? []).every((row) => row.rating.score !== null && row.rating.score >= r_threshold),
+  )
+  check(
+    'фильтр по рейтингу отсекает вузы без данных',
+    (r_filtered.body.data ?? []).every((row) => row.rating.score !== null),
+  )
+
+  const r_impossible = await call<RatedRow[]>('GET', '/api/universities?minRating=99&maxRating=1')
+  check(
+    'встречный диапазон рейтинга даёт пустой список, а не ошибку',
+    r_impossible.status === 200 && (r_impossible.body.data?.length ?? 0) === 0,
+  )
+
+  const r_outOfScale = await fetchRaw('/api/universities?minRating=200')
+  check('рейтинг вне шкалы 0..100 отклоняется', r_outOfScale.status === 422)
+
+  const r_ratedCard = await call<RatedRow>('GET', `/api/universities/${r_ratedRows[0]!.id}`)
+  check('карточка вуза отдаёт рейтинг без дополнительных параметров', r_ratedCard.body.data?.rating != null)
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Успешно: ${passed}${RESET}`)

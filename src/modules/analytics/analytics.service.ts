@@ -14,8 +14,8 @@ import { percent, round } from '@/shared/utils/number'
 import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDto } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
-import { calculateRatings } from './rating'
-import type { ProgramRatingDto } from '@/shared/contracts/rating'
+import { aggregateUniversityRatings, calculateRatings } from './rating'
+import type { ProgramRatingDto, UniversityRatingDto } from '@/shared/contracts/rating'
 
 /** Показатель без данных: значение null и явная пометка, а не ноль (решение 8). */
 function noData(key: string, title: string, unit: string, explanation: string): DashboardMetricDto {
@@ -320,4 +320,39 @@ export async function programRating(
     .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
   return { data: ranked.slice(0, options.limit), total: ranked.length }
+}
+
+/**
+ * Рейтинги всех вузов в области видимости пользователя (пункт 7.2 ТЗ).
+ *
+ * Возвращает карту, а не список: используется реестром вузов для показа,
+ * фильтрации и сортировки по рейтингу.
+ *
+ * Нормирование идёт по всей выборке программ сразу, поэтому вызывать функцию
+ * нужно один раз на запрос, а не по вузу.
+ */
+export async function universityRatings(
+  user: CurrentUser,
+): Promise<Map<string, UniversityRatingDto>> {
+  assertCan(user, 'ANALYTICS')
+
+  const programs = await repo.findProgramsForUniversityRating(universityScope(user))
+  const ratings = calculateRatings(
+    programs.map((program) => ({
+      programId: program.id,
+      applicationCount: program.applicationCount,
+      studentCount: program.studentCount,
+      groupCount: program.groupCount,
+      metricsSource: program.metricsSource,
+    })),
+  )
+
+  return aggregateUniversityRatings(
+    programs.map((program) => ({
+      programId: program.id,
+      programName: program.name,
+      universityId: program.universityId,
+    })),
+    ratings,
+  )
 }

@@ -138,3 +138,24 @@ export async function countLoggedOperations(scope: { universityId?: string }) {
   ])
   return { operations, cooperations }
 }
+
+/**
+ * Все действующие программы для рейтинга вузов — без ограничения количества.
+ *
+ * Лимит здесь был бы тихой ошибкой: обрезанная выборка сдвигает границы нормирования,
+ * и часть вузов получила бы баллы, посчитанные по другой шкале.
+ */
+export async function findProgramsForUniversityRating(scope: { universityId?: string }) {
+  return prisma.educationalProgram.findMany({
+    where: { status: 'ACTIVE', archivedAt: null, ...scope },
+    select: {
+      id: true,
+      name: true,
+      universityId: true,
+      applicationCount: true,
+      studentCount: true,
+      groupCount: true,
+      metricsSource: true,
+    },
+  })
+}

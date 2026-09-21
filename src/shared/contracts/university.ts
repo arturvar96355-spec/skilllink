@@ -1,4 +1,5 @@
 import type { UniversityStatus } from './enums'
+import type { UniversityRatingDto } from './rating'
 
 export interface ContactDto {
   id: string
@@ -21,6 +22,13 @@ export interface UniversityListItemDto {
   cooperationCount: number
   activeCooperationCount: number
   isMock: boolean
+  /**
+   * Рейтинг вуза (пункт 7.2 ТЗ) — агрегат рейтингов его программ.
+   * `null` означает, что рейтинг не запрашивался или роли недоступна аналитика:
+   * представитель вуза рейтингов не видит. Отсутствие данных — это `score: null`
+   * внутри объекта, а не сам `null`.
+   */
+  rating: UniversityRatingDto | null
   updatedAt: string
   archivedAt: string | null
 }

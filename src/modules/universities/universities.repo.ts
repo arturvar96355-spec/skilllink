@@ -49,10 +49,21 @@ export type UniversityDetailRow = Prisma.UniversityGetPayload<{ select: typeof d
 export function buildWhere(
   query: UniversityListQuery,
   scope: { universityId?: string },
+  restrictToIds?: readonly string[],
 ): Prisma.UniversityWhereInput {
   const where: Prisma.UniversityWhereInput = {}
 
   if (scope.universityId) where.id = scope.universityId
+  // Отбор по рейтингу считается в приложении и приходит сюда готовым списком.
+  // Пересечение с ограничением области видимости, а не замена: иначе представитель
+  // вуза увидел бы чужие записи.
+  if (restrictToIds) {
+    where.id = scope.universityId
+      ? restrictToIds.includes(scope.universityId)
+        ? scope.universityId
+        : { in: [] }
+      : { in: [...restrictToIds] }
+  }
   if (query.status?.length) where.status = { in: query.status }
   if (query.region?.length) where.region = { in: query.region }
   if (query.city?.length) where.city = { in: query.city }
@@ -75,8 +86,9 @@ export function buildWhere(
 export async function findMany(
   query: UniversityListQuery,
   scope: { universityId?: string },
+  restrictToIds?: readonly string[],
 ): Promise<{ rows: UniversityListRow[]; total: number }> {
-  const where = buildWhere(query, scope)
+  const where = buildWhere(query, scope, restrictToIds)
   const pagination: Pagination = { page: query.page, pageSize: query.pageSize }
   const { field, direction } = parseSort(query.sort, UNIVERSITY_SORT_FIELDS, {
     field: 'name',
@@ -94,6 +106,29 @@ export async function findMany(
   ])
 
   return { rows, total }
+}
+
+/**
+ * Идентификаторы всех вузов, подходящих под фильтры, без страницы.
+ * Нужны для сортировки по рейтингу: рейтинг считается в приложении,
+ * поэтому страницу нельзя взять средствами SQL.
+ */
+export async function findIds(
+  query: UniversityListQuery,
+  scope: { universityId?: string },
+  restrictToIds?: readonly string[],
+): Promise<string[]> {
+  const rows = await prisma.university.findMany({
+    where: buildWhere(query, scope, restrictToIds),
+    select: { id: true },
+  })
+  return rows.map((row) => row.id)
+}
+
+/** Строки списка по готовому набору идентификаторов. Порядок восстанавливает сервис. */
+export async function findByIds(ids: readonly string[]): Promise<UniversityListRow[]> {
+  if (ids.length === 0) return []
+  return prisma.university.findMany({ where: { id: { in: [...ids] } }, select: listSelect })
 }
 
 export async function findById(
