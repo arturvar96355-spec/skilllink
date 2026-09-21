@@ -21,7 +21,10 @@
 npm install
 ```
 
-Если npm заблокировал установочные скрипты Prisma (сообщение `install-scripts`):
+Установка сама генерирует клиент Prisma (`postinstall`), поэтому отдельного шага не нужно.
+
+Если npm пожаловался на заблокированные установочные скрипты (сообщение `install-scripts`) —
+разрешения хранятся в `package.json` и приходят вместе с репозиторием, но на всякий случай:
 
 ```bash
 npm install-scripts approve @prisma/engines prisma @prisma/client
@@ -95,10 +98,10 @@ npm run dev
 | `npm run openapi` | Пересобрать `docs/openapi.json` |
 | `npm run db:migrate` | Создать и применить миграцию |
 | `npm run db:deploy` | Применить миграции без создания новых (промышленный контур) |
+| `npm run db:generate` | Пересобрать клиент Prisma (выполняется и при `npm install`) |
 | `npm run db:seed` | Демонстрационные данные |
 | `npm run db:reset` | Сбросить базу, применить миграции заново, загрузить данные |
 | `npm run db:studio` | Визуальный редактор базы |
-| `npm run db:generate` | Пересобрать клиент Prisma |
 
 ## Тесты
 
