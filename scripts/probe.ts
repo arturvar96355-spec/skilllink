@@ -829,6 +829,30 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Опечатка в адресе не ломает разбор ответа ──────────────────────────────
+  step('Несуществующий адрес отвечает по контракту')
+
+  for (const path of ['/api/universitie', '/api/portal/programs', '/api/nope/deep/path']) {
+    const response = await fetch(`${BASE_URL}${path}`)
+    const contentType = response.headers.get('content-type') ?? ''
+    const text = await response.text()
+
+    check(`${path}: статус 404`, response.status === 404, `статус ${response.status}`)
+    check(
+      `${path}: ответ JSON, а не HTML-страница`,
+      contentType.includes('application/json'),
+      `тип ${contentType.split(';')[0]}`,
+    )
+
+    let code: string | undefined
+    try {
+      code = (JSON.parse(text) as { error?: { code?: string } }).error?.code
+    } catch {
+      code = undefined
+    }
+    check(`${path}: код ошибки NOT_FOUND`, code === 'NOT_FOUND', `получено ${code ?? 'не JSON'}`)
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

@@ -20,7 +20,12 @@ const CONTRACT = join(process.cwd(), 'docs/API_CONTRACT.md')
  * `/api/auth/callback/credentials`, `/api/auth/session`) описаны в разделе
  * аутентификации — сам файл-заглушка описывать нечего.
  */
-const NOT_DESCRIBED_SEPARATELY = ['/api/auth/:...nextauth']
+const NOT_DESCRIBED_SEPARATELY = [
+  '/api/auth/:...nextauth',
+  // Перехватывающий сегмент: отвечает JSON-ошибкой на несуществующий адрес.
+  // Отдельного описания у него нет — поведение описано в разделе об ошибках.
+  '/api/:...unknown',
+]
 
 function collectRoutes(directory: string, prefix = '/api'): string[] {
   const found: string[] = []
