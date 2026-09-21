@@ -181,13 +181,18 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
   }
 
   // Операции на связку. Считается по журналу действий, а не по всем действиям пользователя.
-  if (logged.cooperations === 0) {
+  //
+  // Пустой журнал — это «ещё не знаем», а не «усилий не требуется». Показать здесь ноль
+  // значило бы соврать ровно в ту сторону, в которую системе выгодно (решение 8).
+  if (logged.cooperations === 0 || logged.operations === 0) {
     metrics.push(
       noData(
         'operationsPerCooperation',
         'Операций на связку',
         'операций',
-        'Нет данных: связок пока нет',
+        logged.cooperations === 0
+          ? 'Нет данных: связок пока нет'
+          : 'Нет данных: действия ещё не записывались в журнал',
       ),
     )
   } else {

@@ -10,7 +10,8 @@
 npm run typecheck   без ошибок
 npm test            282 теста в 18 файлах, все проходят
 npm run build       собирается, 51 маршрут
-npm run smoke       295 проверок, все проходят
+npm run smoke       301 проверка, все проходят
+npm run probe       60 проверок, проблем не найдено
 ```
 
 **Проверено на объёме.** На отдельной базе с 120 вузами, 480 программами, 360 связками,
@@ -50,7 +51,7 @@ npm run smoke       295 проверок, все проходят
 | health | `GET /api/health` |
 | auth | `GET /api/me`; `GET /api/users`; маршруты NextAuth в `/api/auth/*` |
 | universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore` |
-| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive` |
+| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
 | skills | `GET /api/skills`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
@@ -186,6 +187,10 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
     Переходы этапов и документов переведены на условное обновление: если состояние
     изменилось между чтением и записью, приходит 409.
 21. **Двойной запуск генерации рекомендаций** падал с непонятным 409 про уникальность.
+22. **«Операций на связку» показывал 0** на пустом журнале — то есть «усилий не требуется»
+    вместо «ещё не знаем». По решению 8 это «Нет данных».
+23. **У программы не было возврата из архива**, хотя у вуза он был: убранную по ошибке
+    программу нечем было вернуть.
 
 ## Не сделано
 

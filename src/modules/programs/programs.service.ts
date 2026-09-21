@@ -206,3 +206,29 @@ export async function archive(user: CurrentUser, id: string): Promise<ProgramDto
   const row = await repo.update(id, { archivedAt: new Date(), status: 'ARCHIVED' })
   return toDetail(row)
 }
+
+/**
+ * Возврат программы из архива.
+ *
+ * Парная операция к архивированию: у вузов она была с самого начала, а программу,
+ * убранную в архив по ошибке, вернуть было нечем.
+ */
+export async function restore(user: CurrentUser, id: string): Promise<ProgramDto> {
+  assertCan(user, 'WRITE')
+
+  const existing = await repo.findById(id, universityScope(user))
+  if (!existing) throw notFound('Образовательная программа не найдена')
+
+  const university = await prisma.university.findUnique({
+    where: { id: existing.universityId },
+    select: { archivedAt: true },
+  })
+  if (university?.archivedAt) {
+    throw validationError('Нельзя вернуть программу: её вуз находится в архиве', [
+      { field: 'universityId', message: 'Сначала восстановите вуз' },
+    ])
+  }
+
+  const row = await repo.update(id, { archivedAt: null, status: 'ACTIVE' })
+  return toDetail(row)
+}

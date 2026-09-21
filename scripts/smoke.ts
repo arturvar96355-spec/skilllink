@@ -356,6 +356,44 @@ async function main(): Promise<void> {
     `статус ${sortedByMetric.status}`,
   )
 
+  // Архивирование и возврат — парные операции.
+  const archivable = await call<{ id: string }>('POST', '/api/programs', {
+    universityId,
+    name: `Программа для архива ${suffix}`,
+    level: 'DPO',
+  })
+  const archivableId = archivable.body.data?.id
+  if (archivableId) {
+    const archived = await call<{ status: string; archivedAt: string | null }>(
+      'POST',
+      `/api/programs/${archivableId}/archive`,
+    )
+    check('программа архивируется', archived.body.data?.status === 'ARCHIVED')
+    check('дата архивирования проставлена', Boolean(archived.body.data?.archivedAt))
+
+    const hidden = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=100')
+    check(
+      'архивная программа скрыта из списка по умолчанию',
+      !(hidden.body.data ?? []).some((item) => item.id === archivableId),
+    )
+
+    const visible = await call<Array<{ id: string }>>(
+      'GET',
+      '/api/programs?pageSize=100&includeArchived=true',
+    )
+    check(
+      'архивную программу видно по явному запросу',
+      (visible.body.data ?? []).some((item) => item.id === archivableId),
+    )
+
+    const restored = await call<{ status: string; archivedAt: string | null }>(
+      'POST',
+      `/api/programs/${archivableId}/restore`,
+    )
+    check('программа возвращается из архива', restored.body.data?.status === 'ACTIVE')
+    check('дата архивирования снята', restored.body.data?.archivedAt === null)
+  }
+
   const sortedByName = await call<unknown[]>('GET', '/api/programs?sort=name')
   check('сортировка по названию работает', sortedByName.status === 200, `статус ${sortedByName.status}`)
 
