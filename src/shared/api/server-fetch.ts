@@ -1,4 +1,4 @@
-import { cookies, headers } from 'next/headers'
+import { cookies } from 'next/headers'
 
 /**
  * Запрос к собственному API из серверного компонента.
@@ -24,18 +24,31 @@ import { cookies, headers } from 'next/headers'
  *
  * В клиентских компонентах обёртка не нужна: браузер отправляет cookie сам.
  */
+
+/**
+ * Куда идёт запрос.
+ *
+ * Адрес НИКОГДА не берётся из заголовков запроса. `Host` и тем более
+ * `X-Forwarded-Host` задаёт тот, кто прислал запрос: подделав заголовок,
+ * он заставил бы сервер отправить cookie пользователя на чужой адрес.
+ * Это не теория — так и было в первой версии обёртки.
+ *
+ * Поэтому либо явно заданный `APP_BASE_URL`, либо обращение к самому себе
+ * по петлевому адресу. Второе увести никуда нельзя.
+ */
+function resolveBaseUrl(): string {
+  const configured = process.env.APP_BASE_URL?.trim()
+  if (configured) return configured.replace(/\/+$/, '')
+
+  const port = process.env.PORT?.trim() || '3000'
+  return `http://127.0.0.1:${port}`
+}
+
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const [cookieStore, headerList] = await Promise.all([cookies(), headers()])
-
-  // Адрес берём из заголовков запроса: так страница работает на любом порту
-  // и за обратным прокси, а не только на localhost:3000.
-  const host = headerList.get('x-forwarded-host') ?? headerList.get('host')
-  const protocol = headerList.get('x-forwarded-proto') ?? 'http'
-  const base = host ? `${protocol}://${host}` : (process.env.APP_BASE_URL ?? 'http://localhost:3000')
-
+  const cookieStore = await cookies()
   const cookieHeader = cookieStore.toString()
 
-  return fetch(`${base}${path}`, {
+  return fetch(`${resolveBaseUrl()}${path}`, {
     ...init,
     // Данные страницы не кешируются: иначе после действия пользователь увидит
     // прежнее состояние и решит, что оно не сохранилось.

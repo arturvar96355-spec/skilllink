@@ -5,8 +5,7 @@ import { join } from 'node:path'
 /**
  * Обёртка обращается к `next/headers`, который вне запроса Next не работает,
  * поэтому поведение проверяется пробником на живом сервере. Здесь — то, что
- * можно проверить без запроса: обёртка действительно передаёт cookie и не
- * потеряла эту строку при правке.
+ * можно проверить без запроса.
  */
 describe('запрос к своему API с сервера', () => {
   const source = readFileSync(join(process.cwd(), 'src/shared/api/server-fetch.ts'), 'utf8')
@@ -18,10 +17,20 @@ describe('запрос к своему API с сервера', () => {
     ).toBe(true)
   })
 
-  it('берёт адрес из заголовков запроса, а не только из настройки', () => {
-    // Иначе страница сломается на любом порту, кроме 3000, и за обратным прокси.
-    expect(source).toContain('x-forwarded-host')
-    expect(source).toContain("headerList.get('host')")
+  it('НЕ берёт адрес из заголовков запроса', () => {
+    // Первая версия брала адрес из X-Forwarded-Host. Подделав заголовок, можно
+    // было заставить сервер отправить cookie пользователя на чужой хост —
+    // проверено, запрос действительно уходил наружу. Заголовкам здесь не место.
+    expect(source).not.toContain('x-forwarded-host')
+    expect(source).not.toContain('x-forwarded-proto')
+    expect(source).not.toMatch(/headers\(\)/)
+    expect(source).not.toMatch(/\.get\('host'\)/)
+  })
+
+  it('идёт на себя по петлевому адресу, когда APP_BASE_URL не задан', () => {
+    // Петлевой адрес увести никуда нельзя — это и есть защита.
+    expect(source).toContain('127.0.0.1')
+    expect(source).toContain('APP_BASE_URL')
   })
 
   it('не кеширует ответы по умолчанию', () => {
