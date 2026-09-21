@@ -1,5 +1,6 @@
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { STATUS_LABELS as STAGE_STATUS_LABELS } from '@/modules/workflow/workflow.rules'
 import type {
   ConfidenceLevel,
   RecommendationPriority,
@@ -68,7 +69,7 @@ export function ruleOverdueStage(
     priority: overduePriority(daysOverdue),
     justification:
       `Нормативный срок этапа прошёл ${daysOverdue} дн. назад, этап всё ещё в статусе ` +
-      `«${input.status}».` +
+      `«${STAGE_STATUS_LABELS[input.status]}».` +
       (input.responsibleName ? ` Ответственный: ${input.responsibleName}.` : ''),
     relatedData: {
       stageNumber: input.stageNumber,
@@ -151,7 +152,7 @@ export function ruleStalledCooperation(
     description: `${action} Вуз: ${input.universityName}, программа: ${input.programName}.`,
     priority,
     justification:
-      `Текущий этап ${input.stageNumber} в статусе «${input.stageStatus}», ` +
+      `Текущий этап ${input.stageNumber} в статусе «${STAGE_STATUS_LABELS[input.stageStatus]}», ` +
       `изменений по связке не было ${idleDays} дн. ` +
       `Порог — ${RECOMMENDATION_RULES.stalledDays} дн.`,
     relatedData: {

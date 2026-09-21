@@ -1,6 +1,7 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
+import { STAGE_STATUS_LABELS } from '@/shared/contracts/labels'
 
 /**
  * Таблица переходов (решение 3 в CLAUDE.md).
@@ -16,13 +17,8 @@ export const ALLOWED_TRANSITIONS: Record<StageStatus, readonly StageStatus[]> = 
   CANCELLED: ['IN_PROGRESS'],
 }
 
-export const STATUS_LABELS: Record<StageStatus, string> = {
-  NOT_STARTED: 'Не начат',
-  IN_PROGRESS: 'В работе',
-  BLOCKED: 'Заблокирован',
-  COMPLETED: 'Завершён',
-  CANCELLED: 'Отменён',
-}
+/** Реэкспорт: словарь один на всю систему и живёт в контрактах, доступных фронту. */
+export { STAGE_STATUS_LABELS as STATUS_LABELS } from '@/shared/contracts/labels'
 
 export interface StageState {
   stageNumber: number
@@ -68,7 +64,7 @@ export function assertTransition(
   const to = request.toStatus
 
   if (from === to) {
-    throw invalidTransition(`Этап уже находится в статусе «${STATUS_LABELS[to]}»`, {
+    throw invalidTransition(`Этап уже находится в статусе «${STAGE_STATUS_LABELS[to]}»`, {
       from,
       to,
     })
@@ -76,7 +72,7 @@ export function assertTransition(
 
   if (!ALLOWED_TRANSITIONS[from].includes(to)) {
     throw invalidTransition(
-      `Недопустимый переход: «${STATUS_LABELS[from]}» → «${STATUS_LABELS[to]}»`,
+      `Недопустимый переход: «${STAGE_STATUS_LABELS[from]}» → «${STAGE_STATUS_LABELS[to]}»`,
       { from, to, allowed: ALLOWED_TRANSITIONS[from] },
     )
   }
@@ -141,7 +137,7 @@ export function assertTasksEditable(stageStatus: StageStatus, stageNumber: numbe
   }
   if (stageStatus === 'COMPLETED' || stageStatus === 'CANCELLED') {
     throw conflict(
-      `Этап в статусе «${STATUS_LABELS[stageStatus]}»: пункты чек-листа не меняются. ` +
+      `Этап в статусе «${STAGE_STATUS_LABELS[stageStatus]}»: пункты чек-листа не меняются. ` +
         'Переоткройте этап, чтобы его править.',
       { stageStatus },
     )

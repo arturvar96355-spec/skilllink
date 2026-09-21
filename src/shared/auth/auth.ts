@@ -27,19 +27,31 @@ declare module 'next-auth' {
   }
 }
 
+const DEV_SECRET = 'skilllink-dev-secret-not-for-production'
+
 /**
- * Секрет обязателен: без него JWT не подписывается.
- * В разработке подставляется заглушка, чтобы стенд поднимался из коробки,
- * но в продакшене отсутствие секрета — это падение при старте, а не тихая работа.
+ * Секрет подписи JWT.
+ *
+ * В продакшене его отсутствие — падение при старте, а не тихая работа с известным
+ * всем значением. Но на этапе сборки токены не выпускаются, и требовать там боевой
+ * секрет нельзя: иначе `next build` не пройдёт ни в CI, ни при сборке образа, куда
+ * секреты попадают только на запуске.
  */
 function resolveSecret(): string {
   const secret = process.env.AUTH_SECRET
   if (secret && secret.trim().length > 0) return secret
 
+  // Next выставляет эту переменную только во время `next build`.
+  const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+  if (isBuildPhase) return DEV_SECRET
+
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('Не задана переменная окружения AUTH_SECRET')
+    throw new Error(
+      'Не задана переменная окружения AUTH_SECRET. ' +
+        'Сгенерируйте её командой: openssl rand -base64 32',
+    )
   }
-  return 'skilllink-dev-secret-not-for-production'
+  return DEV_SECRET
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({

@@ -1,6 +1,7 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
 import { MISSING_PLACEHOLDER } from '@/shared/config/document-templates.config'
 import type { DocumentStatus } from '@/shared/contracts/enums'
+import { DOCUMENT_STATUS_LABELS as STATUS_TEXT } from '@/shared/contracts/labels'
 
 /**
  * Жизненный цикл документа (раздел 9.1 ТЗ).
@@ -17,14 +18,8 @@ export const ALLOWED_DOCUMENT_TRANSITIONS: Record<DocumentStatus, readonly Docum
   ARCHIVED: [],
 }
 
-export const DOCUMENT_STATUS_LABELS: Record<DocumentStatus, string> = {
-  DRAFT: 'Черновик',
-  REVIEW: 'На согласовании',
-  APPROVED: 'Согласован',
-  SIGNED: 'Подписан',
-  REJECTED: 'Отклонён',
-  ARCHIVED: 'В архиве',
-}
+/** Реэкспорт: словарь один на всю систему и живёт в контрактах, доступных фронту. */
+export { DOCUMENT_STATUS_LABELS } from '@/shared/contracts/labels'
 
 function isFilled(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0
@@ -50,12 +45,12 @@ export function assertDocumentTransition(
   const to = request.toStatus
 
   if (from === to) {
-    throw invalidTransition(`Документ уже в статусе «${DOCUMENT_STATUS_LABELS[to]}»`, { from, to })
+    throw invalidTransition(`Документ уже в статусе «${STATUS_TEXT[to]}»`, { from, to })
   }
 
   if (!ALLOWED_DOCUMENT_TRANSITIONS[from].includes(to)) {
     throw invalidTransition(
-      `Недопустимый переход документа: «${DOCUMENT_STATUS_LABELS[from]}» → «${DOCUMENT_STATUS_LABELS[to]}»`,
+      `Недопустимый переход документа: «${STATUS_TEXT[from]}» → «${STATUS_TEXT[to]}»`,
       { from, to, allowed: ALLOWED_DOCUMENT_TRANSITIONS[from] },
     )
   }
@@ -79,7 +74,7 @@ export function assertDocumentTransition(
 export function assertDocumentEditable(status: DocumentStatus): void {
   if (status === 'SIGNED' || status === 'ARCHIVED') {
     throw conflict(
-      `Документ в статусе «${DOCUMENT_STATUS_LABELS[status]}» не редактируется. Создайте новую версию.`,
+      `Документ в статусе «${STATUS_TEXT[status]}» не редактируется. Создайте новую версию.`,
       { status },
     )
   }

@@ -1,0 +1,81 @@
+name: Проверки
+
+# Прогоняется на каждый пуш и запрос на слияние: типы, тесты, сборка и сквозной
+# сценарий против поднятой базы. Секреты для этого не нужны — сборка их не требует.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  checks:
+    name: Типы, тесты и сквозной сценарий
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: skilllink
+          POSTGRES_PASSWORD: skilllink
+          POSTGRES_DB: skilllink
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U skilllink -d skilllink"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://skilllink:skilllink@localhost:5432/skilllink?schema=public
+      APP_BASE_URL: http://localhost:3000
+      AUTH_SECRET: ci-secret-not-for-production
+      DEMO_AUTH_ENABLED: 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall генерирует клиент Prisma — он нужен и типам, и тестам.
+      - name: Установка зависимостей
+        run: npm ci
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Модульные тесты
+        run: npm test
+
+      - name: Спецификация OpenAPI не разошлась с кодом
+        run: |
+          npm run openapi
+          git diff --exit-code docs/openapi.json \
+            || (echo "docs/openapi.json устарел: выполните npm run openapi и закоммитьте" && exit 1)
+
+      - name: Сборка
+        run: npm run build
+
+      - name: Миграции и демонстрационные данные
+        run: |
+          npm run db:deploy
+          npm run db:seed
+
+      - name: Запуск приложения
+        run: |
+          npm start &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3000/api/health && break
+            sleep 2
+          done
+
+      - name: Сквозной сценарий
+        run: npm run smoke
+
+      - name: Пробник
+        run: npm run probe

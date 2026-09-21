@@ -190,10 +190,5 @@ export const STAGE_BY_NUMBER: ReadonlyMap<number, StageDefinition> = new Map(
   WORKFLOW_STAGES.map((stage) => [stage.number, stage]),
 )
 
-export const PHASE_LABELS: Record<StagePhase, string> = {
-  ATTRACTION: 'Привлечение',
-  FORMALIZATION: 'Оформление',
-  IMPLEMENTATION: 'Внедрение',
-  OPERATION: 'Эксплуатация',
-  CONTROL: 'Контроль',
-}
+/** Реэкспорт: словарь подписей живёт в контрактах, доступных фронту. */
+export { STAGE_PHASE_LABELS as PHASE_LABELS } from '@/shared/contracts/labels'
