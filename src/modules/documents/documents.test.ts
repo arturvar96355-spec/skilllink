@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
+import { DOCUMENT_TEMPLATES, MISSING_PLACEHOLDER } from '@/shared/config/document-templates.config'
 import {
   ALLOWED_DOCUMENT_TRANSITIONS,
   assertDocumentEditable,
   assertDocumentTransition,
   assertHasLink,
   nextVersion,
+  renderTemplate,
 } from './documents.rules'
 import {
   createDocumentSchema,
   documentListQuerySchema,
+  generateDocumentsSchema,
   updateDocumentSchema,
 } from './documents.schema'
 
@@ -65,11 +68,21 @@ describe('жизненный цикл документа', () => {
     )
   })
 
-  it('на согласование нельзя отправить документ без ссылки на файл', () => {
+  it('на согласование нельзя отправить пустой документ', () => {
     expectError(
       () => assertDocumentTransition(doc('DRAFT', null), { toStatus: 'REVIEW' }),
       'VALIDATION_ERROR',
     )
+  })
+
+  it('собранный из шаблона текст заменяет ссылку на файл', () => {
+    // Сгенерированный документ — это и есть документ: требовать вдобавок файл незачем.
+    expect(() =>
+      assertDocumentTransition(
+        { status: 'DRAFT', fileReference: null, content: 'ДОГОВОР О СОТРУДНИЧЕСТВЕ…' },
+        { toStatus: 'REVIEW' },
+      ),
+    ).not.toThrow()
   })
 
   it('отклонение требует основания', () => {
@@ -183,5 +196,88 @@ describe('валидация документа', () => {
 
   it('фильтр списка приводит одиночный статус к массиву', () => {
     expect(documentListQuerySchema.parse({ status: 'SIGNED' }).status).toEqual(['SIGNED'])
+  })
+})
+
+describe('подстановка реквизитов в шаблон', () => {
+  const context = {
+    'university.name': 'СПбГУТ',
+    'program.name': 'Программная инженерия',
+    'product.name': null,
+  }
+
+  it('подставляет известные реквизиты', () => {
+    const result = renderTemplate('Вуз: {{university.name}}', context)
+    expect(result.text).toBe('Вуз: СПбГУТ')
+    expect(result.missing).toEqual([])
+  })
+
+  it('недостающий реквизит становится видимым прочерком, а не пустотой', () => {
+    const result = renderTemplate('Продукт: {{product.name}}', context)
+    expect(result.text).toBe(`Продукт: ${MISSING_PLACEHOLDER}`)
+    expect(result.missing).toEqual(['product.name'])
+  })
+
+  it('неизвестный реквизит тоже попадает в список недостающих', () => {
+    const result = renderTemplate('{{unknown.field}}', context)
+    expect(result.missing).toEqual(['unknown.field'])
+  })
+
+  it('один и тот же реквизит не дублируется в списке', () => {
+    const result = renderTemplate('{{product.name}} и ещё раз {{product.name}}', context)
+    expect(result.missing).toEqual(['product.name'])
+  })
+
+  it('терпит пробелы внутри скобок', () => {
+    expect(renderTemplate('{{  university.name  }}', context).text).toBe('СПбГУТ')
+  })
+
+  it('пустая строка считается отсутствующим значением', () => {
+    const result = renderTemplate('{{empty}}', { empty: '   ' })
+    expect(result.missing).toEqual(['empty'])
+  })
+
+  it('текст без подстановок не меняется', () => {
+    expect(renderTemplate('Просто текст', context).text).toBe('Просто текст')
+  })
+})
+
+describe('набор шаблонов', () => {
+  it('ключи уникальны', () => {
+    const keys = DOCUMENT_TEMPLATES.map((template) => template.key)
+    expect(new Set(keys).size).toBe(keys.length)
+  })
+
+  it('в пакет по умолчанию входит несколько документов', () => {
+    expect(DOCUMENT_TEMPLATES.filter((template) => template.inDefaultPackage).length).toBeGreaterThan(1)
+  })
+
+  it('у каждого шаблона есть описание и непустое тело', () => {
+    expect(
+      DOCUMENT_TEMPLATES.every(
+        (template) => template.description.length > 0 && template.body.length > 0,
+      ),
+    ).toBe(true)
+  })
+
+  it('каждый шаблон честно помечен как болванка', () => {
+    // Юридически выверенных форм у нас нет, и документ не должен притворяться готовым.
+    expect(DOCUMENT_TEMPLATES.every((template) => template.body.includes('TEMP'))).toBe(true)
+  })
+})
+
+describe('запрос на сборку пакета', () => {
+  it('работает без тела: собирается пакет по умолчанию', () => {
+    expect(generateDocumentsSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('принимает список шаблонов', () => {
+    expect(generateDocumentsSchema.safeParse({ templateKeys: ['nda', 'agreement'] }).success).toBe(
+      true,
+    )
+  })
+
+  it('отклоняет пустой ключ шаблона', () => {
+    expect(generateDocumentsSchema.safeParse({ templateKeys: [''] }).success).toBe(false)
   })
 })

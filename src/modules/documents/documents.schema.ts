@@ -57,3 +57,13 @@ export const changeDocumentStatusSchema = z.object({
 })
 
 export type ChangeDocumentStatusInput = z.infer<typeof changeDocumentStatusSchema>
+
+/** Сборка пакета документов из шаблонов для связки. */
+export const generateDocumentsSchema = z.object({
+  /** Какие шаблоны собрать. Без списка берётся пакет по умолчанию. */
+  templateKeys: z.array(z.string().trim().min(1)).max(20).optional(),
+  /** Пересобрать, даже если документ по этому шаблону уже есть в связке. */
+  force: z.boolean().optional(),
+})
+
+export type GenerateDocumentsInput = z.infer<typeof generateDocumentsSchema>

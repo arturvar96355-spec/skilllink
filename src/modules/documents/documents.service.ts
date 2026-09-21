@@ -9,7 +9,15 @@ import type {
   DocumentDto,
   DocumentLinksDto,
   DocumentListItemDto,
+  DocumentPackageResultDto,
+  DocumentTemplateDto,
+  GeneratedDocumentDto,
 } from '@/shared/contracts/document'
+import {
+  DOCUMENT_TEMPLATES,
+  TEMPLATE_BY_KEY,
+  TEMPLATE_PLACEHOLDERS,
+} from '@/shared/config/document-templates.config'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './documents.repo'
 import {
@@ -17,11 +25,14 @@ import {
   assertDocumentTransition,
   assertHasLink,
   nextVersion,
+  renderTemplate,
+  type TemplateContext,
 } from './documents.rules'
 import type {
   ChangeDocumentStatusInput,
   CreateDocumentInput,
   DocumentListQuery,
+  GenerateDocumentsInput,
   UpdateDocumentInput,
 } from './documents.schema'
 
@@ -42,6 +53,8 @@ function toListItem(row: repo.DocumentListRow): DocumentListItemDto {
     title: row.title,
     version: row.version,
     status: row.status,
+    content: row.content,
+    templateKey: row.templateKey,
     fileReference: row.fileReference,
     author: row.author,
     responsible: row.responsible,
@@ -211,7 +224,11 @@ export async function changeStatus(
   if (!existing) throw notFound('Документ не найден')
 
   assertDocumentTransition(
-    { status: existing.status, fileReference: existing.fileReference },
+    {
+      status: existing.status,
+      fileReference: existing.fileReference,
+      content: existing.content,
+    },
     { toStatus: input.status, comment: input.comment },
   )
 
@@ -277,4 +294,155 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
   })
 
   return toDetail(created)
+}
+
+// ─────────────────── Сборка пакета документов из шаблонов ───────────────────
+
+const PROGRAM_LEVEL_LABELS: Record<string, string> = {
+  SPO: 'среднее профессиональное образование',
+  BACHELOR: 'бакалавриат',
+  SPECIALIST: 'специалитет',
+  MASTER: 'магистратура',
+  POSTGRADUATE: 'аспирантура',
+  DPO: 'дополнительное профессиональное образование',
+}
+
+/** Какие подстановки поддерживает каждый шаблон — нужно фронту для подсказки. */
+function placeholdersOf(body: string, title: string): string[] {
+  const found = new Set<string>()
+  for (const match of `${title}\n${body}`.matchAll(/\{\{\s*([a-zA-Z.]+)\s*\}\}/g)) {
+    if (match[1]) found.add(match[1])
+  }
+  return [...found].sort()
+}
+
+export function listTemplates(user: CurrentUser): DocumentTemplateDto[] {
+  assertCan(user, 'READ')
+  return DOCUMENT_TEMPLATES.map((template) => ({
+    key: template.key,
+    type: template.type,
+    title: template.title,
+    description: template.description,
+    inDefaultPackage: template.inDefaultPackage,
+    placeholders: placeholdersOf(template.body, template.title),
+  }))
+}
+
+/** Доступные для подстановки реквизиты. Список общий для всех шаблонов. */
+export function listPlaceholders(): string[] {
+  return [...TEMPLATE_PLACEHOLDERS]
+}
+
+/**
+ * Собирает пакет документов по связке с автоподстановкой реквизитов (концепция).
+ *
+ * Документ по уже использованному шаблону повторно не создаётся: иначе повторное нажатие
+ * кнопки засыпало бы связку дублями. Пересборка — явным флагом `force`.
+ */
+export async function generatePackage(
+  user: CurrentUser,
+  cooperationId: string,
+  input: GenerateDocumentsInput,
+): Promise<DocumentPackageResultDto> {
+  assertCan(user, 'WRITE')
+
+  const source = await repo.loadTemplateContextSource(cooperationId)
+  if (!source || !isUniversityVisible(user, source.universityId)) {
+    throw notFound('Связка не найдена')
+  }
+
+  const requestedKeys = input.templateKeys ?? null
+  if (requestedKeys) {
+    const unknown = requestedKeys.filter((key) => !TEMPLATE_BY_KEY.has(key))
+    if (unknown.length > 0) {
+      throw validationError('Указаны несуществующие шаблоны', [
+        { field: 'templateKeys', message: `Не найдены: ${unknown.join(', ')}` },
+      ])
+    }
+  }
+
+  const templates = requestedKeys
+    ? requestedKeys.map((key) => TEMPLATE_BY_KEY.get(key)!)
+    : DOCUMENT_TEMPLATES.filter((template) => template.inDefaultPackage)
+
+  const contact = source.university.contacts[0]
+  const context: TemplateContext = {
+    'university.name': source.university.name,
+    'university.shortName': source.university.shortName ?? source.university.name,
+    'university.city': source.university.city,
+    'university.address': source.university.address,
+    'university.website': source.university.website,
+    'contact.fullName': contact?.fullName ?? null,
+    'contact.position': contact?.position ?? null,
+    'program.name': source.program.name,
+    'program.level': PROGRAM_LEVEL_LABELS[source.program.level] ?? source.program.level,
+    'program.code': source.program.code,
+    'product.name': source.product?.name ?? null,
+    'product.version': source.product?.version ?? null,
+    'responsible.fullName': source.responsible.fullName,
+    'responsible.position': source.responsible.position,
+    'cooperation.goal': source.goal,
+    date: new Date().toLocaleDateString('ru-RU'),
+  }
+
+  const existingKeys = input.force ? new Set<string>() : await repo.findTemplateKeys(cooperationId)
+
+  const created: GeneratedDocumentDto[] = []
+  const skipped: Array<{ templateKey: string; reason: string }> = []
+  const missingFields = new Set<string>()
+
+  for (const template of templates) {
+    if (existingKeys.has(template.key)) {
+      skipped.push({
+        templateKey: template.key,
+        reason: 'Документ по этому шаблону в связке уже есть',
+      })
+      continue
+    }
+
+    const renderedTitle = renderTemplate(template.title, context)
+    const renderedBody = renderTemplate(template.body, context)
+    for (const field of renderedBody.missing) missingFields.add(field)
+    for (const field of renderedTitle.missing) missingFields.add(field)
+
+    const row = await repo.create({
+      type: template.type,
+      title: renderedTitle.text,
+      version: '1',
+      content: renderedBody.text,
+      templateKey: template.key,
+      fileReference: null,
+      author: { connect: { id: user.id } },
+      // Ответственный — тот, кто ведёт связку, а не тот, кто нажал «собрать пакет».
+      responsible: { connect: { id: source.responsible.id } },
+      cooperation: { connect: { id: cooperationId } },
+      university: { connect: { id: source.universityId } },
+    })
+
+    created.push({
+      document: toListItem(row),
+      templateKey: template.key,
+      missing: [...new Set([...renderedTitle.missing, ...renderedBody.missing])].sort(),
+    })
+  }
+
+  await writeAudit({
+    userId: user.id,
+    action: 'document.package.generate',
+    objectType: 'Cooperation',
+    objectId: cooperationId,
+    payload: {
+      created: created.length,
+      skipped: skipped.length,
+      missingFields: [...missingFields],
+    },
+  })
+
+  return {
+    cooperationId,
+    created,
+    skipped,
+    missingFields: [...missingFields].sort(),
+    generatedAt: new Date().toISOString(),
+  }
 }

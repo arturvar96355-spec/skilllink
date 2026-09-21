@@ -21,6 +21,7 @@ export type AuditAction =
   | 'document.update'
   | 'document.status.change'
   | 'document.version.create'
+  | 'document.package.generate'
   | 'meeting.create'
   | 'meeting.update'
   | 'portal.material.confirm'
