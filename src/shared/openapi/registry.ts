@@ -3,6 +3,7 @@ import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
+import { exportQuerySchema } from '@/modules/export/export.schema'
 import { userListQuerySchema } from '@/modules/auth/auth.schema'
 import {
   cooperationListQuerySchema,
@@ -695,6 +696,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Источники данных',
     summary: 'Состояние интеграций',
     permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/export',
+    tag: 'Выгрузка',
+    summary: 'Выгрузка реестра в CSV',
+    description:
+      'Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой. ' +
+      'Права совпадают с правами соответствующего раздела.',
+    permission: 'READ',
+    query: exportQuerySchema,
     errors: COMMON_ERRORS,
   },
   {

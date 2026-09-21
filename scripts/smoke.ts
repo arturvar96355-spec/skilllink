@@ -87,6 +87,39 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
   return { status: response.status, body: parsed }
 }
 
+/**
+ * Запрос за файлом: выгрузка отдаёт CSV, а не JSON.
+ *
+ * Тело читается байтами: `response.text()` по спецификации удаляет BOM при декодировании,
+ * а BOM здесь — ровно то, ради чего файл открывается в Excel без кракозябр.
+ */
+async function fetchRaw(path: string): Promise<{
+  status: number
+  headers: Headers
+  text: string
+  bytes: Uint8Array
+}> {
+  const cookieHeader = buildCookieHeader()
+  const response = await fetch(`${BASE_URL}${path}`, {
+    headers: cookieHeader === '' ? {} : { cookie: cookieHeader },
+    redirect: 'manual',
+  })
+  rememberCookies(response)
+
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  return {
+    status: response.status,
+    headers: response.headers,
+    text: new TextDecoder('utf-8').decode(bytes),
+    bytes,
+  }
+}
+
+/** Начинается ли файл с UTF-8 BOM (EF BB BF). */
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
+}
+
 /** Пользователь из ответа /api/auth/session. Без сессии NextAuth отдаёт литеральный null. */
 function sessionUserOf(result: ApiResult<unknown>): { id?: string; role?: string } | null {
   const body = result.body as unknown as { user?: { id?: string; role?: string } } | null
@@ -1635,6 +1668,33 @@ async function main(): Promise<void> {
   // Спецификация должна описывать живой сервер, а не расходиться с ним.
   const gapsSpec = document.paths?.['/api/skills/gaps']?.get
   check('описан эндпоинт дефицита навыков', Boolean(gapsSpec))
+
+  // ── 24. Выгрузка реестров ──────────────────────────────────────────────────
+  step('24. Выгрузка реестров в CSV')
+
+  for (const dataset of ['universities', 'programs', 'cooperations', 'skill-gaps']) {
+    const file = await fetchRaw(`/api/export?dataset=${dataset}&limit=50`)
+    check(`выгрузка ${dataset} отвечает 200`, file.status === 200, `статус ${file.status}`)
+    check(
+      `${dataset}: тип содержимого — CSV`,
+      (file.headers.get('content-type') ?? '').includes('text/csv'),
+    )
+    check(
+      `${dataset}: файл предлагается к скачиванию`,
+      (file.headers.get('content-disposition') ?? '').includes('.csv'),
+    )
+    check(`${dataset}: файл начинается с BOM для Excel`, hasUtf8Bom(file.bytes))
+    check(
+      `${dataset}: есть строка заголовков`,
+      (file.text.split('\r\n')[0] ?? '').includes(';'),
+    )
+  }
+
+  const badDataset = await fetchRaw('/api/export?dataset=everything')
+  check('неизвестный раздел выгрузки отклоняется', badDataset.status === 422)
+
+  const hugeLimit = await fetchRaw('/api/export?dataset=universities&limit=999999')
+  check('слишком большая выгрузка отклоняется', hugeLimit.status === 422)
 
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
