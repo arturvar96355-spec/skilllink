@@ -22,8 +22,10 @@ import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
+  assertControlPointReady,
   assertTasksEditable,
   assertTransition,
+  isControlPoint,
   computeControlStatus,
   isAutoManaged,
   isOverdue,
@@ -185,6 +187,16 @@ export async function updateStage(
   const statusChanged = input.status !== undefined && input.status !== stage.status
 
   if (input.status !== undefined) {
+    // Контрольная точка проверяется до таблицы переходов: сообщение «сначала
+    // закройте этапы 4 и 5» полезнее, чем «переход недопустим».
+    if (statusChanged && isControlPoint(stage.stageNumber)) {
+      assertControlPointReady(
+        stage.stageNumber,
+        input.status,
+        await repo.findPriorStages(stage.cooperationId, stage.stageNumber),
+      )
+    }
+
     assertTransition(
       {
         stageNumber: stage.stageNumber,

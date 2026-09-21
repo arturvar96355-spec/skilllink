@@ -110,7 +110,7 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 | Фильтр по статусу | `?status=ACTIVE&status=NEW` |
 | Фильтр по региону | `?region=Москва` |
 | Сортировка | `?sort=name`, `?sort=-updatedAt`, `?sort=-rating` |
-| Колонка рейтинга | `?withRating=true` — по умолчанию рейтинг не считается |
+| Колонка рейтинга | приходит по умолчанию; `?withRating=false` отключает расчёт |
 | Фильтр по рейтингу | `?minRating=50`, `?maxRating=80` (пункт 7.2 ТЗ) |
 | Добавление | `POST /api/universities` |
 | Редактирование | `PATCH /api/universities/:id` |
@@ -119,8 +119,8 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 
 **Про рейтинг вуза.** Собственных показателей рейтинга у вуза нет — он агрегируется
 из рейтингов его программ (методика в [ANALYTICS_METHODOLOGY.md](ANALYTICS_METHODOLOGY.md),
-раздел 1а). Поэтому он считается отдельным проходом и включается параметром `withRating=true`:
-без него в ответе `rating: null`, и это означает «не запрашивали», а не «нет данных».
+раздел 1а). Приходит в каждой строке по умолчанию; `?withRating=false` отключает расчёт
+там, где колонка не нужна.
 
 Три следствия для интерфейса:
 

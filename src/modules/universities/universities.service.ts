@@ -16,6 +16,7 @@ import * as repo from './universities.repo'
 import { assertCanArchive, assertNotArchived } from './universities.rules'
 import {
   needsRating,
+  ratingRequestedExplicitly,
   UNIVERSITY_RATING_SORT,
   type CreateUniversityInput,
   type UniversityListQuery,
@@ -109,11 +110,15 @@ export async function list(
 ): Promise<{ data: UniversityListItemDto[]; meta: PageMeta }> {
   assertCan(user, 'READ')
 
-  // Рейтинг — аналитика: представителю вуза он недоступен даже как фильтр,
-  // иначе по отклику списка можно было бы восстановить баллы чужих вузов.
-  const wantsRating = needsRating(query)
-  if (wantsRating) assertCan(user, 'ANALYTICS')
+  // Рейтинг — аналитика. Представителю вуза он недоступен даже как фильтр: по отклику
+  // списка можно было бы восстановить баллы чужих вузов.
+  //
+  // Но реестр он открывать вправе, а рейтинг теперь возвращается по умолчанию —
+  // поэтому отказом отвечаем только на явный запрос. Умолчание для этой роли
+  // просто не считается, и в ответе приходит null.
+  if (ratingRequestedExplicitly(query)) assertCan(user, 'ANALYTICS')
 
+  const wantsRating = needsRating(query) && can(user, 'ANALYTICS')
   const ratings = wantsRating ? await analyticsService.universityRatings(user) : null
 
   const restrictToIds =

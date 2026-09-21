@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
 import type { StageStatus } from '@/shared/contracts/enums'
 import {
+  isControlPoint,
+  findBlockingStages,
+  assertControlPointReady,
   ALLOWED_TRANSITIONS,
   assertTasksEditable,
   assertTransition,
@@ -304,5 +307,133 @@ describe('просрочка', () => {
 
   it('не считает просроченным этап без срока', () => {
     expect(isOverdue(null, 'IN_PROGRESS', today)).toBe(false)
+  })
+})
+
+describe('контрольные точки (гибридный порядок этапов)', () => {
+  const prior = (
+    entries: Array<[number, StageStatus]>,
+  ): Array<{ stageNumber: number; title: string; status: StageStatus }> =>
+    entries.map(([stageNumber, status]) => ({
+      stageNumber,
+      title: `Этап ${stageNumber}`,
+      status,
+    }))
+
+  it('обычный этап проверку не проходит вовсе', () => {
+    expect(isControlPoint(3)).toBe(false)
+    expect(() =>
+      assertControlPointReady(3, 'IN_PROGRESS', prior([[1, 'NOT_STARTED']])),
+    ).not.toThrow()
+  })
+
+  it('подписание, передача материалов и занятия — контрольные точки', () => {
+    expect(isControlPoint(6)).toBe(true)
+    expect(isControlPoint(7)).toBe(true)
+    expect(isControlPoint(11)).toBe(true)
+  })
+
+  it('нельзя начать, пока предыдущий этап не закрыт', () => {
+    expect(() =>
+      assertControlPointReady(
+        6,
+        'IN_PROGRESS',
+        prior([
+          [1, 'COMPLETED'],
+          [2, 'COMPLETED'],
+          [3, 'COMPLETED'],
+          [4, 'IN_PROGRESS'],
+          [5, 'NOT_STARTED'],
+        ]),
+      ),
+    ).toThrow(AppError)
+  })
+
+  it('нельзя и завершить: это утверждение о процессе не слабее начала', () => {
+    // Этап уже шёл, а предыдущий переоткрыли — завершать контрольную точку нельзя.
+    expect(() =>
+      assertControlPointReady(7, 'COMPLETED', prior([[6, 'IN_PROGRESS']])),
+    ).toThrow(AppError)
+  })
+
+  it('отменённый предыдущий этап считается закрытым', () => {
+    // Этап 5 необязательный: его отмена — обычный ход дела. Иначе отмена доработки
+    // документов навсегда заперла бы подписание.
+    expect(() =>
+      assertControlPointReady(
+        6,
+        'IN_PROGRESS',
+        prior([
+          [1, 'COMPLETED'],
+          [2, 'COMPLETED'],
+          [3, 'COMPLETED'],
+          [4, 'COMPLETED'],
+          [5, 'CANCELLED'],
+        ]),
+      ),
+    ).not.toThrow()
+  })
+
+  it('отмену самой контрольной точки не блокирует', () => {
+    // Отмена ничего не утверждает о выполненной работе.
+    expect(() =>
+      assertControlPointReady(11, 'CANCELLED', prior([[7, 'NOT_STARTED']])),
+    ).not.toThrow()
+  })
+
+  it('блокировку не запрещает: это честное сообщение, что работа встала', () => {
+    expect(() =>
+      assertControlPointReady(11, 'BLOCKED', prior([[7, 'NOT_STARTED']])),
+    ).not.toThrow()
+  })
+
+  it('в ошибке перечислены конкретные мешающие этапы', () => {
+    try {
+      assertControlPointReady(
+        11,
+        'IN_PROGRESS',
+        prior([
+          [7, 'COMPLETED'],
+          [8, 'IN_PROGRESS'],
+          [9, 'NOT_STARTED'],
+          [10, 'COMPLETED'],
+        ]),
+      )
+      throw new Error('ожидалась ошибка')
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError)
+      const details = (error as AppError).details as {
+        blockingStages: Array<{ stageNumber: number }>
+      }
+      // Фронт должен показать, что именно закрыть, а не «переход недопустим».
+      expect(details.blockingStages.map((stage) => stage.stageNumber)).toEqual([8, 9])
+    }
+  })
+
+  it('мешающие этапы перечислены по возрастанию номера', () => {
+    const blocking = findBlockingStages(
+      prior([
+        [9, 'NOT_STARTED'],
+        [7, 'BLOCKED'],
+        [8, 'COMPLETED'],
+      ]),
+    )
+    expect(blocking.map((stage) => stage.stageNumber)).toEqual([7, 9])
+  })
+
+  it('первая контрольная точка проходима, когда всё до неё закрыто', () => {
+    expect(() =>
+      assertControlPointReady(
+        6,
+        'COMPLETED',
+        prior([
+          [1, 'COMPLETED'],
+          [2, 'COMPLETED'],
+          [3, 'COMPLETED'],
+          [4, 'COMPLETED'],
+          [5, 'COMPLETED'],
+        ]),
+      ),
+    ).not.toThrow()
   })
 })

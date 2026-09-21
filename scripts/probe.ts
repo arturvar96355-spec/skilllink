@@ -708,6 +708,96 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Контрольные точки: порядок этапов гибридный, но не фиктивный ───────────
+  step('Контрольные точки нельзя обойти')
+
+  {
+    // Нужна связка, у которой этапы до шестого ещё не закрыты.
+    const list = await call<Array<{ id: string; currentStage: { stageNumber: number } | null }>>(
+      'GET',
+      '/api/cooperations?pageSize=50',
+    )
+    const early = (list.body.data ?? []).find(
+      (row) => (row.currentStage?.stageNumber ?? 99) <= 4,
+    )
+
+    if (!early) {
+      check('есть связка в начале конвейера', false, 'нужен npm run db:seed')
+    } else {
+      const card = await call<{
+        stages: Array<{ id: string; stageNumber: number; status: string }>
+      }>('GET', `/api/cooperations/${early.id}`)
+      const stages = card.body.data?.stages ?? []
+      const find = (number: number) => stages.find((stage) => stage.stageNumber === number)
+
+      const signing = find(6)
+      const handover = find(7)
+      const classes = find(11)
+
+      for (const [stage, title] of [
+        [signing, 'подписание документов'],
+        [handover, 'передачу материалов и лицензии'],
+        [classes, 'проведение занятий'],
+      ] as const) {
+        if (!stage) continue
+
+        const started = await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+          status: 'IN_PROGRESS',
+        })
+        check(
+          `нельзя начать ${title} раньше предыдущих этапов`,
+          started.status === 409,
+          `статус ${started.status}`,
+        )
+
+        const body = started.body as {
+          error?: { details?: { blockingStages?: Array<{ stageNumber: number }> } }
+        }
+        const blocking = body.error?.details?.blockingStages ?? []
+        check(
+          `в отказе по «${title}» перечислены мешающие этапы`,
+          blocking.length > 0 && blocking.every((item) => item.stageNumber < stage.stageNumber),
+        )
+      }
+
+      // Отмена контрольной точки ничего не утверждает о работе — она разрешена.
+      if (handover) {
+        const cancelled = await call('PATCH', `/api/workflow/stages/${handover.id}`, {
+          status: 'CANCELLED',
+          comment: 'Пробник: проверка отмены контрольной точки',
+        })
+        check(
+          'отменить контрольную точку можно: отмена ничего не утверждает',
+          cancelled.status === 200,
+          `статус ${cancelled.status}`,
+        )
+
+        // Возвращаем как было, чтобы пробник не оставлял следов.
+        if (cancelled.status === 200) {
+          await call('PATCH', `/api/workflow/stages/${handover.id}`, {
+            status: 'IN_PROGRESS',
+            comment: 'Пробник: возврат состояния',
+          })
+        }
+      }
+
+      // Обычный этап контрольной точкой не является и проходится свободно.
+      const ordinary = stages.find(
+        (stage) => stage.stageNumber === 3 && stage.status === 'NOT_STARTED',
+      )
+      if (ordinary) {
+        const started = await call('PATCH', `/api/workflow/stages/${ordinary.id}`, {
+          status: 'IN_PROGRESS',
+        })
+        check(
+          'обычный этап начинается свободно — порядок гибридный, а не жёсткий',
+          started.status === 200,
+          `статус ${started.status}`,
+        )
+      }
+    }
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
