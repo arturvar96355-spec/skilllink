@@ -15,7 +15,7 @@
 git clone <репозиторий> && cd skilllink
 npm install
 cp .env.example .env          # правьте только DATABASE_URL
-npm run db:migrate
+npm run db:deploy
 npm run db:seed
 npm run dev
 ```
@@ -148,8 +148,8 @@ API под них готов и проверен:
 ### Команды
 
 ```bash
-npm run db:migrate    # создать и применить миграцию (разработка)
-npm run db:deploy     # применить существующие (промышленный контур)
+npm run db:deploy     # применить готовые миграции — команда для всех
+npm run db:migrate    # создать новую миграцию; нужно право CREATEDB
 npm run db:seed       # демо-данные, полностью очищает таблицы
 npm run db:studio     # визуальный редактор
 ```

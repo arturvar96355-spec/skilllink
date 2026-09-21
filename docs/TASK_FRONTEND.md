@@ -21,7 +21,7 @@
 git clone <репозиторий> && cd skilllink
 npm install
 cp .env.example .env          # менять нужно только DATABASE_URL
-npm run db:migrate
+npm run db:deploy
 npm run db:seed
 npm run dev
 ```
@@ -32,13 +32,25 @@ npm run dev
 Неподходящая версия остановит `npm install` с понятным сообщением, а не сломается
 позже.
 
+**Если вы на Windows:** переменная перед командой (`POSTGRES_PORT=5433 docker compose …`)
+там не работает. В PowerShell её задают отдельно: `$env:POSTGRES_PORT = "5433"`,
+затем команда. Всё остальное одинаково на всех системах.
+
+**Если порт 3000 занят:** запускайте `PORT=3001 npm run dev`
+(в PowerShell — `$env:PORT="3001"`, затем `npm run dev`). Next возьмёт свободный порт
+и сам, но тогда он разойдётся с тем, что написано в `.env`.
+
 Нужен PostgreSQL 16+. Нет под рукой — поднимется из репозитория:
 `docker compose up -d postgres` (если 5432 занят: `POSTGRES_PORT=5433 docker compose up -d postgres`).
 
 Проверка: откройте `http://localhost:3000/api/health` — должно быть
 `{"data":{"status":"ok","schema":"ready",...}}`.
 
-Если увидите `503` и `schema: "missing"` — не применены миграции, выполните `npm run db:migrate`.
+Если увидите `503` и `schema: "missing"` — не применены миграции, выполните `npm run db:deploy`.
+
+**Именно `db:deploy`, а не `db:migrate`.** Вторая команда создаёт временную базу
+для сравнения схем и требует право `CREATEDB`, которого у обычной роли нет, —
+падает с `P3014`. Вам она не нужна: схему меняет серверная часть.
 
 ---
 
