@@ -58,7 +58,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: resolveSecret(),
   session: { strategy: 'jwt' },
   trustHost: true,
-  pages: { signIn: '/login' },
+  // Своей страницы входа нет — работает встроенная страница NextAuth (/api/auth/signin).
+  // Когда фронт сделает собственную, сюда возвращается `pages: { signIn: '/login' }`:
+  // до тех пор указывать несуществующий путь нельзя, иначе перенаправление ведёт на 404.
   providers: [
     Credentials({
       name: 'Электронная почта и пароль',
