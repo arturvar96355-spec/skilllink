@@ -3,6 +3,7 @@ import Credentials from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/shared/db/prisma'
 import type { UserRole } from '@/shared/contracts/enums'
+import { checkLogin, recordFailure, recordSuccess } from './throttle'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -73,6 +74,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const password = typeof credentials?.password === 'string' ? credentials.password : ''
         if (email === '' || password === '') return null
 
+        // Перебор пароля ограничивается по учётной записи. Проверка идёт до запроса
+        // к базе и до сравнения хеша: заблокированная попытка не должна стоить
+        // ни запроса, ни bcrypt.
+        const accountKey = email.toLowerCase()
+        if (checkLogin(accountKey).blocked) return null
+
         const user = await prisma.user.findFirst({
           where: { email: email.toLowerCase(), isActive: true },
           select: {
@@ -85,12 +92,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         })
 
-        // Одинаковый ответ на «нет пользователя» и «неверный пароль»:
-        // по разнице сообщений можно перебирать существующие адреса.
-        if (!user?.passwordHash) return null
+        // Одинаковый ответ на «нет пользователя», «неверный пароль» и «попытки
+        // исчерпаны»: по разнице сообщений перебираются существующие адреса
+        // и определяется, какие из них уже заблокированы.
+        if (!user?.passwordHash) {
+          recordFailure(accountKey)
+          return null
+        }
 
         const matches = await compare(password, user.passwordHash)
-        if (!matches) return null
+        if (!matches) {
+          recordFailure(accountKey)
+          return null
+        }
+
+        recordSuccess(accountKey)
 
         return {
           id: user.id,
