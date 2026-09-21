@@ -1154,8 +1154,23 @@ async function main(): Promise<void> {
       )
     }
 
+    // Контрольный этап вычисляется автоматически и руками не меняется.
+    // Предлагать по нему действие — значит просить невозможного, а его просрочка
+    // и так объясняется незакрытыми этапами 1–13, которые в списке уже есть.
+    for (const [path, title] of [
+      ['/api/workflow/overdue?pageSize=100', 'просроченных'],
+      ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
+    ] as const) {
+      const rows = (await call<Array<{ stageNumber: number }>>('GET', path)).body.data ?? []
+      check(
+        `среди ${title} нет контрольного этапа`,
+        rows.every((row) => row.stageNumber !== 14),
+        `нашлось ${rows.filter((row) => row.stageNumber === 14).length}`,
+      )
+    }
+
     const dashboard = await call<{
-      problemCooperations: Array<{ cooperationId: string }>
+      problemCooperations: Array<{ cooperationId: string; stageNumber: number }>
     }>('GET', '/api/analytics/overview')
     const problems = dashboard.body.data?.problemCooperations ?? []
     const leakedOnDashboard = problems.filter((row) => isClosed(row.cooperationId))
@@ -1163,6 +1178,10 @@ async function main(): Promise<void> {
       'на дашборде нет проблем по закрытым связкам',
       leakedOnDashboard.length === 0,
       `просочилось ${leakedOnDashboard.length} из ${problems.length}`,
+    )
+    check(
+      'на дашборде нет контрольного этапа',
+      problems.every((row) => row.stageNumber !== 14),
     )
   }
 

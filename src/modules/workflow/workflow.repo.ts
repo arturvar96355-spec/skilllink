@@ -3,6 +3,7 @@ import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
+import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -135,6 +136,11 @@ function buildCooperationFilter(
 ): Prisma.WorkflowStageWhereInput {
   const universityId = scope.universityId ?? query.universityId
   return {
+    // Контрольный этап вычисляется автоматически и вручную не меняется (решение 2).
+    // В списке дел ему не место: он просрочен ровно потому, что не закрыты этапы
+    // 1–13, а они в списке уже есть. Оставить его — значит посчитать одну
+    // и ту же задержку дважды и предложить действие, которое система запрещает.
+    stageNumber: { not: CONTROL_STAGE_NUMBER },
     cooperation: {
       status: { in: [...OPEN_COOPERATION_STATUSES] },
       ...(universityId ? { universityId } : {}),
