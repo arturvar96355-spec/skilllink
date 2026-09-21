@@ -1047,6 +1047,26 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Проверка живости говорит правду ────────────────────────────────────────
+  step('Здоровье приложения отвечает по делу')
+
+  {
+    const response = await fetch(`${BASE_URL}/api/health`)
+    const body = (await response.json()) as {
+      data?: { status?: string; database?: string; schema?: string; hint?: string }
+    }
+    const health = body.data ?? {}
+
+    check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
+    check('соединение с базой подтверждено', health.database === 'connected')
+    check('схема отмечена применённой', health.schema === 'ready')
+    check(
+      'на здоровом приложении подсказки нет',
+      health.hint === undefined,
+      'подсказка появляется только при проблеме',
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

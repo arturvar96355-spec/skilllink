@@ -4,12 +4,44 @@ import { handle, ok } from '@/shared/http'
 /**
  * Проверка живости приложения.
  *
- * Проверяется не только соединение, но и то, что схема применена: пустая база
- * отвечает на `SELECT 1` как ни в чём не бывало, и контейнер рапортовал бы «здоров»,
- * пока приложение на деле неработоспособно.
+ * Сюда смотрят, когда что-то не работает, — значит, ответ обязан называть причину,
+ * а не сообщать «внутренняя ошибка». Различаются три состояния, и у каждого свой
+ * совет: не задана настройка, база недоступна, схема не применена.
+ *
+ * Схема проверяется отдельно от соединения: пустая база отвечает на `SELECT 1`
+ * как ни в чём не бывало, и контейнер рапортовал бы «здоров», пока приложение
+ * на деле неработоспособно.
  */
 export const GET = handle(async () => {
-  await prisma.$queryRaw`SELECT 1`
+  const now = () => new Date().toISOString()
+
+  if (!process.env.DATABASE_URL) {
+    return ok(
+      {
+        status: 'misconfigured',
+        database: 'not-configured',
+        schema: 'unknown',
+        hint: 'Не задана переменная DATABASE_URL. Скопируйте .env.example в .env и укажите строку подключения.',
+        time: now(),
+      },
+      503,
+    )
+  }
+
+  try {
+    await prisma.$queryRaw`SELECT 1`
+  } catch {
+    return ok(
+      {
+        status: 'degraded',
+        database: 'unreachable',
+        schema: 'unknown',
+        hint: 'База недоступна. Проверьте, что PostgreSQL запущен и DATABASE_URL указывает на него: docker compose up -d postgres',
+        time: now(),
+      },
+      503,
+    )
+  }
 
   let schemaReady = true
   try {
@@ -19,14 +51,15 @@ export const GET = handle(async () => {
     schemaReady = false
   }
 
-  const body = {
-    status: schemaReady ? 'ok' : 'degraded',
-    database: 'connected',
-    schema: schemaReady ? 'ready' : 'missing',
-    ...(schemaReady ? {} : { hint: 'Примените миграции: npm run db:deploy' }),
-    time: new Date().toISOString(),
-  }
-
-  // Неприменённые миграции — это не «здоров»: пусть оркестратор видит проблему.
-  return ok(body, schemaReady ? 200 : 503)
+  return ok(
+    {
+      status: schemaReady ? 'ok' : 'degraded',
+      database: 'connected',
+      schema: schemaReady ? 'ready' : 'missing',
+      ...(schemaReady ? {} : { hint: 'Примените миграции: npm run db:deploy' }),
+      time: now(),
+    },
+    // Неприменённые миграции — это не «здоров»: пусть оркестратор видит проблему.
+    schemaReady ? 200 : 503,
+  )
 })

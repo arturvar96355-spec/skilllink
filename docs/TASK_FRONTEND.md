@@ -46,7 +46,13 @@ npm run dev
 Проверка: откройте `http://localhost:3000/api/health` — должно быть
 `{"data":{"status":"ok","schema":"ready",...}}`.
 
-Если увидите `503` и `schema: "missing"` — не применены миграции, выполните `npm run db:deploy`.
+Если что-то не так, `/api/health` скажет что именно — в поле `hint`:
+
+| `status` | Что делать |
+| --- | --- |
+| `misconfigured` | `cp .env.example .env` |
+| `degraded`, `database: unreachable` | запустить PostgreSQL |
+| `degraded`, `schema: missing` | `npm run db:deploy` |
 
 **Именно `db:deploy`, а не `db:migrate`.** Вторая команда создаёт временную базу
 для сравнения схем и требует право `CREATEDB`, которого у обычной роли нет, —
