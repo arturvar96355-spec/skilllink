@@ -14,9 +14,15 @@
     "jsx": "preserve",
     "incremental": true,
     "verbatimModuleSyntax": true,
-    "plugins": [{ "name": "next" }],
+    "plugins": [{"name": "next"}],
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": {"@/*": ["./src/*"]},
+    // Обращение по индексу даёт T | undefined: массив может быть короче, чем кажется.
+    "noUncheckedIndexedAccess": true,
+    // Неиспользуемая переменная — обычно след незаконченной правки.
+    "noUnusedLocals": true,
+    // То же про параметры.
+    "noUnusedParameters": true
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules", "src/generated"]
