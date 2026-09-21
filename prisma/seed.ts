@@ -10,6 +10,7 @@
 import 'dotenv/config'
 import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 
@@ -967,6 +968,22 @@ async function main(): Promise<void> {
   }
 
   // ─── Итог ──────────────────────────────────────────────────────────────────
+  // ─── Рекомендации ──────────────────────────────────────────────────────────
+  // Прогоняем настоящий движок правил по посеянным данным, а не сочиняем записи.
+  //
+  // Без этого шага свежая демонстрация открывается с пустым блоком «приоритетные
+  // действия» на дашборде: рекомендации появляются только после явной генерации,
+  // и до первого нажатия система выглядит так, будто раздел не работает.
+  console.log('Рекомендации...')
+  const generation = await generateRecommendations({
+    id: manager.id,
+    email: manager.email,
+    fullName: manager.fullName,
+    role: manager.role,
+    universityId: manager.universityId,
+  })
+  console.log(`  создано: ${generation.created}`)
+
   const counts = {
     Вузы: await prisma.university.count(),
     Программы: await prisma.educationalProgram.count(),
@@ -979,6 +996,7 @@ async function main(): Promise<void> {
     Документы: await prisma.document.count(),
     Встречи: await prisma.meeting.count(),
     Пользователи: await prisma.user.count(),
+    Рекомендации: await prisma.recommendation.count(),
   }
   console.log('\nДемонстрационные данные загружены:')
   for (const [name, value] of Object.entries(counts)) {
