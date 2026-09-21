@@ -119,7 +119,18 @@ export async function list(
   if (ratingRequestedExplicitly(query)) assertCan(user, 'ANALYTICS')
 
   const wantsRating = needsRating(query) && can(user, 'ANALYTICS')
-  const ratings = wantsRating ? await analyticsService.universityRatings(user) : null
+
+  // Полный расчёт нужен только там, где по рейтингу отбирают или сортируют:
+  // чтобы сравнить вузы по баллу, балл нужен у каждого. Для обычного показа
+  // хватает программ одной страницы — на тысяче вузов это вдвое быстрее.
+  const needsEveryRating =
+    query.minRating !== undefined ||
+    query.maxRating !== undefined ||
+    query.sort?.replace(/^-/, '') === UNIVERSITY_RATING_SORT
+
+  const ratings = wantsRating && needsEveryRating
+    ? await analyticsService.universityRatings(user)
+    : null
 
   const restrictToIds =
     ratings && (query.minRating !== undefined || query.maxRating !== undefined)
@@ -170,10 +181,20 @@ export async function list(
   }
 
   const { rows, total } = await repo.findMany(query, universityScope(user), restrictToIds)
-  const activeByUniversity = await repo.countActiveCooperations(rows.map((row) => row.id))
+  const pageIds = rows.map((row) => row.id)
+
+  const [activeByUniversity, pageRatings] = await Promise.all([
+    repo.countActiveCooperations(pageIds),
+    ratings
+      ? Promise.resolve(ratings)
+      : wantsRating
+        ? analyticsService.universityRatingsForPage(user, pageIds)
+        : Promise.resolve(null),
+  ])
+
   return {
     data: rows.map((row) =>
-      toListItem(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings)),
+      toListItem(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, pageRatings)),
     ),
     meta: pageMeta(pagination, total),
   }
@@ -189,7 +210,9 @@ export async function getById(user: CurrentUser, id: string): Promise<University
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
   // в отличие от реестра, где включается параметром. Представителю вуза — null.
-  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+  const ratings = can(user, 'ANALYTICS')
+    ? await analyticsService.universityRatingsForPage(user, [row.id])
+    : null
 
   return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
@@ -223,7 +246,9 @@ export async function update(
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
   // в отличие от реестра, где включается параметром. Представителю вуза — null.
-  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+  const ratings = can(user, 'ANALYTICS')
+    ? await analyticsService.universityRatingsForPage(user, [row.id])
+    : null
 
   return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
@@ -254,7 +279,9 @@ export async function restore(user: CurrentUser, id: string): Promise<University
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
   // в отличие от реестра, где включается параметром. Представителю вуза — null.
-  const ratings = can(user, 'ANALYTICS') ? await analyticsService.universityRatings(user) : null
+  const ratings = can(user, 'ANALYTICS')
+    ? await analyticsService.universityRatingsForPage(user, [row.id])
+    : null
 
   return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }

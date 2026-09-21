@@ -40,11 +40,30 @@ function basisFromSource(source: DataOrigin | null, filled: number): ProgramRati
  *
  * Востребованность навыков, skill gap и готовность вуза в рейтинг НЕ входят.
  */
-export function calculateRatings(programs: readonly RatingInput[]): Map<string, ProgramRatingDto> {
+export type RatingBounds = ReadonlyMap<ProgramRatingFactor, { min: number; max: number } | null>
+
+/** Границы нормирования по переданной выборке. */
+export function boundsFromPrograms(programs: readonly RatingInput[]): RatingBounds {
   const bounds = new Map<ProgramRatingFactor, { min: number; max: number } | null>()
   for (const factor of FACTORS) {
     bounds.set(factor, range(programs.map((program) => program[factor])))
   }
+  return bounds
+}
+
+/**
+ * @param knownBounds границы нормирования, если они уже посчитаны по всей базе.
+ *
+ * Нужны, когда рейтинг считается не для всех программ сразу: реестру вузов хватает
+ * программ показанной страницы, но нормировать по ним нельзя — шкала получится
+ * своя на каждой странице. Тогда границы берутся одним агрегатом по всей базе,
+ * а строк читается на два порядка меньше.
+ */
+export function calculateRatings(
+  programs: readonly RatingInput[],
+  knownBounds?: RatingBounds,
+): Map<string, ProgramRatingDto> {
+  const bounds = knownBounds ?? boundsFromPrograms(programs)
 
   const result = new Map<string, ProgramRatingDto>()
 

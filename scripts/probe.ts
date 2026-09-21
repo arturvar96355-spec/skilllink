@@ -853,6 +853,92 @@ async function main(): Promise<void> {
     check(`${path}: код ошибки NOT_FOUND`, code === 'NOT_FOUND', `получено ${code ?? 'не JSON'}`)
   }
 
+  // ── Защитные заголовки ─────────────────────────────────────────────────────
+  step('Ответы несут защитные заголовки')
+
+  {
+    const expected: Array<[string, string]> = [
+      ['x-content-type-options', 'nosniff'],
+      ['x-frame-options', 'DENY'],
+      ['referrer-policy', 'strict-origin-when-cross-origin'],
+      ['cross-origin-opener-policy', 'same-origin'],
+    ]
+
+    // Заголовки не видны ни одному тесту функциональности: приложение работает
+    // и без них. Поэтому проверяются отдельно — иначе пропажа пройдёт незамеченной.
+    for (const target of ['/api/health', '/api/universities', '/']) {
+      const response = await fetch(`${BASE_URL}${target}`, {
+        headers: actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {},
+      })
+      await response.arrayBuffer()
+
+      for (const [header, value] of expected) {
+        check(
+          `${target}: ${header}`,
+          response.headers.get(header) === value,
+          `получено ${response.headers.get(header) ?? 'ничего'}`,
+        )
+      }
+
+      check(
+        `${target}: Permissions-Policy задан`,
+        (response.headers.get('permissions-policy') ?? '').includes('camera=()'),
+      )
+    }
+  }
+
+  // ── Быстрый расчёт рейтинга не расходится с полным ─────────────────────────
+  step('Два способа расчёта рейтинга дают один результат')
+
+  {
+    // Реестр считает рейтинг по программам одной страницы, сортировка — по всем
+    // сразу. Если пути разойдутся, вуз получит разный балл в зависимости от того,
+    // как открыли список, — и заметить это без сравнения невозможно.
+    type Rated = {
+      id: string
+      rating: { score: number | null; basis: string; ratedProgramCount: number } | null
+    }
+
+    const byPage = await call<Rated[]>('GET', '/api/universities?pageSize=100')
+    const bySort = await call<Rated[]>('GET', '/api/universities?pageSize=100&sort=-rating')
+
+    const fast = new Map((byPage.body.data ?? []).map((row) => [row.id, row.rating]))
+    const full = new Map((bySort.body.data ?? []).map((row) => [row.id, row.rating]))
+
+    let compared = 0
+    let mismatched = 0
+    for (const [id, rating] of fast) {
+      const other = full.get(id)
+      if (!other || !rating) continue
+      compared += 1
+      if (
+        rating.score !== other.score ||
+        rating.basis !== other.basis ||
+        rating.ratedProgramCount !== other.ratedProgramCount
+      ) {
+        mismatched += 1
+      }
+    }
+
+    check('есть что сравнивать', compared > 0, `сравнено ${compared}`)
+    check(
+      'быстрый расчёт по странице совпадает с полным',
+      mismatched === 0,
+      `расхождений ${mismatched} из ${compared}`,
+    )
+
+    // Карточка вуза считает рейтинг третьим способом — по одному вузу.
+    const first = (byPage.body.data ?? []).find((row) => row.rating?.score !== null)
+    if (first) {
+      const card = await call<Rated>('GET', `/api/universities/${first.id}`)
+      check(
+        'рейтинг в карточке совпадает с рейтингом в списке',
+        card.body.data?.rating?.score === first.rating?.score,
+        `карточка ${card.body.data?.rating?.score}, список ${first.rating?.score}`,
+      )
+    }
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
