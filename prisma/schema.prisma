@@ -1,0 +1,713 @@
+// SkillLink — схема базы данных.
+// Источник истины: docs/DATABASE_SCHEMA.md и раздел 11 ТЗ продукта.
+// JSON наружу — camelCase, в базе snake_case через @map / @@map.
+// Все изменения согласуются с Тиграном (структура данных).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────── Перечисления ───────────────────────────────
+
+/// Роли из раздела 5 ТЗ плюс UNIVERSITY_REP из концепции (кабинет вуза, P1).
+enum UserRole {
+  ADMIN
+  MANAGER
+  ANALYST
+  VIEWER
+  UNIVERSITY_REP
+}
+
+/// TODO: PM DECISION — подтвердить перечень статусов взаимодействия с вузом.
+enum UniversityStatus {
+  NEW
+  IN_PROGRESS
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum ProgramLevel {
+  SPO
+  BACHELOR
+  SPECIALIST
+  MASTER
+  POSTGRADUATE
+  DPO
+}
+
+enum ProgramStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SkillLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum SkillImportance {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Происхождение данных. Нужно, чтобы показатель всегда был объяснимым (раздел 10 ТЗ).
+enum DataOrigin {
+  CURRICULUM
+  EXPERT
+  INTEGRATION
+  IMPORT
+  MANUAL
+  MOCK
+}
+
+enum ConfidenceLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ProductStatus {
+  PLANNED
+  ACTIVE
+  DEPRECATED
+}
+
+enum ProductSkillRelevance {
+  CORE
+  RELATED
+  OPTIONAL
+}
+
+enum CooperationStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum StageStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+/// Фазы конвейера из концепции. Контроль (этап 14) вынесен отдельной фазой.
+enum StagePhase {
+  ATTRACTION
+  FORMALIZATION
+  IMPLEMENTATION
+  OPERATION
+  CONTROL
+}
+
+enum DocumentType {
+  NDA
+  AGREEMENT
+  ANNEX
+  ACT
+  LICENSE
+  CURRICULUM
+  METHODOLOGY
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  SIGNED
+  REJECTED
+  ARCHIVED
+}
+
+enum MeetingFormat {
+  ONLINE
+  OFFLINE
+  CALL
+  CORRESPONDENCE
+}
+
+enum RecommendationType {
+  PROGRAM
+  UNIVERSITY
+  SKILL
+  ACTION
+}
+
+enum RecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RecommendationStatus {
+  NEW
+  IN_PROGRESS
+  ACCEPTED
+  DISMISSED
+  DONE
+}
+
+enum DataSourceType {
+  MANUAL
+  CSV
+  EXTERNAL_API
+  LMS
+  SITE
+  MOCK
+}
+
+/// Заявка на обучение. Персональных данных обучающихся не содержит.
+/// TODO: PM DECISION — окончательный состав полей заявки.
+enum ApplicationStatus {
+  NEW
+  CONFIRMED
+  ENROLLED
+  REJECTED
+  CANCELLED
+}
+
+// ──────────────────────────── Пользователи и доступ ─────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String   @map("full_name")
+  position     String?
+  role         UserRole @default(VIEWER)
+  /// Заполнен только у UNIVERSITY_REP: ограничивает видимость своим вузом.
+  universityId String?  @map("university_id")
+  /// P1: NextAuth.js + bcrypt. На P0 не используется (mock-авторизация через cookie).
+  passwordHash String?  @map("password_hash")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  university             University?          @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  cooperations           Cooperation[]        @relation("CooperationResponsible")
+  stagesResponsible      WorkflowStage[]      @relation("StageResponsible")
+  stagesCompleted        WorkflowStage[]      @relation("StageCompletedBy")
+  tasksDone              Task[]               @relation("TaskDoneBy")
+  stageHistoryEntries    StageHistory[]       @relation("StageHistoryAuthor")
+  documentsAuthored      Document[]           @relation("DocumentAuthor")
+  documentsResponsible   Document[]           @relation("DocumentResponsible")
+  documentHistoryEntries DocumentHistory[]    @relation("DocumentHistoryAuthor")
+  meetingsResponsible    Meeting[]            @relation("MeetingResponsible")
+  meetingParticipations  MeetingParticipant[] @relation("MeetingParticipantUser")
+  recommendationsClosed  Recommendation[]     @relation("RecommendationResolver")
+  auditLogs              AuditLog[]           @relation("AuditLogUser")
+  applicationsCreated    Application[]        @relation("ApplicationAuthor")
+
+  @@index([role])
+  @@index([universityId])
+  @@map("users")
+}
+
+// ──────────────────────────────── Справочники ───────────────────────────────
+
+model University {
+  id        String           @id @default(cuid())
+  name      String
+  shortName String?          @map("short_name")
+  city      String
+  region    String
+  address   String?
+  website   String?
+  status    UniversityStatus @default(NEW)
+  /// Количество направлений подготовки. null — данных нет (никогда не 0 «по умолчанию»).
+  directionCount Int?        @map("direction_count")
+  /// Общая численность обучающихся в вузе.
+  studentCount   Int?        @map("student_count")
+  description    String?
+  /// Демонстрационная запись. Фронт обязан показывать пометку.
+  isMock     Boolean   @default(false) @map("is_mock")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  archivedAt DateTime? @map("archived_at")
+
+  contacts     Contact[]
+  programs     EducationalProgram[]
+  cooperations Cooperation[]
+  documents    Document[]
+  meetings     Meeting[]
+  applications Application[]
+  users        User[]
+
+  @@index([status])
+  @@index([region])
+  @@index([city])
+  @@map("universities")
+}
+
+/// Контактное лицо вуза. Минимум персональных данных: ФИО, должность, рабочие контакты.
+model Contact {
+  id           String   @id @default(cuid())
+  universityId String   @map("university_id")
+  fullName     String   @map("full_name")
+  position     String?
+  email        String?
+  phone        String?
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  university   University           @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  participations MeetingParticipant[] @relation("MeetingParticipantContact")
+
+  @@index([universityId])
+  @@map("contacts")
+}
+
+model EducationalProgram {
+  id           String        @id @default(cuid())
+  universityId String        @map("university_id")
+  name         String
+  code         String?
+  /// Направление подготовки / УГСН.
+  direction    String?
+  level        ProgramLevel
+  /// Длительность обучения в месяцах. null — данных нет.
+  durationMonths Int?        @map("duration_months")
+  status       ProgramStatus @default(ACTIVE)
+
+  /// Три показателя рейтинга (решение 7). null означает «Нет данных», а не ноль.
+  applicationCount Int?        @map("application_count")
+  studentCount     Int?        @map("student_count")
+  groupCount       Int?        @map("group_count")
+  metricsSource    DataOrigin? @map("metrics_source")
+  metricsUpdatedAt DateTime?   @map("metrics_updated_at")
+
+  isMock     Boolean   @default(false) @map("is_mock")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  archivedAt DateTime? @map("archived_at")
+
+  university   University     @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  skills       ProgramSkill[]
+  cooperations Cooperation[]
+  documents    Document[]
+  meetings     Meeting[]
+  applications Application[]
+
+  @@index([universityId])
+  @@index([level])
+  @@index([status])
+  @@map("educational_programs")
+}
+
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  programs ProgramSkill[]
+  products ProductSkill[]
+  demand   MarketDemand[]
+
+  @@index([category])
+  @@map("skills")
+}
+
+model ProgramSkill {
+  id         String           @id @default(cuid())
+  programId  String           @map("program_id")
+  skillId    String           @map("skill_id")
+  level      SkillLevel       @default(BASIC)
+  importance SkillImportance  @default(MEDIUM)
+  source     DataOrigin       @default(CURRICULUM)
+  confidence ConfidenceLevel?
+  comment    String?
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  program EducationalProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  skill   Skill              @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([programId, skillId])
+  @@index([skillId])
+  @@map("program_skills")
+}
+
+/// Агрегированный показатель востребованности навыка (решение 11).
+/// Происхождение обязательно: source, period, confidence, isMock.
+model MarketDemand {
+  id           String          @id @default(cuid())
+  skillId      String          @map("skill_id")
+  /// Период в формате YYYY-Qn или YYYY-MM.
+  period       String
+  value        Float
+  unit         String          @default("vacancies")
+  region       String?
+  source       String
+  dataSourceId String?         @map("data_source_id")
+  confidence   ConfidenceLevel @default(LOW)
+  isMock       Boolean         @default(true) @map("is_mock")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  skill      Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  dataSource DataSource? @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
+
+  @@unique([skillId, period, source])
+  @@index([period])
+  @@map("market_demand")
+}
+
+model ITProduct {
+  id               String        @id @default(cuid())
+  name             String        @unique
+  category         String
+  description      String?
+  documentationUrl String?       @map("documentation_url")
+  version          String?
+  status           ProductStatus @default(ACTIVE)
+  isMock           Boolean       @default(false) @map("is_mock")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  skills       ProductSkill[]
+  cooperations Cooperation[]
+
+  @@index([category])
+  @@index([status])
+  @@map("it_products")
+}
+
+model ProductSkill {
+  id        String                @id @default(cuid())
+  productId String                @map("product_id")
+  skillId   String                @map("skill_id")
+  relevance ProductSkillRelevance @default(RELATED)
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  product ITProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  skill   Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, skillId])
+  @@index([skillId])
+  @@map("product_skills")
+}
+
+// ───────────────────── Сотрудничество и workflow из 14 этапов ────────────────
+
+/// Единица учёта: связка «вуз — программа — IT-продукт» (концепция, решение 1).
+model Cooperation {
+  id            String            @id @default(cuid())
+  universityId  String            @map("university_id")
+  programId     String            @map("program_id")
+  /// Продукт может быть не выбран на ранних этапах.
+  /// TODO: PM DECISION — обязателен ли продукт при создании связки.
+  productId     String?           @map("product_id")
+  status        CooperationStatus @default(DRAFT)
+  responsibleId String            @map("responsible_id")
+  goal          String?
+  notes         String?
+
+  /// Контрольные даты. Нужны для метрик дашборда (раздел 7.1 ТЗ).
+  firstContactAt DateTime? @map("first_contact_at")
+  classesStartAt DateTime? @map("classes_start_at")
+  targetDate     DateTime? @map("target_date")
+  startedAt      DateTime? @map("started_at")
+  closedAt       DateTime? @map("closed_at")
+
+  isMock    Boolean  @default(false) @map("is_mock")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  university      University         @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  program         EducationalProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
+  product         ITProduct?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  responsible     User               @relation("CooperationResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
+  stages          WorkflowStage[]
+  documents       Document[]
+  meetings        Meeting[]
+  recommendations Recommendation[]
+
+  @@index([universityId])
+  @@index([programId])
+  @@index([productId])
+  @@index([status])
+  @@index([responsibleId])
+  @@map("cooperations")
+}
+
+model WorkflowStage {
+  id            String      @id @default(cuid())
+  cooperationId String      @map("cooperation_id")
+  /// 1..14 по разделу 8 ТЗ.
+  stageNumber   Int         @map("stage_number")
+  /// Копия названия на момент создания: история не должна зависеть от конфига.
+  title         String
+  phase         StagePhase
+  status        StageStatus @default(NOT_STARTED)
+  responsibleId String?     @map("responsible_id")
+  deadline      DateTime?
+  comment       String?
+  result        String?
+  blockingReason String?    @map("blocking_reason")
+  startedAt     DateTime?   @map("started_at")
+  completedAt   DateTime?   @map("completed_at")
+  completedById String?     @map("completed_by_id")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  cooperation Cooperation    @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+  responsible User?          @relation("StageResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  completedBy User?          @relation("StageCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+  tasks       Task[]
+  history     StageHistory[]
+
+  @@unique([cooperationId, stageNumber])
+  @@index([status])
+  @@index([deadline])
+  @@map("workflow_stages")
+}
+
+/// Пункт чек-листа этапа (решение 6).
+model Task {
+  id         String    @id @default(cuid())
+  stageId    String    @map("stage_id")
+  title      String
+  /// Обязательные пункты блокируют перевод этапа в COMPLETED.
+  isRequired Boolean   @default(false) @map("is_required")
+  isDone     Boolean   @default(false) @map("is_done")
+  doneAt     DateTime? @map("done_at")
+  doneById   String?   @map("done_by_id")
+  sortOrder  Int       @default(0) @map("sort_order")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  stage  WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  doneBy User?         @relation("TaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@index([stageId])
+  @@map("tasks")
+}
+
+/// История изменений этапа: каждое изменение статуса с автором и временем (решение 4).
+model StageHistory {
+  id          String       @id @default(cuid())
+  stageId     String       @map("stage_id")
+  fromStatus  StageStatus? @map("from_status")
+  toStatus    StageStatus  @map("to_status")
+  comment     String?
+  changedById String       @map("changed_by_id")
+  changedAt   DateTime     @default(now()) @map("changed_at")
+
+  stage     WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  changedBy User          @relation("StageHistoryAuthor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([stageId])
+  @@index([changedAt])
+  @@map("stage_history")
+}
+
+// ────────────────────────── Документы и встречи (P1) ────────────────────────
+
+/// В MVP хранятся метаданные и ссылка. Загрузка файлов — P2 (решение 14).
+model Document {
+  id            String         @id @default(cuid())
+  cooperationId String?        @map("cooperation_id")
+  universityId  String?        @map("university_id")
+  programId     String?        @map("program_id")
+  type          DocumentType
+  title         String
+  version       String         @default("1")
+  status        DocumentStatus @default(DRAFT)
+  fileReference String?        @map("file_reference")
+  authorId      String?        @map("author_id")
+  responsibleId String?        @map("responsible_id")
+  issuedAt      DateTime?      @map("issued_at")
+  signedAt      DateTime?      @map("signed_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  cooperation Cooperation?        @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+  university  University?         @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  program     EducationalProgram? @relation(fields: [programId], references: [id], onDelete: Cascade)
+  author      User?               @relation("DocumentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  responsible User?               @relation("DocumentResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  history     DocumentHistory[]
+
+  @@index([cooperationId])
+  @@index([universityId])
+  @@index([status])
+  @@map("documents")
+}
+
+model DocumentHistory {
+  id          String          @id @default(cuid())
+  documentId  String          @map("document_id")
+  fromStatus  DocumentStatus? @map("from_status")
+  toStatus    DocumentStatus  @map("to_status")
+  comment     String?
+  changedById String          @map("changed_by_id")
+  changedAt   DateTime        @default(now()) @map("changed_at")
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  changedBy User     @relation("DocumentHistoryAuthor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([documentId])
+  @@map("document_history")
+}
+
+model Meeting {
+  id              String        @id @default(cuid())
+  cooperationId   String?       @map("cooperation_id")
+  universityId    String?       @map("university_id")
+  programId       String?       @map("program_id")
+  date            DateTime
+  topic           String
+  format          MeetingFormat @default(ONLINE)
+  result          String?
+  nextAction      String?       @map("next_action")
+  nextActionDueAt DateTime?     @map("next_action_due_at")
+  responsibleId   String        @map("responsible_id")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  cooperation  Cooperation?         @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+  university   University?          @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  program      EducationalProgram?  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  responsible  User                 @relation("MeetingResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
+  participants MeetingParticipant[]
+
+  @@index([cooperationId])
+  @@index([universityId])
+  @@index([date])
+  @@map("meetings")
+}
+
+model MeetingParticipant {
+  id           String   @id @default(cuid())
+  meetingId    String   @map("meeting_id")
+  userId       String?  @map("user_id")
+  contactId    String?  @map("contact_id")
+  /// Для участника, которого нет ни в пользователях, ни в контактах.
+  externalName String?  @map("external_name")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  meeting Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user    User?    @relation("MeetingParticipantUser", fields: [userId], references: [id], onDelete: SetNull)
+  contact Contact? @relation("MeetingParticipantContact", fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([meetingId])
+  @@map("meeting_participants")
+}
+
+// ────────────────── Рекомендации, источники, журнал, заявки ─────────────────
+
+model Recommendation {
+  id            String                 @id @default(cuid())
+  type          RecommendationType
+  /// Тип и идентификатор объекта, к которому относится рекомендация.
+  objectType    String                 @map("object_type")
+  objectId      String                 @map("object_id")
+  /// Ключ правила, которое породило рекомендацию. Нужен для повторной генерации без дублей.
+  ruleKey       String                 @map("rule_key")
+  title         String
+  description   String
+  priority      RecommendationPriority @default(MEDIUM)
+  /// Человекочитаемое основание: почему система это предлагает.
+  justification String
+  /// Связанные данные для раскрытия основания на фронте.
+  relatedData   Json?                  @map("related_data")
+  confidence    ConfidenceLevel        @default(MEDIUM)
+  status        RecommendationStatus   @default(NEW)
+  /// Комментарий сотрудника при закрытии или отклонении.
+  /// Отдельно от justification: то — обоснование системы, это — решение человека.
+  resolutionComment String?            @map("resolution_comment")
+  cooperationId String?                @map("cooperation_id")
+  resolvedById  String?                @map("resolved_by_id")
+  resolvedAt    DateTime?              @map("resolved_at")
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+
+  cooperation Cooperation? @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+  resolvedBy  User?        @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([ruleKey, objectType, objectId])
+  @@index([status, priority])
+  @@index([type])
+  @@map("recommendations")
+}
+
+model DataSource {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  type           DataSourceType
+  url            String?
+  collectionDate DateTime?       @map("collection_date")
+  reliability    ConfidenceLevel @default(LOW)
+  description    String?
+  isMock         Boolean         @default(true) @map("is_mock")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  demand MarketDemand[]
+
+  @@map("data_sources")
+}
+
+/// Журнал критичных действий (раздел 15 ТЗ). Персональные данные в payload не пишутся.
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  objectType String   @map("object_type")
+  objectId   String   @map("object_id")
+  payload    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([objectType, objectId])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("audit_log")
+}
+
+/// Заявка на обучение (решение 9). Персональных данных обучающихся не содержит.
+model Application {
+  id           String            @id @default(cuid())
+  programId    String            @map("program_id")
+  universityId String            @map("university_id")
+  source       DataOrigin        @default(MANUAL)
+  status       ApplicationStatus @default(NEW)
+  /// Количество заявок в одной записи: вуз может внести пакет разом.
+  quantity     Int               @default(1)
+  comment      String?
+  externalRef  String?           @map("external_ref")
+  createdById  String?           @map("created_by_id")
+  submittedAt  DateTime          @default(now()) @map("submitted_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  program    EducationalProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  university University         @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  createdBy  User?              @relation("ApplicationAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([programId])
+  @@index([universityId])
+  @@index([status])
+  @@map("applications")
+}
