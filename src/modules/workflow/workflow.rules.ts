@@ -1,5 +1,5 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
-import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { CONTROL_POINT_STAGES, CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
 import { STAGE_STATUS_LABELS } from '@/shared/contracts/labels'
 
@@ -37,6 +37,69 @@ export interface TransitionRequest {
 
 function isFilled(value: string | null | undefined): boolean {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+export interface PriorStageState {
+  stageNumber: number
+  title: string
+  status: StageStatus
+}
+
+/** Контрольная точка: этап, который нельзя пройти раньше предшествующих. */
+export function isControlPoint(stageNumber: number): boolean {
+  return CONTROL_POINT_STAGES.includes(stageNumber)
+}
+
+/**
+ * Что мешает пройти контрольную точку.
+ *
+ * Отменённый этап считается закрытым наравне с завершённым: этап 5 необязательный,
+ * и его отмена — обычный ход дела. Иначе отмена доработки документов навсегда
+ * заперла бы подписание.
+ */
+export function findBlockingStages(
+  priorStages: readonly PriorStageState[],
+): PriorStageState[] {
+  return priorStages
+    .filter((stage) => stage.status !== 'COMPLETED' && stage.status !== 'CANCELLED')
+    .sort((left, right) => left.stageNumber - right.stageNumber)
+}
+
+/**
+ * Проверка контрольной точки.
+ *
+ * Применяется к началу работы и к завершению — это два утверждения о процессе,
+ * и оба обязаны быть правдой. Отмена и блокировка не проверяются: они ничего
+ * не утверждают о выполненной работе, а честно сообщают, что её не будет
+ * или что она встала.
+ */
+export function assertControlPointReady(
+  stageNumber: number,
+  toStatus: StageStatus,
+  priorStages: readonly PriorStageState[],
+): void {
+  if (!isControlPoint(stageNumber)) return
+  if (toStatus !== 'IN_PROGRESS' && toStatus !== 'COMPLETED') return
+
+  const blocking = findBlockingStages(priorStages)
+  if (blocking.length === 0) return
+
+  const list = blocking.map((stage) => `${stage.stageNumber} «${stage.title}»`).join(', ')
+  const action = toStatus === 'COMPLETED' ? 'завершить' : 'начать'
+
+  throw invalidTransition(
+    `Этап ${stageNumber} — контрольная точка: его нельзя ${action}, пока не закрыты предыдущие этапы. ` +
+      `Не закрыты: ${list}.`,
+    {
+      stageNumber,
+      isControlPoint: true,
+      blockingStages: blocking.map((stage) => ({
+        stageNumber: stage.stageNumber,
+        title: stage.title,
+        status: stage.status,
+      })),
+    },
+  )
 }
 
 /** Этап 14 вычисляется автоматически и руками не меняется (решение 2). */

@@ -1820,9 +1820,19 @@ async function main(): Promise<void> {
   // ── Рейтинг вуза (пункт 7.2 ТЗ) ────────────────────────────────────────────
   step('Рейтинг вуза и фильтрация по нему')
 
-  const r_noRating = await call<{ rating: unknown }[]>('GET', '/api/universities?pageSize=3')
+  // Решение Артура, пункт 11: рейтинг — обычное поле реестра, приходит по умолчанию.
+  const r_byDefault = await call<{ rating: unknown }[]>('GET', '/api/universities?pageSize=3')
   check(
-    'по умолчанию рейтинг не считается',
+    'рейтинг приходит по умолчанию, без параметров',
+    r_byDefault.body.data?.every((row) => row.rating !== null) === true,
+  )
+
+  const r_noRating = await call<{ rating: unknown }[]>(
+    'GET',
+    '/api/universities?pageSize=3&withRating=false',
+  )
+  check(
+    'withRating=false отключает расчёт',
     r_noRating.body.data?.every((row) => row.rating === null) === true,
   )
 

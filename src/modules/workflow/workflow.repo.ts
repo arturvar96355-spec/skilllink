@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
+import type { StageStatus } from '@/shared/contracts/enums'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -159,5 +160,22 @@ export async function findHistory(stageId: string) {
       changedAt: true,
       changedBy: { select: userRefSelect },
     },
+  })
+}
+
+/**
+ * Состояния этапов, предшествующих указанному. Нужны для проверки контрольной точки.
+ *
+ * Берутся именно предшествующие, а не все: этапы после контрольной точки её
+ * не касаются, и подтягивать их значит притворяться, что порядок жёсткий целиком.
+ */
+export async function findPriorStages(
+  cooperationId: string,
+  stageNumber: number,
+): Promise<Array<{ stageNumber: number; title: string; status: StageStatus }>> {
+  return prisma.workflowStage.findMany({
+    where: { cooperationId, stageNumber: { lt: stageNumber } },
+    select: { stageNumber: true, title: true, status: true },
+    orderBy: { stageNumber: 'asc' },
   })
 }

@@ -47,8 +47,11 @@ export const universityListQuerySchema = paginationSchema.extend({
   /** Верхняя граница рейтинга вуза, 0..100. */
   maxRating: ratingBoundSchema.optional(),
   /**
-   * Считать и вернуть рейтинг каждого вуза. По умолчанию не считается:
-   * это отдельный проход по всем программам, а реестру он нужен не всегда.
+   * Рейтинг вуза возвращается **по умолчанию** (решение Артура, пункт 11).
+   *
+   * `withRating=false` его отключает: это отдельный проход по показателям всех
+   * программ, и там, где реестр нужен только для выбора из списка, платить
+   * за него незачем. На тысяче вузов проход стоит около 17 мс.
    */
   withRating: z
     .union([z.literal('true'), z.literal('false')])
@@ -63,8 +66,24 @@ export const universityListQuerySchema = paginationSchema.extend({
 
 export type UniversityListQuery = z.infer<typeof universityListQuerySchema>
 
-/** Нужен ли этому запросу расчёт рейтингов: он стоит отдельного запроса к базе. */
+/**
+ * Нужен ли этому запросу расчёт рейтингов.
+ *
+ * По умолчанию — да: рейтинг это обычное поле реестра. Отказаться можно только
+ * явным `withRating=false`.
+ */
 export function needsRating(query: UniversityListQuery): boolean {
+  return query.withRating !== false
+}
+
+/**
+ * Запрошен ли рейтинг явно.
+ *
+ * Отличать важно для представителя вуза: рейтинг ему недоступен, но обычный
+ * список он открывать вправе. Явный запрос — отказ, умолчание — просто `null`,
+ * иначе роль не смогла бы открыть реестр вообще.
+ */
+export function ratingRequestedExplicitly(query: UniversityListQuery): boolean {
   return (
     query.withRating === true ||
     query.minRating !== undefined ||
