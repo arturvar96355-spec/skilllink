@@ -82,9 +82,61 @@ function step(title: string): void {
   console.log(`\n${BOLD}${title}${RESET}`)
 }
 
+/**
+ * Прогрев маршрутов перед проверками.
+ *
+ * В режиме разработки Next собирает каждый маршрут при первом обращении.
+ * Пока идёт сборка, запрос может вернуть 404 на существующий адрес — и проверка
+ * падает не из-за приложения, а из-за того, что оно ещё собирается.
+ *
+ * В CI этого не видно: там промышленная сборка, где всё собрано заранее.
+ * А человек, запустивший npm run dev и сразу npm run smoke, упирался бы
+ * в непонятный отказ.
+ */
+async function warmUp(): Promise<void> {
+  const routes = [
+    '/api/health',
+    '/api/users',
+    '/api/me',
+    '/api/analytics/overview',
+    '/api/analytics/programs',
+    '/api/universities?pageSize=1',
+    '/api/programs?pageSize=1',
+    '/api/cooperations?pageSize=1',
+    '/api/documents?pageSize=1',
+    '/api/meetings?pageSize=1',
+    '/api/recommendations?pageSize=1',
+    '/api/skills?pageSize=1',
+    '/api/skills/gaps',
+    '/api/skills/demand',
+    '/api/products?pageSize=1',
+    '/api/workflow/overdue',
+    '/api/workflow/blocked',
+    '/api/audit?pageSize=1',
+    '/api/data-sources',
+    '/api/integrations/status',
+    '/api/document-templates',
+    '/api/export?dataset=universities&limit=1',
+    '/api/portal/overview',
+    '/api/openapi.json',
+  ]
+
+  await Promise.all(
+    routes.map((route) =>
+      fetch(`${BASE_URL}${route}`, {
+        headers: actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {},
+      })
+        .then((response) => response.arrayBuffer())
+        .catch(() => undefined),
+    ),
+  )
+}
+
 async function main(): Promise<void> {
   console.log(`${BOLD}Пробник SkillLink${RESET}`)
   console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+
+  await warmUp()
 
   const health = await call('GET', '/api/health')
   if (health.status !== 200) {
@@ -1064,6 +1116,53 @@ async function main(): Promise<void> {
       'на здоровом приложении подсказки нет',
       health.hint === undefined,
       'подсказка появляется только при проблеме',
+    )
+  }
+
+  // ── Закрытая связка не создаёт проблем ─────────────────────────────────────
+  step('Закрытая связка не требует внимания')
+
+  {
+    // Этапы закрытой связки заморожены: изменить их нельзя. Показывать их как
+    // просроченные значит просить сделать то, что система же и запрещает —
+    // и заполнять дашборд тем, на что никто не может повлиять.
+    type CoopRow = { id: string; status: string }
+    type StageRow = { cooperation?: { id?: string }; cooperationId?: string }
+
+    const coops = await call<CoopRow[]>('GET', '/api/cooperations?pageSize=100')
+    const statusById = new Map((coops.body.data ?? []).map((row) => [row.id, row.status]))
+    const isClosed = (id?: string) =>
+      id !== undefined && ['COMPLETED', 'CANCELLED'].includes(statusById.get(id) ?? '')
+
+    const coopId = (row: StageRow) => row.cooperation?.id ?? row.cooperationId
+
+    const closedCount = [...statusById.values()].filter((status) =>
+      ['COMPLETED', 'CANCELLED'].includes(status),
+    ).length
+    check('в данных есть закрытые связки', closedCount > 0, `закрытых ${closedCount}`)
+
+    for (const [path, title] of [
+      ['/api/workflow/overdue?pageSize=100', 'просроченных'],
+      ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
+    ] as const) {
+      const rows = (await call<StageRow[]>('GET', path)).body.data ?? []
+      const leaked = rows.filter((row) => isClosed(coopId(row)))
+      check(
+        `среди ${title} нет этапов закрытых связок`,
+        leaked.length === 0,
+        `просочилось ${leaked.length} из ${rows.length}`,
+      )
+    }
+
+    const dashboard = await call<{
+      problemCooperations: Array<{ cooperationId: string }>
+    }>('GET', '/api/analytics/overview')
+    const problems = dashboard.body.data?.problemCooperations ?? []
+    const leakedOnDashboard = problems.filter((row) => isClosed(row.cooperationId))
+    check(
+      'на дашборде нет проблем по закрытым связкам',
+      leakedOnDashboard.length === 0,
+      `просочилось ${leakedOnDashboard.length} из ${problems.length}`,
     )
   }
 

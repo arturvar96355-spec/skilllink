@@ -184,6 +184,8 @@ enum ApplicationStatus {
 
 // ──────────────────────────── Пользователи и доступ ─────────────────────────
 
+/// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
+/// он ограничивает видимость его собственным вузом (решение 9).
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -220,6 +222,8 @@ model User {
 
 // ──────────────────────────────── Справочники ───────────────────────────────
 
+/// Вуз-партнёр. Не удаляется никогда, только архивируется: сотрудничество длится годами,
+/// и история отношений — основная ценность системы.
 model University {
   id        String           @id @default(cuid())
   name      String
@@ -274,6 +278,8 @@ model Contact {
   @@map("contacts")
 }
 
+/// Образовательная программа вуза. Три показателя рейтинга (заявки, обучающиеся, группы)
+/// допускают null: незаполненный показатель — это «нет данных», а не ноль (решение 8).
 model EducationalProgram {
   id           String        @id @default(cuid())
   universityId String        @map("university_id")
@@ -311,6 +317,8 @@ model EducationalProgram {
   @@map("educational_programs")
 }
 
+/// Навык как единый справочник: на него ссылаются и программы, и продукты, и рыночный спрос.
+/// Только так их можно сопоставить между собой.
 model Skill {
   id          String   @id @default(cuid())
   name        String   @unique
@@ -327,6 +335,8 @@ model Skill {
   @@map("skills")
 }
 
+/// Какой навык и на каком уровне даёт программа. Уровень и важность нужны для расчёта
+/// покрытия: навык, данный на базовом уровне, закрывает дефицит не полностью.
 model ProgramSkill {
   id         String           @id @default(cuid())
   programId  String           @map("program_id")
@@ -372,6 +382,8 @@ model MarketDemand {
   @@map("market_demand")
 }
 
+/// IT-продукт РТК, который передаётся вузу. Версия важна: при выпуске новой
+/// групповая операция ставит задачи во всех связках, где передана устаревшая.
 model ITProduct {
   id               String        @id @default(cuid())
   name             String        @unique
@@ -392,6 +404,8 @@ model ITProduct {
   @@map("it_products")
 }
 
+/// Какие навыки даёт продукт. По этой связи система предлагает продукт там,
+/// где у программы обнаружен дефицит навыка.
 model ProductSkill {
   id        String                @id @default(cuid())
   productId String                @map("product_id")
@@ -450,6 +464,8 @@ model Cooperation {
   @@map("cooperations")
 }
 
+/// Один из 14 этапов конвейера. Создаются все сразу при заведении связки (решение 2).
+/// title хранится копией: история не должна меняться задним числом при правке настроек.
 model WorkflowStage {
   id            String      @id @default(cuid())
   cooperationId String      @map("cooperation_id")
@@ -559,6 +575,8 @@ model Document {
   @@map("documents")
 }
 
+/// Изменения статуса документа с автором и временем. Нужна, чтобы путь документа
+/// от черновика до подписи можно было восстановить.
 model DocumentHistory {
   id          String          @id @default(cuid())
   documentId  String          @map("document_id")
@@ -575,6 +593,8 @@ model DocumentHistory {
   @@map("document_history")
 }
 
+/// Встреча с вузом: результат и следующее действие со сроком. Хранится отдельно
+/// от этапов, потому что встречи бывают и вне конвейера.
 model Meeting {
   id              String        @id @default(cuid())
   cooperationId   String?       @map("cooperation_id")
@@ -602,6 +622,8 @@ model Meeting {
   @@map("meetings")
 }
 
+/// Участник встречи: сотрудник, контактное лицо вуза или человек со стороны,
+/// которого нет ни там ни там — для него externalName.
 model MeetingParticipant {
   id           String   @id @default(cuid())
   meetingId    String   @map("meeting_id")
@@ -621,6 +643,8 @@ model MeetingParticipant {
 
 // ────────────────── Рекомендации, источники, журнал, заявки ─────────────────
 
+/// Подсказка системы с обязательным обоснованием. Уникальна по тройке
+/// «правило + объект»: повторная генерация обновляет, а не плодит дубли.
 model Recommendation {
   id            String                 @id @default(cuid())
   type          RecommendationType
@@ -656,6 +680,8 @@ model Recommendation {
   @@map("recommendations")
 }
 
+/// Источник рыночных данных с оценкой достоверности. Без него показатель
+/// нельзя подписать происхождением, а этого требует раздел 10 ТЗ.
 model DataSource {
   id             String          @id @default(cuid())
   name           String          @unique

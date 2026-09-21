@@ -179,9 +179,61 @@ interface Identified {
   id: string
 }
 
+/**
+ * Прогрев маршрутов перед проверками.
+ *
+ * В режиме разработки Next собирает каждый маршрут при первом обращении.
+ * Пока идёт сборка, запрос может вернуть 404 на существующий адрес — и проверка
+ * падает не из-за приложения, а из-за того, что оно ещё собирается.
+ *
+ * В CI этого не видно: там промышленная сборка, где всё собрано заранее.
+ * А человек, запустивший npm run dev и сразу npm run smoke, упирался бы
+ * в непонятный отказ.
+ */
+async function warmUp(): Promise<void> {
+  const routes = [
+    '/api/health',
+    '/api/users',
+    '/api/me',
+    '/api/analytics/overview',
+    '/api/analytics/programs',
+    '/api/universities?pageSize=1',
+    '/api/programs?pageSize=1',
+    '/api/cooperations?pageSize=1',
+    '/api/documents?pageSize=1',
+    '/api/meetings?pageSize=1',
+    '/api/recommendations?pageSize=1',
+    '/api/skills?pageSize=1',
+    '/api/skills/gaps',
+    '/api/skills/demand',
+    '/api/products?pageSize=1',
+    '/api/workflow/overdue',
+    '/api/workflow/blocked',
+    '/api/audit?pageSize=1',
+    '/api/data-sources',
+    '/api/integrations/status',
+    '/api/document-templates',
+    '/api/export?dataset=universities&limit=1',
+    '/api/portal/overview',
+    '/api/openapi.json',
+  ]
+
+  await Promise.all(
+    routes.map((route) =>
+      fetch(`${BASE_URL}${route}`, {
+        headers: currentUserId ? { cookie: `skilllink_user=${currentUserId}` } : {},
+      })
+        .then((response) => response.arrayBuffer())
+        .catch(() => undefined),
+    ),
+  )
+}
+
 async function main(): Promise<void> {
   console.log(`${BOLD}Сквозной сценарий SkillLink${RESET}`)
   console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+
+  await warmUp()
 
   // ── 1. Подключение ─────────────────────────────────────────────────────────
   step('1. Проверка подключения к базе данных')
