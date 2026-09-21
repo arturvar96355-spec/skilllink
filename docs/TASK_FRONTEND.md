@@ -27,7 +27,7 @@ npm run dev
 ```
 
 Нужен PostgreSQL 16+. Нет под рукой — поднимется из репозитория:
-`docker compose up -d` (если 5432 занят: `POSTGRES_PORT=5433 docker compose up -d`).
+`docker compose up -d postgres` (если 5432 занят: `POSTGRES_PORT=5433 docker compose up -d postgres`).
 
 Проверка: откройте `http://localhost:3000/api/health` — должно быть
 `{"data":{"status":"ok","schema":"ready",...}}`.

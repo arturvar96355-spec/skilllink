@@ -22,8 +22,8 @@ npm run dev
 
 Проверка: `curl http://localhost:3000/api/health` → `{"data":{"status":"ok",...}}`
 
-Нужен PostgreSQL 16+. Если его нет — `docker compose up -d` поднимет из репозитория
-(если 5432 занят: `POSTGRES_PORT=5433 docker compose up -d`).
+Нужен PostgreSQL 16+. Если его нет — `docker compose up -d postgres` поднимет из репозитория
+(если 5432 занят: `POSTGRES_PORT=5433 docker compose up -d postgres`).
 
 ### Или целиком в контейнерах
 
