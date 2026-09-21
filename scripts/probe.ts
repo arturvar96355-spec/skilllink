@@ -1012,6 +1012,41 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Просрочка и предупреждение не пересекаются ─────────────────────────────
+  step('Этап не считается проблемным дважды')
+
+  {
+    type Coop = {
+      currentStage: { isOverdue: boolean; isDueSoon: boolean } | null
+      progress: { overdueStages: number; dueSoonStages: number; totalStages: number }
+    }
+
+    const list = await call<Coop[]>('GET', '/api/cooperations?pageSize=100')
+    const rows = list.body.data ?? []
+
+    const bothAtOnce = rows.filter(
+      (row) => row.currentStage?.isOverdue && row.currentStage?.isDueSoon,
+    ).length
+    check(
+      'этап не бывает одновременно просроченным и предстоящим',
+      bothAtOnce === 0,
+      `таких ${bothAtOnce}`,
+    )
+
+    const overCount = rows.filter((row) => row.currentStage?.isOverdue).length
+    const soonCount = rows.filter((row) => row.currentStage?.isDueSoon).length
+    check('признаки вообще встречаются', overCount + soonCount > 0, `просрочено ${overCount}, скоро ${soonCount}`)
+
+    const impossible = rows.filter(
+      (row) => row.progress.overdueStages + row.progress.dueSoonStages > row.progress.totalStages,
+    ).length
+    check(
+      'счётчики не превышают числа этапов',
+      impossible === 0,
+      `нарушений ${impossible}`,
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

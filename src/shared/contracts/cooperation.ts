@@ -10,6 +10,8 @@ export interface CurrentStageDto {
   status: StageStatus
   deadline: string | null
   isOverdue: boolean
+  /** Срок ещё не вышел, но выйдет со дня на день. С `isOverdue` не пересекается. */
+  isDueSoon: boolean
 }
 
 export interface CooperationProgressDto {
@@ -19,6 +21,8 @@ export interface CooperationProgressDto {
   cancelledStages: number
   totalStages: number
   overdueStages: number
+  /** Этапы, у которых срок вот-вот выйдет. В `overdueStages` не входят. */
+  dueSoonStages: number
   blockedStages: number
 }
 

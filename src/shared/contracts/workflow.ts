@@ -36,6 +36,11 @@ export interface WorkflowStageDto {
   deadline: string | null
   /** Дедлайн прошёл, а этап не закрыт и не отменён. */
   isOverdue: boolean
+  /**
+   * Срок ещё не вышел, но выйдет со дня на день. С `isOverdue` не пересекается:
+   * этап либо просрочен, либо вот-вот просрочится, либо ни то ни другое.
+   */
+  isDueSoon: boolean
   /** Дней до дедлайна: отрицательное значение — просрочка. null, если срока нет. */
   daysToDeadline: number | null
   comment: string | null

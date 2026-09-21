@@ -28,6 +28,7 @@ import {
   isControlPoint,
   computeControlStatus,
   isAutoManaged,
+  isDueSoon,
   isOverdue,
 } from './workflow.rules'
 import type { StageListQuery, UpdateStageInput, UpdateTaskInput } from './workflow.schema'
@@ -54,6 +55,7 @@ export function toStageDto(
     responsible: row.responsible,
     deadline: toIso(row.deadline),
     isOverdue: isOverdue(row.deadline, row.status, now),
+    isDueSoon: isDueSoon(row.deadline, row.status, now),
     daysToDeadline: daysToDeadline(row.deadline, now),
     // Результат этапа вуз видит: это итог работы. Комментарии и причины блокировок — нет.
     comment: hide ? null : row.comment,
