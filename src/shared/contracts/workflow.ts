@@ -1,4 +1,4 @@
-import type { StagePhase, StageStatus } from './enums'
+import type { StagePhase, StageStatus, UserRole } from './enums'
 
 export interface StageTaskDto {
   id: string
@@ -13,7 +13,8 @@ export interface StageTaskDto {
 export interface UserRefDto {
   id: string
   fullName: string
-  role: string
+  /** Именно `UserRole`, а не `string`: иначе `USER_ROLE_LABELS[ref.role]` не соберётся. */
+  role: UserRole
 }
 
 export interface StageHistoryEntryDto {

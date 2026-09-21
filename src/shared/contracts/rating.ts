@@ -42,3 +42,16 @@ export interface UniversityRatingDto {
   /** Сильнейшая программа — чтобы балл вуза можно было раскрыть одним кликом. */
   topProgram: { programId: string; name: string; score: number } | null
 }
+
+/**
+ * Строка рейтинга программ — ответ `GET /api/analytics/programs`.
+ *
+ * Лежит в контрактах, а не в модуле аналитики: фронт рисует этот список,
+ * и без экспортированного типа ему пришлось бы описывать форму ответа заново.
+ */
+export interface RankedProgramDto extends ProgramRatingDto {
+  programName: string
+  universityId: string
+  universityName: string
+  isMock: boolean
+}

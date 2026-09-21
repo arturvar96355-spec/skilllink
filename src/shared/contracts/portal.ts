@@ -1,4 +1,4 @@
-import type { ApplicationStatus, CooperationStatus, DataOrigin, StageStatus } from './enums'
+import type { ApplicationStatus, CooperationStatus, DataOrigin, StageStatus, ProgramLevel } from './enums'
 
 /** Заявка на обучение. Персональных данных обучающихся не содержит (решение 9). */
 export interface ApplicationDto {
@@ -30,7 +30,8 @@ export interface PortalMaterialDto {
 export interface PortalProgramDto {
   id: string
   name: string
-  level: string
+  /** Именно `ProgramLevel`: иначе `PROGRAM_LEVEL_LABELS[program.level]` не соберётся. */
+  level: ProgramLevel
   /** Заявки считаются по поданным заявкам и вузом напрямую не вводятся. */
   applicationCount: number | null
   studentCount: number | null
