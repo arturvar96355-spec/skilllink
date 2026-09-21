@@ -15,7 +15,7 @@ import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDto } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
 import { aggregateUniversityRatings, calculateRatings, type RatingBounds } from './rating'
-import type { ProgramRatingDto, UniversityRatingDto } from '@/shared/contracts/rating'
+import type { RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
 
 /** Показатель без данных: значение null и явная пометка, а не ноль (решение 8). */
 function noData(key: string, title: string, unit: string, explanation: string): DashboardMetricDto {
@@ -273,12 +273,9 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
 }
 
 
-export interface RankedProgramDto extends ProgramRatingDto {
-  programName: string
-  universityId: string
-  universityName: string
-  isMock: boolean
-}
+// Тип живёт в контрактах: его читает фронт. Здесь — только реэкспорт,
+// чтобы существующие импорты из модуля не ломались.
+export type { RankedProgramDto } from '@/shared/contracts/rating'
 
 /**
  * Рейтинг программ с раскрытием вклада каждого показателя (концепция, решение 7).
