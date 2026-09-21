@@ -199,6 +199,13 @@ me.data.permissions  // { canWrite, canSeeAnalytics, canUsePortal, isAdmin }
 
 По ним решайте, какие разделы рисовать. Матрицу доступа у себя не дублируйте.
 
+### Сводки обрезаются, и об этом сказано
+
+У `/api/skills/gaps`, `/api/skills/demand` и `/api/analytics/programs` работает
+не `page`, а `limit`. В `meta` приходит `total` — сколько найдено **всего**, и
+`truncated` — обрезана ли выдача. Показывайте «показаны 50 из 180», а не просто
+длину списка: `total` считается до обрезания намеренно.
+
 ### Ответ на изменение приходит целиком
 
 `PATCH` этапа и задачи возвращает **этап целиком**, `PATCH` связки — **связку целиком**.
@@ -271,7 +278,7 @@ export function LoginForm() {
 | Экран | Основной запрос |
 | --- | --- |
 | Дашборд | `GET /api/analytics/overview` — один запрос на всё |
-| Реестр вузов | `GET /api/universities` (рейтинг — параметром `withRating=true`) |
+| Реестр вузов | `GET /api/universities` — рейтинг приходит сам, `withRating=false` отключает |
 | Карточка вуза | `GET /api/universities/:id` + вкладки: программы, связи, документы, встречи, история |
 | Программы | `GET /api/programs`, `GET /api/programs/:id` |
 | Рекомендации | `GET /api/recommendations` |
