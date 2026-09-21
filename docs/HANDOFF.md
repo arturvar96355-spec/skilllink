@@ -28,7 +28,7 @@ npm run dev
 ### Или целиком в контейнерах
 
 ```bash
-export AUTH_SECRET="$(openssl rand -base64 32)"
+export AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
 docker compose up -d postgres
 docker compose --profile migrate run --rm migrate
 docker compose --profile app up -d app
@@ -217,7 +217,8 @@ npm run db:studio     # визуальный редактор
 Стенд сейчас рассчитан на демонстрацию. Для любого доступного извне контура обязательно:
 
 1. `DEMO_AUTH_ENABLED=false` — иначе вход без пароля по cookie остаётся открытым.
-2. `AUTH_SECRET` из `openssl rand -base64 32`.
+2. `AUTH_SECRET` — сгенерировать через Node (работает и в Windows, где нет openssl):
+   `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 3. Сменить демонстрационные пароли: сейчас у всех учётных записей он одинаковый.
 4. HTTPS и защищённые cookie.
 

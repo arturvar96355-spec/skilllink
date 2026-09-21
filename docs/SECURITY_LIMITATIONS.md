@@ -165,7 +165,7 @@ VIEWER, UNIVERSITY_REP. Матрица прав — в [API_CONTRACT.md](API_CON
 ## 3. Что нужно до промышленной эксплуатации
 
 1. Выставить `DEMO_AUTH_ENABLED=false` и задать стойкий `AUTH_SECRET`
-   (`openssl rand -base64 32`). Сменить демонстрационные пароли: в стенде у всех
+   (`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` — работает на всех системах, в отличие от openssl). Сменить демонстрационные пароли: в стенде у всех
    пользователей он одинаковый и общеизвестный.
 2. Включить HTTPS и защищённые cookie (`Secure`, `HttpOnly`, `SameSite`). CSRF-защиту для
    форм входа и выхода NextAuth обеспечивает сам; для остальных изменяющих запросов
