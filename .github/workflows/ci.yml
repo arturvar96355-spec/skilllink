@@ -37,6 +37,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 22 разворачивается в последнюю 22.x — она выше 22.12, которую требует
+      # Prisma 7. Требование записано в package.json, и engine-strict остановит
+      # установку, если однажды окажется иначе.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
