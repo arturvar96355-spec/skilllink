@@ -939,6 +939,79 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Целостность данных ─────────────────────────────────────────────────────
+  step('В базе нет противоречивых состояний')
+
+  {
+    // Половинчатая запись не видна ни одному функциональному тесту: страницы
+    // открываются, ошибок нет. Заметна она только сплошной проверкой.
+    type StageRow = {
+      stageNumber: number
+      status: string
+      result: string | null
+      blockingReason: string | null
+      completedAt: string | null
+    }
+
+    const list = await call<Array<{ id: string }>>('GET', '/api/cooperations?pageSize=100')
+    const cooperations = list.body.data ?? []
+    check('связки для проверки есть', cooperations.length > 0)
+
+    let wrongStageCount = 0
+    let completedWithoutResult = 0
+    let blockedWithoutReason = 0
+    let completedWithoutDate = 0
+    let openWithDate = 0
+
+    for (const row of cooperations) {
+      const card = await call<{ stages: StageRow[] }>('GET', `/api/cooperations/${row.id}`)
+      const stages = card.body.data?.stages ?? []
+
+      if (stages.length !== 14) wrongStageCount += 1
+
+      for (const stage of stages) {
+        const isControlStage = stage.stageNumber === 14
+        if (stage.status === 'COMPLETED' && !isControlStage) {
+          if (!stage.result || stage.result.trim() === '') completedWithoutResult += 1
+          if (!stage.completedAt) completedWithoutDate += 1
+        }
+        if (stage.status === 'BLOCKED' && !stage.blockingReason) blockedWithoutReason += 1
+        if (stage.status !== 'COMPLETED' && stage.completedAt) openWithDate += 1
+      }
+    }
+
+    check('у каждой связки ровно 14 этапов', wrongStageCount === 0, `нарушений ${wrongStageCount}`)
+    check(
+      'завершённый этап всегда имеет результат',
+      completedWithoutResult === 0,
+      `без результата ${completedWithoutResult}`,
+    )
+    check(
+      'завершённый этап всегда имеет дату завершения',
+      completedWithoutDate === 0,
+      `без даты ${completedWithoutDate}`,
+    )
+    check(
+      'незавершённый этап не хранит дату завершения',
+      openWithDate === 0,
+      `с лишней датой ${openWithDate}`,
+    )
+    check(
+      'заблокированный этап всегда имеет причину',
+      blockedWithoutReason === 0,
+      `без причины ${blockedWithoutReason}`,
+    )
+
+    const recs = await call<Array<{ justification: string }>>(
+      'GET',
+      '/api/recommendations?pageSize=100',
+    )
+    check(
+      'у каждой рекомендации есть обоснование',
+      (recs.body.data ?? []).every((rec) => rec.justification && rec.justification.length > 0),
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
