@@ -64,18 +64,31 @@ export async function latestPeriod(): Promise<string | null> {
   return row?.period ?? null
 }
 
-export async function findDemand(query: SkillDemandQuery, period: string): Promise<DemandRow[]> {
+function demandWhere(query: SkillDemandQuery, period: string): Prisma.MarketDemandWhereInput {
   const where: Prisma.MarketDemandWhereInput = { period }
   if (query.region) where.region = query.region
   if (query.skillId?.length) where.skillId = { in: query.skillId }
   if (query.category?.length) where.skill = { category: { in: query.category } }
+  return where
+}
 
+export async function findDemand(query: SkillDemandQuery, period: string): Promise<DemandRow[]> {
   return prisma.marketDemand.findMany({
-    where,
+    where: demandWhere(query, period),
     select: demandSelect,
     orderBy: { value: 'desc' },
     take: query.limit,
   })
+}
+
+/**
+ * Сколько строк подходит под фильтры **до** обрезания по limit.
+ *
+ * Нужно, чтобы отчёт не выдавал обрезанную выборку за полную: показатель
+ * востребованности с заниженным числом — это тихая ложь о рынке.
+ */
+export async function countDemand(query: SkillDemandQuery, period: string): Promise<number> {
+  return prisma.marketDemand.count({ where: demandWhere(query, period) })
 }
 
 /** Все рыночные данные за период — нужны, чтобы нормировать спрос по всей выборке. */
