@@ -25,3 +25,31 @@ export interface ProductDto extends ProductListItemDto {
   skills: ProductSkillDto[]
   createdAt: string
 }
+
+/** Связка, которую затронет или затронул выпуск новой версии продукта. */
+export interface ProductReleaseTargetDto {
+  cooperationId: string
+  universityName: string
+  programName: string
+  stageNumber: number
+  stageStatus: string
+  /** Что произойдёт или произошло с этой связкой. */
+  effect: 'task-added' | 'stage-reopened' | 'skipped-cancelled'
+  reason: string
+}
+
+/** Предпросмотр групповой операции: что изменится, до того как менять. */
+export interface ProductReleasePreviewDto {
+  productId: string
+  productName: string
+  currentVersion: string | null
+  nextVersion: string
+  targets: ProductReleaseTargetDto[]
+  affectedCooperations: number
+  reopenedStages: number
+  skipped: number
+}
+
+export interface ProductReleaseResultDto extends ProductReleasePreviewDto {
+  appliedAt: string
+}

@@ -1,12 +1,29 @@
 import { notFound } from '@/shared/http/errors'
+import { writeAudit } from '@/shared/audit/audit'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
-import type { ProductDto, ProductListItemDto } from '@/shared/contracts/product'
+import type {
+  ProductDto,
+  ProductListItemDto,
+  ProductReleasePreviewDto,
+  ProductReleaseResultDto,
+  ProductReleaseTargetDto,
+} from '@/shared/contracts/product'
 import { toIsoRequired } from '@/shared/utils/date'
 import * as repo from './products.repo'
-import type { ProductListQuery } from './products.schema'
+import type {
+  ProductListQuery,
+  ReleaseProductVersionInput,
+} from './products.schema'
+import {
+  MATERIALS_UPDATE_STAGE_NUMBER,
+  assertVersionChanged,
+  assertVersionFormat,
+  releaseTaskTitle,
+  reopenComment,
+} from './products.rules'
 
 function toListItem(row: repo.ProductListRow): ProductListItemDto {
   return {
@@ -50,4 +67,138 @@ export async function getById(user: CurrentUser, id: string): Promise<ProductDto
     })),
     createdAt: toIsoRequired(row.createdAt),
   }
+}
+
+/**
+ * Что изменится при выпуске новой версии продукта.
+ *
+ * Групповая операция затрагивает сразу много связок, поэтому у неё есть предпросмотр:
+ * менеджер видит список до того, как нажмёт кнопку.
+ */
+async function buildReleasePlan(
+  productId: string,
+  version: string,
+): Promise<{
+  preview: ProductReleasePreviewDto
+  apply: Array<{ stageId: string; cooperationId: string; reopen: boolean; nextSortOrder: number }>
+  productName: string
+}> {
+  const product = await repo.findById(productId)
+  if (!product) throw notFound('IT-продукт не найден')
+
+  assertVersionFormat(version)
+
+  const rows = await repo.findReleaseTargets(productId, MATERIALS_UPDATE_STAGE_NUMBER)
+  const targets: ProductReleaseTargetDto[] = []
+  const apply: Array<{
+    stageId: string
+    cooperationId: string
+    reopen: boolean
+    nextSortOrder: number
+  }> = []
+
+  for (const row of rows) {
+    const stage = row.stages[0]
+    if (!stage) continue
+
+    // Отменённый этап означает «не требуется». Переоткрыть его может только
+    // администратор поштучно — групповая операция такого решения не принимает.
+    if (stage.status === 'CANCELLED') {
+      targets.push({
+        cooperationId: row.id,
+        universityName: row.university.name,
+        programName: row.program.name,
+        stageNumber: stage.stageNumber,
+        stageStatus: stage.status,
+        effect: 'skipped-cancelled',
+        reason: 'Этап отменён как не требующийся — групповая операция его не трогает',
+      })
+      continue
+    }
+
+    const reopen = stage.status === 'COMPLETED'
+    const nextSortOrder =
+      stage.tasks.reduce((max, task) => Math.max(max, task.sortOrder), -1) + 1
+
+    targets.push({
+      cooperationId: row.id,
+      universityName: row.university.name,
+      programName: row.program.name,
+      stageNumber: stage.stageNumber,
+      stageStatus: stage.status,
+      effect: reopen ? 'stage-reopened' : 'task-added',
+      reason: reopen
+        ? 'Этап был закрыт: переданная версия устарела, этап откроется заново'
+        : 'Этап в работе: добавится обязательный пункт о передаче новой версии',
+    })
+    apply.push({ stageId: stage.id, cooperationId: row.id, reopen, nextSortOrder })
+  }
+
+  return {
+    preview: {
+      productId,
+      productName: product.name,
+      currentVersion: product.version,
+      nextVersion: version,
+      targets,
+      affectedCooperations: apply.length,
+      reopenedStages: apply.filter((item) => item.reopen).length,
+      skipped: targets.length - apply.length,
+    },
+    apply,
+    productName: product.name,
+  }
+}
+
+export async function previewRelease(
+  user: CurrentUser,
+  productId: string,
+  version: string,
+): Promise<ProductReleasePreviewDto> {
+  assertCan(user, 'WRITE')
+  const { preview } = await buildReleasePlan(productId, version)
+  return preview
+}
+
+/**
+ * Выпуск новой версии продукта (групповая операция из концепции).
+ * Одно действие ставит задачи во всех связках, где передана устаревшая версия.
+ */
+export async function releaseVersion(
+  user: CurrentUser,
+  productId: string,
+  input: ReleaseProductVersionInput,
+): Promise<ProductReleaseResultDto> {
+  assertCan(user, 'WRITE')
+
+  const { preview, apply, productName } = await buildReleasePlan(productId, input.version)
+  assertVersionChanged(preview.currentVersion, input.version)
+
+  const comment = input.comment
+    ? `${reopenComment(productName, input.version)}. ${input.comment}`
+    : reopenComment(productName, input.version)
+
+  await repo.applyRelease({
+    productId,
+    version: input.version,
+    taskTitle: releaseTaskTitle(productName, input.version),
+    reopenComment: comment,
+    userId: user.id,
+    targets: apply,
+  })
+
+  await writeAudit({
+    userId: user.id,
+    action: 'product.version.release',
+    objectType: 'ITProduct',
+    objectId: productId,
+    payload: {
+      version: input.version,
+      affectedCooperations: preview.affectedCooperations,
+      reopenedStages: preview.reopenedStages,
+      skipped: preview.skipped,
+    },
+  })
+
+  return { ...preview, appliedAt: new Date().toISOString() }
 }
