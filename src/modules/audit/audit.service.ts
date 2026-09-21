@@ -51,7 +51,7 @@ export async function universityEvents(
   user: CurrentUser,
   universityId: string,
   query: UniversityEventsQuery,
-): Promise<UniversityEventDto[]> {
+): Promise<{ events: UniversityEventDto[]; hasMore: boolean }> {
   assertCan(user, 'READ')
 
   if (!isUniversityVisible(user, universityId)) throw notFound('Вуз не найден')
@@ -134,5 +134,10 @@ export async function universityEvents(
   }
 
   events.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
-  return events.slice(0, query.limit)
+
+  // Точного общего числа тут нет и быть не может: события склеиваются из четырёх
+  // источников, и посчитать их все значило бы прочитать всю историю вуза.
+  // Но сказать «это не всё» — можно, и интерфейсу этого достаточно,
+  // чтобы честно предложить «показать ещё», а не делать вид, что показано всё.
+  return { events: events.slice(0, query.limit), hasMore: events.length > query.limit }
 }

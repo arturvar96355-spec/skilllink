@@ -43,6 +43,14 @@ export async function findAuditEntries(query: AuditListQuery) {
  * потом всё сливается и обрезается до нужного количества.
  */
 export async function loadUniversityEvents(universityId: string, limit: number) {
+  /**
+   * С запасом на источник, а не ровно `limit`.
+   *
+   * События склеиваются из пяти источников и сортируются по времени: если брать
+   * из каждого ровно `limit`, а все свежие события окажутся в одном, склейка даст
+   * ровно `limit` строк — и признак «есть ещё» окажется ложным при полной истории
+   * впереди. Запас гарантирует, что превышение видно.
+   */
   const perSource = limit * 2
 
   const [cooperations, stageHistory, documentHistory, meetings, applications] = await Promise.all([
