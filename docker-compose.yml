@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skilllink-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: skilllink
+      POSTGRES_PASSWORD: skilllink
+      POSTGRES_DB: skilllink
+    ports:
+      - '5432:5432'
+    volumes:
+      - skilllink-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U skilllink -d skilllink']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  skilllink-pgdata:

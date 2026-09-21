@@ -1,0 +1,1052 @@
+# API_CONTRACT.md — контракт API SkillLink
+
+Источник истины для фронта: P0 и серверная часть P1. Любое изменение поля фиксируется здесь
+до правки кода.
+
+Все описанные эндпоинты реализованы и проверены сквозным сценарием.
+
+Базовый адрес локально: `http://localhost:3000`.
+
+---
+
+## 1. Общие правила
+
+- JSON наружу — **camelCase**. В базе snake_case через `@map` / `@@map`.
+  `TODO: PM DECISION` — подтвердить camelCase с фронтом.
+- Даты — строка **ISO 8601 в UTC**: `"2026-09-21T07:24:47.059Z"`.
+- Идентификаторы — строки (cuid), например `"cmuax8g450001v2rline15g0c"`.
+- Все тексты ошибок — на русском.
+
+### Формат успешного ответа
+
+Один объект:
+
+```json
+{ "data": { "id": "…", "name": "…" } }
+```
+
+Список:
+
+```json
+{
+  "data": [ { "id": "…" } ],
+  "meta": { "page": 1, "pageSize": 20, "total": 137 }
+}
+```
+
+Отдельные списки добавляют в `meta` свои поля — они описаны у соответствующего эндпоинта.
+
+### Формат ошибки
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Ошибка валидации данных",
+    "details": [ { "field": "name", "message": "Название должно содержать не менее 3 символов" } ]
+  }
+}
+```
+
+`details` присутствует не всегда. Для ошибок валидации это массив `{ field, message }`.
+
+| Код | HTTP | Когда |
+| --- | --- | --- |
+| `VALIDATION_ERROR` | 422 | Не прошла проверка входных данных |
+| `UNAUTHORIZED` | 401 | Пользователь не определён |
+| `FORBIDDEN` | 403 | Роли не хватает прав |
+| `NOT_FOUND` | 404 | Записи нет или она не видна пользователю |
+| `CONFLICT` | 409 | Действие противоречит состоянию данных |
+| `INVALID_TRANSITION` | 409 | Недопустимый переход статуса этапа |
+| `INTEGRATION_ERROR` | 502 | Сбой внешнего сервиса |
+| `INTERNAL` | 500 | Непредвиденная ошибка |
+
+Запись чужого вуза для роли `UNIVERSITY_REP` возвращает **404, а не 403**: существование записи
+не раскрывается.
+
+### Авторизация
+
+P0 — mock-авторизация. Текущий пользователь берётся из cookie `skilllink_user` со значением
+идентификатора пользователя. Без cookie берётся первый активный сотрудник (MANAGER → ADMIN →
+ANALYST → VIEWER). На P1 здесь появится NextAuth.js; контракт не меняется.
+
+| Право | Роли |
+| --- | --- |
+| `READ` | ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP |
+| `WRITE` | ADMIN, MANAGER |
+| `ANALYTICS` | ADMIN, MANAGER, ANALYST, VIEWER |
+| `ADMIN` | ADMIN |
+| `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP |
+
+### Пагинация, фильтры, сортировка
+
+- `page` — с 1, по умолчанию 1.
+- `pageSize` — 1..100, по умолчанию 20.
+- `sort` — имя поля; минус спереди означает убывание: `sort=-updatedAt`.
+- Повторяющийся параметр собирается в массив: `?status=ACTIVE&status=NEW`.
+- Пустое значение параметра игнорируется.
+
+### Признак демонстрационных данных
+
+Каждая запись и каждый аналитический ответ несут `isMock`. **Фронт обязан показывать пометку**:
+выдавать демо-данные за подтверждённую статистику запрещено (раздел 4 ТЗ).
+
+### Показатели и «Нет данных»
+
+Числовой показатель приходит объектом:
+
+```json
+{
+  "value": 310,
+  "unit": "заявки",
+  "basis": "estimate",
+  "explanation": "Заявки на обучение: 310 (демонстрационные данные)",
+  "period": "2026-09-07T10:00:00.000Z",
+  "source": "MOCK",
+  "isMock": true
+}
+```
+
+`basis`: `actual` — фактические данные, `estimate` — оценка, `none` — данных нет.
+При `basis: "none"` поле `value` равно **null**. Ноль никогда не подставляется вместо отсутствия
+данных — фронт показывает «Нет данных».
+
+---
+
+## 2. Служебное
+
+### GET /api/health
+
+Проверка живости приложения и подключения к базе. Авторизация не требуется.
+
+```bash
+curl -s http://localhost:3000/api/health
+```
+
+```json
+{ "data": { "status": "ok", "database": "connected", "time": "2026-09-21T07:24:47.059Z" } }
+```
+
+---
+
+## 3. Университеты
+
+### GET /api/universities
+
+Право: `READ`. Реестр вузов (раздел 7.2 ТЗ).
+
+| Параметр | Тип | Описание |
+| --- | --- | --- |
+| `page`, `pageSize` | number | Пагинация |
+| `q` | string | Поиск по названию, краткому названию, городу, региону и названиям программ |
+| `status` | enum[] | `NEW`, `IN_PROGRESS`, `ACTIVE`, `PAUSED`, `ARCHIVED` |
+| `region` | string[] | Точное совпадение региона |
+| `city` | string[] | Точное совпадение города |
+| `sort` | string | `name`, `city`, `region`, `status`, `createdAt`, `updatedAt` (по умолчанию `name`) |
+| `includeArchived` | `true`/`false` | По умолчанию архивные скрыты |
+
+```bash
+curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageSize=10"
+```
+
+Элемент списка (`UniversityListItemDto`):
+
+```json
+{
+  "id": "cmuax8g4t0008v2rl4bg3v2kn",
+  "name": "Санкт-Петербургский государственный университет телекоммуникаций",
+  "shortName": "СПбГУТ",
+  "city": "Санкт-Петербург",
+  "region": "Санкт-Петербург",
+  "status": "ACTIVE",
+  "programCount": 2,
+  "cooperationCount": 2,
+  "activeCooperationCount": 2,
+  "isMock": true,
+  "updatedAt": "2026-09-21T07:23:11.101Z",
+  "archivedAt": null
+}
+```
+
+### GET /api/universities/:id
+
+Право: `READ`. Карточка вуза (раздел 7.3 ТЗ). Ошибка: `NOT_FOUND`.
+
+Дополнительно к полям списка (`UniversityDto`):
+
+```json
+{
+  "address": "Санкт-Петербург, адрес указан условно",
+  "website": "https://example.invalid/spbgu",
+  "description": "Демонстрационная запись…",
+  "directionCount": 24,
+  "studentCount": 11800,
+  "primaryContact": {
+    "id": "…", "fullName": "Ветрова Ирина Павловна",
+    "position": "Заместитель декана",
+    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true
+  },
+  "contacts": [ "…" ],
+  "createdAt": "2026-09-21T07:23:11.101Z"
+}
+```
+
+### POST /api/universities
+
+Право: `WRITE`. Ответ 201.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `name` | string | да | 3..300 |
+| `city` | string | да | 2..120 |
+| `region` | string | да | 2..120 |
+| `shortName` | string \| null | нет | до 100 |
+| `address` | string \| null | нет | до 300 |
+| `website` | string \| null | нет | корректный URL |
+| `status` | enum | нет | по умолчанию `NEW` |
+| `directionCount` | number \| null | нет | ≥ 0 |
+| `studentCount` | number \| null | нет | ≥ 0 |
+| `description` | string \| null | нет | до 2000 |
+| `contacts` | array | нет | до 20, поля `fullName` (обяз.), `position`, `email`, `phone`, `isPrimary` |
+
+```bash
+curl -s -X POST http://localhost:3000/api/universities \
+  -H 'content-type: application/json' \
+  -d '{"name":"Проверочный университет связи","city":"Тверь","region":"Тверская область","status":"IN_PROGRESS"}'
+```
+
+### PATCH /api/universities/:id
+
+Право: `WRITE`. Любое подмножество полей создания, кроме `contacts`. **Пустое тело — 422.**
+Архивную запись править нельзя — `CONFLICT`.
+
+### POST /api/universities/:id/archive
+
+Право: `WRITE`. Архивирование вместо удаления. Если есть связки в статусах `DRAFT`, `ACTIVE`,
+`PAUSED` — `CONFLICT` с `details.openCooperations`.
+
+### POST /api/universities/:id/restore
+
+Право: `WRITE`. Возвращает вуз из архива в статус `IN_PROGRESS`.
+
+---
+
+## 4. Образовательные программы
+
+### GET /api/programs
+
+Право: `READ`.
+
+| Параметр | Тип | Описание |
+| --- | --- | --- |
+| `q` | string | Поиск по названию, коду, направлению, названию вуза |
+| `universityId` | string | Программы одного вуза |
+| `level` | enum[] | `SPO`, `BACHELOR`, `SPECIALIST`, `MASTER`, `POSTGRADUATE`, `DPO` |
+| `status` | enum[] | `DRAFT`, `ACTIVE`, `SUSPENDED`, `ARCHIVED` |
+| `skillId` | string[] | Программы, где есть любой из навыков |
+| `sort` | string | `name`, `level`, `status`, `applicationCount`, `studentCount`, `groupCount`, `createdAt`, `updatedAt` |
+| `includeArchived` | `true`/`false` | По умолчанию архивные скрыты |
+
+При сортировке по показателю набора записи без данных уходят в конец списка.
+
+```bash
+curl -s "http://localhost:3000/api/programs?level=MASTER&sort=-applicationCount"
+```
+
+`ProgramListItemDto`:
+
+```json
+{
+  "id": "…",
+  "universityId": "…",
+  "universityName": "МТУСИ",
+  "name": "Облачные технологии и инфраструктура",
+  "code": "09.04.01",
+  "direction": "Информатика и вычислительная техника",
+  "level": "MASTER",
+  "durationMonths": 24,
+  "status": "ACTIVE",
+  "metrics": {
+    "applicationCount": { "value": 190, "unit": "заявки", "basis": "estimate", "explanation": "…", "source": "MOCK", "period": "…", "isMock": true },
+    "studentCount":     { "value": 76,  "unit": "человек", "basis": "estimate", "explanation": "…", "source": "MOCK", "period": "…", "isMock": true },
+    "groupCount":       { "value": 3,   "unit": "групп",   "basis": "estimate", "explanation": "…", "source": "MOCK", "period": "…", "isMock": true }
+  },
+  "skillCount": 3,
+  "cooperationCount": 1,
+  "isMock": true,
+  "updatedAt": "…"
+}
+```
+
+### GET /api/programs/:id
+
+Право: `READ`. Дополнительно `skills[]`, `createdAt`, `archivedAt`.
+
+```json
+{
+  "skills": [
+    {
+      "skillId": "…", "name": "Облачные платформы", "category": "Инфраструктура",
+      "level": "ADVANCED", "importance": "CRITICAL",
+      "source": "CURRICULUM", "confidence": "MEDIUM", "comment": null
+    }
+  ]
+}
+```
+
+### POST /api/programs
+
+Право: `WRITE`. Ответ 201.
+
+| Поле | Тип | Обязательно |
+| --- | --- | --- |
+| `universityId` | string | да |
+| `name` | string | да (3..300) |
+| `level` | enum | да |
+| `code`, `direction` | string \| null | нет |
+| `durationMonths` | number \| null | нет (1..120) |
+| `status` | enum | нет, по умолчанию `ACTIVE` |
+| `applicationCount`, `studentCount`, `groupCount` | number \| null | нет, ≥ 0. **null означает «Нет данных»** |
+| `metricsSource` | enum \| null | нет; если показатели переданы без источника, проставляется `MANUAL` |
+
+Ошибки: `VALIDATION_ERROR` — вуза нет или он в архиве.
+
+### PATCH /api/programs/:id
+
+Право: `WRITE`. Подмножество полей, кроме `universityId`. Пустое тело — 422.
+При изменении любого показателя набора обновляются `metricsSource` и `metricsUpdatedAt`.
+
+### PUT /api/programs/:id/skills
+
+Право: `WRITE`. **Полная замена** набора навыков программы.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/programs/PROGRAM_ID/skills \
+  -H 'content-type: application/json' \
+  -d '{"skills":[{"skillId":"SKILL_ID","level":"ADVANCED","importance":"CRITICAL"}]}'
+```
+
+| Поле элемента | По умолчанию |
+| --- | --- |
+| `skillId` | обязательно |
+| `level` | `BASIC` |
+| `importance` | `MEDIUM` |
+| `source` | `CURRICULUM` |
+| `confidence` | null |
+| `comment` | null |
+
+`{"skills": []}` снимает все навыки. Ошибки: `VALIDATION_ERROR` при повторе навыка или
+несуществующем `skillId`.
+
+### POST /api/programs/:id/archive
+
+Право: `WRITE`.
+
+---
+
+## 5. Навыки и рынок
+
+### GET /api/skills
+
+Право: `READ`. Параметры: `q`, `category[]`, `sort` (`name`, `category`, `createdAt`), пагинация.
+
+```json
+{ "id": "…", "name": "Kubernetes", "category": "DevOps", "description": "Оркестрация контейнеров",
+  "programCount": 0, "productCount": 1 }
+```
+
+### GET /api/skills/demand
+
+Право: `ANALYTICS`. Востребованность навыков на рынке.
+
+| Параметр | Описание |
+| --- | --- |
+| `period` | `2026-Q1` или `2026-03`. По умолчанию — последний доступный период |
+| `region` | Регион выборки |
+| `category` | string[] |
+| `skillId` | string[] |
+| `limit` | 1..200, по умолчанию 50 |
+
+```bash
+curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
+```
+
+```json
+{
+  "data": [
+    {
+      "skillId": "…", "name": "SQL", "category": "Базы данных",
+      "period": "2026-Q1", "value": 9600, "unit": "вакансий",
+      "normalized": 1, "region": "Россия",
+      "source": "Демонстрационный набор вакансий", "confidence": "LOW", "isMock": true
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 5, "total": 5, "period": "2026-Q1", "isMock": true }
+}
+```
+
+`normalized` — спрос, приведённый к 0..1 по **всей** выборке периода, а не по отфильтрованной
+странице: иначе значения нельзя было бы сравнивать между запросами с разными фильтрами.
+
+### GET /api/skills/gaps
+
+Право: `ANALYTICS`. Дефицит навыков.
+
+| Параметр | Описание |
+| --- | --- |
+| `programId` | Дефициты одной программы |
+| `universityId` | Сводка по программам одного вуза |
+| `period` | По умолчанию последний доступный |
+| `criticalOnly` | `true` — только критичные |
+| `limit` | 1..200, по умолчанию 50 |
+
+Без `programId` и `universityId` считается сводка по всем активным программам.
+
+```json
+{
+  "data": [
+    {
+      "skillId": "…", "name": "Kubernetes", "category": "DevOps",
+      "demand": 7900, "demandNormalized": 0.77,
+      "coverage": 0, "level": null, "importance": null,
+      "gap": 0.77, "isCritical": true,
+      "explanation": "Навык «Kubernetes» востребован рынком (77 из 100), но в программе отсутствует",
+      "isMock": true
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 18, "total": 18, "period": "2026-Q1", "programId": null, "isMock": true }
+}
+```
+
+---
+
+## 6. IT-продукты
+
+### GET /api/products
+
+Право: `READ`. Параметры: `q`, `category[]`, `status[]` (`PLANNED`, `ACTIVE`, `DEPRECATED`),
+`skillId[]`, `sort` (`name`, `category`, `status`, `updatedAt`), пагинация.
+
+### GET /api/products/:id
+
+Право: `READ`. Дополнительно `description` и `skills[]` с полем
+`relevance` (`CORE`, `RELATED`, `OPTIONAL`).
+
+---
+
+## 7. Сотрудничество
+
+### GET /api/cooperations
+
+Право: `READ`.
+
+| Параметр | Описание |
+| --- | --- |
+| `q` | Поиск по вузу, программе, продукту, цели |
+| `universityId`, `programId`, `productId`, `responsibleId` | Точные фильтры |
+| `status` | enum[]: `DRAFT`, `ACTIVE`, `PAUSED`, `COMPLETED`, `CANCELLED` |
+| `onlyOverdue` | `true` — только связки с просроченными этапами |
+| `onlyBlocked` | `true` — только связки с заблокированными этапами |
+| `sort` | `status`, `createdAt`, `updatedAt`, `targetDate`, `classesStartAt` |
+
+`CooperationListItemDto`:
+
+```json
+{
+  "id": "…",
+  "universityId": "…", "universityName": "СПбГУТ",
+  "programId": "…",    "programName": "Информационная безопасность…",
+  "productId": "…",    "productName": "Система мониторинга безопасности",
+  "status": "ACTIVE",
+  "responsible": { "id": "…", "fullName": "Кириллов Пётр Андреевич", "role": "MANAGER" },
+  "currentStage": {
+    "id": "…", "stageNumber": 10, "title": "Обновление образовательной программы",
+    "phase": "IMPLEMENTATION", "status": "IN_PROGRESS",
+    "deadline": "2026-10-15T00:00:00.000Z", "isOverdue": false
+  },
+  "progress": {
+    "percent": 69, "completedStages": 9, "cancelledStages": 0,
+    "totalStages": 13, "overdueStages": 0, "blockedStages": 0
+  },
+  "targetDate": "2026-10-21T07:23:11.101Z",
+  "classesStartAt": "2026-10-21T07:23:11.101Z",
+  "daysToTarget": 30,
+  "isMock": true,
+  "updatedAt": "…"
+}
+```
+
+`progress.totalStages` равно **13**: контрольный этап 14 в процент не входит — он лишь отражает
+состояние остальных. `currentStage` — первый по номеру этап, который не `COMPLETED` и не
+`CANCELLED`; контрольный этап туда не попадает. `null`, если закрыты все этапы.
+
+### GET /api/cooperations/:id
+
+Право: `READ`. Дополнительно `goal`, `notes`, `firstContactAt`, `startedAt`, `closedAt`,
+`createdAt` и полный массив `stages[]` (см. раздел 8).
+
+### POST /api/cooperations
+
+Право: `WRITE`. Ответ 201. **Создаёт все 14 этапов с чек-листами и нормативными сроками.**
+
+| Поле | Тип | Обязательно |
+| --- | --- | --- |
+| `universityId` | string | да |
+| `programId` | string | да |
+| `responsibleId` | string | да |
+| `productId` | string \| null | нет — продукт может быть не выбран |
+| `status` | enum | нет, по умолчанию `DRAFT` |
+| `goal`, `notes` | string \| null | нет |
+| `firstContactAt`, `classesStartAt`, `targetDate` | ISO 8601 \| null | нет |
+
+```bash
+curl -s -X POST http://localhost:3000/api/cooperations \
+  -H 'content-type: application/json' \
+  -d '{"universityId":"UNI_ID","programId":"PROG_ID","productId":"PROD_ID","responsibleId":"USER_ID","goal":"Внедрение продукта в учебный процесс"}'
+```
+
+Ошибки `VALIDATION_ERROR`: программы нет, программа в архиве, программа принадлежит другому вузу,
+ответственный не найден, продукт не найден.
+
+### PATCH /api/cooperations/:id
+
+Право: `WRITE`. Поля: `productId`, `responsibleId`, `status`, `goal`, `notes`, `firstContactAt`,
+`classesStartAt`, `targetDate`. Пустое тело — 422. Закрытую связку (`COMPLETED`, `CANCELLED`)
+править нельзя, кроме смены статуса — `CONFLICT`. `productId: null` отвязывает продукт.
+
+---
+
+## 8. Workflow: 14 этапов
+
+### GET /api/cooperations/:id/stages
+
+Право: `READ`. Массив `WorkflowStageDto`, отсортированный по `stageNumber`.
+
+```json
+{
+  "id": "…",
+  "cooperationId": "…",
+  "stageNumber": 1,
+  "title": "Поиск контакта ответственного лица в вузе",
+  "phase": "ATTRACTION",
+  "status": "COMPLETED",
+  "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
+  "deadline": "2026-09-28T07:23:11.101Z",
+  "isOverdue": false,
+  "daysToDeadline": 7,
+  "comment": null,
+  "result": "Контакт найден, договорённость о встрече достигнута",
+  "blockingReason": null,
+  "startedAt": "…", "completedAt": "…",
+  "completedBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
+  "isAutoManaged": false,
+  "tasks": [
+    { "id": "…", "title": "Найден ответственный сотрудник вуза", "isRequired": true,
+      "isDone": true, "doneAt": "…", "doneBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
+      "sortOrder": 0 }
+  ],
+  "requiredTasksTotal": 2,
+  "requiredTasksDone": 2,
+  "updatedAt": "…"
+}
+```
+
+`phase`: `ATTRACTION` (этапы 1–3), `FORMALIZATION` (4–6), `IMPLEMENTATION` (7–10),
+`OPERATION` (11–13), `CONTROL` (14).
+
+`isAutoManaged: true` только у этапа 14. Фронт должен показывать его только для чтения.
+
+### PATCH /api/workflow/stages/:id
+
+Право: `WRITE`.
+
+| Поле | Тип |
+| --- | --- |
+| `status` | enum: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, `CANCELLED` |
+| `responsibleId` | string \| null |
+| `deadline` | ISO 8601 \| null |
+| `comment` | string \| null (до 2000) |
+| `result` | string \| null (до 2000) |
+| `blockingReason` | string \| null (до 2000) |
+
+**Разрешённые переходы**
+
+| Из | В |
+| --- | --- |
+| `NOT_STARTED` | `IN_PROGRESS`, `CANCELLED` |
+| `IN_PROGRESS` | `COMPLETED`, `BLOCKED`, `CANCELLED` |
+| `BLOCKED` | `IN_PROGRESS`, `CANCELLED` |
+| `COMPLETED` | `IN_PROGRESS` (переоткрытие, нужен `comment`) |
+| `CANCELLED` | `IN_PROGRESS` (только роль ADMIN, нужен `comment`) |
+
+Остальное — `INVALID_TRANSITION` (409) с `details: { from, to, allowed }`.
+
+**Условия**
+
+| Переход | Требование | Код ошибки |
+| --- | --- | --- |
+| в `COMPLETED` | непустой `result` (в теле или уже сохранённый) | `VALIDATION_ERROR` |
+| в `COMPLETED` | все обязательные пункты чек-листа закрыты | `INVALID_TRANSITION` |
+| в `BLOCKED` | непустой `blockingReason` | `VALIDATION_ERROR` |
+| в `CANCELLED` | непустой `comment` с основанием | `VALIDATION_ERROR` |
+| из `COMPLETED` / `CANCELLED` | непустой `comment` | `VALIDATION_ERROR` |
+| этап 14 | любое ручное изменение запрещено | `INVALID_TRANSITION` |
+
+**Побочные эффекты:** при смене статуса пишется запись в историю с автором и временем;
+пересчитывается этап 14; при входе в `COMPLETED` сохраняются `completedAt` и `completedBy`;
+при выходе из `COMPLETED` они очищаются; при уходе из `BLOCKED` очищается `blockingReason`;
+первый вход в `IN_PROGRESS` проставляет `startedAt`.
+
+```bash
+curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
+  -H 'content-type: application/json' \
+  -d '{"status":"COMPLETED","result":"Договор подписан обеими сторонами"}'
+```
+
+Ответ — этап целиком, чтобы фронт обновил карточку без второго запроса.
+
+### GET /api/workflow/stages/:id/history
+
+Право: `READ`. История изменений, новые записи первыми.
+
+```json
+[ { "id": "…", "fromStatus": "IN_PROGRESS", "toStatus": "COMPLETED",
+    "comment": null, "changedBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
+    "changedAt": "2026-09-21T07:25:02.412Z" } ]
+```
+
+Автоматический пересчёт этапа 14 тоже попадает в историю с комментарием
+«Пересчитано автоматически по состоянию этапов 1–13».
+
+### PATCH /api/workflow/tasks/:id
+
+Право: `WRITE`. Тело: `{ "isDone": true }`. Ответ — **этап целиком**, чтобы фронт сразу обновил
+`requiredTasksDone` и прогресс.
+
+### GET /api/workflow/overdue
+
+Право: `READ`. Этапы с прошедшим сроком, не закрытые и не отменённые.
+Параметры: `universityId`, `responsibleId`, `minDaysOverdue`, пагинация. Сортировка — по сроку.
+
+К полям этапа добавляются `universityName`, `programName`, `productName`.
+
+### GET /api/workflow/blocked
+
+Право: `READ`. Этапы в статусе `BLOCKED`. Те же параметры и те же дополнительные поля.
+
+---
+
+## 9. Аналитика
+
+### GET /api/analytics/overview
+
+Право: `ANALYTICS`. Сводка главной страницы (раздел 7.1 ТЗ).
+
+```json
+{
+  "data": {
+    "metrics": [
+      { "key": "activeCooperations", "title": "Активные связи", "value": 6, "unit": "связей",
+        "basis": "actual", "explanation": "Связки в статусах «Черновик» и «В работе»",
+        "period": null, "source": "Данные системы", "isMock": false },
+      { "key": "universitiesInWork", "title": "Вузы в работе", "…": "…" },
+      { "key": "stagesOnTimePercent", "title": "Этапы, закрытые в срок", "…": "…" },
+      { "key": "avgDaysToClasses", "title": "Среднее время до начала занятий", "…": "…" },
+      { "key": "operationsPerCooperation", "title": "Операций на связку", "basis": "estimate", "…": "…" }
+    ],
+    "topPrograms": [
+      { "programId": "…", "programName": "…", "universityId": "…", "universityName": "…",
+        "score": 100, "basis": "estimate",
+        "factors": [ { "key": "applicationCount", "title": "Заявки на обучение",
+                       "value": 420, "weight": 0.4, "contribution": 40 } ] }
+    ],
+    "problemCooperations": [
+      { "cooperationId": "…", "universityName": "…", "programName": "…",
+        "reason": "Этап просрочен на 12 дн.", "stageNumber": 6,
+        "stageTitle": "Подписание документов", "daysOverdue": -12 }
+    ],
+    "skillMatch": {
+      "coveragePercent": 88.9, "coveredSkills": 16, "demandedSkills": 18,
+      "criticalGaps": 2, "period": "2026-Q1", "isMock": true
+    },
+    "generatedAt": "2026-09-21T07:25:10.001Z",
+    "containsMockData": true
+  }
+}
+```
+
+Показатель без данных приходит с `value: null` и `basis: "none"` — фронт показывает «Нет данных».
+
+### GET /api/analytics/programs
+
+Право: `ANALYTICS`. Рейтинг программ по трём показателям с раскрытием вклада каждого.
+Параметр `limit` (1..200, по умолчанию 20).
+
+```json
+{
+  "data": [
+    {
+      "programId": "…", "programName": "Программная инженерия",
+      "universityId": "…", "universityName": "СПбГУТ",
+      "score": 100, "basis": "estimate",
+      "explanation": "Балл рассчитан по 3 из 3 показателей набора и нормирован внутри текущей выборки программ",
+      "factors": [
+        { "key": "applicationCount", "title": "Заявки на обучение", "value": 420,
+          "normalized": 1, "weight": 0.4, "contribution": 40 },
+        { "key": "studentCount", "title": "Количество обучающихся", "value": 180,
+          "normalized": 1, "weight": 0.4, "contribution": 40 },
+        { "key": "groupCount", "title": "Количество параллельных групп", "value": 7,
+          "normalized": 1, "weight": 0.2, "contribution": 20 }
+      ],
+      "isMock": true
+    }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 12 }
+}
+```
+
+Балл нормируется **внутри выборки ответа**, поэтому сравнивать баллы можно только в пределах
+одного запроса. Программы без данных не выбрасываются: они уходят в конец со `score: null`
+и `basis: "none"`.
+
+---
+
+## 10. Рекомендации
+
+Рекомендация не заменяет решение сотрудника (раздел 4 ТЗ): она объясняет, почему система
+считает действие нужным, и предлагает его.
+
+### POST /api/recommendations/generate
+
+Право: `WRITE`. Пересобирает рекомендации по правилам. Тело не нужно.
+
+Существующие записи обновляются по тройке (`ruleKey`, `objectType`, `objectId`), поэтому
+повторный запуск не плодит дубликаты. **Решение сотрудника не переписывается:** принятая или
+отклонённая рекомендация сохраняет свой статус. Рекомендации, которые правила больше не
+выдают, закрываются со статусом `DONE`.
+
+```bash
+curl -s -X POST http://localhost:3000/api/recommendations/generate
+```
+
+```json
+{ "data": { "created": 10, "updated": 0, "closed": 0, "total": 10,
+            "generatedAt": "2026-09-21T08:05:00.000Z" } }
+```
+
+**Правила генерации**
+
+| `ruleKey` | Когда срабатывает | Приоритет |
+| --- | --- | --- |
+| `stage.overdue` | Срок этапа прошёл, этап не закрыт | MEDIUM → HIGH (7 дн.) → CRITICAL (21 дн.) |
+| `cooperation.stalled` | По связке нет изменений 14 дн., текущий этап не закрыт | MEDIUM, для `BLOCKED` — HIGH |
+| `cooperation.no-product` | Связка дошла до этапа 4, продукт не выбран | HIGH |
+| `program.missing-metrics` | У программы с начатым сотрудничеством не заполнены показатели набора | MEDIUM, HIGH если пусто всё |
+| `skill.critical-gap-with-product` | Навык востребован, отсутствует во всех программах, и есть продукт, который его даёт | HIGH |
+
+Просрочка и застой по одной связке не дублируются: если есть просроченный этап, застой
+не показывается — это была бы вторая карточка об одной проблеме.
+
+### GET /api/recommendations
+
+Право: `ANALYTICS`. Представителю вуза недоступно.
+
+Параметры: `type[]`, `status[]`, `priority[]`, `cooperationId`, `region`,
+`sort` (`priority`, `createdAt`, `updatedAt`), пагинация.
+
+```json
+{
+  "id": "…",
+  "type": "SKILL",
+  "ruleKey": "skill.critical-gap-with-product",
+  "title": "Дефицит навыка «Kubernetes» закрывается нашим продуктом",
+  "description": "Предложите вузам Облачная платформа РТК: продукт даёт навык…",
+  "priority": "HIGH",
+  "justification": "Навык востребован рынком (77 из 100), но отсутствует в 12 программах…",
+  "relatedData": { "skillId": "…", "demandNormalized": 0.77, "products": [], "programCount": 12 },
+  "confidence": "MEDIUM",
+  "status": "NEW",
+  "resolutionComment": null,
+  "target": { "objectType": "Skill", "objectId": "…", "label": "…" },
+  "cooperationId": null,
+  "createdAt": "…", "updatedAt": "…", "resolvedAt": null
+}
+```
+
+### GET /api/recommendations/:id
+
+Право: `ANALYTICS`.
+
+### PATCH /api/recommendations/:id
+
+Право: `WRITE`. Тело: `{ "status": "ACCEPTED", "comment": "Взято в работу" }`.
+
+Статусы: `NEW`, `IN_PROGRESS`, `ACCEPTED`, `DISMISSED`, `DONE`.
+**Отклонение (`DISMISSED`) требует непустой `comment`** — иначе 422.
+
+Комментарий сотрудника пишется в `resolutionComment`; `justification` — обоснование системы —
+не переписывается.
+
+---
+
+## 11. Документы
+
+В MVP хранятся метаданные и ссылка. Загрузка файлов — P2 (решение 14).
+
+### GET /api/documents
+
+Право: `READ`. Параметры: `q`, `cooperationId`, `universityId`, `programId`, `type[]`,
+`status[]`, `sort` (`title`, `status`, `createdAt`, `updatedAt`), пагинация.
+
+```json
+{
+  "id": "…", "type": "AGREEMENT", "title": "Договор о сотрудничестве",
+  "version": "2", "status": "SIGNED",
+  "fileReference": "https://example.invalid/docs/agreement-2.pdf",
+  "author": { "id": "…", "fullName": "…", "role": "MANAGER" },
+  "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
+  "issuedAt": "…", "signedAt": "…",
+  "links": { "cooperationId": "…", "universityId": "…", "universityName": "СПбГУТ",
+             "programId": null, "programName": null },
+  "createdAt": "…", "updatedAt": "…"
+}
+```
+
+### GET /api/documents/:id
+
+Право: `READ`. Дополнительно `history[]` — изменения статусов с автором и временем.
+
+### POST /api/documents
+
+Право: `WRITE`. Ответ 201.
+
+| Поле | Обязательно |
+| --- | --- |
+| `type` | да |
+| `title` | да (3..300) |
+| `cooperationId` / `universityId` / `programId` | **хотя бы одно** — иначе 422 |
+| `version` | нет, по умолчанию `"1"` |
+| `fileReference` | нет, корректный URL |
+| `responsibleId`, `issuedAt` | нет |
+
+### PATCH /api/documents/:id
+
+Право: `WRITE`. Подписанный и архивный документ не редактируются — `CONFLICT` 409.
+
+### PATCH /api/documents/:id/status
+
+Право: `WRITE`. Тело: `{ "status": "REVIEW", "comment": "…" }`.
+
+| Из | В |
+| --- | --- |
+| `DRAFT` | `REVIEW`, `ARCHIVED` |
+| `REVIEW` | `APPROVED`, `REJECTED`, `DRAFT`, `ARCHIVED` |
+| `APPROVED` | `SIGNED`, `REVIEW`, `ARCHIVED` |
+| `SIGNED` | `ARCHIVED` |
+| `REJECTED` | `DRAFT`, `ARCHIVED` |
+| `ARCHIVED` | — |
+
+Условия: отправка на согласование требует заполненного `fileReference`; отклонение и возврат
+на доработку требуют `comment`. Переход в `SIGNED` проставляет `signedAt` (электронной подписи
+нет, фиксируются факт и дата). Каждое изменение пишется в историю.
+
+### POST /api/documents/:id/versions
+
+Право: `WRITE`. Ответ 201. Создаёт новую версию: номер увеличивается, ссылка на файл
+очищается, статус `DRAFT`. Исходный документ уходит в `ARCHIVED` с записью в истории.
+
+---
+
+## 12. Встречи
+
+### GET /api/meetings
+
+Право: `READ`. Параметры: `q`, `cooperationId`, `universityId`, `programId`, `from`, `to`,
+`sort` (`date`, `createdAt`, `updatedAt`), пагинация.
+
+```json
+{
+  "id": "…", "date": "…", "topic": "Согласование условий лицензии",
+  "format": "CALL", "result": "Юридическая служба запросила сведения",
+  "nextAction": "Подготовить ответ", "nextActionDueAt": "…",
+  "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
+  "participants": [
+    { "id": "…", "kind": "user", "name": "Кириллов Пётр Андреевич", "position": "Менеджер" },
+    { "id": "…", "kind": "contact", "name": "Ветрова Ирина Павловна", "position": "Замдекана" },
+    { "id": "…", "kind": "external", "name": "Иванов И.И.", "position": null }
+  ],
+  "links": { "cooperationId": "…", "universityId": "…", "universityName": "…",
+             "programId": null, "programName": null },
+  "createdAt": "…", "updatedAt": "…"
+}
+```
+
+### POST /api/meetings
+
+Право: `WRITE`. Ответ 201.
+
+| Поле | Обязательно |
+| --- | --- |
+| `date` | да, ISO 8601 |
+| `topic` | да (3..300) |
+| `responsibleId` | да |
+| `cooperationId` / `universityId` / `programId` | **хотя бы одно** |
+| `format` | нет, по умолчанию `ONLINE` |
+| `result`, `nextAction`, `nextActionDueAt` | нет |
+| `participants[]` | нет; в каждом элементе **ровно одно** из `userId`, `contactId`, `externalName` |
+
+**Если задан `nextAction`, обязателен `nextActionDueAt`** — иначе 422. Следующее действие
+без срока не задача, а пожелание.
+
+### PATCH /api/meetings/:id
+
+Право: `WRITE`. Список участников заменяется целиком, если передан.
+
+---
+
+## 13. Кабинет представителя вуза
+
+Роль `UNIVERSITY_REP` видит только свой вуз. Аналитика, рейтинги, рекомендации, другие вузы
+и внутренние комментарии к этапам ей недоступны (решение 9).
+
+Сотрудник ИТ-Школы (`ADMIN`, `MANAGER`) может открыть кабинет любого вуза, указав
+`?universityId=…`. Без параметра он получит 404.
+
+### GET /api/portal/overview
+
+Право: `UNIVERSITY_PORTAL`.
+
+```json
+{
+  "universityId": "…", "universityName": "СПбГУТ",
+  "programs": [
+    { "id": "…", "name": "…", "level": "BACHELOR",
+      "applicationCount": 310, "studentCount": 124, "groupCount": 5,
+      "metricsUpdatedAt": "…" }
+  ],
+  "cooperations": [
+    { "id": "…", "programName": "…", "productName": "…", "status": "ACTIVE",
+      "currentStageNumber": 10, "currentStageTitle": "…", "currentStageStatus": "IN_PROGRESS",
+      "progressPercent": 69, "classesStartAt": "…" }
+  ],
+  "pendingMaterials": 2,
+  "documentsCount": 3,
+  "generatedAt": "…"
+}
+```
+
+### GET /api/portal/materials
+
+Право: `UNIVERSITY_PORTAL`. Материалы, переданные вузу (задачи этапа 7).
+
+```json
+[ { "taskId": "…", "title": "Переданы учебные материалы", "cooperationId": "…",
+    "programName": "…", "productName": "…",
+    "isConfirmed": false, "confirmedAt": null, "stageStatus": "IN_PROGRESS" } ]
+```
+
+### POST /api/portal/materials/:taskId/confirm
+
+Право: `UNIVERSITY_PORTAL`. Тело необязательно: `{ "comment": "Материалы получены" }`.
+Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+
+### PATCH /api/portal/programs/:id/metrics
+
+Право: `UNIVERSITY_PORTAL`. Тело: `{ "studentCount": 137, "groupCount": 6 }`.
+
+**`applicationCount` через кабинет не правится** — он считается по поданным заявкам.
+Попытка передать его даёт 422.
+
+### GET /api/portal/applications, POST /api/portal/applications
+
+Право: `UNIVERSITY_PORTAL`.
+
+Создание: `{ "programId": "…", "quantity": 25, "comment": "Заявки весеннего набора" }`.
+**Персональных данных обучающихся заявка не содержит** — только количество; неизвестные поля
+схема отбрасывает. После создания `applicationCount` программы пересчитывается по сумме заявок
+в статусах `NEW`, `CONFIRMED`, `ENROLLED`.
+
+Заявка на программу чужого вуза — 422.
+
+---
+
+## 14. Пользователи и текущая сессия
+
+### GET /api/auth/me
+
+Авторизация: любая. Текущий пользователь и его права — фронт по ним решает, что показывать.
+
+```json
+{
+  "data": {
+    "id": "…", "email": "…", "fullName": "…", "role": "MANAGER", "universityId": null,
+    "permissions": { "canWrite": true, "canSeeAnalytics": true,
+                     "canUsePortal": true, "isAdmin": false }
+  }
+}
+```
+
+### GET /api/users
+
+Право: `ANALYTICS`. Справочник для выбора ответственного и участников встреч.
+Параметры: `q`, `role[]`, `universityId`, `includeInactive`, пагинация.
+
+---
+
+## 15. Источники данных и интеграции
+
+### GET /api/integrations/status
+
+Право: `ANALYTICS`. Что настроено, что выключено и почему.
+
+```json
+{
+  "data": {
+    "marketDataProvider": "mock",
+    "integrations": [
+      { "key": "market-data", "name": "Демонстрационный набор вакансий",
+        "enabled": true, "configured": true, "reason": null, "isMock": true },
+      { "key": "lms", "name": "LMS (демонстрационный режим)",
+        "enabled": false, "configured": false,
+        "reason": "Интеграция выключена: LMS_ENABLED=false", "isMock": true },
+      { "key": "site", "name": "Сайт (демонстрационный режим)", "…": "…" }
+    ],
+    "checkedAt": "…"
+  }
+}
+```
+
+Наличие конкретных внутренних API заказчика не утверждается.
+
+### POST /api/data-sources/sync
+
+Право: `WRITE`. Загружает рыночные данные из активного источника
+(`MARKET_DATA_PROVIDER`: `mock`, `csv`, `external-api`, `future-rtk`).
+Тело необязательно: `{ "period": "2026-Q1" }`.
+
+```json
+{ "data": { "provider": "mock", "period": "2026-Q1",
+            "imported": 0, "updated": 18, "unknownSkills": [],
+            "isMock": true, "syncedAt": "…" } }
+```
+
+Навыки, которых нет в справочнике, **пропускаются и перечисляются** в `unknownSkills`:
+создавать записи справочника по строке из внешнего источника нельзя.
+
+Сбой источника — `INTEGRATION_ERROR` 502. Остальная система при этом работает.
+
+### GET /api/data-sources
+
+Право: `ANALYTICS`. Источники с происхождением и количеством привязанных показателей.
+
+---
+
+## 16. Чего ещё нет
+
+- групповые операции по IT-продукту (концепция);
+- генерация документов из шаблонов (концепция);
+- лента событий вуза и выдача `audit_log` наружу;
+- рейтинг вуза как отдельный показатель — `TODO: PM DECISION`;
+- уведомления, импорт и экспорт, политики RLS, загрузка файлов (P2).
+
+Актуальное состояние — в [PROGRESS.md](PROGRESS.md).
