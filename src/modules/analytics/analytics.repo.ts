@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
+import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 
 /** Связки, которые сейчас в работе. */
 export async function countActiveCooperations(scope: { universityId?: string }): Promise<number> {
@@ -75,6 +76,9 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
         { deadline: { lt: now }, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
         { status: 'BLOCKED' },
       ],
+      // Контрольный этап руками не меняется: он просрочен из-за незакрытых
+      // этапов 1–13, и они в списке уже есть.
+      stageNumber: { not: CONTROL_STAGE_NUMBER },
       cooperation: {
         status: { in: [...OPEN_COOPERATION_STATUSES] },
         ...(scope.universityId ? { universityId: scope.universityId } : {}),
