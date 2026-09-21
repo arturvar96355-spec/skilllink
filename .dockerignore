@@ -7,3 +7,12 @@ node_modules
 coverage
 src/generated
 docs/design
+# В образ не попадает: документация, проверочные скрипты и тесты.
+# Сборке они не нужны, а контекст передаётся в демон целиком.
+docs
+scripts/smoke.ts
+scripts/probe.ts
+scripts/bench.ts
+scripts/volume.ts
+**/*.test.ts
+.github
