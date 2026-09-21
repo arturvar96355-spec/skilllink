@@ -102,18 +102,34 @@ export function UniversityList() {
 }
 ```
 
-### Из серверных компонентов — тоже fetch, но с абсолютным адресом
+### Из серверных компонентов — через `apiFetch`
 
 ```tsx
+import { apiFetch } from '@/shared/api/server-fetch'
 import type { ApiListResponse, UniversityListItemDto } from '@/shared/contracts'
 
 export default async function Page() {
-  const base = process.env.APP_BASE_URL ?? 'http://localhost:3000'
-  const response = await fetch(`${base}/api/universities`, { cache: 'no-store' })
+  const response = await apiFetch('/api/universities?pageSize=20')
   const body: ApiListResponse<UniversityListItemDto> = await response.json()
   return <div>{body.data.length}</div>
 }
 ```
+
+**Обычный `fetch` здесь не подойдёт, и это не стилистика.** На сервере запрос
+уходит от имени процесса, а не от имени того, кто открыл страницу: cookie
+пользователя не передаётся.
+
+Что из этого выходит:
+
+- в режиме разработки страница молча покажет данные **пользователя по умолчанию** —
+  представитель вуза увидит кабинет менеджера;
+- в промышленном режиме тот же запрос вернёт `401`, и страница будет пустой.
+
+Хуже всего, что при разработке ошибка не видна: под менеджером всё выглядит
+правильно. `apiFetch` передаёт cookie и сам определяет адрес из заголовков запроса,
+поэтому работает на любом порту и за прокси.
+
+В клиентских компонентах обёртка не нужна — браузер отправляет cookie сам.
 
 **Не вызывайте сервисы из `src/modules` напрямую**, даже если IDE подскажет. Технически
 это возможно, но тогда вы обойдёте проверку прав и валидацию, которые живут в маршрутах,
