@@ -261,6 +261,7 @@ npm run openapi
 
 | Документ | О чём |
 | --- | --- |
+| [docs/REPORT.md](docs/REPORT.md) | **Отчёт о работе:** что сделано, что нет, что требуется от команды |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | **Передача команде:** с чего начать фронту, базе и приёмке |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Контракт API: все эндпоинты, поля, ошибки, примеры |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы и решения по ней |
