@@ -48,8 +48,9 @@ function resolveSecret(): string {
 
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
-      'Не задана переменная окружения AUTH_SECRET. ' +
-        'Сгенерируйте её командой: openssl rand -base64 32',
+      'Не задана переменная окружения AUTH_SECRET. Сгенерируйте её командой:\n' +
+        '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"\n' +
+        'Через node, а не openssl: на Windows openssl обычно не установлен.',
     )
   }
   return DEV_SECRET
