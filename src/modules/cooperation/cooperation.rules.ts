@@ -43,8 +43,45 @@ export function assertProgramBelongsToUniversity(
   }
 }
 
-export function assertCooperationEditable(status: CooperationStatus): void {
-  if (status === 'COMPLETED' || status === 'CANCELLED') {
-    throw conflict('Связка закрыта: изменения недоступны', { status })
+export function isClosedStatus(status: CooperationStatus): boolean {
+  return status === 'COMPLETED' || status === 'CANCELLED'
+}
+
+/**
+ * Процесс закрытой связки заморожен: этапы не двигаются, чек-листы не меняются,
+ * пакет документов не собирается.
+ *
+ * Граница проведена по смыслу: workflow — это состояние процесса, и у завершённой
+ * или отменённой связки его менять нельзя. А документы и встречи — записи о том, что
+ * произошло; занести акт о расторжении или протокол последней встречи задним числом
+ * нужно уметь и после закрытия.
+ */
+export function assertCooperationOpen(status: CooperationStatus): void {
+  if (isClosedStatus(status)) {
+    throw conflict(
+      'Связка закрыта: работа по этапам недоступна. Переоткройте связку, чтобы продолжить.',
+      { status },
+    )
   }
+}
+
+/**
+ * Закрытую связку можно только переоткрыть.
+ *
+ * Проверять достаточно ли того, что статус передан, было нельзя: передав закрытой связке
+ * её же текущий статус, можно было менять остальные поля в обход запрета.
+ */
+export function assertCooperationEditable(
+  current: CooperationStatus,
+  next: CooperationStatus | undefined,
+): void {
+  if (!isClosedStatus(current)) return
+
+  const target = next ?? current
+  if (!isClosedStatus(target)) return
+
+  throw conflict(
+    'Связка закрыта: её можно только переоткрыть, изменив статус на действующий',
+    { status: current },
+  )
 }

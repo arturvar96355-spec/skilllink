@@ -219,11 +219,21 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
     (a, b) =>
       Number(b.relatedData.demandNormalized ?? 0) - Number(a.relatedData.demandNormalized ?? 0),
   )
-  drafts.push(...gapDrafts.slice(0, RECOMMENDATION_RULES.criticalGapLimit))
+
+  // Лимит ограничивает, сколько дефицитов попадёт в список за раз. Но те, что за лимитом,
+  // остаются актуальными: их ключи всё равно уходят в проверку на устаревание, иначе
+  // система закрыла бы их как выполненные, хотя дефицит никуда не делся.
+  const shownGaps = gapDrafts.slice(0, RECOMMENDATION_RULES.criticalGapLimit)
+  const deferredGaps = gapDrafts.slice(RECOMMENDATION_RULES.criticalGapLimit)
+  drafts.push(...shownGaps)
 
   // ── Сохранение ─────────────────────────────────────────────────────────────
   const { created, updated, keys } = await repo.upsertDrafts(drafts)
-  const closed = await repo.closeObsolete(keys)
+  const stillActualKeys = [
+    ...keys,
+    ...deferredGaps.map((draft) => `${draft.ruleKey}::${draft.objectType}::${draft.objectId}`),
+  ]
+  const closed = await repo.closeObsolete(stillActualKeys)
 
   await writeAudit({
     userId: user.id,

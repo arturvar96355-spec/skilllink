@@ -19,6 +19,7 @@ import {
   TEMPLATE_PLACEHOLDERS,
 } from '@/shared/config/document-templates.config'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
+import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './documents.repo'
 import {
   assertDocumentEditable,
@@ -350,6 +351,8 @@ export async function generatePackage(
   if (!source || !isUniversityVisible(user, source.universityId)) {
     throw notFound('Связка не найдена')
   }
+  // Собирать пакет для закрытой связки бессмысленно: документы оформляют идущую работу.
+  assertCooperationOpen(source.status)
 
   const requestedKeys = input.templateKeys ?? null
   if (requestedKeys) {

@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
 import { COOPERATION_SORT_FIELDS, type CooperationListQuery } from './cooperation.schema'
 
@@ -50,15 +51,16 @@ const detailSelect = {
 export type CooperationListRow = Prisma.CooperationGetPayload<{ select: typeof listSelect }>
 export type CooperationDetailRow = Prisma.CooperationGetPayload<{ select: typeof detailSelect }>
 
+/** `null` — запрошен вуз вне области видимости: выборка заведомо пуста. */
 export function buildWhere(
   query: CooperationListQuery,
   scope: { universityId?: string },
   now: Date,
-): Prisma.CooperationWhereInput {
-  const where: Prisma.CooperationWhereInput = {}
+): Prisma.CooperationWhereInput | null {
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return null
 
-  if (scope.universityId) where.universityId = scope.universityId
-  else if (query.universityId) where.universityId = query.universityId
+  const where: Prisma.CooperationWhereInput = { ...universityFilter }
 
   if (query.programId) where.programId = query.programId
   if (query.productId) where.productId = query.productId
@@ -93,6 +95,8 @@ export async function findMany(
   now: Date,
 ): Promise<{ rows: CooperationListRow[]; total: number }> {
   const where = buildWhere(query, scope, now)
+  if (where === null) return { rows: [], total: 0 }
+
   const { field, direction } = parseSort(query.sort, COOPERATION_SORT_FIELDS, {
     field: 'updatedAt',
     direction: 'desc',

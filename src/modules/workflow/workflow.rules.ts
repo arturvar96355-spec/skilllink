@@ -1,4 +1,4 @@
-import { invalidTransition, validationError } from '@/shared/http/errors'
+import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
 
@@ -125,6 +125,26 @@ export function assertTransition(
         },
       )
     }
+  }
+}
+
+/**
+ * Пункты чек-листа закрытого этапа не меняются.
+ *
+ * Иначе с завершённого этапа можно снять обязательный пункт, и он останется завершённым
+ * с незакрытым обязательным пунктом — состояние, которого правила перехода не допускают.
+ * Нужно поправить чек-лист закрытого этапа — этап сначала переоткрывают.
+ */
+export function assertTasksEditable(stageStatus: StageStatus, stageNumber: number): void {
+  if (isAutoManaged(stageNumber)) {
+    throw conflict('У контрольного этапа нет собственного чек-листа')
+  }
+  if (stageStatus === 'COMPLETED' || stageStatus === 'CANCELLED') {
+    throw conflict(
+      `Этап в статусе «${STATUS_LABELS[stageStatus]}»: пункты чек-листа не меняются. ` +
+        'Переоткройте этап, чтобы его править.',
+      { stageStatus },
+    )
   }
 }
 

@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
 import { PROGRAM_SORT_FIELDS, type ProgramListQuery } from './programs.schema'
 
@@ -46,15 +47,18 @@ const detailSelect = {
 export type ProgramListRow = Prisma.EducationalProgramGetPayload<{ select: typeof listSelect }>
 export type ProgramDetailRow = Prisma.EducationalProgramGetPayload<{ select: typeof detailSelect }>
 
+/**
+ * `null` означает, что пользователь запросил вуз, к которому у него нет доступа:
+ * выборка заведомо пуста, запрос к базе делать незачем.
+ */
 export function buildWhere(
   query: ProgramListQuery,
   scope: { universityId?: string },
-): Prisma.EducationalProgramWhereInput {
-  const where: Prisma.EducationalProgramWhereInput = {}
+): Prisma.EducationalProgramWhereInput | null {
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return null
 
-  // Представитель вуза видит только свои программы (решение 10).
-  if (scope.universityId) where.universityId = scope.universityId
-  else if (query.universityId) where.universityId = query.universityId
+  const where: Prisma.EducationalProgramWhereInput = { ...universityFilter }
 
   if (query.level?.length) where.level = { in: query.level }
   if (query.status?.length) where.status = { in: query.status }
@@ -79,6 +83,8 @@ export async function findMany(
   scope: { universityId?: string },
 ): Promise<{ rows: ProgramListRow[]; total: number }> {
   const where = buildWhere(query, scope)
+  if (where === null) return { rows: [], total: 0 }
+
   const { field, direction } = parseSort(query.sort, PROGRAM_SORT_FIELDS, {
     field: 'name',
     direction: 'asc',

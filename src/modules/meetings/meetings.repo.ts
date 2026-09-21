@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
 import { MEETING_SORT_FIELDS, type MeetingListQuery } from './meetings.schema'
 
@@ -49,10 +50,14 @@ export async function findMany(
   query: MeetingListQuery,
   scope: { universityId?: string },
 ): Promise<{ rows: MeetingRow[]; total: number }> {
+  // Запрошен вуз вне области видимости — выборка пуста, а не «свои записи вместо чужих».
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return { rows: [], total: 0 }
+
   const where: Prisma.MeetingWhereInput = { ...scopeFilter(scope) }
 
   if (query.cooperationId) where.cooperationId = query.cooperationId
-  if (query.universityId && !scope.universityId) where.universityId = query.universityId
+  if (query.universityId) where.universityId = query.universityId
   if (query.programId) where.programId = query.programId
   if (query.q) where.topic = { contains: query.q, mode: 'insensitive' }
 

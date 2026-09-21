@@ -25,6 +25,7 @@ import {
   assertCooperationEditable,
   assertProgramBelongsToUniversity,
   buildStages,
+  isClosedStatus,
 } from './cooperation.rules'
 import type {
   CooperationListQuery,
@@ -200,7 +201,7 @@ export async function update(
 
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Связка не найдена')
-  if (input.status === undefined) assertCooperationEditable(existing.status)
+  assertCooperationEditable(existing.status, input.status)
 
   if (input.responsibleId) {
     const responsible = await prisma.user.findFirst({
@@ -214,7 +215,11 @@ export async function update(
     }
   }
 
-  const closing = input.status === 'COMPLETED' || input.status === 'CANCELLED'
+  const wasClosed = isClosedStatus(existing.status)
+  const closing = input.status !== undefined && isClosedStatus(input.status) && !wasClosed
+  // Переоткрытие снимает дату закрытия: иначе действующая связка носит дату,
+  // когда её якобы закрыли.
+  const reopening = input.status !== undefined && !isClosedStatus(input.status) && wasClosed
 
   await repo.update(id, {
     ...(input.status !== undefined ? { status: input.status } : {}),
@@ -238,6 +243,7 @@ export async function update(
       ? { targetDate: input.targetDate ? new Date(input.targetDate) : null }
       : {}),
     ...(closing ? { closedAt: new Date() } : {}),
+    ...(reopening ? { closedAt: null } : {}),
   })
 
   await writeAudit({
