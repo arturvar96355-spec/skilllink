@@ -14,7 +14,7 @@ import { percent, round } from '@/shared/utils/number'
 import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDto } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
-import { aggregateUniversityRatings, calculateRatings } from './rating'
+import { aggregateUniversityRatings, calculateRatings, type RatingBounds } from './rating'
 import type { ProgramRatingDto, UniversityRatingDto } from '@/shared/contracts/rating'
 
 /** Показатель без данных: значение null и явная пометка, а не ноль (решение 8). */
@@ -320,6 +320,61 @@ export async function programRating(
     .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
   return { data: ranked.slice(0, options.limit), total: ranked.length }
+}
+
+/**
+ * Рейтинги только перечисленных вузов — для страницы реестра.
+ *
+ * Читает программы одной страницы вместо всей базы, а шкалу берёт агрегатом
+ * по всем действующим программам. Баллы получаются те же, что при полном
+ * расчёте: нормирование от выборки не зависит.
+ *
+ * Полный расчёт остаётся нужен там, где по рейтингу фильтруют или сортируют:
+ * чтобы отобрать вузы по баллу, балл нужен у каждого.
+ */
+export async function universityRatingsForPage(
+  user: CurrentUser,
+  universityIds: readonly string[],
+): Promise<Map<string, UniversityRatingDto>> {
+  assertCan(user, 'ANALYTICS')
+  if (universityIds.length === 0) return new Map()
+
+  const scope = universityScope(user)
+  const [bounds, programs] = await Promise.all([
+    repo.findRatingBounds(scope),
+    repo.findProgramsOfUniversities(universityIds, scope),
+  ])
+
+  const knownBounds: RatingBounds = new Map([
+    ['applicationCount', toBound(bounds._min.applicationCount, bounds._max.applicationCount)],
+    ['studentCount', toBound(bounds._min.studentCount, bounds._max.studentCount)],
+    ['groupCount', toBound(bounds._min.groupCount, bounds._max.groupCount)],
+  ])
+
+  const ratings = calculateRatings(
+    programs.map((program) => ({
+      programId: program.id,
+      applicationCount: program.applicationCount,
+      studentCount: program.studentCount,
+      groupCount: program.groupCount,
+      metricsSource: program.metricsSource,
+    })),
+    knownBounds,
+  )
+
+  return aggregateUniversityRatings(
+    programs.map((program) => ({
+      programId: program.id,
+      programName: program.name,
+      universityId: program.universityId,
+    })),
+    ratings,
+  )
+}
+
+/** Агрегат СУБД отдаёт null, когда заполненных значений нет — это «шкалы нет». */
+function toBound(min: number | null, max: number | null): { min: number; max: number } | null {
+  return min === null || max === null ? null : { min, max }
 }
 
 /**

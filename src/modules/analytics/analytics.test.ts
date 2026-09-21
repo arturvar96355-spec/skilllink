@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PROGRAM_RATING_WEIGHTS } from '@/shared/config/analytics.config'
-import { aggregateUniversityRatings, calculateRatings, type RatingInput } from './rating'
+import {
+  boundsFromPrograms, aggregateUniversityRatings, calculateRatings, type RatingInput } from './rating'
 
 const program = (overrides: Partial<RatingInput> & { programId: string }): RatingInput => ({
   applicationCount: null,
@@ -140,6 +141,58 @@ describe('рейтинг вуза', () => {
       if (rating.score === null) continue
       expect(rating.score).toBeGreaterThanOrEqual(0)
       expect(rating.score).toBeLessThanOrEqual(100)
+    }
+  })
+})
+
+describe('рейтинг с заранее посчитанными границами', () => {
+  const all: RatingInput[] = Array.from({ length: 40 }, (_, index) => ({
+    programId: `p${index}`,
+    applicationCount: index % 7 === 0 ? null : index * 3,
+    studentCount: index % 5 === 0 ? null : index * 11,
+    groupCount: index % 11 === 0 ? null : index,
+    metricsSource: index % 3 === 0 ? ('MOCK' as const) : ('MANUAL' as const),
+  }))
+
+  it('балл не зависит от того, сколько программ передали', () => {
+    // Реестр считает рейтинг по программам одной страницы, а шкалу берёт агрегатом
+    // по всей базе. Если бы балл зависел от размера выборки, страницы были бы
+    // несравнимы между собой — и сортировка по рейтингу врала бы.
+    const full = calculateRatings(all)
+    const bounds = boundsFromPrograms(all)
+
+    for (let size = 1; size <= all.length; size += 7) {
+      const slice = all.slice(0, size)
+      const partial = calculateRatings(slice, bounds)
+      for (const program of slice) {
+        expect(partial.get(program.programId)?.score).toBe(full.get(program.programId)?.score)
+      }
+    }
+  })
+
+  it('без общих границ балл выборки отличается — потому они и нужны', () => {
+    // Страховка от обратной ошибки: если бы нормирование по подвыборке совпадало
+    // с полным, передавать границы было бы незачем, и тест выше ничего не доказывал.
+    const slice = all.slice(0, 5)
+    const withoutBounds = calculateRatings(slice)
+    const withBounds = calculateRatings(slice, boundsFromPrograms(all))
+    const differs = slice.some(
+      (program) =>
+        withoutBounds.get(program.programId)?.score !== withBounds.get(program.programId)?.score,
+    )
+    expect(differs).toBe(true)
+  })
+
+  it('пустые границы не ломают расчёт', () => {
+    const empty = new Map([
+      ['applicationCount', null],
+      ['studentCount', null],
+      ['groupCount', null],
+    ] as const)
+    const result = calculateRatings(all.slice(0, 3), empty)
+    for (const rating of result.values()) {
+      expect(rating.score).toBeNull()
+      expect(rating.basis).toBe('none')
     }
   })
 })

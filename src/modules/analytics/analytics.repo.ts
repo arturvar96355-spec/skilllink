@@ -159,3 +159,43 @@ export async function findProgramsForUniversityRating(scope: { universityId?: st
     },
   })
 }
+
+/**
+ * Границы нормирования по всем действующим программам — одним агрегатом.
+ *
+ * Альтернатива чтению всех строк: реестру вузов нужны рейтинги только показанной
+ * страницы, но шкала обязана быть общей, иначе баллы страниц несравнимы.
+ */
+export async function findRatingBounds(scope: { universityId?: string }) {
+  const result = await prisma.educationalProgram.aggregate({
+    where: { status: 'ACTIVE', archivedAt: null, ...scope },
+    _min: { applicationCount: true, studentCount: true, groupCount: true },
+    _max: { applicationCount: true, studentCount: true, groupCount: true },
+  })
+  return result
+}
+
+/** Программы перечисленных вузов — для рейтинга одной страницы реестра. */
+export async function findProgramsOfUniversities(
+  universityIds: readonly string[],
+  scope: { universityId?: string },
+) {
+  if (universityIds.length === 0) return []
+  return prisma.educationalProgram.findMany({
+    where: {
+      status: 'ACTIVE',
+      archivedAt: null,
+      universityId: { in: [...universityIds] },
+      ...scope,
+    },
+    select: {
+      id: true,
+      name: true,
+      universityId: true,
+      applicationCount: true,
+      studentCount: true,
+      groupCount: true,
+      metricsSource: true,
+    },
+  })
+}
