@@ -70,6 +70,15 @@ export async function findById(id: string): Promise<RecommendationRow | null> {
   return prisma.recommendation.findUnique({ where: { id }, select: recommendationSelect })
 }
 
+/** P2002 — нарушение уникального ограничения: запись уже создал параллельный запрос. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  )
+}
+
 export interface UpsertResult {
   created: number
   updated: number
@@ -121,22 +130,49 @@ export async function upsertDrafts(drafts: RecommendationDraft[]): Promise<Upser
       continue
     }
 
-    await prisma.recommendation.create({
-      data: {
-        ruleKey: draft.ruleKey,
-        type: draft.type,
-        objectType: draft.objectType,
-        objectId: draft.objectId,
-        title: draft.title,
-        description: draft.description,
-        priority: draft.priority,
-        justification: draft.justification,
-        relatedData: draft.relatedData as Prisma.InputJsonValue,
-        confidence: draft.confidence,
-        cooperationId: draft.cooperationId,
-      },
-    })
-    created += 1
+    // Два одновременных запуска генерации гонятся за одну и ту же запись.
+    // Уникальный ключ отсечёт второго — это штатная гонка, а не ошибка пользователя:
+    // проигравший просто обновляет уже созданную запись.
+    try {
+      await prisma.recommendation.create({
+        data: {
+          ruleKey: draft.ruleKey,
+          type: draft.type,
+          objectType: draft.objectType,
+          objectId: draft.objectId,
+          title: draft.title,
+          description: draft.description,
+          priority: draft.priority,
+          justification: draft.justification,
+          relatedData: draft.relatedData as Prisma.InputJsonValue,
+          confidence: draft.confidence,
+          cooperationId: draft.cooperationId,
+        },
+      })
+      created += 1
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error
+
+      await prisma.recommendation.update({
+        where: {
+          ruleKey_objectType_objectId: {
+            ruleKey: draft.ruleKey,
+            objectType: draft.objectType,
+            objectId: draft.objectId,
+          },
+        },
+        data: {
+          title: draft.title,
+          description: draft.description,
+          priority: draft.priority,
+          justification: draft.justification,
+          relatedData: draft.relatedData as Prisma.InputJsonValue,
+          confidence: draft.confidence,
+          cooperationId: draft.cooperationId,
+        },
+      })
+      updated += 1
+    }
   }
 
   return { created, updated, keys }

@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
+import { conflict } from '@/shared/http/errors'
 import type { Prisma } from '@/generated/prisma/client'
 import { DOCUMENT_SORT_FIELDS, type DocumentListQuery } from './documents.schema'
 
@@ -42,6 +43,8 @@ const detailSelect = {
     },
   },
 } satisfies Prisma.DocumentSelect
+
+type DocumentStatusValue = 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED'
 
 export type DocumentListRow = Prisma.DocumentGetPayload<{ select: typeof listSelect }>
 export type DocumentDetailRow = Prisma.DocumentGetPayload<{ select: typeof detailSelect }>
@@ -119,14 +122,16 @@ export async function update(
 /** Смена статуса и запись в историю — одной транзакцией. */
 export async function changeStatus(
   id: string,
-  fromStatus: Prisma.DocumentUpdateInput['status'],
-  toStatus: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED',
+  fromStatus: DocumentStatusValue,
+  toStatus: DocumentStatusValue,
   comment: string | null,
   userId: string,
 ): Promise<DocumentDetailRow> {
   return prisma.$transaction(async (tx) => {
-    await tx.document.update({
-      where: { id },
+    // Условное обновление: защищает от двойного клика, который иначе записал бы
+    // в историю документа два одинаковых перехода.
+    const changed = await tx.document.updateMany({
+      where: { id, status: fromStatus as DocumentStatusValue },
       data: {
         status: toStatus,
         // Факт и дата подписания фиксируются системой: электронной подписи нет (концепция).
@@ -134,10 +139,16 @@ export async function changeStatus(
       },
     })
 
+    if (changed.count === 0) {
+      throw conflict(
+        'Документ уже изменён другим пользователем. Обновите страницу и повторите действие.',
+      )
+    }
+
     await tx.documentHistory.create({
       data: {
         documentId: id,
-        fromStatus: fromStatus as 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED',
+        fromStatus,
         toStatus,
         comment,
         changedById: userId,
