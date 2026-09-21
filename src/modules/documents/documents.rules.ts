@@ -1,4 +1,5 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
+import { MISSING_PLACEHOLDER } from '@/shared/config/document-templates.config'
 import type { DocumentStatus } from '@/shared/contracts/enums'
 
 /**
@@ -32,6 +33,8 @@ function isFilled(value: string | null | undefined): boolean {
 export interface DocumentState {
   status: DocumentStatus
   fileReference: string | null
+  /** Текст, собранный из шаблона. Он тоже является содержимым документа. */
+  content?: string | null
 }
 
 export interface DocumentTransitionRequest {
@@ -64,10 +67,10 @@ export function assertDocumentTransition(
     ])
   }
 
-  // Согласовывать нечего, пока нет самого документа.
-  if (to === 'REVIEW' && !isFilled(document.fileReference)) {
-    throw validationError('Нельзя отправить на согласование документ без ссылки на файл', [
-      { field: 'fileReference', message: 'Добавьте ссылку на документ' },
+  // Согласовывать нечего, пока нет самого документа: ни ссылки, ни текста из шаблона.
+  if (to === 'REVIEW' && !isFilled(document.fileReference) && !isFilled(document.content)) {
+    throw validationError('Нельзя отправить на согласование пустой документ', [
+      { field: 'fileReference', message: 'Добавьте ссылку на документ или соберите его из шаблона' },
     ])
   }
 }
@@ -108,4 +111,44 @@ export function nextVersion(current: string): string {
   if (match && match[1] && match[2]) return `${match[1]}.${Number(match[2]) + 1}`
 
   return `${current}.2`
+}
+
+// ─────────────────────── Сборка документов из шаблонов ──────────────────────
+
+/** Значения реквизитов для подстановки. null означает «данных нет». */
+export type TemplateContext = Record<string, string | null | undefined>
+
+export interface RenderedTemplate {
+  text: string
+  /**
+   * Реквизиты, которых не хватило. Документ всё равно собирается, но с прочерками:
+   * менеджер видит, что дописать, вместо документа с незаметными пустотами.
+   */
+  missing: string[]
+}
+
+const PLACEHOLDER_PATTERN = /\{\{\s*([a-zA-Z.]+)\s*\}\}/g
+
+/**
+ * Подставляет реквизиты в шаблон.
+ *
+ * Отсутствующее значение заменяется видимым прочерком, а не пустой строкой:
+ * документ с невидимой дырой хуже документа с явным пропуском — первый подпишут
+ * не глядя, второй заставит заполнить.
+ */
+export function renderTemplate(template: string, context: TemplateContext): RenderedTemplate {
+  const missing = new Set<string>()
+
+  const text = template.replace(PLACEHOLDER_PATTERN, (_match, rawKey: string) => {
+    const key = rawKey.trim()
+    const value = context[key]
+
+    if (typeof value !== 'string' || value.trim() === '') {
+      missing.add(key)
+      return MISSING_PLACEHOLDER
+    }
+    return value
+  })
+
+  return { text, missing: [...missing].sort() }
 }

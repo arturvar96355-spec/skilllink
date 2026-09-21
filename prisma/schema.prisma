@@ -533,6 +533,11 @@ model Document {
   title         String
   version       String         @default("1")
   status        DocumentStatus @default(DRAFT)
+  /// Текст, собранный из шаблона с подстановкой реквизитов (концепция).
+  /// Это текст, а не файл: загрузка файлов остаётся P2 (решение 14).
+  content       String?
+  /// Ключ шаблона, из которого собран документ. null — документ заведён вручную.
+  templateKey   String?        @map("template_key")
   fileReference String?        @map("file_reference")
   authorId      String?        @map("author_id")
   responsibleId String?        @map("responsible_id")

@@ -228,6 +228,7 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 | Участники и ответственные | `responsible`, `stages[].responsible` |
 | История изменений | `GET /api/workflow/stages/:id/history` |
 | Документы и их статусы | `GET /api/documents?cooperationId=:id` |
+| Кнопка «Собрать пакет документов» | `POST /api/cooperations/:id/documents/generate` |
 | Встречи по связке | `GET /api/meetings?cooperationId=:id` |
 
 ### Конвейер этапов
@@ -302,7 +303,7 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 | Лента событий вуза | ТЗ 7.3 «Последние события» | `audit_log` заполняется, наружу не отдаётся |
 | Рейтинг вуза и фильтр по нему | ТЗ 7.2, 7.3 | не считается, `TODO: PM DECISION` |
 | Групповые операции по IT-продукту | Концепция | не реализовано |
-| Генерация документов из шаблонов | Концепция | не реализовано; версионирование есть — `POST /api/documents/:id/versions` |
+| Генерация документов из шаблонов | Концепция | `GET /api/document-templates`, `POST /api/cooperations/:id/documents/generate`. В ответе — список недостающих реквизитов: показать его пользователю, в тексте на их месте прочерки `__________` |
 | Состояние интеграций | ТЗ 14 | `GET /api/integrations/status` — можно показать администратору |
 
 ## 8. Что нужно проверить, когда появятся макеты

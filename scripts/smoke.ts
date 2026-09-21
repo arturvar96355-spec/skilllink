@@ -1420,6 +1420,109 @@ async function main(): Promise<void> {
     check('пустая версия отклоняется', emptyVersion.status === 422)
   }
 
+  // ── 21a. Пакет документов из шаблонов ──────────────────────────────────────
+  step('21a. Сборка пакета документов из шаблонов')
+
+  const templates = await call<{
+    templates: Array<{ key: string; inDefaultPackage: boolean; placeholders: string[] }>
+    placeholders: string[]
+  }>('GET', '/api/document-templates')
+  check('GET /api/document-templates отвечает 200', templates.status === 200)
+  check(
+    'шаблоны получены',
+    (templates.body.data?.templates.length ?? 0) > 0,
+    `${templates.body.data?.templates.length ?? 0} шаблонов`,
+  )
+  check(
+    'у шаблонов перечислены подстановки',
+    (templates.body.data?.templates ?? []).every((item) => item.placeholders.length > 0),
+  )
+  check('список доступных реквизитов отдан', (templates.body.data?.placeholders.length ?? 0) > 0)
+
+  const packageResult = await call<{
+    created: Array<{
+      templateKey: string
+      missing: string[]
+      document: { id: string; title: string; content: string | null; templateKey: string | null }
+    }>
+    skipped: Array<{ templateKey: string }>
+    missingFields: string[]
+  }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
+  check('POST .../documents/generate отвечает 200', packageResult.status === 200, `статус ${packageResult.status}`)
+
+  const packageDocuments = packageResult.body.data?.created ?? []
+  check('пакет собран', packageDocuments.length > 0, `${packageDocuments.length} документов`)
+  check(
+    'у каждого документа есть текст',
+    packageDocuments.every((item) => (item.document.content ?? '').length > 0),
+  )
+  check(
+    'реквизиты подставлены в текст',
+    packageDocuments.some((item) => (item.document.content ?? '').includes('Проверочный университет')),
+  )
+  check(
+    'заголовок тоже собран из шаблона',
+    packageDocuments.every((item) => !item.document.title.includes('{{')),
+  )
+  check(
+    'в тексте не осталось неподставленных меток',
+    packageDocuments.every((item) => !(item.document.content ?? '').includes('{{')),
+  )
+  check(
+    'документ помнит свой шаблон',
+    packageDocuments.every((item) => item.document.templateKey === item.templateKey),
+  )
+
+  // Повторная сборка не должна плодить дубликаты.
+  const secondPackage = await call<{
+    created: unknown[]
+    skipped: Array<{ templateKey: string; reason: string }>
+  }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
+  check('повторная сборка не создаёт дубликаты', (secondPackage.body.data?.created.length ?? 0) === 0)
+  check(
+    'пропущенные шаблоны объяснены',
+    (secondPackage.body.data?.skipped ?? []).every((item) => item.reason.length > 0),
+    `${secondPackage.body.data?.skipped.length ?? 0} пропущено`,
+  )
+
+  // Отдельный шаблон вне пакета по умолчанию.
+  const extraTemplate = (templates.body.data?.templates ?? []).find(
+    (item) => !item.inDefaultPackage,
+  )
+  if (extraTemplate) {
+    const single = await call<{ created: Array<{ templateKey: string }> }>(
+      'POST',
+      `/api/cooperations/${cooperationId}/documents/generate`,
+      { templateKeys: [extraTemplate.key] },
+    )
+    check(
+      'можно собрать отдельный шаблон вне пакета',
+      single.body.data?.created[0]?.templateKey === extraTemplate.key,
+    )
+  }
+
+  const unknownTemplate = await call(
+    'POST',
+    `/api/cooperations/${cooperationId}/documents/generate`,
+    { templateKeys: ['no-such-template'] },
+  )
+  check('несуществующий шаблон отклоняется', unknownTemplate.status === 422)
+
+  // Собранный документ уходит на согласование без ссылки на файл: текст и есть документ.
+  const generatedDocumentId = packageDocuments[0]?.document.id
+  if (generatedDocumentId) {
+    const toReview = await call<{ status: string }>(
+      'PATCH',
+      `/api/documents/${generatedDocumentId}/status`,
+      { status: 'REVIEW' },
+    )
+    check(
+      'собранный документ отправляется на согласование без ссылки на файл',
+      toReview.body.data?.status === 'REVIEW',
+      `статус ${toReview.status}`,
+    )
+  }
+
   // ── 22. Настоящая аутентификация ───────────────────────────────────────────
   step('22. Вход по паролю: NextAuth.js и bcrypt')
 

@@ -11,6 +11,8 @@ const listSelect = {
   title: true,
   version: true,
   status: true,
+  content: true,
+  templateKey: true,
   fileReference: true,
   issuedAt: true,
   signedAt: true,
@@ -140,5 +142,44 @@ export async function changeStatus(
     const row = await tx.document.findUnique({ where: { id }, select: detailSelect })
     if (!row) throw new Error('Документ исчез внутри транзакции')
     return row
+  })
+}
+
+/** Ключи шаблонов, по которым в связке уже есть документы: пакет не пересобирается вслепую. */
+export async function findTemplateKeys(cooperationId: string): Promise<Set<string>> {
+  const rows = await prisma.document.findMany({
+    where: { cooperationId, templateKey: { not: null } },
+    select: { templateKey: true },
+  })
+  return new Set(rows.map((row) => row.templateKey).filter((key): key is string => key !== null))
+}
+
+/** Реквизиты для подстановки в шаблоны: всё одним запросом. */
+export async function loadTemplateContextSource(cooperationId: string) {
+  return prisma.cooperation.findUnique({
+    where: { id: cooperationId },
+    select: {
+      id: true,
+      goal: true,
+      universityId: true,
+      programId: true,
+      university: {
+        select: {
+          name: true,
+          shortName: true,
+          city: true,
+          address: true,
+          website: true,
+          contacts: {
+            orderBy: [{ isPrimary: 'desc' }, { fullName: 'asc' }],
+            take: 1,
+            select: { fullName: true, position: true },
+          },
+        },
+      },
+      program: { select: { name: true, level: true, code: true } },
+      product: { select: { name: true, version: true } },
+      responsible: { select: { id: true, fullName: true, position: true } },
+    },
   })
 }

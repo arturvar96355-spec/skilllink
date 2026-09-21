@@ -8,11 +8,12 @@
 
 ```
 npm run typecheck   без ошибок
-npm test            237 тестов в 16 файлах, все проходят
-npm run smoke       250 проверок, все проходят
+npm test            252 теста в 16 файлах, все проходят
+npm run smoke       266 проверок, все проходят
 ```
 
-Сделана и часть P2: журнал действий, лента событий вуза, групповые операции по IT-продукту.
+Сделана и часть P2: журнал действий, лента событий вуза, групповые операции по IT-продукту,
+сборка пакета документов из шаблонов.
 Не сделана только та часть, которая невозможна без фронта и макетов: подключение страниц
 к API.
 
@@ -46,7 +47,7 @@ npm run smoke       250 проверок, все проходят
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs` |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id` |
-| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions` |
+| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
 | data-sources | `GET /api/data-sources`; `POST /api/data-sources/sync`; `GET /api/integrations/status` |
@@ -89,6 +90,12 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 с этим продуктом и переоткрывает закрытые этапы передачи материалов. Есть предпросмотр:
 менеджер видит список затронутых связок и причину по каждой до применения. Отменённые
 этапы операция не трогает — их переоткрывает только администратор поштучно.
+
+### Сборка документов из шаблонов
+
+Пять шаблонов с автоподстановкой реквизитов вуза, программы, продукта, ответственного
+и контактного лица. Недостающий реквизит заменяется видимым прочерком и перечисляется
+в ответе — документ не притворяется заполненным. Повторная сборка не плодит дубликаты.
 
 ### Журнал и лента событий
 
@@ -134,7 +141,6 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
 | --- | --- | --- |
 | **Подключение фронта** | нет кода фронта и макетов | P1, блокирует сдачу |
 | Рейтинг вуза как отдельный показатель | `TODO: PM DECISION` | P1 |
-| Генерация документов из шаблонов | обещано концепцией; версионирование готово | P2 |
 | Уведомления, RLS, загрузка файлов, импорт и экспорт | — | P2 |
 
 ## Риски
@@ -163,12 +169,15 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
    обязательного выбора продукта.
 10. Этап 12 как цель групповой операции по выпуску версии продукта.
 11. Оставлять ли демо-режим переключения ролей на защите проекта.
+12. Состав пакета документов и тексты шаблонов — сейчас это болванки с пометкой TEMP.
 
 ## Требует согласования с Тиграном
 
 1. Таблица `contacts` — расширение относительно раздела 11 ТЗ.
 2. Поле `recommendations.resolution_comment` — миграция
    `20260921074512_recommendation_resolution_comment`.
+2а. Поля `documents.content` и `documents.template_key` — миграция
+   `20260921082617_document_template_content`.
 3. Расчёт рейтинга в приложении вместо представлений СУБД.
 4. Право `CREATEDB` у роли базы (нужно только `prisma migrate` локально).
 5. Отсутствие уникального ограничения на тройку (вуз, программа, продукт).
@@ -177,5 +186,5 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
 
 1. Получить макеты, сверить `DESIGN_INTEGRATION.md`, подключить фронт.
 2. Экраны кабинета представителя вуза и экран входа.
-3. Генерация пакета документов из шаблонов с автоподстановкой реквизитов.
-4. Уведомления и политики RLS (P2).
+3. Уведомления и политики RLS (P2).
+4. Утверждение текстов шаблонов документов с юридической службой.

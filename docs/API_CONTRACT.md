@@ -819,6 +819,8 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
   "id": "…", "type": "AGREEMENT", "title": "Договор о сотрудничестве",
   "version": "2", "status": "SIGNED",
   "fileReference": "https://example.invalid/docs/agreement-2.pdf",
+  "content": null,
+  "templateKey": null,
   "author": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "issuedAt": "…", "signedAt": "…",
@@ -865,6 +867,61 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 Условия: отправка на согласование требует заполненного `fileReference`; отклонение и возврат
 на доработку требуют `comment`. Переход в `SIGNED` проставляет `signedAt` (электронной подписи
 нет, фиксируются факт и дата). Каждое изменение пишется в историю.
+
+### GET /api/document-templates
+
+Право: `READ`. Шаблоны пакета документов и доступные подстановки реквизитов.
+
+```json
+{
+  "data": {
+    "templates": [
+      { "key": "agreement", "type": "AGREEMENT",
+        "title": "Договор о сотрудничестве — {{university.shortName}}",
+        "description": "Основной документ связки: закрепляет предмет и стороны.",
+        "inDefaultPackage": true,
+        "placeholders": ["contact.fullName", "cooperation.goal", "date", "…"] }
+    ],
+    "placeholders": ["university.name", "program.name", "product.version", "…"]
+  }
+}
+```
+
+### POST /api/cooperations/:id/documents/generate
+
+Право: `WRITE`. Собирает пакет документов по связке с автоподстановкой реквизитов.
+Тело необязательно.
+
+| Поле | Описание |
+| --- | --- |
+| `templateKeys` | какие шаблоны собрать; без списка берётся пакет по умолчанию |
+| `force` | пересобрать, даже если документ по шаблону уже есть |
+
+```json
+{
+  "data": {
+    "cooperationId": "…",
+    "created": [
+      { "templateKey": "agreement", "missing": ["program.code"],
+        "document": { "id": "…", "title": "Договор о сотрудничестве — СПбГУТ",
+                      "content": "ДОГОВОР О СОТРУДНИЧЕСТВЕ…", "templateKey": "agreement", "…": "…" } }
+    ],
+    "skipped": [ { "templateKey": "nda", "reason": "Документ по этому шаблону в связке уже есть" } ],
+    "missingFields": ["program.code"],
+    "generatedAt": "…"
+  }
+}
+```
+
+**Недостающий реквизит не оставляет пустоту.** На его месте в тексте стоит видимый прочерк
+`__________`, а сам реквизит перечислен в `missing` документа и в сводном `missingFields`.
+Документ с невидимой дырой подписали бы не глядя — с явным пропуском заполнят.
+
+Повторный вызов не создаёт дубликаты: шаблоны, по которым документ в связке уже есть,
+попадают в `skipped` с причиной.
+
+Собранный документ хранит текст в `content`. Ссылка на файл ему не нужна: на согласование
+он уходит и так — текст и есть документ.
 
 ### POST /api/documents/:id/versions
 

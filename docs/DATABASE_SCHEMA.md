@@ -183,8 +183,9 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 
 ### documents, document_history, meetings, meeting_participants
 
-Заложены под P1. `documents` привязывается к связке, вузу или программе (все три FK
-необязательные), хранит `type`, `title`, `version`, `status`, `file_reference`, `author_id`,
+`documents` привязывается к связке, вузу или программе (все три FK
+необязательные), хранит `type`, `title`, `version`, `status`, `content`, `template_key`,
+`file_reference`, `author_id`,
 `responsible_id`, `issued_at`, `signed_at`. Файлы **не хранятся**: в MVP только метаданные и
 ссылка (решение 14).
 
@@ -243,6 +244,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | Изменение | Зачем | Миграция |
 | --- | --- | --- |
 | `recommendations.resolution_comment` | Комментарий сотрудника при закрытии рекомендации. Раньше он затирал бы `justification` — обоснование системы | `20260921074512_recommendation_resolution_comment` |
+| `documents.content`, `documents.template_key` | Текст, собранный из шаблона, и ключ шаблона. Без хранения текста «генерация документов из шаблонов» не оставляет после себя ничего. Это **текст, а не файл**: загрузка файлов остаётся P2 | `20260921082617_document_template_content` |
 
 ## Что обсудить с Тиграном
 
