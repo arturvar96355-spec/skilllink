@@ -51,9 +51,26 @@ describe('правила связки', () => {
   })
 
   it('не даёт править закрытую связку', () => {
-    expect(() => assertCooperationEditable('COMPLETED')).toThrowError(AppError)
-    expect(() => assertCooperationEditable('CANCELLED')).toThrowError(AppError)
-    expect(() => assertCooperationEditable('ACTIVE')).not.toThrow()
+    expect(() => assertCooperationEditable('COMPLETED', undefined)).toThrowError(AppError)
+    expect(() => assertCooperationEditable('CANCELLED', undefined)).toThrowError(AppError)
+    expect(() => assertCooperationEditable('ACTIVE', undefined)).not.toThrow()
+  })
+
+  it('не даёт обойти запрет, передав закрытой связке её же статус', () => {
+    // Раньше проверка срабатывала только при отсутствии статуса в теле,
+    // и `{ status: "COMPLETED", goal: "…" }` правил закрытую связку.
+    expect(() => assertCooperationEditable('COMPLETED', 'COMPLETED')).toThrowError(AppError)
+    expect(() => assertCooperationEditable('COMPLETED', 'CANCELLED')).toThrowError(AppError)
+  })
+
+  it('разрешает переоткрыть закрытую связку', () => {
+    expect(() => assertCooperationEditable('COMPLETED', 'ACTIVE')).not.toThrow()
+    expect(() => assertCooperationEditable('CANCELLED', 'DRAFT')).not.toThrow()
+  })
+
+  it('действующую связку правит как угодно', () => {
+    expect(() => assertCooperationEditable('ACTIVE', 'PAUSED')).not.toThrow()
+    expect(() => assertCooperationEditable('DRAFT', 'COMPLETED')).not.toThrow()
   })
 })
 

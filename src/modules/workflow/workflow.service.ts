@@ -12,7 +12,7 @@ import { writeAudit } from '@/shared/audit/audit'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
-import type { StageStatus } from '@/shared/contracts/enums'
+import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
 import type {
   StageHistoryEntryDto,
   StageWithCooperationDto,
@@ -20,7 +20,9 @@ import type {
 } from '@/shared/contracts/workflow'
 import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
+import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
+  assertTasksEditable,
   assertTransition,
   computeControlStatus,
   isAutoManaged,
@@ -87,15 +89,26 @@ function toStageWithCooperationDto(
   }
 }
 
-/** Проверяет, что связка вообще видна пользователю (решение 10). */
-async function assertCooperationVisible(user: CurrentUser, cooperationId: string): Promise<void> {
+/**
+ * Проверяет, что связка видна пользователю (решение 10), и возвращает её статус.
+ * Статус нужен изменяющим операциям: у закрытой связки процесс заморожен.
+ */
+async function loadVisibleCooperation(
+  user: CurrentUser,
+  cooperationId: string,
+): Promise<{ status: CooperationStatus }> {
   const cooperation = await prisma.cooperation.findUnique({
     where: { id: cooperationId },
-    select: { universityId: true },
+    select: { universityId: true, status: true },
   })
   if (!cooperation || !isUniversityVisible(user, cooperation.universityId)) {
     throw notFound('Связка не найдена')
   }
+  return { status: cooperation.status }
+}
+
+async function assertCooperationVisible(user: CurrentUser, cooperationId: string): Promise<void> {
+  await loadVisibleCooperation(user, cooperationId)
 }
 
 export async function listByCooperation(
@@ -165,7 +178,8 @@ export async function updateStage(
 
   const stage = await repo.findStageById(stageId)
   if (!stage) throw notFound('Этап не найден')
-  await assertCooperationVisible(user, stage.cooperationId)
+  const cooperation = await loadVisibleCooperation(user, stage.cooperationId)
+  assertCooperationOpen(cooperation.status)
 
   const requiredTasks = stage.tasks.filter((task) => task.isRequired)
   const statusChanged = input.status !== undefined && input.status !== stage.status
@@ -273,7 +287,9 @@ export async function toggleTask(
 
   const task = await repo.findTaskById(taskId)
   if (!task) throw notFound('Пункт чек-листа не найден')
-  await assertCooperationVisible(user, task.stage.cooperationId)
+  const taskCooperation = await loadVisibleCooperation(user, task.stage.cooperationId)
+  assertCooperationOpen(taskCooperation.status)
+  assertTasksEditable(task.stage.status, task.stage.stageNumber)
 
   await prisma.task.update({
     where: { id: taskId },

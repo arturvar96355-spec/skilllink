@@ -3,6 +3,7 @@ import { AppError } from '@/shared/http/errors'
 import type { StageStatus } from '@/shared/contracts/enums'
 import {
   ALLOWED_TRANSITIONS,
+  assertTasksEditable,
   assertTransition,
   computeControlStatus,
   computeProgressPercent,
@@ -263,6 +264,27 @@ describe('текущий этап и прогресс', () => {
 
   it('на пустом наборе возвращает 0', () => {
     expect(computeProgressPercent([])).toBe(0)
+  })
+})
+
+describe('чек-лист закрытого этапа', () => {
+  it('пункты открытого этапа меняются', () => {
+    expect(() => assertTasksEditable('NOT_STARTED', 3)).not.toThrow()
+    expect(() => assertTasksEditable('IN_PROGRESS', 3)).not.toThrow()
+    expect(() => assertTasksEditable('BLOCKED', 3)).not.toThrow()
+  })
+
+  it('пункты завершённого этапа не меняются', () => {
+    // Иначе завершённый этап останется завершённым с незакрытым обязательным пунктом.
+    expectError(() => assertTasksEditable('COMPLETED', 3), 'CONFLICT')
+  })
+
+  it('пункты отменённого этапа не меняются', () => {
+    expectError(() => assertTasksEditable('CANCELLED', 3), 'CONFLICT')
+  })
+
+  it('у контрольного этапа своего чек-листа нет', () => {
+    expectError(() => assertTasksEditable('IN_PROGRESS', 14), 'CONFLICT')
   })
 })
 

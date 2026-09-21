@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { computeProgressPercent, findCurrentStage, isAutoManaged } from '@/modules/workflow/workflow.rules'
@@ -37,6 +38,17 @@ const PROGRAM_LEVEL_LABELS: Record<string, string> = {
   POSTGRADUATE: 'Аспирантура',
   DPO: 'ДПО',
 }
+
+const PROGRAM_HEADERS = [
+  'Вуз', 'Программа', 'Код', 'Направление', 'Уровень', 'Длительность, мес.', 'Статус',
+  'Заявки', 'Обучающихся', 'Групп', 'Источник показателей', 'Навыков', 'Связок', 'Демо-данные',
+]
+
+const COOPERATION_HEADERS = [
+  'Вуз', 'Программа', 'IT-продукт', 'Статус', 'Ответственный', 'Текущий этап',
+  'Название этапа', 'Статус этапа', 'Выполнено, %', 'Просрочено этапов', 'Начало занятий',
+  'Цель', 'Демо-данные', 'Обновлено',
+]
 
 async function exportUniversities(
   scope: { universityId?: string },
@@ -111,9 +123,11 @@ async function exportPrograms(
   scope: { universityId?: string },
   query: ExportQuery,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
-  const universityId = scope.universityId ?? query.universityId
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return { headers: PROGRAM_HEADERS, rows: [] }
+
   const rows = await prisma.educationalProgram.findMany({
-    where: { ...(universityId ? { universityId } : {}) },
+    where: { ...universityFilter },
     orderBy: [{ university: { name: 'asc' } }, { name: 'asc' }],
     take: query.limit,
     select: {
@@ -134,22 +148,7 @@ async function exportPrograms(
   })
 
   return {
-    headers: [
-      'Вуз',
-      'Программа',
-      'Код',
-      'Направление',
-      'Уровень',
-      'Длительность, мес.',
-      'Статус',
-      'Заявки',
-      'Обучающихся',
-      'Групп',
-      'Источник показателей',
-      'Навыков',
-      'Связок',
-      'Демо-данные',
-    ],
+    headers: PROGRAM_HEADERS,
     // Пустой показатель остаётся пустым: в таблице не должно появиться ноля,
     // которого в системе нет.
     rows: rows.map((row) => [
@@ -175,11 +174,12 @@ async function exportCooperations(
   scope: { universityId?: string },
   query: ExportQuery,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
-  const universityId = scope.universityId ?? query.universityId
-  const now = new Date()
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return { headers: COOPERATION_HEADERS, rows: [] }
 
+  const now = new Date()
   const rows = await prisma.cooperation.findMany({
-    where: { ...(universityId ? { universityId } : {}) },
+    where: { ...universityFilter },
     orderBy: { updatedAt: 'desc' },
     take: query.limit,
     select: {
@@ -201,22 +201,7 @@ async function exportCooperations(
   })
 
   return {
-    headers: [
-      'Вуз',
-      'Программа',
-      'IT-продукт',
-      'Статус',
-      'Ответственный',
-      'Текущий этап',
-      'Название этапа',
-      'Статус этапа',
-      'Выполнено, %',
-      'Просрочено этапов',
-      'Начало занятий',
-      'Цель',
-      'Демо-данные',
-      'Обновлено',
-    ],
+    headers: COOPERATION_HEADERS,
     rows: rows.map((row) => {
       const countable = row.stages.filter((stage) => !isAutoManaged(stage.stageNumber))
       const current = findCurrentStage(row.stages)

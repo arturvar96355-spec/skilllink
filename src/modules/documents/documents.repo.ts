@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
 import { DOCUMENT_SORT_FIELDS, type DocumentListQuery } from './documents.schema'
 
@@ -64,10 +65,14 @@ export async function findMany(
   query: DocumentListQuery,
   scope: { universityId?: string },
 ): Promise<{ rows: DocumentListRow[]; total: number }> {
+  // Запрошен вуз вне области видимости — выборка пуста, а не «свои записи вместо чужих».
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return { rows: [], total: 0 }
+
   const where: Prisma.DocumentWhereInput = { ...scopeFilter(scope) }
 
   if (query.cooperationId) where.cooperationId = query.cooperationId
-  if (query.universityId && !scope.universityId) where.universityId = query.universityId
+  if (query.universityId) where.universityId = query.universityId
   if (query.programId) where.programId = query.programId
   if (query.type?.length) where.type = { in: query.type }
   if (query.status?.length) where.status = { in: query.status }
@@ -161,6 +166,7 @@ export async function loadTemplateContextSource(cooperationId: string) {
     select: {
       id: true,
       goal: true,
+      status: true,
       universityId: true,
       programId: true,
       university: {
