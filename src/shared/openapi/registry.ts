@@ -4,6 +4,7 @@ import type { Permission } from '@/shared/auth/permissions'
 
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { exportQuerySchema } from '@/modules/export/export.schema'
+import { importQuerySchema } from '@/modules/import/import.schema'
 import { userListQuerySchema } from '@/modules/auth/auth.schema'
 import {
   cooperationListQuerySchema,
@@ -718,6 +719,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'READ',
     query: exportQuerySchema,
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import',
+    tag: 'Выгрузка',
+    summary: 'Загрузка реестра из CSV',
+    description:
+      'Тело запроса — сам файл (text/csv). По умолчанию предпросмотр: запись происходит ' +
+      'только при mode=apply. Колонки совпадают с заголовками выгрузки.',
+    permission: 'WRITE',
+    query: importQuerySchema,
+    errors: WRITE_ERRORS,
   },
   {
     method: 'get',
