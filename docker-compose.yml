@@ -35,7 +35,15 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD:-skilllink}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       # Обязателен в промышленном контуре: openssl rand -base64 32
-      AUTH_SECRET: ${AUTH_SECRET:?нужно задать AUTH_SECRET}
+      #
+      # Намеренно НЕ через ${AUTH_SECRET:?...}: compose проверяет подстановку во всех
+      # службах сразу, не глядя на профили, и такая запись роняла обычный
+      # `docker compose up -d` для одной только базы — с требованием секрета,
+      # который на этом шаге не нужен.
+      #
+      # Пустое значение приложение ловит само и отказывается стартовать
+      # в production с понятным сообщением (src/shared/auth/auth.ts).
+      AUTH_SECRET: ${AUTH_SECRET:-}
       # Вход без пароля по cookie. Наружу выставлять только с false.
       DEMO_AUTH_ENABLED: ${DEMO_AUTH_ENABLED:-false}
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}

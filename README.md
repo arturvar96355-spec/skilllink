@@ -35,13 +35,13 @@ npm install-scripts approve @prisma/engines prisma @prisma/client
 ### Вариант 1: Docker
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
 
 Поднимет `postgres:16-alpine` с базой, пользователем и паролем `skilllink`.
 
 Если 5432 уже занят локальным PostgreSQL, задайте другой порт:
-`POSTGRES_PORT=5433 docker compose up -d`.
+`POSTGRES_PORT=5433 docker compose up -d postgres`.
 
 ### Вариант 2: локальный PostgreSQL
 
