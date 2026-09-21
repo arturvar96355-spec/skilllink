@@ -1,0 +1,77 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+/**
+ * Документы разъезжаются тихо: маршрут добавили, README поправить забыли.
+ * К моменту передачи команде одно и то же число было написано в четырёх местах
+ * четырьмя разными значениями.
+ *
+ * Тест считает маршруты и операции по коду и требует, чтобы любое такое число
+ * в документах совпадало с действительностью.
+ */
+
+const API_DIR = join(process.cwd(), 'src/app/api')
+const OPENAPI = join(process.cwd(), 'docs/openapi.json')
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete']
+
+function countRouteFiles(directory: string): number {
+  let total = 0
+  for (const entry of readdirSync(directory)) {
+    const path = join(directory, entry)
+    if (statSync(path).isDirectory()) total += countRouteFiles(path)
+    else if (entry === 'route.ts') total += 1
+  }
+  return total
+}
+
+function countOperations(): number {
+  const spec = JSON.parse(readFileSync(OPENAPI, 'utf8')) as {
+    paths: Record<string, Record<string, unknown>>
+  }
+  return Object.values(spec.paths).reduce(
+    (sum, methods) => sum + Object.keys(methods).filter((key) => HTTP_METHODS.includes(key)).length,
+    0,
+  )
+}
+
+function collectDocs(): string[] {
+  const docsDir = join(process.cwd(), 'docs')
+  return [
+    join(process.cwd(), 'README.md'),
+    ...readdirSync(docsDir)
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => join(docsDir, name)),
+  ]
+}
+
+describe('числа в документации соответствуют коду', () => {
+  const routeCount = countRouteFiles(API_DIR)
+  const operationCount = countOperations()
+
+  it('маршрутов больше сорока — иначе считалка сломалась, а не код', () => {
+    expect(routeCount).toBeGreaterThan(40)
+    expect(operationCount).toBeGreaterThanOrEqual(routeCount)
+  })
+
+  for (const file of collectDocs()) {
+    const name = file.split('/').slice(-1)[0]!
+    const content = readFileSync(file, 'utf8')
+
+    it(`${name}: утверждения о числе маршрутов и операций верны`, () => {
+      const claims = [...content.matchAll(/(\d+)\s+(маршрут|операци|эндпоинт)[а-яё]*/gi)]
+
+      for (const claim of claims) {
+        const declared = Number(claim[1])
+        const word = claim[2]!.toLowerCase()
+        const expected = word.startsWith('операци') ? operationCount : routeCount
+
+        expect(
+          declared,
+          `${name}: «${claim[0]}» — в коде ${expected}. ` +
+            'Поправьте документ или пересчитайте, но не оставляйте расхождение.',
+        ).toBe(expected)
+      }
+    })
+  }
+})
