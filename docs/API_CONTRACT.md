@@ -66,9 +66,25 @@
 
 ### Авторизация
 
-P0 — mock-авторизация. Текущий пользователь берётся из cookie `skilllink_user` со значением
-идентификатора пользователя. Без cookie берётся первый активный сотрудник (MANAGER → ADMIN →
-ANALYST → VIEWER). На P1 здесь появится NextAuth.js; контракт не меняется.
+Аутентификация — NextAuth.js с сессиями на JWT, пароли хранятся хешами bcrypt.
+
+**Вход.** Фронт вызывает `signIn('credentials', { email, password })` из `next-auth/react`.
+Напрямую по HTTP: `GET /api/auth/csrf` → `POST /api/auth/callback/credentials` формой
+(`csrfToken`, `email`, `password`). Выход — `POST /api/auth/signout` с `csrfToken`.
+Текущая сессия — `GET /api/auth/session` (без сессии возвращается `null`).
+
+Пространство `/api/auth/*` целиком принадлежит NextAuth. Сведения о текущем пользователе
+системы отдаёт **`GET /api/me`**.
+
+**Демо-режим.** Пока включён `DEMO_AUTH_ENABLED` (по умолчанию везде, кроме продакшена),
+дополнительно работает переключение пользователя без пароля: cookie `skilllink_user` со
+значением идентификатора; без неё берётся первый активный сотрудник в порядке
+MANAGER → ADMIN → ANALYST → VIEWER.
+
+Настоящая сессия всегда **важнее** демо-cookie: подменить пользователя подстановкой cookie
+при активной сессии нельзя.
+
+При `DEMO_AUTH_ENABLED=false` запрос без сессии получает `UNAUTHORIZED` 401.
 
 | Право | Роли |
 | --- | --- |
@@ -970,11 +986,26 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 
 ---
 
-## 14. Пользователи и текущая сессия
+## 14. Пользователи, вход и текущая сессия
 
-### GET /api/auth/me
+### Маршруты NextAuth
+
+| Маршрут | Назначение |
+| --- | --- |
+| `GET /api/auth/csrf` | csrf-токен для форм входа и выхода |
+| `GET /api/auth/providers` | список провайдеров (сейчас один — вход по паролю) |
+| `POST /api/auth/callback/credentials` | вход: форма с `csrfToken`, `email`, `password` |
+| `GET /api/auth/session` | текущая сессия или `null` |
+| `POST /api/auth/signout` | выход: форма с `csrfToken` |
+
+Неверный пароль и несуществующий пользователь дают одинаковый результат: по разнице
+сообщений можно было бы перебирать существующие адреса.
+
+### GET /api/me
 
 Авторизация: любая. Текущий пользователь и его права — фронт по ним решает, что показывать.
+
+Путь именно `/api/me`, а не `/api/auth/me`: всё пространство `/api/auth/*` занято NextAuth.
 
 ```json
 {

@@ -27,23 +27,54 @@ interface ApiResult<T> {
   }
 }
 
-/** Пользователь, от имени которого идут запросы: mock-авторизация через cookie (решение 9). */
+/** Пользователь, от имени которого идут запросы в демо-режиме (решение 9). */
 let currentUserId: string | null = null
+
+/** Cookie настоящей сессии: NextAuth выдаёт их при входе по паролю. */
+const cookieJar = new Map<string, string>()
 
 function actAs(userId: string | null): void {
   currentUserId = userId
 }
 
+function clearSession(): void {
+  cookieJar.clear()
+}
+
+function buildCookieHeader(): string {
+  const parts = [...cookieJar.entries()].map(([name, value]) => `${name}=${value}`)
+  if (currentUserId) parts.push(`skilllink_user=${currentUserId}`)
+  return parts.join('; ')
+}
+
+/** Запоминает cookie из ответа, чтобы следующий запрос шёл уже с сессией. */
+function rememberCookies(response: Response): void {
+  const raw = response.headers.getSetCookie?.() ?? []
+  for (const entry of raw) {
+    const [pair] = entry.split(';')
+    if (!pair) continue
+    const separator = pair.indexOf('=')
+    if (separator <= 0) continue
+    const name = pair.slice(0, separator).trim()
+    const value = pair.slice(separator + 1).trim()
+    if (value === '' || value === 'deleted') cookieJar.delete(name)
+    else cookieJar.set(name, value)
+  }
+}
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['content-type'] = 'application/json'
-  if (currentUserId) headers.cookie = `skilllink_user=${currentUserId}`
+  const cookieHeader = buildCookieHeader()
+  if (cookieHeader !== '') headers.cookie = cookieHeader
 
   const response = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
+    redirect: 'manual',
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
+  rememberCookies(response)
   const text = await response.text()
   let parsed: ApiResult<T>['body']
   try {
@@ -54,6 +85,28 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
     }
   }
   return { status: response.status, body: parsed }
+}
+
+/** Пользователь из ответа /api/auth/session. Без сессии NextAuth отдаёт литеральный null. */
+function sessionUserOf(result: ApiResult<unknown>): { id?: string; role?: string } | null {
+  const body = result.body as unknown as { user?: { id?: string; role?: string } } | null
+  return body?.user ?? null
+}
+
+/** NextAuth принимает вход формой, а не JSON. */
+async function postForm(path: string, fields: Record<string, string>): Promise<number> {
+  const cookieHeader = buildCookieHeader()
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      ...(cookieHeader === '' ? {} : { cookie: cookieHeader }),
+    },
+    body: new URLSearchParams(fields).toString(),
+    redirect: 'manual',
+  })
+  rememberCookies(response)
+  return response.status
 }
 
 function check(name: string, condition: boolean, detail = ''): void {
@@ -865,8 +918,8 @@ async function main(): Promise<void> {
   const me = await call<{
     role: string
     permissions: { canWrite: boolean; canSeeAnalytics: boolean; canUsePortal: boolean }
-  }>('GET', '/api/auth/me')
-  check('GET /api/auth/me отвечает 200', me.status === 200)
+  }>('GET', '/api/me')
+  check('GET /api/me отвечает 200', me.status === 200)
   check('роль определена', Boolean(me.body.data?.role), me.body.data?.role)
   check('права переданы фронту', me.body.data?.permissions.canWrite === true)
 
@@ -1240,54 +1293,43 @@ async function main(): Promise<void> {
   // ── 21. Групповая операция по IT-продукту ──────────────────────────────────
   step('21. Выпуск новой версии продукта: групповая операция')
 
-  const allProducts = await call<Array<{ id: string; name: string; version: string | null }>>(
-    'GET',
-    '/api/products?pageSize=50',
-  )
-  // Берём продукт, у которого есть связки: на нём операция что-то затронет.
-  const productsWithCooperations = await call<Array<{ id: string; cooperationCount: number }>>(
-    'GET',
-    '/api/products?pageSize=50',
-  )
-  // Ищем продукт, у которого операция реально что-то переоткроет: иначе главный
-  // эффект групповой операции останется непроверенным.
-  interface ReleasePreview {
-    currentVersion: string | null
-    nextVersion: string
-    targets: Array<{ effect: string; reason: string; cooperationId: string }>
-    affectedCooperations: number
-    reopenedStages: number
-  }
+  // Сценарий сам готовит предусловие: закрывает этап 12 в собственной связке.
+  // Иначе проверка переоткрытия зависела бы от того, запускался ли сценарий раньше.
+  const ownStages = await call<
+    Array<{
+      id: string
+      stageNumber: number
+      status: string
+      tasks: Array<{ id: string; isRequired: boolean; isDone: boolean }>
+    }>
+  >('GET', `/api/cooperations/${cooperationId}/stages`)
+  const stage12 = (ownStages.body.data ?? []).find((stage) => stage.stageNumber === 12)
+  check('этап 12 найден в собственной связке', Boolean(stage12))
 
-  let releaseProduct: { id: string; cooperationCount: number } | undefined
-  let preview: ApiResult<ReleasePreview> | undefined
-  let nextVersion = ''
-
-  for (const candidate of (productsWithCooperations.body.data ?? []).filter(
-    (item) => item.cooperationCount > 0,
-  )) {
-    const candidateVersion =
-      (allProducts.body.data ?? []).find((item) => item.id === candidate.id)?.version ?? '1'
-    const probeVersion = `${candidateVersion}-next`
-
-    const probe = await call<ReleasePreview>(
-      'GET',
-      `/api/products/${candidate.id}/release?version=${encodeURIComponent(probeVersion)}`,
-    )
-    if (probe.status !== 200) continue
-
-    // Первый подходящий: связки есть и хотя бы один этап будет переоткрыт.
-    if (!releaseProduct || (probe.body.data?.reopenedStages ?? 0) > 0) {
-      releaseProduct = candidate
-      preview = probe
-      nextVersion = probeVersion
+  if (stage12 && productId) {
+    await call('PATCH', `/api/workflow/stages/${stage12.id}`, { status: 'IN_PROGRESS' })
+    for (const task of stage12.tasks.filter((item) => item.isRequired && !item.isDone)) {
+      await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
     }
-    if ((probe.body.data?.reopenedStages ?? 0) > 0) break
-  }
+    const closed = await call<{ status: string }>('PATCH', `/api/workflow/stages/${stage12.id}`, {
+      status: 'COMPLETED',
+      result: 'Материалы переданы в актуальной версии',
+    })
+    check('этап 12 закрыт для подготовки проверки', closed.body.data?.status === 'COMPLETED')
 
-  check('найден продукт со связками', Boolean(releaseProduct))
+    const productBefore = await call<{ version: string | null; name: string }>(
+      'GET',
+      `/api/products/${productId}`,
+    )
+    const nextVersion = `smoke-${suffix}`
 
-  if (releaseProduct && preview) {
+    const preview = await call<{
+      currentVersion: string | null
+      nextVersion: string
+      targets: Array<{ effect: string; reason: string; cooperationId: string }>
+      affectedCooperations: number
+      reopenedStages: number
+    }>('GET', `/api/products/${productId}/release?version=${encodeURIComponent(nextVersion)}`)
     check('предпросмотр групповой операции отвечает 200', preview.status === 200)
     check(
       'предпросмотр показывает затронутые связки',
@@ -1299,72 +1341,73 @@ async function main(): Promise<void> {
       (preview.body.data?.targets ?? []).every((target) => target.reason.length > 0),
     )
     check(
-      'предпросмотр находит закрытые этапы для переоткрытия',
+      'предпросмотр находит закрытый этап для переоткрытия',
       (preview.body.data?.reopenedStages ?? 0) > 0,
       `${preview.body.data?.reopenedStages} этапов`,
     )
+    check(
+      'собственная связка попала в план с переоткрытием',
+      (preview.body.data?.targets ?? []).some(
+        (target) => target.cooperationId === cooperationId && target.effect === 'stage-reopened',
+      ),
+    )
 
-    // Предпросмотр ничего не меняет.
     const versionAfterPreview = await call<{ version: string | null }>(
       'GET',
-      `/api/products/${releaseProduct.id}`,
+      `/api/products/${productId}`,
     )
     check(
-      'предпросмотр не меняет версию продукта',
-      versionAfterPreview.body.data?.version === preview.body.data?.currentVersion,
-    )
-
-    const reopenTarget = (preview.body.data?.targets ?? []).find(
-      (target) => target.effect === 'stage-reopened',
+      'предпросмотр ничего не меняет',
+      versionAfterPreview.body.data?.version === productBefore.body.data?.version,
     )
 
     const release = await call<{
       nextVersion: string
       affectedCooperations: number
       reopenedStages: number
-      appliedAt: string
-    }>('POST', `/api/products/${releaseProduct.id}/release`, {
+    }>('POST', `/api/products/${productId}/release`, {
       version: nextVersion,
       comment: 'Проверочный выпуск сквозного сценария',
     })
     check('POST .../release отвечает 200', release.status === 200, `статус ${release.status}`)
-    check('версия продукта обновилась', release.body.data?.nextVersion === nextVersion)
     check(
       'операция затронула связки',
       (release.body.data?.affectedCooperations ?? 0) > 0,
-      `${release.body.data?.affectedCooperations} связок`,
+      `${release.body.data?.affectedCooperations} связок, переоткрыто ${release.body.data?.reopenedStages}`,
     )
 
-    const productAfter = await call<{ version: string | null }>(
-      'GET',
-      `/api/products/${releaseProduct.id}`,
-    )
+    const productAfter = await call<{ version: string | null }>('GET', `/api/products/${productId}`)
     check('новая версия сохранена', productAfter.body.data?.version === nextVersion)
 
-    // Проверяем, что в затронутой связке этап действительно переоткрыт и задача поставлена.
-    if (reopenTarget) {
-      const affected = await call<{
-        stages: Array<{
-          stageNumber: number
-          status: string
-          tasks: Array<{ title: string; isRequired: boolean; isDone: boolean }>
-        }>
-      }>('GET', `/api/cooperations/${reopenTarget.cooperationId}`)
-      const stage12 = affected.body.data?.stages.find((stage) => stage.stageNumber === 12)
-      check('закрытый этап переоткрыт', stage12?.status === 'IN_PROGRESS', `статус ${stage12?.status}`)
+    const reopened = await call<{
+      stages: Array<{
+        stageNumber: number
+        status: string
+        tasks: Array<{ title: string; isRequired: boolean; isDone: boolean }>
+      }>
+    }>('GET', `/api/cooperations/${cooperationId}`)
+    const stage12After = reopened.body.data?.stages.find((stage) => stage.stageNumber === 12)
+    check('закрытый этап переоткрыт', stage12After?.status === 'IN_PROGRESS', `статус ${stage12After?.status}`)
 
-      const newTask = stage12?.tasks.find((task) => task.title.includes(nextVersion))
-      check('во все затронутые связки поставлена задача', Boolean(newTask), newTask?.title)
-      check('задача обязательна и не закрыта', newTask?.isRequired === true && newTask.isDone === false)
+    const newTask = stage12After?.tasks.find((task) => task.title.includes(nextVersion))
+    check('в затронутую связку поставлена задача', Boolean(newTask), newTask?.title)
+    check(
+      'задача обязательна и не закрыта',
+      newTask?.isRequired === true && newTask.isDone === false,
+    )
 
-      const history = await call<Array<{ toStatus: string; comment: string | null }>>(
-        'GET',
-        `/api/cooperations/${reopenTarget.cooperationId}/stages`,
-      )
-      check('этапы связки перечитываются', history.status === 200)
-    }
+    const history = await call<Array<{ toStatus: string; comment: string | null }>>(
+      'GET',
+      `/api/workflow/stages/${stage12.id}/history`,
+    )
+    check(
+      'переоткрытие попало в историю с причиной',
+      (history.body.data ?? []).some(
+        (entry) => entry.toStatus === 'IN_PROGRESS' && (entry.comment ?? '').includes('устарели'),
+      ),
+    )
 
-    const sameVersion = await call('POST', `/api/products/${releaseProduct.id}/release`, {
+    const sameVersion = await call('POST', `/api/products/${productId}/release`, {
       version: nextVersion,
     })
     check(
@@ -1373,10 +1416,85 @@ async function main(): Promise<void> {
       `код ${sameVersion.body.error?.code}`,
     )
 
-    const emptyVersion = await call('POST', `/api/products/${releaseProduct.id}/release`, {
-      version: '',
-    })
+    const emptyVersion = await call('POST', `/api/products/${productId}/release`, { version: '' })
     check('пустая версия отклоняется', emptyVersion.status === 422)
+  }
+
+  // ── 22. Настоящая аутентификация ───────────────────────────────────────────
+  step('22. Вход по паролю: NextAuth.js и bcrypt')
+
+  const DEMO_PASSWORD = 'skilllink'
+
+  const csrf = await call<Record<string, never>>('GET', '/api/auth/csrf')
+  check('GET /api/auth/csrf отвечает 200', csrf.status === 200)
+  const csrfToken = (csrf.body as unknown as { csrfToken?: string } | null)?.csrfToken
+  check('csrf-токен получен', Boolean(csrfToken))
+
+  const providers = await call('GET', '/api/auth/providers')
+  check('NextAuth отдаёт список провайдеров', providers.status === 200)
+
+  if (csrfToken) {
+    // Неверный пароль не должен создавать сессию.
+    clearSession()
+    const badCsrf = await call<Record<string, never>>('GET', '/api/auth/csrf')
+    const badToken = (badCsrf.body as unknown as { csrfToken?: string } | null)?.csrfToken ?? ''
+    await postForm('/api/auth/callback/credentials', {
+      csrfToken: badToken,
+      email: 'analyst@skilllink.demo',
+      password: 'неверный-пароль',
+    })
+    const afterBad = await call('GET', '/api/auth/session')
+    check('неверный пароль не создаёт сессию', !sessionUserOf(afterBad)?.id)
+
+    // Верный пароль создаёт сессию под нужной ролью.
+    clearSession()
+    const goodCsrf = await call<Record<string, never>>('GET', '/api/auth/csrf')
+    const goodToken = (goodCsrf.body as unknown as { csrfToken?: string } | null)?.csrfToken ?? ''
+    const loginStatus = await postForm('/api/auth/callback/credentials', {
+      csrfToken: goodToken,
+      email: 'analyst@skilllink.demo',
+      password: DEMO_PASSWORD,
+    })
+    check('вход по паролю принят', loginStatus < 400, `статус ${loginStatus}`)
+
+    const session = await call('GET', '/api/auth/session')
+    const sessionUser = sessionUserOf(session)
+    check('сессия создана', Boolean(sessionUser?.id))
+    check('роль пришла в сессию', sessionUser?.role === 'ANALYST', `роль ${sessionUser?.role}`)
+
+    // Сессия важнее демо-cookie: подменить пользователя подстановкой cookie нельзя.
+    actAs(adminId ?? null)
+    const meWithSession = await call<{ role: string; permissions: { canWrite: boolean } }>(
+      'GET',
+      '/api/me',
+    )
+    check(
+      'сессия имеет приоритет над демо-cookie',
+      meWithSession.body.data?.role === 'ANALYST',
+      `роль ${meWithSession.body.data?.role}`,
+    )
+    check('права соответствуют роли из сессии', meWithSession.body.data?.permissions.canWrite === false)
+    actAs(null)
+
+    // Права аналитика действуют и на обычных маршрутах.
+    const analystWrite = await call('POST', '/api/universities', {
+      name: 'Попытка создать вуз аналитиком',
+      city: 'Москва',
+      region: 'Москва',
+    })
+    check('аналитик не может создавать записи', analystWrite.status === 403)
+
+    const analystRead = await call('GET', '/api/universities?pageSize=1')
+    check('аналитик читает данные', analystRead.status === 200)
+
+    // Выход завершает сессию.
+    const signOutCsrf = await call<Record<string, never>>('GET', '/api/auth/csrf')
+    const signOutToken =
+      (signOutCsrf.body as unknown as { csrfToken?: string } | null)?.csrfToken ?? ''
+    await postForm('/api/auth/signout', { csrfToken: signOutToken })
+    const afterSignOut = await call('GET', '/api/auth/session')
+    check('выход завершает сессию', !sessionUserOf(afterSignOut)?.id)
+    clearSession()
   }
 
   // ── Итог ───────────────────────────────────────────────────────────────────

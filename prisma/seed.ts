@@ -8,6 +8,7 @@
  * Запуск: npm run db:seed
  */
 import 'dotenv/config'
+import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
@@ -54,9 +55,15 @@ async function main(): Promise<void> {
 
   // ─── Пользователи ──────────────────────────────────────────────────────────
   console.log('Пользователи...')
+
+  // Демонстрационный пароль один на всех: это стенд, а не промышленный контур.
+  // Хеш считается один раз — bcrypt намеренно медленный.
+  const DEMO_PASSWORD = 'skilllink'
+  const demoPasswordHash = await hash(DEMO_PASSWORD, 10)
   const admin = await prisma.user.create({
     data: {
       email: 'admin@skilllink.demo',
+      passwordHash: demoPasswordHash,
       fullName: 'Демидова Анна Сергеевна',
       position: 'Администратор системы',
       role: 'ADMIN',
@@ -65,6 +72,7 @@ async function main(): Promise<void> {
   const manager = await prisma.user.create({
     data: {
       email: 'manager@skilllink.demo',
+      passwordHash: demoPasswordHash,
       fullName: 'Кириллов Пётр Андреевич',
       position: 'Менеджер партнёрств ИТ-Школы',
       role: 'MANAGER',
@@ -73,6 +81,7 @@ async function main(): Promise<void> {
   const manager2 = await prisma.user.create({
     data: {
       email: 'manager2@skilllink.demo',
+      passwordHash: demoPasswordHash,
       fullName: 'Савельева Ольга Дмитриевна',
       position: 'Менеджер партнёрств ИТ-Школы',
       role: 'MANAGER',
@@ -81,6 +90,7 @@ async function main(): Promise<void> {
   const analyst = await prisma.user.create({
     data: {
       email: 'analyst@skilllink.demo',
+      passwordHash: demoPasswordHash,
       fullName: 'Орлов Михаил Юрьевич',
       position: 'Аналитик',
       role: 'ANALYST',
@@ -89,6 +99,7 @@ async function main(): Promise<void> {
   await prisma.user.create({
     data: {
       email: 'viewer@skilllink.demo',
+      passwordHash: demoPasswordHash,
       fullName: 'Наблюдатель Демонстрационный',
       position: 'Руководитель направления',
       role: 'VIEWER',
@@ -718,6 +729,7 @@ async function main(): Promise<void> {
   const universityRep = await prisma.user.create({
     data: {
       email: 'rep@spbgu.example.invalid',
+      passwordHash: demoPasswordHash,
       fullName: 'Ветрова Ирина Павловна',
       position: 'Заместитель декана',
       role: 'UNIVERSITY_REP',
@@ -936,6 +948,7 @@ async function main(): Promise<void> {
       `\n  ANALYST        ${analyst.id}` +
       `\n  UNIVERSITY_REP ${universityRep.id} (${'СПбГУТ'})`,
   )
+  console.log(`\nПароль всех демо-пользователей: ${DEMO_PASSWORD}`)
   console.log('\nВсе записи помечены isMock = true и не являются подтверждённой статистикой.')
 }
 
