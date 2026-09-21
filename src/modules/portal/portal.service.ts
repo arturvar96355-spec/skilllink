@@ -12,7 +12,12 @@ import type {
   PortalProgramDto,
 } from '@/shared/contracts/portal'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
-import { computeProgressPercent, findCurrentStage, isAutoManaged } from '@/modules/workflow/workflow.rules'
+import {
+  computeProgressPercent,
+  findCurrentStage,
+  isAutoManaged,
+} from '@/modules/workflow/workflow.rules'
+import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './portal.repo'
 import { assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
 import type {
@@ -127,6 +132,11 @@ export async function confirmMaterial(
   const task = await repo.findMaterialTask(taskId, university.id)
   if (!task) throw notFound('Задача не найдена')
   assertMaterialsTask(task.stage.stageNumber)
+
+  // Те же правила, что и на пути сотрудника ИТ-Школы (workflow.service.toggleTask).
+  // Без них представитель вуза менял состояние закрытой связки, когда сотруднику
+  // это уже запрещено, — и отменить изменение было некому.
+  assertCooperationOpen(task.stage.cooperation.status)
 
   if (!task.isDone) {
     await repo.confirmMaterial(taskId, user.id)
