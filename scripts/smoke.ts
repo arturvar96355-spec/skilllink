@@ -998,17 +998,43 @@ async function main(): Promise<void> {
     )
     check('материалы к подтверждению получены', repMaterials.status === 200, `${repMaterials.body.data?.length ?? 0} позиций`)
 
-    const pending = (repMaterials.body.data ?? []).find((item) => !item.isConfirmed)
-    if (pending) {
-      const confirmed = await call<Array<{ taskId: string; isConfirmed: boolean; confirmedAt: string | null }>>(
-        'POST',
-        `/api/portal/materials/${pending.taskId}/confirm`,
-        { comment: 'Материалы получены' },
-      )
+    // Берётся первый материал независимо от того, подтверждён он уже или нет:
+    // подтверждение идемпотентно, и сценарий не должен молча пропускать проверки
+    // на повторном прогоне без пересева данных.
+    const material = (repMaterials.body.data ?? [])[0]
+    check('есть хотя бы один переданный материал', Boolean(material))
+
+    if (material) {
+      const confirmed = await call<
+        Array<{ taskId: string; isConfirmed: boolean; confirmedAt: string | null }>
+      >('POST', `/api/portal/materials/${material.taskId}/confirm`, {
+        comment: 'Материалы получены',
+      })
       check('получение материалов подтверждается', confirmed.status === 200)
-      const updatedItem = (confirmed.body.data ?? []).find((item) => item.taskId === pending.taskId)
+      const updatedItem = (confirmed.body.data ?? []).find(
+        (item) => item.taskId === material.taskId,
+      )
       check('отметка подтверждения сохранена', updatedItem?.isConfirmed === true)
       check('время подтверждения зафиксировано', Boolean(updatedItem?.confirmedAt))
+
+      // Повторное подтверждение не должно ломаться и не должно сбрасывать отметку.
+      const again = await call<Array<{ taskId: string; isConfirmed: boolean }>>(
+        'POST',
+        `/api/portal/materials/${material.taskId}/confirm`,
+      )
+      check('повторное подтверждение безопасно', again.status === 200)
+      check(
+        'отметка не сбрасывается повторным подтверждением',
+        (again.body.data ?? []).find((item) => item.taskId === material.taskId)?.isConfirmed ===
+          true,
+      )
+
+      const foreignTask = await call('POST', `/api/portal/materials/${stage1.tasks[0]?.id}/confirm`)
+      check(
+        'подтверждение задачи не из этапа материалов отклоняется',
+        foreignTask.status === 404,
+        `код ${foreignTask.body.error?.code}`,
+      )
     }
 
     // Показатели набора: вуз вносит обучающихся и группы.
@@ -1146,6 +1172,212 @@ async function main(): Promise<void> {
   const demandAfterSync = await call<unknown[]>('GET', '/api/skills/demand?period=2026-Q1')
   check('спрос по навыкам доступен после загрузки', demandAfterSync.status === 200)
   check('данные на месте', (demandAfterSync.body.data?.length ?? 0) > 0)
+
+  // ── 20. Журнал и лента событий ─────────────────────────────────────────────
+  step('20. Журнал действий и лента событий вуза')
+
+  const events = await call<
+    Array<{ kind: string; title: string; occurredAt: string; author: unknown }>
+  >('GET', `/api/universities/${ownUniversity.id}/events?limit=30`)
+  check('GET /api/universities/:id/events отвечает 200', events.status === 200)
+  const feed = events.body.data ?? []
+  check('лента событий заполнена', feed.length > 0, `${feed.length} событий`)
+  check(
+    'события отсортированы от свежих к старым',
+    feed.every((item, index) => index === 0 || feed[index - 1]!.occurredAt >= item.occurredAt),
+  )
+  check(
+    'в ленте несколько видов событий',
+    new Set(feed.map((item) => item.kind)).size > 1,
+    [...new Set(feed.map((item) => item.kind))].join(', '),
+  )
+  check(
+    'у события есть читаемый заголовок',
+    feed.every((item) => item.title.length > 0 && !item.title.includes('_')),
+  )
+
+  const foreignEvents = await call('GET', '/api/universities/no-such-id/events')
+  check('лента несуществующего вуза отдаёт 404', foreignEvents.status === 404)
+
+  // Журнал действий — только администратору.
+  const auditAsManager = await call('GET', '/api/audit')
+  check(
+    'журнал закрыт для менеджера',
+    auditAsManager.status === 403,
+    `код ${auditAsManager.body.error?.code}`,
+  )
+
+  const admins = await call<Array<{ id: string }>>('GET', '/api/users?role=ADMIN')
+  const adminId = admins.body.data?.[0]?.id
+  check('администратор найден в справочнике', Boolean(adminId))
+
+  if (adminId) {
+    actAs(adminId)
+    const audit = await call<Array<{ action: string; objectType: string; user: unknown }>>(
+      'GET',
+      '/api/audit?pageSize=50',
+    )
+    check('GET /api/audit отвечает 200 администратору', audit.status === 200)
+    check('журнал заполнен', (audit.body.data?.length ?? 0) > 0, `${audit.body.data?.length ?? 0} записей`)
+    check(
+      'у записи журнала есть действие и автор',
+      (audit.body.data ?? []).every((row) => row.action.length > 0),
+    )
+
+    const filtered = await call<Array<{ action: string }>>(
+      'GET',
+      '/api/audit?action=stage.status.change',
+    )
+    check(
+      'фильтр журнала по действию работает',
+      filtered.status === 200 &&
+        (filtered.body.data ?? []).every((row) => row.action === 'stage.status.change'),
+      `${filtered.body.data?.length ?? 0} записей`,
+    )
+    actAs(null)
+  }
+
+  // ── 21. Групповая операция по IT-продукту ──────────────────────────────────
+  step('21. Выпуск новой версии продукта: групповая операция')
+
+  const allProducts = await call<Array<{ id: string; name: string; version: string | null }>>(
+    'GET',
+    '/api/products?pageSize=50',
+  )
+  // Берём продукт, у которого есть связки: на нём операция что-то затронет.
+  const productsWithCooperations = await call<Array<{ id: string; cooperationCount: number }>>(
+    'GET',
+    '/api/products?pageSize=50',
+  )
+  // Ищем продукт, у которого операция реально что-то переоткроет: иначе главный
+  // эффект групповой операции останется непроверенным.
+  interface ReleasePreview {
+    currentVersion: string | null
+    nextVersion: string
+    targets: Array<{ effect: string; reason: string; cooperationId: string }>
+    affectedCooperations: number
+    reopenedStages: number
+  }
+
+  let releaseProduct: { id: string; cooperationCount: number } | undefined
+  let preview: ApiResult<ReleasePreview> | undefined
+  let nextVersion = ''
+
+  for (const candidate of (productsWithCooperations.body.data ?? []).filter(
+    (item) => item.cooperationCount > 0,
+  )) {
+    const candidateVersion =
+      (allProducts.body.data ?? []).find((item) => item.id === candidate.id)?.version ?? '1'
+    const probeVersion = `${candidateVersion}-next`
+
+    const probe = await call<ReleasePreview>(
+      'GET',
+      `/api/products/${candidate.id}/release?version=${encodeURIComponent(probeVersion)}`,
+    )
+    if (probe.status !== 200) continue
+
+    // Первый подходящий: связки есть и хотя бы один этап будет переоткрыт.
+    if (!releaseProduct || (probe.body.data?.reopenedStages ?? 0) > 0) {
+      releaseProduct = candidate
+      preview = probe
+      nextVersion = probeVersion
+    }
+    if ((probe.body.data?.reopenedStages ?? 0) > 0) break
+  }
+
+  check('найден продукт со связками', Boolean(releaseProduct))
+
+  if (releaseProduct && preview) {
+    check('предпросмотр групповой операции отвечает 200', preview.status === 200)
+    check(
+      'предпросмотр показывает затронутые связки',
+      (preview.body.data?.affectedCooperations ?? 0) > 0,
+      `${preview.body.data?.affectedCooperations} связок`,
+    )
+    check(
+      'у каждой связки объяснено, что произойдёт',
+      (preview.body.data?.targets ?? []).every((target) => target.reason.length > 0),
+    )
+    check(
+      'предпросмотр находит закрытые этапы для переоткрытия',
+      (preview.body.data?.reopenedStages ?? 0) > 0,
+      `${preview.body.data?.reopenedStages} этапов`,
+    )
+
+    // Предпросмотр ничего не меняет.
+    const versionAfterPreview = await call<{ version: string | null }>(
+      'GET',
+      `/api/products/${releaseProduct.id}`,
+    )
+    check(
+      'предпросмотр не меняет версию продукта',
+      versionAfterPreview.body.data?.version === preview.body.data?.currentVersion,
+    )
+
+    const reopenTarget = (preview.body.data?.targets ?? []).find(
+      (target) => target.effect === 'stage-reopened',
+    )
+
+    const release = await call<{
+      nextVersion: string
+      affectedCooperations: number
+      reopenedStages: number
+      appliedAt: string
+    }>('POST', `/api/products/${releaseProduct.id}/release`, {
+      version: nextVersion,
+      comment: 'Проверочный выпуск сквозного сценария',
+    })
+    check('POST .../release отвечает 200', release.status === 200, `статус ${release.status}`)
+    check('версия продукта обновилась', release.body.data?.nextVersion === nextVersion)
+    check(
+      'операция затронула связки',
+      (release.body.data?.affectedCooperations ?? 0) > 0,
+      `${release.body.data?.affectedCooperations} связок`,
+    )
+
+    const productAfter = await call<{ version: string | null }>(
+      'GET',
+      `/api/products/${releaseProduct.id}`,
+    )
+    check('новая версия сохранена', productAfter.body.data?.version === nextVersion)
+
+    // Проверяем, что в затронутой связке этап действительно переоткрыт и задача поставлена.
+    if (reopenTarget) {
+      const affected = await call<{
+        stages: Array<{
+          stageNumber: number
+          status: string
+          tasks: Array<{ title: string; isRequired: boolean; isDone: boolean }>
+        }>
+      }>('GET', `/api/cooperations/${reopenTarget.cooperationId}`)
+      const stage12 = affected.body.data?.stages.find((stage) => stage.stageNumber === 12)
+      check('закрытый этап переоткрыт', stage12?.status === 'IN_PROGRESS', `статус ${stage12?.status}`)
+
+      const newTask = stage12?.tasks.find((task) => task.title.includes(nextVersion))
+      check('во все затронутые связки поставлена задача', Boolean(newTask), newTask?.title)
+      check('задача обязательна и не закрыта', newTask?.isRequired === true && newTask.isDone === false)
+
+      const history = await call<Array<{ toStatus: string; comment: string | null }>>(
+        'GET',
+        `/api/cooperations/${reopenTarget.cooperationId}/stages`,
+      )
+      check('этапы связки перечитываются', history.status === 200)
+    }
+
+    const sameVersion = await call('POST', `/api/products/${releaseProduct.id}/release`, {
+      version: nextVersion,
+    })
+    check(
+      'повторный выпуск той же версии отклоняется',
+      sameVersion.status === 409,
+      `код ${sameVersion.body.error?.code}`,
+    )
+
+    const emptyVersion = await call('POST', `/api/products/${releaseProduct.id}/release`, {
+      version: '',
+    })
+    check('пустая версия отклоняется', emptyVersion.status === 422)
+  }
 
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)

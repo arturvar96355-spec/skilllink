@@ -554,11 +554,14 @@ async function main(): Promise<void> {
 
   const cooperationSeed: CooperationSeed[] = [
     {
+      // Самая «взрослая» связка: дошла до повышения квалификации преподавателей.
+      // Этап 12 здесь закрыт — на нём видно, как групповая операция по выпуску
+      // новой версии продукта переоткрывает переданные материалы.
       university: 'spbgu', program: 'spbgu-infosec', productId: products.security.id,
       responsibleId: manager.id, status: 'ACTIVE',
       goal: 'Внедрение системы мониторинга безопасности в учебный процесс',
       startedDaysAgo: 210, firstContactDaysAgo: 210, classesStartInDays: 30,
-      completedUpTo: 9,
+      completedUpTo: 12,
     },
     {
       university: 'spbgu', program: 'spbgu-soft', productId: products.devops.id,

@@ -1,4 +1,5 @@
 export * from './analytics'
+export * from './audit'
 export * from './common'
 export * from './cooperation'
 export * from './data-source'

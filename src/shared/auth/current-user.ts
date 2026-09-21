@@ -15,7 +15,11 @@ export interface CurrentUser {
   universityId: string | null
 }
 
-/** Порядок выбора пользователя по умолчанию, когда cookie не задана. */
+/**
+ * Порядок выбора пользователя по умолчанию, когда cookie не задана.
+ * Менеджер первым: система создана для него, и демонстрация должна начинаться
+ * с прав обычного сотрудника, а не администратора.
+ */
 const DEFAULT_ROLE_ORDER: UserRole[] = ['MANAGER', 'ADMIN', 'ANALYST', 'VIEWER']
 
 async function readUserIdFromCookie(): Promise<string | null> {
@@ -46,11 +50,17 @@ export async function getCurrentUser(): Promise<CurrentUser> {
     if (byCookie) return byCookie
   }
 
-  const fallback = await prisma.user.findFirst({
+  // Приоритет ролей задаётся списком, а не полем сортировки: в SQL порядок элементов
+  // IN не сохраняется, поэтому кандидаты выбираются запросом, а упорядочиваются в коде.
+  const candidates = await prisma.user.findMany({
     where: { isActive: true, role: { in: DEFAULT_ROLE_ORDER } },
     orderBy: { createdAt: 'asc' },
     select: { id: true, email: true, fullName: true, role: true, universityId: true },
   })
+
+  const fallback = candidates
+    .slice()
+    .sort((a, b) => DEFAULT_ROLE_ORDER.indexOf(a.role) - DEFAULT_ROLE_ORDER.indexOf(b.role))[0]
 
   if (!fallback) {
     throw unauthorized('Пользователь не определён. Запустите npm run db:seed')
