@@ -28,6 +28,7 @@ export type AuditAction =
   | 'portal.metrics.update'
   | 'datasource.sync'
   | 'product.version.release'
+  | 'export.download'
 
 export interface AuditEntry {
   userId: string | null

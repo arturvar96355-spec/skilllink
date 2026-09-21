@@ -8,9 +8,9 @@
 
 ```
 npm run typecheck   без ошибок
-npm test            263 теста в 17 файлах, все проходят
+npm test            282 теста в 18 файлах, все проходят
 npm run build       собирается, 51 маршрут
-npm run smoke       273 проверки, все проходят
+npm run smoke       295 проверок, все проходят
 ```
 
 **Проверено на чистом клоне.** Репозиторий развёрнут с нуля в отдельный каталог, на пустую
@@ -58,6 +58,7 @@ npm run smoke       273 проверки, все проходят
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
 | data-sources | `GET /api/data-sources`; `POST /api/data-sources/sync`; `GET /api/integrations/status` |
 | audit | `GET /api/audit`; `GET /api/universities/:id/events` |
+| export | `GET /api/export` — выгрузка реестров в CSV |
 | products (групповые операции) | `GET`, `POST /api/products/:id/release` |
 
 ### Workflow
@@ -109,6 +110,12 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.
+
+### Выгрузка в CSV
+
+`GET /api/export` — вузы, программы, связки и дефициты навыков. Файл для Excel:
+UTF-8 с BOM, разделитель — точка с запятой, значения вида `=…` обезврежены. Права
+совпадают с правами соответствующего раздела: выгрузка не обходной путь к данным.
 
 ### Журнал и лента событий
 
@@ -165,7 +172,7 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
 | --- | --- | --- |
 | **Подключение фронта** | нет кода фронта и макетов | P1, блокирует сдачу |
 | Рейтинг вуза как отдельный показатель | `TODO: PM DECISION` | P1 |
-| Уведомления, RLS, загрузка файлов, импорт и экспорт | — | P2 |
+| Уведомления, RLS, загрузка файлов, импорт | — | P2 |
 
 ## Риски
 
