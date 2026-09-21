@@ -10,7 +10,7 @@
 npm run typecheck   без ошибок
 npm test            282 теста в 18 файлах, все проходят
 npm run build       собирается, 51 маршрут
-npm run smoke       310 проверок, все проходят
+npm run smoke       311 проверок, все проходят
 npm run probe       60 проверок, проблем не найдено
 ```
 
