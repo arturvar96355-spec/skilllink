@@ -19,6 +19,7 @@ import {
   TEMPLATE_PLACEHOLDERS,
 } from '@/shared/config/document-templates.config'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
+import { PROGRAM_LEVEL_FULL_LABELS } from '@/shared/contracts/labels'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './documents.repo'
 import {
@@ -299,15 +300,6 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
 
 // ─────────────────── Сборка пакета документов из шаблонов ───────────────────
 
-const PROGRAM_LEVEL_LABELS: Record<string, string> = {
-  SPO: 'среднее профессиональное образование',
-  BACHELOR: 'бакалавриат',
-  SPECIALIST: 'специалитет',
-  MASTER: 'магистратура',
-  POSTGRADUATE: 'аспирантура',
-  DPO: 'дополнительное профессиональное образование',
-}
-
 /** Какие подстановки поддерживает каждый шаблон — нужно фронту для подсказки. */
 function placeholdersOf(body: string, title: string): string[] {
   const found = new Set<string>()
@@ -378,7 +370,7 @@ export async function generatePackage(
     'contact.fullName': contact?.fullName ?? null,
     'contact.position': contact?.position ?? null,
     'program.name': source.program.name,
-    'program.level': PROGRAM_LEVEL_LABELS[source.program.level] ?? source.program.level,
+    'program.level': PROGRAM_LEVEL_FULL_LABELS[source.program.level] ?? source.program.level,
     'program.code': source.program.code,
     'product.name': source.product?.name ?? null,
     'product.version': source.product?.version ?? null,

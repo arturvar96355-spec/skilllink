@@ -3,6 +3,11 @@ import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
+import {
+  COOPERATION_STATUS_LABELS,
+  PROGRAM_LEVEL_LABELS,
+  UNIVERSITY_STATUS_LABELS,
+} from '@/shared/contracts/labels'
 import { computeProgressPercent, findCurrentStage, isAutoManaged } from '@/modules/workflow/workflow.rules'
 import * as skillsService from '@/modules/skills/skills.service'
 import { csvDate, exportFileName, toCsv, type CsvValue } from './export.rules'
@@ -12,31 +17,6 @@ export interface ExportResult {
   fileName: string
   csv: string
   rows: number
-}
-
-const UNIVERSITY_STATUS_LABELS: Record<string, string> = {
-  NEW: 'Новый',
-  IN_PROGRESS: 'В работе',
-  ACTIVE: 'Активен',
-  PAUSED: 'Приостановлен',
-  ARCHIVED: 'В архиве',
-}
-
-const COOPERATION_STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'Черновик',
-  ACTIVE: 'В работе',
-  PAUSED: 'Приостановлена',
-  COMPLETED: 'Завершена',
-  CANCELLED: 'Отменена',
-}
-
-const PROGRAM_LEVEL_LABELS: Record<string, string> = {
-  SPO: 'СПО',
-  BACHELOR: 'Бакалавриат',
-  SPECIALIST: 'Специалитет',
-  MASTER: 'Магистратура',
-  POSTGRADUATE: 'Аспирантура',
-  DPO: 'ДПО',
 }
 
 const PROGRAM_HEADERS = [

@@ -4,18 +4,65 @@ services:
     container_name: skilllink-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: skilllink
-      POSTGRES_PASSWORD: skilllink
-      POSTGRES_DB: skilllink
+      POSTGRES_USER: ${POSTGRES_USER:-skilllink}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skilllink}
+      POSTGRES_DB: ${POSTGRES_DB:-skilllink}
     ports:
-      - '5432:5432'
+      # Порт наружу настраивается: на машине разработчика PostgreSQL часто уже
+      # занимает 5432, и стек не поднимется без возможности выбрать другой.
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - skilllink-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U skilllink -d skilllink']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-skilllink} -d ${POSTGRES_DB:-skilllink}']
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Приложение поднимается профилем: `docker compose --profile app up -d`.
+  # Без профиля запускается только база — так удобнее разрабатывать локально.
+  app:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: skilllink-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD:-skilllink}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      # Обязателен в промышленном контуре: openssl rand -base64 32
+      AUTH_SECRET: ${AUTH_SECRET:?нужно задать AUTH_SECRET}
+      # Вход без пароля по cookie. Наружу выставлять только с false.
+      DEMO_AUTH_ENABLED: ${DEMO_AUTH_ENABLED:-false}
+      MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
+      LMS_ENABLED: ${LMS_ENABLED:-false}
+      SITE_ENABLED: ${SITE_ENABLED:-false}
+    ports:
+      - '${APP_PORT:-3000}:3000'
+
+  # Разовая задача: применить миграции.
+  #   docker compose --profile migrate run --rm migrate
+  #
+  # Собирается из ступени builder, а не из готового образа: в рантайм-образе лежит
+  # только standalone-сервер, и CLI Prisma там намеренно нет.
+  migrate:
+    profiles: ['migrate']
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: skilllink-migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD:-skilllink}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public
+    command: ['npx', 'prisma', 'migrate', 'deploy']
+    restart: 'no'
 
 volumes:
   skilllink-pgdata:

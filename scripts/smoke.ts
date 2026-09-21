@@ -1300,9 +1300,18 @@ async function main(): Promise<void> {
   // ── 20. Журнал и лента событий ─────────────────────────────────────────────
   step('20. Журнал действий и лента событий вуза')
 
+  // Берём вуз, по которому реально шла работа: у вуза без связок в ленте будет
+  // один вид событий, и проверка разнообразия зависела бы от порядка сортировки.
+  const activeCooperations = await call<Array<{ universityId: string }>>(
+    'GET',
+    '/api/cooperations?pageSize=50',
+  )
+  const eventsUniversityId =
+    activeCooperations.body.data?.[0]?.universityId ?? ownUniversity.id
+
   const events = await call<
     Array<{ kind: string; title: string; occurredAt: string; author: unknown }>
-  >('GET', `/api/universities/${ownUniversity.id}/events?limit=30`)
+  >('GET', `/api/universities/${eventsUniversityId}/events?limit=30`)
   check('GET /api/universities/:id/events отвечает 200', events.status === 200)
   const feed = events.body.data ?? []
   check('лента событий заполнена', feed.length > 0, `${feed.length} событий`)

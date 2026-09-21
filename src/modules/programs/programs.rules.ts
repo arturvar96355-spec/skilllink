@@ -1,15 +1,7 @@
 import type { Metric } from '@/shared/contracts/common'
 import type { DataOrigin } from '@/shared/contracts/enums'
+import { DATA_ORIGIN_LABELS } from '@/shared/contracts/labels'
 import { toIso } from '@/shared/utils/date'
-
-const ORIGIN_LABELS: Record<DataOrigin, string> = {
-  CURRICULUM: 'учебный план',
-  EXPERT: 'экспертная оценка',
-  INTEGRATION: 'интеграция',
-  IMPORT: 'импорт данных',
-  MANUAL: 'ручной ввод',
-  MOCK: 'демонстрационные данные',
-}
 
 /**
  * Оборачивает показатель набора вместе с его происхождением (решение 8).
@@ -35,7 +27,7 @@ export function toMetric(
     }
   }
 
-  const origin = source ? ORIGIN_LABELS[source] : 'источник не указан'
+  const origin = source ? DATA_ORIGIN_LABELS[source] : 'источник не указан'
   const isEstimate = source === 'EXPERT' || source === 'MOCK'
   return {
     value,
