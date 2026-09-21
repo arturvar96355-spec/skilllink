@@ -18,6 +18,11 @@ const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete']
 function countRouteFiles(directory: string): number {
   let total = 0
   for (const entry of readdirSync(directory)) {
+    // `[...unknown]` — не эндпоинт, а ответ JSON-ошибкой на опечатку в адресе.
+    // В число маршрутов он не входит, иначе документы обещали бы на один
+    // эндпоинт больше, чем есть. `[...nextauth]` считается: за ним настоящие
+    // адреса входа, выхода и сессии.
+    if (entry === '[...unknown]') continue
     const path = join(directory, entry)
     if (statSync(path).isDirectory()) total += countRouteFiles(path)
     else if (entry === 'route.ts') total += 1

@@ -749,4 +749,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
  * Маршруты, которые в спецификацию намеренно не попадают.
  * NextAuth описывает свои эндпоинты сам, и дублировать их здесь нечем.
  */
-export const EXCLUDED_ROUTES: readonly string[] = ['/auth/[...nextauth]']
+export const EXCLUDED_ROUTES: readonly string[] = [
+  '/auth/[...nextauth]',
+  // Перехватывающий сегмент: отвечает JSON-ошибкой на несуществующий адрес.
+  // Это не эндпоинт с контрактом, а замена HTML-странице 404.
+  '/[...unknown]',
+]
