@@ -560,6 +560,14 @@ async function main(): Promise<void> {
     blockingReason?: string
     /** Этапам с этими номерами ставится просроченный срок. */
     overdueStages?: number[]
+    /**
+     * Завершённые этапы, закрытые ПОСЛЕ срока.
+     *
+     * Без них показатель «этапы, закрытые в срок» всегда равен 100 %: завершение
+     * в демо-наборе по построению ложится раньше срока. Стопроцентная дисциплина
+     * обесценивает сам контроль сроков — на демонстрации нечего показать.
+     */
+    lateStages?: number[]
     cancelledStages?: number[]
   }
 
@@ -572,21 +580,21 @@ async function main(): Promise<void> {
       responsibleId: manager.id, status: 'ACTIVE',
       goal: 'Внедрение системы мониторинга безопасности в учебный процесс',
       startedDaysAgo: 210, firstContactDaysAgo: 210, classesStartInDays: 30,
-      completedUpTo: 12,
+      completedUpTo: 12, lateStages: [6, 9],
     },
     {
       university: 'spbgu', program: 'spbgu-soft', productId: products.devops.id,
       responsibleId: manager2.id, status: 'ACTIVE',
       goal: 'Конвейер сборки в курсе программной инженерии',
       startedDaysAgo: 120, firstContactDaysAgo: 120, classesStartInDays: 75,
-      completedUpTo: 5, overdueStages: [6],
+      completedUpTo: 5, overdueStages: [6], lateStages: [4],
     },
     {
       university: 'mtuci', program: 'mtuci-cloud', productId: products.cloud.id,
       responsibleId: manager.id, status: 'ACTIVE',
       goal: 'Облачная платформа для магистратуры',
       startedDaysAgo: 95, firstContactDaysAgo: 95, classesStartInDays: 100,
-      completedUpTo: 6, blockedStage: 7,
+      completedUpTo: 6, blockedStage: 7, lateStages: [2],
       blockingReason: 'Вуз не подтвердил получение лицензии: ожидаем ответ юридической службы',
     },
     {
@@ -643,6 +651,18 @@ async function main(): Promise<void> {
         isMock: true,
       },
     })
+
+    await prisma.auditLog.create({
+      data: {
+        userId: item.responsibleId,
+        action: 'cooperation.create',
+        objectType: 'Cooperation',
+        objectId: cooperation.id,
+        payload: { status: item.status },
+        createdAt: startedAt,
+      },
+    })
+
     createdCooperations.push({
       key: `${item.university}-${item.program}`,
       id: cooperation.id,
@@ -681,7 +701,13 @@ async function main(): Promise<void> {
           responsibleId: item.responsibleId,
           deadline,
           startedAt: finalStatus === 'NOT_STARTED' ? null : daysAgo(item.startedDaysAgo - number),
-          completedAt: finalStatus === 'COMPLETED' ? daysAgo(item.startedDaysAgo - number - 1) : null,
+          completedAt:
+            finalStatus === 'COMPLETED'
+              ? item.lateStages?.includes(number)
+                // Закрыт с опозданием: на несколько дней позже собственного срока.
+                ? new Date(deadline.getTime() + (3 + (number % 5)) * DAY)
+                : daysAgo(item.startedDaysAgo - number - 1)
+              : null,
           completedById: finalStatus === 'COMPLETED' && !isControl ? item.responsibleId : null,
           result:
             finalStatus === 'COMPLETED' && !isControl
@@ -710,6 +736,8 @@ async function main(): Promise<void> {
       })
 
       if (finalStatus !== 'NOT_STARTED') {
+        const changedAt = daysAgo(Math.max(1, item.startedDaysAgo - number))
+
         await prisma.stageHistory.create({
           data: {
             stageId: stage.id,
@@ -717,7 +745,22 @@ async function main(): Promise<void> {
             toStatus: finalStatus,
             comment: 'Демонстрационные данные',
             changedById: item.responsibleId,
-            changedAt: daysAgo(Math.max(1, item.startedDaysAgo - number)),
+            changedAt,
+          },
+        })
+
+        // То же событие пишется и в журнал действий — ровно как делает работающая
+        // система. Иначе демо-набор внутренне противоречив: история этапов есть,
+        // а журнал пуст, и администратор видит пустой раздел при десятках
+        // завершённых этапов.
+        await prisma.auditLog.create({
+          data: {
+            userId: item.responsibleId,
+            action: 'stage.status.change',
+            objectType: 'WorkflowStage',
+            objectId: stage.id,
+            payload: { from: 'NOT_STARTED', to: finalStatus, stageNumber: number },
+            createdAt: changedAt,
           },
         })
       }
