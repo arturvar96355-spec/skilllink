@@ -481,6 +481,77 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── 3а. Одновременные запросы ──────────────────────────────────────────────
+  step('3а. Двойной клик не должен ломать данные')
+
+  const generations = await Promise.all([
+    call('POST', '/api/recommendations/generate'),
+    call('POST', '/api/recommendations/generate'),
+    call('POST', '/api/recommendations/generate'),
+  ])
+  check(
+    'одновременная генерация рекомендаций проходит без ошибок',
+    generations.every((result) => result.status === 200),
+    `статусы ${generations.map((result) => result.status).join(', ')}`,
+  )
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз гонки ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа гонки ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const raceCooperation = await call<{
+      id: string
+      stages: Array<{ id: string; tasks: Array<{ id: string; isRequired: boolean }> }>
+    }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+
+    const raceStage = raceCooperation.body.data?.stages[0]
+    if (raceStage) {
+      await call('PATCH', `/api/workflow/stages/${raceStage.id}`, { status: 'IN_PROGRESS' })
+      for (const task of raceStage.tasks.filter((item) => item.isRequired)) {
+        await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+      }
+
+      const doubleClick = await Promise.all([
+        call('PATCH', `/api/workflow/stages/${raceStage.id}`, {
+          status: 'COMPLETED',
+          result: 'Готово',
+        }),
+        call('PATCH', `/api/workflow/stages/${raceStage.id}`, {
+          status: 'COMPLETED',
+          result: 'Готово',
+        }),
+      ])
+      check(
+        'двойное завершение этапа: ровно одно проходит',
+        doubleClick.filter((result) => result.status === 200).length === 1,
+        `статусы ${doubleClick.map((result) => result.status).join(', ')}`,
+      )
+
+      const history = await call<Array<{ toStatus: string }>>(
+        'GET',
+        `/api/workflow/stages/${raceStage.id}/history`,
+      )
+      const completions = (history.body.data ?? []).filter((item) => item.toStatus === 'COMPLETED')
+      check(
+        'в истории нет дубля о завершении',
+        completions.length === 1,
+        `${completions.length} записей`,
+      )
+    }
+  }
+
   // ── 4. Формат ошибок ───────────────────────────────────────────────────────
   step('4. Любая ошибка соответствует контракту')
 

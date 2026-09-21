@@ -1,6 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
-import { notFound } from '@/shared/http/errors'
+import { conflict, notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import {
   assertCan,
@@ -220,8 +220,11 @@ export async function updateStage(
   const next = input.status ?? stage.status
 
   await prisma.$transaction(async (tx) => {
-    await tx.workflowStage.update({
-      where: { id: stageId },
+    // Обновление условное: статус меняется, только если он всё ещё тот, который мы прочитали.
+    // Иначе два одновременных запроса (двойной клик) оба прошли бы проверку перехода
+    // и записали бы в историю два одинаковых события.
+    const changed = await tx.workflowStage.updateMany({
+      where: { id: stageId, status: stage.status },
       data: {
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.responsibleId !== undefined ? { responsibleId: input.responsibleId } : {}),
@@ -247,6 +250,13 @@ export async function updateStage(
           : {}),
       },
     })
+
+    if (changed.count === 0) {
+      throw conflict(
+        'Этап уже изменён другим пользователем. Обновите страницу и повторите действие.',
+        { expectedStatus: stage.status },
+      )
+    }
 
     if (statusChanged) {
       await tx.stageHistory.create({
