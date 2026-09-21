@@ -25,14 +25,23 @@
 
 Проверить свою версию: `node -v`.
 
-### Если вы на Windows
+### Windows: три вещи, о которых надо знать заранее
 
-Команды ниже написаны для macOS и Linux. Переменная перед командой
-(`POSTGRES_PORT=5433 docker compose …`) в Windows **не работает** — ни в `cmd`,
-ни в PowerShell. Там её задают отдельно:
+Команды в этом файле написаны для macOS и Linux. На Windows три отличия,
+и каждое проявляется непонятной ошибкой, если о нём не знать.
+
+**1. `curl` в PowerShell — это не curl.** Там это псевдоним `Invoke-WebRequest`
+с другим синтаксисом: примеры вида `curl -s -X POST …` выдадут ошибку про
+несуществующий параметр. Пишите `curl.exe` — настоящий curl в Windows 10 и 11 есть:
 
 ```powershell
-# PowerShell
+curl.exe -s http://localhost:3000/api/health
+```
+
+**2. Переменная перед командой не работает** — ни в `cmd`, ни в PowerShell:
+
+```powershell
+# PowerShell: задать отдельно, живёт до закрытия окна
 $env:POSTGRES_PORT = "5433"
 docker compose up -d postgres
 ```
@@ -43,8 +52,18 @@ set POSTGRES_PORT=5433
 docker compose up -d postgres
 ```
 
-Переменная живёт до закрытия окна. Всё остальное — `npm install`, `npm run dev`,
-миграции — работает одинаково на всех системах.
+**3. `openssl` в Windows обычно нет.** Секрет для продакшена генерируется
+средствами Node — они есть везде, где есть сам проект:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Эта команда одинаково работает на всех системах, и ею лучше пользоваться везде.
+
+Всё остальное — `npm install`, `npm run dev`, миграции, демо-данные — работает
+одинаково. Концы строк нормализуются автоматически, права на файлы не нужны,
+длинных путей в проекте нет.
 
 ## Установка
 
@@ -96,7 +115,9 @@ cp .env.example .env
 DATABASE_URL="postgresql://skilllink:skilllink@localhost:5432/skilllink?schema=public"
 ```
 
-Для продакшена дополнительно обязательны `AUTH_SECRET` (`openssl rand -base64 32`)
+Для продакшена дополнительно обязателен `AUTH_SECRET`. Генерировать лучше через Node —
+работает на всех системах, в отличие от `openssl`, которого в Windows обычно нет:
+`node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 и `DEMO_AUTH_ENABLED="false"`.
 
 ### Миграции и демонстрационные данные
@@ -319,7 +340,7 @@ curl -s http://localhost:3000/api/universities \
 Приложение собирается в образ и поднимается вместе с базой:
 
 ```bash
-export AUTH_SECRET="$(openssl rand -base64 32)"
+export AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
 
 docker compose up -d postgres                       # база
 docker compose --profile migrate run --rm migrate   # миграции
