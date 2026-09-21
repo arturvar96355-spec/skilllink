@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
+import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -121,14 +122,21 @@ export async function findBlocked(
   return { rows, total }
 }
 
+/**
+ * Ограничение выборки этапов по связке.
+ *
+ * Закрытые связки исключаются всегда: их этапы заморожены, изменить их нельзя,
+ * и показывать их как просроченные значит просить сделать то, что система же
+ * и запрещает. Раньше закрытая связка оставалась в списках просроченных навсегда.
+ */
 function buildCooperationFilter(
   query: StageListQuery,
   scope: { universityId?: string },
 ): Prisma.WorkflowStageWhereInput {
   const universityId = scope.universityId ?? query.universityId
-  if (!universityId && !query.responsibleId) return {}
   return {
     cooperation: {
+      status: { in: [...OPEN_COOPERATION_STATUSES] },
       ...(universityId ? { universityId } : {}),
       ...(query.responsibleId ? { responsibleId: query.responsibleId } : {}),
     },

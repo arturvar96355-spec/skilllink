@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
+import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 
 /** Связки, которые сейчас в работе. */
 export async function countActiveCooperations(scope: { universityId?: string }): Promise<number> {
@@ -60,6 +61,13 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
   })
 }
 
+/**
+ * Этапы, требующие внимания: просроченные и заблокированные.
+ *
+ * Только у действующих связок. Закрытая связка проблем не создаёт: её этапы
+ * заморожены, и предлагать по ним действие — значит заполнять дашборд тем,
+ * на что никто не может повлиять.
+ */
 export async function findProblemStages(scope: { universityId?: string }, now: Date, limit: number) {
   return prisma.workflowStage.findMany({
     where: {
@@ -67,7 +75,10 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
         { deadline: { lt: now }, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
         { status: 'BLOCKED' },
       ],
-      ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
+      cooperation: {
+        status: { in: [...OPEN_COOPERATION_STATUSES] },
+        ...(scope.universityId ? { universityId: scope.universityId } : {}),
+      },
     },
     select: {
       stageNumber: true,

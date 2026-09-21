@@ -433,7 +433,7 @@ curl -s -X POST http://localhost:3000/api/data-sources/sync -H 'content-type: ap
   и пояснением «Нет данных».
 - **Соответствие 152-ФЗ и приказу ФСТЭК № 117 не заявляется.** Требования учитывались при
   проектировании; без отдельного аудита соответствие не утверждается. Подробности —
-  в [SECURITY_LIMITATIONS.md](SECURITY_LIMITATIONS.md).
+  в [SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md).
 - **Авторизация на P0 — заглушка.** Стенд не выставлять в открытый доступ.
 
 ## Состав команды
