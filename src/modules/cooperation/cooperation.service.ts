@@ -129,7 +129,11 @@ export async function create(
 ): Promise<CooperationDto> {
   assertCan(user, 'WRITE')
 
-  const [program, responsible, product] = await Promise.all([
+  const [university, program, responsible, product] = await Promise.all([
+    prisma.university.findUnique({
+      where: { id: input.universityId },
+      select: { id: true, archivedAt: true },
+    }),
     prisma.educationalProgram.findUnique({
       where: { id: input.programId },
       select: { id: true, universityId: true, archivedAt: true },
@@ -142,6 +146,21 @@ export async function create(
       ? prisma.iTProduct.findUnique({ where: { id: input.productId }, select: { id: true } })
       : Promise.resolve(null),
   ])
+
+  if (!university) {
+    throw validationError('Указан несуществующий вуз', [
+      { field: 'universityId', message: 'Вуз не найден' },
+    ])
+  }
+  // Вуз в архиве проверяется наравне с программой. Иначе ломается обещание
+  // архива: архивировать вуз с открытыми связками нельзя, но сразу после
+  // архивации новую связку можно было завести — и «в архиве нет открытой
+  // работы» переставало быть правдой.
+  if (university.archivedAt) {
+    throw validationError('Вуз в архиве', [
+      { field: 'universityId', message: 'Восстановите вуз из архива, чтобы заводить связки' },
+    ])
+  }
 
   if (!program) {
     throw validationError('Указана несуществующая программа', [

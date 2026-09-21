@@ -159,3 +159,38 @@ describe('параметры загрузки', () => {
     )
   })
 })
+
+describe('загрузка не стирает то, чего нет в файле', () => {
+  it('колонка отсутствует — поле не трогаем; колонка пустая — очищаем', () => {
+    // Разница принципиальная. «Колонки нет» значит «про это поле файл ничего
+    // не говорит». «Колонка есть, ячейка пуста» значит «здесь нет данных» —
+    // осознанное указание человека.
+    const withColumn = mapHeaders(['Название', 'Студентов'], ['Название'], ['Студентов'])
+    const withoutColumn = mapHeaders(['Название'], ['Название'], ['Студентов'])
+
+    expect(withColumn.has('Студентов')).toBe(true)
+    expect(withoutColumn.has('Студентов')).toBe(false)
+
+    // При наличии колонки пустая ячейка читается как «нет данных».
+    expect(numericCell(['Вуз', ''], withColumn, 'Студентов')).toEqual({ value: null })
+  })
+})
+
+describe('повтор названия внутри одного файла', () => {
+  it('второе вхождение — ошибка строки, а не второй вуз', () => {
+    // Вуз опознаётся по названию. Два создания с одним названием ломают
+    // опознание навсегда: повторная загрузка обновит произвольного двойника,
+    // а программы привяжутся то к одному, то к другому.
+    const seen = new Map<string, number>()
+    const rows = ['Вуз А', 'Вуз Б', 'Вуз А']
+    const outcomes = rows.map((name, index) => {
+      const key = name.toLowerCase()
+      if (seen.has(key)) return { line: index + 2, outcome: 'error', firstSeen: seen.get(key) }
+      seen.set(key, index + 2)
+      return { line: index + 2, outcome: 'create', firstSeen: null }
+    })
+
+    expect(outcomes.map((row) => row.outcome)).toEqual(['create', 'create', 'error'])
+    expect(outcomes[2]?.firstSeen).toBe(2)
+  })
+})

@@ -76,13 +76,29 @@ export async function findMaterials(universityId: string) {
   })
 }
 
+/**
+ * Задача передачи материалов вместе с состоянием этапа и связки.
+ *
+ * Статусы нужны сервису: подтверждать получение материалов в закрытой связке
+ * нельзя — иначе представитель вуза меняет то, что сотруднику ИТ-Школы уже
+ * недоступно, и отменить это изменение никто не сможет.
+ */
 export async function findMaterialTask(taskId: string, universityId: string) {
   return prisma.task.findFirst({
     where: { id: taskId, stage: { cooperation: { universityId } } },
     select: {
       id: true,
       isDone: true,
-      stage: { select: { id: true, stageNumber: true, cooperationId: true } },
+      isRequired: true,
+      stage: {
+        select: {
+          id: true,
+          stageNumber: true,
+          cooperationId: true,
+          status: true,
+          cooperation: { select: { status: true } },
+        },
+      },
     },
   })
 }

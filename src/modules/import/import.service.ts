@@ -35,6 +35,9 @@ interface RowPlan {
 }
 
 async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
+  /** Названия, уже встреченные в этом файле: строка, где встретилось впервые. */
+  const seenNames = new Map<string, number>()
+
   const header = rows[0]
   if (!header) throw validationError('Файл пуст')
 
@@ -70,20 +73,56 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
       continue
     }
 
+    // Повтор названия внутри одного файла — ошибка строки, а не второй вуз.
+    //
+    // Существование проверяется до записи, поэтому две одинаковые строки
+    // проходили как два создания и давали двойника. Дальше ломалось всё
+    // опознание «по названию»: повторная загрузка обновляла произвольного
+    // из двойников, а программы привязывались то к одному, то к другому.
+    if (seenNames.has(name.toLowerCase())) {
+      plans.push({
+        result: {
+          line,
+          label: name,
+          outcome: 'error',
+          detail: `Это название уже встречалось в файле (строка ${seenNames.get(name.toLowerCase())})`,
+        },
+      })
+      continue
+    }
+    seenNames.set(name.toLowerCase(), line)
+
     // Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
     const existing = await prisma.university.findFirst({
       where: { name },
       select: { id: true, city: true, region: true },
     })
 
-    const data = {
-      city,
-      region,
-      shortName: cell(row, index, 'Краткое название'),
-      website: cell(row, index, 'Сайт'),
-      directionCount: 'value' in directions ? directions.value : null,
-      studentCount: 'value' in students ? students.value : null,
+    // Обновляются ТОЛЬКО те поля, чьи колонки есть в файле.
+    //
+    // Иначе загрузка файла с одними обязательными колонками стирала бы всё
+    // остальное: краткое название, сайт, численность — молча, и в предпросмотре
+    // это выглядело бы как безобидное «обновятся данные вуза».
+    //
+    // Пустая ячейка при наличии колонки — по-прежнему осознанное «нет данных»
+    // и очищает поле. Разница именно между «колонки нет» и «колонка пустая».
+    // Обновление частичное, создание требует обязательных полей — отсюда два типа.
+    const optional: {
+      shortName?: string | null
+      website?: string | null
+      directionCount?: number | null
+      studentCount?: number | null
+    } = {}
+    if (index.has('Краткое название')) optional.shortName = cell(row, index, 'Краткое название')
+    if (index.has('Сайт')) optional.website = cell(row, index, 'Сайт')
+    if (index.has('Направлений')) {
+      optional.directionCount = 'value' in directions ? directions.value : null
     }
+    if (index.has('Студентов')) {
+      optional.studentCount = 'value' in students ? students.value : null
+    }
+
+    const data = { city, region, ...optional }
 
     if (existing) {
       plans.push({
