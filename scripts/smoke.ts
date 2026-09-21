@@ -115,6 +115,23 @@ async function fetchRaw(path: string): Promise<{
   }
 }
 
+/** Отправка файла CSV: загрузка принимает тело как есть, а не JSON. */
+async function postCsv(path: string, csv: string): Promise<{ status: number; body: unknown }> {
+  const cookieHeader = buildCookieHeader()
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'text/csv',
+      ...(cookieHeader === '' ? {} : { cookie: cookieHeader }),
+    },
+    body: csv,
+    redirect: 'manual',
+  })
+  rememberCookies(response)
+  const text = await response.text()
+  return { status: response.status, body: text ? JSON.parse(text) : {} }
+}
+
 /** Начинается ли файл с UTF-8 BOM (EF BB BF). */
 function hasUtf8Bom(bytes: Uint8Array): boolean {
   return bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf
@@ -1736,6 +1753,63 @@ async function main(): Promise<void> {
       (file.text.split('\r\n')[0] ?? '').includes(';'),
     )
   }
+
+  // Цикл «выгрузил → поправил → загрузил обратно» должен работать без переименований.
+  const exported = await fetchRaw('/api/export?dataset=universities&limit=5')
+  const lines = exported.text.replace(/^\ufeff/, '').split('\r\n').filter((line) => line !== '')
+  const header = lines[0] ?? ''
+  const importedName = `Загруженный университет ${suffix}`
+  const columns = header.split(';')
+  const cells = columns.map((column) =>
+    column === 'Название'
+      ? importedName
+      : column === 'Город'
+        ? 'Тверь'
+        : column === 'Регион'
+          ? 'Тверская область'
+          : column === 'Студентов'
+            ? '7 500'
+            : '',
+  )
+  const csvToImport = `\ufeff${header}\r\n${cells.join(';')}\r\n`
+
+  const preview = await postCsv('/api/import?dataset=universities', csvToImport)
+  check('предпросмотр загрузки отвечает 200', preview.status === 200, `статус ${preview.status}`)
+  const previewBody = preview.body as unknown as {
+    data?: { mode: string; created: number; rows: Array<{ outcome: string }> }
+  }
+  check('предпросмотр помечен как предпросмотр', previewBody.data?.mode === 'preview')
+  check('предпросмотр видит новую строку', previewBody.data?.created === 1)
+
+  const notYet = await call<unknown[]>(
+    'GET',
+    `/api/universities?q=${encodeURIComponent(importedName)}`,
+  )
+  check('предпросмотр ничего не записал', (notYet.body.data?.length ?? 0) === 0)
+
+  const applied = await postCsv('/api/import?dataset=universities&mode=apply', csvToImport)
+  const appliedBody = applied.body as unknown as { data?: { created: number; errors: number } }
+  check('загрузка применена', applied.status === 200 && appliedBody.data?.created === 1)
+  check('ошибок при загрузке нет', appliedBody.data?.errors === 0)
+
+  const nowThere = await call<Array<{ name: string }>>(
+    'GET',
+    `/api/universities?q=${encodeURIComponent(importedName)}`,
+  )
+  check('загруженный вуз появился', (nowThere.body.data?.length ?? 0) === 1)
+
+  const again = await postCsv('/api/import?dataset=universities&mode=apply', csvToImport)
+  const againBody = again.body as unknown as { data?: { created: number; updated: number } }
+  check('повторная загрузка не плодит двойников', againBody.data?.created === 0)
+
+  const stillOne = await call<unknown[]>(
+    'GET',
+    `/api/universities?q=${encodeURIComponent(importedName)}`,
+  )
+  check('вуз по-прежнему один', (stillOne.body.data?.length ?? 0) === 1)
+
+  const missingColumn = await postCsv('/api/import?dataset=universities', '\ufeffНазвание\r\nВуз\r\n')
+  check('файл без обязательных колонок отклоняется', missingColumn.status === 422)
 
   const badDataset = await fetchRaw('/api/export?dataset=everything')
   check('неизвестный раздел выгрузки отклоняется', badDataset.status === 422)

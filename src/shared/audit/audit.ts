@@ -29,6 +29,7 @@ export type AuditAction =
   | 'datasource.sync'
   | 'product.version.release'
   | 'export.download'
+  | 'import.apply'
 
 export interface AuditEntry {
   userId: string | null
