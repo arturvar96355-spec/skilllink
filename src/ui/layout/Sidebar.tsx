@@ -25,6 +25,20 @@ export interface SidebarProps {
 export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
+  /**
+   * Группа под курсором раскрывается сама (раздел 5 шаблона страниц).
+   * Наведение не заменяет щелчок, а дополняет его: с клавиатуры и на сенсорном
+   * экране наведения нет вовсе, и тогда работает обычное раскрытие по щелчку.
+   */
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
+  /**
+   * Группа, свёрнутая щелчком прямо сейчас.
+   *
+   * Без этого щелчок выглядел бы сломанным: курсор остаётся на заголовке,
+   * наведение тут же раскрывает группу обратно, и человек жмёт снова и снова.
+   * Запрет снимается, когда указатель уходит с группы.
+   */
+  const [closedByClick, setClosedByClick] = useState<string | null>(null)
 
   // Переход на другую страницу закрывает меню на узком экране.
   useEffect(() => {
@@ -56,16 +70,38 @@ export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
           {groups.map((group) => {
             const hasActive = group.items.some((item) => isActiveItem(item, pathname))
             // Группа с текущей страницей раскрыта всегда, свернуть её нельзя.
-            const isOpenGroup = hasActive || !collapsed[group.key]
+            const isOpenGroup =
+              hasActive ||
+              !collapsed[group.key] ||
+              (hoveredGroup === group.key && closedByClick !== group.key)
 
             return (
-              <div key={group.key} className={styles.group}>
+              <div
+                key={group.key}
+                className={styles.group}
+                onMouseEnter={() => setHoveredGroup(group.key)}
+                onMouseLeave={() => {
+                  setHoveredGroup((current) => (current === group.key ? null : current))
+                  setClosedByClick((current) => (current === group.key ? null : current))
+                }}
+                // Фокус с клавиатуры раскрывает группу так же, как наведение мышью.
+                onFocus={() => setHoveredGroup(group.key)}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setHoveredGroup((current) => (current === group.key ? null : current))
+                  }
+                }}
+              >
                 <button
                   type="button"
                   className={styles.groupHead}
                   aria-expanded={isOpenGroup}
                   onClick={() =>
-                    setCollapsed((current) => ({ ...current, [group.key]: !current[group.key] }))
+                    setCollapsed((current) => {
+                      const willCollapse = !current[group.key]
+                      setClosedByClick(willCollapse ? group.key : null)
+                      return { ...current, [group.key]: willCollapse }
+                    })
                   }
                 >
                   {group.title}

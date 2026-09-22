@@ -200,8 +200,8 @@ function ProductsView() {
             placeholder="Любой"
             options={STATUS_OPTIONS}
             value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as ProductStatus | '')
+            onValueChange={(value) => {
+              setStatus(value as ProductStatus | '')
               setPage(1)
             }}
           />

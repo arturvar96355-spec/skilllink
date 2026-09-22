@@ -42,7 +42,7 @@
 }
 
 .brandName {
-  font-size: 26px;
+  font-size: var(--text-kpi-md-size);
   font-weight: 700;
   letter-spacing: -0.025em;
 }
@@ -54,7 +54,7 @@
 
 .headline {
   position: relative;
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: var(--text-display-size);
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.03em;
@@ -96,7 +96,7 @@
   height: 28px;
   flex: none;
   border-radius: 10px;
-  background: rgba(44, 29, 70, 0.9);
+  background: var(--surface-icon);
   border: 1px solid var(--border-subtle);
   color: var(--text-accent-soft);
 }
@@ -148,6 +148,40 @@
   gap: var(--space-4);
 }
 
+/* Поля появляются одно за другим уже после панели (раздел 5.2 документа
+   о движении): сначала видно, куда смотреть, потом — что заполнять. */
+.form > * {
+  animation: riseIn 420ms var(--ease-out) both;
+}
+
+.form > *:nth-child(1) {
+  animation-delay: 220ms;
+}
+.form > *:nth-child(2) {
+  animation-delay: 300ms;
+}
+.form > *:nth-child(n + 3) {
+  animation-delay: 380ms;
+}
+
+/*
+ * Уход с экрана входа.
+ *
+ * Вместо мгновенной подмены страницы поверхность входа растворяется, и только
+ * потом открывается приложение (раздел 6 документа о движении). Ощущение
+ * перехода, а не перезагрузки.
+ */
+.leaving {
+  animation: leave 320ms var(--ease-in) both;
+}
+
+@keyframes leave {
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.99);
+  }
+}
+
 /* Ошибка входа: текст, а не только цвет рамки. */
 .error {
   display: flex;
@@ -155,7 +189,7 @@
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-input);
-  background: rgba(255, 95, 115, 0.1);
+  background: var(--danger-surface);
   border: 1px solid rgba(255, 95, 115, 0.3);
   color: var(--text-danger-strong);
   font-size: var(--text-body-sm-size);

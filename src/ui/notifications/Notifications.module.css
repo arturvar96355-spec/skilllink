@@ -111,13 +111,13 @@
   height: 32px;
   flex: none;
   border-radius: var(--radius-icon);
-  background: rgba(44, 29, 70, 0.9);
+  background: var(--surface-icon);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 
 .critical {
-  border-color: rgba(255, 95, 115, 0.32);
+  border-color: var(--danger-border);
   color: var(--status-danger);
 }
 

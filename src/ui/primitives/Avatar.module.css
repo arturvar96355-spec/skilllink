@@ -51,7 +51,7 @@
 
 /* Контур объекта: логотип вуза или аббревиатура программы получают неоновую рамку. */
 .entity {
-  background: rgba(44, 29, 70, 0.9);
-  border-color: rgba(200, 77, 255, 0.28);
+  background: var(--surface-icon);
+  border-color: var(--border-accent);
   color: var(--text-accent-pale);
 }
