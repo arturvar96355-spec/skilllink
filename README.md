@@ -340,7 +340,7 @@ curl -s http://localhost:3000/api/universities \
 Приложение собирается в образ и поднимается вместе с базой:
 
 ```bash
-export AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
+export DOCKER_AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
 
 docker compose up -d postgres                       # база
 docker compose --profile migrate run --rm migrate   # миграции
@@ -361,8 +361,13 @@ docker compose --profile app up -d app              # приложение
   если бы имя совпадало, вход без пароля утёк бы в контейнер молча.
   Поэтому контейнер читает `DOCKER_DEMO_AUTH_ENABLED` и `DOCKER_AUTH_SECRET` —
   включить демо-режим можно только осознанно.
-- **`AUTH_SECRET` обязателен.** Без него приложение падает при первом запросе с понятной
-  ошибкой в журнале, а не работает тихо с известным всем ключом.
+- **Секрет подписи обязателен** — `DOCKER_AUTH_SECRET`, не `AUTH_SECRET`: по той же
+  причине, что и с демо-режимом. Без него `/api/health` отвечает `misconfigured`,
+  а не работает тихо с известным всем ключом.
+- **За прокси с HTTPS нужен `DOCKER_AUTH_URL`** — публичный адрес сайта, например
+  `https://skilllink.example`. Без него после входа пользователя отправит
+  на `https://localhost:3000`: Next.js собирает адрес запроса из собственного имени,
+  а не из заголовка `Host`, и NextAuth строит по нему переходы. Локально не нужен.
 - **Проверка живости видит неприменённые миграции:** `/api/health` отдаёт 503 и `schema:
   "missing"`, пока база пуста. Оркестратор не поднимет трафик на неработоспособный контейнер.
 

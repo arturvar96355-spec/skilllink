@@ -41,7 +41,7 @@ npm run dev
 ### Или целиком в контейнерах
 
 ```bash
-export AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
+export DOCKER_AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
 docker compose up -d postgres
 docker compose --profile migrate run --rm migrate
 docker compose --profile app up -d app
