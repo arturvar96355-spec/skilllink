@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useMemo, useState, type ReactNode } from 'react'
 import type { CurrentUserDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
@@ -23,6 +24,7 @@ import styles from './Shell.module.css'
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const pathname = usePathname()
   const me = useResource<CurrentUserDto>('/api/me')
   const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
 
@@ -59,7 +61,18 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className={styles.shell}>
         <Header groups={groups} onMenuClick={() => setIsMenuOpen(true)} />
-        <main className={styles.main}>{children}</main>
+        <main className={styles.main}>
+          {/*
+            Ключ по адресу — это и есть переход между страницами: при смене
+            адреса React пересоздаёт контейнер, и содержимое появляется заново
+            снизу вверх, блок за блоком. Шапка и боковое меню при этом остаются
+            на месте — приложение ощущается одним рабочим пространством
+            (раздел 19 документа о движении).
+          */}
+          <div key={pathname} className={styles.page}>
+            {children}
+          </div>
+        </main>
         <Footer />
       </div>
       <GlobalSearch />

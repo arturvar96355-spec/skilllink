@@ -35,6 +35,8 @@ function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isPending, setIsPending] = useState(false)
+  /** Вход удался: панель уходит с экрана, и только потом открывается приложение. */
+  const [isLeaving, setIsLeaving] = useState(false)
   const [message, setMessage] = useState<string | null>(
     errorMessage(params.get('error'), params.get('code')),
   )
@@ -56,12 +58,17 @@ function LoginForm() {
 
     // Возвращаем туда, куда человек шёл до перенаправления на вход.
     const from = params.get('from')
-    router.replace(from && from.startsWith('/') ? from : '/')
-    router.refresh()
+    const destination = from && from.startsWith('/') ? from : '/'
+    setIsLeaving(true)
+    // Длительность совпадает с анимацией ухода в login.module.css.
+    window.setTimeout(() => {
+      router.replace(destination)
+      router.refresh()
+    }, 300)
   }
 
   return (
-    <div className={styles.panel}>
+    <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
       <div className={styles.panelHead}>
         <h1 className={styles.title}>Вход</h1>
         <p className={styles.subtitle}>
@@ -101,7 +108,13 @@ function LoginForm() {
           </p>
         )}
 
-        <Button type="submit" variant="primary" size="lg" fullWidth isLoading={isPending}>
+        <Button
+          type="submit"
+          variant="primary"
+          size="lg"
+          fullWidth
+          isLoading={isPending || isLeaving}
+        >
           Войти
         </Button>
       </form>

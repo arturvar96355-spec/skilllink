@@ -9,6 +9,7 @@ import {
 import {
   Avatar,
   Badge,
+  Button,
   Card,
   DataTable,
   EmptyState,
@@ -35,6 +36,7 @@ import {
   useResource,
   type Column,
 } from '@/ui'
+import { CreateUniversityModal } from './CreateUniversityModal'
 import styles from './universities.module.css'
 
 const PAGE_SIZE = 20
@@ -62,6 +64,7 @@ export default function UniversitiesPage() {
   const [minRating, setMinRating] = useState('')
   const [sort, setSort] = useState('name')
   const [page, setPage] = useState(1)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const query = useDebounced(search.trim(), 300)
 
@@ -190,6 +193,13 @@ export default function UniversitiesPage() {
         title="Университеты"
         description="Реестр вузов, с которыми ведётся работа. Балл рейтинга сравнивает вузы между собой и складывается из рейтингов их программ."
         meta={containsMock ? <MockBadge /> : undefined}
+        actions={
+          user.permissions.canWrite ? (
+            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+              Добавить вуз
+            </Button>
+          ) : undefined
+        }
       />
 
       <Toolbar>
@@ -207,7 +217,7 @@ export default function UniversitiesPage() {
             label="Статус"
             placeholder="Любой статус"
             value={status}
-            onChange={(event) => changeFilter(() => setStatus(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setStatus(value))}
             options={UNIVERSITY_STATUSES.map((value) => ({
               value,
               label: UNIVERSITY_STATUS_LABELS[value],
@@ -220,7 +230,7 @@ export default function UniversitiesPage() {
               label="Регион"
               placeholder="Любой регион"
               value={region}
-              onChange={(event) => changeFilter(() => setRegion(event.target.value))}
+              onValueChange={(value) => changeFilter(() => setRegion(value))}
               options={regionOptions}
             />
           </ToolbarItem>
@@ -230,7 +240,7 @@ export default function UniversitiesPage() {
             <Select
               label="Рейтинг"
               value={minRating}
-              onChange={(event) => changeFilter(() => setMinRating(event.target.value))}
+              onValueChange={(value) => changeFilter(() => setMinRating(value))}
               options={RATING_OPTIONS}
             />
           </ToolbarItem>
@@ -283,6 +293,16 @@ export default function UniversitiesPage() {
           </p>
         )}
       </Section>
+
+      {isCreateOpen && (
+        <CreateUniversityModal
+          onClose={(created) => {
+            setIsCreateOpen(false)
+            // Новый вуз должен появиться в списке сразу, без перезагрузки страницы.
+            if (created) universities.reload()
+          }}
+        />
+      )}
     </>
   )
 }

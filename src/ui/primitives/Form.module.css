@@ -103,26 +103,6 @@
   pointer-events: none;
 }
 
-/* Выпадающий список: свой значок вместо системного. */
-.selectWrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.select {
-  appearance: none;
-  padding-right: 34px;
-  cursor: pointer;
-}
-
-.selectArrow {
-  position: absolute;
-  right: var(--space-3);
-  color: var(--text-tertiary);
-  pointer-events: none;
-}
-
 /* Флажок и переключатель */
 .checkbox {
   display: inline-flex;

@@ -507,7 +507,7 @@ function PortalScreen() {
                 options={programOptions}
                 placeholder="Выберите программу"
                 value={applicationProgramId}
-                onChange={(event) => setApplicationProgramId(event.target.value)}
+                onValueChange={(value) => setApplicationProgramId(value)}
                 error={errorFor(submitApplication.error, 'programId')}
               />
               <Input

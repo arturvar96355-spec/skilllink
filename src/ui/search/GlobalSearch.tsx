@@ -39,6 +39,12 @@ interface Position {
 export function GlobalSearch() {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  /**
+   * Окно не исчезает мгновенно: сначала проигрывается обратная анимация
+   * (раздел 13.3 документа об интерфейсе), и только потом оно снимается
+   * с экрана. Иначе закрытие выглядит как сбой, а не как действие.
+   */
+  const [isClosing, setIsClosing] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [position, setPosition] = useState<Position | null>(null)
@@ -46,20 +52,32 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragOffset = useRef<Position | null>(null)
 
-  const close = useCallback(() => setIsOpen(false), [])
+  const CLOSE_MS = 180
+  const close = useCallback(() => {
+    setIsClosing(true)
+    window.setTimeout(() => {
+      setIsOpen(false)
+      setIsClosing(false)
+    }, CLOSE_MS)
+  }, [])
   useEscape(close, isOpen)
+
+  const toggle = useCallback(() => {
+    if (isOpen) close()
+    else setIsOpen(true)
+  }, [isOpen, close])
 
   // Ctrl + K — привычное сочетание для поиска; на macOS то же самое с ⌘.
   useEffect(() => {
     function handle(event: KeyboardEvent) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        setIsOpen((current) => !current)
+        toggle()
       }
     }
     document.addEventListener('keydown', handle)
     return () => document.removeEventListener('keydown', handle)
-  }, [])
+  }, [toggle])
 
   useEffect(() => {
     if (isOpen) {
@@ -109,16 +127,22 @@ export function GlobalSearch() {
     }
   }
 
-  // Перетаскивание: окно следует за указателем без задержки и не уезжает за край.
-  function startDrag(event: React.PointerEvent<HTMLSpanElement>) {
+  /**
+   * Перетаскивание за верхнюю строку окна.
+   *
+   * Строка ввода и кнопки из области захвата исключены: иначе попытка выделить
+   * текст мышью превращалась бы в перетаскивание окна (раздел 13.2).
+   */
+  function startDrag(event: React.PointerEvent<HTMLDivElement>) {
     const node = windowRef.current
-    if (!node) return
+    const target = event.target as HTMLElement
+    if (!node || target.closest('input, button')) return
     const rect = node.getBoundingClientRect()
     dragOffset.current = { x: event.clientX - rect.left, y: event.clientY - rect.top }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  function onDrag(event: React.PointerEvent<HTMLSpanElement>) {
+  function onDrag(event: React.PointerEvent<HTMLDivElement>) {
     const offset = dragOffset.current
     const node = windowRef.current
     if (!offset || !node) return
@@ -131,7 +155,8 @@ export function GlobalSearch() {
     })
   }
 
-  function endDrag(event: React.PointerEvent<HTMLSpanElement>) {
+  function endDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (dragOffset.current === null) return
     dragOffset.current = null
     event.currentTarget.releasePointerCapture(event.pointerId)
   }
@@ -149,7 +174,7 @@ export function GlobalSearch() {
       <button
         type="button"
         className={styles.fab}
-        onClick={() => setIsOpen((current) => !current)}
+        onClick={toggle}
         aria-expanded={isOpen}
         aria-label="Поиск по системе"
       >
@@ -161,22 +186,24 @@ export function GlobalSearch() {
       {isOpen && (
         <div
           ref={windowRef}
-          className={[styles.window, hasResults || search.isLoading ? '' : styles.capsule]
+          className={[
+            styles.window,
+            hasResults || search.isLoading ? '' : styles.capsule,
+            isClosing ? styles.closing : '',
+          ]
             .filter(Boolean)
             .join(' ')}
           style={style}
           role="dialog"
           aria-label="Глобальный поиск"
         >
-          <div className={styles.inputRow}>
-            <span
-              className={styles.handle}
-              onPointerDown={startDrag}
-              onPointerMove={onDrag}
-              onPointerUp={endDrag}
-              title="Перетащить окно"
-              aria-hidden="true"
-            >
+          <div
+            className={styles.inputRow}
+            onPointerDown={startDrag}
+            onPointerMove={onDrag}
+            onPointerUp={endDrag}
+          >
+            <span className={styles.handle} title="Окно можно перетащить" aria-hidden="true">
               <Icon name="menu" size={16} />
             </span>
             <Icon name="search" size={20} />

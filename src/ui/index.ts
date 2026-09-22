@@ -15,7 +15,8 @@ export { Progress } from './primitives/Progress'
 export { Skeleton, SkeletonLines } from './primitives/Skeleton'
 export { Avatar } from './primitives/Avatar'
 export { Tooltip } from './primitives/Tooltip'
-export { Field, Input, Textarea, Select, Checkbox, Toggle, type SelectOption } from './primitives/Form'
+export { Field, Input, Textarea, Checkbox, Toggle } from './primitives/Form'
+export { Select, type SelectOption } from './primitives/Select'
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, type Column } from './data/Table'
@@ -69,6 +70,8 @@ export {
   formatRelative,
   formatCount,
   formatDeadlineDistance,
+  dateInputToIso,
+  isoToDateInput,
   pluralize,
   initials,
   abbreviate,
