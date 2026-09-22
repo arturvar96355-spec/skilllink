@@ -1,3 +1,7 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { usePrefersReducedMotion } from '../hooks/dom'
 import styles from './Progress.module.css'
 
 export interface ProgressProps {
@@ -11,6 +15,21 @@ export interface ProgressProps {
 
 export function Progress({ value, tone = 'default', withValue = false, label }: ProgressProps) {
   const percent = value === null ? 0 : Math.max(0, Math.min(100, value))
+  const reduced = usePrefersReducedMotion()
+  // Полоса начинается с нуля и добегает до настоящего значения (раздел 26
+  // документа о движении). Ширина задаётся вторым кадром: если поставить её
+  // сразу, браузеру нечего анимировать и полоса появляется уже заполненной.
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    if (reduced) {
+      setWidth(percent)
+      return
+    }
+    const frame = requestAnimationFrame(() => setWidth(percent))
+    return () => cancelAnimationFrame(frame)
+  }, [percent, reduced])
+
   const bar = (
     <div
       className={styles.track}
@@ -23,7 +42,7 @@ export function Progress({ value, tone = 'default', withValue = false, label }: 
     >
       <div
         className={[styles.fill, tone !== 'default' ? styles[tone] : ''].filter(Boolean).join(' ')}
-        style={{ width: `${percent}%` }}
+        style={{ width: `${width}%` }}
       />
     </div>
   )

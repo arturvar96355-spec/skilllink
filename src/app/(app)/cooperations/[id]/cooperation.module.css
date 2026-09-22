@@ -47,7 +47,7 @@
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
   padding-left: var(--space-3);
-  border-left: 2px solid rgba(200, 77, 255, 0.28);
+  border-left: 2px solid var(--border-accent);
 }
 
 .progressCard {
@@ -93,7 +93,7 @@
 }
 
 .phaseCurrent {
-  border-color: rgba(200, 77, 255, 0.34);
+  border-color: var(--border-accent);
   box-shadow: inset 0 0 20px rgba(200, 77, 255, 0.07);
 }
 
@@ -139,7 +139,7 @@
   height: 34px;
   flex: none;
   border-radius: var(--radius-icon);
-  background: rgba(44, 29, 70, 0.9);
+  background: var(--surface-icon);
   border: 1px solid var(--border-subtle);
   font-size: var(--text-body-sm-size);
   font-weight: 650;
@@ -148,18 +148,18 @@
 }
 
 .stageNumberDone {
-  border-color: rgba(37, 224, 210, 0.32);
+  border-color: var(--success-border);
   color: var(--status-success);
 }
 
 .stageNumberCurrent {
-  border-color: rgba(200, 77, 255, 0.4);
+  border-color: var(--border-hover);
   color: var(--text-accent);
   box-shadow: 0 0 16px rgba(200, 77, 255, 0.18);
 }
 
 .stageNumberOverdue {
-  border-color: rgba(255, 95, 115, 0.4);
+  border-color: var(--danger-border);
   color: var(--status-danger);
 }
 
@@ -249,12 +249,12 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-input);
-  background: rgba(24, 19, 45, 0.5);
+  background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
 }
 
 .taskDone {
-  border-color: rgba(37, 224, 210, 0.22);
+  border-color: var(--success-border);
 }
 
 .taskText {
@@ -279,8 +279,8 @@
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-card-sm);
-  background: rgba(255, 95, 115, 0.1);
-  border: 1px solid rgba(255, 95, 115, 0.32);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
   color: var(--text-danger-soft);
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);

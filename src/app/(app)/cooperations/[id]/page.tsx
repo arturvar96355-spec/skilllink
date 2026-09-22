@@ -3,10 +3,13 @@
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useMemo, useState } from 'react'
 import {
+  MEETING_FORMAT_LABELS,
   STAGE_PHASES,
   STAGE_PHASE_LABELS,
   type CooperationDto,
+  type DocumentListItemDto,
   type DocumentPackageResultDto,
+  type MeetingDto,
   type StagePhase,
   type WorkflowStageDto,
 } from '@/shared/contracts'
@@ -15,6 +18,9 @@ import {
   Button,
   Card,
   CooperationStatusBadge,
+  DataTable,
+  DocumentStatusBadge,
+  EmptyState,
   ErrorState,
   Icon,
   MockBadge,
@@ -23,9 +29,13 @@ import {
   Progress,
   Section,
   Skeleton,
+  TableSkeleton,
+  Tabs,
   apiPost,
+  buildQuery,
   documentHref,
   formatDate,
+  formatDateTime,
   formatNumber,
   programHref,
   universityHref,
@@ -33,6 +43,8 @@ import {
   useMutation,
   useResource,
   useToast,
+  type Column,
+  type TabItem,
 } from '@/ui'
 import { StageCard } from './StageCard'
 import styles from './cooperation.module.css'
@@ -51,7 +63,21 @@ function CooperationContent() {
   const user = useCurrentUser()
   const toast = useToast()
 
+  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings'>('stages')
+
   const cooperation = useResource<CooperationDto>(`/api/cooperations/${params.id}`)
+
+  // Документы и встречи связки грузятся только при открытии своей вкладки.
+  const documents = useResource<DocumentListItemDto[]>(
+    tab === 'documents'
+      ? `/api/documents${buildQuery({ cooperationId: params.id, pageSize: 50 })}`
+      : null,
+  )
+  const meetings = useResource<MeetingDto[]>(
+    tab === 'meetings'
+      ? `/api/meetings${buildQuery({ cooperationId: params.id, pageSize: 50 })}`
+      : null,
+  )
   // Этапы держим отдельным состоянием: ответ PATCH возвращает изменённый этап
   // целиком, и перезапрашивать всю связку ради одного поля незачем.
   const [patchedStages, setPatchedStages] = useState<Record<string, WorkflowStageDto>>({})
@@ -118,6 +144,37 @@ function CooperationContent() {
   const blockedStages = stages.filter((stage) => stage.status === 'BLOCKED').length
   const percent =
     countableStages.length === 0 ? 0 : Math.round((closedStages / countableStages.length) * 100)
+
+  const tabs: TabItem[] = [
+    { key: 'stages', label: 'Этапы', count: stages.length },
+    { key: 'documents', label: 'Документы' },
+    { key: 'meetings', label: 'Встречи' },
+  ]
+
+  const documentColumns: Column<DocumentListItemDto>[] = [
+    {
+      key: 'title',
+      title: 'Документ',
+      render: (row) => (
+        <span className={styles.fact}>
+          <span className={styles.factValue}>{row.title}</span>
+          <span className={styles.factLabel}>версия {row.version}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      title: 'Статус',
+      width: '160px',
+      render: (row) => <DocumentStatusBadge status={row.status} />,
+    },
+    {
+      key: 'updatedAt',
+      title: 'Обновлён',
+      width: '150px',
+      render: (row) => <span className={styles.factLabel}>{formatDate(row.updatedAt)}</span>,
+    },
+  ]
 
   return (
     <>
@@ -208,7 +265,7 @@ function CooperationContent() {
       </div>
 
       <Section
-        title="Этапы работы"
+        title="Ход работы"
         description="Четырнадцатый этап система закрывает сама, когда закрыты остальные. Этапы 6, 7 и 11 — контрольные точки: начать их, пока не закрыты предыдущие, нельзя."
       >
         <div className={styles.stepper}>
@@ -231,6 +288,11 @@ function CooperationContent() {
           ))}
         </div>
 
+      </Section>
+
+      <Tabs items={tabs} active={tab} onChange={(key) => setTab(key as typeof tab)} />
+
+      {tab === 'stages' && (
         <div className={styles.stages}>
           {stages.map((stage) => (
             <StageCard
@@ -244,7 +306,66 @@ function CooperationContent() {
             />
           ))}
         </div>
-      </Section>
+      )}
+
+      {tab === 'documents' && (
+        <Card padding="none">
+          {documents.isLoading ? (
+            <TableSkeleton rows={4} columns={3} />
+          ) : documents.error ? (
+            <ErrorState error={documents.error} onRetry={documents.reload} />
+          ) : (documents.data ?? []).length === 0 ? (
+            <EmptyState
+              icon="document"
+              title="Документов нет"
+              description="По связке ещё не заведено ни одного документа. Пакет можно собрать из шаблонов кнопкой в заголовке страницы."
+            />
+          ) : (
+            <DataTable
+              rows={documents.data ?? []}
+              columns={documentColumns}
+              getRowKey={(row) => row.id}
+              getRowHref={(row) => documentHref(row.id)}
+              caption="Документы связки"
+            />
+          )}
+        </Card>
+      )}
+
+      {tab === 'meetings' && (
+        <Card>
+          {meetings.isLoading ? (
+            <TableSkeleton rows={3} columns={2} />
+          ) : meetings.error ? (
+            <ErrorState error={meetings.error} onRetry={meetings.reload} />
+          ) : (meetings.data ?? []).length === 0 ? (
+            <EmptyState
+              icon="calendar"
+              title="Встреч нет"
+              description="Встречи по этой связке не зафиксированы."
+            />
+          ) : (
+            <div className={styles.stages}>
+              {(meetings.data ?? []).map((meeting) => (
+                <div key={meeting.id} className={styles.block}>
+                  <span className={styles.factValue}>{meeting.topic}</span>
+                  {meeting.result && <span className={styles.blockText}>{meeting.result}</span>}
+                  {meeting.nextAction && (
+                    <span className={styles.blockText}>
+                      Следующий шаг: {meeting.nextAction}
+                      {meeting.nextActionDueAt && ` до ${formatDate(meeting.nextActionDueAt)}`}
+                    </span>
+                  )}
+                  <span className={styles.factLabel}>
+                    {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
+                    {meeting.responsible.fullName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       {packageResult && (
         <Modal

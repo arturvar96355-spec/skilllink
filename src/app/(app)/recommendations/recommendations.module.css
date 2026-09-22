@@ -57,7 +57,7 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-card-sm);
-  background: rgba(24, 19, 45, 0.55);
+  background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
@@ -100,7 +100,7 @@
   font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
   padding-left: var(--space-3);
-  border-left: 2px solid rgba(37, 224, 210, 0.3);
+  border-left: 2px solid var(--success-border);
 }
 
 /* Подробности в боковой панели */
@@ -126,7 +126,7 @@
   margin: 0;
   padding: var(--space-3);
   border-radius: var(--radius-input);
-  background: rgba(18, 13, 37, 0.8);
+  background: var(--purple-900);
   border: 1px solid var(--border-subtle);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-label-size);

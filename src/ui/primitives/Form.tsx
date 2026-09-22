@@ -1,11 +1,6 @@
 'use client'
 
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from 'react'
+import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
 import { useId } from 'react'
 import { Icon, type IconName } from './Icon'
 import styles from './Form.module.css'
@@ -101,56 +96,6 @@ export function Textarea({ label, hint, error, id, className, ...props }: Textar
         aria-invalid={error ? true : undefined}
         {...props}
       />
-    </Field>
-  )
-}
-
-export interface SelectOption {
-  value: string
-  label: string
-}
-
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string
-  hint?: string
-  error?: string | null
-  options: SelectOption[]
-  /** Вариант «любое значение»: фильтр без выбранного значения ничего не ограничивает. */
-  placeholder?: string
-}
-
-export function Select({
-  label,
-  hint,
-  error,
-  options,
-  placeholder,
-  id,
-  className,
-  ...props
-}: SelectProps) {
-  const generatedId = useId()
-  const selectId = id ?? generatedId
-
-  return (
-    <Field label={label} hint={hint} error={error} required={props.required} htmlFor={selectId}>
-      <span className={styles.selectWrapper}>
-        <select
-          id={selectId}
-          className={[styles.control, styles.select, error ? styles.invalid : '', className ?? '']
-            .filter(Boolean)
-            .join(' ')}
-          {...props}
-        >
-          {placeholder !== undefined && <option value="">{placeholder}</option>}
-          {options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <Icon name="chevronDown" size={16} className={styles.selectArrow} />
-      </span>
     </Field>
   )
 }

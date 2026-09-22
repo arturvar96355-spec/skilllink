@@ -17,11 +17,11 @@
 
 /* Просрочка окрашивает полосу в опасный цвет, но рядом всегда есть подпись. */
 .danger {
-  background: linear-gradient(90deg, #ff5f73, #ff7a45);
+  background: linear-gradient(90deg, var(--status-danger), var(--neon-orange));
 }
 
 .success {
-  background: linear-gradient(90deg, #25e0d2, #a855f7);
+  background: linear-gradient(90deg, var(--status-success), var(--neon-violet));
 }
 
 .row {

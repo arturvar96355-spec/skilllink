@@ -27,7 +27,7 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-icon);
-  background: rgba(44, 29, 70, 0.9);
+  background: var(--surface-icon);
   border: 1px solid var(--border-subtle);
   color: var(--text-accent-soft);
   flex: none;

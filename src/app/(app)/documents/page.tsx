@@ -273,7 +273,7 @@ function DocumentsView() {
             label="Тип"
             placeholder="Любой тип"
             value={type}
-            onChange={(event) => changeFilter(() => setType(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setType(value))}
             options={TYPE_OPTIONS}
           />
         </ToolbarItem>
@@ -282,7 +282,7 @@ function DocumentsView() {
             label="Статус"
             placeholder="Любой статус"
             value={status}
-            onChange={(event) => changeFilter(() => setStatus(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setStatus(value))}
             options={STATUS_OPTIONS}
           />
         </ToolbarItem>
@@ -291,9 +291,9 @@ function DocumentsView() {
             label="Вуз"
             placeholder="Любой вуз"
             value={universityId}
-            onChange={(event) =>
+            onValueChange={(value) =>
               changeFilter(() => {
-                setUniversityId(event.target.value)
+                setUniversityId(value)
                 // Программа и связка принадлежат вузу: после его смены
                 // прежний выбор дал бы заведомо пустую выборку.
                 setProgramId('')
@@ -311,9 +311,9 @@ function DocumentsView() {
             label="Программа"
             placeholder="Любая программа"
             value={programId}
-            onChange={(event) =>
+            onValueChange={(value) =>
               changeFilter(() => {
-                setProgramId(event.target.value)
+                setProgramId(value)
                 setCooperationId('')
               })
             }
@@ -325,7 +325,7 @@ function DocumentsView() {
             label="Связка"
             placeholder="Любая связка"
             value={cooperationId}
-            onChange={(event) => changeFilter(() => setCooperationId(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setCooperationId(value))}
             options={(cooperations.data ?? []).map((row) => ({
               value: row.id,
               label: `${row.universityName} — ${row.programName}`,
@@ -558,7 +558,7 @@ function DocumentDrawer({
                     label="Новый статус"
                     placeholder="Выберите статус"
                     value={nextStatus}
-                    onChange={(event) => setNextStatus(event.target.value)}
+                    onValueChange={(value) => setNextStatus(value)}
                     options={allowed.map((value) => ({
                       value,
                       label: DOCUMENT_STATUS_LABELS[value],
