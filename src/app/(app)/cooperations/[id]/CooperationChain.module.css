@@ -1,0 +1,119 @@
+/*
+ * Связка «вуз — программа — IT-продукт» схемой, а не тремя подписями.
+ *
+ * Единица учёта всей системы — эта тройка. Пока она была тремя ячейками
+ * с текстом, из экрана невозможно было понять, что вуз, программа и продукт
+ * связаны между собой, а не просто перечислены рядом.
+ */
+
+.chain {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.node {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+  transition:
+    border-color var(--motion-micro) var(--ease-out),
+    background var(--motion-micro) var(--ease-out);
+}
+
+.node:hover {
+  border-color: var(--border-hover);
+  background: var(--surface-hover);
+}
+
+/* Продукт может быть не выбран: пунктир вместо сплошной рамки. */
+.empty {
+  border-style: dashed;
+  border-color: rgba(150, 120, 220, 0.24);
+  background: transparent;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: var(--surface-icon);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-accent-soft);
+}
+
+.emptyIcon {
+  color: var(--text-disabled);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.role {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+}
+
+.name {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.link:hover .name {
+  color: var(--text-accent);
+}
+
+.nameEmpty {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/*
+ * Связующее звено. Стрелка стоит между карточками и показывает направление:
+ * вуз даёт программу, программа получает продукт.
+ */
+.link2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 28px;
+  color: var(--text-disabled);
+}
+
+@media (max-width: 720px) {
+  .chain {
+    flex-direction: column;
+  }
+
+  .link2 {
+    width: 100%;
+    height: 18px;
+    transform: rotate(90deg);
+  }
+}
