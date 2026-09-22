@@ -171,6 +171,20 @@ curl -s http://localhost:3000/api/health
             "hint": "Примените миграции: npm run db:deploy", "time": "…" } }
 ```
 
+Поле `database` называет причину, а не просто «не работает»:
+
+| `database` | Когда | `status` |
+| --- | --- | --- |
+| `connected` | база отвечает | `ok`, либо `degraded`, если не применены миграции |
+| `unreachable` | сервер не отвечает: не запущен, не тот адрес или порт | `degraded` |
+| `auth-failed` | база отвергла пароль. `POSTGRES_PASSWORD` меняет пароль только при создании базы — существующему тому он ничего не меняет | `degraded` |
+| `database-missing` | сервер отвечает, но базы с таким именем нет | `degraded` |
+| `not-configured` | не задан `DATABASE_URL` | `misconfigured` |
+| `unknown` | до базы не дошло: не задан `AUTH_SECRET` в промышленном режиме | `misconfigured` |
+
+Полная ошибка пишется в журнал приложения (`docker compose logs app`): подсказка
+отвечает на «что делать», а разбираться в неожиданном сбое нужно по ней.
+
 ---
 
 ## 3. Университеты
@@ -1334,10 +1348,18 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
   -H 'content-type: text/csv' --data-binary @universities.csv
 ```
 
+**Кодировка файла определяется сама.** Excel в Windows по умолчанию сохраняет CSV
+в Windows-1251 («CSV UTF-8» — отдельный пункт меню, который легко не заметить).
+Такой файл читается правильно, и в ответе видно, как он понят: поле `encoding`
+со значением `utf-8` или `windows-1251`. Раньше файл из Excel отвергался
+сообщением «Не найдены: Название, Город, Регион» — мусором становилась уже
+строка заголовков. Формат «Текст Юникод» (UTF-16) отвергается прямо, с подсказкой,
+как пересохранить.
+
 ```json
 {
   "data": {
-    "dataset": "universities", "mode": "apply",
+    "dataset": "universities", "encoding": "windows-1251", "mode": "apply",
     "totalRows": 7, "created": 1, "updated": 6, "skipped": 0, "errors": 1,
     "rows": [
       { "line": 8, "label": "Импортированный университет связи",

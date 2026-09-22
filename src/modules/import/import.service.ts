@@ -4,6 +4,7 @@ import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { ImportResultDto, ImportRowResultDto } from '@/shared/contracts/import'
+import type { CsvEncoding } from './decode'
 import { PROGRAM_LEVELS, type ProgramLevel } from '@/shared/contracts/enums'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
 import { cell, mapHeaders, numericCell, parseCsv, type CsvRow } from './import.rules'
@@ -278,6 +279,7 @@ export async function importDataset(
   user: CurrentUser,
   query: ImportQuery,
   csv: string,
+  encoding: CsvEncoding = 'utf-8',
 ): Promise<ImportResultDto> {
   assertCan(user, 'WRITE')
 
@@ -330,6 +332,7 @@ export async function importDataset(
 
   return {
     dataset: query.dataset,
+    encoding,
     mode: query.mode,
     totalRows: results.length,
     created: count('create'),

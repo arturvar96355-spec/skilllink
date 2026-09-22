@@ -1,0 +1,69 @@
+# Надстройка над docker-compose.yml для стенда в Yandex Cloud.
+#
+# Запускает её scripts/deploy/deploy.sh — вручную обычно не нужно:
+#   docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml \
+#     --env-file ../.env.cloud --profile app up -d --build
+#
+# Что добавляет к базовому файлу:
+#   * Caddy перед приложением — HTTPS с автоматическим сертификатом, если задан домен;
+#   * обязательные секреты: без них compose откажется стартовать с понятным
+#     сообщением, а не поднимет стенд с паролем базы «skilllink» по умолчанию.
+#
+# Наружу открыты только 80 и 443 — у Caddy. База и приложение в базовом файле
+# привязаны к 127.0.0.1, а в облаке ещё и закрыты группой безопасности.
+
+# Журналы Docker по умолчанию растут без предела и со временем забивают диск —
+# на стенде, который работает неделями, это единственная причина, по которой
+# место кончается само. Три файла по 10 МБ на сервис достаточно, чтобы увидеть
+# вчерашнюю ошибку, и мало, чтобы помешать.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  postgres:
+    logging: *logging
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env.cloud}
+
+  app:
+    logging: *logging
+    environment:
+      AUTH_SECRET: ${DOCKER_AUTH_SECRET:?задайте DOCKER_AUTH_SECRET в .env.cloud}
+      # Без публичного адреса после входа пользователя отправит на localhost
+      # (docs/TECHNICAL_DECISIONS.md, решение 36).
+      AUTH_URL: ${DOCKER_AUTH_URL:?задайте DOCKER_AUTH_URL в .env.cloud}
+
+  # Разовые задачи — миграции и демонстрационные данные — идут через этот сервис.
+  migrate:
+    environment:
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:?задайте SEED_DEMO_PASSWORD в .env.cloud}
+
+  caddy:
+    logging: *logging
+    profiles: ['app']
+    image: caddy:2.8-alpine
+    container_name: skilllink-caddy
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      # Домен — Caddy сам получит сертификат и перенаправит http на https.
+      # «:80» — без домена, по IP и только http.
+      SITE_ADDRESS: ${SITE_ADDRESS:?задайте SITE_ADDRESS в .env.cloud}
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    volumes:
+      - ./deploy/yandex-cloud/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Сертификаты переживают пересоздание контейнера — иначе при каждом
+      # развёртывании Caddy запрашивал бы новый и упёрся бы в лимиты выдачи.
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:
