@@ -1,0 +1,196 @@
+/* Заголовок страницы, хлебные крошки, секции и панель фильтров (разделы 13–17 шаблона). */
+
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.crumbLink {
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.crumbLink:hover {
+  color: var(--text-primary);
+}
+
+/* Текущий элемент ярче остальных и ссылкой не является. */
+.crumbCurrent {
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.crumbSeparator {
+  color: var(--text-disabled);
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  line-height: var(--text-h1-line);
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+}
+
+.description {
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  color: var(--text-secondary);
+  max-width: 720px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Секция: заголовок блока и его содержимое. */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.sectionTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sectionTitle {
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  line-height: var(--text-h2-line);
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
+}
+
+.sectionDescription {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+/* Панель фильтров списка. */
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.toolbarSearch {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.toolbarItem {
+  min-width: 170px;
+}
+
+.toolbarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+/* Вкладки раздела. */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border-divider);
+  overflow-x: auto;
+}
+
+.tab {
+  position: relative;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Короткий аккуратный индикатор, не широкая цветная полоса (раздел 21). */
+.tabActive::after {
+  content: '';
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: -1px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-primary);
+  box-shadow: 0 0 12px rgba(200, 77, 255, 0.4);
+}
+
+.tabCount {
+  margin-left: 6px;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Появление содержимого страницы: короткий сдвиг снизу вверх. */
+.enter {
+  animation: enter var(--motion-page) var(--ease-out) both;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

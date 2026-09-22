@@ -1,0 +1,51 @@
+/* Кнопка-иконка: компактный прямоугольник со скруглением, не идеальный круг (раздел 8). */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-icon);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out),
+    transform var(--motion-micro) var(--ease-out);
+}
+
+.sm {
+  width: 30px;
+  height: 30px;
+}
+
+.md {
+  width: 38px;
+  height: 38px;
+}
+
+.button:hover:not(:disabled) {
+  background: rgba(90, 54, 145, 0.24);
+  border-color: rgba(180, 130, 255, 0.18);
+  color: var(--text-primary);
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.94);
+  background: rgba(110, 70, 170, 0.3);
+}
+
+/* Открытое всплывающее окно видно по самой кнопке: она остаётся подсвеченной. */
+.active {
+  background: rgba(90, 54, 145, 0.28);
+  border-color: rgba(180, 100, 255, 0.24);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 18px rgba(200, 77, 255, 0.08);
+}
+
+.button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}

@@ -1,0 +1,95 @@
+/* Показатели и KPI (разделы 5 типографики и 29 интерфейса). */
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 132px;
+}
+
+.kpiHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.kpiLabel {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.kpiIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-icon);
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-accent-soft);
+  flex: none;
+}
+
+.kpiValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* «Нет данных» — заметно тусклее числа, чтобы его нельзя было принять за значение. */
+.kpiEmpty {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0;
+}
+
+.kpiUnit {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 650;
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.kpiFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+.kpiNote {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.valueEmpty {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.estimate {
+  color: var(--status-warning);
+  font-size: var(--text-caption-size);
+  margin-left: 6px;
+}
+
+.explain {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+  vertical-align: middle;
+}

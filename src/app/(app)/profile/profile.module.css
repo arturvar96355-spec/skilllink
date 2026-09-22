@@ -1,0 +1,125 @@
+/* Личный кабинет: три области, типографика раздела 13 документа о шрифтах. */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.identityText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Имя пользователя — размер заголовка страницы (раздел 13 документа о шрифтах). */
+.name {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.position {
+  font-size: var(--text-card-title-size);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-divider);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fieldLabel {
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fieldValue {
+  font-size: var(--text-value-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--text-primary);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-hover);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--accent-primary);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: var(--space-4);
+}
+
+.generated {
+  margin-top: var(--space-4);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.note {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.exit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-divider);
+}
+
+.exitText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.exitTitle {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .identity {
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .name {
+    /* На узком экране заголовок в одну строку не помещается. */
+    font-size: var(--text-kpi-md-size);
+  }
+}

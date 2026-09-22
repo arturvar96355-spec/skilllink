@@ -1,0 +1,189 @@
+/* Главная страница: показатели, проблемы, действия (раздел 25 шаблона страниц). */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: var(--space-4);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.problem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.problemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid rgba(255, 95, 115, 0.3);
+  color: var(--status-danger);
+}
+
+.problemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemTitle {
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.itemMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.itemReason {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.actionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.actionTarget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption-size);
+  color: var(--text-accent-soft);
+}
+
+.justification {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  padding-left: var(--space-3);
+  border-left: 2px solid rgba(200, 77, 255, 0.28);
+}
+
+.coverage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.coverageTop {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.coverageValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.coverageNote {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.coverageFacts {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.factValue {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.factLabel {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.programRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.programText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.programName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.programUniversity {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.score {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.scoreEmpty {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.generated {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

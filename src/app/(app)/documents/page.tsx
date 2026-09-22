@@ -1,0 +1,623 @@
+'use client'
+
+import Link from 'next/link'
+import { Suspense, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  DOCUMENT_STATUSES,
+  DOCUMENT_STATUS_LABELS,
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABELS,
+  type CooperationListItemDto,
+  type DocumentDto,
+  type DocumentLinksDto,
+  type DocumentListItemDto,
+  type DocumentStatus,
+  type ProgramListItemDto,
+  type UniversityListItemDto,
+} from '@/shared/contracts'
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  DocumentStatusBadge,
+  Drawer,
+  EmptyState,
+  ErrorState,
+  Icon,
+  Input,
+  NO_DATA,
+  PageHeader,
+  Pagination,
+  Section,
+  Select,
+  SkeletonLines,
+  TableSkeleton,
+  Textarea,
+  Toolbar,
+  ToolbarItem,
+  ToolbarSearch,
+  apiPatch,
+  buildQuery,
+  cooperationHref,
+  documentHref,
+  formatDate,
+  formatDateTime,
+  programHref,
+  universityHref,
+  useCurrentUser,
+  useDebounced,
+  useMutation,
+  useResource,
+  useToast,
+  type Column,
+  type SelectOption,
+} from '@/ui'
+import styles from './documents.module.css'
+
+const PAGE_SIZE = 20
+
+/**
+ * Жизненный цикл документа.
+ *
+ * Список повторяет `ALLOWED_DOCUMENT_TRANSITIONS` из
+ * `src/modules/documents/documents.rules.ts`: правила модуля серверные, фронт
+ * из `@/modules` ничего не импортирует. Здесь он нужен только для того, чтобы
+ * не предлагать заведомо невозможный переход — решение всё равно принимает
+ * сервер, и его отказ показывается пользователю дословно.
+ */
+const ALLOWED_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
+  DRAFT: ['REVIEW', 'ARCHIVED'],
+  REVIEW: ['APPROVED', 'REJECTED', 'DRAFT', 'ARCHIVED'],
+  APPROVED: ['SIGNED', 'REVIEW', 'ARCHIVED'],
+  SIGNED: ['ARCHIVED'],
+  REJECTED: ['DRAFT', 'ARCHIVED'],
+  ARCHIVED: [],
+}
+
+/** Отклонение и возврат на доработку сервер без основания не примет. */
+function needsComment(from: DocumentStatus, to: DocumentStatus): boolean {
+  return to === 'REJECTED' || (from === 'REVIEW' && to === 'DRAFT')
+}
+
+const TYPE_OPTIONS: SelectOption[] = DOCUMENT_TYPES.map((value) => ({
+  value,
+  label: DOCUMENT_TYPE_LABELS[value],
+}))
+
+const STATUS_OPTIONS: SelectOption[] = DOCUMENT_STATUSES.map((value) => ({
+  value,
+  label: DOCUMENT_STATUS_LABELS[value],
+}))
+
+export default function DocumentsPage() {
+  return (
+    // useSearchParams требует границы Suspense: без неё страница не пройдёт сборку.
+    <Suspense fallback={<TableSkeleton rows={8} columns={6} />}>
+      <DocumentsView />
+    </Suspense>
+  )
+}
+
+/**
+ * Реестр документов.
+ *
+ * Файлы не загружаются и не хранятся: в системе есть ссылка на внешний документ
+ * и текст, собранный из шаблона (решение 14). Поэтому здесь нет ни кнопки
+ * загрузки, ни столбца с размером файла — их нечем наполнить.
+ */
+function DocumentsView() {
+  const user = useCurrentUser()
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+
+  const [search, setSearch] = useState('')
+  const [type, setType] = useState('')
+  const [status, setStatus] = useState('')
+  const [universityId, setUniversityId] = useState('')
+  const [programId, setProgramId] = useState('')
+  const [cooperationId, setCooperationId] = useState('')
+  const [sort, setSort] = useState('-updatedAt')
+  const [page, setPage] = useState(1)
+
+  const query = useDebounced(search.trim(), 300)
+
+  const path = `/api/documents${buildQuery({
+    q: query.length >= 2 ? query : undefined,
+    type: type || undefined,
+    status: status || undefined,
+    universityId: universityId || undefined,
+    programId: programId || undefined,
+    cooperationId: cooperationId || undefined,
+    sort,
+    page,
+    pageSize: PAGE_SIZE,
+  })}`
+  const documents = useResource<DocumentListItemDto[]>(path)
+
+  // Справочники для фильтров привязки. Рейтинг вузов здесь не нужен —
+  // список используется только для выбора, а его расчёт стоит отдельного прохода.
+  const universities = useResource<UniversityListItemDto[]>(
+    '/api/universities?withRating=false&pageSize=100&sort=name',
+  )
+  const programs = useResource<ProgramListItemDto[]>(
+    `/api/programs${buildQuery({
+      universityId: universityId || undefined,
+      pageSize: 100,
+      sort: 'name',
+    })}`,
+  )
+  const cooperations = useResource<CooperationListItemDto[]>(
+    `/api/cooperations${buildQuery({
+      universityId: universityId || undefined,
+      programId: programId || undefined,
+      pageSize: 100,
+    })}`,
+  )
+
+  const rows = documents.data ?? []
+  const openedId = params.get('document')
+
+  function changeFilter(apply: () => void) {
+    // Смена фильтра возвращает на первую страницу: иначе после сужения выборки
+    // человек остаётся на странице, которой больше нет.
+    apply()
+    setPage(1)
+  }
+
+  /**
+   * Открытая карточка живёт в адресе, а не в состоянии компонента.
+   *
+   * На документ ведут `documentHref()` из глобального поиска и ленты
+   * уведомлений: ссылка обязана открывать панель у того, кто перешёл по ней
+   * извне. Поэтому закрытие убирает параметр, а не прячет панель молча.
+   */
+  function closeDrawer() {
+    const next = new URLSearchParams(params.toString())
+    next.delete('document')
+    const rest = next.toString()
+    router.replace(rest === '' ? pathname : `${pathname}?${rest}`, { scroll: false })
+  }
+
+  const columns: Column<DocumentListItemDto>[] = [
+    {
+      key: 'title',
+      title: 'Документ',
+      sortField: 'title',
+      render: (row) => (
+        <span className={styles.titleCell}>
+          <span className={styles.docTitle}>{row.title}</span>
+          <span className={styles.docMeta}>
+            {DOCUMENT_TYPE_LABELS[row.type]}
+            {row.templateKey && ' · собран из шаблона'}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'version',
+      title: 'Версия',
+      width: '90px',
+      render: (row) => <span className={styles.version}>{row.version}</span>,
+    },
+    {
+      key: 'status',
+      title: 'Статус',
+      width: '160px',
+      sortField: 'status',
+      render: (row) => <DocumentStatusBadge status={row.status} />,
+    },
+    {
+      key: 'links',
+      title: 'К чему относится',
+      render: (row) => <DocumentLinks links={row.links} />,
+    },
+    {
+      key: 'author',
+      title: 'Автор',
+      width: '160px',
+      render: (row) => <span className={styles.person}>{row.author?.fullName ?? NO_DATA}</span>,
+    },
+    {
+      key: 'responsible',
+      title: 'Ответственный',
+      width: '160px',
+      render: (row) => (
+        <span className={styles.person}>{row.responsible?.fullName ?? NO_DATA}</span>
+      ),
+    },
+    {
+      key: 'dates',
+      title: 'Даты',
+      width: '170px',
+      render: (row) => (
+        <span className={styles.dates}>
+          <span className={styles.dateRow}>Выдан: {formatDate(row.issuedAt)}</span>
+          <span className={styles.dateRow}>Подписан: {formatDate(row.signedAt)}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'updatedAt',
+      title: 'Обновлено',
+      width: '150px',
+      sortField: 'updatedAt',
+      render: (row) => <span className={styles.muted}>{formatDateTime(row.updatedAt)}</span>,
+    },
+  ]
+
+  const hasFilters =
+    query !== '' || type !== '' || status !== '' || universityId !== '' || programId !== '' || cooperationId !== ''
+
+  return (
+    <>
+      <PageHeader
+        title="Документы"
+        description="Договоры, соглашения и приложения по связкам. В системе хранятся реквизиты, ссылка на внешний документ и текст, собранный из шаблона: файлы не загружаются."
+      />
+
+      <Toolbar>
+        <ToolbarSearch>
+          <Input
+            label="Поиск"
+            placeholder="Название документа"
+            icon="search"
+            value={search}
+            onChange={(event) => changeFilter(() => setSearch(event.target.value))}
+          />
+        </ToolbarSearch>
+        <ToolbarItem>
+          <Select
+            label="Тип"
+            placeholder="Любой тип"
+            value={type}
+            onChange={(event) => changeFilter(() => setType(event.target.value))}
+            options={TYPE_OPTIONS}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Статус"
+            placeholder="Любой статус"
+            value={status}
+            onChange={(event) => changeFilter(() => setStatus(event.target.value))}
+            options={STATUS_OPTIONS}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Вуз"
+            placeholder="Любой вуз"
+            value={universityId}
+            onChange={(event) =>
+              changeFilter(() => {
+                setUniversityId(event.target.value)
+                // Программа и связка принадлежат вузу: после его смены
+                // прежний выбор дал бы заведомо пустую выборку.
+                setProgramId('')
+                setCooperationId('')
+              })
+            }
+            options={(universities.data ?? []).map((row) => ({
+              value: row.id,
+              label: row.shortName ?? row.name,
+            }))}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Программа"
+            placeholder="Любая программа"
+            value={programId}
+            onChange={(event) =>
+              changeFilter(() => {
+                setProgramId(event.target.value)
+                setCooperationId('')
+              })
+            }
+            options={(programs.data ?? []).map((row) => ({ value: row.id, label: row.name }))}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Связка"
+            placeholder="Любая связка"
+            value={cooperationId}
+            onChange={(event) => changeFilter(() => setCooperationId(event.target.value))}
+            options={(cooperations.data ?? []).map((row) => ({
+              value: row.id,
+              label: `${row.universityName} — ${row.programName}`,
+            }))}
+          />
+        </ToolbarItem>
+      </Toolbar>
+
+      <Section>
+        <Card padding="none">
+          {documents.isLoading ? (
+            <TableSkeleton rows={8} columns={6} />
+          ) : documents.error ? (
+            <ErrorState error={documents.error} onRetry={documents.reload} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon="document"
+              title="Документы не найдены"
+              description={
+                hasFilters
+                  ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
+                  : 'Ни одного документа ещё не заведено. Пакет по связке собирается на её странице.'
+              }
+            />
+          ) : (
+            <>
+              <DataTable
+                rows={rows}
+                columns={columns}
+                getRowKey={(row) => row.id}
+                getRowHref={(row) => documentHref(row.id)}
+                selectedKey={openedId}
+                sort={sort}
+                onSortChange={(next) => changeFilter(() => setSort(next))}
+                isRefreshing={documents.isRefreshing}
+                caption="Реестр документов"
+              />
+              <Pagination
+                page={documents.meta?.page ?? page}
+                pageSize={documents.meta?.pageSize ?? PAGE_SIZE}
+                total={documents.meta?.total ?? rows.length}
+                onPageChange={setPage}
+                nouns={['документ', 'документа', 'документов']}
+              />
+            </>
+          )}
+        </Card>
+      </Section>
+
+      {openedId && (
+        <DocumentDrawer
+          id={openedId}
+          canWrite={user.permissions.canWrite}
+          onClose={closeDrawer}
+          onChanged={documents.reload}
+        />
+      )}
+    </>
+  )
+}
+
+/** Привязки документа: к вузу, программе и связке ведут обычные ссылки. */
+function DocumentLinks({ links }: { links: DocumentLinksDto }) {
+  const hasAny = links.universityId || links.programId || links.cooperationId
+  if (!hasAny) return <span className={styles.muted}>{NO_DATA}</span>
+
+  return (
+    <span className={styles.links}>
+      {links.universityId && (
+        <Link className={styles.link} href={universityHref(links.universityId)}>
+          <Icon name="university" size={16} />
+          {links.universityName ?? 'Вуз'}
+        </Link>
+      )}
+      {links.programId && (
+        <Link className={styles.link} href={programHref(links.programId)}>
+          <Icon name="program" size={16} />
+          {links.programName ?? 'Программа'}
+        </Link>
+      )}
+      {links.cooperationId && (
+        <Link className={styles.link} href={cooperationHref(links.cooperationId)}>
+          <Icon name="cooperation" size={16} />
+          Связка
+        </Link>
+      )}
+    </span>
+  )
+}
+
+/**
+ * Карточка документа.
+ *
+ * Открывается панелью, а не отдельной страницей: документ смотрят по ходу
+ * работы со списком, и уводить с него ради пяти реквизитов незачем
+ * (раздел 24 документа об интерфейсе).
+ */
+function DocumentDrawer({
+  id,
+  canWrite,
+  onClose,
+  onChanged,
+}: {
+  id: string
+  canWrite: boolean
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const toast = useToast()
+  const detail = useResource<DocumentDto>(`/api/documents/${id}`)
+  const [nextStatus, setNextStatus] = useState('')
+  const [comment, setComment] = useState('')
+
+  const changeStatus = useMutation(
+    async (input: { status: DocumentStatus; comment: string | null }) =>
+      (await apiPatch<DocumentDto>(`/api/documents/${id}/status`, input)).data,
+  )
+
+  const card = detail.data
+  const allowed = card ? ALLOWED_TRANSITIONS[card.status] : []
+  const target = nextStatus === '' ? null : (nextStatus as DocumentStatus)
+  const commentRequired = card !== null && target !== null && needsComment(card.status, target)
+
+  async function onSubmit() {
+    if (!target) return
+    const trimmed = comment.trim()
+    const result = await changeStatus.run({
+      status: target,
+      comment: trimmed === '' ? null : trimmed,
+    })
+    if (!result.ok) {
+      // Отказ сервера — нормальный ответ, а не сбой: показываем его текст целиком.
+      toast.error(result.error.message)
+      return
+    }
+    toast.success(`Статус документа: «${DOCUMENT_STATUS_LABELS[result.data.status]}»`)
+    setNextStatus('')
+    setComment('')
+    detail.reload()
+    onChanged()
+  }
+
+  return (
+    <Drawer
+      isOpen
+      onClose={onClose}
+      title={card?.title ?? 'Документ'}
+      description={
+        card ? `${DOCUMENT_TYPE_LABELS[card.type]} · версия ${card.version}` : undefined
+      }
+      footer={
+        card && canWrite && allowed.length > 0 ? (
+          <Button
+            variant="primary"
+            icon="check"
+            onClick={onSubmit}
+            disabled={target === null}
+            isLoading={changeStatus.isPending}
+          >
+            Сменить статус
+          </Button>
+        ) : undefined
+      }
+    >
+      {detail.isLoading ? (
+        <SkeletonLines count={6} />
+      ) : detail.error ? (
+        <ErrorState error={detail.error} onRetry={detail.reload} />
+      ) : card ? (
+        <div className={styles.drawer}>
+          <div className={styles.statusRow}>
+            <DocumentStatusBadge status={card.status} />
+            {card.templateKey && <Badge tone="info">Шаблон: {card.templateKey}</Badge>}
+          </div>
+
+          <dl className={styles.facts}>
+            <Fact label="Тип" value={DOCUMENT_TYPE_LABELS[card.type]} />
+            <Fact label="Версия" value={card.version} />
+            <Fact label="Автор" value={card.author?.fullName ?? NO_DATA} />
+            <Fact label="Ответственный" value={card.responsible?.fullName ?? NO_DATA} />
+            <Fact label="Выдан" value={formatDate(card.issuedAt)} />
+            <Fact label="Подписан" value={formatDate(card.signedAt)} />
+            <Fact label="Создан" value={formatDateTime(card.createdAt)} />
+            <Fact label="Обновлён" value={formatDateTime(card.updatedAt)} />
+          </dl>
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>К чему относится</h3>
+            <DocumentLinks links={card.links} />
+          </section>
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>Ссылка на документ</h3>
+            {card.fileReference ? (
+              <a
+                className={styles.fileLink}
+                href={card.fileReference}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <Icon name="external" size={16} />
+                {card.fileReference}
+              </a>
+            ) : (
+              <p className={styles.note}>
+                Ссылки нет. Файлы в системе не хранятся — только ссылка на внешний документ
+                и текст, собранный из шаблона.
+              </p>
+            )}
+          </section>
+
+          {card.content && (
+            <section className={styles.block}>
+              <h3 className={styles.blockTitle}>Текст документа</h3>
+              <pre className={styles.content}>{card.content}</pre>
+            </section>
+          )}
+
+          {canWrite && (
+            <section className={styles.block}>
+              <h3 className={styles.blockTitle}>Смена статуса</h3>
+              {allowed.length === 0 ? (
+                <p className={styles.note}>
+                  Из статуса «{DOCUMENT_STATUS_LABELS[card.status]}» переходов нет: это конечное
+                  состояние документа.
+                </p>
+              ) : (
+                <div className={styles.statusForm}>
+                  <Select
+                    label="Новый статус"
+                    placeholder="Выберите статус"
+                    value={nextStatus}
+                    onChange={(event) => setNextStatus(event.target.value)}
+                    options={allowed.map((value) => ({
+                      value,
+                      label: DOCUMENT_STATUS_LABELS[value],
+                    }))}
+                  />
+                  <Textarea
+                    label="Комментарий"
+                    rows={3}
+                    required={commentRequired}
+                    placeholder={
+                      commentRequired ? 'Что нужно исправить' : 'Необязательное пояснение'
+                    }
+                    hint={
+                      commentRequired
+                        ? 'Отклонение и возврат на доработку без основания не принимаются'
+                        : 'Комментарий попадёт в историю документа'
+                    }
+                    value={comment}
+                    onChange={(event) => setComment(event.target.value)}
+                  />
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>История статусов</h3>
+            {card.history.length === 0 ? (
+              <p className={styles.note}>Статус ещё ни разу не менялся.</p>
+            ) : (
+              <ol className={styles.history}>
+                {card.history.map((entry) => (
+                  <li key={entry.id} className={styles.historyItem}>
+                    <span className={styles.historyHead}>
+                      <span className={styles.historyTransition}>
+                        {entry.fromStatus
+                          ? `${DOCUMENT_STATUS_LABELS[entry.fromStatus]} → ${DOCUMENT_STATUS_LABELS[entry.toStatus]}`
+                          : DOCUMENT_STATUS_LABELS[entry.toStatus]}
+                      </span>
+                      <span className={styles.muted}>{formatDateTime(entry.changedAt)}</span>
+                    </span>
+                    <span className={styles.historyAuthor}>{entry.changedBy.fullName}</span>
+                    {entry.comment && <p className={styles.historyComment}>{entry.comment}</p>}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        </div>
+      ) : null}
+    </Drawer>
+  )
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.fact}>
+      <dt className={styles.factLabel}>{label}</dt>
+      <dd className={styles.factValue}>{value}</dd>
+    </div>
+  )
+}

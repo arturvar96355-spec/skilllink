@@ -1,0 +1,176 @@
+import type { Metric } from '@/shared/contracts'
+
+/**
+ * Форматирование чисел, дат и показателей.
+ *
+ * Здесь же — единственное место, где появляется текст «Нет данных». Решение 8
+ * проекта: пустой показатель никогда не превращается в ноль, потому что ноль
+ * читается как «плохо», а правда — «мы не знаем».
+ */
+
+export const NO_DATA = 'Нет данных'
+
+/**
+ * Часовой пояс интерфейса зафиксирован.
+ *
+ * Сервер отдаёт время в UTC. Если форматировать его поясом браузера, то же самое
+ * время на сервере и на клиенте напечатается по-разному, и React сообщит
+ * о расхождении разметки. Показ идёт в Москве — берём её пояс явно.
+ */
+const TIME_ZONE = 'Europe/Moscow'
+
+const numberFormat = new Intl.NumberFormat('ru-RU')
+const scoreFormat = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+const dateFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  timeZone: TIME_ZONE,
+})
+const dateTimeFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: TIME_ZONE,
+})
+const monthDayFormat = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: TIME_ZONE,
+})
+
+export function formatNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
+  return numberFormat.format(value)
+}
+
+/** Балл рейтинга: всегда один знак после запятой, чтобы столбец не прыгал. */
+export function formatScore(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
+  return scoreFormat.format(value)
+}
+
+export function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
+  return `${scoreFormat.format(value)}%`
+}
+
+/** Показатель вместе с единицей измерения; `basis: "none"` — «Нет данных». */
+export function formatMetric(metric: Metric | null | undefined): string {
+  if (!metric || metric.value === null) return NO_DATA
+  const value = numberFormat.format(metric.value)
+  const unit = metric.unit.trim()
+  if (unit === '' || unit === 'шт') return value
+  if (unit === '%') return `${value}%`
+  return `${value} ${unit}`
+}
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return NO_DATA
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return NO_DATA
+  return dateFormat.format(date)
+}
+
+export function formatDateTime(iso: string | null | undefined): string {
+  if (!iso) return NO_DATA
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return NO_DATA
+  return dateTimeFormat.format(date)
+}
+
+export function formatDayMonth(iso: string | null | undefined): string {
+  if (!iso) return NO_DATA
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return NO_DATA
+  return monthDayFormat.format(date)
+}
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+
+/**
+ * «14 минут назад» для ленты уведомлений.
+ *
+ * Считается от переданного момента «сейчас», а не от `Date.now()` внутри:
+ * иначе каждый пункт ленты считал бы своё время и соседние записи,
+ * пришедшие одновременно, показывали бы разную давность.
+ */
+export function formatRelative(iso: string, now: number = Date.now()): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  const diff = now - date.getTime()
+
+  if (diff < 0) return formatDate(iso)
+  if (diff < MINUTE) return 'только что'
+  if (diff < HOUR) {
+    const minutes = Math.floor(diff / MINUTE)
+    return `${minutes} ${pluralize(minutes, ['минуту', 'минуты', 'минут'])} назад`
+  }
+  if (diff < DAY) {
+    const hours = Math.floor(diff / HOUR)
+    return `${hours} ${pluralize(hours, ['час', 'часа', 'часов'])} назад`
+  }
+  if (diff < 7 * DAY) {
+    const days = Math.floor(diff / DAY)
+    return days === 1 ? 'вчера' : `${days} ${pluralize(days, ['день', 'дня', 'дней'])} назад`
+  }
+  return formatDate(iso)
+}
+
+/** Склонение по числу: pluralize(3, ['вуз', 'вуза', 'вузов']) → «вуза». */
+export function pluralize(count: number, forms: [string, string, string]): string {
+  const abs = Math.abs(count) % 100
+  const tail = abs % 10
+  if (abs > 10 && abs < 20) return forms[2]
+  if (tail > 1 && tail < 5) return forms[1]
+  if (tail === 1) return forms[0]
+  return forms[2]
+}
+
+export function formatCount(count: number, forms: [string, string, string]): string {
+  return `${numberFormat.format(count)} ${pluralize(count, forms)}`
+}
+
+/**
+ * Срок этапа словами: «просрочен на 5 дней», «остался 1 день».
+ *
+ * Отрицательное значение `daysToDeadline` означает просрочку — это описано
+ * в контракте, и переписывать знак в компонентах нельзя.
+ */
+export function formatDeadlineDistance(days: number | null): string | null {
+  if (days === null) return null
+  if (days < 0) {
+    const overdue = Math.abs(days)
+    return `просрочен на ${overdue} ${pluralize(overdue, ['день', 'дня', 'дней'])}`
+  }
+  if (days === 0) return 'срок сегодня'
+  return `остал${days % 10 === 1 && days % 100 !== 11 ? 'ся' : 'ось'} ${days} ${pluralize(days, ['день', 'дня', 'дней'])}`
+}
+
+/** Инициалы для аватара: «Иванов Иван Иванович» → «ИИ». */
+export function initials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return '—'
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
+  return `${parts[0]![0]!}${parts[1]![0]!}`.toUpperCase()
+}
+
+/** Короткая аббревиатура программы для иконки: «Программная инженерия» → «ПИ». */
+export function abbreviate(name: string): string {
+  const words = name
+    .trim()
+    .split(/[\s-]+/)
+    .filter((word) => word.length > 2 && !/^(и|в|на|для|по|с|о|от|из)$/i.test(word))
+  if (words.length === 0) return name.slice(0, 2).toUpperCase()
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]!.toUpperCase())
+    .join('')
+}

@@ -1,0 +1,60 @@
+/* Карточка — отдельная мягкая поверхность, а не плавающий блок (раздел 3.2). */
+
+.card {
+  position: relative;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-base);
+  transition:
+    background var(--motion-surface) var(--ease-out),
+    border-color var(--motion-surface) var(--ease-out),
+    transform var(--motion-surface) var(--ease-out),
+    box-shadow var(--motion-surface) var(--ease-out);
+}
+
+.muted {
+  background: var(--surface-card-muted);
+  box-shadow: none;
+}
+
+.none {
+  padding: 0;
+}
+.sm {
+  padding: var(--space-4);
+}
+.md {
+  padding: var(--space-5);
+}
+.lg {
+  padding: var(--space-6);
+}
+
+/* Поднимается на 1px, не «плавает» постоянно. */
+.interactive {
+  cursor: pointer;
+  display: block;
+  text-align: inherit;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+
+.interactive:hover {
+  background: var(--surface-hover);
+  border-color: rgba(200, 77, 255, 0.28);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-base), var(--glow-soft);
+}
+
+.interactive:active {
+  transform: translateY(0) scale(0.995);
+  border-color: var(--border-active);
+}
+
+.selected {
+  border-color: var(--border-active);
+  background: rgba(65, 40, 95, 0.35);
+  box-shadow: var(--glow-active);
+}

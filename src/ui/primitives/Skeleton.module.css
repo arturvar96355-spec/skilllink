@@ -1,0 +1,26 @@
+/* Скелетон повторяет будущую разметку: пустой экран во время загрузки не показываем. */
+
+.skeleton {
+  display: block;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(
+    90deg,
+    rgba(150, 120, 220, 0.08) 0%,
+    rgba(150, 120, 220, 0.16) 50%,
+    rgba(150, 120, 220, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1400ms linear infinite;
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

@@ -1,0 +1,213 @@
+/* Карточка вуза (раздел 22 шаблона страниц). */
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.headText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 260px;
+  flex: 1;
+}
+
+.title {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  line-height: var(--text-h1-line);
+  letter-spacing: -0.025em;
+}
+
+.subtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.ratingCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 240px;
+}
+
+.ratingValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ratingEmpty {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.ratingNote {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.factLabel {
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  font-size: var(--text-value-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.factLink {
+  color: var(--text-accent);
+  word-break: break-word;
+}
+
+.description {
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  color: var(--text-secondary);
+}
+
+.contacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.contact {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.contactText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.contactName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+}
+
+.contactMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.contactLinks {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--text-caption-size);
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.event {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.event:last-child {
+  border-bottom: none;
+}
+
+.eventIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 10px;
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-accent-soft);
+}
+
+.eventText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.eventTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.eventDetails {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.eventMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.rowName {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.rowTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+}
+
+.rowMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-3);
+}

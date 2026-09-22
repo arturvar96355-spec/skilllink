@@ -1,0 +1,183 @@
+/* Экран входа. Первое, что видит пользователь, — поэтому появление плавное (раздел 5 движения). */
+
+.screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .screen {
+    grid-template-columns: 1fr;
+  }
+}
+
+.brandSide {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-12) clamp(var(--space-6), 6vw, 80px);
+  overflow: hidden;
+}
+
+/* Мягкие пятна фона: заметны, но читать не мешают. */
+.brandSide::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(200, 77, 255, 0.16), transparent 42%),
+    radial-gradient(circle at 70% 80%, rgba(255, 79, 179, 0.12), transparent 46%);
+  pointer-events: none;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  animation: riseIn 600ms var(--ease-out) both;
+}
+
+.brandName {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.brandSub {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.headline {
+  position: relative;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  max-width: 16ch;
+  animation: riseIn 600ms var(--ease-out) 80ms both;
+}
+
+.lead {
+  position: relative;
+  max-width: 46ch;
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-line);
+  color: var(--text-secondary);
+  animation: riseIn 600ms var(--ease-out) 160ms both;
+}
+
+.points {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: riseIn 600ms var(--ease-out) 240ms both;
+}
+
+.point {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  max-width: 44ch;
+}
+
+.pointIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 10px;
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-accent-soft);
+}
+
+.formSide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6);
+}
+
+.panel {
+  width: min(420px, 100%);
+  padding: var(--space-8);
+  border-radius: var(--radius-panel);
+  background: rgba(24, 18, 43, 0.86);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(180, 130, 255, 0.16);
+  box-shadow: var(--shadow-floating), 0 0 40px rgba(200, 77, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  animation: panelIn 560ms var(--ease-out) both;
+}
+
+.panelHead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  line-height: var(--text-body-sm-line);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Ошибка входа: текст, а не только цвет рамки. */
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-input);
+  background: rgba(255, 95, 115, 0.1);
+  border: 1px solid rgba(255, 95, 115, 0.3);
+  color: var(--text-danger-strong);
+  font-size: var(--text-body-sm-size);
+  line-height: 1.45;
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+}

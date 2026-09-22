@@ -1,0 +1,193 @@
+/* Аналитика: рейтинг программ, дефициты навыков, спрос рынка (разделы 29–31 шаблона). */
+
+.rowTitle {
+  display: block;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--accent-primary);
+}
+
+.muted {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.mono {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.score {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* «Нет данных» не выделяется цифровым начертанием: это не число (решение 8). */
+.scoreEmpty {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.basis {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.basisLabel {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+/* Раскрытие балла: показатель, его доля от максимума выборки и вклад в балл. */
+.factors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.factor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.factorHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.factorTitle {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}
+
+.factorValue {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.factorNote {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.skillCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.explanation {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  padding-left: var(--space-3);
+  border-left: 2px solid rgba(200, 77, 255, 0.28);
+}
+
+.measure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.measureValue {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: var(--text-caption-size);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.criticality {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.selectedSkill {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.selectedText {
+  flex: 1;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.warningIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: var(--purple-700);
+  border: 1px solid var(--border-subtle);
+  color: var(--status-warning);
+}
+
+.warningText {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.tail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+  max-width: 720px;
+}

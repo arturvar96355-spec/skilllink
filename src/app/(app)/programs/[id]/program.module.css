@@ -1,0 +1,175 @@
+/* Карточка программы: шапка, раскрытие рейтинга и содержимое вкладок (раздел 21). */
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4) var(--space-6);
+  flex: 1;
+  min-width: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.factLabel {
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  line-height: var(--text-caption-line);
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  font-size: var(--text-body-size);
+  color: var(--text-primary);
+}
+
+.link {
+  color: var(--accent-primary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--accent-secondary);
+}
+
+/* Балл держится у правого края шапки: его ищут глазами первым. */
+.rating {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding-left: var(--space-5);
+  border-left: 1px solid var(--border-divider);
+}
+
+.ratingLabel {
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  color: var(--text-tertiary);
+}
+
+.score {
+  font-size: var(--text-kpi-md-size);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.scoreEmpty {
+  font-size: var(--text-body-lg-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.factors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-divider);
+}
+
+.explanation {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--text-tertiary);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: var(--space-4);
+}
+
+.metricLabel {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  color: var(--text-tertiary);
+}
+
+.mockNote {
+  margin-top: var(--space-4);
+}
+
+/* Ячейки таблиц вкладок. */
+.cellStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.cellTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cellMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.plain {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.number {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* «Нет данных» приглушено: пустое значение не должно читаться как показатель. */
+.empty {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.comment {
+  display: block;
+  max-width: 320px;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 720px) {
+  .rating {
+    padding-left: 0;
+    padding-top: var(--space-4);
+    border-left: none;
+    border-top: 1px solid var(--border-divider);
+    width: 100%;
+  }
+}
