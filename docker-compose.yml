@@ -53,6 +53,13 @@ services:
       AUTH_SECRET: ${DOCKER_AUTH_SECRET:-}
       # Вход без пароля по cookie. Включается только осознанно и только для показа.
       DEMO_AUTH_ENABLED: ${DOCKER_DEMO_AUTH_ENABLED:-false}
+      # Публичный адрес, если перед приложением стоит прокси с HTTPS:
+      #   DOCKER_AUTH_URL=https://skilllink.example
+      # Без него после входа пользователя отправит на https://localhost:3000 —
+      # Next.js собирает адрес запроса из собственного имени, а не из заголовка Host,
+      # и NextAuth строит по нему все переходы. Пустое значение безопасно:
+      # next-auth считает его незаданным (проверено).
+      AUTH_URL: ${DOCKER_AUTH_URL:-}
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
       LMS_ENABLED: ${LMS_ENABLED:-false}
       SITE_ENABLED: ${SITE_ENABLED:-false}

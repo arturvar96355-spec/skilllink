@@ -15,6 +15,13 @@ const ROOT = process.cwd()
 /** Служебные переменные среды выполнения: их задаёт не человек. */
 const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE'])
 
+/**
+ * Переменные, которые читает не наш код, а библиотека. В исходниках их не найти,
+ * но описать их нужно: без AUTH_URL за HTTPS-прокси next-auth после входа
+ * отправляет пользователя на localhost.
+ */
+const READ_BY_LIBRARIES = new Set(['AUTH_URL'])
+
 function collectSources(directory: string, found: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {
     if (entry === 'generated' || entry === 'node_modules' || entry === '.next') continue
@@ -81,7 +88,9 @@ describe('.env.example описывает настройки полностью'
   })
 
   it('в примере нет переменных, которых код не читает', () => {
-    const unused = [...documented].filter((name) => !used.has(name)).sort()
+    const unused = [...documented]
+      .filter((name) => !used.has(name) && !READ_BY_LIBRARIES.has(name))
+      .sort()
     expect(
       unused,
       `.env.example обещает настройки, которых нет в коде: ${unused.join(', ')}.`,
