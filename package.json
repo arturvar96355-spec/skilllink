@@ -59,5 +59,16 @@
     "@prisma/client@7.10.0": true,
     "esbuild@0.28.2": true,
     "fsevents@2.3.3": true
+  },
+  "overrides": {
+    "prisma": {
+      "mysql2": "^3.24.4"
+    },
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
+    "next": {
+      "postcss": "^8.5.28"
+    }
   }
 }
