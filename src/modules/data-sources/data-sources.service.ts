@@ -16,6 +16,9 @@ import { getSiteClient } from '@/integrations/site/site.client'
 import * as repo from './data-sources.repo'
 import type { DataSourceListQuery, SyncMarketDataInput } from './data-sources.schema'
 
+/** Регион по умолчанию: замер без указания региона считается федеральным. */
+const FEDERAL_REGION = 'Россия'
+
 export async function list(
   user: CurrentUser,
   query: DataSourceListQuery,
@@ -138,7 +141,11 @@ export async function syncMarketData(
       period: record.period,
       value: record.value,
       unit: record.unit,
-      region: record.region,
+      // Источник, не указавший региона, считается федеральным. Хранить NULL
+      // нельзя: регион входит в ключ уникальности, а NULL-ы в PostgreSQL
+      // считаются различными — и два федеральных замера перестали бы
+      // схлопываться в один.
+      region: record.region ?? FEDERAL_REGION,
       source: record.source,
       dataSourceId: dataSource.id,
       confidence: record.confidence,

@@ -63,7 +63,12 @@ export interface DemandUpsert {
   period: string
   value: number
   unit: string
-  region: string | null
+  /**
+   * Регион обязателен и входит в ключ уникальности: у одного навыка за период
+   * от одного источника бывают замеры по разным регионам. Источник, не давший
+   * региона, считается федеральным — «Россия».
+   */
+  region: string
   source: string
   dataSourceId: string
   confidence: 'LOW' | 'MEDIUM' | 'HIGH'
@@ -75,10 +80,13 @@ export async function upsertDemand(
 ): Promise<{ created: boolean }> {
   const existing = await prisma.marketDemand.findUnique({
     where: {
-      skillId_period_source: {
+      // Регион — часть ключа: без него второй регион того же навыка
+      // за тот же период не записывался вовсе (правка Тиграна).
+      skillId_period_source_region: {
         skillId: record.skillId,
         period: record.period,
         source: record.source,
+        region: record.region,
       },
     },
     select: { id: true },
