@@ -275,6 +275,14 @@ model Contact {
   participations MeetingParticipant[] @relation("MeetingParticipantContact")
 
   @@index([universityId])
+  /**
+   * Единственность основного контакта обеспечена частичным уникальным индексом
+   * `contacts_one_primary_per_university` — он создан в миграции вручную,
+   * потому что условие `WHERE is_primary` в схеме Prisma не выражается.
+   *
+   * Приложение её не обеспечивало: карточка вуза просто брала первый найденный
+   * основной контакт, и при двух основных показывала произвольный (правка Тиграна).
+   */
   @@map("contacts")
 }
 
@@ -366,7 +374,16 @@ model MarketDemand {
   period       String
   value        Float
   unit         String          @default("vacancies")
-  region       String?
+  /**
+   * Регион замера. Обязателен и по умолчанию «Россия».
+   *
+   * Сделан обязательным вместе с включением в уникальность (правка Тиграна):
+   * в PostgreSQL NULL-ы в уникальном ключе считаются различными, и два замера
+   * «по стране» без региона перестали бы схлопываться — то есть уникальность
+   * потеряла бы смысл ровно там, где она нужна. Федеральный уровень — это
+   * тоже значение региона, а не его отсутствие.
+   */
+  region       String  @default("Россия")
   source       String
   dataSourceId String?         @map("data_source_id")
   confidence   ConfidenceLevel @default(LOW)
@@ -377,7 +394,12 @@ model MarketDemand {
   skill      Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
   dataSource DataSource? @relation(fields: [dataSourceId], references: [id], onDelete: SetNull)
 
-  @@unique([skillId, period, source])
+  /**
+   * Регион входит в ключ: у одного навыка за один период от одного источника
+   * бывают замеры по разным регионам, и без региона второй не записывался
+   * вовсе (правка Тиграна).
+   */
+  @@unique([skillId, period, source, region])
   @@index([period])
   @@map("market_demand")
 }
@@ -495,6 +517,8 @@ model WorkflowStage {
   @@unique([cooperationId, stageNumber])
   @@index([status])
   @@index([deadline])
+  /** Выборка этапов по ответственному сотруднику (правка Тиграна). */
+  @@index([responsibleId])
   @@map("workflow_stages")
 }
 
@@ -677,6 +701,13 @@ model Recommendation {
   @@unique([ruleKey, objectType, objectId])
   @@index([status, priority])
   @@index([type])
+  /**
+   * Поиск рекомендаций по объекту. Уникальный ключ выше для этого не годится:
+   * его ведущая колонка — ruleKey, и запрос без неё шёл последовательным
+   * чтением таблицы (правка Тиграна).
+   */
+  @@index([objectType, objectId])
+  @@index([cooperationId])
   @@map("recommendations")
 }
 

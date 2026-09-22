@@ -19,7 +19,8 @@ export interface SkillDemandDto {
   unit: string
   /** Спрос, приведённый к 0..1 внутри выборки. null, если данных нет. */
   normalized: number | null
-  region: string | null
+  /** Регион замера. Замер без указания региона приходит как «Россия». */
+  region: string
   source: string | null
   confidence: ConfidenceLevel | null
   isMock: boolean
