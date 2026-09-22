@@ -10,7 +10,11 @@ services:
     ports:
       # Порт наружу настраивается: на машине разработчика PostgreSQL часто уже
       # занимает 5432, и стек не поднимется без возможности выбрать другой.
-      - '${POSTGRES_PORT:-5432}:5432'
+      #
+      # Только 127.0.0.1: без адреса Docker открывает порт на всех интерфейсах,
+      # и на машине с публичным IP база с паролем по умолчанию видна из интернета.
+      # Docker при этом обходит firewall хоста (ufw), так что тот не спасает.
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - skilllink-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -64,7 +68,9 @@ services:
       LMS_ENABLED: ${LMS_ENABLED:-false}
       SITE_ENABLED: ${SITE_ENABLED:-false}
     ports:
-      - '${APP_PORT:-3000}:3000'
+      # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
+      # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.
+      - '127.0.0.1:${APP_PORT:-3000}:3000'
 
   # Разовая задача: применить миграции.
   #   docker compose --profile migrate run --rm migrate
