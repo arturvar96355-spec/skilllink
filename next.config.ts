@@ -34,7 +34,24 @@ const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
 
   async headers() {
-    return [{ source: '/:path*', headers: SECURITY_HEADERS }]
+    return [
+      { source: '/:path*', headers: SECURITY_HEADERS },
+      /**
+       * Страницы не показываются из кэша браузера без проверки у сервера.
+       *
+       * Готовые страницы Next отдаёт с `s-maxage`, рассчитанным на промежуточные
+       * кэши. Браузер, не найдя `max-age`, выбирает срок сам — и после выкладки
+       * показывает старую версию. `no-cache` требует спросить сервер; при
+       * совпадении ETag ответ будет пустым 304.
+       *
+       * Файлы сборки под `/_next/static` сюда не попадают: у них хеш в имени,
+       * и их кэшируют надолго (правило в Caddyfile стенда).
+       */
+      {
+        source: '/((?!_next/static|_next/image).*)',
+        headers: [{ key: 'Cache-Control', value: 'no-cache' }],
+      },
+    ]
   },
 }
 
