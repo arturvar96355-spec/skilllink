@@ -59,7 +59,12 @@ async function main(): Promise<void> {
 
   // Демонстрационный пароль один на всех: это стенд, а не промышленный контур.
   // Хеш считается один раз — bcrypt намеренно медленный.
-  const DEMO_PASSWORD = 'skilllink'
+  //
+  // На стенде с публичным адресом пароль задаётся через SEED_DEMO_PASSWORD:
+  // «skilllink» записан в документации, и любой её читатель вошёл бы
+  // администратором и испортил данные перед показом.
+  const customPassword = process.env.SEED_DEMO_PASSWORD?.trim()
+  const DEMO_PASSWORD = customPassword || 'skilllink'
   const demoPasswordHash = await hash(DEMO_PASSWORD, 10)
   const admin = await prisma.user.create({
     data: {
@@ -1022,7 +1027,11 @@ async function main(): Promise<void> {
       `\n  ANALYST        ${analyst.id}` +
       `\n  UNIVERSITY_REP ${universityRep.id} (${'СПбГУТ'})`,
   )
-  console.log(`\nПароль всех демо-пользователей: ${DEMO_PASSWORD}`)
+  console.log(
+    customPassword
+      ? '\nПароль всех демо-пользователей задан через SEED_DEMO_PASSWORD — в журнал не выводится.'
+      : `\nПароль всех демо-пользователей: ${DEMO_PASSWORD}`,
+  )
   console.log('\nВсе записи помечены isMock = true и не являются подтверждённой статистикой.')
 }
 

@@ -1185,6 +1185,50 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Списки идут в русском алфавитном порядке ───────────────────────────────
+  step('Списки отсортированы по-русски')
+
+  {
+    // Порядок строк по умолчанию зависит от локали кластера PostgreSQL и на
+    // разных машинах разный: на macOS кириллица сортируется почти случайно,
+    // в postgres:16-alpine — по кодам символов («Ёлкин» раньше «Абв»).
+    // Поэтому у колонок сортировки задана ICU-сортировка "ru-x-icu"
+    // (миграция 20260922073000_russian_collation). Здесь проверяется, что
+    // она действительно применена к той базе, против которой работает сервер.
+    actAs(adminId)
+    const collator = new Intl.Collator('ru')
+
+    const listChecks: Array<[string, string]> = [
+      ['реестр вузов', '/api/universities?pageSize=100'],
+      ['справочник навыков', '/api/skills?pageSize=100'],
+      ['каталог продуктов', '/api/products?pageSize=100'],
+    ]
+
+    for (const [title, path] of listChecks) {
+      const list = await call<Array<{ name: string }>>('GET', path)
+      const names = (list.body.data ?? []).map((item) => item.name)
+      const expected = [...names].sort(collator.compare)
+      const misplaced = names.filter((name, index) => name !== expected[index]).length
+      check(
+        `${title}: русский алфавитный порядок`,
+        names.length > 0 && misplaced === 0,
+        names.length === 0 ? 'список пуст' : `не на своём месте ${misplaced} из ${names.length}`,
+      )
+    }
+
+    // Отдельно — буква Ё: по кодам символов она раньше всех русских букв,
+    // по-русски стоит после Е. Самый частый способ незаметно потерять порядок.
+    const sorted = await call<Array<{ name: string }>>('GET', '/api/skills?pageSize=100')
+    const skillNames = (sorted.body.data ?? []).map((item) => item.name)
+    const probeNames = [...skillNames, 'Ёмкость хранилища', 'Единицы измерения', 'Журналирование']
+    const byCollator = [...probeNames].sort(collator.compare)
+    check(
+      'проверка порядка вообще различает Ё и Е',
+      byCollator.indexOf('Ёмкость хранилища') > byCollator.indexOf('Единицы измерения') &&
+        byCollator.indexOf('Ёмкость хранилища') < byCollator.indexOf('Журналирование'),
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

@@ -1,0 +1,19 @@
+# Caddy перед приложением SkillLink.
+#
+# SITE_ADDRESS приходит из .env.cloud:
+#   skilllink.example.ru — HTTPS: сертификат Caddy получает и продлевает сам,
+#                          http перенаправляется на https;
+#   :80                  — без домена: только http по IP-адресу.
+#
+# Заголовки X-Forwarded-* Caddy выставляет сам и не доверяет тем, что прислал
+# клиент, — подделать адрес или протокол снаружи нельзя.
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	# HSTS: браузер больше не пойдёт на сайт по http. Для адреса без HTTPS
+	# заголовок браузеры игнорируют — вреда нет.
+	header Strict-Transport-Security "max-age=31536000"
+
+	reverse_proxy app:3000
+}

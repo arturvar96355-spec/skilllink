@@ -41,7 +41,7 @@ npm run dev
 ### Или целиком в контейнерах
 
 ```bash
-export AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
+export DOCKER_AUTH_SECRET="$(node -e 'console.log(require("crypto").randomBytes(32).toString("base64"))')"
 docker compose up -d postgres
 docker compose --profile migrate run --rm migrate
 docker compose --profile app up -d app
@@ -171,6 +171,21 @@ npm run db:studio     # визуальный редактор
 В промышленном контуре достаточно `migrate deploy`.
 
 ---
+
+### Показ на защите
+
+Сценарий на шесть–восемь минут с точными цифрами демонстрационного набора,
+приоритетом экранов для фронта и ответами на вопросы жюри — [DEMO.md](DEMO.md).
+
+### Развёртывание на сервере
+
+```bash
+SEED=1 scripts/deploy/deploy.sh skilllink@<адрес> <домен>
+```
+
+База, приложение и Caddy с автоматическим HTTPS на любой Ubuntu с доступом
+по SSH: провайдер не зашит. Наружу открыты только 80 и 443. Подробно —
+[DEPLOY.md](DEPLOY.md).
 
 ### Непрерывная интеграция
 

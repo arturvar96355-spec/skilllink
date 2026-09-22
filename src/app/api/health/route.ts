@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { diagnoseDatabaseError } from './database-error'
 import { handle, ok } from '@/shared/http'
 
 /**
@@ -52,17 +53,12 @@ export const GET = handle(async () => {
 
   try {
     await prisma.$queryRaw`SELECT 1`
-  } catch {
-    return ok(
-      {
-        status: 'degraded',
-        database: 'unreachable',
-        schema: 'unknown',
-        hint: 'База недоступна. Проверьте, что PostgreSQL запущен и DATABASE_URL указывает на него: docker compose up -d postgres',
-        time: now(),
-      },
-      503,
-    )
+  } catch (error) {
+    // В журнал — целиком: подсказка отвечает на «что делать», а разбираться
+    // в неожиданном сбое всё равно придётся по настоящей ошибке.
+    console.error('Проверка живости: база не ответила', error)
+    const { database, hint } = diagnoseDatabaseError(error)
+    return ok({ status: 'degraded', database, schema: 'unknown', hint, time: now() }, 503)
   }
 
   let schemaReady = true
