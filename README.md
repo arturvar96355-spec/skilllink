@@ -405,6 +405,8 @@ npm run openapi
 | --- | --- |
 | [docs/REPORT.md](docs/REPORT.md) | **Отчёт о работе:** что сделано, что нет, что требуется от команды |
 | [docs/HANDOFF.md](docs/HANDOFF.md) | **Передача команде:** с чего начать фронту, базе и приёмке |
+| [docs/DEMO.md](docs/DEMO.md) | **Сценарий показа на защите:** шаги, цифры демо-набора, ответы на вопросы |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | Развёртывание на сервере: что купить, как развернуть и проверить |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Контракт API: все эндпоинты, поля, ошибки, примеры |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы и решения по ней |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура и модули |
