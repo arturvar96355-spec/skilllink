@@ -1,0 +1,57 @@
+/* Аватар: инициалы на тёмной поверхности с аккуратным неоновым контуром (раздел 19). */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: var(--surface-raised);
+  border: 1px solid rgba(200, 77, 255, 0.24);
+  color: var(--text-primary);
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transition:
+    box-shadow var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.sm {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+.md {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+
+.lg {
+  width: 56px;
+  height: 56px;
+  font-size: 18px;
+  border-radius: 18px;
+}
+
+.xl {
+  width: 76px;
+  height: 76px;
+  font-size: 24px;
+  border-radius: 22px;
+}
+
+/* Свечение появляется при наведении, постоянной анимации нет. */
+.avatar:hover {
+  border-color: rgba(255, 79, 179, 0.4);
+  box-shadow: var(--glow-soft);
+}
+
+/* Контур объекта: логотип вуза или аббревиатура программы получают неоновую рамку. */
+.entity {
+  background: rgba(44, 29, 70, 0.9);
+  border-color: rgba(200, 77, 255, 0.28);
+  color: var(--text-accent-pale);
+}

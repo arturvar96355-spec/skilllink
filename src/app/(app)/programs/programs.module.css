@@ -1,0 +1,48 @@
+/* Реестр образовательных программ: строка таблицы и её вторичные подписи. */
+
+.program {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.programText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.programName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.programUniversity {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.plain {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* «Нет данных» приглушено: пустое значение не должно читаться как показатель. */
+.empty {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.count {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

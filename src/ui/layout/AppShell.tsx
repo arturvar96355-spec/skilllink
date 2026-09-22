@@ -1,0 +1,68 @@
+'use client'
+
+import { useMemo, useState, type ReactNode } from 'react'
+import type { CurrentUserDto } from '@/shared/contracts'
+import { Button } from '../primitives/Button'
+import { Skeleton } from '../primitives/Skeleton'
+import { ErrorState } from '../data/States'
+import { GlobalSearch } from '../search/GlobalSearch'
+import { useResource } from '../hooks/useResource'
+import { CurrentUserProvider } from './CurrentUser'
+import { Footer } from './Footer'
+import { Header } from './Header'
+import { Sidebar } from './Sidebar'
+import { navigationFor } from './navigation'
+import styles from './Shell.module.css'
+
+/**
+ * Каркас приложения.
+ *
+ * Текущий пользователь запрашивается здесь один раз: от его роли зависит состав
+ * бокового меню, поэтому до ответа рисовать меню нельзя — иначе представитель
+ * вуза на мгновение увидит разделы, которые ему закрыты.
+ */
+export function AppShell({ children }: { children: ReactNode }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const me = useResource<CurrentUserDto>('/api/me')
+  const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
+
+  if (me.isLoading || (!me.data && !me.error)) {
+    return (
+      <div className={styles.shell}>
+        <div className={styles.header}>
+          <Skeleton width="160px" height="24px" />
+        </div>
+        <main className={styles.main}>
+          <Skeleton width="280px" height="30px" />
+          <Skeleton height="120px" radius="20px" />
+          <Skeleton height="320px" radius="20px" />
+        </main>
+      </div>
+    )
+  }
+
+  if (me.error) {
+    return (
+      <main className={styles.main}>
+        <ErrorState error={me.error} onRetry={me.reload} />
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <Button href="/login" variant="primary">
+            Войти заново
+          </Button>
+        </div>
+      </main>
+    )
+  }
+
+  return (
+    <CurrentUserProvider user={me.data as CurrentUserDto}>
+      <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <div className={styles.shell}>
+        <Header groups={groups} onMenuClick={() => setIsMenuOpen(true)} />
+        <main className={styles.main}>{children}</main>
+        <Footer />
+      </div>
+      <GlobalSearch />
+    </CurrentUserProvider>
+  )
+}

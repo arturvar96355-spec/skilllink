@@ -1,0 +1,182 @@
+/* Лента под колокольчиком: всплывающая панель, а не отдельная страница (раздел 16.2). */
+
+.wrapper {
+  position: relative;
+}
+
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-button);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 10px rgba(255, 79, 179, 0.4);
+  pointer-events: none;
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: var(--z-overlay);
+  width: min(400px, calc(100vw - var(--space-8)));
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(24, 18, 43, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(180, 130, 255, 0.16);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating), 0 0 30px rgba(200, 77, 255, 0.1);
+  animation: panelIn var(--motion-overlay) var(--ease-out);
+  overflow: hidden;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  color: var(--text-primary);
+}
+
+.count {
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.item {
+  display: flex;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-5);
+  border: none;
+  border-bottom: 1px solid var(--border-divider);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-micro) var(--ease-out);
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.item:hover {
+  background: rgba(90, 54, 145, 0.18);
+}
+
+.unread {
+  background: rgba(90, 54, 145, 0.1);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+
+.critical {
+  border-color: rgba(255, 95, 115, 0.32);
+  color: var(--status-danger);
+}
+
+.warning {
+  border-color: rgba(255, 196, 77, 0.3);
+  color: var(--status-warning);
+}
+
+.info {
+  border-color: rgba(200, 77, 255, 0.24);
+  color: var(--text-accent-soft);
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.itemTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.itemDescription {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.time {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent-secondary);
+  box-shadow: 0 0 8px rgba(255, 79, 179, 0.5);
+}
+
+.empty {
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+}

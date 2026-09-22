@@ -1,0 +1,65 @@
+/* Реестр вузов (раздел 20 шаблона страниц). */
+
+.name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.nameText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.nameTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.nameCity {
+  font-size: var(--text-caption-size);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.rating {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.ratingValue {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ratingEmpty {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.counts {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.countsMuted {
+  color: var(--text-tertiary);
+  font-size: var(--text-caption-size);
+}
+
+.hint {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  line-height: 1.45;
+}
