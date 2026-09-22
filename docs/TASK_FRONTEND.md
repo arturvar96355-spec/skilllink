@@ -300,7 +300,7 @@ export function LoginForm() {
 сессии расширены — `session.user.role` и `session.user.universityId` доступны
 без приведения.
 
-Пока своей страницы входа нет, работает встроенная: `http://localhost:3000/api/auth/signin`.
+Страница входа — `http://localhost:3000/login`. Встроенная страница NextAuth заменена ею (решение 41).
 Когда сделаете свою по адресу `/login` — скажите Сергею, он вернёт настройку
 `pages: { signIn: '/login' }`, и перенаправления пойдут на неё.
 

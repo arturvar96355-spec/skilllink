@@ -118,5 +118,5 @@ DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"
 echo
 echo "━━ Готово: $PUBLIC_URL"
 echo "   Пароль демо-пользователей: $PASSWORD"
-echo "   Вход: $PUBLIC_URL/api/auth/signin (admin@skilllink.demo и другие — docs/HANDOFF.md)"
+echo "   Вход: $PUBLIC_URL/login (admin@skilllink.demo и другие — docs/HANDOFF.md)"
 echo "   Журнал: ssh $TARGET \"cd $REMOTE_DIR/app && docker compose -p skilllink logs -f app\""
