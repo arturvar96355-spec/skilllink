@@ -144,14 +144,17 @@ P1 не начинать, пока P0 не проходит сквозной с�
 
 ## Команды
 
-    docker compose up -d        Postgres локально
-    npm run db:push             применить схему (перейти на prisma migrate — см. аудит)
+    docker compose up -d postgres   Postgres локально (или brew services start postgresql@16)
+    npm run db:deploy           применить миграции
+    npm run db:migrate          создать миграцию при изменении схемы (нужно право CREATEDB)
     npm run db:seed             демо-данные
     npm run db:studio           визуальный редактор базы
     npm run dev                 localhost:3000
     npm run typecheck           проверка типов
     npm test                    Vitest
     npm run smoke               сквозной сценарий против запущенного dev-сервера
+    npm run probe               пробник: изоляция ролей, кривой ввод, противоречивые состояния
+    scripts/deploy/deploy.sh    развёртывание на сервере — docs/DEPLOY.md
 
 ## Обязательная документация
 
