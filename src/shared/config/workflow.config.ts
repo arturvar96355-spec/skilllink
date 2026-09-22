@@ -52,12 +52,15 @@ export const CONTROL_STAGE_NUMBER = 14
  * порядок там воевал бы с уже работающей возможностью.
  *
  * TODO: PM DECISION — состав контрольных точек подтверждает Артур (пункт 13).
+ * Подтверждён 22.09.2026 без изменений: 6, 7, 11 (docs/DECISIONS.md, решение 13).
  */
 export const CONTROL_POINT_STAGES: readonly number[] = [6, 7, 11] // TEMP
 
 /**
  * 14 этапов из раздела 8 ТЗ. При создании связки создаются все сразу (решение 2).
  * Чек-листы — TEMP, состав пунктов утверждает Артур.
+ * Сверен 22.09.2026: этап 8, «Проведена проверка работоспособности» стал обязательным,
+ * остальное без изменений (docs/DECISIONS.md, решение 12).
  */
 export const WORKFLOW_STAGES: readonly StageDefinition[] = [
   {
@@ -148,7 +151,7 @@ export const WORKFLOW_STAGES: readonly StageDefinition[] = [
     optional: false,
     tasks: [
       { title: 'Продукт развёрнут на стороне вуза', isRequired: true }, // TEMP
-      { title: 'Проведена проверка работоспособности', isRequired: false }, // TEMP
+      { title: 'Проведена проверка работоспособности', isRequired: true }, // TEMP
     ],
   },
   {
