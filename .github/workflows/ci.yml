@@ -35,12 +35,15 @@ jobs:
       DEMO_AUTH_ENABLED: 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
+      # checkout и setup-node — седьмые версии: четвёртые работали на Node 20,
+      # который GitHub выводит из обращения, и каждый прогон предупреждал об этом.
+      #
       # 22 разворачивается в последнюю 22.x — она выше 22.12, которую требует
       # Prisma 7. Требование записано в package.json, и engine-strict остановит
       # установку, если однажды окажется иначе.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
