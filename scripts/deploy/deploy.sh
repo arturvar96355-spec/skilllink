@@ -98,6 +98,19 @@ echo "── Поднимаю стенд (первый раз — несколь
 ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
 
 # ── 5. Проверка снаружи ─────────────────────────────────────────────────────
+# С доменом Caddy получает сертификат уже после старта — первый раз это
+# несколько секунд. Проверка, запущенная сразу, видела бы девять провалов
+# подряд при исправном стенде: так и случилось при первом развёртывании.
+if [ -n "$DOMAIN" ]; then
+  printf '── Жду сертификат'
+  for _ in $(seq 1 30); do
+    curl -fsS --max-time 5 -o /dev/null "$PUBLIC_URL/api/health" 2>/dev/null && break
+    printf '.'
+    sleep 4
+  done
+  echo
+fi
+
 echo "── Проверяю стенд снаружи"
 PASSWORD=$(ssh "$TARGET" "grep '^SEED_DEMO_PASSWORD=' $REMOTE_DIR/.env.cloud | cut -d= -f2")
 DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"
