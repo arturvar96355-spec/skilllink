@@ -11,6 +11,12 @@ export interface ImportRowResultDto {
 
 export interface ImportResultDto {
   dataset: string
+  /**
+   * В какой кодировке прочитан файл. Excel в Windows сохраняет CSV
+   * в `windows-1251`, и это нормальный случай, а не ошибка: поле нужно,
+   * чтобы человек видел, как его файл поняли.
+   */
+  encoding: 'utf-8' | 'windows-1251'
   /** `preview` ничего не меняет, `apply` записывает. */
   mode: 'preview' | 'apply'
   totalRows: number
