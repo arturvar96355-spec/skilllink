@@ -1229,6 +1229,75 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Карточка программы и личный кабинет ───────────────────────────────────
+  step('Карточка программы и личный кабинет не расходятся с аналитикой')
+
+  {
+    actAs(adminId)
+    const ranked = await call<Array<{ programId: string; score: number | null }>>(
+      'GET',
+      '/api/analytics/programs?limit=100',
+    )
+    const scoreInRanking = new Map((ranked.body.data ?? []).map((row) => [row.programId, row.score]))
+    const programs = await call<Array<{ id: string; status: string }>>(
+      'GET',
+      '/api/programs?pageSize=100',
+    )
+
+    // Балл в заголовке карточки считается отдельно от рейтинга — и обязан с ним
+    // совпадать: иначе одна программа покажет два разных числа.
+    let compared = 0
+    let differs = 0
+    for (const program of (programs.body.data ?? []).filter((item) => item.status === 'ACTIVE')) {
+      const card = await call<{ rating: { score: number | null } | null }>(
+        'GET',
+        `/api/programs/${program.id}`,
+      )
+      compared += 1
+      if (card.body.data?.rating?.score !== scoreInRanking.get(program.id)) differs += 1
+    }
+    check(
+      'балл в карточке программы совпадает с рейтингом программ',
+      compared > 0 && differs === 0,
+      `расхождений ${differs} из ${compared}`,
+    )
+
+    const stats = await call<{
+      activeCooperations: number
+      universitiesInWork: number
+      programsManaged: number
+      stagesOnTimePercent: number | null
+      overdueStages: number
+    }>('GET', '/api/me/stats')
+    const s = stats.body.data
+    check(
+      'личная статистика отвечает и согласована сама с собой',
+      stats.status === 200 &&
+        s !== undefined &&
+        s.universitiesInWork <= s.activeCooperations &&
+        s.programsManaged <= s.activeCooperations &&
+        s.overdueStages >= 0 &&
+        (s.stagesOnTimePercent === null || (s.stagesOnTimePercent >= 0 && s.stagesOnTimePercent <= 100)),
+      s ? `связок ${s.activeCooperations}, вузов ${s.universitiesInWork}, программ ${s.programsManaged}` : `код ${stats.status}`,
+    )
+
+    if (rep) {
+      actAs(rep.id)
+      const own = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=1')
+      const ownId = own.body.data?.[0]?.id
+      if (ownId) {
+        const card = await call<{ rating: unknown }>('GET', `/api/programs/${ownId}`)
+        check(
+          'представитель вуза видит карточку своей программы, но не рейтинг',
+          card.status === 200 && card.body.data?.rating === null,
+          `код ${card.status}`,
+        )
+      }
+      const me = await call<{ universityName: string | null }>('GET', '/api/me')
+      check('у представителя вуза в /api/me есть название вуза', Boolean(me.body.data?.universityName))
+    }
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)

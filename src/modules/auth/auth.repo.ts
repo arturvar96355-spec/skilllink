@@ -16,6 +16,14 @@ const userSelect = {
 
 export type UserRow = Prisma.UserGetPayload<{ select: typeof userSelect }>
 
+/** Профиль для шапки и личного кабинета: то, чего нет в объекте текущего пользователя. */
+export async function findProfile(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    select: { position: true, university: { select: { name: true } } },
+  })
+}
+
 export async function findMany(query: UserListQuery): Promise<{ rows: UserRow[]; total: number }> {
   const where: Prisma.UserWhereInput = {}
 
