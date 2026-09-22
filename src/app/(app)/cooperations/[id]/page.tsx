@@ -9,6 +9,7 @@ import {
   type DocumentListItemDto,
   type DocumentPackageResultDto,
   type MeetingDto,
+  type RecommendationDto,
   type WorkflowStageDto,
 } from '@/shared/contracts'
 import {
@@ -24,7 +25,9 @@ import {
   MockBadge,
   Modal,
   PageHeader,
+  PriorityBadge,
   Progress,
+  RecommendationStatusBadge,
   Section,
   Skeleton,
   TableSkeleton,
@@ -35,6 +38,7 @@ import {
   formatDate,
   formatDateTime,
   formatNumber,
+  recommendationHref,
   universityHref,
   useCurrentUser,
   useMutation,
@@ -62,7 +66,7 @@ function CooperationContent() {
   const user = useCurrentUser()
   const toast = useToast()
 
-  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings'>('stages')
+  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
@@ -78,6 +82,18 @@ function CooperationContent() {
   const meetings = useResource<MeetingDto[]>(
     tab === 'meetings'
       ? `/api/meetings${buildQuery({ cooperationId: params.id, pageSize: 50 })}`
+      : null,
+  )
+  /**
+   * Что система предлагает сделать именно по этой связке.
+   *
+   * Раньше за этим приходилось уходить на общую страницу рекомендаций
+   * и искать там нужную строку глазами. Ролям без аналитики раздел закрыт
+   * на сервере, поэтому вкладки у них нет.
+   */
+  const advice = useResource<RecommendationDto[]>(
+    user.permissions.canSeeAnalytics && tab === 'recommendations'
+      ? `/api/recommendations${buildQuery({ cooperationId: params.id, sort: 'priority', pageSize: 50 })}`
       : null,
   )
   // Этапы держим отдельным состоянием: ответ PATCH возвращает изменённый этап
@@ -140,6 +156,9 @@ function CooperationContent() {
     { key: 'documents', label: 'Документы' },
     { key: 'meetings', label: 'Встречи' },
   ]
+  if (user.permissions.canSeeAnalytics) {
+    tabs.push({ key: 'recommendations', label: 'Рекомендации' })
+  }
 
   const documentColumns: Column<DocumentListItemDto>[] = [
     {
@@ -337,6 +356,47 @@ function CooperationContent() {
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {tab === 'recommendations' && (
+        <Card>
+          {advice.isLoading ? (
+            <TableSkeleton rows={3} columns={2} />
+          ) : advice.error ? (
+            <ErrorState error={advice.error} onRetry={advice.reload} />
+          ) : (advice.data ?? []).length === 0 ? (
+            <EmptyState
+              icon="recommendation"
+              title="Предложений нет"
+              description="По этой связке система пока ничего не предлагает. Пересобрать их можно на странице рекомендаций."
+            />
+          ) : (
+            <div className={styles.adviceList}>
+              {(advice.data ?? []).map((item) => (
+                <div key={item.id} className={styles.advice}>
+                  <div className={styles.adviceHead}>
+                    <span className={styles.adviceTitle}>{item.title}</span>
+                    <span className={styles.progressCounts}>
+                      <PriorityBadge priority={item.priority} />
+                      <RecommendationStatusBadge status={item.status} />
+                    </span>
+                  </div>
+                  <span className={styles.blockText}>{item.description}</span>
+                  <span className={styles.adviceWhy}>{item.justification}</span>
+                  <Button
+                    href={recommendationHref(item.id)}
+                    variant="ghost"
+                    size="sm"
+                    icon="arrowRight"
+                    iconPosition="right"
+                  >
+                    Подробности
+                  </Button>
                 </div>
               ))}
             </div>
