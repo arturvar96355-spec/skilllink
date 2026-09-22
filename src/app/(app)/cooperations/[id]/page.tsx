@@ -35,7 +35,6 @@ import {
   formatDate,
   formatDateTime,
   formatNumber,
-  programHref,
   universityHref,
   useCurrentUser,
   useMutation,
@@ -44,6 +43,7 @@ import {
   type Column,
   type TabItem,
 } from '@/ui'
+import { CooperationChain } from './CooperationChain'
 import { StageCard } from './StageCard'
 import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
@@ -195,25 +195,22 @@ function CooperationContent() {
         }
       />
 
+      {/* Схема связки идёт во всю ширину: это единица учёта системы,
+          и делить её на колонки с чем-то ещё нельзя. */}
+      <Card>
+        <CooperationChain
+          universityId={data.universityId}
+          universityName={data.universityName}
+          programId={data.programId}
+          programName={data.programName}
+          productId={data.productId}
+          productName={data.productName}
+        />
+      </Card>
+
       <div className={styles.head}>
         <Card>
           <div className={styles.facts}>
-            <span className={styles.fact}>
-              <span className={styles.factLabel}>Университет</span>
-              <a className={[styles.factValue, styles.factLink].join(' ')} href={universityHref(data.universityId)}>
-                {data.universityName}
-              </a>
-            </span>
-            <span className={styles.fact}>
-              <span className={styles.factLabel}>Программа</span>
-              <a className={[styles.factValue, styles.factLink].join(' ')} href={programHref(data.programId)}>
-                {data.programName}
-              </a>
-            </span>
-            <span className={styles.fact}>
-              <span className={styles.factLabel}>IT-продукт</span>
-              <span className={styles.factValue}>{data.productName ?? 'Не выбран'}</span>
-            </span>
             <span className={styles.fact}>
               <span className={styles.factLabel}>Ответственный</span>
               <span className={styles.factValue}>{data.responsible.fullName}</span>
