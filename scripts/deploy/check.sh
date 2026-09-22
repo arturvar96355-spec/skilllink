@@ -13,6 +13,11 @@ URL=${1:-}
 HOST=${2:-$(echo "$URL" | sed -E 's#^https?://##; s#[:/].*##')}
 PASSWORD=${DEMO_PASSWORD:-}
 
+# INSECURE=1 — не проверять сертификат. Нужно только для локального стенда,
+# где Caddy выпускает его сам. На настоящем стенде так запускать нечего:
+# доверие к сертификату — часть проверки.
+CURL_INSECURE=${INSECURE:+-k}
+
 [ -z "$URL" ] && { echo "Использование: scripts/deploy/check.sh <адрес>" >&2; exit 1; }
 
 passed=0
@@ -29,18 +34,18 @@ yes_no() { [ "$1" = "$2" ] && echo 1 || echo 0; }
 echo "Проверка стенда: $URL"
 
 # ── Живость и база ──────────────────────────────────────────────────────────
-HEALTH=$(curl -fsS --max-time 20 "$URL/api/health" 2>/dev/null || echo '{}')
+HEALTH=$(curl -fsS $CURL_INSECURE --max-time 20 "$URL/api/health" 2>/dev/null || echo '{}')
 STATUS=$(echo "$HEALTH" | sed -nE 's/.*"status":"([a-z]+)".*/\1/p')
 SCHEMA=$(echo "$HEALTH" | sed -nE 's/.*"schema":"([a-z]+)".*/\1/p')
 check "приложение отвечает и видит базу" "$(yes_no "$STATUS" ok)" "status=${STATUS:-нет ответа}"
 check "миграции применены" "$(yes_no "$SCHEMA" ready)" "schema=${SCHEMA:-?}"
 
 # ── Вход без пароля выключен ────────────────────────────────────────────────
-ME=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/api/me")
+ME=$(curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 20 "$URL/api/me")
 check "вход без пароля выключен" "$(yes_no "$ME" 401)" "/api/me без сессии → $ME (нужен 401)"
 
 # ── Защитные заголовки ──────────────────────────────────────────────────────
-HEADERS=$(curl -fsSI --max-time 20 "$URL/api/health" 2>/dev/null | tr 'A-Z' 'a-z')
+HEADERS=$(curl -fsSI $CURL_INSECURE --max-time 20 "$URL/api/health" 2>/dev/null | tr 'A-Z' 'a-z')
 for header in x-content-type-options x-frame-options referrer-policy; do
   check "заголовок $header" "$(echo "$HEADERS" | grep -qi "^$header:" && echo 1 || echo 0)"
 done
@@ -50,7 +55,11 @@ case "$URL" in
   https://*)
     REDIRECT=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "http://$HOST" || echo 000)
     check "http перенаправляется на https" "$([ "$REDIRECT" = "301" ] || [ "$REDIRECT" = "308" ] && echo 1 || echo 0)" "код $REDIRECT"
-    check "сертификат принимается без -k" "$(curl -fsS --max-time 20 -o /dev/null "$URL/api/health" && echo 1 || echo 0)"
+    if [ -n "$CURL_INSECURE" ]; then
+      printf '  \033[33m··\033[0m   Сертификат не проверяется: запущено с INSECURE=1\n'
+    else
+      check "сертификат принимается без -k" "$(curl -fsS --max-time 20 -o /dev/null "$URL/api/health" && echo 1 || echo 0)"
+    fi
     ;;
   *)
     printf '  \033[33m··\033[0m   HTTPS нет: стенд открыт по http, пароли идут открытым текстом\n'
@@ -68,9 +77,9 @@ done
 # ── Вход: куда отправляет после него ────────────────────────────────────────
 if [ -n "$PASSWORD" ]; then
   JAR=$(mktemp)
-  CSRF=$(curl -s -c "$JAR" --max-time 20 "$URL/api/auth/csrf" | sed -nE 's/.*"csrfToken":"([^"]+)".*/\1/p')
+  CSRF=$(curl -s $CURL_INSECURE -c "$JAR" --max-time 20 "$URL/api/auth/csrf" | sed -nE 's/.*"csrfToken":"([^"]+)".*/\1/p')
   check "страница входа отдаёт csrf-токен" "$([ -n "$CSRF" ] && echo 1 || echo 0)"
-  LOCATION=$(curl -s -o /dev/null -b "$JAR" -c "$JAR" -w '%{redirect_url}' --max-time 20 \
+  LOCATION=$(curl -s $CURL_INSECURE -o /dev/null -b "$JAR" -c "$JAR" -w '%{redirect_url}' --max-time 20 \
     -X POST "$URL/api/auth/callback/credentials" \
     --data-urlencode "csrfToken=$CSRF" \
     --data-urlencode "email=admin@skilllink.demo" \
