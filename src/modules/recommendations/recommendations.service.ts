@@ -28,17 +28,36 @@ import type {
   UpdateRecommendationInput,
 } from './recommendations.schema'
 
-function toTarget(row: repo.RecommendationRow): RecommendationTargetDto {
+function toTarget(
+  row: repo.RecommendationRow,
+  labels: ReadonlyMap<string, string>,
+): RecommendationTargetDto {
   return {
     objectType: row.objectType as RecommendationTargetDto['objectType'],
     objectId: row.objectId,
-    // Читаемое имя уже вшито в заголовок; отдельный запрос за ним не нужен.
-    label: row.title,
+    // Имя объекта, а не заголовок: заголовок объект не называет — «Просрочен
+    // этап 6» не говорит, какой вуз. Заголовок — только запасной вариант,
+    // если объект уже удалён.
+    label: labels.get(repo.targetKey(row.objectType, row.objectId)) ?? row.title,
   }
 }
 
-/** Единственный мэппер рекомендации в DTO. Переиспользуется дашбордом. */
-export function toRecommendationDto(row: repo.RecommendationRow): RecommendationDto {
+/** Рекомендации в DTO вместе с именами объектов — для списков, карточки и дашборда. */
+export async function toRecommendationDtos(
+  rows: readonly repo.RecommendationRow[],
+): Promise<RecommendationDto[]> {
+  const labels = await repo.resolveTargetLabels(rows)
+  return rows.map((row) => toRecommendationDto(row, labels))
+}
+
+/**
+ * Единственный мэппер рекомендации в DTO. Имена объектов — из `labels`:
+ * их собирает `toRecommendationDtos` одним запросом на страницу.
+ */
+export function toRecommendationDto(
+  row: repo.RecommendationRow,
+  labels: ReadonlyMap<string, string> = new Map(),
+): RecommendationDto {
   return {
     id: row.id,
     type: row.type,
@@ -51,7 +70,7 @@ export function toRecommendationDto(row: repo.RecommendationRow): Recommendation
     confidence: row.confidence,
     status: row.status,
     resolutionComment: row.resolutionComment,
-    target: toTarget(row),
+    target: toTarget(row, labels),
     cooperationId: row.cooperationId,
     createdAt: toIsoRequired(row.createdAt),
     updatedAt: toIsoRequired(row.updatedAt),
@@ -67,7 +86,7 @@ export async function list(
   assertCan(user, 'ANALYTICS')
   const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
-    data: rows.map(toRecommendationDto),
+    data: await toRecommendationDtos(rows),
     meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
   }
 }
@@ -76,7 +95,7 @@ export async function getById(user: CurrentUser, id: string): Promise<Recommenda
   assertCan(user, 'ANALYTICS')
   const row = await repo.findById(id)
   if (!row) throw notFound('Рекомендация не найдена')
-  return toRecommendationDto(row)
+  return (await toRecommendationDtos([row]))[0]!
 }
 
 const LEVEL_ORDER: Record<SkillLevel, number> = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3 }
@@ -272,5 +291,5 @@ export async function updateStatus(
     payload: { from: existing.status, to: input.status, ruleKey: existing.ruleKey },
   })
 
-  return toRecommendationDto(row)
+  return (await toRecommendationDtos([row]))[0]!
 }

@@ -225,3 +225,44 @@ export async function findProgramsOfUniversities(
     },
   })
 }
+
+/**
+ * Связки в работе, где пользователь — ответственный. Статусы те же, что у показателя
+ * «Активные связи» на дашборде, — иначе в кабинете и на дашборде одно слово
+ * значило бы разное.
+ */
+export async function findActiveCooperationsOf(userId: string) {
+  return prisma.cooperation.findMany({
+    where: { responsibleId: userId, status: { in: ['DRAFT', 'ACTIVE'] } },
+    select: { universityId: true, programId: true, isMock: true },
+  })
+}
+
+/** Свои завершённые этапы со сроком — по ним доля закрытых вовремя. */
+export async function findCompletedStagesWithDeadlineOf(userId: string) {
+  return prisma.workflowStage.findMany({
+    where: {
+      responsibleId: userId,
+      status: 'COMPLETED',
+      deadline: { not: null },
+      completedAt: { not: null },
+    },
+    select: { deadline: true, completedAt: true },
+  })
+}
+
+/**
+ * Свои просроченные этапы — по тем же правилам, что проблемные этапы дашборда:
+ * контрольный этап не считается, закрытые связки тоже.
+ */
+export async function countOverdueStagesOf(userId: string, now: Date): Promise<number> {
+  return prisma.workflowStage.count({
+    where: {
+      responsibleId: userId,
+      deadline: { lt: now },
+      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      stageNumber: { not: CONTROL_STAGE_NUMBER },
+      cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
+    },
+  })
+}
