@@ -1382,6 +1382,39 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Блокировка входа называет себя ─────────────────────────────────────────
+  step('Исчерпанные попытки входа отличимы от неверного пароля')
+
+  {
+    // Несуществующий адрес: так проверка не закрывает вход демо-учётной записи
+    // и заодно доказывает, что код не выдаёт существование адреса.
+    const email = `probe-${Date.now()}@example.invalid`
+    const attempt = async (): Promise<string | null> => {
+      // Своя пара запросов без общего состояния пробника: cookie csrf-токена
+      // нужна только этой попытке.
+      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+      const cookie = (csrf.headers.getSetCookie?.() ?? [])
+        .map((line) => line.split(';')[0])
+        .join('; ')
+      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+        body: new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' }).toString(),
+      })
+      const location = response.headers.get('location') ?? ''
+      return /[?&]code=([a-z_]+)/.exec(location)?.[1] ?? null
+    }
+    const codes: Array<string | null> = []
+    for (let index = 0; index < 6; index += 1) codes.push(await attempt())
+    check(
+      'пять неудач — «неверные данные», шестая — «слишком много попыток»',
+      codes.slice(0, 5).every((code) => code === 'credentials') && codes[5] === 'too_many_attempts',
+      codes.join(', '),
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
