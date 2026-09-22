@@ -176,6 +176,13 @@ curl -X POST "http://localhost:3000/api/import?dataset=universities&mode=apply" 
 
 ---
 
+## Если вы на Windows
+
+Команды здесь для macOS и Linux. В PowerShell переменная перед командой
+не работает: вместо `DATABASE_URL="..." npm run db:deploy` задавайте отдельно —
+`$env:DATABASE_URL = "..."`, затем команду. И `curl.exe` вместо `curl`:
+в PowerShell `curl` это `Invoke-WebRequest` с другим синтаксисом.
+
 ## Команды
 
 ```bash

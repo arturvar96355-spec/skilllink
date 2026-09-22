@@ -6,7 +6,14 @@
  *   npm run dev      (в одном окне)
  *   npm run bench    (в другом)
  */
-const BASE = process.env.BENCH_BASE_URL ?? 'http://localhost:3000'
+/**
+ * Адрес берётся из той же переменной, что у сквозного сценария и пробника.
+ *
+ * Отдельное имя BENCH_BASE_URL было ошибкой: задав APP_BASE_URL, человек
+ * получал замеры не того сервера и не узнавал об этом. Старое имя оставлено
+ * на случай, если его где-то успели прописать, но приоритет у общего.
+ */
+const BASE = process.env.APP_BASE_URL ?? process.env.BENCH_BASE_URL ?? 'http://localhost:3000'
 const RUNS = Number(process.env.BENCH_RUNS ?? 7)
 
 const GREEN = '\x1b[32m'

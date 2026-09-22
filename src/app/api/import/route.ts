@@ -18,13 +18,19 @@ export const POST = handle(async (request) => {
   const user = await getCurrentUser()
   const query = parseQuery(request, importQuerySchema)
 
-  const length = Number(request.headers.get('content-length') ?? 0)
-  if (length > MAX_BODY_BYTES) {
-    throw validationError('Файл слишком большой', [
+  const tooLarge = () =>
+    validationError('Файл слишком большой', [
       { field: 'csv', message: `Допустимо не больше ${MAX_BODY_BYTES / 1024 / 1024} МБ` },
     ])
-  }
 
+  // Заголовок проверяется первым: он позволяет отказать, не читая тело.
+  const length = Number(request.headers.get('content-length') ?? 0)
+  if (length > MAX_BODY_BYTES) throw tooLarge()
+
+  // Но полагаться на него нельзя: при потоковой передаче (chunked) заголовка
+  // нет вовсе, и ограничение обходилось простым его отсутствием. Поэтому
+  // размер проверяется и по факту прочитанного.
   const csv = await request.text()
+  if (Buffer.byteLength(csv, 'utf8') > MAX_BODY_BYTES) throw tooLarge()
   return ok(await service.importDataset(user, query, csv))
 })

@@ -45,8 +45,19 @@ export async function findCycleDurations(scope: { universityId?: string }) {
   })
 }
 
+/**
+ * Программы для рейтинга — срез фиксированного размера.
+ *
+ * Срез обязан быть устойчивым: без `orderBy` СУБД вправе вернуть любые N строк,
+ * и два одинаковых запроса давали разные баллы без изменения данных.
+ *
+ * Сам срез границы нормирования НЕ задаёт: их считает `findRatingBounds`
+ * по всей базе. Иначе балл программы зависел бы от того, попала ли она
+ * в первые двести строк.
+ */
 export async function findProgramsForRating(scope: { universityId?: string }, limit: number) {
   return prisma.educationalProgram.findMany({
+    orderBy: [{ applicationCount: 'desc' }, { studentCount: 'desc' }, { id: 'asc' }],
     where: { status: 'ACTIVE', archivedAt: null, ...scope },
     select: {
       id: true,
