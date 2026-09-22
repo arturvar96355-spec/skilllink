@@ -126,8 +126,25 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 
 Сказано честно, чтобы не выглядело промышленным контуром:
 
-- **Резервных копий нет.** База живёт в томе Docker на одной машине.
-  Снимок вручную: `docker compose -p skilllink exec postgres pg_dump -U skilllink skilllink > dump.sql`.
+- **Резервные копии по расписанию не делаются.** База живёт в томе Docker
+  на одной машине. Снимок вручную:
+
+  ```bash
+  ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink exec -T postgres \
+    pg_dump -U skilllink skilllink" > dump.sql
+  ```
+
+  `-T` обязателен: без него `exec` выделяет терминал и портит файл переводами строк.
+
+  Восстановление в новую базу (проверено: 0 ошибок, все таблицы совпали,
+  русская сортировка колонок уцелела):
+
+  ```bash
+  ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink exec -T postgres \
+    psql -U skilllink -d postgres -c 'create database restored'"
+  ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink exec -T postgres \
+    psql -U skilllink -d restored" < dump.sql
+  ```
 - **Мониторинга и оповещений нет.** Есть только `/api/health` и перезапуск
   контейнера при падении.
 - **Машина одна.** Её перезагрузка — простой стенда; контейнеры поднимутся сами.

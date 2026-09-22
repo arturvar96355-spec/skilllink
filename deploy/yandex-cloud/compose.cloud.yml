@@ -12,12 +12,24 @@
 # Наружу открыты только 80 и 443 — у Caddy. База и приложение в базовом файле
 # привязаны к 127.0.0.1, а в облаке ещё и закрыты группой безопасности.
 
+# Журналы Docker по умолчанию растут без предела и со временем забивают диск —
+# на стенде, который работает неделями, это единственная причина, по которой
+# место кончается само. Три файла по 10 МБ на сервис достаточно, чтобы увидеть
+# вчерашнюю ошибку, и мало, чтобы помешать.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
 services:
   postgres:
+    logging: *logging
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env.cloud}
 
   app:
+    logging: *logging
     environment:
       AUTH_SECRET: ${DOCKER_AUTH_SECRET:?задайте DOCKER_AUTH_SECRET в .env.cloud}
       # Без публичного адреса после входа пользователя отправит на localhost
@@ -30,6 +42,7 @@ services:
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:?задайте SEED_DEMO_PASSWORD в .env.cloud}
 
   caddy:
+    logging: *logging
     profiles: ['app']
     image: caddy:2.8-alpine
     container_name: skilllink-caddy
