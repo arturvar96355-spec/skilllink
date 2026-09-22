@@ -14,6 +14,7 @@ import {
   type DocumentListItemDto,
   type ProgramDto,
   type SkillDemandDto,
+  type SkillGapDto,
   type ProgramSkillDto,
   type RatingFactorDto,
 } from '@/shared/contracts'
@@ -131,6 +132,19 @@ export default function ProgramPage() {
   )
   const demandBySkill = new Map((demand.data ?? []).map((row) => [row.skillId, row]))
 
+  /**
+   * Дефициты программы: чего рынок хочет, а программа не даёт.
+   *
+   * Обратная сторона спроса и, по сути, ответ на вопрос «зачем этой программе
+   * наш продукт». Считает сервер — здесь только показ.
+   */
+  const gaps = useResource<SkillGapDto[]>(
+    user.permissions.canSeeAnalytics && tab === 'gaps'
+      ? `/api/skills/gaps${buildQuery({ programId: id, limit: 50 })}`
+      : null,
+  )
+  const gapRows = gaps.data ?? []
+
   if (program.isLoading) return <CardsSkeleton count={3} />
   // Текст отказа приходит с сервера и показывается как есть: «Программа не найдена».
   if (program.error) return <ErrorState error={program.error} onRetry={program.reload} />
@@ -144,6 +158,10 @@ export default function ProgramPage() {
   // (раздел 21 шаблона): пустая вкладка выглядит как сломанный раздел.
   const tabs: TabItem[] = [{ key: 'overview', label: 'Обзор' }]
   if (skills.length > 0) tabs.push({ key: 'skills', label: 'Навыки', count: skills.length })
+  // Дефициты считаются по рыночному спросу: роли без аналитики эндпоинт закрыт.
+  if (user.permissions.canSeeAnalytics && skills.length > 0) {
+    tabs.push({ key: 'gaps', label: 'Дефициты' })
+  }
   if (hasTabContent(cooperations)) {
     tabs.push({
       key: 'cooperations',
@@ -161,6 +179,65 @@ export default function ProgramPage() {
 
   // Вкладка могла исчезнуть, пока страница открыта: возвращаемся на обзор.
   const activeTab = tabs.some((item) => item.key === tab) ? tab : 'overview'
+
+  const gapColumns: Column<SkillGapDto>[] = [
+    {
+      key: 'name',
+      title: 'Навык',
+      render: (row) => (
+        <span className={styles.cellStack}>
+          <span className={styles.cellTitle}>{row.name}</span>
+          <span className={styles.cellMeta}>{row.category}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'demand',
+      title: 'Спрос рынка',
+      width: '150px',
+      render: (row) =>
+        row.demandNormalized === null ? (
+          <span className={styles.empty}>{NO_DATA}</span>
+        ) : (
+          <span className={styles.plain}>{Math.round(row.demandNormalized * 100)} из 100</span>
+        ),
+    },
+    {
+      key: 'coverage',
+      title: 'Покрытие программой',
+      width: '190px',
+      render: (row) => (
+        <span className={styles.cellStack}>
+          <span className={styles.plain}>{Math.round(row.coverage * 100)}%</span>
+          <Progress value={row.coverage * 100} label={`Покрытие навыка ${row.name}`} />
+        </span>
+      ),
+    },
+    {
+      key: 'gap',
+      title: 'Дефицит',
+      width: '170px',
+      render: (row) => (
+        <span className={styles.cellStack}>
+          <span className={styles.plain}>
+            {Math.round(row.gap * 100)}%
+            {row.isCritical && <Badge tone="danger">критический</Badge>}
+            {row.isMock && <Badge tone="mock">демо</Badge>}
+          </span>
+          <Progress
+            value={row.gap * 100}
+            tone={row.isCritical ? 'danger' : 'default'}
+            label={`Дефицит навыка ${row.name}`}
+          />
+        </span>
+      ),
+    },
+    {
+      key: 'explanation',
+      title: 'Почему так',
+      render: (row) => <span className={styles.cellMeta}>{row.explanation}</span>,
+    },
+  ]
 
   const skillColumns: Column<ProgramSkillDto>[] = [
     {
@@ -469,6 +546,29 @@ export default function ProgramPage() {
             getRowKey={(row) => row.skillId}
             caption="Навыки программы"
           />
+        </Card>
+      )}
+
+      {activeTab === 'gaps' && (
+        <Card padding="none">
+          {gaps.isLoading ? (
+            <TableSkeleton rows={4} columns={4} />
+          ) : gaps.error ? (
+            <ErrorState error={gaps.error} onRetry={gaps.reload} />
+          ) : gapRows.length === 0 ? (
+            <EmptyState
+              icon="skill"
+              title="Дефицитов нет"
+              description="Навыки программы покрывают то, что востребовано рынком в этом периоде."
+            />
+          ) : (
+            <DataTable
+              rows={gapRows}
+              columns={gapColumns}
+              getRowKey={(row) => row.skillId}
+              caption="Дефициты навыков программы"
+            />
+          )}
         </Card>
       )}
 
