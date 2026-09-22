@@ -290,3 +290,67 @@ async function latestPeriod(_now: Date): Promise<string | undefined> {
   })
   return row?.period
 }
+
+/** Ключ объекта рекомендации для словаря имён. */
+export function targetKey(objectType: string, objectId: string): string {
+  return `${objectType}:${objectId}`
+}
+
+/**
+ * Читаемые имена объектов рекомендаций — одним запросом на тип, для всей страницы.
+ *
+ * Заголовок рекомендации объект не называет: «Просрочен этап 6: Подписание
+ * документов» не говорит, какой вуз, а две «Нет данных по программе» подряд
+ * неотличимы. Имя берётся из самого объекта.
+ */
+export async function resolveTargetLabels(
+  targets: ReadonlyArray<{ objectType: string; objectId: string }>,
+): Promise<Map<string, string>> {
+  const idsOf = (type: string) => [
+    ...new Set(targets.filter((item) => item.objectType === type).map((item) => item.objectId)),
+  ]
+  const [cooperations, programs, universities, skills] = await Promise.all([
+    idsOf('Cooperation').length
+      ? prisma.cooperation.findMany({
+          where: { id: { in: idsOf('Cooperation') } },
+          select: {
+            id: true,
+            university: { select: { name: true, shortName: true } },
+            program: { select: { name: true } },
+          },
+        })
+      : [],
+    idsOf('EducationalProgram').length
+      ? prisma.educationalProgram.findMany({
+          where: { id: { in: idsOf('EducationalProgram') } },
+          select: { id: true, name: true, university: { select: { name: true, shortName: true } } },
+        })
+      : [],
+    idsOf('University').length
+      ? prisma.university.findMany({
+          where: { id: { in: idsOf('University') } },
+          select: { id: true, name: true },
+        })
+      : [],
+    idsOf('Skill').length
+      ? prisma.skill.findMany({ where: { id: { in: idsOf('Skill') } }, select: { id: true, name: true } })
+      : [],
+  ])
+
+  const labels = new Map<string, string>()
+  for (const row of cooperations) {
+    labels.set(
+      targetKey('Cooperation', row.id),
+      `${row.university.shortName ?? row.university.name} — ${row.program.name}`,
+    )
+  }
+  for (const row of programs) {
+    labels.set(
+      targetKey('EducationalProgram', row.id),
+      `${row.name} · ${row.university.shortName ?? row.university.name}`,
+    )
+  }
+  for (const row of universities) labels.set(targetKey('University', row.id), row.name)
+  for (const row of skills) labels.set(targetKey('Skill', row.id), `Навык «${row.name}»`)
+  return labels
+}

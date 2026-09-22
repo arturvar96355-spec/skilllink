@@ -1,3 +1,4 @@
+import type { ProgramRatingDto } from './rating'
 import type { Metric } from './common'
 import type {
   ConfidenceLevel,
@@ -47,4 +48,11 @@ export interface ProgramDto extends ProgramListItemDto {
   skills: ProgramSkillDto[]
   createdAt: string
   archivedAt: string | null
+  /**
+   * Рейтинг программы — для заголовка карточки. Та же шкала, что в
+   * `GET /api/analytics/programs`, поэтому балл совпадает с рейтингом.
+   * null — рейтинг недоступен роли (представитель вуза); `score: null` внутри —
+   * «Нет данных» или программа не действует.
+   */
+  rating: ProgramRatingDto | null
 }

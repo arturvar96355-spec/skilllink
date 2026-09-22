@@ -1229,6 +1229,192 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Карточка программы и личный кабинет ───────────────────────────────────
+  step('Карточка программы и личный кабинет не расходятся с аналитикой')
+
+  {
+    actAs(adminId)
+    const ranked = await call<Array<{ programId: string; score: number | null }>>(
+      'GET',
+      '/api/analytics/programs?limit=100',
+    )
+    const scoreInRanking = new Map((ranked.body.data ?? []).map((row) => [row.programId, row.score]))
+    const programs = await call<Array<{ id: string; status: string }>>(
+      'GET',
+      '/api/programs?pageSize=100',
+    )
+
+    // Балл в заголовке карточки считается отдельно от рейтинга — и обязан с ним
+    // совпадать: иначе одна программа покажет два разных числа.
+    let compared = 0
+    let differs = 0
+    for (const program of (programs.body.data ?? []).filter((item) => item.status === 'ACTIVE')) {
+      const card = await call<{ rating: { score: number | null } | null }>(
+        'GET',
+        `/api/programs/${program.id}`,
+      )
+      compared += 1
+      if (card.body.data?.rating?.score !== scoreInRanking.get(program.id)) differs += 1
+    }
+    check(
+      'балл в карточке программы совпадает с рейтингом программ',
+      compared > 0 && differs === 0,
+      `расхождений ${differs} из ${compared}`,
+    )
+
+    const stats = await call<{
+      activeCooperations: number
+      universitiesInWork: number
+      programsManaged: number
+      stagesOnTimePercent: number | null
+      overdueStages: number
+    }>('GET', '/api/me/stats')
+    const s = stats.body.data
+    check(
+      'личная статистика отвечает и согласована сама с собой',
+      stats.status === 200 &&
+        s !== undefined &&
+        s.universitiesInWork <= s.activeCooperations &&
+        s.programsManaged <= s.activeCooperations &&
+        s.overdueStages >= 0 &&
+        (s.stagesOnTimePercent === null || (s.stagesOnTimePercent >= 0 && s.stagesOnTimePercent <= 100)),
+      s ? `связок ${s.activeCooperations}, вузов ${s.universitiesInWork}, программ ${s.programsManaged}` : `код ${stats.status}`,
+    )
+
+    if (rep) {
+      actAs(rep.id)
+      const own = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=1')
+      const ownId = own.body.data?.[0]?.id
+      if (ownId) {
+        const card = await call<{ rating: unknown }>('GET', `/api/programs/${ownId}`)
+        check(
+          'представитель вуза видит карточку своей программы, но не рейтинг',
+          card.status === 200 && card.body.data?.rating === null,
+          `код ${card.status}`,
+        )
+      }
+      const me = await call<{ universityName: string | null }>('GET', '/api/me')
+      check('у представителя вуза в /api/me есть название вуза', Boolean(me.body.data?.universityName))
+    }
+  }
+
+  // ── Поиск и уведомления ────────────────────────────────────────────────────
+  step('Поиск и уведомления не раскрывают чужого и не врут')
+
+  {
+    // Поиск: представитель вуза не находит чужой вуз, который находит администратор.
+    if (rep && foreignUniversity) {
+      const word = foreignUniversity.name.split(' ')[0] ?? foreignUniversity.name
+      actAs(adminId)
+      const forAdmin = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+        'GET',
+        `/api/search?q=${encodeURIComponent(word)}`,
+      )
+      const adminFinds = (forAdmin.body.data?.groups ?? []).some(
+        (group) => group.type === 'university' && group.items.some((item) => item.id === foreignUniversity.id),
+      )
+      actAs(rep.id)
+      const forRep = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+        'GET',
+        `/api/search?q=${encodeURIComponent(word)}`,
+      )
+      const repFinds = (forRep.body.data?.groups ?? []).some((group) =>
+        group.items.some((item) => item.id === foreignUniversity.id),
+      )
+      check('поиск находит вуз администратору', adminFinds, `по слову «${word}»`)
+      check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
+    }
+
+    const tooShort = await call('GET', '/api/search?q=a')
+    check('поиск по одной букве отклоняется', tooShort.status === 422)
+
+    type Feed = {
+      items: Array<{ kind: string; target: { type: string; id: string } }>
+      unreadCount: number
+    }
+    const targetPath: Record<string, string> = {
+      cooperation: '/api/cooperations/',
+      document: '/api/documents/',
+      recommendation: '/api/recommendations/',
+    }
+
+    // Уведомления сотрудника: просрочки считаются так же, как в личной статистике,
+    // и каждая ссылка открывается тем, кому пришло уведомление.
+    if (managerId) {
+      actAs(managerId)
+      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+      const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
+      const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
+      check(
+        'просроченных в ленте столько же, сколько в личной статистике',
+        feed.status === 200 && overdue === stats.body.data?.overdueStages,
+        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}`,
+      )
+      let broken = 0
+      for (const item of feed.body.data?.items ?? []) {
+        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+        if (opened.status !== 200) broken += 1
+      }
+      check(
+        'каждое уведомление сотрудника открывается',
+        broken === 0,
+        `не открылось ${broken} из ${feed.body.data?.items.length ?? 0}`,
+      )
+      const later = new Date(Date.now() + 1000).toISOString()
+      const read = await call<Feed>('GET', `/api/notifications?since=${encodeURIComponent(later)}`)
+      check('после отметки «прочитано» непрочитанных нет', read.body.data?.unreadCount === 0)
+    }
+
+    // Уведомления представителя вуза: ни сроков, ни рекомендаций — это внутреннее.
+    if (rep) {
+      actAs(rep.id)
+      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+      const internal = (feed.body.data?.items ?? []).filter((item) =>
+        ['stage.overdue', 'stage.due-soon', 'recommendation'].includes(item.kind),
+      ).length
+      check('в ленте представителя вуза нет внутреннего', feed.status === 200 && internal === 0)
+      let broken = 0
+      for (const item of feed.body.data?.items ?? []) {
+        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+        if (opened.status !== 200) broken += 1
+      }
+      check('каждое уведомление представителя вуза открывается у него', broken === 0)
+    }
+  }
+
+  // ── Блокировка входа называет себя ─────────────────────────────────────────
+  step('Исчерпанные попытки входа отличимы от неверного пароля')
+
+  {
+    // Несуществующий адрес: так проверка не закрывает вход демо-учётной записи
+    // и заодно доказывает, что код не выдаёт существование адреса.
+    const email = `probe-${Date.now()}@example.invalid`
+    const attempt = async (): Promise<string | null> => {
+      // Своя пара запросов без общего состояния пробника: cookie csrf-токена
+      // нужна только этой попытке.
+      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+      const cookie = (csrf.headers.getSetCookie?.() ?? [])
+        .map((line) => line.split(';')[0])
+        .join('; ')
+      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+        body: new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' }).toString(),
+      })
+      const location = response.headers.get('location') ?? ''
+      return /[?&]code=([a-z_]+)/.exec(location)?.[1] ?? null
+    }
+    const codes: Array<string | null> = []
+    for (let index = 0; index < 6; index += 1) codes.push(await attempt())
+    check(
+      'пять неудач — «неверные данные», шестая — «слишком много попыток»',
+      codes.slice(0, 5).every((code) => code === 'credentials') && codes[5] === 'too_many_attempts',
+      codes.join(', '),
+    )
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
