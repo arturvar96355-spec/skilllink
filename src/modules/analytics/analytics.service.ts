@@ -12,7 +12,7 @@ import type { RecommendationDto } from '@/shared/contracts/recommendation'
 import { daysBetween } from '@/shared/utils/date'
 import { percent, round } from '@/shared/utils/number'
 import * as skillsService from '@/modules/skills/skills.service'
-import { toRecommendationDto } from '@/modules/recommendations/recommendations.service'
+import { toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
 import { aggregateUniversityRatings, calculateRatings, type RatingBounds, type RatingInput } from './rating'
 import type { ProgramRatingDto, RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
@@ -261,7 +261,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     }
   })
 
-  const priorityActions: RecommendationDto[] = priorityRows.map(toRecommendationDto)
+  const priorityActions: RecommendationDto[] = await toRecommendationDtos(priorityRows)
 
   return {
     metrics,

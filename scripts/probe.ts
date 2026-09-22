@@ -1298,6 +1298,90 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Поиск и уведомления ────────────────────────────────────────────────────
+  step('Поиск и уведомления не раскрывают чужого и не врут')
+
+  {
+    // Поиск: представитель вуза не находит чужой вуз, который находит администратор.
+    if (rep && foreignUniversity) {
+      const word = foreignUniversity.name.split(' ')[0] ?? foreignUniversity.name
+      actAs(adminId)
+      const forAdmin = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+        'GET',
+        `/api/search?q=${encodeURIComponent(word)}`,
+      )
+      const adminFinds = (forAdmin.body.data?.groups ?? []).some(
+        (group) => group.type === 'university' && group.items.some((item) => item.id === foreignUniversity.id),
+      )
+      actAs(rep.id)
+      const forRep = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+        'GET',
+        `/api/search?q=${encodeURIComponent(word)}`,
+      )
+      const repFinds = (forRep.body.data?.groups ?? []).some((group) =>
+        group.items.some((item) => item.id === foreignUniversity.id),
+      )
+      check('поиск находит вуз администратору', adminFinds, `по слову «${word}»`)
+      check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
+    }
+
+    const tooShort = await call('GET', '/api/search?q=a')
+    check('поиск по одной букве отклоняется', tooShort.status === 422)
+
+    type Feed = {
+      items: Array<{ kind: string; target: { type: string; id: string } }>
+      unreadCount: number
+    }
+    const targetPath: Record<string, string> = {
+      cooperation: '/api/cooperations/',
+      document: '/api/documents/',
+      recommendation: '/api/recommendations/',
+    }
+
+    // Уведомления сотрудника: просрочки считаются так же, как в личной статистике,
+    // и каждая ссылка открывается тем, кому пришло уведомление.
+    if (managerId) {
+      actAs(managerId)
+      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+      const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
+      const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
+      check(
+        'просроченных в ленте столько же, сколько в личной статистике',
+        feed.status === 200 && overdue === stats.body.data?.overdueStages,
+        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}`,
+      )
+      let broken = 0
+      for (const item of feed.body.data?.items ?? []) {
+        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+        if (opened.status !== 200) broken += 1
+      }
+      check(
+        'каждое уведомление сотрудника открывается',
+        broken === 0,
+        `не открылось ${broken} из ${feed.body.data?.items.length ?? 0}`,
+      )
+      const later = new Date(Date.now() + 1000).toISOString()
+      const read = await call<Feed>('GET', `/api/notifications?since=${encodeURIComponent(later)}`)
+      check('после отметки «прочитано» непрочитанных нет', read.body.data?.unreadCount === 0)
+    }
+
+    // Уведомления представителя вуза: ни сроков, ни рекомендаций — это внутреннее.
+    if (rep) {
+      actAs(rep.id)
+      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+      const internal = (feed.body.data?.items ?? []).filter((item) =>
+        ['stage.overdue', 'stage.due-soon', 'recommendation'].includes(item.kind),
+      ).length
+      check('в ленте представителя вуза нет внутреннего', feed.status === 200 && internal === 0)
+      let broken = 0
+      for (const item of feed.body.data?.items ?? []) {
+        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+        if (opened.status !== 200) broken += 1
+      }
+      check('каждое уведомление представителя вуза открывается у него', broken === 0)
+    }
+  }
+
   // ── Итог ───────────────────────────────────────────────────────────────────
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
