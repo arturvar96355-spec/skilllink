@@ -389,8 +389,8 @@ function GapsTab({
             label="Вуз"
             placeholder="Все вузы"
             value={universityId}
-            onChange={(event) => {
-              setUniversityId(event.target.value)
+            onValueChange={(value) => {
+              setUniversityId(value)
               // Программа принадлежит вузу: после его смены прежний выбор
               // дал бы заведомо пустую выборку.
               setProgramId('')
@@ -407,7 +407,7 @@ function GapsTab({
             placeholder="Все программы"
             hint="Без выбора — сводка по всем действующим"
             value={programId}
-            onChange={(event) => setProgramId(event.target.value)}
+            onValueChange={(value) => setProgramId(value)}
             options={(programs.data ?? []).map((row) => ({ value: row.id, label: row.name }))}
           />
         </ToolbarItem>
@@ -615,7 +615,7 @@ function DemandTab() {
               label="Категория"
               placeholder="Все категории"
               value={category}
-              onChange={(event) => setCategory(event.target.value)}
+              onValueChange={(value) => setCategory(value)}
               options={categoryOptions}
             />
           </ToolbarItem>

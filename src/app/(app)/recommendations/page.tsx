@@ -200,7 +200,7 @@ function RecommendationsContent() {
             label="Статус"
             placeholder="Любой статус"
             value={status}
-            onChange={(event) => changeFilter(() => setStatus(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setStatus(value))}
             options={RECOMMENDATION_STATUSES.map((value) => ({
               value,
               label: RECOMMENDATION_STATUS_LABELS[value],
@@ -212,7 +212,7 @@ function RecommendationsContent() {
             label="Приоритет"
             placeholder="Любой приоритет"
             value={priority}
-            onChange={(event) => changeFilter(() => setPriority(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setPriority(value))}
             options={RECOMMENDATION_PRIORITIES.map((value) => ({
               value,
               label: RECOMMENDATION_PRIORITY_LABELS[value],

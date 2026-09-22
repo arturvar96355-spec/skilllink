@@ -145,7 +145,44 @@
   padding: var(--space-6) var(--space-6) var(--space-10);
   display: flex;
   flex-direction: column;
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-6);
+}
+
+/*
+ * Блоки страницы появляются по очереди с короткой задержкой: сначала заголовок,
+ * потом показатели, потом списки (раздел 7 документа о движении). Задержки
+ * маленькие — страница должна быть пригодна к работе сразу, а не «доезжать».
+ */
+.page > * {
+  animation: blockIn 320ms var(--ease-out) both;
+}
+
+.page > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.page > *:nth-child(2) {
+  animation-delay: 50ms;
+}
+.page > *:nth-child(3) {
+  animation-delay: 100ms;
+}
+.page > *:nth-child(4) {
+  animation-delay: 150ms;
+}
+.page > *:nth-child(n + 5) {
+  animation-delay: 200ms;
+}
+
+@keyframes blockIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
 @media (max-width: 720px) {

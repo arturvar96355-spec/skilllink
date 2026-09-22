@@ -174,3 +174,24 @@ export function abbreviate(name: string): string {
     .map((word) => word[0]!.toUpperCase())
     .join('')
 }
+
+/**
+ * Дата из поля ввода в формат API.
+ *
+ * `<input type="date">` отдаёт «2026-10-01», а сервер ждёт полное время по ISO.
+ * Подставляем полночь по UTC: у контрольных дат в системе нет времени суток,
+ * и придумывать его — значит сдвигать дату на пояс пользователя.
+ */
+export function dateInputToIso(value: string): string | null {
+  if (value.trim() === '') return null
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
+/** Обратное преобразование — для полей формы редактирования. */
+export function isoToDateInput(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}

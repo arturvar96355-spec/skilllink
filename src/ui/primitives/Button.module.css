@@ -96,7 +96,7 @@
 /* Опасное действие: цвет не единственный признак — рядом всегда текст действия. */
 .danger {
   background: rgba(255, 95, 115, 0.12);
-  border-color: rgba(255, 95, 115, 0.32);
+  border-color: var(--danger-border);
   color: var(--text-danger-strong);
 }
 

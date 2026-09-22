@@ -8,6 +8,7 @@ import {
 } from '@/shared/contracts'
 import {
   Badge,
+  Button,
   Card,
   Checkbox,
   CooperationStatusBadge,
@@ -28,12 +29,14 @@ import {
   ToolbarSearch,
   buildQuery,
   cooperationHref,
+  useCurrentUser,
   formatDate,
   formatNumber,
   useDebounced,
   useResource,
   type Column,
 } from '@/ui'
+import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
 
 const PAGE_SIZE = 20
@@ -52,6 +55,8 @@ export default function CooperationsPage() {
   const [onlyBlocked, setOnlyBlocked] = useState(false)
   const [sort, setSort] = useState('-updatedAt')
   const [page, setPage] = useState(1)
+  const user = useCurrentUser()
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const query = useDebounced(search.trim(), 300)
 
@@ -176,6 +181,13 @@ export default function CooperationsPage() {
         title="Сотрудничество"
         description="Связки «вуз — образовательная программа — IT-продукт». Каждая проходит четырнадцать этапов, и система следит, чтобы их нельзя было пропустить."
         meta={containsMock ? <MockBadge /> : undefined}
+        actions={
+          user.permissions.canWrite ? (
+            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+              Создать связку
+            </Button>
+          ) : undefined
+        }
       />
 
       <Toolbar>
@@ -193,7 +205,7 @@ export default function CooperationsPage() {
             label="Статус"
             placeholder="Любой статус"
             value={status}
-            onChange={(event) => changeFilter(() => setStatus(event.target.value))}
+            onValueChange={(value) => changeFilter(() => setStatus(value))}
             options={COOPERATION_STATUSES.map((value) => ({
               value,
               label: COOPERATION_STATUS_LABELS[value],
@@ -255,6 +267,15 @@ export default function CooperationsPage() {
           )}
         </Card>
       </Section>
+
+      {isCreateOpen && (
+        <CreateCooperationModal
+          onClose={(created) => {
+            setIsCreateOpen(false)
+            if (created) cooperations.reload()
+          }}
+        />
+      )}
     </>
   )
 }

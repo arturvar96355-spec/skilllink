@@ -108,7 +108,7 @@
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
   padding-left: var(--space-3);
-  border-left: 2px solid rgba(200, 77, 255, 0.28);
+  border-left: 2px solid var(--border-accent);
 }
 
 .measure {

@@ -6,6 +6,32 @@
   gap: var(--space-4);
 }
 
+/* Плитки показателей выходят по очереди — так видно, что их несколько,
+   и глаз успевает прочитать каждую (раздел 9 документа о движении). */
+.kpis > * {
+  animation: kpiIn 420ms var(--ease-out) both;
+}
+
+.kpis > *:nth-child(2) {
+  animation-delay: 70ms;
+}
+.kpis > *:nth-child(3) {
+  animation-delay: 140ms;
+}
+.kpis > *:nth-child(4) {
+  animation-delay: 210ms;
+}
+.kpis > *:nth-child(n + 5) {
+  animation-delay: 280ms;
+}
+
+@keyframes kpiIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
 .columns {
   display: grid;
   grid-template-columns: 1.15fr 1fr;
@@ -39,8 +65,8 @@
   height: 34px;
   flex: none;
   border-radius: var(--radius-icon);
-  background: rgba(44, 29, 70, 0.9);
-  border: 1px solid rgba(255, 95, 115, 0.3);
+  background: var(--surface-icon);
+  border: 1px solid var(--danger-border);
   color: var(--status-danger);
 }
 
@@ -96,7 +122,7 @@
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
   padding-left: var(--space-3);
-  border-left: 2px solid rgba(200, 77, 255, 0.28);
+  border-left: 2px solid var(--border-accent);
 }
 
 .coverage {

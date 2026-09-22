@@ -32,6 +32,7 @@ import {
   ToolbarItem,
   ToolbarSearch,
   buildQuery,
+  useCurrentUser,
   formatDate,
   formatNumber,
   pluralize,
@@ -40,6 +41,7 @@ import {
   useResource,
   type Column,
 } from '@/ui'
+import { CreateProgramModal } from './CreateProgramModal'
 import styles from './programs.module.css'
 
 /**
@@ -75,6 +77,8 @@ export default function ProgramsPage() {
   const [universityId, setUniversityId] = useState('')
   const [sort, setSort] = useState('-updatedAt')
   const [page, setPage] = useState(1)
+  const user = useCurrentUser()
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const query = useDebounced(search)
 
@@ -199,6 +203,13 @@ export default function ProgramsPage() {
         title="Программы"
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
         meta={containsMockData ? <MockBadge /> : undefined}
+        actions={
+          user.permissions.canWrite ? (
+            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+              Создать программу
+            </Button>
+          ) : undefined
+        }
       />
 
       <Toolbar>
@@ -220,8 +231,8 @@ export default function ProgramsPage() {
             placeholder="Любой"
             options={LEVEL_OPTIONS}
             value={level}
-            onChange={(event) => {
-              setLevel(event.target.value as ProgramLevel | '')
+            onValueChange={(value) => {
+              setLevel(value as ProgramLevel | '')
               setPage(1)
             }}
           />
@@ -232,8 +243,8 @@ export default function ProgramsPage() {
             placeholder="Любой"
             options={STATUS_OPTIONS}
             value={status}
-            onChange={(event) => {
-              setStatus(event.target.value as ProgramStatus | '')
+            onValueChange={(value) => {
+              setStatus(value as ProgramStatus | '')
               setPage(1)
             }}
           />
@@ -245,8 +256,8 @@ export default function ProgramsPage() {
             options={universityOptions}
             disabled={universityOptions.length === 0}
             value={universityId}
-            onChange={(event) => {
-              setUniversityId(event.target.value)
+            onValueChange={(value) => {
+              setUniversityId(value)
               setPage(1)
             }}
           />
@@ -299,6 +310,16 @@ export default function ProgramsPage() {
             nouns={['программа', 'программы', 'программ']}
           />
         </Card>
+      )}
+
+      {isCreateOpen && (
+        <CreateProgramModal
+          defaultUniversityId={universityId || undefined}
+          onClose={(created) => {
+            setIsCreateOpen(false)
+            if (created) programs.reload()
+          }}
+        />
       )}
     </>
   )

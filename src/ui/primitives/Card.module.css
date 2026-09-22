@@ -43,7 +43,7 @@
 
 .interactive:hover {
   background: var(--surface-hover);
-  border-color: rgba(200, 77, 255, 0.28);
+  border-color: var(--border-accent);
   transform: translateY(-1px);
   box-shadow: var(--shadow-base), var(--glow-soft);
 }
