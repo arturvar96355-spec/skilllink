@@ -9,6 +9,19 @@
 
 ---
 
+## Если вы на Windows
+
+Команды ниже написаны для macOS и Linux. На Windows три из них не сработают —
+подробный разбор в `README.md`, раздел «Windows: три вещи, о которых надо знать
+заранее». Коротко:
+
+| Вместо | В PowerShell |
+| --- | --- |
+| `cp .env.example .env` | `Copy-Item .env.example .env` |
+| `VAR=value команда` | `$env:VAR = "value"` отдельной строкой, затем команда |
+| `export VAR=...` | `$env:VAR = ...` |
+| `curl -s ...` | `curl.exe -s ...` (в PowerShell `curl` — это `Invoke-WebRequest`) |
+
 ## Запуск за пять минут
 
 ```bash

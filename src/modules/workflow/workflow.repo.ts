@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
@@ -84,10 +85,16 @@ export async function findOverdue(
       ? new Date(now.getTime() - query.minDaysOverdue * 24 * 60 * 60 * 1000)
       : now
 
+  const cooperationFilter = buildCooperationFilter(query, scope)
+  // Спросили о чужом вузе — пустой ответ, а не «фильтра нет». Разлить `null`
+  // через спред нельзя: в объекте это ничего не добавляет, и выборка стала бы
+  // выборкой по всем вузам.
+  if (cooperationFilter === null) return { rows: [], total: 0 }
+
   const where: Prisma.WorkflowStageWhereInput = {
     deadline: { lt: deadlineBefore },
     status: { notIn: ['COMPLETED', 'CANCELLED'] },
-    ...buildCooperationFilter(query, scope),
+    ...cooperationFilter,
   }
 
   const [rows, total] = await Promise.all([
@@ -106,9 +113,12 @@ export async function findBlocked(
   query: StageListQuery,
   scope: { universityId?: string },
 ): Promise<{ rows: StageWithCooperationRow[]; total: number }> {
+  const blockedFilter = buildCooperationFilter(query, scope)
+  if (blockedFilter === null) return { rows: [], total: 0 }
+
   const where: Prisma.WorkflowStageWhereInput = {
     status: 'BLOCKED',
-    ...buildCooperationFilter(query, scope),
+    ...blockedFilter,
   }
 
   const [rows, total] = await Promise.all([
@@ -133,8 +143,17 @@ export async function findBlocked(
 function buildCooperationFilter(
   query: StageListQuery,
   scope: { universityId?: string },
-): Prisma.WorkflowStageWhereInput {
-  const universityId = scope.universityId ?? query.universityId
+): Prisma.WorkflowStageWhereInput | null {
+  // Пересечение, а не «моя область важнее запроса».
+  //
+  // Было `scope.universityId ?? query.universityId`: представитель вуза,
+  // спросивший о чужом вузе, получал СВОИ записи под чужой подписью. Утечки
+  // не происходило, но ответ отвечал не на заданный вопрос — а это хуже пустого
+  // ответа, потому что выглядит правдоподобно.
+  const universityFilter = intersectUniversityFilter(scope, query.universityId)
+  if (universityFilter === null) return null
+
+  const universityId = universityFilter.universityId
   return {
     // Контрольный этап вычисляется автоматически и вручную не меняется (решение 2).
     // В списке дел ему не место: он просрочен ровно потому, что не закрыты этапы

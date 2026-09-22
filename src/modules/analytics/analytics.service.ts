@@ -216,6 +216,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       groupCount: program.groupCount,
       metricsSource: program.metricsSource,
     })),
+    await ratingBoundsFromDatabase(scope),
   )
 
   const topPrograms: TopProgramDto[] = programs
@@ -287,7 +288,8 @@ export async function programRating(
 ): Promise<{ data: RankedProgramDto[]; total: number }> {
   assertCan(user, 'ANALYTICS')
 
-  const programs = await repo.findProgramsForRating(universityScope(user), 500)
+  const ratingScope = universityScope(user)
+  const programs = await repo.findProgramsForRating(ratingScope, 500)
   const ratings = calculateRatings(
     programs.map((program) => ({
       programId: program.id,
@@ -296,6 +298,7 @@ export async function programRating(
       groupCount: program.groupCount,
       metricsSource: program.metricsSource,
     })),
+    await ratingBoundsFromDatabase(ratingScope),
   )
 
   const ranked: RankedProgramDto[] = programs
@@ -369,6 +372,24 @@ export async function universityRatingsForPage(
   )
 }
 
+/**
+ * Границы нормирования по всей базе — одним агрегатом.
+ *
+ * Рейтинг считается по срезу программ (двести на дашборде, пятьсот в списке),
+ * но шкала обязана быть общей. Иначе балл зависит от того, попала ли программа
+ * в срез: на выборке из 260 программ p150 получала 61,3 при полном расчёте
+ * и 75,3 при срезе в 200 строк. Это делает рейтинг необъяснимым — то, чего
+ * раздел 10 ТЗ прямо требует избегать.
+ */
+async function ratingBoundsFromDatabase(scope: { universityId?: string }): Promise<RatingBounds> {
+  const bounds = await repo.findRatingBounds(scope)
+  return new Map([
+    ['applicationCount', toBound(bounds._min.applicationCount, bounds._max.applicationCount)],
+    ['studentCount', toBound(bounds._min.studentCount, bounds._max.studentCount)],
+    ['groupCount', toBound(bounds._min.groupCount, bounds._max.groupCount)],
+  ])
+}
+
 /** Агрегат СУБД отдаёт null, когда заполненных значений нет — это «шкалы нет». */
 function toBound(min: number | null, max: number | null): { min: number; max: number } | null {
   return min === null || max === null ? null : { min, max }
@@ -388,6 +409,7 @@ export async function universityRatings(
 ): Promise<Map<string, UniversityRatingDto>> {
   assertCan(user, 'ANALYTICS')
 
+  // Здесь выборка полная — границы по ней совпадают с границами по базе.
   const programs = await repo.findProgramsForUniversityRating(universityScope(user))
   const ratings = calculateRatings(
     programs.map((program) => ({

@@ -12,6 +12,7 @@ export type AuditAction =
   | 'cooperation.create'
   | 'cooperation.update'
   | 'stage.status.change'
+  | 'stage.fields.change'
   | 'stage.auto.recompute'
   | 'task.toggle'
   | 'application.create'

@@ -294,6 +294,22 @@ export async function updateStage(
       objectId: stageId,
       payload: { from: stage.status, to: next, stageNumber: stage.stageNumber },
     })
+  } else {
+    // Правка полей без смены статуса тоже должна оставлять след.
+    //
+    // Раньше запись в журнал стояла только под сменой статуса, и перенос срока
+    // у уже завершённого этапа проходил бесследно — а он переписывает показатель
+    // «этапы, закрытые в срок». Показатель менялся, а по чему — узнать было негде.
+    await writeAudit({
+      userId: user.id,
+      action: 'stage.fields.change',
+      objectType: 'WorkflowStage',
+      objectId: stageId,
+      payload: {
+        stageNumber: stage.stageNumber,
+        fields: Object.keys(input).filter((key) => key !== 'status'),
+      },
+    })
   }
 
   const fresh = await repo.findStageById(stageId)
