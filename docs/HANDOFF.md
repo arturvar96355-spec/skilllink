@@ -25,7 +25,7 @@
 ## Запуск за пять минут
 
 ```bash
-git clone <репозиторий> && cd skilllink
+git clone https://github.com/arturvar96355-spec/skilllink.git && cd skilllink
 npm install
 cp .env.example .env          # правьте только DATABASE_URL
 npm run db:deploy
@@ -176,7 +176,7 @@ npm run db:studio     # визуальный редактор
 
 `.github/workflows/ci.yml` — на каждый пуш проверяются типы, тесты, актуальность
 `docs/openapi.json`, сборка, сквозной сценарий и пробник против поднятой базы.
-Секреты для этого не нужны. Как только заведёте репозиторий на GitHub — заработает само.
+Секреты для этого не нужны. Результат — во вкладке Actions репозитория.
 
 ## Артуру — на приёмку
 
