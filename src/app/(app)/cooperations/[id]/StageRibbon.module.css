@@ -1,0 +1,236 @@
+/*
+ * Лента четырнадцати этапов.
+ *
+ * Это единственный экранный элемент, который может существовать только здесь:
+ * четырнадцать шагов с контрольными точками — и есть тот процесс, ради которого
+ * система написана. Плитки фаз, стоявшие тут раньше, могли бы принадлежать
+ * любому дашборду.
+ */
+
+.ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-base);
+  overflow-x: auto;
+}
+
+/* Подписи фаз стоят над своими этапами и занимают ровно их ширину. */
+.phases {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 720px;
+}
+
+.phase {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.phaseCurrent {
+  border-bottom-color: var(--border-accent);
+}
+
+.phaseName {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.phaseCurrent .phaseName {
+  color: var(--text-accent);
+}
+
+.phaseCount {
+  font-size: var(--text-caption-size);
+  color: var(--text-disabled);
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 720px;
+  align-items: start;
+}
+
+/* Линия, вдоль которой стоят этапы: пройденная часть ярче. */
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 17px;
+  height: 2px;
+  background: rgba(150, 120, 220, 0.16);
+  border-radius: var(--radius-pill);
+}
+
+.lineDone {
+  position: absolute;
+  left: 0;
+  top: 17px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-progress);
+  transition: width 700ms var(--ease-out);
+}
+
+.node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--text-tertiary);
+}
+
+.dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  transition:
+    transform var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out),
+    background var(--motion-micro) var(--ease-out);
+}
+
+.node:hover .dot {
+  transform: translateY(-2px);
+  border-color: var(--border-hover);
+}
+
+.node:focus-visible .dot {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.done .dot {
+  background: rgba(37, 224, 210, 0.12);
+  border-color: var(--success-border);
+  color: var(--status-success);
+}
+
+.current .dot {
+  background: rgba(200, 77, 255, 0.16);
+  border-color: var(--border-hover);
+  color: var(--text-accent);
+  box-shadow: 0 0 18px rgba(200, 77, 255, 0.22);
+}
+
+.overdue .dot {
+  background: var(--danger-surface);
+  border-color: var(--danger-border);
+  color: var(--status-danger);
+}
+
+.blocked .dot {
+  background: rgba(255, 196, 77, 0.12);
+  border-color: rgba(255, 196, 77, 0.32);
+  color: var(--status-warning);
+}
+
+.cancelled .dot {
+  color: var(--text-disabled);
+  text-decoration: line-through;
+}
+
+.selected .dot {
+  border-color: var(--border-active);
+  box-shadow: var(--glow-active);
+}
+
+/* Контрольная точка: замок над номером. Этого значка нет больше нигде. */
+.control {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-accent);
+  color: var(--text-accent);
+}
+
+.label {
+  max-width: 96px;
+  font-size: var(--text-caption-size);
+  line-height: 1.25;
+  text-align: center;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.node:hover .label,
+.selected .label {
+  color: var(--text-secondary);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-divider);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.legendDone {
+  background: rgba(37, 224, 210, 0.3);
+  border-color: var(--success-border);
+}
+
+.legendCurrent {
+  background: rgba(200, 77, 255, 0.3);
+  border-color: var(--border-hover);
+}
+
+.legendOverdue {
+  background: rgba(255, 95, 115, 0.3);
+  border-color: var(--danger-border);
+}

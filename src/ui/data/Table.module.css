@@ -18,7 +18,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   text-align: left;
   font-size: var(--text-caption-size);
   font-weight: 600;
@@ -80,8 +80,15 @@
   box-shadow: inset 2px 0 0 var(--accent-secondary);
 }
 
+/*
+ * Плотность строки.
+ *
+ * Отступ по вертикали вдвое меньше горизонтального: в реестр должно влезать
+ * два десятка строк, а не восемь. Рабочая система тем полезнее, чем больше
+ * видно за один взгляд, — воздух здесь стоит дороже, чем кажется.
+ */
 .td {
-  padding: var(--space-4);
+  padding: var(--space-2) var(--space-4);
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-primary);

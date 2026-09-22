@@ -191,7 +191,7 @@ export default function UniversitiesPage() {
     <>
       <PageHeader
         title="Университеты"
-        description="Реестр вузов, с которыми ведётся работа. Балл рейтинга сравнивает вузы между собой и складывается из рейтингов их программ."
+        description="Реестр вузов, с которыми ведётся работа. Балл сравнивает вузы между собой."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
           user.permissions.canWrite ? (
