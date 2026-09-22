@@ -2,6 +2,12 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { DOCUMENT_SORT_FIELDS } from '@/modules/documents/documents.schema'
+import { PRODUCT_SORT_FIELDS } from '@/modules/products/products.schema'
+import { PROGRAM_SORT_FIELDS } from '@/modules/programs/programs.schema'
+import { SKILL_SORT_FIELDS } from '@/modules/skills/skills.schema'
+import { UNIVERSITY_SORT_FIELDS } from '@/modules/universities/universities.schema'
+
 /**
  * Ограничения, которые нельзя выразить в схеме Prisma, живут только в SQL
  * миграции. Такое легко потерять при следующей правке схемы: Prisma про них
@@ -50,5 +56,69 @@ describe('ограничения из разбора схемы Тиграном
     const backfill = migrations.indexOf("SET \"region\" = 'Россия' WHERE \"region\" IS NULL")
     expect(backfill).toBeGreaterThan(-1)
     expect(backfill).toBeLessThan(index)
+  })
+})
+
+/**
+ * Порядок строк по умолчанию задаётся локалью кластера PostgreSQL и на разных
+ * машинах разный: на macOS кириллица сортируется почти случайно, в образе
+ * postgres:16-alpine — по кодам символов. Поэтому колонкам, по которым API
+ * сортирует списки, задана ICU-сортировка в миграции.
+ *
+ * Проверяется и обратное: состав полей сортировки зафиксирован. Если появится
+ * новое текстовое поле, тест упадёт — и это повод задать ему сортировку тоже.
+ */
+describe('русская сортировка списков', () => {
+  const migrations = readdirSync(join(process.cwd(), 'prisma/migrations'))
+    .filter((name) => !name.endsWith('.toml'))
+    .map((name) => readFileSync(join(process.cwd(), 'prisma/migrations', name, 'migration.sql'), 'utf8'))
+    .join('\n')
+
+  const collated: Array<[string, string]> = [
+    ['universities', 'name'],
+    ['universities', 'city'],
+    ['universities', 'region'],
+    ['educational_programs', 'name'],
+    ['it_products', 'name'],
+    ['it_products', 'category'],
+    ['skills', 'name'],
+    ['skills', 'category'],
+    ['documents', 'title'],
+    ['contacts', 'full_name'],
+    ['users', 'full_name'],
+    ['data_sources', 'name'],
+  ]
+
+  /**
+   * Все команды ALTER TABLE по этой таблице из всех миграций — каждая от своего
+   * начала до точки с запятой. Таблица могла меняться и раньше, поэтому нельзя
+   * брать первую попавшуюся, и нельзя искать в тексте дальше конца команды:
+   * там уже другие таблицы с колонками того же имени.
+   */
+  function alterStatements(table: string): string[] {
+    const statements: string[] = []
+    const marker = `ALTER TABLE "${table}"`
+    let from = migrations.indexOf(marker)
+    while (from !== -1) {
+      const end = migrations.indexOf(';', from)
+      statements.push(migrations.slice(from, end === -1 ? undefined : end))
+      from = migrations.indexOf(marker, from + marker.length)
+    }
+    return statements
+  }
+
+  it.each(collated)('%s.%s сортируется по-русски', (table, column) => {
+    const pattern = new RegExp(`ALTER COLUMN "${column}"\\s+TYPE TEXT COLLATE "ru-x-icu"`)
+    expect(alterStatements(table).some((statement) => pattern.test(statement))).toBe(true)
+  })
+
+  it('состав полей сортировки не менялся', () => {
+    expect(UNIVERSITY_SORT_FIELDS).toEqual(['name', 'city', 'region', 'status', 'createdAt', 'updatedAt'])
+    expect(PROGRAM_SORT_FIELDS).toEqual([
+      'name', 'level', 'status', 'applicationCount', 'studentCount', 'groupCount', 'createdAt', 'updatedAt',
+    ])
+    expect(PRODUCT_SORT_FIELDS).toEqual(['name', 'category', 'status', 'updatedAt'])
+    expect(SKILL_SORT_FIELDS).toEqual(['name', 'category', 'createdAt'])
+    expect(DOCUMENT_SORT_FIELDS).toEqual(['title', 'status', 'createdAt', 'updatedAt'])
   })
 })
