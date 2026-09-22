@@ -2,15 +2,13 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useMemo, useState } from 'react'
+import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
-  STAGE_PHASES,
-  STAGE_PHASE_LABELS,
   type CooperationDto,
   type DocumentListItemDto,
   type DocumentPackageResultDto,
   type MeetingDto,
-  type StagePhase,
   type WorkflowStageDto,
 } from '@/shared/contracts'
 import {
@@ -47,6 +45,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { StageCard } from './StageCard'
+import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
 
 /**
@@ -64,6 +63,9 @@ function CooperationContent() {
   const toast = useToast()
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings'>('stages')
+  // Этап, к которому нужно перейти: приходит ссылкой из уведомления
+  // или выбирается щелчком по ленте.
+  const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
 
   const cooperation = useResource<CooperationDto>(`/api/cooperations/${params.id}`)
 
@@ -94,18 +96,6 @@ function CooperationContent() {
     const original = cooperation.data?.stages ?? []
     return original.map((stage) => patchedStages[stage.id] ?? stage)
   }, [cooperation.data, patchedStages])
-
-  const phaseSummary = useMemo(() => {
-    return STAGE_PHASES.map((phase: StagePhase) => {
-      const inPhase = stages.filter((stage) => stage.phase === phase)
-      const closed = inPhase.filter(
-        (stage) => stage.status === 'COMPLETED' || stage.status === 'CANCELLED',
-      ).length
-      const isCurrent = inPhase.some((stage) => stage.status === 'IN_PROGRESS')
-      const hasOverdue = inPhase.some((stage) => stage.isOverdue)
-      return { phase, total: inPhase.length, closed, isCurrent, hasOverdue }
-    })
-  }, [stages])
 
   async function onGeneratePackage() {
     const result = await generatePackage.run(undefined)
@@ -268,25 +258,15 @@ function CooperationContent() {
         title="Ход работы"
         description="Четырнадцатый этап система закрывает сама, когда закрыты остальные. Этапы 6, 7 и 11 — контрольные точки: начать их, пока не закрыты предыдущие, нельзя."
       >
-        <div className={styles.stepper}>
-          {phaseSummary.map((phase) => (
-            <div
-              key={phase.phase}
-              className={[styles.phase, phase.isCurrent ? styles.phaseCurrent : ''].filter(Boolean).join(' ')}
-            >
-              <span className={styles.phaseName}>{STAGE_PHASE_LABELS[phase.phase]}</span>
-              <span className={styles.phaseCount}>
-                {phase.closed} из {phase.total}
-                {phase.hasOverdue && ' · есть просрочка'}
-              </span>
-              <Progress
-                value={phase.total === 0 ? 0 : (phase.closed / phase.total) * 100}
-                tone={phase.hasOverdue ? 'danger' : 'default'}
-                label={STAGE_PHASE_LABELS[phase.phase]}
-              />
-            </div>
-          ))}
-        </div>
+        <StageRibbon
+          stages={stages}
+          controlPoints={CONTROL_POINT_STAGES}
+          selectedStageId={focusStageId}
+          onSelect={(stageId) => {
+            setTab('stages')
+            setFocusStageId(stageId)
+          }}
+        />
 
       </Section>
 
@@ -299,7 +279,7 @@ function CooperationContent() {
               key={stage.id}
               stage={stage}
               canWrite={user.permissions.canWrite}
-              isHighlighted={stage.id === highlightedStageId}
+              isHighlighted={stage.id === focusStageId}
               onStageChanged={(updated) =>
                 setPatchedStages((current) => ({ ...current, [updated.id]: updated }))
               }

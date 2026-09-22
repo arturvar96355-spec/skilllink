@@ -179,7 +179,7 @@ export default function CooperationsPage() {
     <>
       <PageHeader
         title="Сотрудничество"
-        description="Связки «вуз — образовательная программа — IT-продукт». Каждая проходит четырнадцать этапов, и система следит, чтобы их нельзя было пропустить."
+        description="Связки «вуз — программа — IT-продукт». Каждая проходит четырнадцать этапов."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
           user.permissions.canWrite ? (
