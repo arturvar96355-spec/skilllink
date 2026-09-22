@@ -24,6 +24,20 @@ fi
 
 cd "$(git rev-parse --show-toplevel)"
 
+# ── Соединение с сервером ───────────────────────────────────────────────────
+#
+# Сборка образа идёт несколько минут и почти всё это время молчит. Для сети
+# между нами и сервером молчащее соединение выглядит заброшенным: корпоративные
+# сети, VPN и мобильные операторы обрывают такие сами. Дважды подряд выкладка
+# оборвалась именно так — на `npm ci`.
+#
+# ServerAliveInterval заставляет клиента посылать сигнал каждые 15 секунд,
+# и соединение перестаёт выглядеть мёртвым. Восемь пропущенных подряд — тогда
+# уже настоящий обрыв.
+SSH_OPTS="-o ServerAliveInterval=15 -o ServerAliveCountMax=8 -o ConnectTimeout=20"
+# shellcheck disable=SC2086 # параметры должны разделиться на отдельные аргументы
+ssh_run() { ssh $SSH_OPTS "$@"; }
+
 # ── Что именно разворачиваем ────────────────────────────────────────────────
 COMMIT=$(git rev-parse --short HEAD)
 if [ -n "$(git status --porcelain)" ]; then
@@ -45,11 +59,11 @@ fi
 echo "━━ Разворачиваю $COMMIT на $TARGET → $PUBLIC_URL"
 
 # ── 1. Сервер ───────────────────────────────────────────────────────────────
-ssh "$TARGET" 'bash -s' < scripts/deploy/server-setup.sh
+ssh_run "$TARGET" 'bash -s' < scripts/deploy/server-setup.sh
 
 # ── 2. Секреты: создаются один раз и остаются на сервере ────────────────────
 # shellcheck disable=SC2087
-ssh "$TARGET" "bash -s" <<REMOTE
+ssh_run "$TARGET" "bash -s" <<REMOTE
 set -euo pipefail
 mkdir -p $REMOTE_DIR
 ENV_FILE=$REMOTE_DIR/.env.cloud
@@ -78,7 +92,7 @@ REMOTE
 
 # ── 3. Код ──────────────────────────────────────────────────────────────────
 echo "── Отправляю код ($COMMIT)"
-git archive --format=tar HEAD | ssh "$TARGET" "
+git archive --format=tar HEAD | ssh_run "$TARGET" "
   set -euo pipefail
   rm -rf $REMOTE_DIR/app.new && mkdir -p $REMOTE_DIR/app.new
   tar -x -C $REMOTE_DIR/app.new
@@ -95,7 +109,7 @@ git archive --format=tar HEAD | ssh "$TARGET" "
 # Порядок (база → миграции → приложение) и разбор ошибок — в remote-up.sh:
 # он уехал на сервер вместе с кодом.
 echo "── Поднимаю стенд (первый раз — несколько минут)"
-ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
+ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
 
 # ── 5. Проверка снаружи ─────────────────────────────────────────────────────
 # С доменом Caddy получает сертификат уже после старта — первый раз это
@@ -112,7 +126,7 @@ if [ -n "$DOMAIN" ]; then
 fi
 
 echo "── Проверяю стенд снаружи"
-PASSWORD=$(ssh "$TARGET" "grep '^SEED_DEMO_PASSWORD=' $REMOTE_DIR/.env.cloud | cut -d= -f2")
+PASSWORD=$(ssh_run "$TARGET" "grep '^SEED_DEMO_PASSWORD=' $REMOTE_DIR/.env.cloud | cut -d= -f2")
 DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"
 
 echo
