@@ -5,6 +5,8 @@ import type { Permission } from '@/shared/auth/permissions'
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { exportQuerySchema } from '@/modules/export/export.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
+import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
+import { searchQuerySchema } from '@/modules/search/search.schema'
 import { userListQuerySchema } from '@/modules/auth/auth.schema'
 import {
   cooperationListQuerySchema,
@@ -136,6 +138,30 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'и просроченные — по связкам и этапам, где текущий пользователь ответственный.',
     permission: 'ANY',
     errors: ['UNAUTHORIZED', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/notifications',
+    tag: 'Пользователи',
+    summary: 'Лента уведомлений текущего пользователя',
+    description:
+      'Сроки своих этапов, изменения по своим связкам и документам, важные рекомендации. ' +
+      'Прочитанность хранит фронт: отметку последнего просмотра он передаёт в since.',
+    query: notificationFeedQuerySchema,
+    permission: 'READ',
+    errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/search',
+    tag: 'Пользователи',
+    summary: 'Глобальный поиск по разделам',
+    description:
+      'Вузы, программы, связки, продукты, навыки и документы одним запросом, ' +
+      'сгруппированные по разделам. Права и видимость — как у соответствующих списков.',
+    query: searchQuerySchema,
+    permission: 'READ',
+    errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
   },
   {
     method: 'get',
