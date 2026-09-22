@@ -1,0 +1,65 @@
+/* Статусы. Цвет никогда не единственный носитель смысла — рядом всегда текст (раздел 20). */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.neutral {
+  background: rgba(119, 112, 143, 0.16);
+  border-color: rgba(119, 112, 143, 0.3);
+  color: var(--text-muted-cool);
+}
+
+.success {
+  background: rgba(37, 224, 210, 0.12);
+  border-color: rgba(37, 224, 210, 0.32);
+  color: var(--status-success);
+}
+
+.warning {
+  background: rgba(255, 196, 77, 0.12);
+  border-color: rgba(255, 196, 77, 0.32);
+  color: var(--status-warning);
+}
+
+.danger {
+  background: rgba(255, 95, 115, 0.12);
+  border-color: rgba(255, 95, 115, 0.34);
+  color: var(--status-danger);
+}
+
+.accent {
+  background: rgba(200, 77, 255, 0.14);
+  border-color: rgba(200, 77, 255, 0.32);
+  color: var(--text-accent);
+}
+
+.info {
+  background: rgba(168, 85, 247, 0.1);
+  border-color: rgba(168, 85, 247, 0.24);
+  color: var(--text-violet);
+}
+
+/* Демонстрационные данные помечаются всегда: выдавать их за настоящие нельзя. */
+.mock {
+  background: rgba(255, 122, 69, 0.12);
+  border-color: rgba(255, 122, 69, 0.3);
+  color: var(--text-warm);
+}

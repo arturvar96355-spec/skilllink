@@ -1,0 +1,143 @@
+/* Реестр IT-продуктов и боковая панель карточки продукта. */
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.plain {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* «Нет данных» приглушено: пустое значение не должно читаться как показатель. */
+.empty {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.count {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Боковая панель. */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.drawerHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.description {
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  color: var(--text-secondary);
+}
+
+.docLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--accent-primary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.docLink:hover {
+  color: var(--accent-secondary);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-divider);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.factLabel {
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  font-size: var(--text-body-size);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.skills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.skillsTitle {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--text-primary);
+}
+
+.skillList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.skill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+}
+
+.skillText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.skillName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.skillCategory {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

@@ -1,0 +1,245 @@
+/* Каркас приложения: сайдбар слева, шапка сверху, содержимое, подвал (раздел 2 шаблона). */
+
+.shell {
+  min-height: 100vh;
+  padding-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 1080px) {
+  .shell {
+    padding-left: 0;
+  }
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-height);
+  padding: 0 var(--space-6);
+  background: var(--bg-header);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.menuButton {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .menuButton {
+    display: inline-flex;
+  }
+}
+
+/* Кнопка «домой» с логотипом заменила прежнюю надпись и строку поиска (раздел 8). */
+.home {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-button);
+  border: 1px solid transparent;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out);
+}
+
+.home:hover {
+  background: rgba(90, 54, 145, 0.2);
+  border-color: rgba(180, 130, 255, 0.16);
+  box-shadow: var(--glow-soft);
+}
+
+.homeName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.context {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.contextSeparator {
+  color: var(--text-disabled);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.profile {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 44px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-radius: var(--radius-button);
+  border: 1px solid transparent;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.profile:hover {
+  background: rgba(90, 54, 145, 0.2);
+  border-color: rgba(180, 130, 255, 0.16);
+}
+
+.profileText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.profileName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.profileRole {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .header {
+    padding: 0 var(--space-4);
+  }
+
+  .profileText,
+  .context {
+    display: none;
+  }
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-6) var(--space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+@media (max-width: 720px) {
+  .main {
+    padding: var(--space-4) var(--space-4) var(--space-8);
+  }
+}
+
+/* Подвал: спокойный, не спорит с содержимым (раздел 27 документа о движении). */
+.footer {
+  border-top: 1px solid var(--border-divider);
+  background: rgba(13, 10, 26, 0.6);
+}
+
+.footerInner {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+@media (max-width: 900px) {
+  .footerInner {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .footerInner {
+    grid-template-columns: 1fr;
+  }
+}
+
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 320px;
+}
+
+.footerBrandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.footerAbout {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.footerGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.footerTitle {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-1);
+}
+
+.footerLink {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  transition: color var(--motion-micro) var(--ease-out);
+  width: fit-content;
+}
+
+.footerLink:hover {
+  color: var(--text-primary);
+}
+
+.footerBottom {
+  border-top: 1px solid var(--border-divider);
+}
+
+.footerBottomInner {
+  width: 100%;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

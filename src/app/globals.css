@@ -1,0 +1,287 @@
+/**
+ * Токены и базовые стили SkillLink.
+ *
+ * Значения взяты из дизайн-системы (docs/design/03_Typography.md и 04_Colors.md)
+ * и объявлены здесь один раз. Компоненты обращаются только к переменным:
+ * цвет, радиус или размер шрифта, записанный числом внутри компонента, — ошибка,
+ * из-за которой страницы начинают расходиться между собой.
+ */
+
+:root {
+  /* Шрифт: переменную задаёт next/font в корневом макете, стек — запасной. */
+  --font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Поверхности */
+  --bg-main: #0c0a18;
+  --bg-secondary: #100d20;
+  --bg-sidebar: #0d0b1a;
+  --bg-header: rgba(12, 10, 24, 0.78);
+
+  --surface-card: rgba(29, 23, 52, 0.72);
+  --surface-card-muted: rgba(24, 19, 45, 0.64);
+  --surface-hover: rgba(40, 30, 68, 0.78);
+  --surface-overlay: rgba(24, 18, 43, 0.88);
+  --surface-raised: #21183a;
+
+  /* Фиолетовая шкала */
+  --purple-900: #120d25;
+  --purple-800: #19122f;
+  --purple-700: #241a42;
+  --purple-600: #302052;
+  --purple-500: #6d3fd6;
+
+  /* Неоновые акценты */
+  --neon-pink: #ff4fb3;
+  --neon-magenta: #c84dff;
+  --neon-orange: #ff7a45;
+  --neon-violet: #a855f7;
+  --neon-cyan: #25e0d2;
+
+  --accent-primary: #c34cff;
+  --accent-secondary: #ff4fa3;
+  --accent-warm: #ff7a4d;
+
+  --gradient-primary: linear-gradient(135deg, #ff4fb3 0%, #c84dff 48%, #ff7a45 100%);
+  --gradient-button: linear-gradient(135deg, #c84dff, #ff4fb3 55%, #ff7a45);
+  --gradient-secondary: linear-gradient(135deg, #8b5cf6, #c84dff);
+  --gradient-progress: linear-gradient(90deg, #a855f7, #ff4fb3, #ff7a45);
+
+  /* Текст */
+  --text-primary: #f4f1fa;
+  --text-secondary: #9b95b5;
+  --text-tertiary: #706a8a;
+  --text-disabled: #4d4865;
+  /* Акцентные оттенки текста: ссылки на объект, значки, текст отказа.
+     Отдельными токенами, чтобы один и тот же смысл не красился по-разному. */
+  --text-accent: #d9a2ff;
+  --text-accent-soft: #c9a6ff;
+  --text-accent-pale: #dcc7ff;
+  --text-danger-strong: #ffb3bc;
+  --text-danger-soft: #ffc6cd;
+  --text-warm: #ffa579;
+  --text-muted-cool: #a7a1bd;
+  --text-violet: #c0a6f5;
+
+  /* Размеры, которые типографика задаёт для конкретных мест интерфейса. */
+  --text-label-size: 12px;
+  --text-card-title-size: 15px;
+  --text-value-size: 17px;
+
+  /* Границы и разделители */
+  --border-subtle: rgba(150, 120, 220, 0.14);
+  --border-hover: rgba(200, 77, 255, 0.3);
+  --border-active: rgba(255, 79, 179, 0.48);
+  --border-divider: rgba(150, 120, 220, 0.1);
+
+  /* Свечения и тени */
+  --glow-soft: 0 0 24px rgba(200, 77, 255, 0.16);
+  --glow-active: 0 0 20px rgba(255, 79, 179, 0.2);
+  --glow-cta: 0 8px 28px rgba(255, 79, 179, 0.2);
+  --shadow-base: 0 12px 40px rgba(0, 0, 0, 0.22);
+  --shadow-floating: 0 20px 60px rgba(0, 0, 0, 0.32);
+
+  /* Статусы */
+  --status-success: #25e0d2;
+  --status-warning: #ffc44d;
+  --status-danger: #ff5f73;
+  --status-neutral: #77708f;
+
+  /* Радиусы */
+  --radius-xs: 8px;
+  --radius-input: 10px;
+  --radius-button: 12px;
+  --radius-icon: 14px;
+  --radius-card-sm: 16px;
+  --radius-card: 20px;
+  --radius-panel: 24px;
+  --radius-pill: 999px;
+
+  /* Отступы: только эти значения, произвольных чисел в компонентах быть не должно. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Типографика */
+  --text-h1-size: 30px;
+  --text-h1-weight: 700;
+  --text-h1-line: 1.2;
+
+  --text-h2-size: 20px;
+  --text-h2-weight: 650;
+  --text-h2-line: 1.3;
+
+  --text-h3-size: 16px;
+  --text-h3-weight: 600;
+  --text-h3-line: 1.4;
+
+  --text-body-lg-size: 16px;
+  --text-body-lg-line: 1.55;
+
+  --text-body-size: 14px;
+  --text-body-line: 1.5;
+
+  --text-body-sm-size: 13px;
+  --text-body-sm-line: 1.45;
+
+  --text-caption-size: 11px;
+  --text-caption-weight: 500;
+  --text-caption-line: 1.35;
+
+  --text-kpi-lg-size: 32px;
+  --text-kpi-md-size: 24px;
+  --text-kpi-sm-size: 18px;
+
+  /* Движение (docs/design/06_Motion.md) */
+  --motion-micro: 160ms;
+  --motion-surface: 220ms;
+  --motion-overlay: 280ms;
+  --motion-page: 360ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.55, 0, 0.68, 0.32);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* Размеры каркаса */
+  --sidebar-width: 248px;
+  --sidebar-width-collapsed: 72px;
+  --header-height: 64px;
+  --content-max: 1360px;
+  --z-header: 40;
+  --z-sidebar: 45;
+  --z-floating: 50;
+  --z-overlay: 60;
+  --z-toast: 70;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  /* Полосу прокрутки резервируем всегда: иначе при переходе со страницы со списком
+     на короткую страницу содержимое дёргается вбок на её ширину. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-family);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  font-weight: 400;
+  color: var(--text-primary);
+  background-color: var(--bg-main);
+  /* Два очень мягких пятна вместо плоского фона. Градиент не должен мешать читать:
+     прозрачность держим низкой, к центру текста он не доходит. */
+  background-image:
+    radial-gradient(circle at 85% 8%, rgba(255, 79, 179, 0.1), transparent 30%),
+    radial-gradient(circle at 15% 92%, rgba(120, 70, 255, 0.08), transparent 32%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* Видимый фокус с клавиатуры — требование раздела 33 дизайн-системы.
+   Обводка снаружи элемента, чтобы не сдвигать содержимое. */
+:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* Мышь фокус не рисует: она и так показывает, куда нажали. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+::selection {
+  background: rgba(200, 77, 255, 0.32);
+  color: var(--text-primary);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 120, 220, 0.18);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 77, 255, 0.3);
+  background-clip: content-box;
+}
+
+/* Числа в столбцах должны выстраиваться в линию (раздел 22 типографики). */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Текст только для программ чтения с экрана: у иконок без подписи должно быть имя. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/**
+ * Пользователь попросил систему убрать анимации — просьбу выполняем.
+ * Важно, что интерфейс при этом не ломается: состояния видны цветом, контрастом
+ * и структурой, а не только движением (раздел 29 документа о движении).
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

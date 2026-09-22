@@ -1,0 +1,55 @@
+/* Реестр связок «вуз — программа — IT-продукт». */
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.meta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.stageTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.progressMeta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}

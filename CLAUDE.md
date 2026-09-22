@@ -18,6 +18,10 @@
 - Артур — менеджер проекта. Всё с пометкой `TODO: PM DECISION` решает он.
 - Тигран — база данных. Изменения схемы выносить отдельным блоком в отчёте для согласования с ним.
 - Ваня и Серёжа — фронт и дизайн. Их макеты и вёрстку не переделывать.
+  **22.09.2026:** интерфейс собран здесь по их дизайн-системе (решение 41) — у них
+  не получилось подключить инструмент, а до защиты оставалась неделя. Дизайн-система
+  в `docs/design/`, реализация — `src/ui/` и `src/app/(app)/`, правила — `docs/FRONTEND.md`.
+  Если они принесут свои экраны, те встают рядом и не переписываются.
 
 ## Стек
 
@@ -34,6 +38,10 @@ ML-модели и LLM в бизнес-логике; новые зависимо
 
     src/
       app/                         страницы фронта; app/api/**/route.ts — тонкие обработчики
+        (auth)/login/              вход
+        (app)/                     внутренние страницы внутри общего каркаса
+      ui/                          дизайн-система: primitives, data, overlays, layout,
+                                   search, notifications, hooks, lib (docs/FRONTEND.md)
       modules/<модуль>/
         <модуль>.schema.ts         Zod: входные данные и DTO ответа
         <модуль>.service.ts        бизнес-логика
@@ -54,6 +62,10 @@ analytics, recommendations, data-sources, auth.
 
 Поток вызовов строго route → service → repo. Фронт импортирует только из shared/contracts,
 никогда не типы Prisma. Логика не дублируется между модулями.
+
+Страницы обращаются к данным только через API теми же маршрутами, что описаны в контракте:
+прямых вызовов сервисов и Prisma из страниц нет, иначе фронт перестанет быть отделяемым.
+Оформление — переменные в `src/app/globals.css` и CSS Modules; UI-библиотек и Tailwind нет.
 
 ## Контракт API
 
@@ -158,8 +170,9 @@ P1 не начинать, пока P0 не проходит сквозной с�
 
 ## Обязательная документация
 
-README.md в корне; в docs/: PROJECT_AUDIT, DESIGN_INTEGRATION, ARCHITECTURE, API_CONTRACT,
-DATABASE_SCHEMA, ANALYTICS_METHODOLOGY, SECURITY_LIMITATIONS, TECHNICAL_DECISIONS, PROGRESS.
+README.md в корне; в docs/: PROJECT_AUDIT, DESIGN_INTEGRATION, FRONTEND, ARCHITECTURE,
+API_CONTRACT, DATABASE_SCHEMA, ANALYTICS_METHODOLOGY, SECURITY_LIMITATIONS,
+TECHNICAL_DECISIONS, PROGRESS.
 Документ обновляется в той же задаче, где меняется то, что он описывает.
 
 ## Цикл работы
