@@ -1,4 +1,4 @@
-import { assertCan, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, universityScope } from '@/shared/auth/permissions'
 import { DASHBOARD_TOP_LIMIT } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type {
@@ -14,8 +14,9 @@ import { percent, round } from '@/shared/utils/number'
 import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDto } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
-import { aggregateUniversityRatings, calculateRatings, type RatingBounds } from './rating'
-import type { RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
+import { aggregateUniversityRatings, calculateRatings, type RatingBounds, type RatingInput } from './rating'
+import type { ProgramRatingDto, RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
+import type { CurrentUserStatsDto } from '@/shared/contracts/user'
 
 /** Показатель без данных: значение null и явная пометка, а не ноль (решение 8). */
 function noData(key: string, title: string, unit: string, explanation: string): DashboardMetricDto {
@@ -429,4 +430,64 @@ export async function universityRatings(
     })),
     ratings,
   )
+}
+
+/**
+ * Рейтинг одной программы — для её карточки.
+ *
+ * Шкала та же, что в рейтинге программ и вузов: границы — агрегат по всем
+ * действующим программам. Иначе у одной программы в карточке и в рейтинге
+ * стояли бы разные баллы.
+ *
+ * Представителю вуза рейтинг не показывается — как и в реестре вузов:
+ * null, а не отказ, потому что саму карточку программы он открывать вправе.
+ */
+export async function ratingOfProgram(
+  user: CurrentUser,
+  program: RatingInput & { isActive: boolean },
+): Promise<ProgramRatingDto | null> {
+  if (!can(user, 'ANALYTICS')) return null
+
+  if (!program.isActive) {
+    return {
+      programId: program.programId,
+      score: null,
+      basis: 'none',
+      explanation: 'Программа не действует и в рейтинге не участвует',
+      factors: [],
+    }
+  }
+
+  const bounds = await ratingBoundsFromDatabase(universityScope(user))
+  return calculateRatings([program], bounds).get(program.programId) ?? null
+}
+
+/**
+ * Личная статистика — блок «Статистика» личного кабинета.
+ *
+ * Считается по связкам и этапам, где пользователь — ответственный. Прав на
+ * аналитику не требует: это его собственная работа, а не сводка по чужим.
+ */
+export async function personalStats(user: CurrentUser): Promise<CurrentUserStatsDto> {
+  const now = new Date()
+  const [cooperations, completed, overdue] = await Promise.all([
+    repo.findActiveCooperationsOf(user.id),
+    repo.findCompletedStagesWithDeadlineOf(user.id),
+    repo.countOverdueStagesOf(user.id, now),
+  ])
+
+  const onTime = completed.filter(
+    (stage) => stage.completedAt && stage.deadline && stage.completedAt <= stage.deadline,
+  ).length
+
+  return {
+    activeCooperations: cooperations.length,
+    universitiesInWork: new Set(cooperations.map((item) => item.universityId)).size,
+    programsManaged: new Set(cooperations.map((item) => item.programId)).size,
+    stagesOnTimePercent: percent(onTime, completed.length),
+    stagesCompletedWithDeadline: completed.length,
+    overdueStages: overdue,
+    containsMockData: cooperations.some((item) => item.isMock),
+    generatedAt: now.toISOString(),
+  }
 }

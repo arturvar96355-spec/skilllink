@@ -33,13 +33,28 @@ export async function listUsers(
 }
 
 /** Текущий пользователь и его права: фронт по ним решает, что показывать. */
-export function describeCurrentUser(user: CurrentUser): CurrentUserDto {
+/**
+ * Должность и вуз не входят в объект текущего пользователя: он проходит через
+ * каждую проверку прав, и тащить туда поля для шапки незачем. Их дочитывает
+ * `currentUserProfile` — один запрос на открытие страницы.
+ */
+export interface CurrentUserProfile {
+  position: string | null
+  universityName: string | null
+}
+
+export function describeCurrentUser(
+  user: CurrentUser,
+  profile: CurrentUserProfile = { position: null, universityName: null },
+): CurrentUserDto {
   return {
     id: user.id,
     email: user.email,
     fullName: user.fullName,
+    position: profile.position,
     role: user.role,
     universityId: user.universityId,
+    universityName: profile.universityName,
     permissions: {
       canWrite: can(user, 'WRITE'),
       canSeeAnalytics: can(user, 'ANALYTICS'),
@@ -47,4 +62,13 @@ export function describeCurrentUser(user: CurrentUser): CurrentUserDto {
       isAdmin: can(user, 'ADMIN'),
     },
   }
+}
+
+/** Текущий пользователь с профилем — ответ `GET /api/me`. */
+export async function currentUserProfile(user: CurrentUser): Promise<CurrentUserDto> {
+  const profile = await repo.findProfile(user.id)
+  return describeCurrentUser(user, {
+    position: profile?.position ?? null,
+    universityName: profile?.university?.name ?? null,
+  })
 }

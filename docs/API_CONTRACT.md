@@ -379,7 +379,22 @@ curl -s "http://localhost:3000/api/programs?level=MASTER&sort=-applicationCount"
 
 ### GET /api/programs/:id
 
-Право: `READ`. Дополнительно `skills[]`, `createdAt`, `archivedAt`.
+Право: `READ`. Дополнительно `skills[]`, `createdAt`, `archivedAt` и **`rating`** —
+балл для заголовка карточки.
+
+Шкала та же, что в `GET /api/analytics/programs`, поэтому балл в карточке совпадает
+с рейтингом. `rating: null` — рейтинг недоступен роли (представитель вуза видит
+карточку, но не аналитику). `rating.score: null` — «Нет данных» или программа
+не действует; причина — в `rating.explanation`.
+
+```json
+{
+  "rating": {
+    "programId": "…", "score": 79.1, "basis": "estimate",
+    "explanation": "…", "factors": [ { "key": "applicationCount", "value": 420, "…": "…" } ]
+  }
+}
+```
 
 ```json
 {
@@ -1259,12 +1274,37 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 ```json
 {
   "data": {
-    "id": "…", "email": "…", "fullName": "…", "role": "MANAGER", "universityId": null,
+    "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
+    "role": "MANAGER", "universityId": null, "universityName": null,
     "permissions": { "canWrite": true, "canSeeAnalytics": true,
                      "canUsePortal": true, "isAdmin": false }
   }
 }
 ```
+
+`position` и `universityName` — для шапки и личного кабинета: имя, должность,
+у представителя вуза — название вуза. Могут быть `null`.
+
+### GET /api/me/stats
+
+Авторизация: любая. Блок «Статистика» личного кабинета — всё по связкам и этапам,
+где текущий пользователь **ответственный**. Определения те же, что у показателей
+дашборда: «активная связка» — черновик или активна, «в срок» — закрыт не позже срока,
+«просрочен» — срок прошёл, этап не закрыт, связка не закрыта, контрольный этап не считается.
+
+```json
+{
+  "data": {
+    "activeCooperations": 3, "universitiesInWork": 2, "programsManaged": 3,
+    "stagesOnTimePercent": 75, "stagesCompletedWithDeadline": 12,
+    "overdueStages": 2, "containsMockData": true, "generatedAt": "…"
+  }
+}
+```
+
+`stagesOnTimePercent: null` — **«Нет данных»**: у пользователя ещё нет завершённых
+этапов со сроком. Не ноль. У представителя вуза и наблюдателя связок нет — нули
+здесь настоящие.
 
 ### GET /api/users
 

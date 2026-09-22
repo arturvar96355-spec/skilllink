@@ -128,6 +128,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   },
   {
     method: 'get',
+    path: '/api/me/stats',
+    tag: 'Пользователи',
+    summary: 'Личная статистика для личного кабинета',
+    description:
+      'Активные связки, вузы в работе, программы под управлением, доля этапов в срок ' +
+      'и просроченные — по связкам и этапам, где текущий пользователь ответственный.',
+    permission: 'ANY',
+    errors: ['UNAUTHORIZED', 'INTERNAL'],
+  },
+  {
+    method: 'get',
     path: '/api/users',
     tag: 'Пользователи',
     summary: 'Справочник пользователей',

@@ -11,6 +11,7 @@ import type {
   ProgramSkillDto,
 } from '@/shared/contracts/program'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
+import * as analyticsService from '@/modules/analytics/analytics.service'
 import * as repo from './programs.repo'
 import { toMetric } from './programs.rules'
 import type {
@@ -83,12 +84,25 @@ function toSkillDto(row: repo.ProgramDetailRow['skills'][number]): ProgramSkillD
   }
 }
 
-function toDetail(row: repo.ProgramDetailRow): ProgramDto {
+/**
+ * Карточка программы вместе с рейтингом: дизайн показывает балл в её заголовке.
+ * Считается той же шкалой, что рейтинг программ (`analytics.ratingOfProgram`).
+ */
+async function toDetail(user: CurrentUser, row: repo.ProgramDetailRow): Promise<ProgramDto> {
+  const rating = await analyticsService.ratingOfProgram(user, {
+    programId: row.id,
+    applicationCount: row.applicationCount,
+    studentCount: row.studentCount,
+    groupCount: row.groupCount,
+    metricsSource: row.metricsSource,
+    isActive: row.status === 'ACTIVE' && row.archivedAt === null,
+  })
   return {
     ...toListItem(row),
     skills: row.skills.map(toSkillDto),
     createdAt: toIsoRequired(row.createdAt),
     archivedAt: toIso(row.archivedAt),
+    rating,
   }
 }
 
@@ -108,7 +122,7 @@ export async function getById(user: CurrentUser, id: string): Promise<ProgramDto
   assertCan(user, 'READ')
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Образовательная программа не найдена')
-  return toDetail(row)
+  return toDetail(user, row)
 }
 
 export async function create(
@@ -140,7 +154,7 @@ export async function create(
     metricsSource: metricsSource ?? (hasMetrics ? 'MANUAL' : null),
     metricsUpdatedAt: hasMetrics ? new Date() : null,
   })
-  return toDetail(row)
+  return toDetail(user, row)
 }
 
 export async function update(
@@ -164,7 +178,7 @@ export async function update(
         }
       : {}),
   })
-  return toDetail(row)
+  return toDetail(user, row)
 }
 
 /** Полная замена набора навыков программы (раздел 17 ТЗ «Привязка навыков»). */
@@ -196,7 +210,7 @@ export async function setSkills(
   await repo.replaceSkills(id, input.skills.map((skill) => ({ ...skill })))
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Образовательная программа не найдена')
-  return toDetail(row)
+  return toDetail(user, row)
 }
 
 export async function archive(user: CurrentUser, id: string): Promise<ProgramDto> {
@@ -204,7 +218,7 @@ export async function archive(user: CurrentUser, id: string): Promise<ProgramDto
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Образовательная программа не найдена')
   const row = await repo.update(id, { archivedAt: new Date(), status: 'ARCHIVED' })
-  return toDetail(row)
+  return toDetail(user, row)
 }
 
 /**
@@ -230,5 +244,5 @@ export async function restore(user: CurrentUser, id: string): Promise<ProgramDto
   }
 
   const row = await repo.update(id, { archivedAt: null, status: 'ACTIVE' })
-  return toDetail(row)
+  return toDetail(user, row)
 }
