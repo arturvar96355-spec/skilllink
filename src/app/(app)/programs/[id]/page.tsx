@@ -13,6 +13,7 @@ import {
   type CooperationListItemDto,
   type DocumentListItemDto,
   type ProgramDto,
+  type SkillDemandDto,
   type ProgramSkillDto,
   type RatingFactorDto,
 } from '@/shared/contracts'
@@ -48,6 +49,7 @@ import {
   formatScore,
   pluralize,
   universityHref,
+  useCurrentUser,
   useResource,
   type Column,
   type Resource,
@@ -97,6 +99,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 export default function ProgramPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
+  const user = useCurrentUser()
   const [tab, setTab] = useState('overview')
   const [isRatingOpen, setRatingOpen] = useState(false)
 
@@ -111,6 +114,22 @@ export default function ProgramPage() {
   const documents = useResource<DocumentListItemDto[]>(
     data ? `/api/documents${buildQuery({ programId: id, pageSize: LIST_PAGE_SIZE })}` : null,
   )
+
+  /**
+   * Востребованность навыков программы на рынке.
+   *
+   * Смысл карточки программы не в том, какие навыки в ней записаны, а в том,
+   * нужны ли они кому-то. Запрашивается только для навыков этой программы
+   * и только когда открыта их вкладка; роли без аналитики эндпоинт закрыт,
+   * поэтому для неё столбца просто нет.
+   */
+  const skillIds = (data?.skills ?? []).map((skill) => skill.skillId)
+  const demand = useResource<SkillDemandDto[]>(
+    user.permissions.canSeeAnalytics && tab === 'skills' && skillIds.length > 0
+      ? `/api/skills/demand${buildQuery({ skillId: skillIds, limit: 200 })}`
+      : null,
+  )
+  const demandBySkill = new Map((demand.data ?? []).map((row) => [row.skillId, row]))
 
   if (program.isLoading) return <CardsSkeleton count={3} />
   // Текст отказа приходит с сервера и показывается как есть: «Программа не найдена».
@@ -185,6 +204,27 @@ export default function ProgramPage() {
         ) : (
           <span className={styles.plain}>{CONFIDENCE_LABELS[row.confidence]}</span>
         ),
+    },
+    {
+      key: 'demand',
+      title: 'Спрос рынка',
+      width: '170px',
+      render: (row) => {
+        const market = demandBySkill.get(row.skillId)
+        if (!market || market.normalized === null) {
+          return <span className={styles.empty}>{NO_DATA}</span>
+        }
+        const percent = Math.round(market.normalized * 100)
+        return (
+          <span className={styles.cellStack}>
+            <span className={styles.plain}>
+              {percent} из 100
+              {market.isMock && <Badge tone="mock">демо</Badge>}
+            </span>
+            <Progress value={percent} label={`Спрос на навык ${row.name}`} />
+          </span>
+        )
+      },
     },
     {
       key: 'comment',
