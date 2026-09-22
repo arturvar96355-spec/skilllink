@@ -91,18 +91,11 @@ git archive --format=tar HEAD | ssh "$TARGET" "
 # ── 4. Сборка и запуск ──────────────────────────────────────────────────────
 # `sg docker` — чтобы первое развёртывание не требовало перезайти по SSH
 # после добавления пользователя в группу docker.
-COMPOSE="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file $REMOTE_DIR/.env.cloud"
-
-echo "── Собираю образ и поднимаю стенд (первый раз — несколько минут)"
-ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c '$COMPOSE --profile app up -d --build'"
-
-echo "── Применяю миграции"
-ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c '$COMPOSE --profile migrate run --rm migrate'"
-
-if [ "${SEED:-}" = "1" ]; then
-  echo "── Загружаю демонстрационные данные (SEED=1)"
-  ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c '$COMPOSE --profile migrate run --rm migrate npm run db:seed'"
-fi
+#
+# Порядок (база → миграции → приложение) и разбор ошибок — в remote-up.sh:
+# он уехал на сервер вместе с кодом.
+echo "── Поднимаю стенд (первый раз — несколько минут)"
+ssh "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
 
 # ── 5. Проверка снаружи ─────────────────────────────────────────────────────
 echo "── Проверяю стенд снаружи"
