@@ -1,0 +1,230 @@
+/* Плавающая кнопка поиска и окно в духе Spotlight (разделы 11–15 документа об интерфейсе). */
+
+.fab {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-floating);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(200, 77, 255, 0.2);
+  background: rgba(24, 18, 43, 0.9);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 12px 50px rgba(200, 77, 255, 0.16);
+  transition:
+    transform var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.fab:hover {
+  transform: translateY(-1px) scale(1.02);
+  color: var(--text-primary);
+  border-color: rgba(200, 77, 255, 0.38);
+  box-shadow: 0 14px 56px rgba(200, 77, 255, 0.24);
+}
+
+.fab:active {
+  transform: scale(0.98);
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Окно поиска. Перетаскивается, поэтому позиция задаётся в пикселях. */
+.window {
+  position: fixed;
+  z-index: var(--z-overlay);
+  width: min(620px, calc(100vw - var(--space-8)));
+  display: flex;
+  flex-direction: column;
+  background: rgba(24, 18, 43, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(200, 77, 255, 0.2);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating), 0 12px 50px rgba(200, 77, 255, 0.16);
+  overflow: hidden;
+  animation: spotlightIn var(--motion-overlay) var(--ease-out);
+}
+
+@keyframes spotlightIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* Пустое окно — капсула; с результатами оно раскрывается вниз. */
+.capsule {
+  border-radius: var(--radius-pill);
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+}
+
+/* Ручка перетаскивания: за неё окно двигается, ввод текста при этом не мешает. */
+.handle {
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+  cursor: grab;
+  padding: var(--space-1);
+  margin-left: calc(var(--space-1) * -1);
+}
+
+.handle:active {
+  cursor: grabbing;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.input::placeholder {
+  color: var(--text-tertiary);
+  font-size: var(--text-card-title-size);
+  font-weight: 400;
+}
+
+.results {
+  max-height: min(52vh, 460px);
+  overflow-y: auto;
+  border-top: 1px solid var(--border-divider);
+  padding: var(--space-2) 0 var(--space-3);
+}
+
+.groupTitle {
+  padding: var(--space-3) var(--space-5) var(--space-1);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-5);
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
+}
+
+.result:hover,
+.active {
+  background: rgba(90, 54, 145, 0.24);
+}
+
+.active {
+  box-shadow: inset 2px 0 0 var(--accent-primary);
+}
+
+.resultIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 10px;
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-accent-soft);
+}
+
+.resultText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.resultTitle {
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resultSubtitle {
+  font-size: var(--text-caption-size);
+  font-weight: 400;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.state {
+  padding: var(--space-5);
+  text-align: center;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.footerHint {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  border-top: 1px solid var(--border-divider);
+}
+
+@media (max-width: 720px) {
+  .fab {
+    right: var(--space-4);
+    bottom: var(--space-4);
+    padding: 0 var(--space-4);
+  }
+
+  .fabLabel,
+  .hint {
+    display: none;
+  }
+}

@@ -1,0 +1,343 @@
+/* Карточка связки: шапка, этапы workflow, чек-листы (раздел 24 шаблона страниц). */
+
+.head {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .head {
+    grid-template-columns: 1fr;
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-4);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.factLabel {
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.factLink {
+  color: var(--text-accent);
+}
+
+.goal {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  padding-left: var(--space-3);
+  border-left: 2px solid rgba(200, 77, 255, 0.28);
+}
+
+.progressCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.progressValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressCounts {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* Полоса этапов по фазам процесса. */
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-2);
+}
+
+@media (max-width: 860px) {
+  .stepper {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.phase {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--space-3);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.phaseCurrent {
+  border-color: rgba(200, 77, 255, 0.34);
+  box-shadow: inset 0 0 20px rgba(200, 77, 255, 0.07);
+}
+
+.phaseName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.phaseCount {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Этап */
+.stages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
+}
+
+.stageHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.stageNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--radius-icon);
+  background: rgba(44, 29, 70, 0.9);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.stageNumberDone {
+  border-color: rgba(37, 224, 210, 0.32);
+  color: var(--status-success);
+}
+
+.stageNumberCurrent {
+  border-color: rgba(200, 77, 255, 0.4);
+  color: var(--text-accent);
+  box-shadow: 0 0 16px rgba(200, 77, 255, 0.18);
+}
+
+.stageNumberOverdue {
+  border-color: rgba(255, 95, 115, 0.4);
+  color: var(--status-danger);
+}
+
+.stageTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.stageTitle {
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.stageMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.stageBadges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.chevron {
+  color: var(--text-tertiary);
+  transition: transform var(--motion-micro) var(--ease-out);
+  flex: none;
+  margin-top: var(--space-1);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.stageBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-left: calc(34px + var(--space-3));
+}
+
+@media (max-width: 560px) {
+  .stageBody {
+    padding-left: 0;
+  }
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blockLabel {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.blockText {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+/* Чек-лист этапа */
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-input);
+  background: rgba(24, 19, 45, 0.5);
+  border: 1px solid var(--border-subtle);
+}
+
+.taskDone {
+  border-color: rgba(37, 224, 210, 0.22);
+}
+
+.taskText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+}
+
+.taskMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/*
+ * Отказ системы. Это не «ошибка интерфейса», а содержательный ответ:
+ * этап нельзя начать или закрыть, и сервер объясняет почему. Поэтому он
+ * показывается прямо в карточке этапа, крупно и целиком.
+ */
+.refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: rgba(255, 95, 115, 0.1);
+  border: 1px solid rgba(255, 95, 115, 0.32);
+  color: var(--text-danger-soft);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.refusalTitle {
+  font-weight: 650;
+  color: var(--text-danger-strong);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.auto {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* История этапа в боковой панели */
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.historyItem {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.historyItem:last-child {
+  border-bottom: none;
+}
+
+.historyText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.historyTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 550;
+}
+
+.historyMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

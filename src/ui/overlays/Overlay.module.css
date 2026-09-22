@@ -1,0 +1,177 @@
+/* Модальные окна, боковые панели и всплывающие сообщения. */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  background: rgba(8, 6, 16, 0.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: fadeIn var(--motion-overlay) var(--ease-out);
+}
+
+.backdropCenter {
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.backdropRight {
+  justify-content: flex-end;
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - var(--space-12));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-overlay);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(180, 130, 255, 0.16);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-floating), 0 0 30px rgba(200, 77, 255, 0.1);
+  animation: modalIn var(--motion-overlay) var(--ease-out);
+}
+
+.wide {
+  width: min(820px, 100%);
+}
+
+.drawer {
+  width: min(520px, 100%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-overlay);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-left: 1px solid rgba(180, 130, 255, 0.16);
+  border-radius: var(--radius-panel) 0 0 var(--radius-panel);
+  box-shadow: var(--shadow-floating);
+  animation: drawerIn var(--motion-overlay) var(--ease-out);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.description {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.body {
+  padding: var(--space-5) var(--space-6);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-6) var(--space-5);
+  border-top: 1px solid var(--border-divider);
+}
+
+/* Всплывающие сообщения */
+.toasts {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - var(--space-8)));
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-overlay);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-floating);
+  pointer-events: auto;
+  animation: toastIn var(--motion-surface) var(--ease-out);
+}
+
+.toastSuccess {
+  border-color: rgba(37, 224, 210, 0.28);
+  color: var(--status-success);
+}
+
+.toastError {
+  border-color: rgba(255, 95, 115, 0.32);
+  color: var(--status-danger);
+}
+
+.toastInfo {
+  border-color: rgba(200, 77, 255, 0.24);
+  color: var(--text-accent);
+}
+
+.toastText {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes drawerIn {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}

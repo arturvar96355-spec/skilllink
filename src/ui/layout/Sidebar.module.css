@@ -1,0 +1,218 @@
+/* Боковое меню — постоянная часть каркаса (раздел 3 шаблона страниц). */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: var(--z-sidebar);
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border-divider);
+  transition: transform var(--motion-surface) var(--ease-out);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--header-height);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--border-divider);
+  flex: none;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.brandName {
+  font-size: var(--text-h3-size);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.brandSub {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  text-align: left;
+  border-radius: var(--radius-xs);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.groupHead:hover {
+  color: var(--text-secondary);
+}
+
+.chevron {
+  transition: transform var(--motion-micro) var(--ease-out);
+}
+
+.chevronOpen {
+  transform: rotate(0deg);
+}
+
+.chevronClosed {
+  transform: rotate(-90deg);
+}
+
+/* Раскрытие плавное, разметка при этом не прыгает. */
+.items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--motion-surface) var(--ease-out);
+}
+
+.itemsClosed {
+  grid-template-rows: 0fr;
+}
+
+.itemsInner {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 38px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-button);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out);
+}
+
+.itemIcon {
+  flex: none;
+  opacity: 0.75;
+  transition: opacity var(--motion-micro) var(--ease-out);
+}
+
+/*
+ * При наведении подпись чуть увеличивается. Именно масштабом, а не размером
+ * шрифта: смена font-size пересчитывает разметку и сдвигает соседние пункты,
+ * а transform не трогает поток.
+ */
+.itemLabel {
+  transform-origin: left center;
+  transition:
+    transform var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
+}
+
+.item:hover {
+  background: rgba(110, 70, 170, 0.2);
+  color: var(--text-primary);
+}
+
+.item:hover .itemLabel {
+  transform: scale(1.02);
+}
+
+.item:hover .itemIcon {
+  opacity: 1;
+}
+
+.itemActive,
+.itemActive:hover {
+  background: rgba(90, 54, 145, 0.24);
+  border-color: rgba(180, 100, 255, 0.16);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: inset 0 0 18px rgba(200, 77, 255, 0.06);
+}
+
+.itemActive .itemIcon {
+  opacity: 1;
+  color: var(--text-accent);
+}
+
+.footer {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--border-divider);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hint {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+/* Узкий экран: меню уезжает за край и открывается кнопкой в шапке. */
+@media (max-width: 1080px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-floating);
+  }
+
+  .open {
+    transform: translateX(0);
+  }
+}
+
+.scrim {
+  display: none;
+}
+
+@media (max-width: 1080px) {
+  .scrimVisible {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-sidebar) - 1);
+    background: rgba(8, 6, 16, 0.5);
+    backdrop-filter: blur(2px);
+  }
+}

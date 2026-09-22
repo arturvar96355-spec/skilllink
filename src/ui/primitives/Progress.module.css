@@ -1,0 +1,40 @@
+/* Тонкая полоса с неоновым градиентом (раздел 18 документа о цвете). */
+
+.track {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(90, 65, 130, 0.28);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-progress);
+  transition: width 700ms var(--ease-out);
+}
+
+/* Просрочка окрашивает полосу в опасный цвет, но рядом всегда есть подпись. */
+.danger {
+  background: linear-gradient(90deg, #ff5f73, #ff7a45);
+}
+
+.success {
+  background: linear-gradient(90deg, #25e0d2, #a855f7);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.value {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  min-width: 42px;
+  text-align: right;
+}

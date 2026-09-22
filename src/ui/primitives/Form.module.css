@@ -1,0 +1,237 @@
+/* Поля формы: единый вид на всех страницах (разделы 27–28 документа об интерфейсе). */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.required {
+  color: var(--accent-secondary);
+  margin-left: 2px;
+}
+
+.hint {
+  font-size: var(--text-caption-size);
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+/* Ошибка передаётся текстом, а не только цветом рамки (раздел 10.5 компонентов). */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--status-danger);
+}
+
+.control {
+  width: 100%;
+  height: 38px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-input);
+  background: rgba(24, 19, 45, 0.64);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  transition:
+    border-color var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out),
+    background var(--motion-micro) var(--ease-out);
+}
+
+.control::placeholder {
+  color: var(--text-tertiary);
+  font-size: var(--text-body-sm-size);
+  font-weight: 400;
+}
+
+.control:hover:not(:disabled) {
+  border-color: rgba(180, 130, 255, 0.22);
+}
+
+.control:focus {
+  outline: none;
+  border-color: rgba(200, 77, 255, 0.5);
+  box-shadow: 0 0 0 3px rgba(200, 77, 255, 0.12);
+  background: rgba(29, 23, 52, 0.72);
+}
+
+.control:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.invalid,
+.invalid:focus {
+  border-color: rgba(255, 95, 115, 0.55);
+  box-shadow: 0 0 0 3px rgba(255, 95, 115, 0.12);
+}
+
+.textarea {
+  height: auto;
+  min-height: 92px;
+  padding: var(--space-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Иконка внутри поля — поиск, почта. */
+.withIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.withIcon .control {
+  padding-left: 38px;
+}
+
+.icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* Выпадающий список: свой значок вместо системного. */
+.selectWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.select {
+  appearance: none;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+.selectArrow {
+  position: absolute;
+  right: var(--space-3);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* Флажок и переключатель */
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(24, 19, 45, 0.64);
+  color: transparent;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
+}
+
+.checkbox:hover .box {
+  border-color: var(--border-hover);
+}
+
+.checkbox input:checked + .box {
+  background: var(--gradient-button);
+  border-color: transparent;
+  color: #fff;
+}
+
+.checkbox input:focus-visible + .box {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.checkbox input:disabled + .box {
+  opacity: 0.42;
+}
+
+.checkbox input:disabled ~ .checkboxLabel {
+  opacity: 0.42;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: rgba(90, 65, 130, 0.35);
+  border: 1px solid var(--border-subtle);
+  transition: background var(--motion-micro) var(--ease-out);
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  transition:
+    transform var(--motion-micro) var(--ease-out),
+    background var(--motion-micro) var(--ease-out);
+}
+
+.toggle input:checked + .switch {
+  background: var(--gradient-button);
+  border-color: transparent;
+}
+
+.toggle input:checked + .switch::after {
+  transform: translateX(16px);
+  background: #fff;
+}
+
+.toggle input:focus-visible + .switch {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}

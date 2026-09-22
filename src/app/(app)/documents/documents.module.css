@@ -1,0 +1,216 @@
+/* Реестр документов и карточка документа в боковой панели (разделы 18–19, 24). */
+
+.titleCell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.docTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.docMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.version {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.person {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.muted {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.dates {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dateRow {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.link:hover {
+  color: var(--accent-primary);
+}
+
+/* ───────────────────────────── Боковая панель ───────────────────────────── */
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-4);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.factLabel {
+  font-size: var(--text-caption-size);
+  font-weight: var(--text-caption-weight);
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.blockTitle {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--text-primary);
+}
+
+.fileLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  color: var(--accent-primary);
+  word-break: break-all;
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.fileLink:hover {
+  color: var(--accent-secondary);
+}
+
+.note {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+/*
+ * Текст документа показывается как есть: переносы строк и отступы шаблона
+ * несут смысл (реквизиты, подписи), а моноширинный шрифт не даёт прочерку
+ * недостающего реквизита слиться с текстом.
+ */
+.content {
+  margin: 0;
+  padding: var(--space-4);
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-line);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.statusForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-divider);
+}
+
+.historyHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.historyTransition {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.historyAuthor {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}
+
+.historyComment {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 720px) {
+  .facts {
+    grid-template-columns: 1fr;
+  }
+}
