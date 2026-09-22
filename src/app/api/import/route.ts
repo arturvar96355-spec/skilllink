@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/shared/auth/current-user'
 import { handle, ok, parseQuery } from '@/shared/http'
 import { validationError } from '@/shared/http/errors'
 import * as service from '@/modules/import/import.service'
+import { decodeCsv } from '@/modules/import/decode'
 import { importQuerySchema } from '@/modules/import/import.schema'
 
 /** Больше этого тело не читаем: защита от загрузки чего попало. */
@@ -30,7 +31,12 @@ export const POST = handle(async (request) => {
   // Но полагаться на него нельзя: при потоковой передаче (chunked) заголовка
   // нет вовсе, и ограничение обходилось простым его отсутствием. Поэтому
   // размер проверяется и по факту прочитанного.
-  const csv = await request.text()
-  if (Buffer.byteLength(csv, 'utf8') > MAX_BODY_BYTES) throw tooLarge()
-  return ok(await service.importDataset(user, query, csv))
+  //
+  // Файл читается байтами, а не `request.text()`: тот всегда декодирует UTF-8,
+  // а Excel в Windows сохраняет CSV в Windows-1251 (см. import/decode.ts).
+  const bytes = new Uint8Array(await request.arrayBuffer())
+  if (bytes.byteLength > MAX_BODY_BYTES) throw tooLarge()
+
+  const { text, encoding } = decodeCsv(bytes)
+  return ok(await service.importDataset(user, query, text, encoding))
 })

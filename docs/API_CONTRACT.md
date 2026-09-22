@@ -1348,10 +1348,18 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
   -H 'content-type: text/csv' --data-binary @universities.csv
 ```
 
+**Кодировка файла определяется сама.** Excel в Windows по умолчанию сохраняет CSV
+в Windows-1251 («CSV UTF-8» — отдельный пункт меню, который легко не заметить).
+Такой файл читается правильно, и в ответе видно, как он понят: поле `encoding`
+со значением `utf-8` или `windows-1251`. Раньше файл из Excel отвергался
+сообщением «Не найдены: Название, Город, Регион» — мусором становилась уже
+строка заголовков. Формат «Текст Юникод» (UTF-16) отвергается прямо, с подсказкой,
+как пересохранить.
+
 ```json
 {
   "data": {
-    "dataset": "universities", "mode": "apply",
+    "dataset": "universities", "encoding": "windows-1251", "mode": "apply",
     "totalRows": 7, "created": 1, "updated": 6, "skipped": 0, "errors": 1,
     "rows": [
       { "line": 8, "label": "Импортированный университет связи",
