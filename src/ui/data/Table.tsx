@@ -261,17 +261,28 @@ export function CellText({
   title,
   muted = false,
   strong = false,
+  lines = 1,
 }: {
   children: ReactNode
   /** Полный текст для подсказки. По умолчанию — сам текст, если это строка. */
   title?: string
   muted?: boolean
   strong?: boolean
+  /**
+   * Сколько строк показать до многоточия. Две — для длинных названий, которые
+   * и есть смысл строки (полное название вуза): в одну они обрезались до
+   * «Санкт-Петербург…», и реестр переставал отличать вузы друг от друга.
+   */
+  lines?: 1 | 2
 }) {
   const fullText = title ?? (typeof children === 'string' ? children : undefined)
   return (
     <span
-      className={[styles.truncate, muted ? styles.cellMuted : '', strong ? styles.cellStrong : '']
+      className={[
+        lines === 2 ? styles.clamp2 : styles.truncate,
+        muted ? styles.cellMuted : '',
+        strong ? styles.cellStrong : '',
+      ]
         .filter(Boolean)
         .join(' ')}
       title={fullText}
