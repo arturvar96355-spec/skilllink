@@ -4,6 +4,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
+import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
 import styles from './login.module.css'
@@ -52,7 +53,18 @@ function LoginForm() {
 
     // redirect: false — ошибку показываем на этой же странице, а не уводим
     // пользователя на отдельный экран ошибки и обратно.
-    const result = await signIn('credentials', { email, password, redirect: false })
+    //
+    // signIn не только возвращает ошибку, но и бросает её — при обрыве сети
+    // или не-JSON ответе прокси. Без перехвата кнопка оставалась в ожидании
+    // навсегда, без единого слова.
+    let result: Awaited<ReturnType<typeof signIn>> | null
+    try {
+      result = await signIn('credentials', { email, password, redirect: false })
+    } catch {
+      setIsPending(false)
+      setMessage('Сервер не ответил. Проверьте подключение и попробуйте ещё раз.')
+      return
+    }
     setIsPending(false)
 
     if (!result || result.error) {
@@ -60,9 +72,9 @@ function LoginForm() {
       return
     }
 
-    // Возвращаем туда, куда человек шёл до перенаправления на вход.
-    const from = params.get('from')
-    const destination = from && from.startsWith('/') ? from : '/'
+    // Возвращаем туда, куда человек шёл до перенаправления на вход, —
+    // но только в пределах сайта: `from` задаётся ссылкой.
+    const destination = safeReturnPath(params.get('from'))
     setIsLeaving(true)
     // Длительность совпадает с анимацией ухода в login.module.css.
     window.setTimeout(() => {
