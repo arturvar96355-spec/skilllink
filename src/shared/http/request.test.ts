@@ -3,7 +3,7 @@ import { z } from '@/shared/zod'
 import { AppError } from './errors'
 import { describeForLog } from '@/shared/db/log'
 import { handle, toAppError } from './handle'
-import { parseBody, parseOptionalBody, parseQuery } from './request'
+import { MAX_JSON_BODY_BYTES, parseBody, parseOptionalBody, parseQuery } from './request'
 
 const schema = z.object({ name: z.string(), q: z.string().optional() })
 
@@ -80,3 +80,44 @@ describe('внутренняя ошибка', () => {
     expect(toAppError(prismaError)).toBeNull()
   })
 })
+
+describe('размер тела', () => {
+  /** Поток без Content-Length — как при передаче chunked. */
+  function streamed(totalBytes: number, onPull: () => void): Request {
+    let sent = 0
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        onPull()
+        if (sent >= totalBytes) return controller.close()
+        const chunk = new TextEncoder().encode('a'.repeat(64 * 1024))
+        sent += chunk.byteLength
+        controller.enqueue(chunk)
+      },
+    })
+    return new Request('http://localhost/api/x', { method: 'POST', body, duplex: 'half' } as RequestInit)
+  }
+
+  it('тело без длины в заголовке обрывается на пределе, а не читается целиком', async () => {
+    // Раньше request.json() дочитывал всё присланное — хоть гигабайты.
+    let pulls = 0
+    const request = streamed(50 * MAX_JSON_BODY_BYTES, () => (pulls += 1))
+    const code = await codeOf(() => parseBody(request, schema))
+    expect(code).toContain('VALIDATION_ERROR')
+    expect(pulls * 64 * 1024).toBeLessThan(2 * MAX_JSON_BODY_BYTES)
+  })
+
+  it('заявленная длина больше предела — отказ без чтения', async () => {
+    const request = new Request('http://localhost/api/x', {
+      method: 'POST',
+      body: '{}',
+      headers: { 'content-length': String(MAX_JSON_BODY_BYTES + 1) },
+    })
+    expect(await codeOf(() => parseBody(request, schema))).toContain('VALIDATION_ERROR')
+  })
+
+  it('обычное тело читается как раньше', async () => {
+    expect(await parseBody(post('{"name":"Вуз"}'), schema)).toEqual({ name: 'Вуз' })
+    expect(await parseOptionalBody(post(''), z.object({ force: z.boolean().optional() }))).toEqual({})
+  })
+})
+

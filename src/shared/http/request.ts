@@ -15,14 +15,71 @@ function rejectNul(raw: unknown, message: string): void {
   ])
 }
 
+/**
+ * Больше этого тело JSON не читаем. Самая большая форма системы — встреча
+ * с участниками и итогами — укладывается в десятки килобайт.
+ */
+export const MAX_JSON_BODY_BYTES = 1024 * 1024
+
+/**
+ * Тело запроса байтами, но не больше `limit`.
+ *
+ * `request.json()`, `.text()` и `.arrayBuffer()` читают тело целиком, сколько бы
+ * его ни было. Заголовок `Content-Length` при потоковой передаче (chunked)
+ * отсутствует, поэтому любой вошедший — хоть наблюдатель — мог прислать
+ * гигабайты, и процесс держал их в памяти до проверки размера. Здесь тело
+ * читается кусками, и чтение обрывается, как только предел превышен.
+ */
+export async function readBodyBytes(
+  request: Request,
+  limit: number,
+  tooLarge: () => AppError,
+): Promise<Uint8Array> {
+  const declared = Number(request.headers.get('content-length') ?? 0)
+  if (declared > limit) throw tooLarge()
+  if (!request.body) return new Uint8Array(0)
+
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > limit) {
+      await reader.cancel()
+      throw tooLarge()
+    }
+    chunks.push(value)
+  }
+
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
+}
+
+const jsonTooLarge = (): AppError =>
+  validationError('Тело запроса слишком большое', [
+    { field: '_', message: `Допустимо не больше ${MAX_JSON_BODY_BYTES / 1024 / 1024} МБ` },
+  ])
+
+async function readBodyText(request: Request): Promise<string> {
+  return new TextDecoder().decode(await readBodyBytes(request, MAX_JSON_BODY_BYTES, jsonTooLarge))
+}
+
 /** Читает и валидирует тело запроса. Некорректный JSON — тоже ошибка валидации. */
 export async function parseBody<S extends z.ZodType>(
   request: Request,
   schema: S,
 ): Promise<z.infer<S>> {
+  const text = await readBodyText(request)
   let raw: unknown
   try {
-    raw = await request.json()
+    raw = JSON.parse(text)
   } catch {
     throw new AppError('VALIDATION_ERROR', 'Тело запроса должно быть корректным JSON')
   }
@@ -40,7 +97,7 @@ export async function parseOptionalBody<S extends z.ZodType>(
   request: Request,
   schema: S,
 ): Promise<z.infer<S>> {
-  const raw = await request.text()
+  const raw = await readBodyText(request)
   if (raw.trim() === '') {
     const empty = schema.safeParse({})
     if (!empty.success) throw fromZod(empty.error)
