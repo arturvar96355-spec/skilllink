@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { countSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import { APPLICATION_STATUSES } from '@/shared/contracts/enums'
 
@@ -9,8 +9,8 @@ import { APPLICATION_STATUSES } from '@/shared/contracts/enums'
  */
 export const updateProgramMetricsSchema = z
   .object({
-    studentCount: z.number().int().min(0).nullish(),
-    groupCount: z.number().int().min(0).nullish(),
+    studentCount: countSchema().nullish(),
+    groupCount: countSchema().nullish(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'Не передано ни одного показателя',

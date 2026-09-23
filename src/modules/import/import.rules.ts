@@ -1,4 +1,5 @@
 import { validationError } from '@/shared/http/errors'
+import { PG_INT_MAX } from '@/shared/db/storable'
 import { CSV_DELIMITER } from '@/modules/export/export.rules'
 
 /**
@@ -133,6 +134,10 @@ export function numericCell(
 
   if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
     return { error: `Колонка «${name}»: ожидалось целое число, получено «${raw}»` }
+  }
+  // Иначе предпросмотр обещал «Будет создан», а запись падала: колонка столько не вмещает.
+  if (parsed > PG_INT_MAX) {
+    return { error: `Колонка «${name}»: число ${raw} слишком большое` }
   }
   return { value: parsed }
 }
