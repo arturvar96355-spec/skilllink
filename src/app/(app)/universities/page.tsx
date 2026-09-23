@@ -208,11 +208,27 @@ export default function UniversitiesPage() {
         description="Реестр вузов, с которыми ведётся работа. Балл сравнивает вузы между собой."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
-          user.permissions.canWrite ? (
-            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
-              Добавить вуз
+          <>
+            {/*
+              Выгрузка отдаёт весь реестр, а не то, что осталось после фильтров:
+              эндпоинт принимает только ограничение по вузу. Об этом сказано
+              в подсказке — иначе человек решит, что фильтр не сработал.
+            */}
+            <Button
+              variant="secondary"
+              icon="download"
+              href="/api/export?dataset=universities"
+              external
+              title="Весь реестр в CSV, до 1000 строк. Фильтры на экране не применяются."
+            >
+              Выгрузить
             </Button>
-          ) : undefined
+            {user.permissions.canWrite && (
+              <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+                Добавить вуз
+              </Button>
+            )}
+          </>
         }
       />
 

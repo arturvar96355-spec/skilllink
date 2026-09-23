@@ -30,6 +30,13 @@ export interface ButtonProps
     Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   /** Задан — получается ссылка с видом кнопки: переход должен оставаться ссылкой. */
   href?: string
+  /**
+   * Ссылка ведёт не на страницу приложения, а к файлу или на внешний адрес.
+   *
+   * Обычная ссылка Next перехватывает переход и пытается открыть маршрут —
+   * для выгрузки файла это означает пустой экран вместо сохранения.
+   */
+  external?: boolean
 }
 
 export function Button({
@@ -40,9 +47,14 @@ export function Button({
   isLoading = false,
   fullWidth = false,
   href,
+  external = false,
   className,
   children,
   disabled,
+  // Подсказка и доступное имя нужны всем видам кнопки, включая ссылку:
+  // остальные свойства кнопки к ссылке неприменимы и остаются у <button>.
+  title,
+  'aria-label': ariaLabel,
   ...props
 }: ButtonProps) {
   const classes = [
@@ -72,8 +84,15 @@ export function Button({
   )
 
   if (href !== undefined && !disabled) {
+    if (external) {
+      return (
+        <a href={href} className={classes} rel="noreferrer" title={title} aria-label={ariaLabel}>
+          {content}
+        </a>
+      )
+    }
     return (
-      <Link href={href} className={classes}>
+      <Link href={href} className={classes} title={title} aria-label={ariaLabel}>
         {content}
       </Link>
     )
@@ -83,6 +102,8 @@ export function Button({
     <button
       type="button"
       className={classes}
+      title={title}
+      aria-label={ariaLabel}
       // Пока запрос идёт, повторное нажатие запрещено: иначе уйдут два запроса.
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
