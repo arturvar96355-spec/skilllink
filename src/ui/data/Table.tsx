@@ -22,6 +22,11 @@ export interface Column<T> {
   align?: 'left' | 'right'
   /** Имя поля сортировки API. Задано — заголовок кликабелен. */
   sortField?: string
+  /**
+   * Первый щелчок сортирует по убыванию. Для баллов, количеств и дат
+   * обновления: щёлкнув «Рейтинг», ждут сильнейших сверху, а не слабейших.
+   */
+  sortDescFirst?: boolean
   render: (row: T) => ReactNode
 }
 
@@ -53,10 +58,13 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const router = useRouter()
 
-  function toggleSort(field: string) {
+  function toggleSort(field: string, descFirst = false) {
     if (!onSortChange) return
-    // Повторный щелчок по тому же столбцу переворачивает порядок.
-    onSortChange(sort === field ? `-${field}` : field)
+    const isCurrent = sort === field || sort === `-${field}`
+    // Повторный щелчок по тому же столбцу переворачивает порядок; первый —
+    // по возрастанию, а у столбцов с `sortDescFirst` — по убыванию.
+    if (!isCurrent) onSortChange(descFirst ? `-${field}` : field)
+    else onSortChange(sort === field ? `-${field}` : field)
   }
 
   return (
@@ -81,7 +89,21 @@ export function DataTable<T>({
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onClick={column.sortField ? () => toggleSort(column.sortField!) : undefined}
+                  onClick={
+                    column.sortField ? () => toggleSort(column.sortField!, column.sortDescFirst) : undefined
+                  }
+                  // Сортировка — и с клавиатуры: заголовок получает фокус по Tab,
+                  // Enter или пробел переключают порядок (раздел 33 дизайн-системы).
+                  tabIndex={column.sortField && onSortChange ? 0 : undefined}
+                  onKeyDown={
+                    column.sortField && onSortChange
+                      ? (event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return
+                          event.preventDefault()
+                          toggleSort(column.sortField!, column.sortDescFirst)
+                        }
+                      : undefined
+                  }
                   aria-sort={
                     isSorted ? (sort?.startsWith('-') ? 'descending' : 'ascending') : undefined
                   }

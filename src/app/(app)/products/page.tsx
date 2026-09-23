@@ -169,6 +169,7 @@ function ProductsView() {
       key: 'updatedAt',
       title: 'Обновлено',
       sortField: 'updatedAt',
+      sortDescFirst: true,
       render: (row) => <span className={styles.plain}>{formatDate(row.updatedAt)}</span>,
     },
   ]

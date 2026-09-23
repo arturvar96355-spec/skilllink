@@ -228,6 +228,7 @@ function DocumentsView() {
       title: 'Обновлено',
       width: '150px',
       sortField: 'updatedAt',
+      sortDescFirst: true,
       render: (row) => <span className={styles.muted}>{formatDateTime(row.updatedAt)}</span>,
     },
   ]
