@@ -1675,7 +1675,15 @@ async function main(): Promise<void> {
   // ── 22. Настоящая аутентификация ───────────────────────────────────────────
   step('22. Вход по паролю: NextAuth.js и bcrypt')
 
-  const DEMO_PASSWORD = 'skilllink'
+  /**
+   * Пароль демо-пользователей.
+   *
+   * Читается из окружения ровно так же, как его задаёт `prisma/seed.ts`.
+   * Зашитая строка работала только против базы, засеянной по умолчанию:
+   * на копии стенда, где пароль свой, проверки входа падали так, будто
+   * сломалась авторизация, — и следующий человек искал бы несуществующую ошибку.
+   */
+  const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD?.trim() || 'skilllink'
 
   const csrf = await call<Record<string, never>>('GET', '/api/auth/csrf')
   check('GET /api/auth/csrf отвечает 200', csrf.status === 200)
