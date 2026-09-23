@@ -994,6 +994,46 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Импорт программ не стирает то, чего нет в файле ────────────────────────
+  step('Импорт программ: отсутствующие колонки не стираются, повторы — ошибка строки')
+
+  {
+    const sfx = Date.now().toString().slice(-6)
+    const uniName = `Пробный вуз импорта ${sfx}`
+    const programName = `Пробная программа импорта ${sfx}`
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: uniName,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: programName,
+      level: 'BACHELOR',
+      code: '09.03.04',
+      applicationCount: 120,
+      studentCount: 60,
+      groupCount: 3,
+    })
+    // Файл только с обязательными колонками: раньше он стирал код и все показатели.
+    const csv = `Вуз;Программа;Уровень\r\n${uniName};${programName};BACHELOR\r\n${uniName};${programName};BACHELOR\r\n`
+    const applied = await callRaw('POST', '/api/import?dataset=programs&mode=apply', csv, 'text/csv')
+    const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
+      (row) => row.outcome,
+    )
+    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'update,error', `исходы ${outcomes?.join()}`)
+    const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
+      'GET',
+      `/api/programs/${program.body.data?.id}`,
+    )
+    const raw = JSON.stringify(after.body.data ?? {})
+    check(
+      'код и показатели программы на месте',
+      raw.includes('09.03.04') && raw.includes('120'),
+      after.status === 200 ? 'сверено по карточке программы' : `код ${after.status}`,
+    )
+  }
+
   // ── История документа: внутренние комментарии — только сотрудникам ────────
   step('Представитель не видит внутренних комментариев в истории документа')
 
