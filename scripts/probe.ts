@@ -641,6 +641,110 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Этапы одной связки меняются по очереди ────────────────────────────────
+  step('Одновременные изменения этапов одной связки не ломают этап 14')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз очереди ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа очереди ${sfx}`,
+      level: 'BACHELOR',
+    })
+
+    // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
+    // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
+    // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    const finals: string[] = []
+    for (let round = 0; round < 3; round += 1) {
+      const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+        'POST',
+        '/api/cooperations',
+        { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+      )
+      const stages = created.body.data?.stages ?? []
+      const byNumber = (n: number) => stages.find((stage) => stage.stageNumber === n)?.id
+      await Promise.all(
+        Array.from({ length: 13 }, (_, index) => index + 1).map((n) =>
+          call('PATCH', `/api/workflow/stages/${byNumber(n)}`, {
+            status: 'CANCELLED',
+            comment: 'Пробник: не требуется',
+          }),
+        ),
+      )
+      const after = await call<{ stages: Array<{ stageNumber: number; status: string }> }>(
+        'GET',
+        `/api/cooperations/${created.body.data?.id}`,
+      )
+      finals.push(after.body.data?.stages.find((stage) => stage.stageNumber === 14)?.status ?? '—')
+    }
+    check(
+      'закрыты все 1–13 одновременно — этап 14 завершён',
+      finals.every((status) => status === 'COMPLETED'),
+      `этап 14: ${finals.join(', ')}`,
+    )
+  }
+
+  // ── Итог этапа после записи ────────────────────────────────────────────────
+  step('Завершённый этап не теряет результат, заблокированный — причину')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз итога ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа итога ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{
+      stages: Array<{ id: string; stageNumber: number; tasks: Array<{ id: string; isRequired: boolean }> }>
+    }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const first = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+    const second = created.body.data?.stages.find((stage) => stage.stageNumber === 2)
+    if (first && second) {
+      await call('PATCH', `/api/workflow/stages/${first.id}`, { status: 'IN_PROGRESS' })
+      for (const task of first.tasks.filter((item) => item.isRequired)) {
+        await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+      }
+      await call('PATCH', `/api/workflow/stages/${first.id}`, { result: 'Контакт найден' })
+      const completedWithBlank = await call<{ result: string | null }>(
+        'PATCH',
+        `/api/workflow/stages/${first.id}`,
+        { status: 'COMPLETED', result: '   ' },
+      )
+      check(
+        'завершение с пустым результатом в теле сохраняет прежний',
+        completedWithBlank.status === 200 && completedWithBlank.body.data?.result === 'Контакт найден',
+        `код ${completedWithBlank.status}, результат ${JSON.stringify(completedWithBlank.body.data?.result)}`,
+      )
+      const erased = await call('PATCH', `/api/workflow/stages/${first.id}`, { result: null })
+      check('результат завершённого этапа не стирается', erased.status === 422, `код ${erased.status}`)
+
+      await call('PATCH', `/api/workflow/stages/${second.id}`, { status: 'IN_PROGRESS' })
+      await call('PATCH', `/api/workflow/stages/${second.id}`, {
+        status: 'BLOCKED',
+        blockingReason: 'Пробник: ждём ответа',
+      })
+      const noReason = await call('PATCH', `/api/workflow/stages/${second.id}`, { blockingReason: '' })
+      check('причина блокировки не стирается', noReason.status === 422, `код ${noReason.status}`)
+    } else {
+      check('связка для проверки итога создана', false)
+    }
+  }
+
   // ── История документа: внутренние комментарии — только сотрудникам ────────
   step('Представитель не видит внутренних комментариев в истории документа')
 

@@ -5,6 +5,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { computeControlStatus } from './workflow.rules'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -205,10 +206,76 @@ export async function findHistory(stageId: string) {
 export async function findPriorStages(
   cooperationId: string,
   stageNumber: number,
+  client: Prisma.TransactionClient = prisma,
 ): Promise<Array<{ stageNumber: number; title: string; status: StageStatus }>> {
-  return prisma.workflowStage.findMany({
+  return client.workflowStage.findMany({
     where: { cooperationId, stageNumber: { lt: stageNumber } },
     select: { stageNumber: true, title: true, status: true },
     orderBy: { stageNumber: 'asc' },
+  })
+}
+
+/**
+ * Очередь на изменения этапов одной связки.
+ *
+ * Этапы связки зависят друг от друга: этап 14 считается по остальным, контрольная
+ * точка — по предыдущим, завершение — по чек-листу. Проверка шла вне транзакции,
+ * а транзакция ничего не блокировала: два менеджера, одновременно закрывшие
+ * этапы 12 и 13, оставляли этап 14 «в работе» при закрытых 1–13 — каждый видел
+ * чужой этап ещё открытым. Снятие обязательного пункта одновременно с завершением
+ * этапа давало завершённый этап с незакрытым пунктом.
+ *
+ * Блокировка строки связки выстраивает такие транзакции в очередь; всё, что
+ * проверяется после неё, видит уже записанное предыдущими.
+ */
+export async function lockCooperation(
+  tx: Prisma.TransactionClient,
+  cooperationId: string,
+): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM cooperations WHERE id = ${cooperationId} FOR UPDATE`
+}
+
+/**
+ * Пересчёт контрольного этапа 14 по состоянию этапов 1–13 (решение 2).
+ * Вызывается после любого изменения статуса обычного этапа.
+ */
+export async function recomputeControlStage(
+  tx: Prisma.TransactionClient,
+  cooperationId: string,
+  userId: string,
+): Promise<void> {
+  const stages = await tx.workflowStage.findMany({
+    where: { cooperationId },
+    select: { id: true, stageNumber: true, status: true },
+  })
+
+  const control = stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)
+  if (!control) return
+
+  const others = stages
+    .filter((stage) => stage.stageNumber !== CONTROL_STAGE_NUMBER)
+    .map((stage) => stage.status as StageStatus)
+
+  const next = computeControlStatus(others)
+  if (next === control.status) return
+
+  await tx.workflowStage.update({
+    where: { id: control.id },
+    data: {
+      status: next,
+      // Контрольный этап закрывает система, а не человек: автора завершения у него нет.
+      completedAt: next === 'COMPLETED' ? new Date() : null,
+      completedById: null,
+    },
+  })
+
+  await tx.stageHistory.create({
+    data: {
+      stageId: control.id,
+      fromStatus: control.status,
+      toStatus: next,
+      comment: 'Пересчитано автоматически по состоянию этапов 1–13',
+      changedById: userId,
+    },
   })
 }

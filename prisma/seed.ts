@@ -11,6 +11,7 @@ import 'dotenv/config'
 import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
+import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 
@@ -688,25 +689,32 @@ async function main(): Promise<void> {
       universityKey: item.university,
     })
 
+    type SeedStageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED'
+    const seedStatus = (number: number): SeedStageStatus => {
+      if (item.cancelledStages?.includes(number)) return 'CANCELLED'
+      if (number <= item.completedUpTo) return 'COMPLETED'
+      if (item.blockedStage === number) return 'BLOCKED'
+      if (number === item.completedUpTo + 1) return 'IN_PROGRESS'
+      return 'NOT_STARTED'
+    }
+    // Контрольный этап — тем же правилом, что в системе (computeControlStatus),
+    // а не своей копией: копия считала по номеру последнего закрытого этапа,
+    // и у связки с начатым первым этапом этап 14 оставался «Не начат».
+    const controlStatus = computeControlStatus(
+      WORKFLOW_STAGES.filter((definition) => definition.number !== 14).map((definition) =>
+        seedStatus(definition.number),
+      ),
+    )
+
     for (const definition of WORKFLOW_STAGES) {
       const number = definition.number
       const isControl = number === 14
-
-      let status: 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED' =
-        'NOT_STARTED'
-      if (item.cancelledStages?.includes(number)) status = 'CANCELLED'
-      else if (number <= item.completedUpTo) status = 'COMPLETED'
-      else if (item.blockedStage === number) status = 'BLOCKED'
-      else if (number === item.completedUpTo + 1 && !isControl) status = 'IN_PROGRESS'
+      const status = seedStatus(number)
 
       const isOverdue = item.overdueStages?.includes(number) ?? false
       const deadline = isOverdue
         ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
         : new Date(startedAt.getTime() + definition.normativeDays * DAY)
-
-      // Контрольный этап считается по остальным — здесь выставляется то же правило.
-      const controlStatus =
-        item.completedUpTo >= 13 ? 'COMPLETED' : item.completedUpTo > 0 ? 'IN_PROGRESS' : 'NOT_STARTED'
 
       const finalStatus = isControl ? controlStatus : status
 

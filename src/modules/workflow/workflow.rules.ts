@@ -188,6 +188,70 @@ export function assertTransition(
   }
 }
 
+/** Поля этапа, которые обязательны в его статусе (решение 4). */
+export interface StageStatusFields {
+  status: StageStatus
+  result: string | null
+  blockingReason: string | null
+}
+
+/**
+ * Каким станет этап после записи.
+ *
+ * Правила перехода проверяли запрос, а записывался этап, собранный из запроса
+ * и сохранённых полей. Между ними терялось главное: `{"status":"COMPLETED",
+ * "result":"   "}` проходило проверку по сохранённому результату и записывало
+ * пустой; `{"result":null}` у завершённого этапа не проверялось вовсе — правка
+ * полей без смены статуса правил не касалась; `{"blockingReason":""}`
+ * у заблокированного оставляло его без причины. Теперь итог собирается здесь
+ * один раз, проверяется (`assertStageFieldsComplete`) и он же записывается.
+ */
+export function resolveStageFields(
+  stage: StageStatusFields,
+  input: { status?: StageStatus; result?: string | null; blockingReason?: string | null },
+): StageStatusFields {
+  const status = input.status ?? stage.status
+  const statusChanged = status !== stage.status
+
+  // Завершая этап, результат можно не присылать — берётся сохранённый
+  // (контракт: «в теле или уже сохранённый»). Пустой в теле его не стирает.
+  const result =
+    statusChanged && status === 'COMPLETED'
+      ? isFilled(input.result)
+        ? (input.result as string)
+        : stage.result
+      : input.result !== undefined
+        ? input.result
+        : stage.result
+
+  // Причина блокировки живёт, только пока этап заблокирован.
+  const blockingReason =
+    status !== 'BLOCKED'
+      ? null
+      : input.blockingReason !== undefined
+        ? input.blockingReason
+        : stage.blockingReason
+
+  return { status, result, blockingReason }
+}
+
+/** Итоговое состояние этапа само удовлетворяет правилам своего статуса. */
+export function assertStageFieldsComplete(fields: StageStatusFields): void {
+  if (fields.status === 'COMPLETED' && !isFilled(fields.result)) {
+    throw validationError('У завершённого этапа должен быть результат', [
+      {
+        field: 'result',
+        message: 'Результат завершённого этапа не стирается. Чтобы изменить этап, переоткройте его',
+      },
+    ])
+  }
+  if (fields.status === 'BLOCKED' && !isFilled(fields.blockingReason)) {
+    throw validationError('У заблокированного этапа должна быть причина', [
+      { field: 'blockingReason', message: 'Укажите причину блокировки' },
+    ])
+  }
+}
+
 /**
  * Пункты чек-листа закрытого этапа не меняются.
  *

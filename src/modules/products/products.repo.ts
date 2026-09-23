@@ -2,8 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
-import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
-import { computeControlStatus } from '@/modules/workflow/workflow.rules'
+import { lockCooperation, recomputeControlStage } from '@/modules/workflow/workflow.repo'
 import { PRODUCT_SORT_FIELDS, type ProductListQuery } from './products.schema'
 import { BULK_TARGET_STATUSES } from './products.rules'
 
@@ -105,6 +104,11 @@ export interface ReleaseApplyInput {
  */
 export async function applyRelease(input: ReleaseApplyInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // Та же очередь, что у смены статусов (workflow.repo.lockCooperation). По порядку id,
+    // чтобы два выпуска с общими связками не ждали друг друга по кругу.
+    const cooperationIds = [...new Set(input.targets.map((target) => target.cooperationId))].sort()
+    for (const cooperationId of cooperationIds) await lockCooperation(tx, cooperationId)
+
     await tx.iTProduct.update({
       where: { id: input.productId },
       data: { version: input.version },
@@ -137,38 +141,8 @@ export async function applyRelease(input: ReleaseApplyInput): Promise<void> {
         },
       })
 
-      // Контрольный этап 14 зависит от остальных — пересчитываем его здесь же.
-      const stages = await tx.workflowStage.findMany({
-        where: { cooperationId: target.cooperationId },
-        select: { id: true, stageNumber: true, status: true },
-      })
-      const control = stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)
-      if (!control) continue
-
-      const next = computeControlStatus(
-        stages
-          .filter((stage) => stage.stageNumber !== CONTROL_STAGE_NUMBER)
-          .map((stage) => stage.status),
-      )
-      if (next === control.status) continue
-
-      await tx.workflowStage.update({
-        where: { id: control.id },
-        data: {
-          status: next,
-          completedAt: next === 'COMPLETED' ? new Date() : null,
-          completedById: null,
-        },
-      })
-      await tx.stageHistory.create({
-        data: {
-          stageId: control.id,
-          fromStatus: control.status,
-          toStatus: next,
-          comment: 'Пересчитано автоматически по состоянию этапов 1–13',
-          changedById: input.userId,
-        },
-      })
+      // Контрольный этап 14 зависит от остальных — тот же пересчёт, что при смене статуса.
+      await recomputeControlStage(tx, target.cooperationId, input.userId)
     }
   })
 }

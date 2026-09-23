@@ -1,6 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import type { Prisma } from '@/generated/prisma/client'
-import { conflict, notFound } from '@/shared/http/errors'
+import { conflict, invalidTransition, notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import {
   assertCan,
@@ -9,7 +8,6 @@ import {
   universityScope,
 } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
-import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
@@ -23,13 +21,14 @@ import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
   assertControlPointReady,
+  assertStageFieldsComplete,
   assertTasksEditable,
   assertTransition,
   isControlPoint,
-  computeControlStatus,
   isAutoManaged,
   isDueSoon,
   isOverdue,
+  resolveStageFields,
 } from './workflow.rules'
 import type { StageListQuery, UpdateStageInput, UpdateTaskInput } from './workflow.schema'
 
@@ -128,51 +127,6 @@ export async function listByCooperation(
   return rows.map((row) => toStageDto(row, now, { hideInternalNotes }))
 }
 
-/**
- * Пересчёт контрольного этапа 14 по состоянию этапов 1–13 (решение 2).
- * Вызывается после любого изменения статуса обычного этапа.
- */
-async function recomputeControlStage(
-  tx: Prisma.TransactionClient,
-  cooperationId: string,
-  userId: string,
-): Promise<void> {
-  const stages = await tx.workflowStage.findMany({
-    where: { cooperationId },
-    select: { id: true, stageNumber: true, status: true },
-  })
-
-  const control = stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)
-  if (!control) return
-
-  const others = stages
-    .filter((stage) => stage.stageNumber !== CONTROL_STAGE_NUMBER)
-    .map((stage) => stage.status as StageStatus)
-
-  const next = computeControlStatus(others)
-  if (next === control.status) return
-
-  await tx.workflowStage.update({
-    where: { id: control.id },
-    data: {
-      status: next,
-      // Контрольный этап закрывает система, а не человек: автора завершения у него нет.
-      completedAt: next === 'COMPLETED' ? new Date() : null,
-      completedById: null,
-    },
-  })
-
-  await tx.stageHistory.create({
-    data: {
-      stageId: control.id,
-      fromStatus: control.status,
-      toStatus: next,
-      comment: 'Пересчитано автоматически по состоянию этапов 1–13',
-      changedById: userId,
-    },
-  })
-}
-
 export async function updateStage(
   user: CurrentUser,
   stageId: string,
@@ -232,8 +186,34 @@ export async function updateStage(
 
   const now = new Date()
   const next = input.status ?? stage.status
+  // Проверяется и записывается один и тот же итог — а не запрос по отдельности.
+  const resulting = resolveStageFields(stage, input)
+  assertStageFieldsComplete(resulting)
 
   await prisma.$transaction(async (tx) => {
+    await repo.lockCooperation(tx, stage.cooperationId)
+
+    // Проверки выше — до очереди, чтобы отказ приходил сразу. То, что могли
+    // изменить параллельно другие этапы этой связки, проверяется ещё раз здесь.
+    if (statusChanged && isControlPoint(stage.stageNumber)) {
+      assertControlPointReady(
+        stage.stageNumber,
+        next,
+        await repo.findPriorStages(stage.cooperationId, stage.stageNumber, tx),
+      )
+    }
+    if (statusChanged && next === 'COMPLETED') {
+      const openRequired = await tx.task.count({
+        where: { stageId, isRequired: true, isDone: false },
+      })
+      if (openRequired > 0) {
+        throw invalidTransition(
+          `Не закрыты обязательные пункты чек-листа: ${requiredTasks.length - openRequired} из ${requiredTasks.length}`,
+          { requiredTasksOpen: openRequired },
+        )
+      }
+    }
+
     // Обновление условное: статус меняется, только если он всё ещё тот, который мы прочитали.
     // Иначе два одновременных запроса (двойной клик) оба прошли бы проверку перехода
     // и записали бы в историю два одинаковых события.
@@ -246,13 +226,8 @@ export async function updateStage(
           ? { deadline: input.deadline ? new Date(input.deadline) : null }
           : {}),
         ...(input.comment !== undefined ? { comment: input.comment } : {}),
-        ...(input.result !== undefined ? { result: input.result } : {}),
-        // Причина блокировки живёт только пока этап заблокирован.
-        ...(next === 'BLOCKED'
-          ? { blockingReason: input.blockingReason ?? stage.blockingReason }
-          : statusChanged
-            ? { blockingReason: null }
-            : {}),
+        result: resulting.result,
+        blockingReason: resulting.blockingReason,
         ...(statusChanged && next === 'IN_PROGRESS' && !stage.startedAt
           ? { startedAt: now }
           : {}),
@@ -282,7 +257,7 @@ export async function updateStage(
           changedById: user.id,
         },
       })
-      await recomputeControlStage(tx, stage.cooperationId, user.id)
+      await repo.recomputeControlStage(tx, stage.cooperationId, user.id)
     }
   })
 
@@ -331,16 +306,36 @@ export async function toggleTask(
   assertCooperationOpen(taskCooperation.status)
   assertTasksEditable(task.stage.status, task.stage.stageNumber)
 
-  await prisma.task.update({
-    where: { id: taskId },
-    data: {
-      isDone: input.isDone,
-      doneAt: input.isDone ? new Date() : null,
-      doneById: input.isDone ? user.id : null,
-    },
+  const changed = await prisma.$transaction(async (tx) => {
+    // В очереди со сменой статусов этой связки (lockCooperation): иначе пункт
+    // снимался в тот же миг, когда этап завершали, и завершённый этап оставался
+    // с незакрытым обязательным пунктом.
+    await repo.lockCooperation(tx, task.stage.cooperationId)
+    const current = await tx.workflowStage.findUnique({
+      where: { id: task.stageId },
+      select: { status: true, stageNumber: true },
+    })
+    if (!current) throw notFound('Этап не найден')
+    assertTasksEditable(current.status as StageStatus, current.stageNumber)
+
+    // Повторная отметка уже отмеченного пункта ничего не меняет. Раньше она
+    // переписывала, кто и когда его отметил: подтверждение получения материалов
+    // представителем вуза переходило к менеджеру, нажавшему на устаревшей странице.
+    const fresh = await tx.task.findUnique({ where: { id: taskId }, select: { isDone: true } })
+    if (!fresh || fresh.isDone === input.isDone) return false
+
+    await tx.task.update({
+      where: { id: taskId },
+      data: {
+        isDone: input.isDone,
+        doneAt: input.isDone ? new Date() : null,
+        doneById: input.isDone ? user.id : null,
+      },
+    })
+    return true
   })
 
-  await writeAudit({
+  if (changed) await writeAudit({
     userId: user.id,
     action: 'task.toggle',
     objectType: 'Task',
