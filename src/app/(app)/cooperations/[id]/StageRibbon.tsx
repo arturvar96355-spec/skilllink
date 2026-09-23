@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import { STAGE_PHASES, STAGE_PHASE_LABELS, STAGE_STATUS_LABELS } from '@/shared/contracts'
 import type { StagePhase, WorkflowStageDto } from '@/shared/contracts'
 import { Icon } from '@/ui'
@@ -25,10 +26,36 @@ export interface StageRibbonProps {
   onSelect: (stageId: string) => void
 }
 
+/**
+ * Глубина этапа относительно текущего (07, раздел 8): текущий — ближе всех,
+ * пройденные уходят назад, будущие — дальше и тише, но остаются читаемыми.
+ * Проблемные не гаснут: просрочку и блокировку должно быть видно издалека.
+ */
+function depthOf(stage: WorkflowStageDto, focus: number): { z: number; fade: number } {
+  const distance = stage.stageNumber - focus
+  const problem = stage.isOverdue || stage.status === 'BLOCKED'
+  if (distance === 0) return { z: 22, fade: 1 }
+  if (distance < 0) {
+    return { z: Math.max(-84, distance * 16), fade: problem ? 0.9 : Math.max(0.66, 1 + distance * 0.07) }
+  }
+  return { z: Math.max(-64, -distance * 10), fade: problem ? 0.9 : Math.max(0.6, 1 - distance * 0.06) }
+}
+
+/** Номер этапа в записи маршрута: «06 / 14». */
+const notation = (stage: number, total: number) =>
+  `${String(stage).padStart(2, '0')} / ${total}`
+
 export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }: StageRibbonProps) {
   if (stages.length === 0) return null
 
   const ordered = [...stages].sort((a, b) => a.stageNumber - b.stageNumber)
+  // Текущий этап — первый незакрытый (решение 5); этап 14 им не бывает.
+  const current =
+    ordered.find(
+      (stage) =>
+        !stage.isAutoManaged && stage.status !== 'COMPLETED' && stage.status !== 'CANCELLED',
+    ) ?? null
+  const focus = current?.stageNumber ?? ordered.length
 
   // Ширина колонки одна на все этапы: иначе длинные названия растянут свои
   // столбцы, и шаги окажутся на разном расстоянии друг от друга.
@@ -77,6 +104,16 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
 
   return (
     <div className={styles.ribbon}>
+      <div className={styles.head}>
+        <span className={styles.headLabel}>{current ? 'Текущий этап' : 'Все этапы закрыты'}</span>
+        {current && (
+          <>
+            <span className={styles.headNotation}>{notation(current.stageNumber, ordered.length)}</span>
+            <span className={styles.headTitle}>{current.title}</span>
+          </>
+        )}
+      </div>
+
       <div
         className={styles.phases}
         style={{
@@ -100,7 +137,16 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
         ))}
       </div>
 
-      <div className={styles.track} style={{ gridTemplateColumns: columns }}>
+      <div
+        className={styles.track}
+        style={
+          {
+            gridTemplateColumns: columns,
+            // Точка схода — у текущего этапа: глубина читается от него в обе стороны.
+            '--focus': `${((focus - 0.5) / ordered.length) * 100}%`,
+          } as CSSProperties
+        }
+      >
         <span className={styles.line} aria-hidden="true" />
         <span className={styles.lineDone} style={{ width: `${donePercent}%` }} aria-hidden="true" />
 
@@ -111,6 +157,7 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
             : stage.isDueSoon
               ? 'скоро срок'
               : null
+          const depth = depthOf(stage, focus)
           return (
             <button
               key={stage.id}
@@ -118,10 +165,12 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
               className={[
                 styles.node,
                 stateClass(stage),
+                stage.id === current?.id ? styles.focus : '',
                 stage.id === selectedStageId ? styles.selected : '',
               ]
                 .filter(Boolean)
                 .join(' ')}
+              style={{ '--z': `${depth.z}px`, '--fade': depth.fade } as CSSProperties}
               onClick={() => onSelect(stage.id)}
               title={`${stage.stageNumber}. ${stage.title}`}
               aria-label={

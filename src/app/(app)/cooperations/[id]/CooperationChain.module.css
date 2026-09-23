@@ -1,90 +1,81 @@
 /*
- * Связка «вуз — программа — IT-продукт» схемой, а не тремя подписями.
- *
- * Единица учёта всей системы — эта тройка. Пока она была тремя ячейками
- * с текстом, из экрана невозможно было понять, что вуз, программа и продукт
- * связаны между собой, а не просто перечислены рядом.
+ * Collaboration Link Map (07, раздел 7): компания ── вуз ── программа ── продукт,
+ * ветка к текущему этапу. Появление: узлы по очереди, звенья дорисовываются
+ * между ними, по цепочке проходит один импульс — и всё неподвижно.
  */
 
-.chain {
+.map {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   gap: var(--space-2);
-  flex-wrap: wrap;
+}
+
+.chain {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Импульс активной связи: один проход светлой полоски по цепочке. */
+.chain::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 72px;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-brand);
+  opacity: 0;
+  pointer-events: none;
+  animation: travel 1100ms var(--ease-in-out) 700ms 1 both;
 }
 
 .node {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  flex: 1 1 200px;
-  min-width: 0;
-  padding: var(--space-3);
-  border-radius: var(--radius-card-sm);
-  background: var(--surface-card-muted);
-  border: 1px solid var(--border-subtle);
-  transition: border-color var(--motion-micro) var(--ease-out),
-    background var(--motion-micro) var(--ease-out);
-}
-
-.node:hover {
-  border-color: var(--border-hover);
-  background: var(--surface-hover);
-}
-
-/* Продукт может быть не выбран: пунктир вместо сплошной рамки. */
-.empty {
-  border-style: dashed;
-  border-color: rgba(255, 255, 255, 0.14);
-  background: transparent;
-}
-
-.icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-accent-soft);
-}
-
-.emptyIcon {
-  color: var(--text-disabled);
-}
-
-.text {
-  display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 0;
   min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-row);
+  color: inherit;
+  transition:
+    opacity var(--motion-control) var(--ease-out),
+    background var(--motion-control) var(--ease-out);
+  animation: nodeIn var(--motion-panel) var(--ease-out) both;
+  animation-delay: calc(var(--n, 0) * 90ms);
+}
+
+a.node:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .role {
-  font-size: var(--text-caption-size);
+  font-size: var(--text-kicker-size);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
   color: var(--text-tertiary);
 }
 
 .name {
-  font-size: var(--text-body-sm-size);
+  font-size: var(--text-body-size);
   font-weight: 600;
   line-height: 1.35;
   color: var(--text-primary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.link:hover .name {
-  color: var(--text-accent);
-}
-
-.nameEmpty {
-  font-size: var(--text-body-sm-size);
-  font-weight: 500;
+.missing .name {
   color: var(--text-tertiary);
+  font-style: italic;
 }
 
 .note {
@@ -92,27 +83,133 @@
   color: var(--text-tertiary);
 }
 
-/*
- * Связующее звено. Стрелка стоит между карточками и показывает направление:
- * вуз даёт программу, программа получает продукт.
- */
-.link2 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 28px;
-  color: var(--text-disabled);
+/* Звено — линия между узлами; дорисовывается слева направо после своего узла. */
+.link {
+  flex: 0 0 40px;
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+  transition: background var(--motion-control) var(--ease-out);
+  animation: linkIn var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(120ms + var(--n, 0) * 90ms);
 }
 
-@media (max-width: 720px) {
+.linkMissing {
+  background: repeating-linear-gradient(90deg, var(--line-strong) 0 4px, transparent 4px 8px);
+}
+
+/* Наведение: соседи узла — ярче, остальное — тише. Только связанные узлы. */
+.chain:has(.node:hover) .node {
+  opacity: 0.45;
+}
+
+.chain:has([data-node='company']:hover) :is([data-node='company'], [data-node='university']),
+.chain:has([data-node='university']:hover) :is([data-node='company'], [data-node='university'], [data-node='program']),
+.chain:has([data-node='program']:hover) :is([data-node='university'], [data-node='program'], [data-node='product']),
+.chain:has([data-node='product']:hover) :is([data-node='program'], [data-node='product']) {
+  opacity: 1;
+}
+
+.chain:has([data-node='company']:hover) [data-link='company-university'],
+.chain:has([data-node='university']:hover) :is([data-link='company-university'], [data-link='university-program']),
+.chain:has([data-node='program']:hover) :is([data-link='university-program'], [data-link='program-product']),
+.chain:has([data-node='product']:hover) [data-link='program-product'] {
+  background: var(--gradient-brand);
+}
+
+/* Ветка к текущему этапу — от середины цепочки, под ней. */
+.branch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: calc(25% + var(--space-3));
+  animation: nodeIn var(--motion-panel) var(--ease-out) 420ms both;
+}
+
+.branchLine {
+  width: 16px;
+  height: 16px;
+  border-left: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+  border-bottom-left-radius: 6px;
+  margin-top: -14px;
+}
+
+.stage {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.notation {
+  font-weight: 650;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stageProblem .notation {
+  color: var(--status-danger);
+}
+
+@keyframes nodeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes linkIn {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes travel {
+  0% {
+    opacity: 0;
+    left: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    left: calc(100% - 72px);
+  }
+}
+
+/* Узко: цепочка — столбиком, звенья — вертикальные. */
+@media (max-width: 860px) {
   .chain {
     flex-direction: column;
+    align-items: stretch;
+    gap: 0;
   }
 
-  .link2 {
-    width: 100%;
-    height: 18px;
-    transform: rotate(90deg);
+  .chain::after {
+    display: none;
+  }
+
+  .link {
+    flex: 0 0 14px;
+    width: 1px;
+    height: 14px;
+    margin-left: var(--space-5);
+    transform-origin: top center;
+  }
+
+  .branch {
+    padding-left: var(--space-5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chain::after {
+    display: none;
   }
 }
