@@ -86,6 +86,39 @@ describe('лента уведомлений', () => {
     expect(feed.unreadCount).toBe(7)
   })
 
+  it('свежие изменения не вытесняют просрочку из показанной части', () => {
+    // Просрочка датирована истёкшим сроком — прошлым. При обрезке по времени
+    // двадцать свежих изменений выталкивали её из колокольчика целиком.
+    const overdue = [
+      stage({ stageId: 'old-1', deadline: new Date(now.getTime() - 40 * DAY) }),
+      stage({ stageId: 'old-2', deadline: new Date(now.getTime() - 50 * DAY) }),
+    ]
+    const changes = Array.from({ length: 30 }, (_, index) => ({
+      historyId: `h-${index}`,
+      stageId: `changed-${index}`,
+      stageNumber: 3,
+      stageTitle: 'Организация встречи',
+      toStatus: 'IN_PROGRESS' as const,
+      changedAt: new Date(now.getTime() - (index + 1) * 60 * 60 * 1000),
+      cooperationId: 'coop-2',
+      universityName: 'МТУСИ',
+      programName: 'Анализ данных',
+      authorName: 'Коллега',
+    }))
+    const feed = buildFeed(sources({ deadlines: overdue, stageChanges: changes }), {
+      now,
+      since: null,
+      limit: 20,
+    })
+
+    expect(feed.items).toHaveLength(20)
+    expect(feed.items.filter((item) => item.kind === 'stage.overdue')).toHaveLength(2)
+    // Порядок — по времени, как и был: просрочки внизу, потому что они старше.
+    expect(feed.items.slice(-2).map((item) => item.target.stageId)).toEqual(['old-1', 'old-2'])
+    const times = feed.items.map((item) => item.occurredAt)
+    expect([...times].sort().reverse()).toEqual(times)
+  })
+
   it('новые сверху, при равном времени порядок постоянный', () => {
     const at = new Date(now.getTime() - DAY)
     const feed = buildFeed(
