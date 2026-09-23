@@ -1,6 +1,6 @@
 import { SKILL_GAP } from '@/shared/config/analytics.config'
 import type { SkillLevel } from '@/shared/contracts/enums'
-import { normalize, range, round } from '@/shared/utils/number'
+import { normalize, outOf100, range, round } from '@/shared/utils/number'
 
 /** Покрытие навыка программой по уровню освоения. Навыка нет — покрытие 0. */
 export function coverageByLevel(level: SkillLevel | null): number {
@@ -50,8 +50,8 @@ export function calculateGap(
   const isCritical = SKILL_GAP.criticalWhenMissing && isDemanded && coverage === 0
 
   const explanation = isCritical
-    ? `Навык «${skillName}» востребован рынком (${round(demandNormalized * 100)} из 100), но в программе отсутствует`
-    : `Спрос ${round(demandNormalized * 100)} из 100, покрытие программой ${round(coverage * 100)} из 100`
+    ? `Навык «${skillName}» востребован рынком (${outOf100(demandNormalized)} из 100), но в программе отсутствует`
+    : `Спрос ${outOf100(demandNormalized)} из 100, покрытие программой ${outOf100(coverage)} из 100`
 
   return { coverage, gap, isCritical, explanation }
 }
