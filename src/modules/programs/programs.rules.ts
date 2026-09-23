@@ -1,7 +1,24 @@
 import type { Metric } from '@/shared/contracts/common'
+import type { Prisma } from '@/generated/prisma/client'
 import type { DataOrigin } from '@/shared/contracts/enums'
 import { DATA_ORIGIN_LABELS } from '@/shared/contracts/labels'
 import { toIso } from '@/shared/utils/date'
+
+/**
+ * Действующая программа — та, что учитывается в аналитике: рейтинге, покрытии
+ * навыков, правилах рекомендаций.
+ *
+ * Условие было записано в семи запросах как «программа не в архиве» — без вуза.
+ * Архивный вуз оставлял свои программы действующими: они сдвигали шкалу рейтинга,
+ * попадали в лучшие программы, закрывали дефициты навыков и порождали
+ * рекомендации «нет данных по программе». Вернуть программу из архива при
+ * архивном вузе нельзя (programs.service) — значит, и считать её нельзя.
+ */
+export const ACTIVE_PROGRAM_WHERE = {
+  status: 'ACTIVE',
+  archivedAt: null,
+  university: { archivedAt: null },
+} as const satisfies Prisma.EducationalProgramWhereInput
 
 /**
  * Оборачивает показатель набора вместе с его происхождением (решение 8).
