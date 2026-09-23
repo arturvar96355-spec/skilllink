@@ -182,11 +182,22 @@ export default function CooperationsPage() {
         description="Связки «вуз — программа — IT-продукт». Каждая проходит четырнадцать этапов."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
-          user.permissions.canWrite ? (
-            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
-              Создать связку
+          <>
+            <Button
+              variant="secondary"
+              icon="download"
+              href="/api/export?dataset=cooperations"
+              external
+              title="Все связки в CSV, до 1000 строк. Фильтры на экране не применяются."
+            >
+              Выгрузить
             </Button>
-          ) : undefined
+            {user.permissions.canWrite && (
+              <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+                Создать связку
+              </Button>
+            )}
+          </>
         }
       />
 
