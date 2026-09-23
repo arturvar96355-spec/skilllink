@@ -41,6 +41,13 @@ import styles from './universities.module.css'
 
 const PAGE_SIZE = 20
 
+/**
+ * До скольких вузов фильтр по региону собирается из самого реестра.
+ * Дальше он прячется: неполный список регионов хуже отсутствующего —
+ * человек решит, что других регионов в системе нет.
+ */
+const REGION_FILTER_LIMIT = 100
+
 /** Пороги фильтра по рейтингу. Балл относительный, поэтому пороги круглые и редкие. */
 const RATING_OPTIONS = [
   { value: '', label: 'Любой рейтинг' },
@@ -83,22 +90,29 @@ export default function UniversitiesPage() {
    * Список регионов для фильтра.
    *
    * Отдельного справочника регионов в API нет, поэтому значения берутся
-   * из самого реестра — одним запросом без расчёта рейтинга. Пока вузов
-   * не больше сотни, список полный; если их станет больше, фильтр честно
-   * прячется, вместо того чтобы предлагать неполный набор.
+   * из самого реестра. Пока вузов не больше сотни, список полный; если их
+   * станет больше, фильтр честно прячется, вместо того чтобы предлагать
+   * неполный набор.
+   *
+   * Сколько всего вузов, известно из ответа самого реестра — на большой базе
+   * справочник не запрашивается вовсе. Раньше он запрашивался всегда
+   * и на тысяче вузов стоил лишних трёхсот миллисекунд работы сервера ради
+   * фильтра, который всё равно не покажут.
    */
+  const totalUniversities = universities.meta?.total ?? null
   const regionsSource = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100&sort=region',
+    totalUniversities !== null && totalUniversities <= REGION_FILTER_LIMIT
+      ? `/api/universities?withRating=false&pageSize=${REGION_FILTER_LIMIT}&sort=region`
+      : null,
   )
   const regionOptions = useMemo(() => {
     const rows = regionsSource.data ?? []
-    const total = regionsSource.meta?.total ?? rows.length
-    if (total > rows.length) return null
+    if (rows.length === 0) return null
     const unique = Array.from(new Set(rows.map((row) => row.region))).sort((a, b) =>
       a.localeCompare(b, 'ru'),
     )
     return unique.map((value) => ({ value, label: value }))
-  }, [regionsSource.data, regionsSource.meta])
+  }, [regionsSource.data])
 
   const rows = universities.data ?? []
   const containsMock = rows.some((row) => row.isMock)
