@@ -352,6 +352,7 @@ function CooperationContent() {
           ) : (
             <DataTable
               rows={documents.data ?? []}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}
