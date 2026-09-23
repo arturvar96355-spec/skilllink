@@ -3,6 +3,7 @@ import { notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, canSeeInternalNotes, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { assertStaffResponsible } from '@/shared/links/entity-links'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -227,14 +228,17 @@ export async function update(
   if (!existing) throw notFound('Связка не найдена')
   assertCooperationEditable(existing.status, input.status)
 
-  if (input.responsibleId) {
-    const responsible = await prisma.user.findFirst({
-      where: { id: input.responsibleId, isActive: true },
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
+  // Продукт проверяется так же, как при создании: иначе несуществующий id
+  // уходил в connect и возвращался как «Связка не найдена».
+  if (input.productId) {
+    const product = await prisma.iTProduct.findUnique({
+      where: { id: input.productId },
       select: { id: true },
     })
-    if (!responsible) {
-      throw validationError('Указан несуществующий ответственный', [
-        { field: 'responsibleId', message: 'Сотрудник не найден' },
+    if (!product) {
+      throw validationError('Указан несуществующий IT-продукт', [
+        { field: 'productId', message: 'Продукт не найден' },
       ])
     }
   }
