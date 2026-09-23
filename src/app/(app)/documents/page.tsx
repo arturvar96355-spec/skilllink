@@ -219,7 +219,11 @@ function DocumentsView() {
       render: (row) => (
         <span className={styles.dates}>
           <span className={styles.dateRow}>Выдан: {formatDate(row.issuedAt)}</span>
-          <span className={styles.dateRow}>Подписан: {formatDate(row.signedAt)}</span>
+          {/* Нет даты подписания — это факт «не подписан», а не нехватка данных:
+              «Нет данных» здесь читалось как «неизвестно, подписан ли». */}
+          <span className={styles.dateRow}>
+            {row.signedAt ? `Подписан: ${formatDate(row.signedAt)}` : 'Не подписан'}
+          </span>
         </span>
       ),
     },
@@ -499,7 +503,7 @@ function DocumentDrawer({
             <Fact label="Автор" value={card.author?.fullName ?? NO_DATA} />
             <Fact label="Ответственный" value={card.responsible?.fullName ?? NO_DATA} />
             <Fact label="Выдан" value={formatDate(card.issuedAt)} />
-            <Fact label="Подписан" value={formatDate(card.signedAt)} />
+            <Fact label="Подписан" value={card.signedAt ? formatDate(card.signedAt) : 'Нет'} />
             <Fact label="Создан" value={formatDateTime(card.createdAt)} />
             <Fact label="Обновлён" value={formatDateTime(card.updatedAt)} />
           </dl>
