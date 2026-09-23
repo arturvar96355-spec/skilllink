@@ -16,6 +16,7 @@ import { demandNormalizer } from '@/modules/skills/skills.rules'
 import { findCurrentStage, isOverdue } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import {
+  compareDraftsByImportance,
   ruleCooperationWithoutProduct,
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
@@ -247,7 +248,10 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   drafts.push(...shownGaps)
 
   // ── Сохранение ─────────────────────────────────────────────────────────────
-  const { created, updated, keys } = await repo.upsertDrafts(drafts)
+  // В порядке ленты: новые записи получают время создания по этому порядку,
+  // и при равной важности лента и главная показывают их одинаково всегда.
+  drafts.sort(compareDraftsByImportance)
+  const { created, updated, keys } = await repo.upsertDrafts(drafts, now)
   const stillActualKeys = [
     ...keys,
     ...deferredGaps.map((draft) => `${draft.ruleKey}::${draft.objectType}::${draft.objectId}`),

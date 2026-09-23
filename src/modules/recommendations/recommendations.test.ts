@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
 import { updateRecommendationSchema } from './recommendations.schema'
 import {
+  compareDraftsByImportance,
+  type RecommendationDraft,
   ruleCooperationWithoutProduct,
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
@@ -299,3 +301,60 @@ describe('изменение статуса рекомендации', () => {
     expect(updateRecommendationSchema.safeParse({ status: 'MAYBE' }).success).toBe(false)
   })
 })
+
+describe('порядок ленты рекомендаций', () => {
+  const draft = (overrides: Partial<RecommendationDraft>): RecommendationDraft => ({
+    ruleKey: 'stage.overdue',
+    type: 'ACTION',
+    objectType: 'Cooperation',
+    objectId: 'c',
+    title: 'Просрочен этап',
+    description: '',
+    priority: 'CRITICAL',
+    justification: '',
+    relatedData: {},
+    confidence: 'HIGH',
+    cooperationId: null,
+    ...overrides,
+  })
+
+  it('при равной важности — сначала самая давняя просрочка', () => {
+    // Три критичные просрочки создавались в одну миллисекунду, и сверху
+    // после каждой перезаливки оказывалась случайная.
+    const sorted = [
+      draft({ objectId: 'ngtu', relatedData: { daysOverdue: 21 } }),
+      draft({ objectId: 'spbgut', relatedData: { daysOverdue: 57 } }),
+      draft({ objectId: 'kai', relatedData: { daysOverdue: 24 } }),
+    ].sort(compareDraftsByImportance)
+    expect(sorted.map((item) => item.objectId)).toEqual(['spbgut', 'kai', 'ngtu'])
+  })
+
+  it('важность главнее правила; внутри важности — просрочка, затем дефицит по спросу', () => {
+    const sorted = [
+      draft({ objectId: 'gap-low', ruleKey: 'skill.critical-gap-with-product', priority: 'HIGH', relatedData: { demandNormalized: 80 } }),
+      draft({ objectId: 'stalled', ruleKey: 'cooperation.stalled', priority: 'MEDIUM' }),
+      draft({ objectId: 'overdue-high', priority: 'HIGH', relatedData: { daysOverdue: 18 } }),
+      draft({ objectId: 'gap-top', ruleKey: 'skill.critical-gap-with-product', priority: 'HIGH', relatedData: { demandNormalized: 100 } }),
+      draft({ objectId: 'overdue-critical', relatedData: { daysOverdue: 30 } }),
+    ].sort(compareDraftsByImportance)
+    expect(sorted.map((item) => item.objectId)).toEqual([
+      'overdue-critical',
+      'overdue-high',
+      'gap-top',
+      'gap-low',
+      'stalled',
+    ])
+  })
+
+  it('порядок не зависит от того, в каком виде пришли черновики', () => {
+    const items = [
+      draft({ objectId: 'a', relatedData: { daysOverdue: 5 } }),
+      draft({ objectId: 'b', relatedData: { daysOverdue: 5 } }),
+      draft({ objectId: 'c', relatedData: { daysOverdue: 9 } }),
+    ]
+    const forward = [...items].sort(compareDraftsByImportance).map((item) => item.objectId)
+    const backward = [...items].reverse().sort(compareDraftsByImportance).map((item) => item.objectId)
+    expect(backward).toEqual(forward)
+  })
+})
+
