@@ -204,11 +204,28 @@ export default function ProgramsPage() {
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
         meta={containsMockData ? <MockBadge /> : undefined}
         actions={
-          user.permissions.canWrite ? (
-            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
-              Создать программу
+          <>
+            {/* Если выбран вуз, выгрузка ограничивается им: этот параметр
+                эндпоинт понимает, остальные фильтры — нет. */}
+            <Button
+              variant="secondary"
+              icon="download"
+              href={`/api/export${buildQuery({ dataset: 'programs', universityId: universityId || undefined })}`}
+              external
+              title={
+                universityId
+                  ? 'Программы выбранного вуза в CSV, до 1000 строк.'
+                  : 'Все программы в CSV, до 1000 строк. Фильтры на экране не применяются.'
+              }
+            >
+              Выгрузить
             </Button>
-          ) : undefined
+            {user.permissions.canWrite && (
+              <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+                Создать программу
+              </Button>
+            )}
+          </>
         }
       />
 
