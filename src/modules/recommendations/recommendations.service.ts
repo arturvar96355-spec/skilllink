@@ -21,6 +21,7 @@ import {
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
   ruleOverdueStage,
+  lastCooperationActivity,
   ruleStalledCooperation,
   type RecommendationDraft,
 } from './recommendations.rules'
@@ -44,6 +45,7 @@ function toTarget(
 }
 
 /** Рекомендации в DTO вместе с именами объектов — для списков, карточки и дашборда. */
+
 export async function toRecommendationDtos(
   rows: readonly repo.RecommendationRow[],
 ): Promise<RecommendationDto[]> {
@@ -149,6 +151,7 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
     // Просрочка уже говорит «займитесь этой связкой». Добавлять поверх неё «связка
     // без движения» — шум: сотрудник получит два пункта об одной и той же проблеме.
     if (!hasOverdueDraft) {
+      const lastActivityAt = lastCooperationActivity(cooperation)
       const stalled = ruleStalledCooperation(
         {
           cooperationId: cooperation.id,
@@ -157,7 +160,7 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
           stageNumber: current.stageNumber,
           stageTitle: current.title,
           stageStatus: current.status,
-          updatedAt: cooperation.updatedAt,
+          lastActivityAt,
         },
         now,
       )

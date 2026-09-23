@@ -669,6 +669,11 @@ async function main(): Promise<void> {
           item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
         targetDate: item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
         isMock: true,
+        // Время записи — по сюжету, а не момент заливки: связка заведена, когда
+        // началась работа, и с тех пор не правилась. Иначе у всех связок «изменена
+        // сегодня», и застой по этапам в наборе не виден (решение 56).
+        createdAt: startedAt,
+        updatedAt: startedAt,
       },
     })
 
@@ -959,19 +964,10 @@ async function main(): Promise<void> {
     })
   }
 
-  // ─── Застоявшаяся связка ───────────────────────────────────────────────────
-  // updatedAt проставляется Prisma автоматически, поэтому дату последнего изменения
-  // для демонстрации правила «связка без движения» сдвигаем назад запросом.
-  console.log('Сдвиг даты изменения для демонстрации застоя...')
-  const stalled = await prisma.cooperation.findFirst({
-    where: { universityId: universityId('urfu') },
-    select: { id: true },
-  })
-  if (stalled) {
-    await prisma.$executeRaw`
-      UPDATE cooperations SET updated_at = ${daysAgo(30)} WHERE id = ${stalled.id}
-    `
-  }
+  // Застой не подделывается. Раньше у связки УрФУ дату изменения сдвигали на 30 дней
+  // назад, и правило выдавало «Связка без движения 30 дн.» о связке, созданной 5 дней
+  // назад, где этап 1 начат 4 дня назад. Правило смотрит на движение по этапам
+  // (решение 56) и само находит связку, где работа действительно стоит.
 
   // ─── Заявки на обучение ────────────────────────────────────────────────────
   // applicationCount программы считается по заявкам (решение 9), поэтому демо-данные

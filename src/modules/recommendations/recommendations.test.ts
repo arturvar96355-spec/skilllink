@@ -8,6 +8,7 @@ import {
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
   ruleOverdueStage,
+  lastCooperationActivity,
   ruleStalledCooperation,
 } from './recommendations.rules'
 
@@ -64,6 +65,19 @@ describe('правило: просроченный этап', () => {
     ).toBe('CRITICAL')
   })
 
+  it('в день срока — уже просрочка, как на главной, а не тишина', () => {
+    // Раньше здесь было пусто, и вместо просрочки срабатывало «связка без движения».
+    const draft = ruleOverdueStage({ ...base, deadline: new Date(NOW.getTime() - 60_000) }, NOW)
+    expect(draft?.ruleKey).toBe('stage.overdue')
+    expect(draft?.relatedData.daysOverdue).toBe(0)
+    expect(draft?.justification).toContain('истёк сегодня')
+    expect(draft?.priority).toBe('MEDIUM')
+  })
+
+  it('срок ещё не наступил — молчит', () => {
+    expect(ruleOverdueStage({ ...base, deadline: new Date(NOW.getTime() + 60_000) }, NOW)).toBeNull()
+  })
+
   it('называет ответственного, когда он известен', () => {
     const draft = ruleOverdueStage({ ...base, deadline: daysAgo(5) }, NOW)
     expect(draft?.justification).toContain('Кириллов')
@@ -88,7 +102,7 @@ describe('правило: связка без движения', () => {
 
   it('молчит, пока порог не превышен', () => {
     const draft = ruleStalledCooperation(
-      { ...base, updatedAt: daysAgo(RECOMMENDATION_RULES.stalledDays - 1) },
+      { ...base, lastActivityAt: daysAgo(RECOMMENDATION_RULES.stalledDays - 1) },
       NOW,
     )
     expect(draft).toBeNull()
@@ -96,7 +110,7 @@ describe('правило: связка без движения', () => {
 
   it('срабатывает на пороге', () => {
     const draft = ruleStalledCooperation(
-      { ...base, updatedAt: daysAgo(RECOMMENDATION_RULES.stalledDays) },
+      { ...base, lastActivityAt: daysAgo(RECOMMENDATION_RULES.stalledDays) },
       NOW,
     )
     expect(draft?.ruleKey).toBe('cooperation.stalled')
@@ -105,7 +119,7 @@ describe('правило: связка без движения', () => {
 
   it('ловит застой и на начатом этапе, не только на неначатом', () => {
     const draft = ruleStalledCooperation(
-      { ...base, stageStatus: 'IN_PROGRESS', updatedAt: daysAgo(30) },
+      { ...base, stageStatus: 'IN_PROGRESS', lastActivityAt: daysAgo(30) },
       NOW,
     )
     expect(draft).not.toBeNull()
@@ -114,13 +128,13 @@ describe('правило: связка без движения', () => {
   })
 
   it('предлагает начать этап, если он не начат', () => {
-    const draft = ruleStalledCooperation({ ...base, updatedAt: daysAgo(30) }, NOW)
+    const draft = ruleStalledCooperation({ ...base, lastActivityAt: daysAgo(30) }, NOW)
     expect(draft?.description).toContain('Начните этап')
   })
 
   it('повышает приоритет для давно заблокированного этапа', () => {
     const draft = ruleStalledCooperation(
-      { ...base, stageStatus: 'BLOCKED', updatedAt: daysAgo(30) },
+      { ...base, stageStatus: 'BLOCKED', lastActivityAt: daysAgo(30) },
       NOW,
     )
     expect(draft?.priority).toBe('HIGH')
@@ -129,10 +143,10 @@ describe('правило: связка без движения', () => {
 
   it('молчит для закрытого этапа', () => {
     expect(
-      ruleStalledCooperation({ ...base, stageStatus: 'COMPLETED', updatedAt: daysAgo(90) }, NOW),
+      ruleStalledCooperation({ ...base, stageStatus: 'COMPLETED', lastActivityAt: daysAgo(90) }, NOW),
     ).toBeNull()
     expect(
-      ruleStalledCooperation({ ...base, stageStatus: 'CANCELLED', updatedAt: daysAgo(90) }, NOW),
+      ruleStalledCooperation({ ...base, stageStatus: 'CANCELLED', lastActivityAt: daysAgo(90) }, NOW),
     ).toBeNull()
   })
 })
@@ -355,6 +369,32 @@ describe('порядок ленты рекомендаций', () => {
     const forward = [...items].sort(compareDraftsByImportance).map((item) => item.objectId)
     const backward = [...items].reverse().sort(compareDraftsByImportance).map((item) => item.objectId)
     expect(backward).toEqual(forward)
+  })
+})
+
+describe('движение по связке', () => {
+  it('закрытый вчера этап — это движение, даже если саму связку не правили месяц', () => {
+    // Раньше правило смотрело только на запись связки и называло её «без движения 30 дн.».
+    const last = lastCooperationActivity({
+      updatedAt: daysAgo(30),
+      stages: [
+        { history: [{ changedAt: daysAgo(1) }], tasks: [] },
+        { history: [], tasks: [{ doneAt: daysAgo(3) }] },
+      ],
+    })
+    expect(last).toEqual(daysAgo(1))
+  })
+
+  it('отметка в чек-листе — тоже движение', () => {
+    const last = lastCooperationActivity({
+      updatedAt: daysAgo(30),
+      stages: [{ history: [{ changedAt: daysAgo(20) }], tasks: [{ doneAt: daysAgo(2) }] }],
+    })
+    expect(last).toEqual(daysAgo(2))
+  })
+
+  it('без работы по этапам — время правки связки', () => {
+    expect(lastCooperationActivity({ updatedAt: daysAgo(30), stages: [] })).toEqual(daysAgo(30))
   })
 })
 
