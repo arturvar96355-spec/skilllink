@@ -242,6 +242,10 @@ function CooperationContent() {
               <span className={styles.factValue}>{data.responsible.fullName}</span>
             </span>
             <span className={styles.fact}>
+              <span className={styles.factLabel}>Первый контакт</span>
+              <span className={styles.factValue}>{formatDate(data.firstContactAt)}</span>
+            </span>
+            <span className={styles.fact}>
               <span className={styles.factLabel}>Контрольная дата</span>
               <span className={styles.factValue}>{formatDate(data.targetDate)}</span>
             </span>
@@ -249,6 +253,12 @@ function CooperationContent() {
               <span className={styles.factLabel}>Начало занятий</span>
               <span className={styles.factValue}>{formatDate(data.classesStartAt)}</span>
             </span>
+            {data.closedAt && (
+              <span className={styles.fact}>
+                <span className={styles.factLabel}>Закрыта</span>
+                <span className={styles.factValue}>{formatDate(data.closedAt)}</span>
+              </span>
+            )}
           </div>
           {data.goal && <p className={styles.goal}>{data.goal}</p>}
           {data.notes && <p className={styles.goal}>{data.notes}</p>}
