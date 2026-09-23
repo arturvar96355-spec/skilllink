@@ -1,0 +1,296 @@
+/*
+ * SkillLink Live Rail (07, разделы 6, 19, 20).
+ *
+ * Появление — одна композиция, а не пять отдельных эффектов: сначала числа,
+ * затем линия маршрута дорисовывается слева направо, затем по ней появляются
+ * связки, застрявшие получают один импульс. После этого всё неподвижно —
+ * бесконечной анимации нет.
+ */
+
+.rail {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-6) var(--space-5);
+  background: var(--surface-1);
+  border-radius: var(--radius-panel);
+}
+
+.kicker {
+  font-size: var(--text-kicker-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Числа — типографикой, без ячеек и рамок: одна строка, разный вес. */
+.numbers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-6) var(--space-10);
+}
+
+.number {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  animation: rise var(--motion-panel) var(--ease-out) both;
+  animation-delay: calc(80ms + var(--order, 0) * 40ms);
+}
+
+.value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-kpi-xl-size);
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--text-secondary);
+}
+
+.label {
+  margin-top: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.note {
+  display: inline-flex;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.mock {
+  color: var(--text-warm);
+}
+
+/* Второстепенный показатель — мельче и в конце: у блока одна главная мысль. */
+.secondary .value {
+  font-size: var(--text-kpi-md-size);
+}
+
+.secondary {
+  margin-left: auto;
+}
+
+/* Маршрут из четырнадцати этапов. */
+.track {
+  position: relative;
+  height: 96px;
+}
+
+/* Линия маршрута дорисовывается слева направо — transform, без перерасчёта разметки. */
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 44px;
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+  animation: draw var(--motion-hero) var(--ease-out) 150ms both;
+}
+
+/* Четырнадцать засечек — этапы маршрута. */
+.tick {
+  position: absolute;
+  top: 42px;
+  width: 1px;
+  height: 5px;
+  background: var(--line-strong);
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(200ms + var(--t, 0) * 30ms);
+}
+
+/* Фазы — подписями под линией и тонкими засечками на их границах. */
+.phase {
+  position: absolute;
+  top: 58px;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--line-subtle);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fade var(--motion-panel) var(--ease-out) both;
+  animation-delay: 380ms;
+}
+
+.dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dotItem {
+  position: absolute;
+  top: 44px;
+  width: 0;
+  height: 0;
+}
+
+.dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  box-shadow: 0 0 0 3px var(--surface-1);
+  transform: translate(-50%, -50%);
+  transition: transform var(--motion-fast) var(--ease-out);
+  animation: dotIn var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(330ms + var(--i, 0) * 35ms);
+}
+
+.dot:hover,
+.dot:focus-visible {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+
+.stuck {
+  background: var(--status-danger);
+}
+
+/* Один импульс у застрявших — и всё: сигнал, а не мигалка. */
+.stuck::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-danger);
+  opacity: 0;
+  animation: pulse 900ms var(--ease-out) 1;
+  animation-delay: calc(620ms + var(--i, 0) * 35ms);
+}
+
+.dotLabel,
+.dotMore {
+  position: absolute;
+  left: 0;
+  bottom: calc(10px + var(--stack, 0) * 15px);
+  transform: translateX(-50%);
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(380ms + var(--i, 0) * 35ms);
+}
+
+.dotMore {
+  color: var(--text-tertiary);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-body-sm-size);
+  animation: fade var(--motion-panel) var(--ease-out) both;
+  animation-delay: 480ms;
+}
+
+.attention {
+  color: var(--text-primary);
+  font-weight: 600;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.attention:hover {
+  color: var(--text-accent);
+}
+
+.fresh {
+  color: var(--text-tertiary);
+}
+
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@media (max-width: 720px) {
+  .rail {
+    padding: var(--space-5) var(--space-4) var(--space-4);
+  }
+
+  .value {
+    font-size: var(--text-kpi-lg-size);
+  }
+
+  .secondary {
+    margin-left: 0;
+  }
+
+  /* На узком экране подписи не помещаются — маршрут читается по точкам,
+     имя связки — в подсказке и в строках ниже. */
+  .phase,
+  .dotLabel,
+  .dotMore {
+    display: none;
+  }
+
+  .track {
+    height: 64px;
+  }
+
+  .line,
+  .dotItem {
+    top: 28px;
+  }
+
+  .tick {
+    top: 26px;
+  }
+}
+
+
