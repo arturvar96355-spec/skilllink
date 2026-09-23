@@ -13,6 +13,7 @@ import {
   formatRelative,
   formatScore,
   initials,
+  formatPersonShort,
   pluralize,
   dateTimeInputToIso,
   dateToDateTimeInput,
@@ -175,5 +176,14 @@ describe('доли и спрос', () => {
   it('спрос — «из 100»', () => {
     expect(formatDemand(0.774)).toBe('77 из 100')
     expect(formatDemand(undefined)).toBe(NO_DATA)
+  })
+})
+
+describe('formatPersonShort', () => {
+  it('фамилия и инициалы', () => {
+    expect(formatPersonShort('Кириллов Пётр Андреевич')).toBe('Кириллов П. А.')
+    expect(formatPersonShort('  Савельева   Ольга ')).toBe('Савельева О.')
+    expect(formatPersonShort('Орлов')).toBe('Орлов')
+    expect(formatPersonShort('   ')).toBe('—')
   })
 })
