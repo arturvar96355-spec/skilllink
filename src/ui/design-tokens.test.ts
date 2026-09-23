@@ -45,9 +45,10 @@ describe('оформление страниц', () => {
   /*
    * Колонка `1fr` не бывает уже своего содержимого: таблица с фиксированными
    * столбцами распирает её, и страница уезжает за край. Так на проекторе
-   * 1280×720 главная давала прокрутку вбок. В сетке из нескольких колонок доля
-   * задаётся через `minmax(0, …)`; одна колонка `1fr` и `repeat(auto-fit, …)`
-   * этому правилу не подлежат.
+   * 1280×720 главная давала прокрутку вбок, а на телефоне — на 364 пикселя:
+   * там сетка складывается в одну колонку `1fr`, и одиночная колонка ведёт
+   * себя так же. Доля задаётся через `minmax(0, …)`; `repeat(auto-fit, …)`
+   * правилу не подлежит — у него своя нижняя граница.
    */
   it.each(pageStyles())('%s: колонки сетки умеют сжиматься', (file) => {
     const css = readFileSync(join(ROOT, file), 'utf8')
@@ -56,8 +57,7 @@ describe('оформление страниц', () => {
       if (value.includes('repeat(')) return false
       const withoutGuarded = value.replace(/minmax\([^)]*\)/g, '')
       const bareFractions = withoutGuarded.match(/\b\d*\.?\d+fr\b/g) ?? []
-      const columns = value.split(/\s+(?![^(]*\))/).length
-      return columns > 1 && bareFractions.length > 0
+      return bareFractions.length > 0
     })
     expect(bare, `доли колонок — через minmax(0, …): ${bare.join(' ')}`).toEqual([])
   })
