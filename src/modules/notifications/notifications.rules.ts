@@ -189,10 +189,26 @@ export function buildFeed(
     isUnread: since === null || new Date(item.occurredAt).getTime() > since.getTime(),
   }))
 
+  // Просрочка — не событие, а состояние, которое ждёт действия. Время у неё —
+  // истёкший срок, то есть прошлое, и при обрезке по времени свежие изменения
+  // её вытесняли: на рабочей базе в ленте из 50 не оставалось ни одной из пяти
+  // просрочек, хотя решение 37 обещает, что их столько же, сколько в личной
+  // статистике. Поэтому в показанную часть сначала попадают все просрочки,
+  // а остальное место — по времени. Порядок внутри ленты прежний.
+  const overdueIds = withUnread
+    .filter((item) => item.kind === 'stage.overdue')
+    .slice(0, limit)
+    .map((item) => item.id)
+  const restIds = withUnread
+    .filter((item) => item.kind !== 'stage.overdue')
+    .slice(0, limit - overdueIds.length)
+    .map((item) => item.id)
+  const shown = new Set([...overdueIds, ...restIds])
+
   // Счётчик — по всей ленте, а не по показанной части: значок на колокольчике
   // не должен врать из-за того, что выпадающий список короче.
   return {
-    items: withUnread.slice(0, limit),
+    items: withUnread.filter((item) => shown.has(item.id)),
     unreadCount: withUnread.filter((item) => item.isUnread).length,
     generatedAt: now.toISOString(),
   }
