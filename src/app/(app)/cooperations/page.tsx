@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Card,
+  CellText,
   Checkbox,
   CooperationStatusBadge,
   DataTable,
@@ -39,7 +40,12 @@ import {
 import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
 
-const PAGE_SIZE = 20
+/**
+ * 25 строк на страницу — по решению Артура: реестр должен выглядеть
+ * рабочим инструментом, а не витриной. На экране Full HD они видны
+ * без прокрутки, на ноутбуке 1440×900 — двадцать.
+ */
+const PAGE_SIZE = 25
 
 /**
  * Реестр связок.
@@ -79,17 +85,31 @@ export default function CooperationsPage() {
     setPage(1)
   }
 
+  /*
+   * Каждая ячейка — в одну строку. Раньше в строке было по два-три этажа:
+   * вуз над программой, этап над сроком, полоса над счётчиками, — и на экран
+   * влезало шесть связок. Подробности, которые не поместились, видны
+   * в подсказке при наведении и, конечно, в карточке связки.
+   */
   const columns: Column<CooperationListItemDto>[] = [
     {
-      key: 'cooperation',
-      title: 'Связка',
+      key: 'university',
+      title: 'Вуз',
+      width: '130px',
       render: (row) => (
-        <span className={styles.cell}>
-          <span className={styles.title}>{row.universityName}</span>
-          <span className={styles.meta}>
-            {row.programName} · {row.productName ?? 'продукт не выбран'}
-          </span>
-        </span>
+        <CellText strong title={row.universityName}>
+          {row.universityShortName ?? row.universityName}
+        </CellText>
+      ),
+    },
+    {
+      key: 'program',
+      title: 'Программа · продукт',
+      render: (row) => (
+        <CellText title={`${row.programName} · ${row.productName ?? 'IT-продукт не выбран'}`}>
+          {row.programName}
+          <span className={styles.meta}> · {row.productName ?? 'продукт не выбран'}</span>
+        </CellText>
       ),
     },
     {
@@ -97,79 +117,89 @@ export default function CooperationsPage() {
       title: 'Текущий этап',
       render: (row) =>
         row.currentStage ? (
-          <span className={styles.stage}>
-            <span className={styles.stageTitle}>
+          <span className={styles.inline}>
+            <CellText
+              title={
+                row.currentStage.deadline
+                  ? `${row.currentStage.stageNumber}. ${row.currentStage.title} — срок ${formatDate(row.currentStage.deadline)}`
+                  : `${row.currentStage.stageNumber}. ${row.currentStage.title}`
+              }
+            >
               {row.currentStage.stageNumber}. {row.currentStage.title}
-            </span>
-            <span className={styles.progressMeta}>
-              <DeadlineBadge
-                isOverdue={row.currentStage.isOverdue}
-                isDueSoon={row.currentStage.isDueSoon}
-                daysToDeadline={row.daysToTarget}
-              />
-              {row.currentStage.deadline && !row.currentStage.isOverdue && !row.currentStage.isDueSoon && (
-                <span>срок {formatDate(row.currentStage.deadline)}</span>
-              )}
-            </span>
+            </CellText>
+            <DeadlineBadge
+              isOverdue={row.currentStage.isOverdue}
+              isDueSoon={row.currentStage.isDueSoon}
+              daysToDeadline={row.currentStage.daysToDeadline}
+              compact
+            />
           </span>
         ) : (
-          <span className={styles.meta}>Все этапы закрыты</span>
+          <CellText muted>Все этапы закрыты</CellText>
         ),
     },
     {
       key: 'progress',
       title: 'Прогресс',
-      width: '190px',
+      width: '130px',
       render: (row) => (
-        <span className={styles.progress}>
+        <span
+          className={styles.inline}
+          title={`Закрыто ${row.progress.completedStages} из ${row.progress.totalStages} этапов`}
+        >
           <Progress
             value={row.progress.percent}
             withValue
             label="Прогресс связки"
             tone={row.progress.overdueStages > 0 ? 'danger' : 'default'}
           />
-          <span className={styles.progressMeta}>
-            <span>
-              {row.progress.completedStages} из {row.progress.totalStages} этапов
-            </span>
-            {row.progress.overdueStages > 0 && (
-              <Badge tone="danger">просрочено {row.progress.overdueStages}</Badge>
-            )}
-            {row.progress.blockedStages > 0 && (
-              <Badge tone="warning">блок {row.progress.blockedStages}</Badge>
-            )}
-          </span>
         </span>
       ),
     },
     {
+      key: 'overdue',
+      title: 'Просрочено',
+      width: '92px',
+      align: 'right',
+      render: (row) =>
+        row.progress.overdueStages > 0 ? (
+          <Badge tone="danger">{row.progress.overdueStages}</Badge>
+        ) : row.progress.blockedStages > 0 ? (
+          <Badge tone="warning">блок {row.progress.blockedStages}</Badge>
+        ) : (
+          <span className={styles.meta}>—</span>
+        ),
+    },
+    {
       key: 'responsible',
       title: 'Ответственный',
-      width: '190px',
-      render: (row) => <span className={styles.meta}>{row.responsible.fullName}</span>,
+      width: '150px',
+      render: (row) => <CellText muted>{row.responsible.fullName}</CellText>,
     },
     {
       key: 'status',
       title: 'Статус',
-      width: '140px',
+      width: '120px',
       sortField: 'status',
       render: (row) => <CooperationStatusBadge status={row.status} />,
     },
     {
       key: 'targetDate',
-      title: 'Контрольная дата',
-      width: '160px',
+      title: 'Срок',
+      width: '104px',
       sortField: 'targetDate',
+      align: 'right',
       render: (row) => (
-        <span className={styles.cell}>
-          <span className={styles.title}>{formatDate(row.targetDate)}</span>
-          {row.daysToTarget !== null && (
-            <span className={styles.meta}>
-              {row.daysToTarget < 0
-                ? `прошло ${Math.abs(row.daysToTarget)} дн.`
-                : `через ${formatNumber(row.daysToTarget)} дн.`}
-            </span>
-          )}
+        <span
+          title={
+            row.daysToTarget === null
+              ? undefined
+              : row.daysToTarget < 0
+                ? `Прошло ${Math.abs(row.daysToTarget)} дн.`
+                : `Через ${formatNumber(row.daysToTarget)} дн.`
+          }
+        >
+          {formatDate(row.targetDate)}
         </span>
       ),
     },
@@ -205,6 +235,7 @@ export default function CooperationsPage() {
         <ToolbarSearch>
           <Input
             label="Поиск"
+            hideLabel
             placeholder="Вуз, программа, продукт, цель"
             icon="search"
             value={search}
@@ -214,6 +245,7 @@ export default function CooperationsPage() {
         <ToolbarItem>
           <Select
             label="Статус"
+            hideLabel
             placeholder="Любой статус"
             value={status}
             onValueChange={(value) => changeFilter(() => setStatus(value))}

@@ -385,6 +385,9 @@ curl -s "http://localhost:3000/api/programs?level=MASTER&sort=-applicationCount"
 }
 ```
 
+`universityShortName` — краткое название вуза, `null`, если его нет. Добавлено 23.09.2026
+для плотных таблиц, как и у связок. Поле новое, прежние поля не менялись.
+
 ### GET /api/programs/:id
 
 Право: `READ`. Дополнительно `skills[]`, `createdAt`, `archivedAt` и **`rating`** —
@@ -608,7 +611,9 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
 ```json
 {
   "id": "…",
-  "universityId": "…", "universityName": "СПбГУТ",
+  "universityId": "…",
+  "universityName": "Санкт-Петербургский государственный университет телекоммуникаций",
+  "universityShortName": "СПбГУТ",
   "programId": "…",    "programName": "Информационная безопасность…",
   "productId": "…",    "productName": "Система мониторинга безопасности",
   "status": "ACTIVE",
@@ -616,7 +621,8 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
   "currentStage": {
     "id": "…", "stageNumber": 10, "title": "Обновление образовательной программы",
     "phase": "IMPLEMENTATION", "status": "IN_PROGRESS",
-    "deadline": "2026-10-15T00:00:00.000Z", "isOverdue": false
+    "deadline": "2026-10-15T00:00:00.000Z", "isOverdue": false, "isDueSoon": false,
+    "daysToDeadline": 22
   },
   "progress": {
     "percent": 69, "completedStages": 9, "cancelledStages": 0,
@@ -629,6 +635,15 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
   "updatedAt": "…"
 }
 ```
+
+`currentStage.daysToDeadline` — дней до срока текущего этапа, отрицательное — просрочка,
+`null`, если срока нет. Добавлено 23.09.2026: до этого интерфейс показывал у текущего этапа
+«просрочен на N дн.», подставляя `daysToTarget` — дни до контрольной даты всей связки,
+то есть число не про этап.
+
+`universityShortName` — краткое название вуза, `null`, если его нет. Добавлено 23.09.2026
+для плотных таблиц: полное название обрезается на первом слове, краткое читается целиком.
+Поле новое, старые поля не менялись — существующие клиенты его просто не заметят.
 
 `progress.totalStages` равно **13**: контрольный этап 14 в процент не входит — он лишь отражает
 состояние остальных. `currentStage` — первый по номеру этап, который не `COMPLETED` и не
@@ -879,8 +894,9 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
                        "value": 420, "weight": 0.4, "contribution": 40 } ] }
     ],
     "problemCooperations": [
-      { "cooperationId": "…", "universityName": "…", "programName": "…",
-        "reason": "Этап просрочен на 12 дн.", "stageNumber": 6,
+      { "cooperationId": "…", "universityName": "…", "universityShortName": "СПбГУТ",
+        "programName": "…", "reason": "Этап просрочен на 12 дн.",
+        "stageId": "…", "stageNumber": 6,
         "stageTitle": "Подписание документов", "daysOverdue": -12 }
     ],
     "skillMatch": {
@@ -894,6 +910,10 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 ```
 
 Показатель без данных приходит с `value: null` и `basis: "none"` — фронт показывает «Нет данных».
+
+У проблемной связки `universityShortName` — краткое название вуза для плотного списка,
+`stageId` — этап, на котором связка встала: ссылка с главной ведёт прямо к нему.
+Оба поля добавлены 23.09.2026, прежние не менялись.
 
 ### GET /api/analytics/programs
 

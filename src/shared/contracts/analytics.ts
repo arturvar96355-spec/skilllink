@@ -11,8 +11,15 @@ export interface DashboardMetricDto extends Metric {
 export interface ProblemCooperationDto {
   cooperationId: string
   universityName: string
+  /** Краткое название вуза для плотного списка на главной. null — краткого нет. */
+  universityShortName: string | null
   programName: string
   reason: string
+  /**
+   * Этап, на котором связка встала. Ссылка с главной ведёт прямо к нему,
+   * а не на верх карточки, где его ещё надо найти среди четырнадцати.
+   */
+  stageId: string | null
   stageNumber: number | null
   stageTitle: string | null
   daysOverdue: number | null
@@ -47,7 +54,15 @@ export interface SkillMatchSummaryDto {
 export interface DashboardOverviewDto {
   metrics: DashboardMetricDto[]
   topPrograms: TopProgramDto[]
+  /** Самые давние проблемные этапы — не больше `DASHBOARD_PROBLEM_LIMIT`. */
   problemCooperations: ProblemCooperationDto[]
+  /**
+   * Сколько проблемных этапов всего, до обрезания списка.
+   *
+   * Без этого числа главная выдавала бы показанные строки за все: писала
+   * «5 связок встали», когда этапов с вышедшим сроком тринадцать.
+   */
+  problemStageTotal: number
   /**
    * Блок приоритетных действий пользователя (пункт 7.1 ТЗ).
    * Открытые рекомендации с наибольшим приоритетом. Пусто, если генерация ещё не запускалась.

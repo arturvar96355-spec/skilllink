@@ -25,7 +25,7 @@ const listSelect = {
   createdAt: true,
   updatedAt: true,
   archivedAt: true,
-  university: { select: { id: true, name: true } },
+  university: { select: { id: true, name: true, shortName: true } },
   _count: { select: { skills: true, cooperations: true } },
 } satisfies Prisma.EducationalProgramSelect
 

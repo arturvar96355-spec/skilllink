@@ -134,28 +134,37 @@ export function RecommendationStatusBadge({ status }: { status: RecommendationSt
   return <Badge tone={RECOMMENDATION_TONES[status]}>{RECOMMENDATION_STATUS_LABELS[status]}</Badge>
 }
 
-/** Срок этапа: просрочен, вот-вот истечёт или в порядке. */
+/**
+ * Срок этапа: просрочен, вот-вот истечёт или в порядке.
+ *
+ * В строке таблицы значок короткий — «−57 дн.»: полная фраза занимала полстолбца
+ * и выталкивала название этапа. Полный текст остаётся в подсказке.
+ */
 export function DeadlineBadge({
   isOverdue,
   isDueSoon,
   daysToDeadline,
+  compact = false,
 }: {
   isOverdue: boolean
   isDueSoon: boolean
   daysToDeadline: number | null
+  compact?: boolean
 }) {
   if (isOverdue) {
     const days = daysToDeadline === null ? null : Math.abs(daysToDeadline)
+    const full = days === null ? 'Просрочен' : `Просрочен на ${days} дн.`
     return (
-      <Badge tone="danger" withDot>
-        {days === null ? 'Просрочен' : `Просрочен на ${days} дн.`}
+      <Badge tone="danger" withDot title={full}>
+        {compact && days !== null ? `−${days} дн.` : full}
       </Badge>
     )
   }
   if (isDueSoon) {
+    const full = daysToDeadline === null ? 'Скоро срок' : `Срок через ${daysToDeadline} дн.`
     return (
-      <Badge tone="warning" withDot>
-        {daysToDeadline === null ? 'Скоро срок' : `Срок через ${daysToDeadline} дн.`}
+      <Badge tone="warning" withDot title={full}>
+        {compact && daysToDeadline !== null ? `${daysToDeadline} дн.` : full}
       </Badge>
     )
   }

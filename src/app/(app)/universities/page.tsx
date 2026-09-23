@@ -11,6 +11,7 @@ import {
   Badge,
   Button,
   Card,
+  CellText,
   DataTable,
   EmptyState,
   ErrorState,
@@ -39,7 +40,12 @@ import {
 import { CreateUniversityModal } from './CreateUniversityModal'
 import styles from './universities.module.css'
 
-const PAGE_SIZE = 20
+/**
+ * 25 строк на страницу — по решению Артура: реестр должен выглядеть
+ * рабочим инструментом, а не витриной. На экране Full HD они видны
+ * без прокрутки, на ноутбуке 1440×900 — двадцать.
+ */
+const PAGE_SIZE = 25
 
 /**
  * До скольких вузов фильтр по региону собирается из самого реестра.
@@ -131,15 +137,20 @@ export default function UniversitiesPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.name}>
-          <Avatar name={row.shortName ?? row.name} kind="entity" size="sm" />
-          <span className={styles.nameText}>
-            <span className={styles.nameTitle}>{row.name}</span>
-            <span className={styles.nameCity}>
-              {row.city}
-              {row.region !== row.city && ` · ${row.region}`}
-            </span>
-          </span>
+          <Avatar name={row.shortName ?? row.name} kind="entity" size="xs" />
+          <CellText strong>{row.name}</CellText>
         </span>
+      ),
+    },
+    {
+      key: 'city',
+      title: 'Город',
+      width: '150px',
+      sortField: 'city',
+      render: (row) => (
+        <CellText muted title={row.region !== row.city ? `${row.city}, ${row.region}` : row.city}>
+          {row.city}
+        </CellText>
       ),
     },
     {
@@ -236,6 +247,7 @@ export default function UniversitiesPage() {
         <ToolbarSearch>
           <Input
             label="Поиск"
+            hideLabel
             placeholder="Название, город, программа"
             icon="search"
             value={search}
@@ -245,6 +257,7 @@ export default function UniversitiesPage() {
         <ToolbarItem>
           <Select
             label="Статус"
+            hideLabel
             placeholder="Любой статус"
             value={status}
             onValueChange={(value) => changeFilter(() => setStatus(value))}
@@ -258,6 +271,7 @@ export default function UniversitiesPage() {
           <ToolbarItem>
             <Select
               label="Регион"
+              hideLabel
               placeholder="Любой регион"
               value={region}
               onValueChange={(value) => changeFilter(() => setRegion(value))}
@@ -269,6 +283,7 @@ export default function UniversitiesPage() {
           <ToolbarItem>
             <Select
               label="Рейтинг"
+              hideLabel
               value={minRating}
               onValueChange={(value) => changeFilter(() => setMinRating(value))}
               options={RATING_OPTIONS}
