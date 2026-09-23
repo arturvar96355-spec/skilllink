@@ -8,6 +8,8 @@ import {
   formatMetric,
   formatNumber,
   formatPercent,
+  formatShare,
+  formatDemand,
   formatRelative,
   formatScore,
   initials,
@@ -162,3 +164,16 @@ describe('склонение по числу', () => {
   })
 })
 
+describe('доли и спрос', () => {
+  it('доля — целым процентом, одинаково для покрытия, дефицита и веса', () => {
+    expect(formatShare(0.77)).toBe('77%')
+    expect(formatShare(0.4)).toBe('40%')
+    expect(formatShare(0)).toBe('0%')
+    expect(formatShare(null)).toBe(NO_DATA)
+  })
+
+  it('спрос — «из 100»', () => {
+    expect(formatDemand(0.774)).toBe('77 из 100')
+    expect(formatDemand(undefined)).toBe(NO_DATA)
+  })
+})

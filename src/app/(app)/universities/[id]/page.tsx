@@ -50,6 +50,8 @@ import {
   useResource,
   type Column,
   type TabItem,
+  formatShare,
+  formatDemand,
 } from '@/ui'
 import styles from './university.module.css'
 
@@ -242,7 +244,7 @@ export default function UniversityPage() {
         row.demandNormalized === null ? (
           <span className={styles.rowMeta}>Нет данных</span>
         ) : (
-          <span>{Math.round(row.demandNormalized * 100)} из 100</span>
+          <span>{formatDemand(row.demandNormalized)}</span>
         ),
     },
     {
@@ -251,7 +253,7 @@ export default function UniversityPage() {
       width: '200px',
       render: (row) => (
         <span className={styles.rowName}>
-          <span>{Math.round(row.coverage * 100)}%</span>
+          <span>{formatShare(row.coverage)}</span>
           <Progress value={row.coverage * 100} label={`Покрытие навыка ${row.name}`} />
         </span>
       ),
@@ -263,7 +265,7 @@ export default function UniversityPage() {
       render: (row) => (
         <span className={styles.rowName}>
           <span>
-            {Math.round(row.gap * 100)}%{' '}
+            {formatShare(row.gap)}{' '}
             {row.isCritical && <Badge tone="danger">критический</Badge>}
           </span>
           <Progress

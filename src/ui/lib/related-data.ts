@@ -1,5 +1,5 @@
 import { PROGRAM_METRIC_LABELS, STAGE_STATUS_LABELS, type StageStatus } from '@/shared/contracts'
-import { formatCount, formatDate, formatNumber } from './format'
+import { formatCount, formatDate, formatDemand, formatNumber } from './format'
 
 /**
  * Данные, на которых построена рекомендация, — человеческим языком.
@@ -69,7 +69,7 @@ const KNOWN: Record<string, { label: string; describe: Describe }> = {
     label: 'Спрос на навык',
     describe: (value) => {
       const share = asNumber(value)
-      return share === null ? null : `${Math.round(share * 100)} из 100`
+      return share === null ? null : formatDemand(share)
     },
   },
   products: {

@@ -9,6 +9,7 @@ import type {
   StageStatus,
 } from '@/shared/contracts/enums'
 import { daysBetween } from '@/shared/utils/date'
+import { outOf100 } from '@/shared/utils/number'
 
 /**
  * Черновик рекомендации — результат работы правила.
@@ -295,7 +296,7 @@ export function ruleCriticalGapWithProduct(input: CriticalGapInput): Recommendat
       `которого нет в программах ${programList}${more}.`,
     priority: 'HIGH',
     justification:
-      `Навык востребован рынком (${Math.round(input.demandNormalized * 100)} из 100), ` +
+      `Навык востребован рынком (${outOf100(input.demandNormalized)} из 100), ` +
       `но отсутствует в ${input.programs.length} программах. ` +
       `Покрывается продуктами: ${productNames}.`,
     relatedData: {

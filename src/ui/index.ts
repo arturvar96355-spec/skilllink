@@ -80,6 +80,8 @@ export {
   formatNumber,
   formatScore,
   formatPercent,
+  formatShare,
+  formatDemand,
   formatMetric,
   formatDate,
   formatDateTime,
