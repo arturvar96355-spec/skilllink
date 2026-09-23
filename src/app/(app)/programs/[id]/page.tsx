@@ -17,6 +17,7 @@ import {
   type SkillGapDto,
   type ProgramSkillDto,
   type RatingFactorDto,
+  PROGRAM_METRIC_LABELS,
 } from '@/shared/contracts'
 import {
   Avatar,
@@ -499,19 +500,14 @@ export default function ProgramPage() {
             title="Показатели набора"
             description="Заявки, обучающиеся и параллельные группы — те самые три показателя, по которым считается рейтинг."
           >
+            {/* Три числа на одной поверхности, а не три одинаковые карточки (07, раздел 40). */}
             <div className={styles.metrics}>
-              <Card>
-                <span className={styles.metricLabel}>Заявки на обучение</span>
-                <MetricValue metric={data.metrics.applicationCount} />
-              </Card>
-              <Card>
-                <span className={styles.metricLabel}>Количество обучающихся</span>
-                <MetricValue metric={data.metrics.studentCount} />
-              </Card>
-              <Card>
-                <span className={styles.metricLabel}>Параллельных групп</span>
-                <MetricValue metric={data.metrics.groupCount} />
-              </Card>
+              {(['applicationCount', 'studentCount', 'groupCount'] as const).map((key) => (
+                <div key={key}>
+                  <span className={styles.metricLabel}>{PROGRAM_METRIC_LABELS[key]}</span>
+                  <MetricValue metric={data.metrics[key]} />
+                </div>
+              ))}
             </div>
           </Section>
 
