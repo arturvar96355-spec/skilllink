@@ -28,9 +28,8 @@
   content: '';
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(200, 77, 255, 0.16), transparent 42%),
-    radial-gradient(circle at 70% 80%, rgba(255, 79, 179, 0.12), transparent 46%);
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 42%),
+    radial-gradient(circle at 70% 80%, rgba(142, 108, 255, 0.12), transparent 46%);
   pointer-events: none;
 }
 
@@ -112,11 +111,11 @@
   width: min(420px, 100%);
   padding: var(--space-8);
   border-radius: var(--radius-panel);
-  background: rgba(24, 18, 43, 0.86);
+  background: rgba(20, 20, 27, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(180, 130, 255, 0.16);
-  box-shadow: var(--shadow-floating), 0 0 40px rgba(200, 77, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.096);
+  box-shadow: var(--shadow-floating);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
@@ -190,7 +189,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-input);
   background: var(--danger-surface);
-  border: 1px solid rgba(255, 95, 115, 0.3);
+  border: 1px solid rgba(240, 97, 111, 0.3);
   color: var(--text-danger-strong);
   font-size: var(--text-body-sm-size);
   line-height: 1.45;

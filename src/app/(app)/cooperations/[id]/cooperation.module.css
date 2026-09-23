@@ -115,7 +115,7 @@
 .stageNumberCurrent {
   border-color: var(--border-hover);
   color: var(--text-accent);
-  box-shadow: 0 0 16px rgba(200, 77, 255, 0.18);
+  box-shadow: none;
 }
 
 .stageNumberOverdue {

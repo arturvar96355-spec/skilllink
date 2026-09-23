@@ -19,7 +19,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(180, 130, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.096);
   box-shadow: var(--shadow-floating);
   color: var(--text-secondary);
   font-size: var(--text-caption-size);
@@ -29,8 +29,7 @@
   white-space: normal;
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity var(--motion-micro) var(--ease-out),
+  transition: opacity var(--motion-micro) var(--ease-out),
     transform var(--motion-micro) var(--ease-out);
 }
 

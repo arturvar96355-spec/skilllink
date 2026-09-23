@@ -38,13 +38,12 @@
   height: 38px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-input);
-  background: rgba(24, 19, 45, 0.64);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-size: var(--text-body-size);
   font-weight: 500;
-  transition:
-    border-color var(--motion-micro) var(--ease-out),
+  transition: border-color var(--motion-micro) var(--ease-out),
     box-shadow var(--motion-micro) var(--ease-out),
     background var(--motion-micro) var(--ease-out);
 }
@@ -56,14 +55,14 @@
 }
 
 .control:hover:not(:disabled) {
-  border-color: rgba(180, 130, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.132);
 }
 
 .control:focus {
   outline: none;
-  border-color: rgba(200, 77, 255, 0.5);
-  box-shadow: 0 0 0 3px rgba(200, 77, 255, 0.12);
-  background: rgba(29, 23, 52, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .control:disabled {
@@ -73,8 +72,8 @@
 
 .invalid,
 .invalid:focus {
-  border-color: rgba(255, 95, 115, 0.55);
-  box-shadow: 0 0 0 3px rgba(255, 95, 115, 0.12);
+  border-color: rgba(240, 97, 111, 0.55);
+  box-shadow: 0 0 0 3px rgba(240, 97, 111, 0.12);
 }
 
 .textarea {
@@ -129,10 +128,9 @@
   flex: none;
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
-  background: rgba(24, 19, 45, 0.64);
+  background: rgba(255, 255, 255, 0.03);
   color: transparent;
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     border-color var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out);
 }
@@ -182,7 +180,7 @@
   height: 22px;
   flex: none;
   border-radius: var(--radius-pill);
-  background: rgba(90, 65, 130, 0.35);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-subtle);
   transition: background var(--motion-micro) var(--ease-out);
 }
@@ -196,8 +194,7 @@
   height: 16px;
   border-radius: 50%;
   background: var(--text-secondary);
-  transition:
-    transform var(--motion-micro) var(--ease-out),
+  transition: transform var(--motion-micro) var(--ease-out),
     background var(--motion-micro) var(--ease-out);
 }
 

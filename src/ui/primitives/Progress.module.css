@@ -1,10 +1,10 @@
-/* Тонкая полоса с неоновым градиентом (раздел 18 документа о цвете). */
+/* Тонкая сплошная полоса: градиент на каждом прогрессе — шум (07, раздел 3). */
 
 .track {
   width: 100%;
   height: 6px;
   border-radius: var(--radius-pill);
-  background: rgba(90, 65, 130, 0.28);
+  background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
 }
 
@@ -17,11 +17,11 @@
 
 /* Просрочка окрашивает полосу в опасный цвет, но рядом всегда есть подпись. */
 .danger {
-  background: linear-gradient(90deg, var(--status-danger), var(--neon-orange));
+  background: var(--status-danger);
 }
 
 .success {
-  background: linear-gradient(90deg, var(--status-success), var(--neon-violet));
+  background: var(--status-success);
 }
 
 .row {
