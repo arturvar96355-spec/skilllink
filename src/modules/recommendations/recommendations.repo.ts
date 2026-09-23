@@ -95,12 +95,21 @@ export interface UpsertResult {
  * обновляет текст и приоритет существующей записи, но **не трогает статус**: если сотрудник
  * уже отклонил предложение, оно не должно всплывать снова как новое.
  */
-export async function upsertDrafts(drafts: RecommendationDraft[]): Promise<UpsertResult> {
+/**
+ * `drafts` приходят уже в порядке ленты. Новая запись получает время создания
+ * на миллисекунду раньше предыдущей: список при равной важности сортируется
+ * «сначала новые», и первой окажется самая важная. Без этого три записи,
+ * созданные в одну миллисекунду, выстраивались в случайном порядке.
+ */
+export async function upsertDrafts(
+  drafts: RecommendationDraft[],
+  generatedAt: Date,
+): Promise<UpsertResult> {
   let created = 0
   let updated = 0
   const keys: string[] = []
 
-  for (const draft of drafts) {
+  for (const [index, draft] of drafts.entries()) {
     const key = `${draft.ruleKey}::${draft.objectType}::${draft.objectId}`
     keys.push(key)
 
@@ -150,6 +159,7 @@ export async function upsertDrafts(drafts: RecommendationDraft[]): Promise<Upser
           relatedData: draft.relatedData as Prisma.InputJsonValue,
           confidence: draft.confidence,
           cooperationId: draft.cooperationId,
+          createdAt: new Date(generatedAt.getTime() - index),
         },
       })
       created += 1
