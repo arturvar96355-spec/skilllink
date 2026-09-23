@@ -7,6 +7,7 @@ import type {
   DocumentListItemDto,
   MeetingDto,
   ProgramListItemDto,
+  SkillGapDto,
   UniversityDto,
   UniversityEventDto,
 } from '@/shared/contracts'
@@ -51,7 +52,14 @@ import {
 } from '@/ui'
 import styles from './university.module.css'
 
-type TabKey = 'overview' | 'programs' | 'cooperations' | 'documents' | 'meetings' | 'history'
+type TabKey =
+  | 'overview'
+  | 'programs'
+  | 'cooperations'
+  | 'gaps'
+  | 'documents'
+  | 'meetings'
+  | 'history'
 
 const EVENT_ICONS: Record<UniversityEventDto['kind'], 'cooperation' | 'document' | 'calendar' | 'user'> = {
   'cooperation.created': 'cooperation',
@@ -87,6 +95,16 @@ export default function UniversityPage() {
   const meetings = useResource<MeetingDto[]>(
     tab === 'meetings' ? `/api/meetings${buildQuery({ universityId: id, pageSize: 50 })}` : null,
   )
+  /**
+   * Дефициты по вузу: чего рынок требует, а его программы не дают.
+   *
+   * Тот же расчёт, что в карточке программы, только шире — по всем программам
+   * вуза. Роли без аналитики эндпоинт закрыт, поэтому вкладки у неё нет.
+   */
+  const gaps = useResource<SkillGapDto[]>(
+    tab === 'gaps' ? `/api/skills/gaps${buildQuery({ universityId: id, limit: 50 })}` : null,
+  )
+
   const [eventsLimit, setEventsLimit] = useState(20)
   const events = useResource<UniversityEventDto[]>(
     tab === 'history' ? `/api/universities/${id}/events${buildQuery({ limit: eventsLimit })}` : null,
@@ -113,10 +131,13 @@ export default function UniversityPage() {
     { key: 'overview', label: 'Обзор' },
     { key: 'programs', label: 'Программы', count: data.programCount },
     { key: 'cooperations', label: 'Сотрудничества', count: data.cooperationCount },
+  ]
+  if (user.permissions.canSeeAnalytics) tabs.push({ key: 'gaps', label: 'Дефициты' })
+  tabs.push(
     { key: 'documents', label: 'Документы' },
     { key: 'meetings', label: 'Встречи' },
     { key: 'history', label: 'История' },
-  ]
+  )
 
   const programColumns: Column<ProgramListItemDto>[] = [
     {
@@ -197,6 +218,64 @@ export default function UniversityPage() {
       title: 'Статус',
       width: '150px',
       render: (row) => <CooperationStatusBadge status={row.status} />,
+    },
+  ]
+
+  const gapColumns: Column<SkillGapDto>[] = [
+    {
+      key: 'name',
+      title: 'Навык',
+      render: (row) => (
+        <span className={styles.rowName}>
+          <span className={styles.rowTitle}>{row.name}</span>
+          <span className={styles.rowMeta}>{row.category}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'demand',
+      title: 'Спрос рынка',
+      width: '140px',
+      render: (row) =>
+        row.demandNormalized === null ? (
+          <span className={styles.rowMeta}>Нет данных</span>
+        ) : (
+          <span>{Math.round(row.demandNormalized * 100)} из 100</span>
+        ),
+    },
+    {
+      key: 'coverage',
+      title: 'Покрытие программами',
+      width: '200px',
+      render: (row) => (
+        <span className={styles.rowName}>
+          <span>{Math.round(row.coverage * 100)}%</span>
+          <Progress value={row.coverage * 100} label={`Покрытие навыка ${row.name}`} />
+        </span>
+      ),
+    },
+    {
+      key: 'gap',
+      title: 'Дефицит',
+      width: '180px',
+      render: (row) => (
+        <span className={styles.rowName}>
+          <span>
+            {Math.round(row.gap * 100)}%{' '}
+            {row.isCritical && <Badge tone="danger">критический</Badge>}
+          </span>
+          <Progress
+            value={row.gap * 100}
+            tone={row.isCritical ? 'danger' : 'default'}
+            label={`Дефицит навыка ${row.name}`}
+          />
+        </span>
+      ),
+    },
+    {
+      key: 'explanation',
+      title: 'Почему так',
+      render: (row) => <span className={styles.rowMeta}>{row.explanation}</span>,
     },
   ]
 
@@ -414,6 +493,29 @@ export default function UniversityPage() {
               getRowKey={(row) => row.id}
               getRowHref={(row) => cooperationHref(row.id)}
               caption="Связки вуза"
+            />
+          )}
+        </Card>
+      )}
+
+      {tab === 'gaps' && (
+        <Card padding="none">
+          {gaps.isLoading ? (
+            <TableSkeleton rows={5} columns={4} />
+          ) : gaps.error ? (
+            <ErrorState error={gaps.error} onRetry={gaps.reload} />
+          ) : (gaps.data ?? []).length === 0 ? (
+            <EmptyState
+              icon="skill"
+              title="Дефицитов нет"
+              description="Программы вуза покрывают то, что востребовано рынком в этом периоде."
+            />
+          ) : (
+            <DataTable
+              rows={gaps.data ?? []}
+              columns={gapColumns}
+              getRowKey={(row) => row.skillId}
+              caption="Дефициты навыков вуза"
             />
           )}
         </Card>
