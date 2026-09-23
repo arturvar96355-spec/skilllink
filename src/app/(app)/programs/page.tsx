@@ -12,15 +12,15 @@ import {
   type UniversityListItemDto,
 } from '@/shared/contracts'
 import {
-  Avatar,
   Badge,
   Button,
   Card,
+  CellText,
   DataTable,
   EmptyState,
   ErrorState,
   Input,
-  MetricValue,
+  MetricCell,
   MockBadge,
   NO_DATA,
   PageHeader,
@@ -35,7 +35,6 @@ import {
   useCurrentUser,
   formatDate,
   formatNumber,
-  pluralize,
   programHref,
   useDebounced,
   useResource,
@@ -53,7 +52,12 @@ import styles from './programs.module.css'
  * строк, а не по всей базе.
  */
 
-const PAGE_SIZE = 20
+/**
+ * 25 строк на страницу — по решению Артура: реестр должен выглядеть
+ * рабочим инструментом, а не витриной. На экране Full HD они видны
+ * без прокрутки, на ноутбуке 1440×900 — двадцать.
+ */
+const PAGE_SIZE = 25
 
 const LEVEL_OPTIONS = PROGRAM_LEVELS.map((level) => ({
   value: level,
@@ -65,9 +69,10 @@ const STATUS_OPTIONS = PROGRAM_STATUSES.map((status) => ({
   label: PROGRAM_STATUS_LABELS[status],
 }))
 
+/** Срок обучения коротко: «48 мес.» — полная форма не помещается в столбец. */
 function formatDuration(months: number | null): string {
   if (months === null) return NO_DATA
-  return `${formatNumber(months)} ${pluralize(months, ['месяц', 'месяца', 'месяцев'])}`
+  return `${formatNumber(months)} мес.`
 }
 
 export default function ProgramsPage() {
@@ -124,6 +129,7 @@ export default function ProgramsPage() {
     setPage(1)
   }
 
+  // Каждая ячейка — в одну строку; вуз — краткое название, полное в подсказке.
   const columns: Column<ProgramListItemDto>[] = [
     {
       key: 'name',
@@ -131,68 +137,79 @@ export default function ProgramsPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.program}>
-          <Avatar name={row.name} kind="entity" size="sm" />
-          <span className={styles.programText}>
-            <span className={styles.programName}>
-              {row.name}
-              {row.isMock && <Badge tone="mock">демо</Badge>}
-            </span>
-            <span className={styles.programUniversity}>{row.universityName}</span>
-          </span>
+          <CellText strong>{row.name}</CellText>
+          {row.isMock && <Badge tone="mock">демо</Badge>}
         </span>
+      ),
+    },
+    {
+      key: 'university',
+      title: 'Вуз',
+      width: '120px',
+      render: (row) => (
+        <CellText muted title={row.universityName}>
+          {row.universityShortName ?? row.universityName}
+        </CellText>
       ),
     },
     {
       key: 'level',
       title: 'Уровень',
+      width: '116px',
       sortField: 'level',
-      render: (row) => <span className={styles.plain}>{PROGRAM_LEVEL_LABELS[row.level]}</span>,
+      render: (row) => <CellText>{PROGRAM_LEVEL_LABELS[row.level]}</CellText>,
     },
     {
       key: 'duration',
-      title: 'Длительность',
+      title: 'Срок',
+      width: '84px',
       render: (row) => (
-        <span className={row.durationMonths === null ? styles.empty : styles.plain}>
-          {formatDuration(row.durationMonths)}
-        </span>
+        <CellText muted={row.durationMonths === null}>{formatDuration(row.durationMonths)}</CellText>
       ),
     },
     {
       key: 'applicationCount',
       title: 'Заявки',
+      width: '96px',
       align: 'right',
       sortField: 'applicationCount',
-      render: (row) => <MetricValue metric={row.metrics.applicationCount} />,
+      render: (row) => <MetricCell metric={row.metrics.applicationCount} />,
     },
     {
       key: 'studentCount',
       title: 'Обучающихся',
+      width: '112px',
       align: 'right',
       sortField: 'studentCount',
-      render: (row) => <MetricValue metric={row.metrics.studentCount} />,
+      render: (row) => <MetricCell metric={row.metrics.studentCount} />,
     },
     {
       key: 'skillCount',
       title: 'Навыков',
+      width: '84px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.skillCount)}</span>,
     },
     {
       key: 'cooperationCount',
       title: 'Связок',
+      width: '76px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.cooperationCount)}</span>,
     },
     {
       key: 'status',
       title: 'Статус',
+      width: '130px',
       sortField: 'status',
       render: (row) => <ProgramStatusBadge status={row.status} />,
     },
     {
       key: 'updatedAt',
       title: 'Обновлено',
+      width: '104px',
       sortField: 'updatedAt',
+      align: 'right',
       render: (row) => <span className={styles.plain}>{formatDate(row.updatedAt)}</span>,
     },
   ]
@@ -233,6 +250,7 @@ export default function ProgramsPage() {
         <ToolbarSearch>
           <Input
             label="Поиск"
+            hideLabel
             icon="search"
             placeholder="Название, код, направление или вуз"
             value={search}
@@ -245,6 +263,7 @@ export default function ProgramsPage() {
         <ToolbarItem>
           <Select
             label="Уровень"
+            hideLabel
             placeholder="Любой"
             options={LEVEL_OPTIONS}
             value={level}
@@ -257,6 +276,7 @@ export default function ProgramsPage() {
         <ToolbarItem>
           <Select
             label="Статус"
+            hideLabel
             placeholder="Любой"
             options={STATUS_OPTIONS}
             value={status}
@@ -269,6 +289,7 @@ export default function ProgramsPage() {
         <ToolbarItem>
           <Select
             label="Вуз"
+            hideLabel
             placeholder={universities.error ? 'Список вузов недоступен' : 'Все вузы'}
             options={universityOptions}
             disabled={universityOptions.length === 0}

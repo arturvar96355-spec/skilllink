@@ -111,3 +111,87 @@ export function KpiCard({
     </Card>
   )
 }
+
+/**
+ * Показатель в ячейке таблицы.
+ *
+ * В строке реестра нет места для «360 заявки · оценка · ⓘ»: единица уже
+ * в заголовке столбца, а три элемента в узком столбце налезают на соседний.
+ * Здесь только число. Оценочное значение помечено знаком «≈», объяснение
+ * происхождения — в подсказке при наведении. Пустое — «Нет данных», не ноль.
+ */
+export function MetricCell({ metric }: { metric: Metric | null | undefined }) {
+  if (!metric || metric.value === null) {
+    return (
+      <span className={styles.valueEmpty} title={metric?.explanation}>
+        {NO_DATA}
+      </span>
+    )
+  }
+  const isEstimate = metric.basis === 'estimate'
+  return (
+    <span
+      className={styles.value}
+      title={isEstimate ? `Оценка. ${metric.explanation}` : metric.explanation}
+    >
+      {isEstimate && <span className={styles.estimateMark}>≈</span>}
+      {formatNumber(metric.value)}
+    </span>
+  )
+}
+
+export interface KpiStripItem {
+  key: string
+  label: string
+  value: number | null
+  unit?: string
+  explanation?: string | null
+  /** Короткая пометка под значением: «оценка», период. */
+  note?: string
+  fractionDigits?: number
+  isMock?: boolean
+}
+
+/**
+ * Показатели одной строкой.
+ *
+ * Пять плиток одинакового веса занимали полэкрана и спорили за внимание
+ * с тем, ради чего открывают главную, — со списком проблем. Здесь те же
+ * цифры в одну полосу: видны сразу, но не забирают первый экран.
+ */
+export function KpiStrip({ items }: { items: KpiStripItem[] }) {
+  return (
+    <Card padding="none" className={styles.strip}>
+      {items.map((item) => (
+        <KpiStripCell key={item.key} item={item} />
+      ))}
+    </Card>
+  )
+}
+
+function KpiStripCell({ item }: { item: KpiStripItem }) {
+  const animated = useCountUp(item.value)
+  const digits = item.fractionDigits ?? 0
+  const shown =
+    animated === null ? null : digits > 0 ? Number(animated.toFixed(digits)) : Math.round(animated)
+
+  return (
+    <div className={styles.stripCell} title={item.explanation ?? undefined}>
+      <span className={styles.stripLabel}>{item.label}</span>
+      {shown === null ? (
+        <span className={styles.stripEmpty}>{NO_DATA}</span>
+      ) : (
+        <span className={styles.stripValue}>
+          {digits > 0 ? shown.toFixed(digits).replace('.', ',') : formatNumber(shown)}
+          {item.unit && <span className={styles.stripUnit}>{item.unit}</span>}
+        </span>
+      )}
+      {(item.note || item.isMock) && (
+        <span className={styles.stripNote}>
+          {item.note}
+          {item.isMock && <span className={styles.stripMock}>демо</span>}
+        </span>
+      )}
+    </div>
+  )
+}

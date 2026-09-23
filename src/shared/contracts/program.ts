@@ -31,6 +31,8 @@ export interface ProgramListItemDto {
   id: string
   universityId: string
   universityName: string
+  /** Краткое название вуза для плотных таблиц. null — краткого нет, показывать полное. */
+  universityShortName: string | null
   name: string
   code: string | null
   direction: string | null

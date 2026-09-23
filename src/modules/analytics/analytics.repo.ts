@@ -80,22 +80,37 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
  * заморожены, и предлагать по ним действие — значит заполнять дашборд тем,
  * на что никто не может повлиять.
  */
+/**
+ * Условие «этап стоит»: срок вышел или этап заблокирован, связка открыта.
+ *
+ * Одно на выборку и на счётчик: если они разойдутся, главная скажет
+ * «10 из 13», а в списке окажется другое множество.
+ */
+function problemStageWhere(scope: { universityId?: string }, now: Date) {
+  return {
+    OR: [
+      { deadline: { lt: now }, status: { notIn: ['COMPLETED' as const, 'CANCELLED' as const] } },
+      { status: 'BLOCKED' as const },
+    ],
+    // Контрольный этап руками не меняется: он просрочен из-за незакрытых
+    // этапов 1–13, и они в списке уже есть.
+    stageNumber: { not: CONTROL_STAGE_NUMBER },
+    cooperation: {
+      status: { in: [...OPEN_COOPERATION_STATUSES] },
+      ...(scope.universityId ? { universityId: scope.universityId } : {}),
+    },
+  }
+}
+
+export async function countProblemStages(scope: { universityId?: string }, now: Date): Promise<number> {
+  return prisma.workflowStage.count({ where: problemStageWhere(scope, now) })
+}
+
 export async function findProblemStages(scope: { universityId?: string }, now: Date, limit: number) {
   return prisma.workflowStage.findMany({
-    where: {
-      OR: [
-        { deadline: { lt: now }, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
-        { status: 'BLOCKED' },
-      ],
-      // Контрольный этап руками не меняется: он просрочен из-за незакрытых
-      // этапов 1–13, и они в списке уже есть.
-      stageNumber: { not: CONTROL_STAGE_NUMBER },
-      cooperation: {
-        status: { in: [...OPEN_COOPERATION_STATUSES] },
-        ...(scope.universityId ? { universityId: scope.universityId } : {}),
-      },
-    },
+    where: problemStageWhere(scope, now),
     select: {
+      id: true,
       stageNumber: true,
       title: true,
       status: true,
@@ -104,7 +119,7 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
       cooperation: {
         select: {
           id: true,
-          university: { select: { name: true } },
+          university: { select: { name: true, shortName: true } },
           program: { select: { name: true } },
         },
       },

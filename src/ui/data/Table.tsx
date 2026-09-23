@@ -202,3 +202,35 @@ export function Pagination({ page, pageSize, total, onPageChange, nouns }: Pagin
     </div>
   )
 }
+
+/**
+ * Текст ячейки в одну строку.
+ *
+ * Длинное значение обрезается многоточием, полное — в подсказке при наведении.
+ * Так строка реестра всегда одной высоты: перенос названия вуза на вторую
+ * строку удваивал её, и на экран влезало вдвое меньше записей.
+ */
+export function CellText({
+  children,
+  title,
+  muted = false,
+  strong = false,
+}: {
+  children: ReactNode
+  /** Полный текст для подсказки. По умолчанию — сам текст, если это строка. */
+  title?: string
+  muted?: boolean
+  strong?: boolean
+}) {
+  const fullText = title ?? (typeof children === 'string' ? children : undefined)
+  return (
+    <span
+      className={[styles.truncate, muted ? styles.cellMuted : '', strong ? styles.cellStrong : '']
+        .filter(Boolean)
+        .join(' ')}
+      title={fullText}
+    >
+      {children}
+    </span>
+  )
+}

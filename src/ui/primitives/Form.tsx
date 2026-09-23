@@ -12,14 +12,26 @@ export interface FieldProps {
   error?: string | null
   required?: boolean
   htmlFor?: string
+  /**
+   * Подпись есть, но не видна.
+   *
+   * В строке фильтров над реестром подпись над каждым полем съедает высоту,
+   * которую полезнее отдать строкам таблицы, а смысл поля и так читается
+   * из подсказки внутри: «Любой статус», «Любой регион». Для программ чтения
+   * с экрана подпись остаётся — без неё поле безымянное.
+   */
+  hideLabel?: boolean
   children: ReactNode
 }
 
-export function Field({ label, hint, error, required, htmlFor, children }: FieldProps) {
+export function Field({ label, hint, error, required, htmlFor, hideLabel, children }: FieldProps) {
   return (
     <div className={styles.field}>
       {label && (
-        <label className={styles.label} htmlFor={htmlFor}>
+        <label
+          className={hideLabel ? 'visually-hidden' : styles.label}
+          htmlFor={htmlFor}
+        >
           {label}
           {required && (
             <span className={styles.required} aria-hidden="true">
@@ -46,9 +58,10 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   hint?: string
   error?: string | null
   icon?: IconName
+  hideLabel?: boolean
 }
 
-export function Input({ label, hint, error, icon, id, className, ...props }: InputProps) {
+export function Input({ label, hint, error, icon, hideLabel, id, className, ...props }: InputProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   const control = (
@@ -63,7 +76,14 @@ export function Input({ label, hint, error, icon, id, className, ...props }: Inp
   )
 
   return (
-    <Field label={label} hint={hint} error={error} required={props.required} htmlFor={inputId}>
+    <Field
+      label={label}
+      hint={hint}
+      error={error}
+      required={props.required}
+      htmlFor={inputId}
+      hideLabel={hideLabel}
+    >
       {icon ? (
         <span className={styles.withIcon}>
           <Icon name={icon} size={16} className={styles.icon} />

@@ -16,6 +16,14 @@
     border-color var(--motion-micro) var(--ease-out);
 }
 
+/* Для плотных строк таблицы: не выше строки текста, чтобы не раздувать строку. */
+.xs {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+  border-radius: 6px;
+}
+
 .sm {
   width: 28px;
   height: 28px;

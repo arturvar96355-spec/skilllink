@@ -24,6 +24,8 @@ export interface SelectProps {
   disabled?: boolean
   required?: boolean
   name?: string
+  /** Подпись только для программ чтения с экрана — см. Field. */
+  hideLabel?: boolean
 }
 
 /**
@@ -49,6 +51,7 @@ export function Select({
   disabled = false,
   required = false,
   name,
+  hideLabel = false,
 }: SelectProps) {
   const id = useId()
   const [isOpen, setIsOpen] = useState(false)
@@ -112,7 +115,14 @@ export function Select({
   }, [isOpen, activeIndex, id])
 
   return (
-    <Field label={label} hint={hint} error={error} required={required} htmlFor={`${id}-trigger`}>
+    <Field
+      label={label}
+      hint={hint}
+      error={error}
+      required={required}
+      htmlFor={`${id}-trigger`}
+      hideLabel={hideLabel}
+    >
       <div className={styles.wrapper} ref={wrapperRef}>
         <button
           id={`${id}-trigger`}

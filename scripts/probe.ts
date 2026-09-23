@@ -1382,6 +1382,55 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Главная не выдаёт показанное за всё ───────────────────────────────────
+  step('Счётчик проблем на главной совпадает со списками этапов')
+
+  {
+    /*
+     * Главная показывает самые давние проблемные этапы и отдельным числом —
+     * сколько их всего. Число обязано совпасть с тем, что отдают списки
+     * просроченных и заблокированных этапов: иначе на первом экране показа
+     * будет одно, а в реестре — другое. Этап, который и просрочен,
+     * и заблокирован, — одна проблема, а не две.
+     */
+    actAs(adminId)
+    const overview = await call<{
+      problemStageTotal: number
+      problemCooperations: Array<{ stageId: string | null }>
+    }>('GET', '/api/analytics/overview')
+    const overdue = await call<Array<{ id: string; stageNumber: number }>>(
+      'GET',
+      '/api/workflow/overdue?pageSize=100',
+    )
+    const blocked = await call<Array<{ id: string; stageNumber: number }>>(
+      'GET',
+      '/api/workflow/blocked?pageSize=100',
+    )
+    const listed = new Set(
+      [...(overdue.body.data ?? []), ...(blocked.body.data ?? [])]
+        // Контрольный этап вычисляется системой — в проблемы главной он не входит.
+        .filter((stage) => stage.stageNumber !== 14)
+        .map((stage) => stage.id),
+    )
+    const total = overview.body.data?.problemStageTotal ?? -1
+    const shown = overview.body.data?.problemCooperations ?? []
+    check(
+      'счётчик проблем совпадает со списками просроченных и заблокированных',
+      total === listed.size,
+      `на главной ${total}, в списках ${listed.size}`,
+    )
+    check(
+      'показано не больше, чем есть',
+      shown.length <= total,
+      `показано ${shown.length} из ${total}`,
+    )
+    check(
+      'каждая показанная проблема есть в списках',
+      shown.every((item) => item.stageId !== null && listed.has(item.stageId)),
+    )
+    actAs(null)
+  }
+
   // ── Блокировка входа называет себя ─────────────────────────────────────────
   step('Исчерпанные попытки входа отличимы от неверного пароля')
 
