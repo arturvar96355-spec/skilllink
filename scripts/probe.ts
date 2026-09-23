@@ -727,8 +727,11 @@ async function main(): Promise<void> {
     )
     const expectedOrder = (wholeList.body.data ?? []).map((row) => row.id)
 
+    // Одна выдача — не больше сотни (предел API). На рабочей базе, где пробник
+    // заводит вузы при каждом прогоне, их больше, поэтому обход сверяется
+    // с первыми строками выдачи, а не со всей базой.
     const collected: string[] = []
-    for (let page = 1; page <= 40; page += 1) {
+    for (let page = 1; page <= 40 && collected.length < expectedOrder.length; page += 1) {
       const chunk = await call<Array<{ id: string }>>(
         'GET',
         `/api/universities?pageSize=3&page=${page}&sort=-rating`,
@@ -737,16 +740,17 @@ async function main(): Promise<void> {
       if (rows.length === 0) break
       collected.push(...rows.map((row) => row.id))
     }
+    const walked = collected.slice(0, expectedOrder.length)
 
     check(
       'постраничный обход по рейтингу ничего не теряет',
-      collected.length === expectedOrder.length,
-      `собрано ${collected.length}, ожидалось ${expectedOrder.length}`,
+      walked.length === expectedOrder.length,
+      `собрано ${walked.length}, ожидалось ${expectedOrder.length}`,
     )
     check('постраничный обход не повторяет записи', new Set(collected).size === collected.length)
     check(
       'порядок при обходе по страницам совпадает с одной выдачей',
-      collected.join(',') === expectedOrder.join(','),
+      walked.join(',') === expectedOrder.join(','),
     )
 
     // Отбор по рейтингу не должен ослаблять остальные фильтры.
