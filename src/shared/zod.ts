@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ru } from 'zod/locales'
+import { PG_INT_MAX } from '@/shared/db/storable'
 
 /**
  * Тексты ошибок валидации на русском (требование контракта API в CLAUDE.md).
@@ -8,3 +9,10 @@ import { ru } from 'zod/locales'
 z.config(ru())
 
 export { z }
+
+/**
+ * Количество для колонки `Int`: целое, не меньше нуля и не больше, чем колонка
+ * вмещает. `z.number().int()` без верхней границы пропускал 99 999 999 999
+ * студентов, и запись падала внутренней ошибкой вместо отказа с именем поля.
+ */
+export const countSchema = () => z.number().int().min(0).max(PG_INT_MAX, 'Слишком большое число')
