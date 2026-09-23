@@ -141,3 +141,43 @@ export function numericCell(
   }
   return { value: parsed }
 }
+
+/**
+ * Поля из колонок, которые есть в файле.
+ *
+ * Колонки нет — поле не трогается; колонка есть, а ячейка пустая — осознанное
+ * «нет данных», поле очищается. Правило общее для вузов и программ: у вузов его
+ * ввели, когда файл с одними обязательными колонками молча стирал сайт
+ * и численность, а у программ забыли — и тот же файл стирал код, направление,
+ * длительность и все три показателя рейтинга.
+ */
+export function presentColumns<T extends Record<string, unknown>>(
+  index: Map<string, number>,
+  columns: { [K in keyof T]: string },
+  values: T,
+): Partial<T> {
+  const result: Partial<T> = {}
+  for (const key of Object.keys(columns) as Array<keyof T>) {
+    if (index.has(columns[key])) result[key] = values[key]
+  }
+  return result
+}
+
+/**
+ * Текст ошибки строки по отказу схемы API — с названием колонки, а не поля.
+ *
+ * Импорт проверял строки своими правилами, а API — своими: через файл можно было
+ * завести вуз с названием из одной буквы, сайтом «не-ссылка» или программу
+ * длительностью в тысячу месяцев. Теперь строки проверяются теми же схемами.
+ */
+export function schemaIssue(
+  issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>,
+  columnOf: Record<string, string>,
+): string {
+  const issue = issues[0]
+  if (!issue) return 'Строка не прошла проверку'
+  const field = String(issue.path[0] ?? '')
+  const column = columnOf[field]
+  return column ? `Колонка «${column}»: ${issue.message}` : issue.message
+}
+
