@@ -109,15 +109,71 @@ export async function findById(
   })
 }
 
-export async function create(data: Prisma.DocumentCreateInput): Promise<DocumentDetailRow> {
-  return prisma.document.create({ data, select: detailSelect })
+export async function create(
+  data: Prisma.DocumentCreateInput,
+  client: Prisma.TransactionClient = prisma,
+): Promise<DocumentDetailRow> {
+  return client.document.create({ data, select: detailSelect })
 }
 
+/**
+ * Правка полей — только если статус всё ещё тот, по которому её разрешили.
+ *
+ * Проверка «можно ли править» и запись шли порознь: подпись между ними давала
+ * правку уже подписанного документа, хотя подписанный правкам не подлежит.
+ */
 export async function update(
   id: string,
-  data: Prisma.DocumentUpdateInput,
+  expectedStatus: DocumentStatusValue,
+  data: Prisma.DocumentUncheckedUpdateManyInput,
 ): Promise<DocumentDetailRow> {
-  return prisma.document.update({ where: { id }, data, select: detailSelect })
+  const changed = await prisma.document.updateMany({
+    where: { id, status: expectedStatus },
+    data,
+  })
+  if (changed.count === 0) {
+    throw conflict('Документ уже изменён другим пользователем. Обновите страницу и повторите действие.')
+  }
+  const row = await prisma.document.findUnique({ where: { id }, select: detailSelect })
+  if (!row) throw conflict('Документ удалён другим пользователем')
+  return row
+}
+
+/**
+ * Новая версия документа: исходная уходит в архив, новая создаётся — одной транзакцией.
+ *
+ * Раньше сначала создавалась новая версия, потом архивировалась исходная, без
+ * транзакции. Двойной щелчок давал две «версии 2»: второй запрос создавал свою
+ * и только на архивации получал отказ — а версия уже лежала в базе. Теперь исходная
+ * сначала переводится в архив условно (статус тот, что прочитан), и второй запрос
+ * получает отказ до того, как что-либо создаст.
+ */
+export async function createVersion(
+  sourceId: string,
+  sourceStatus: DocumentStatusValue,
+  data: Prisma.DocumentCreateInput,
+  userId: string,
+): Promise<DocumentDetailRow> {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.document.updateMany({
+      where: { id: sourceId, status: sourceStatus },
+      data: { status: 'ARCHIVED' },
+    })
+    if (claimed.count === 0) {
+      throw conflict('Документ уже изменён другим пользователем. Обновите страницу и повторите действие.')
+    }
+    const created = await tx.document.create({ data, select: detailSelect })
+    await tx.documentHistory.create({
+      data: {
+        documentId: sourceId,
+        fromStatus: sourceStatus,
+        toStatus: 'ARCHIVED',
+        comment: `Заменён версией ${created.version}`,
+        changedById: userId,
+      },
+    })
+    return created
+  })
 }
 
 /** Смена статуса и запись в историю — одной транзакцией. */
@@ -163,8 +219,11 @@ export async function changeStatus(
 }
 
 /** Ключи шаблонов, по которым в связке уже есть документы: пакет не пересобирается вслепую. */
-export async function findTemplateKeys(cooperationId: string): Promise<Set<string>> {
-  const rows = await prisma.document.findMany({
+export async function findTemplateKeys(
+  cooperationId: string,
+  client: Prisma.TransactionClient = prisma,
+): Promise<Set<string>> {
+  const rows = await client.document.findMany({
     where: { cooperationId, templateKey: { not: null } },
     select: { templateKey: true },
   })

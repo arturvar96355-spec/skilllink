@@ -900,6 +900,100 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Документы: версии и пакеты без дублей, содержимое не стирается ─────────
+  step('Документы: двойное нажатие не плодит версий и пакетов, подписывают не пустое')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз документов ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа документов ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const cooperationId = created.body.data?.id
+
+    // Новая версия двумя одновременными запросами — одна версия, а не две «версии 2».
+    const original = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: `Пробный договор ${sfx}`,
+      cooperationId,
+      fileReference: 'https://example.invalid/probe.pdf',
+    })
+    const originalId = original.body.data?.id
+    const versions = await Promise.all([
+      call<{ id: string }>('POST', `/api/documents/${originalId}/versions`),
+      call<{ id: string }>('POST', `/api/documents/${originalId}/versions`),
+    ])
+    const list = await call<Array<{ title: string; version: string }>>(
+      'GET',
+      `/api/documents?cooperationId=${cooperationId}&pageSize=50`,
+    )
+    const secondVersions = (list.body.data ?? []).filter(
+      (row) => row.title === `Пробный договор ${sfx}` && row.version === '2',
+    )
+    check(
+      'двойное «Новая версия» — одна версия 2',
+      secondVersions.length === 1,
+      `версий 2: ${secondVersions.length}; коды ${versions.map((result) => result.status).join(', ')}`,
+    )
+    const fromArchived = await call('POST', `/api/documents/${originalId}/versions`)
+    check('от архивной версии новая не создаётся', fromArchived.status === 409, `код ${fromArchived.status}`)
+
+    // Пакет двумя одновременными запросами — один комплект.
+    await Promise.all([
+      call('POST', `/api/cooperations/${cooperationId}/documents/generate`),
+      call('POST', `/api/cooperations/${cooperationId}/documents/generate`),
+    ])
+    const afterPackage = await call<Array<{ templateKey: string | null }>>(
+      'GET',
+      `/api/documents?cooperationId=${cooperationId}&pageSize=100`,
+    )
+    const keys = (afterPackage.body.data ?? []).flatMap((row) => (row.templateKey ? [row.templateKey] : []))
+    check(
+      'двойное «Собрать пакет» — один комплект',
+      keys.length > 0 && new Set(keys).size === keys.length,
+      `документов по шаблонам ${keys.length}, разных ${new Set(keys).size}`,
+    )
+
+    // Утверждённый документ без текста: ссылку не стереть, пустой не подписать.
+    const approved = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: `Пробный утверждаемый ${sfx}`,
+      cooperationId,
+      fileReference: 'https://example.invalid/approve.pdf',
+    })
+    const approvedId = approved.body.data?.id
+    await call('PATCH', `/api/documents/${approvedId}/status`, { status: 'REVIEW' })
+    await call('PATCH', `/api/documents/${approvedId}/status`, { status: 'APPROVED' })
+    const erased = await call('PATCH', `/api/documents/${approvedId}`, { fileReference: null })
+    check('у утверждённого документа ссылку не стереть', erased.status === 422, `код ${erased.status}`)
+
+    // Связка: закрытой не создаётся, несуществующий продукт — не «связка не найдена».
+    const closedAtBirth = await call('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+      status: 'COMPLETED',
+    })
+    check('связка не создаётся сразу закрытой', closedAtBirth.status === 422, `код ${closedAtBirth.status}`)
+    const badProduct = await call('PATCH', `/api/cooperations/${cooperationId}`, { productId: 'нет-такого' })
+    check(
+      'несуществующий продукт — ошибка поля, а не «связка не найдена»',
+      badProduct.status === 422,
+      `код ${badProduct.status}`,
+    )
+  }
+
   // ── История документа: внутренние комментарии — только сотрудникам ────────
   step('Представитель не видит внутренних комментариев в истории документа')
 

@@ -57,6 +57,9 @@ export const COOPERATION_STATUSES = [
 ] as const
 export type CooperationStatus = (typeof COOPERATION_STATUSES)[number]
 
+/** Открытые связки: по ним идёт работа. Новая связка создаётся только открытой. */
+export const OPEN_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED'] as const
+
 export const STAGE_STATUSES = [
   'NOT_STARTED',
   'IN_PROGRESS',
