@@ -172,7 +172,6 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
                 .join(' ')}
               style={{ '--z': `${depth.z}px`, '--fade': depth.fade } as CSSProperties}
               onClick={() => onSelect(stage.id)}
-              title={`${stage.stageNumber}. ${stage.title}`}
               aria-label={
                 `Этап ${stage.stageNumber}: ${stage.title}. ` +
                 `${STAGE_STATUS_LABELS[stage.status]}${deadline ? `, ${deadline}` : ''}` +

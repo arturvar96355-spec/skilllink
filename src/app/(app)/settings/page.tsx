@@ -43,6 +43,18 @@ import styles from './settings.module.css'
 /** Сколько источников показывать: их единицы, страницы здесь были бы лишними. */
 const SOURCES_QUERY = buildQuery({ pageSize: 50 })
 
+/**
+ * Источник рыночных данных — словами, а не ключом настройки (`mock`, `csv`…):
+ * ключ нужен администратору в .env, а на экране он ничего не говорит.
+ * Неизвестный ключ показывается как есть — новый источник не пропадёт.
+ */
+const PROVIDER_LABELS: Record<string, string> = {
+  mock: 'демонстрационный набор',
+  csv: 'файл CSV',
+  'external-api': 'внешний API',
+  'future-rtk': 'источник РТК',
+}
+
 export default function SettingsPage() {
   const user = useCurrentUser()
   const toast = useToast()
@@ -229,12 +241,13 @@ export default function SettingsPage() {
                     <p className={styles.cellMeta}>
                       {item.reason ?? 'Дополнительных пояснений источник не передал.'}
                     </p>
-                    <p className={styles.key}>{item.key}</p>
                   </Card>
                 ))}
               </div>
               <p className={styles.generated}>
-                Активный поставщик рыночных данных: {integrations.data.marketDataProvider}. Проверено:{' '}
+                Рыночные данные сейчас берутся из источника «
+                {PROVIDER_LABELS[integrations.data.marketDataProvider] ?? integrations.data.marketDataProvider}».
+                Проверено:{' '}
                 {formatDateTime(integrations.data.checkedAt)}.
               </p>
             </>

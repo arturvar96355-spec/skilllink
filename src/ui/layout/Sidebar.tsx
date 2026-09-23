@@ -144,7 +144,8 @@ export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
         </nav>
 
         <div className={styles.footer}>
-          <span className={styles.hint}>Поиск по системе — кнопка справа внизу или Ctrl + K</span>
+          {/* Место под кнопку поиска: она стоит здесь, поверх низа меню (search/GlobalSearch). */}
+          <span className={styles.searchSlot} aria-hidden="true" />
         </div>
       </aside>
     </>

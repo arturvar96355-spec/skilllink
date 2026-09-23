@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {children}
           </div>
         </main>
-        <Footer groups={groups} service={service} />
+        <Footer service={service} />
       </div>
       </div>
       <GlobalSearch />

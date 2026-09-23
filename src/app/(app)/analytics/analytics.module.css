@@ -21,6 +21,14 @@
   color: var(--accent-primary);
 }
 
+/* Длинное название вуза — не больше двух строк: в четыре оно раздувало строку рейтинга. */
+.clamp2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .muted {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
@@ -62,7 +70,71 @@
 .factors {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
+}
+
+/* Составная полоса: сегменты-вклады на шкале из 100. */
+.stack {
+  display: flex;
+  height: 8px;
+  gap: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--line-subtle);
+  overflow: hidden;
+}
+
+.stackPart {
+  height: 100%;
+}
+
+.stackPart[data-factor='applicationCount'] {
+  background: var(--accent-violet);
+}
+
+.stackPart[data-factor='studentCount'] {
+  background: var(--accent-pink);
+}
+
+.stackPart[data-factor='groupCount'] {
+  background: var(--accent-cyan);
+}
+
+.stackLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px var(--space-3);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Точка цвета сегмента перед подписью — легенда без отдельного блока. */
+.legendItem::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: var(--radius-pill);
+  vertical-align: 1px;
+  background: var(--line-strong);
+}
+
+.legendItem[data-factor='applicationCount']::before {
+  background: var(--accent-violet);
+}
+
+.legendItem[data-factor='studentCount']::before {
+  background: var(--accent-pink);
+}
+
+.legendItem[data-factor='groupCount']::before {
+  background: var(--accent-cyan);
+}
+
+.legendValue {
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
 .factor {

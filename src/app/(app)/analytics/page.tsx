@@ -130,6 +130,13 @@ function AnalyticsView() {
   )
 }
 
+/** Короткие подписи показателей рейтинга — для строки под составной полосой. */
+const FACTOR_SHORT: Record<string, string> = {
+  applicationCount: 'заявки',
+  studentCount: 'обучающиеся',
+  groupCount: 'группы',
+}
+
 /* ──────────────────────────── Рейтинг программ ─────────────────────────── */
 
 function RatingTab() {
@@ -153,8 +160,8 @@ function RatingTab() {
       title: 'Вуз',
       width: '200px',
       render: (row) => (
-        <Link className={styles.link} href={universityHref(row.universityId)}>
-          {row.universityName}
+        <Link className={styles.link} href={universityHref(row.universityId)} title={row.universityName}>
+          <span className={styles.clamp2}>{row.universityName}</span>
         </Link>
       ),
     },
@@ -192,23 +199,46 @@ function RatingTab() {
         row.factors.length === 0 ? (
           <span className={styles.muted}>Показатели набора не заполнены</span>
         ) : (
+          // Одна составная полоса вместо трёх: сегмент — вклад показателя в балл
+          // из 100, поэтому полоса и есть ответ на «из чего сложился балл».
+          // Вес и вклад — в подсказке сегмента; строка стала вдвое ниже.
           <span className={styles.factors}>
-            {row.factors.map((factor) => (
-              <span key={factor.key} className={styles.factor}>
-                <span className={styles.factorHead}>
-                  <span className={styles.factorTitle}>{factor.title}</span>
-                  <span className={styles.factorValue}>{formatNumber(factor.value)}</span>
+            <span
+              className={styles.stack}
+              role="img"
+              aria-label={row.factors
+                .map(
+                  (factor) =>
+                    `${factor.title}: ${formatNumber(factor.value)}, вклад ${
+                      factor.contribution === null ? NO_DATA : formatScore(factor.contribution)
+                    }`,
+                )
+                .join('; ')}
+            >
+              {row.factors.map((factor) =>
+                factor.contribution === null || factor.contribution <= 0 ? null : (
+                  <span
+                    key={factor.key}
+                    className={styles.stackPart}
+                    data-factor={factor.key}
+                    style={{ width: `${Math.min(100, factor.contribution)}%` }}
+                    title={`${factor.title}: ${formatNumber(factor.value)} · вес ${formatShare(
+                      factor.weight,
+                    )} · вклад ${formatScore(factor.contribution)}`}
+                  />
+                ),
+              )}
+            </span>
+            <span className={styles.stackLegend}>
+              {row.factors.map((factor) => (
+                <span key={factor.key} className={styles.legendItem} data-factor={factor.key}>
+                  {FACTOR_SHORT[factor.key] ?? factor.title}{' '}
+                  <span className={styles.legendValue}>
+                    {factor.value === null ? 'нет данных' : formatNumber(factor.value)}
+                  </span>
                 </span>
-                <Progress
-                  value={share(factor.normalized)}
-                  label={`${factor.title}: доля от максимума в выборке`}
-                />
-                <span className={styles.factorNote}>
-                  вес {formatShare(factor.weight)} · вклад{' '}
-                  {factor.contribution === null ? NO_DATA : formatScore(factor.contribution)}
-                </span>
-              </span>
-            ))}
+              ))}
+            </span>
           </span>
         ),
     },

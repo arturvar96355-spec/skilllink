@@ -198,83 +198,12 @@
   }
 }
 
-/* Подвал: спокойный, не спорит с содержимым (раздел 27 документа о движении). */
+/* Подвал: одна спокойная строка, не спорит с содержимым (раздел 27 документа о движении). */
 .footer {
   border-top: 1px solid var(--border-divider);
-  background: rgba(255, 255, 255, 0.03);
 }
 
 .footerInner {
-  width: 100%;
-  max-width: var(--content-max);
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-6);
-  display: grid;
-  grid-template-columns: 1.6fr repeat(3, 1fr);
-  gap: var(--space-6);
-}
-
-@media (max-width: 900px) {
-  .footerInner {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 560px) {
-  .footerInner {
-    grid-template-columns: 1fr;
-  }
-}
-
-.footerBrand {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  max-width: 320px;
-}
-
-.footerBrandRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.footerAbout {
-  font-size: var(--text-body-sm-size);
-  line-height: var(--text-body-sm-line);
-  color: var(--text-secondary);
-}
-
-.footerGroup {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.footerTitle {
-  font-size: var(--text-caption-size);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-tertiary);
-  margin-bottom: var(--space-1);
-}
-
-.footerLink {
-  font-size: var(--text-body-sm-size);
-  color: var(--text-secondary);
-  transition: color var(--motion-micro) var(--ease-out);
-  width: fit-content;
-}
-
-.footerLink:hover {
-  color: var(--text-primary);
-}
-
-.footerBottom {
-  border-top: 1px solid var(--border-divider);
-}
-
-.footerBottomInner {
   width: 100%;
   max-width: var(--content-max);
   margin: 0 auto;
@@ -282,10 +211,50 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3) var(--space-6);
   flex-wrap: wrap;
+}
+
+.footerBrandRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.footerName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.footerNote {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+}
+
+.footerLinks {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.footerLink {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.footerLink:hover {
+  color: var(--text-primary);
+}
+
+@media (max-width: 720px) {
+  .footerInner {
+    padding: var(--space-4);
+  }
 }
 
 /*

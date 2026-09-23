@@ -9,7 +9,8 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  /* 140 px: шесть сведений встают в одну строку, «Обновлена» не остаётся одна внизу. */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: var(--space-4) var(--space-6);
   flex: 1;
   min-width: 0;
@@ -114,9 +115,6 @@
   color: var(--text-tertiary);
 }
 
-.mockNote {
-  margin-top: var(--space-4);
-}
 
 /* Ячейки таблиц вкладок. */
 .cellStack {

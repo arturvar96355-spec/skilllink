@@ -180,6 +180,9 @@ export function DataTable<T>({
                     className={[styles.td, column.align === 'right' ? styles.right : '']
                       .filter(Boolean)
                       .join(' ')}
+                    // Подпись ячейки для узкого экрана: там строка-плашка раскладывается
+                    // карточкой, и у каждого значения видно, что это (вид `cards`).
+                    data-label={column.title}
                   >
                     {/*
                       Первая ячейка строки, ведущей на объект, — настоящая ссылка.

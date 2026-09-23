@@ -23,7 +23,11 @@ import styles from './Shell.module.css'
 export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClick: () => void }) {
   const user = useCurrentUser()
   const pathname = usePathname()
-  const section = currentSectionTitle(groups, pathname)
+  // Личного кабинета нет в меню — открывается по имени в шапке, — но назван он должен быть
+  // как любой раздел: без этого в шапке стояло одно «SkillLink».
+  const section =
+    currentSectionTitle(groups, pathname) ??
+    (pathname.startsWith(ROUTES.profile) ? 'Личный кабинет' : null)
 
   return (
     <header className={styles.header} data-nav-chrome="header">
