@@ -53,6 +53,7 @@ import {
   type TabItem,
   formatShare,
   formatDemand,
+  formatPlace,
 } from '@/ui'
 import styles from './university.module.css'
 
@@ -336,33 +337,34 @@ export default function UniversityPage() {
           <span className={styles.subtitle}>
             <Avatar name={data.shortName ?? data.name} kind="entity" size="lg" />
             <span>
-              {data.city} · {data.region}
+              {formatPlace(data.city, data.region)}
               {data.address && <div className={styles.rowMeta}>{data.address}</div>}
             </span>
           </span>
           {data.description && <p className={styles.description}>{data.description}</p>}
+          {/* Число над подписью: подпись в две строки не сдвигает его, числа стоят в ряд. */}
           <div className={styles.facts}>
             <span className={styles.fact}>
-              <span className={styles.factLabel}>Программ в системе</span>
               <span className={styles.factValue}>{formatNumber(data.programCount)}</span>
+              <span className={styles.factLabel}>Программ в системе</span>
             </span>
             <span className={styles.fact}>
-              <span className={styles.factLabel}>Связок, из них активных</span>
               <span className={styles.factValue}>
                 {formatNumber(data.cooperationCount)} / {formatNumber(data.activeCooperationCount)}
               </span>
+              <span className={styles.factLabel}>Связок, из них активных</span>
             </span>
             <span className={styles.fact}>
-              <span className={styles.factLabel}>Направлений подготовки</span>
               <span className={styles.factValue}>
                 {data.directionCount === null ? 'Нет данных' : formatNumber(data.directionCount)}
               </span>
+              <span className={styles.factLabel}>Направлений подготовки</span>
             </span>
             <span className={styles.fact}>
-              <span className={styles.factLabel}>Обучающихся</span>
               <span className={styles.factValue}>
                 {data.studentCount === null ? 'Нет данных' : formatNumber(data.studentCount)}
               </span>
+              <span className={styles.factLabel}>Обучающихся</span>
             </span>
           </div>
         </Card>
