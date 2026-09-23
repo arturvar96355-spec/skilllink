@@ -32,7 +32,11 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
 
   // Ширина колонки одна на все этапы: иначе длинные названия растянут свои
   // столбцы, и шаги окажутся на разном расстоянии друг от друга.
-  const columns = `repeat(${ordered.length}, minmax(64px, 1fr))`
+  //
+  // 56 пикселей на этап — лента целиком помещается на проекторе 1280×720
+  // при раскрытом меню. При 64 не хватало 49 пикселей, и этап 14 уезжал
+  // под прокрутку ровно на третьем шаге показа.
+  const columns = `repeat(${ordered.length}, minmax(56px, 1fr))`
 
   const phaseSpans = STAGE_PHASES.map((phase: StagePhase) => {
     const inPhase = ordered.filter((stage) => stage.phase === phase)
@@ -75,7 +79,9 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
     <div className={styles.ribbon}>
       <div
         className={styles.phases}
-        style={{ gridTemplateColumns: phaseSpans.map((item) => `${item.span}fr`).join(' ') }}
+        style={{
+          gridTemplateColumns: phaseSpans.map((item) => `minmax(0, ${item.span}fr)`).join(' '),
+        }}
       >
         {phaseSpans.map((item) => (
           <div
@@ -84,7 +90,9 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
               .filter(Boolean)
               .join(' ')}
           >
-            <span className={styles.phaseName}>{STAGE_PHASE_LABELS[item.phase]}</span>
+            <span className={styles.phaseName} title={STAGE_PHASE_LABELS[item.phase]}>
+              {STAGE_PHASE_LABELS[item.phase]}
+            </span>
             <span className={styles.phaseCount}>
               {item.closed} из {item.span}
             </span>
