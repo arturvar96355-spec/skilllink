@@ -120,3 +120,14 @@ describe('спрос — одна строка на навык', () => {
   })
 })
 
+describe('обоснование дефицита — целыми пунктами', () => {
+  it('без дробей и точки в русском тексте, как в рекомендациях', () => {
+    const critical = calculateGap(0.7033, null, 'PostgreSQL')
+    expect(critical.explanation).toContain('(70 из 100)')
+    const partial = calculateGap(0.5555, 'BASIC', 'Python')
+    expect(partial.explanation).toBe('Спрос 56 из 100, покрытие программой 34 из 100')
+    for (const text of [critical.explanation, partial.explanation]) {
+      expect(text).not.toMatch(/\d\.\d/)
+    }
+  })
+})

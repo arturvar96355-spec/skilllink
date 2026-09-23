@@ -40,7 +40,6 @@ import {
   Tooltip,
   buildQuery,
   formatNumber,
-  formatPercent,
   formatScore,
   programHref,
   programWithUniversityOption,
@@ -49,6 +48,7 @@ import {
   useResource,
   type Column,
   type TabItem,
+  formatShare,
 } from '@/ui'
 import styles from './analytics.module.css'
 
@@ -204,7 +204,7 @@ function RatingTab() {
                   label={`${factor.title}: доля от максимума в выборке`}
                 />
                 <span className={styles.factorNote}>
-                  вес {formatScore(factor.weight)} · вклад{' '}
+                  вес {formatShare(factor.weight)} · вклад{' '}
                   {factor.contribution === null ? NO_DATA : formatScore(factor.contribution)}
                 </span>
               </span>
@@ -326,7 +326,7 @@ function GapsTab({
       width: '190px',
       render: (row) => (
         <span className={styles.measure}>
-          <span className={styles.measureValue}>{formatPercent(row.coverage * 100)}</span>
+          <span className={styles.measureValue}>{formatShare(row.coverage)}</span>
           <Progress
             value={row.coverage * 100}
             tone="success"
@@ -344,7 +344,7 @@ function GapsTab({
       width: '190px',
       render: (row) => (
         <span className={styles.measure}>
-          <span className={styles.measureValue}>{formatPercent(row.gap * 100)}</span>
+          <span className={styles.measureValue}>{formatShare(row.gap)}</span>
           <Progress
             value={row.gap * 100}
             tone={row.isCritical ? 'danger' : 'default'}

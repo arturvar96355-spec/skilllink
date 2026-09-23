@@ -1,4 +1,5 @@
 import type { Metric } from '@/shared/contracts'
+import { outOf100 } from '@/shared/utils/number'
 import { plural } from '@/shared/utils/text'
 
 /**
@@ -59,6 +60,31 @@ export function formatScore(value: number | null | undefined): string {
 export function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
   return `${scoreFormat.format(value)}%`
+}
+
+/**
+ * Доля от 0 до 1 — целым процентом: покрытие навыка, дефицит, вес показателя.
+ *
+ * Раньше каждый экран решал сам: в аналитике «77,0%» и «вес 0,4», в карточке
+ * программы — «77%» и «40,0%». Одна и та же величина читалась по-разному.
+ */
+export function formatShare(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
+  return `${Math.round(value * 100)}%`
+}
+
+/** Спрос на навык, нормированный к 0..1, — «77 из 100». */
+export function formatDemand(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return NO_DATA
+  return `${outOf100(value)} из 100`
+}
+
+/**
+ * Место вуза: «Казань, Республика Татарстан». Город федерального значения —
+ * сам себе регион, и «Санкт-Петербург · Санкт-Петербург» читалось как ошибка.
+ */
+export function formatPlace(city: string, region: string | null | undefined): string {
+  return region && region.trim() !== city.trim() ? `${city}, ${region}` : city
 }
 
 /** Показатель вместе с единицей измерения; `basis: "none"` — «Нет данных». */

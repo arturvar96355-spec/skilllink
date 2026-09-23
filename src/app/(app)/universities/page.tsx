@@ -37,6 +37,7 @@ import {
   useResource,
   usePageInRange,
   type Column,
+  formatPlace,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
 import styles from './universities.module.css'
@@ -140,17 +141,19 @@ export default function UniversitiesPage() {
       render: (row) => (
         <span className={styles.name}>
           <Avatar name={row.shortName ?? row.name} kind="entity" size="xs" />
-          <CellText strong>{row.name}</CellText>
+          <CellText strong lines={2}>
+            {row.name}
+          </CellText>
         </span>
       ),
     },
     {
       key: 'city',
       title: 'Город',
-      width: '150px',
+      width: '140px',
       sortField: 'city',
       render: (row) => (
-        <CellText muted title={row.region !== row.city ? `${row.city}, ${row.region}` : row.city}>
+        <CellText muted title={formatPlace(row.city, row.region)}>
           {row.city}
         </CellText>
       ),
@@ -158,14 +161,14 @@ export default function UniversitiesPage() {
     {
       key: 'status',
       title: 'Статус',
-      width: '150px',
+      width: '130px',
       sortField: 'status',
       render: (row) => <UniversityStatusBadge status={row.status} />,
     },
     {
       key: 'rating',
       title: 'Рейтинг',
-      width: '130px',
+      width: '100px',
       align: 'right',
       sortField: 'rating',
       sortDescFirst: true,
@@ -190,14 +193,14 @@ export default function UniversitiesPage() {
     {
       key: 'programs',
       title: 'Программы',
-      width: '120px',
+      width: '90px',
       align: 'right',
       render: (row) => <span className={styles.counts}>{formatNumber(row.programCount)}</span>,
     },
     {
       key: 'cooperations',
       title: 'Связки',
-      width: '130px',
+      width: '90px',
       align: 'right',
       render: (row) => (
         <span className={styles.counts}>
@@ -209,7 +212,7 @@ export default function UniversitiesPage() {
     {
       key: 'updatedAt',
       title: 'Обновлено',
-      width: '130px',
+      width: '100px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       render: (row) => <span className={styles.countsMuted}>{formatDate(row.updatedAt)}</span>,

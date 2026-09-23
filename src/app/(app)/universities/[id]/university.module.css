@@ -1,18 +1,28 @@
 /* Карточка вуза (раздел 22 шаблона страниц). */
 
+/*
+ * Сведения о вузе и его рейтинг. Сетка, а не строка с переносом: ширину блока
+ * рейтинга задавала длина его пояснения в одну строку, и он забирал почти всю
+ * ширину — сведения сжимались до минимума и складывались столбиком.
+ */
 .head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-5);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  align-items: stretch;
+  gap: var(--space-4);
+}
+
+@media (max-width: 860px) {
+  .head {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .headText {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  min-width: 260px;
-  flex: 1;
+  min-width: 0;
 }
 
 .title {
@@ -34,8 +44,9 @@
 .ratingCard {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-2);
-  min-width: 240px;
+  min-width: 0;
 }
 
 .ratingValue {
@@ -65,7 +76,7 @@
 
 .facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: var(--space-4);
 }
 
@@ -208,4 +219,17 @@
   display: flex;
   justify-content: center;
   padding-top: var(--space-3);
+}
+
+.gapValue {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+/* Пометка происхождения данных над таблицей — одна на таблицу, а не в каждой строке. */
+.tableNote {
+  display: flex;
+  justify-content: flex-end;
 }
