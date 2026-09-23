@@ -81,6 +81,39 @@ describe('внутренняя ошибка', () => {
   })
 })
 
+describe('нарушение CHECK-ограничения базы', () => {
+  // Так ошибку отдаёт Prisma с адаптером драйвера (снято с настоящей базы).
+  const checkError = Object.assign(new Error('Database error. Code: `23514`.'), {
+    name: 'PrismaClientKnownRequestError',
+    code: 'P2039',
+    meta: {
+      modelName: 'EducationalProgram',
+      driverAdapterError: {
+        name: 'DriverAdapterError',
+        cause: {
+          originalCode: '23514',
+          originalMessage:
+            'new row for relation "educational_programs" violates check constraint "educational_programs_student_count_check"',
+          detail: 'Failing row contains (cm1, Иванов Иван, ivanov@example.ru, -1).',
+        },
+      },
+    },
+  })
+
+  it('это ошибка ввода 422 с именем ограничения, а не внутренняя 500', () => {
+    const known = toAppError(checkError)
+    expect(known?.code).toBe('VALIDATION_ERROR')
+    expect(known?.details).toEqual({ constraint: 'educational_programs_student_count_check' })
+  })
+
+  it('содержимое строки наружу не уходит', () => {
+    const known = toAppError(checkError)
+    const shown = JSON.stringify({ message: known?.message, details: known?.details })
+    expect(shown).not.toContain('Иванов')
+    expect(shown).not.toContain('Failing row')
+  })
+})
+
 describe('размер тела', () => {
   /** Поток без Content-Length — как при передаче chunked. */
   function streamed(totalBytes: number, onPull: () => void): Request {
