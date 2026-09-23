@@ -44,6 +44,10 @@
   letter-spacing: 0.02em;
   color: var(--text-tertiary);
   white-space: nowrap;
+  /* Колонка фазы сжимается вместе с этапами под ней: длинное имя
+     обрезается, а не раздвигает ленту и не сбивает её с этапов. */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .phaseCurrent .phaseName {
