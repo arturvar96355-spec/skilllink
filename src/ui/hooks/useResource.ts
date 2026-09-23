@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import type { PageMeta } from '@/shared/contracts'
 import { ApiRequestError, apiGet } from '../lib/api'
+import { leaveToLogin } from '../lib/session'
 
 /**
  * Загрузка данных одного экрана.
@@ -23,7 +23,6 @@ export interface Resource<T> {
 }
 
 export function useResource<T>(path: string | null): Resource<T> {
-  const router = useRouter()
   const [data, setData] = useState<T | null>(null)
   const [meta, setMeta] = useState<PageMeta | null>(null)
   const [error, setError] = useState<ApiRequestError | null>(null)
@@ -61,10 +60,10 @@ export function useResource<T>(path: string | null): Resource<T> {
             ? caught
             : new ApiRequestError('Непредвиденная ошибка', 'INTERNAL', 0)
 
-        // Сессия кончилась, пока страница была открыта: возвращаем на вход,
-        // а не показываем пустой экран с непонятной ошибкой.
+        // Сессия кончилась или больше ни на кого не указывает: возвращаем
+        // на вход, сняв старую, — а не показываем пустой экран.
         if (apiError.code === 'UNAUTHORIZED') {
-          router.push('/login')
+          void leaveToLogin()
           return
         }
         setError(apiError)
@@ -79,7 +78,7 @@ export function useResource<T>(path: string | null): Resource<T> {
       cancelled = true
       controller.abort()
     }
-  }, [path, attempt, router])
+  }, [path, attempt])
 
   const reload = useCallback(() => setAttempt((value) => value + 1), [])
 
