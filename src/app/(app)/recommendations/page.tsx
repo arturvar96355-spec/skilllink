@@ -271,12 +271,17 @@ function RecommendationsContent() {
                     <a className={styles.title} href={`/recommendations?recommendation=${item.id}`}>
                       {item.title}
                     </a>
-                    <p className={styles.description}>{item.description}</p>
+                    <p className={styles.description} title={item.description}>
+                      {item.description}
+                    </p>
 
-                    {/* Обоснование показывается всегда: без него рекомендация — «машина так решила». */}
-                    <p className={styles.why}>
+                    {/*
+                      Обоснование показывается всегда: без него рекомендация — «машина так решила».
+                      В ленте — две строки, полностью — в подсказке и в панели рекомендации.
+                    */}
+                    <p className={styles.why} title={item.justification}>
                       <span className={styles.whyLabel}>Почему</span>
-                      {item.justification}
+                      <span className={styles.whyText}>{item.justification}</span>
                     </p>
 
                     {item.resolutionComment && (
@@ -289,7 +294,8 @@ function RecommendationsContent() {
                         <Icon name="arrowRight" size={16} />
                       </a>
                       <span className={styles.meta}>
-                        уверенность {CONFIDENCE_LABELS[item.confidence].toLowerCase()} · {item.ruleKey} ·{' '}
+                        {/* Код правила — в панели рекомендации, в «Служебном»: в ленте он ничего не говорит. */}
+                        уверенность {CONFIDENCE_LABELS[item.confidence].toLowerCase()} ·{' '}
                         {formatDate(item.createdAt)}
                       </span>
                     </div>

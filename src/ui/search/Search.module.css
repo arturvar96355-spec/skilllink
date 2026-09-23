@@ -218,11 +218,36 @@
   border-top: 1px solid var(--border-divider);
 }
 
-@media (max-width: 720px) {
+/*
+ * Широкий экран: кнопка стоит внизу бокового меню, на его ширину. Плавающая
+ * в правом углу, она закрывала содержимое — кнопку «Выйти», последние колонки
+ * таблиц, этап 14 на ленте. В меню она не закрывает ничего и всегда на виду.
+ */
+@media (min-width: 1081px) {
+  .fab {
+    left: var(--space-4);
+    right: auto;
+    bottom: var(--space-4);
+    width: calc(var(--sidebar-width) - var(--space-4) * 2);
+    padding: 0 var(--space-4);
+    background: var(--surface-2);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .fab .hint {
+    margin-left: auto;
+  }
+}
+
+/* Узкий экран: меню спрятано — кнопка плавает, но компактным кружком. */
+@media (max-width: 1080px) {
   .fab {
     right: var(--space-4);
     bottom: var(--space-4);
-    padding: 0 var(--space-4);
+    width: 44px;
+    padding: 0;
+    justify-content: center;
   }
 
   .fabLabel,

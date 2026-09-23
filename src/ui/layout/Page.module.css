@@ -116,12 +116,13 @@
 }
 
 .toolbarSearch {
-  flex: 1 1 260px;
-  min-width: 220px;
+  flex: 1 1 240px;
+  min-width: 200px;
 }
 
+/* 150, а не 170: пять фильтров документов теперь встают в одну строку с поиском. */
 .toolbarItem {
-  min-width: 170px;
+  min-width: 150px;
 }
 
 .toolbarActions {

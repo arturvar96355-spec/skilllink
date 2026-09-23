@@ -383,6 +383,8 @@ export default function UniversityPage() {
               {formatNumber(data.rating.programCount)} программ.
             </p>
             {data.rating.topProgram && (
+              // Название программы длинное: кнопка переносит его, а не выдавливает страницу вбок.
+              <span className={styles.ratingLink}>
               <Button
                 href={programHref(data.rating.topProgram.programId)}
                 variant="ghost"
@@ -392,6 +394,7 @@ export default function UniversityPage() {
               >
                 Сильнейшая: {data.rating.topProgram.name}
               </Button>
+              </span>
             )}
           </Card>
         )}
@@ -439,7 +442,13 @@ export default function UniversityPage() {
                   <span className={styles.factLabel}>Сайт</span>
                   <span className={styles.factValue}>
                     {data.website ? (
-                      <a className={styles.factLink} href={data.website} target="_blank" rel="noreferrer">
+                      <a
+                        className={[styles.factLink, styles.siteLink].join(' ')}
+                        href={data.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={data.website}
+                      >
                         {data.website.replace(/^https?:\/\//, '')}
                       </a>
                     ) : (

@@ -141,6 +141,15 @@
   color: var(--text-secondary);
 }
 
+/* Текст обоснования и описания в ленте — не длиннее двух строк; целиком — в подсказке. */
+.whyText,
+.rows .description {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .whyLabel {
   font-size: var(--text-caption-size);
   font-weight: 600;

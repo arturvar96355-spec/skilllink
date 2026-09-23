@@ -1,44 +1,30 @@
 import Link from 'next/link'
-import type { NavGroup, ServiceLink } from './navigation'
+import type { ServiceLink } from './navigation'
 import { Logo } from './Logo'
 import styles from './Shell.module.css'
 
 /**
- * Подвал.
+ * Подвал — одной спокойной строкой (раздел 27 документа о движении).
  *
- * Разделы честные: ссылки ведут на то, что в системе действительно есть
- * и открыто этой роли, — группы те же, что в боковом меню (`navigationFor`).
- * Юридические реквизиты не придумываем (раздел 26 шаблона страниц) —
- * вместо них сказано, что это прототип и данные демонстрационные.
+ * Разделы системы здесь не повторяются: они в боковом меню, а на узком экране —
+ * в меню за кнопкой в шапке. Полный их список в подвале добавлял к каждой
+ * странице ещё треть экрана того же самого. Остаются служебные ссылки — их
+ * в меню нет — и честная пометка, что это прототип с демонстрационными данными.
+ * Юридические реквизиты не придумываем (раздел 26 шаблона страниц).
  */
-export function Footer({ groups, service }: { groups: NavGroup[]; service: ServiceLink[] }) {
+export function Footer({ service }: { service: ServiceLink[] }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerInner}>
-        <div className={styles.footerBrand}>
-          <span className={styles.footerBrandRow}>
-            <Logo size={26} />
-            <span className={styles.homeName}>SkillLink</span>
+        <span className={styles.footerBrandRow}>
+          <Logo size={20} />
+          <span className={styles.footerName}>SkillLink</span>
+          <span className={styles.footerNote}>
+            прототип · часть данных демонстрационная и помечена в интерфейсе · Хакатон ИТ-Школы РТК, 2026
           </span>
-          <p className={styles.footerAbout}>
-            Система контроля взаимодействия с учебными заведениями: вузы, образовательные
-            программы и IT-продукты в одной связке, с историей этапов и объяснимой аналитикой.
-          </p>
-        </div>
+        </span>
 
-        {groups.map((group) => (
-          <div key={group.key} className={styles.footerGroup}>
-            <span className={styles.footerTitle}>{group.title}</span>
-            {group.items.map((item) => (
-              <Link key={item.href} href={item.href} className={styles.footerLink}>
-                {item.label}
-              </Link>
-            ))}
-          </div>
-        ))}
-
-        <div className={styles.footerGroup}>
-          <span className={styles.footerTitle}>Служебное</span>
+        <nav className={styles.footerLinks} aria-label="Служебные ссылки">
           {service.map((link) =>
             link.external ? (
               <a key={link.href} className={styles.footerLink} href={link.href} target="_blank" rel="noreferrer">
@@ -50,14 +36,7 @@ export function Footer({ groups, service }: { groups: NavGroup[]; service: Servi
               </Link>
             ),
           )}
-        </div>
-      </div>
-
-      <div className={styles.footerBottom}>
-        <div className={styles.footerBottomInner}>
-          <span>SkillLink — прототип. Часть данных демонстрационная и помечена в интерфейсе.</span>
-          <span>Хакатон ИТ-Школы РТК, 2026</span>
-        </div>
+        </nav>
       </div>
     </footer>
   )

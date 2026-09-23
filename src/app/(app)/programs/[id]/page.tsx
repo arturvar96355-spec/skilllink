@@ -530,11 +530,7 @@ export default function ProgramPage() {
                   <Fact label="В архиве с">{formatDate(data.archivedAt)}</Fact>
                 )}
               </dl>
-              {data.isMock && (
-                <p className={styles.mockNote}>
-                  <MockBadge />
-                </p>
-              )}
+              {/* Пометка демо-данных — одна на экран, в шапке: вторая здесь была повтором. */}
             </Card>
           </Section>
         </>

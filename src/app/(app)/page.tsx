@@ -358,14 +358,23 @@ export default function DashboardPage() {
                           title={`${item.universityName} → ${item.programName} → ${item.productName ?? 'продукт не выбран'}`}
                           onClick={(event) => startMorph(event.currentTarget, event)}
                         >
-                          <span className={styles.routeUni}>{item.universityShortName ?? item.universityName}</span>
-                          <span className={styles.routeLine} aria-hidden />
-                          <span className={styles.routeNode} data-morph-title>
-                            {item.programName}
-                          </span>
-                          <span className={styles.routeLine} aria-hidden />
-                          <span className={[styles.routeNode, item.productName ? '' : styles.routeMissing].filter(Boolean).join(' ')}>
-                            {item.productName ?? 'продукт не выбран'}
+                          {/* Две строки вместо одной: в одну вуз, программа и продукт обрезались до 10–15 букв. */}
+                          <span className={styles.routeText}>
+                            <span className={styles.routeHead}>
+                              <span className={styles.routeUni}>{item.universityShortName ?? item.universityName}</span>
+                              <span className={styles.routeSep} aria-hidden>
+                                —
+                              </span>
+                              <span className={styles.routeNode} data-morph-title>
+                                {item.programName}
+                              </span>
+                            </span>
+                            <span className={[styles.routeProduct, item.productName ? '' : styles.routeMissing].filter(Boolean).join(' ')}>
+                              <span className={styles.routeArrow} aria-hidden>
+                                →
+                              </span>
+                              {item.productName ?? 'продукт не выбран'}
+                            </span>
                           </span>
                           <span className={styles.notation}>
                             {item.currentStage ? stageNotation(item.currentStage.stageNumber) : '—'}
