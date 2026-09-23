@@ -463,7 +463,10 @@ async function main(): Promise<void> {
     check('программа архивируется', archived.body.data?.status === 'ARCHIVED')
     check('дата архивирования проставлена', Boolean(archived.body.data?.archivedAt))
 
-    const hidden = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=100')
+    // Сужаем по уникальному суффиксу: на рабочей базе программ больше сотни,
+    // и по алфавиту «Программа для архива…» уезжала за первую страницу.
+    const byName = `q=${encodeURIComponent(suffix)}`
+    const hidden = await call<Array<{ id: string }>>('GET', `/api/programs?pageSize=100&${byName}`)
     check(
       'архивная программа скрыта из списка по умолчанию',
       !(hidden.body.data ?? []).some((item) => item.id === archivableId),
@@ -471,7 +474,7 @@ async function main(): Promise<void> {
 
     const visible = await call<Array<{ id: string }>>(
       'GET',
-      '/api/programs?pageSize=100&includeArchived=true',
+      `/api/programs?pageSize=100&includeArchived=true&${byName}`,
     )
     check(
       'архивную программу видно по явному запросу',
