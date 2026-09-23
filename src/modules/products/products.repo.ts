@@ -2,40 +2,66 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
-import { lockCooperation, recomputeControlStage } from '@/modules/workflow/workflow.repo'
+import {
+  lockCooperation,
+  recomputeControlStage,
+  type ControlStageChange,
+} from '@/modules/workflow/workflow.repo'
 import { PRODUCT_SORT_FIELDS, type ProductListQuery } from './products.schema'
 import { BULK_TARGET_STATUSES } from './products.rules'
 
-const listSelect = {
-  id: true,
-  name: true,
-  category: true,
-  version: true,
-  status: true,
-  documentationUrl: true,
-  isMock: true,
-  createdAt: true,
-  updatedAt: true,
-  _count: { select: { skills: true, cooperations: true } },
-} satisfies Prisma.ITProductSelect
+/** Кому считаются связки продукта: представителю вуза — только его вуз. */
+export type ProductScope = { universityId?: string }
 
-const detailSelect = {
-  ...listSelect,
-  description: true,
-  skills: {
-    orderBy: [{ relevance: 'asc' }, { skill: { name: 'asc' } }],
-    select: {
-      relevance: true,
-      skill: { select: { id: true, name: true, category: true } },
-    },
+/**
+ * Число связок продукта — в пределах видимости.
+ *
+ * Счётчик по всей базе раскрывал представителю вуза, сколько связок у продукта
+ * с другими вузами (решение 9): «Конвейер сборки и поставки — 2 связки» при
+ * одной своей.
+ */
+const scopedCounts = (scope: ProductScope) => ({
+  select: {
+    skills: true,
+    cooperations: scope.universityId ? { where: { universityId: scope.universityId } } : true,
   },
-} satisfies Prisma.ITProductSelect
+})
 
-export type ProductListRow = Prisma.ITProductGetPayload<{ select: typeof listSelect }>
-export type ProductDetailRow = Prisma.ITProductGetPayload<{ select: typeof detailSelect }>
+const listSelect = (scope: ProductScope) =>
+  ({
+    id: true,
+    name: true,
+    category: true,
+    version: true,
+    status: true,
+    documentationUrl: true,
+    isMock: true,
+    createdAt: true,
+    updatedAt: true,
+    _count: scopedCounts(scope),
+  }) satisfies Prisma.ITProductSelect
+
+const detailSelect = (scope: ProductScope) =>
+  ({
+    ...listSelect(scope),
+    description: true,
+    skills: {
+      orderBy: [{ relevance: 'asc' }, { skill: { name: 'asc' } }],
+      select: {
+        relevance: true,
+        skill: { select: { id: true, name: true, category: true } },
+      },
+    },
+  }) satisfies Prisma.ITProductSelect
+
+export type ProductListRow = Prisma.ITProductGetPayload<{ select: ReturnType<typeof listSelect> }>
+export type ProductDetailRow = Prisma.ITProductGetPayload<{
+  select: ReturnType<typeof detailSelect>
+}>
 
 export async function findMany(
   query: ProductListQuery,
+  scope: ProductScope,
 ): Promise<{ rows: ProductListRow[]; total: number }> {
   const where: Prisma.ITProductWhereInput = {}
   if (query.category?.length) where.category = { in: query.category }
@@ -54,7 +80,7 @@ export async function findMany(
   const [rows, total] = await Promise.all([
     prisma.iTProduct.findMany({
       where,
-      select: listSelect,
+      select: listSelect(scope),
       orderBy: buildOrderBy({ field, direction }),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
@@ -63,8 +89,8 @@ export async function findMany(
   return { rows, total }
 }
 
-export async function findById(id: string): Promise<ProductDetailRow | null> {
-  return prisma.iTProduct.findUnique({ where: { id }, select: detailSelect })
+export async function findById(id: string, scope: ProductScope): Promise<ProductDetailRow | null> {
+  return prisma.iTProduct.findUnique({ where: { id }, select: detailSelect(scope) })
 }
 
 /** Связки с этим продуктом, которые затрагивает групповая операция, и их этап материалов. */
@@ -102,8 +128,9 @@ export interface ReleaseApplyInput {
  * и переоткрывает закрытые этапы. Частично применённая групповая операция хуже,
  * чем неприменённая: менеджер не поймёт, где уже сработало, а где нет.
  */
-export async function applyRelease(input: ReleaseApplyInput): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+export async function applyRelease(input: ReleaseApplyInput): Promise<ControlStageChange[]> {
+  return prisma.$transaction(async (tx) => {
+    const controlChanges: ControlStageChange[] = []
     // Та же очередь, что у смены статусов (workflow.repo.lockCooperation). По порядку id,
     // чтобы два выпуска с общими связками не ждали друг друга по кругу.
     const cooperationIds = [...new Set(input.targets.map((target) => target.cooperationId))].sort()
@@ -142,7 +169,9 @@ export async function applyRelease(input: ReleaseApplyInput): Promise<void> {
       })
 
       // Контрольный этап 14 зависит от остальных — тот же пересчёт, что при смене статуса.
-      await recomputeControlStage(tx, target.cooperationId, input.userId)
+      const change = await recomputeControlStage(tx, target.cooperationId, input.userId)
+      if (change) controlChanges.push(change)
     }
+    return controlChanges
   })
 }

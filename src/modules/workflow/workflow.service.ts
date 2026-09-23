@@ -190,7 +190,7 @@ export async function updateStage(
   const resulting = resolveStageFields(stage, input)
   assertStageFieldsComplete(resulting)
 
-  await prisma.$transaction(async (tx) => {
+  const controlChange = await prisma.$transaction(async (tx) => {
     await repo.lockCooperation(tx, stage.cooperationId)
 
     // Проверки выше — до очереди, чтобы отказ приходил сразу. То, что могли
@@ -257,9 +257,11 @@ export async function updateStage(
           changedById: user.id,
         },
       })
-      await repo.recomputeControlStage(tx, stage.cooperationId, user.id)
+      return repo.recomputeControlStage(tx, stage.cooperationId, user.id)
     }
+    return null
   })
+  await repo.auditControlStageChange(controlChange, user.id)
 
   if (statusChanged) {
     await writeAudit({

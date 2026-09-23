@@ -800,6 +800,106 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Привязки записи ведут в один вуз ───────────────────────────────────────
+  step('Встреча и документ не связывают разные вузы, счётчики представителю — свои')
+
+  if (managerId && rep && foreignUniversity) {
+    const sfx = Date.now().toString().slice(-6)
+    const foreignProgram = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: foreignUniversity.id,
+      name: `Пробная чужая программа ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const foreignContactUniversity = await call<{ id: string; contacts: Array<{ id: string }> }>(
+      'POST',
+      '/api/universities',
+      {
+        name: `Пробный вуз с контактом ${sfx}`,
+        city: 'Тверь',
+        region: 'Тверская область',
+        contacts: [{ fullName: 'Пробник Контакт Чужой', position: 'Проректор' }],
+      },
+    )
+    const foreignContactId = foreignContactUniversity.body.data?.contacts?.[0]?.id
+
+    // Раньше каждая привязка проверялась сама по себе, и такая встреча показывала
+    // представителю вуза чужую программу и ФИО чужого контакта.
+    const mixedMeeting = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      programId: foreignProgram.body.data?.id,
+      date: new Date().toISOString(),
+      topic: 'Пробник: встреча с чужой программой',
+      responsibleId: managerId,
+    })
+    check('встреча с программой другого вуза отклоняется', mixedMeeting.status === 422, `код ${mixedMeeting.status}`)
+
+    const foreignParticipant = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      date: new Date().toISOString(),
+      topic: 'Пробник: встреча с чужим контактом',
+      responsibleId: managerId,
+      participants: [{ contactId: foreignContactId }],
+    })
+    check(
+      'контактное лицо другого вуза в участниках отклоняется',
+      foreignContactId !== undefined && foreignParticipant.status === 422,
+      `код ${foreignParticipant.status}`,
+    )
+
+    const repResponsible = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      date: new Date().toISOString(),
+      topic: 'Пробник: представитель ответственным',
+      responsibleId: rep.id,
+    })
+    check('ответственный — только сотрудник ИТ-Школы', repResponsible.status === 422, `код ${repResponsible.status}`)
+
+    const mixedDocument = await call('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: 'Пробник: документ с чужой программой',
+      universityId: rep.universityId,
+      programId: foreignProgram.body.data?.id,
+    })
+    check('документ с программой другого вуза отклоняется', mixedDocument.status === 422, `код ${mixedDocument.status}`)
+
+    // Счётчики: у представителя — только связки и программы своего вуза.
+    const staffProducts = await call<Array<{ id: string; cooperationCount: number }>>('GET', '/api/products?pageSize=100')
+    const ownCooperations = await call<Array<{ productId: string | null }>>(
+      'GET',
+      `/api/cooperations?universityId=${rep.universityId}&pageSize=100`,
+    )
+    actAs(rep.id)
+    const repProducts = await call<Array<{ id: string; cooperationCount: number }>>('GET', '/api/products?pageSize=100')
+    actAs(null)
+    const ownByProduct = new Map<string, number>()
+    for (const row of ownCooperations.body.data ?? []) {
+      if (row.productId) ownByProduct.set(row.productId, (ownByProduct.get(row.productId) ?? 0) + 1)
+    }
+    const leaked = (repProducts.body.data ?? []).filter(
+      (row) => row.cooperationCount !== (ownByProduct.get(row.id) ?? 0),
+    )
+    check(
+      'у представителя число связок продукта — только своего вуза',
+      repProducts.status === 200 && leaked.length === 0,
+      `расхождений ${leaked.length}; у сотрудника всего ${(staffProducts.body.data ?? []).reduce((sum, row) => sum + row.cooperationCount, 0)}`,
+    )
+
+    // Журнал: создание вуза обещано в SECURITY_LIMITATIONS.
+    if (adminId) {
+      actAs(adminId)
+      const logged = await call<Array<{ action: string }>>(
+        'GET',
+        `/api/audit?objectType=University&objectId=${foreignContactUniversity.body.data?.id}`,
+      )
+      actAs(null)
+      check(
+        'создание вуза записано в журнал',
+        (logged.body.data ?? []).some((row) => row.action === 'university.create'),
+        `записей ${(logged.body.data ?? []).length}`,
+      )
+    }
+  }
+
   // ── История документа: внутренние комментарии — только сотрудникам ────────
   step('Представитель не видит внутренних комментариев в истории документа')
 
@@ -1342,16 +1442,19 @@ async function main(): Promise<void> {
     type CoopRow = { id: string; status: string }
     type StageRow = { cooperation?: { id?: string }; cooperationId?: string }
 
-    const coops = await call<CoopRow[]>('GET', '/api/cooperations?pageSize=100')
-    const statusById = new Map((coops.body.data ?? []).map((row) => [row.id, row.status]))
-    const isClosed = (id?: string) =>
-      id !== undefined && ['COMPLETED', 'CANCELLED'].includes(statusById.get(id) ?? '')
+    // Закрытые — отбором по статусу, а не с первой страницы реестра: на рабочей
+    // базе новые связки вытесняли закрытые за первую сотню, и проверка падала
+    // без ошибки в приложении.
+    const coops = await call<CoopRow[]>(
+      'GET',
+      '/api/cooperations?status=COMPLETED&status=CANCELLED&pageSize=100',
+    )
+    const closedIds = new Set((coops.body.data ?? []).map((row) => row.id))
+    const isClosed = (id?: string) => id !== undefined && closedIds.has(id)
 
     const coopId = (row: StageRow) => row.cooperation?.id ?? row.cooperationId
 
-    const closedCount = [...statusById.values()].filter((status) =>
-      ['COMPLETED', 'CANCELLED'].includes(status),
-    ).length
+    const closedCount = closedIds.size
     check('в данных есть закрытые связки', closedCount > 0, `закрытых ${closedCount}`)
 
     for (const [path, title] of [
@@ -1709,9 +1812,13 @@ async function main(): Promise<void> {
       )
       paged.push(...(chunk.body.data ?? []).map((row) => row.id))
     }
+    // Один запрос отдаёт не больше сотни — сверяются первые строки обхода,
+    // а обход целиком — на повторы и потери.
     check(
       'постраничный обход даёт тот же порядок, что и один запрос',
-      total <= 100 && paged.join() === rows.map((row) => row.id).join(),
+      paged.slice(0, rows.length).join() === rows.map((row) => row.id).join() &&
+        new Set(paged).size === paged.length &&
+        paged.length === Math.min(total, 120),
       `${paged.length} строк по страницам, ${new Set(paged).size} разных, всего ${total}`,
     )
 
