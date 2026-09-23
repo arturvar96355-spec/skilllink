@@ -22,8 +22,11 @@ import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
+  assertChecklistReady,
   assertControlPointReady,
   assertTasksEditable,
+  findBlockingStages,
+  type PriorStageState,
   assertTransition,
   isControlPoint,
   computeControlStatus,
@@ -318,6 +321,34 @@ export async function updateStage(
 }
 
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */
+/**
+ * Можно ли отметить пункт чек-листа — одно правило для сотрудника ИТ-Школы
+ * и для представителя вуза, подтверждающего получение материалов.
+ */
+export async function assertChecklistMarkable(
+  stage: { cooperationId: string; stageNumber: number },
+  isDone: boolean,
+): Promise<void> {
+  if (!isDone || !isControlPoint(stage.stageNumber)) return
+  assertChecklistReady(
+    stage.stageNumber,
+    isDone,
+    await repo.findPriorStages(stage.cooperationId, stage.stageNumber),
+  )
+}
+
+/**
+ * Незакрытые этапы, из-за которых пункты контрольной точки пока не отмечаются.
+ * Пусто — отмечать можно.
+ */
+export async function checklistBlockers(stage: {
+  cooperationId: string
+  stageNumber: number
+}): Promise<PriorStageState[]> {
+  if (!isControlPoint(stage.stageNumber)) return []
+  return findBlockingStages(await repo.findPriorStages(stage.cooperationId, stage.stageNumber))
+}
+
 export async function toggleTask(
   user: CurrentUser,
   taskId: string,
@@ -330,6 +361,7 @@ export async function toggleTask(
   const taskCooperation = await loadVisibleCooperation(user, task.stage.cooperationId)
   assertCooperationOpen(taskCooperation.status)
   assertTasksEditable(task.stage.status, task.stage.stageNumber)
+  await assertChecklistMarkable(task.stage, input.isDone)
 
   await prisma.task.update({
     where: { id: taskId },

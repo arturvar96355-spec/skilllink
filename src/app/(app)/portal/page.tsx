@@ -465,6 +465,13 @@ function PortalScreen() {
                       </Badge>
                       <span className={styles.cellMeta}>{formatDateTime(material.confirmedAt)}</span>
                     </div>
+                  ) : material.lockedReason ? (
+                    // Материалы ещё не переданы: этап 7 — контрольная точка,
+                    // и до подписания договора подтверждать нечего.
+                    <div className={styles.confirmed}>
+                      <Badge tone="neutral">Ещё не переданы</Badge>
+                      <span className={styles.cellMeta}>{material.lockedReason}</span>
+                    </div>
                   ) : canAct ? (
                     <Button
                       icon="check"

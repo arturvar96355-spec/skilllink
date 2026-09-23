@@ -1267,13 +1267,24 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 ```json
 [ { "taskId": "…", "title": "Переданы учебные материалы", "cooperationId": "…",
     "programName": "…", "productName": "…",
-    "isConfirmed": false, "confirmedAt": null, "stageStatus": "IN_PROGRESS" } ]
+    "isConfirmed": false, "confirmedAt": null, "stageStatus": "NOT_STARTED",
+    "canConfirm": false, "lockedReason": "Не закрыт этап 6 «Подписание документов»" } ]
 ```
+
+`canConfirm` и `lockedReason` — добавлены 23.09.2026. Этап 7 — контрольная точка:
+пока не закрыты предыдущие этапы (договор не подписан), материалы не переданы,
+подтверждать нечего. `pendingMaterials` в `GET /api/portal/overview` считает
+только то, что можно подтвердить.
 
 ### POST /api/portal/materials/:taskId/confirm
 
 Право: `UNIVERSITY_PORTAL`. Тело необязательно: `{ "comment": "Материалы получены" }`.
 Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+Пока не закрыты этапы до 7-го — 409 `INVALID_TRANSITION`: «Этап 7 — контрольная точка:
+его пункты нельзя отмечать, пока не закрыты предыдущие этапы. Не закрыты: 6 «Подписание
+документов»». То же правило — у `PATCH /api/workflow/tasks/:id` для сотрудника ИТ-Школы:
+пункт контрольной точки отмечается только после закрытия предыдущих этапов, снять
+отметку можно всегда.
 
 ### PATCH /api/portal/programs/:id/metrics
 

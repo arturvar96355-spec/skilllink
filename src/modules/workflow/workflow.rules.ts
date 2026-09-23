@@ -85,12 +85,45 @@ export function assertControlPointReady(
   const blocking = findBlockingStages(priorStages)
   if (blocking.length === 0) return
 
-  const list = blocking.map((stage) => `${stage.stageNumber} «${stage.title}»`).join(', ')
-  const action = toStatus === 'COMPLETED' ? 'завершить' : 'начать'
+  const forbidden = toStatus === 'COMPLETED' ? 'его нельзя завершить' : 'его нельзя начать'
+  throw controlPointRefusal(stageNumber, forbidden, blocking)
+}
 
-  throw invalidTransition(
-    `Этап ${stageNumber} — контрольная точка: его нельзя ${action}, пока не закрыты предыдущие этапы. ` +
-      `Не закрыты: ${list}.`,
+/**
+ * Пункт чек-листа контрольной точки не отмечается, пока не закрыты предыдущие этапы.
+ *
+ * Начать этап 7 до подписания договора было нельзя, а отметить в его чек-листе
+ * «Передана лицензия» — можно: и сотруднику, и представителю вуза в кабинете.
+ * Отметка пункта — такое же утверждение о сделанной работе, как начало этапа.
+ * Снять отметку можно всегда: это не утверждение, а отказ от него.
+ */
+export function assertChecklistReady(
+  stageNumber: number,
+  isDone: boolean,
+  priorStages: readonly PriorStageState[],
+): void {
+  if (!isDone || !isControlPoint(stageNumber)) return
+
+  const blocking = findBlockingStages(priorStages)
+  if (blocking.length === 0) return
+
+  throw controlPointRefusal(stageNumber, 'его пункты нельзя отмечать', blocking)
+}
+
+/** Список незакрытых этапов для отказа: «6 «Подписание документов»». */
+export function describeBlockingStages(blocking: readonly PriorStageState[]): string {
+  return blocking.map((stage) => `${stage.stageNumber} «${stage.title}»`).join(', ')
+}
+
+/** `forbidden` — что именно нельзя: «его нельзя начать», «его пункты нельзя отмечать». */
+function controlPointRefusal(
+  stageNumber: number,
+  forbidden: string,
+  blocking: readonly PriorStageState[],
+) {
+  return invalidTransition(
+    `Этап ${stageNumber} — контрольная точка: ${forbidden}, пока не закрыты предыдущие этапы. ` +
+      `Не закрыты: ${describeBlockingStages(blocking)}.`,
     {
       stageNumber,
       isControlPoint: true,

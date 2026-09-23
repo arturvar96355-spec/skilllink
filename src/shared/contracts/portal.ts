@@ -25,6 +25,14 @@ export interface PortalMaterialDto {
   isConfirmed: boolean
   confirmedAt: string | null
   stageStatus: StageStatus
+  /**
+   * Можно ли подтвердить получение сейчас. Этап 7 — контрольная точка:
+   * пока не закрыты предыдущие этапы (договор не подписан), материалы
+   * не переданы, и подтверждать нечего.
+   */
+  canConfirm: boolean
+  /** Почему нельзя: «Не закрыт этап 6 «Подписание документов»». null — можно или уже подтверждено. */
+  lockedReason: string | null
 }
 
 export interface PortalProgramDto {

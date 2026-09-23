@@ -813,6 +813,37 @@ async function main(): Promise<void> {
         )
       }
 
+      // Пункт контрольной точки — то же утверждение о работе, что начало этапа
+      // (решение 49): «Передана лицензия» до подписания договора не отмечается.
+      // Проверяется до отмены ниже: у отменённого этапа пункты закрыты по другой
+      // причине, и проверка прошла бы, ничего не доказав.
+      // Связку ищем заново: у первой найденной этап 7 мог остаться отменённым
+      // от прошлых прогонов — вернуть его в работу не даёт та же контрольная точка.
+      type CardStage = { stageNumber: number; status: string; tasks: Array<{ id: string; isDone: boolean }> }
+      let openTask: { id: string } | undefined
+      for (const row of (list.body.data ?? []).filter((item) => (item.currentStage?.stageNumber ?? 99) <= 5)) {
+        const candidate = await call<{ stages: CardStage[] }>('GET', `/api/cooperations/${row.id}`)
+        const handoverStage = candidate.body.data?.stages.find((stage) => stage.stageNumber === 7)
+        if (handoverStage && ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED'].includes(handoverStage.status)) {
+          openTask = handoverStage.tasks.find((task) => !task.isDone)
+          if (openTask) break
+        }
+      }
+      if (!openTask) {
+        check('есть связка с открытым этапом 7 для проверки', false, 'нужен npm run db:seed')
+      } else {
+        const ticked = await call('PATCH', `/api/workflow/tasks/${openTask.id}`, { isDone: true })
+        const message = (ticked.body as { error?: { message?: string } }).error?.message ?? ''
+        check(
+          'пункт этапа 7 нельзя отметить раньше предыдущих этапов',
+          ticked.status === 409 && message.includes('пункты нельзя отмечать'),
+          `статус ${ticked.status}: ${message.slice(0, 60)}`,
+        )
+        if (ticked.status === 200) {
+          await call('PATCH', `/api/workflow/tasks/${openTask.id}`, { isDone: false })
+        }
+      }
+
       // Отмена контрольной точки ничего не утверждает о работе — она разрешена.
       if (handover) {
         const cancelled = await call('PATCH', `/api/workflow/stages/${handover.id}`, {
@@ -825,7 +856,8 @@ async function main(): Promise<void> {
           `статус ${cancelled.status}`,
         )
 
-        // Возвращаем как было, чтобы пробник не оставлял следов.
+        // Попытка вернуть как было. Удаётся не всегда: отменённую контрольную
+        // точку обратно в работу не пускают незакрытые этапы до неё.
         if (cancelled.status === 200) {
           await call('PATCH', `/api/workflow/stages/${handover.id}`, {
             status: 'IN_PROGRESS',
@@ -849,6 +881,36 @@ async function main(): Promise<void> {
         )
       }
     }
+  }
+
+  // Вуз не подтверждает то, что ему ещё не передали: этап 7 заблокирован
+  // контрольной точкой — материалов нет, и подтверждение отвергается.
+  if (rep) {
+    actAs(rep.id)
+    const materials = await call<Array<{ taskId: string; canConfirm: boolean; isConfirmed: boolean }>>(
+      'GET',
+      '/api/portal/materials',
+    )
+    const locked = (materials.body.data ?? []).find((item) => !item.isConfirmed && !item.canConfirm)
+    if (!locked) {
+      check('у вуза есть ещё не переданные материалы', false, 'нужен npm run db:seed')
+    } else {
+      const confirmed = await call('POST', `/api/portal/materials/${locked.taskId}/confirm`, {})
+      check(
+        'вуз не подтверждает материалы, которые ещё не переданы',
+        confirmed.status === 409,
+        `статус ${confirmed.status}`,
+      )
+      const after = await call<Array<{ taskId: string; isConfirmed: boolean }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      check(
+        'отказ ничего не отметил',
+        after.body.data?.find((item) => item.taskId === locked.taskId)?.isConfirmed === false,
+      )
+    }
+    actAs(null)
   }
 
   // ── Сводки не выдают обрезанную выборку за полную ──────────────────────────

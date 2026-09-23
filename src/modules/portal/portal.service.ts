@@ -18,8 +18,10 @@ import {
   isAutoManaged,
 } from '@/modules/workflow/workflow.rules'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
+import { assertChecklistMarkable, checklistBlockers } from '@/modules/workflow/workflow.service'
+import { describeBlockingStages } from '@/modules/workflow/workflow.rules'
 import * as repo from './portal.repo'
-import { assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
+import { MATERIALS_STAGE_NUMBER, assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
 import type {
   ApplicationListQuery,
   ConfirmMaterialInput,
@@ -77,6 +79,37 @@ function toCooperationDto(
   }
 }
 
+type MaterialRow = Awaited<ReturnType<typeof repo.findMaterials>>[number]
+
+/**
+ * Почему материалы каждой связки пока нельзя подтверждать.
+ *
+ * Этап 7 — контрольная точка: пока договор не подписан, материалы не переданы.
+ * Раньше кабинет всё равно показывал их «к подтверждению» и принимал
+ * подтверждение — у связки, где этап 7 начать нельзя, появлялась отметка
+ * «Передана лицензия».
+ */
+async function materialLocks(rows: readonly MaterialRow[]): Promise<Map<string, string | null>> {
+  const cooperationIds = [...new Set(rows.filter((row) => !row.isDone).map((row) => row.stage.cooperationId))]
+  const locks = await Promise.all(
+    cooperationIds.map(async (cooperationId) => {
+      const blocking = await checklistBlockers({ cooperationId, stageNumber: MATERIALS_STAGE_NUMBER })
+      const reason =
+        blocking.length === 0
+          ? null
+          : `${blocking.length === 1 ? 'Не закрыт этап' : 'Не закрыты этапы'} ` +
+            describeBlockingStages(blocking)
+      return [cooperationId, reason] as const
+    }),
+  )
+  return new Map(locks)
+}
+
+function lockedReasonOf(row: MaterialRow, locks: Map<string, string | null>): string | null {
+  if (row.isDone) return null
+  return locks.get(row.stage.cooperationId) ?? null
+}
+
 export async function overview(
   user: CurrentUser,
   universityId: string | undefined,
@@ -89,13 +122,18 @@ export async function overview(
     repo.findMaterials(university.id),
     repo.countDocuments(university.id),
   ])
+  const locks = await materialLocks(materials)
 
   return {
     universityId: university.id,
     universityName: university.name,
     programs: programs.map(toProgramDto),
     cooperations: cooperations.map(toCooperationDto),
-    pendingMaterials: materials.filter((task) => !task.isDone).length,
+    // Ждут подтверждения только переданные материалы: те, что ещё не переданы,
+    // вузу подтверждать нечего.
+    pendingMaterials: materials.filter(
+      (task) => !task.isDone && lockedReasonOf(task, locks) === null,
+    ).length,
     documentsCount,
     generatedAt: new Date().toISOString(),
   }
@@ -107,6 +145,7 @@ export async function materials(
 ): Promise<PortalMaterialDto[]> {
   const university = await resolveUniversity(user, universityId)
   const rows = await repo.findMaterials(university.id)
+  const locks = await materialLocks(rows)
 
   return rows.map((row) => ({
     taskId: row.id,
@@ -117,6 +156,8 @@ export async function materials(
     isConfirmed: row.isDone,
     confirmedAt: toIso(row.doneAt),
     stageStatus: row.stage.status,
+    canConfirm: !row.isDone && lockedReasonOf(row, locks) === null,
+    lockedReason: lockedReasonOf(row, locks),
   }))
 }
 
@@ -139,6 +180,9 @@ export async function confirmMaterial(
   assertCooperationOpen(task.stage.cooperation.status)
 
   if (!task.isDone) {
+    // То же правило, что у сотрудника: пункт контрольной точки не отмечается,
+    // пока не закрыты предыдущие этапы.
+    await assertChecklistMarkable(task.stage, true)
     await repo.confirmMaterial(taskId, user.id)
   }
 

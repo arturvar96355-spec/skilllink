@@ -6,6 +6,7 @@ import {
   isDueSoon,
   isControlPoint,
   findBlockingStages,
+  assertChecklistReady,
   assertControlPointReady,
   ALLOWED_TRANSITIONS,
   assertTasksEditable,
@@ -437,6 +438,23 @@ describe('контрольные точки (гибридный порядок �
         ]),
       ),
     ).not.toThrow()
+  })
+
+  it('пункт контрольной точки не отмечается, пока не закрыты предыдущие этапы', () => {
+    // «Передана лицензия» у этапа 7 до подписания договора — та же неправда,
+    // что начать этап 7 до подписания.
+    expect(() =>
+      assertChecklistReady(7, true, prior([[6, 'IN_PROGRESS']])),
+    ).toThrow(/Этап 7 — контрольная точка: его пункты нельзя отмечать.*6 «Этап 6»/)
+  })
+
+  it('снять отметку можно всегда: это отказ от утверждения, а не утверждение', () => {
+    expect(() => assertChecklistReady(7, false, prior([[6, 'IN_PROGRESS']]))).not.toThrow()
+  })
+
+  it('пункты обычного этапа и открытой контрольной точки отмечаются', () => {
+    expect(() => assertChecklistReady(8, true, prior([[6, 'IN_PROGRESS']]))).not.toThrow()
+    expect(() => assertChecklistReady(7, true, prior([[6, 'COMPLETED']]))).not.toThrow()
   })
 })
 
