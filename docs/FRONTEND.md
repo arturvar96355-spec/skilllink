@@ -114,6 +114,7 @@ if (!result) toast.error(save.error?.message ?? 'Не удалось сохра�
     src/ui/layout/navigation.test.ts   каждый пункт меню ведёт на существующую страницу
     src/ui/lib/format.test.ts          «Нет данных» не превращается в ноль, склонения, сроки
     src/ui/design-tokens.test.ts       на страницах нет своих цветов и размеров шрифта
+    src/ui/hooks/escape-stack.test.ts  Escape закрывает только верхний слой
 
 Последняя проверка — про то же правило, что и раздел «Правила» выше: значения
 оформления живут в `globals.css`. Стили страниц (`src/app/**/*.module.css`)
@@ -131,6 +132,31 @@ if (!result) toast.error(save.error?.message ?? 'Не удалось сохра�
 <Select label="Статус" placeholder="Любой статус" value={status} onValueChange={setStatus}
         options={STATUSES.map((value) => ({ value, label: LABELS[value] }))} />
 ```
+
+**Вузы, программы, связки — только `RemoteSelect`.** Их бывает тысячи, и загрузить
+список целиком нельзя. Раньше здесь стоял `pageSize=100`, и всё, что дальше сотни,
+молча пропадало: на базе с тысячей вузов связку с вузом на «Т» было не создать.
+`RemoteSelect` берёт первые пятьдесят вариантов, остальное находит поиском
+на сервере и пишет «показаны 50 из 1 004». Поле поиска появляется, только когда
+вариантов больше двенадцати: в демо-наборе из шести вузов список выглядит
+как обычный.
+
+```tsx
+<RemoteSelect<UniversityListItemDto>
+  label="Вуз" endpoint="/api/universities" params={{ withRating: 'false', sort: 'name' }}
+  toOption={universityShortOption} placeholder="Все вузы"
+  value={universityId} onValueChange={setUniversityId} />
+```
+
+Подписи вариантов — общие (`universityShortOption` в фильтрах, `universityFullOption`
+в формах, `programWithUniversityOption`, `cooperationOption`), чтобы один вуз
+не назывался на разных экранах по-разному. Программа без выбранного вуза
+подписывается вместе с вузом: одноимённые программы разных вузов иначе неотличимы.
+
+**Escape закрывает только верхний слой.** Выпадающий список, модальное окно,
+поиск, колокольчик — стопка (`src/ui/hooks/escape-stack.ts`). Раньше каждый слой
+слушал клавишу сам, и Escape в списке «Вуз» закрывал форму «Создать связку»
+со всем введённым. Новому всплывающему слою достаточно `useEscape(close, isOpen)`.
 
 ## Проверка
 

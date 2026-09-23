@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { pushEscapeLayer } from './escape-stack'
 
 /** Закрытие всплывающих окон щелчком вне их области. */
 export function useOutsideClick<T extends HTMLElement>(
@@ -24,16 +25,22 @@ export function useOutsideClick<T extends HTMLElement>(
   return ref
 }
 
-/** Escape закрывает любое всплывающее окно — требование доступности. */
+/**
+ * Escape закрывает всплывающее окно — требование доступности. Только верхнее:
+ * список внутри модального окна закрывается раньше окна (`escape-stack.ts`).
+ */
 export function useEscape(onEscape: () => void, enabled = true): void {
+  // Обработчик читается в момент нажатия: смена функции между отрисовками
+  // не должна переносить слой наверх стопки.
+  const handler = useRef(onEscape)
+  useEffect(() => {
+    handler.current = onEscape
+  }, [onEscape])
+
   useEffect(() => {
     if (!enabled) return
-    function handle(event: KeyboardEvent) {
-      if (event.key === 'Escape') onEscape()
-    }
-    document.addEventListener('keydown', handle)
-    return () => document.removeEventListener('keydown', handle)
-  }, [onEscape, enabled])
+    return pushEscapeLayer(() => handler.current())
+  }, [enabled])
 }
 
 /**
