@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { moscowDayStart } from '@/shared/utils/date'
 import { writeAudit } from '@/shared/audit/audit'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
@@ -82,9 +83,12 @@ export async function findOverdue(
   scope: { universityId?: string },
   now: Date,
 ): Promise<{ rows: StageWithCooperationRow[]; total: number }> {
+  // «Просрочен не меньше N дней» — по московскому календарю, как бейдж «−N дн.»
+  // (решение 47). Раньше — по 24 часа: этап с бейджем «−1 дн.» не попадал
+  // в выборку `minDaysOverdue=1`, пока не пройдут сутки с часа срока.
   const deadlineBefore =
     query.minDaysOverdue && query.minDaysOverdue > 0
-      ? new Date(now.getTime() - query.minDaysOverdue * 24 * 60 * 60 * 1000)
+      ? moscowDayStart(now, 1 - query.minDaysOverdue)
       : now
 
   const cooperationFilter = buildCooperationFilter(query, scope)

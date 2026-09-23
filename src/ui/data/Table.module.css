@@ -147,6 +147,13 @@
   color: var(--text-secondary);
 }
 
+.truncated {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
 .pages {
   display: flex;
   align-items: center;
