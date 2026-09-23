@@ -55,6 +55,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  usePageInRange,
   type Column,
   type SelectOption,
 } from '@/ui'
@@ -139,7 +140,8 @@ function DocumentsView() {
     page,
     pageSize: PAGE_SIZE,
   })}`
-  const documents = useResource<DocumentListItemDto[]>(path)
+  const documents = useResource<DocumentListItemDto[]>(path, { keepPreviousData: true })
+  usePageInRange(page, setPage, documents.meta)
 
   const rows = documents.data ?? []
   const openedId = params.get('document')
@@ -373,6 +375,9 @@ function DocumentsView() {
 
       {openedId && (
         <DocumentDrawer
+          // Своё состояние у каждого документа: выбранный статус и комментарий
+          // не переносятся на следующий, открытый из поиска поверх панели.
+          key={openedId}
           id={openedId}
           canWrite={user.permissions.canWrite}
           onClose={closeDrawer}

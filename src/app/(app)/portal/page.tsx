@@ -44,6 +44,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  usePageInRange,
   type Column,
 } from '@/ui'
 import styles from './portal.module.css'
@@ -106,7 +107,9 @@ function PortalScreen() {
   const materials = useResource<PortalMaterialDto[]>(`/api/portal/materials${scope}`)
   const applications = useResource<ApplicationDto[]>(
     `/api/portal/applications${buildQuery({ universityId, page, pageSize: 10 })}`,
+    { keepPreviousData: true },
   )
+  usePageInRange(page, setPage, applications.meta)
 
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [metricsProgram, setMetricsProgram] = useState<PortalProgramDto | null>(null)

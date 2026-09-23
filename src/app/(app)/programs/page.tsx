@@ -40,6 +40,7 @@ import {
   universityShortOption,
   useDebounced,
   useResource,
+  usePageInRange,
   type Column,
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
@@ -102,7 +103,9 @@ export default function ProgramsPage() {
       // всегда возвращал бы пустой список.
       includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
     })}`,
+    { keepPreviousData: true },
   )
+  usePageInRange(page, setPage, programs.meta)
 
   const rows = programs.data ?? []
   const meta = programs.meta
