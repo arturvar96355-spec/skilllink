@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { conflict } from '@/shared/http/errors'
@@ -79,7 +80,7 @@ export async function findMany(
   if (query.programId) where.programId = query.programId
   if (query.type?.length) where.type = { in: query.type }
   if (query.status?.length) where.status = { in: query.status }
-  if (query.q) where.title = { contains: query.q, mode: 'insensitive' }
+  if (query.q) where.title = textContains(query.q)
 
   const { field, direction } = parseSort(query.sort, DOCUMENT_SORT_FIELDS, {
     field: 'updatedAt',

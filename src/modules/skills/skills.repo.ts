@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { SKILL_SORT_FIELDS, type SkillDemandQuery, type SkillListQuery } from './skills.schema'
@@ -34,7 +35,7 @@ export async function findMany(
   const where: Prisma.SkillWhereInput = {}
   if (query.category?.length) where.category = { in: query.category }
   if (query.q) {
-    const contains = { contains: query.q, mode: 'insensitive' as const }
+    const contains = textContains(query.q)
     where.OR = [{ name: contains }, { category: contains }, { description: contains }]
   }
 

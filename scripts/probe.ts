@@ -1331,6 +1331,25 @@ async function main(): Promise<void> {
       check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
     }
 
+    // Знаки LIKE в запросе — обычные символы, а не «что угодно»: поиск «_»
+    // находил все вузы базы. От имени администратора: представитель вуза
+    // видит один вуз, и сравнение с ним ничего не доказало бы.
+    const actorBefore = actingUserId
+    actAs(adminId)
+    const all = await call<unknown[]>('GET', '/api/universities?withRating=false&pageSize=1')
+    for (const wildcard of ['_', '%']) {
+      const found = await call<unknown[]>(
+        'GET',
+        `/api/universities?withRating=false&pageSize=1&q=${encodeURIComponent(wildcard)}`,
+      )
+      check(
+        `поиск «${wildcard}» не находит всё подряд`,
+        Number(found.body.meta?.total ?? -1) < Number(all.body.meta?.total ?? 0),
+        `найдено ${String(found.body.meta?.total)} из ${String(all.body.meta?.total)}`,
+      )
+    }
+    actAs(actorBefore)
+
     const tooShort = await call('GET', '/api/search?q=a')
     check('поиск по одной букве отклоняется', tooShort.status === 422)
 
