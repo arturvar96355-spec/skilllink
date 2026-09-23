@@ -56,8 +56,8 @@ function metric(
 
 /** Сводка соответствия программ требованиям рынка для дашборда. */
 async function buildSkillMatch(user: CurrentUser): Promise<SkillMatchSummaryDto> {
-  const gaps = await skillsService.gaps(user, { limit: 200 })
-  const total = gaps.data.length
+  const gaps = await skillsService.gaps(user, { limit: 1 })
+  const total = gaps.summary.demanded
 
   if (total === 0) {
     return {
@@ -70,12 +70,12 @@ async function buildSkillMatch(user: CurrentUser): Promise<SkillMatchSummaryDto>
     }
   }
 
-  const covered = gaps.data.filter((row) => row.coverage > 0).length
+  const covered = gaps.summary.covered
   return {
     coveragePercent: percent(covered, total),
     coveredSkills: covered,
     demandedSkills: total,
-    criticalGaps: gaps.data.filter((row) => row.isCritical).length,
+    criticalGaps: gaps.summary.critical,
     period: gaps.period ?? '—',
     isMock: gaps.isMock,
   }
@@ -327,7 +327,12 @@ export async function programRating(
     // Программы без данных не выбрасываются: они уходят в конец с пометкой «Нет данных».
     .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
-  return { data: ranked.slice(0, options.limit), total: ranked.length }
+  // Всего — по базе, а не по срезу: срез ограничен пятьюстами, и на шести тысячах
+  // программ страница писала «Показаны 20 из 500».
+  return {
+    data: ranked.slice(0, options.limit),
+    total: await repo.countProgramsForRating(ratingScope),
+  }
 }
 
 /**

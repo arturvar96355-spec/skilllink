@@ -1,4 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
+import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
+import { latestPeriod } from '@/modules/skills/skills.repo'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { RECOMMENDATION_SORT_FIELDS, type RecommendationListQuery } from './recommendations.schema'
@@ -265,7 +267,7 @@ export async function updateStatus(
 }
 
 /** Исходные данные для правил. Один проход по базе вместо запроса на каждое правило. */
-export async function loadGenerationInput(now: Date) {
+export async function loadGenerationInput() {
   const [cooperations, programs, demand, programSkills, productSkills] = await Promise.all([
     prisma.cooperation.findMany({
       where: { status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
@@ -296,7 +298,7 @@ export async function loadGenerationInput(now: Date) {
       },
     }),
     prisma.educationalProgram.findMany({
-      where: { status: 'ACTIVE', archivedAt: null },
+      where: ACTIVE_PROGRAM_WHERE,
       select: {
         id: true,
         name: true,
@@ -308,11 +310,16 @@ export async function loadGenerationInput(now: Date) {
       },
     }),
     prisma.marketDemand.findMany({
-      where: { period: await latestPeriod(now) },
-      select: { skillId: true, value: true, skill: { select: { id: true, name: true } } },
+      where: { period: (await latestPeriod()) ?? undefined },
+      select: {
+        skillId: true,
+        value: true,
+        region: true,
+        skill: { select: { id: true, name: true } },
+      },
     }),
     prisma.programSkill.findMany({
-      where: { program: { status: 'ACTIVE', archivedAt: null } },
+      where: { program: ACTIVE_PROGRAM_WHERE },
       select: { programId: true, skillId: true, level: true },
     }),
     prisma.productSkill.findMany({
@@ -326,14 +333,6 @@ export async function loadGenerationInput(now: Date) {
   ])
 
   return { cooperations, programs, demand, programSkills, productSkills }
-}
-
-async function latestPeriod(_now: Date): Promise<string | undefined> {
-  const row = await prisma.marketDemand.findFirst({
-    orderBy: { period: 'desc' },
-    select: { period: true },
-  })
-  return row?.period
 }
 
 /** Ключ объекта рекомендации для словаря имён. */
