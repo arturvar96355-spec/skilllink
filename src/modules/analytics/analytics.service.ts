@@ -257,7 +257,9 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       reason:
         stage.status === 'BLOCKED'
           ? `Этап заблокирован: ${stage.blockingReason ?? 'причина не указана'}`
-          : `Этап просрочен на ${overdueDays ?? 0} дн.`,
+          : overdueDays === null || overdueDays === 0
+            ? 'Срок этапа вышел сегодня'
+            : `Этап просрочен на ${overdueDays} дн.`,
       stageId: stage.id,
       stageNumber: stage.stageNumber,
       stageTitle: stage.title,

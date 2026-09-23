@@ -20,6 +20,10 @@
 - JSON наружу — **camelCase**. В базе snake_case через `@map` / `@@map`.
   `TODO: PM DECISION` — подтвердить camelCase с фронтом.
 - Даты — строка **ISO 8601 в UTC**: `"2026-09-21T07:24:47.059Z"`.
+- Число дней (`daysToDeadline`, `daysToTarget`, `daysOverdue`) — календарные дни
+  **по московским суткам**, как их показывает интерфейс. Ноль — тот же день,
+  даже если срок уже прошёл по часам. До 23.09.2026 сутки считались по UTC,
+  и с полуночи до трёх ночи по Москве число расходилось с датой на экране на день.
 - Идентификаторы — строки (cuid), например `"cmuax8g450001v2rline15g0c"`.
 - Все тексты ошибок — на русском.
 
@@ -900,7 +904,7 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
       { "cooperationId": "…", "universityName": "…", "universityShortName": "СПбГУТ",
         "programName": "…", "reason": "Этап просрочен на 12 дн.",
         "stageId": "…", "stageNumber": 6,
-        "stageTitle": "Подписание документов", "daysOverdue": -12 }
+        "stageTitle": "Подписание документов", "daysOverdue": 12 }
     ],
     "skillMatch": {
       "coveragePercent": 88.9, "coveredSkills": 16, "demandedSkills": 18,
@@ -911,6 +915,10 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
   }
 }
 ```
+
+`problemCooperations[].daysOverdue` — сколько дней назад вышел срок, **положительное**
+число (до 23.09.2026 пример здесь ошибочно показывал `-12`). `0` — срок вышел сегодня,
+причина тогда «Срок этапа вышел сегодня». `null` — этап заблокирован, а не просрочен.
 
 Показатель без данных приходит с `value: null` и `basis: "none"` — фронт показывает «Нет данных».
 
