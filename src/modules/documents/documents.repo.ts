@@ -26,7 +26,7 @@ const listSelect = {
   updatedAt: true,
   author: { select: userRefSelect },
   responsible: { select: userRefSelect },
-  university: { select: { id: true, name: true } },
+  university: { select: { id: true, name: true, shortName: true } },
   program: { select: { id: true, name: true } },
 } satisfies Prisma.DocumentSelect
 

@@ -7,15 +7,33 @@
   min-width: 0;
 }
 
+/*
+ * Плотный реестр (решение 44, Артур подтвердил 24.09: 20–25 строк на экран):
+ * каждая ячейка — одна строка, уточнение стоит после главного и обрезается первым.
+ */
 .programText {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex: 1 1 0;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
+  /* Код и направление — только когда им хватает места: обрывок «1…»
+     рядом с названием читается как поломка. */
+  container-type: inline-size;
+}
+
+@container (max-width: 380px) {
+  .programDetails {
+    display: none;
+  }
 }
 
 .programName {
   display: flex;
+  /* Главное не сжимается ради уточнения: доля пикселя сжатия уже рисует
+     многоточие. Обрезается, только если само не помещается в столбец. */
+  flex: none;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -23,7 +41,7 @@
 
 /* Название — главное в строке: по нему ищут глазами и по нему щёлкают. */
 .programTitle {
-  font-size: var(--text-body-lg-size);
+  font-size: var(--text-body-size);
   font-weight: 650;
   line-height: 1.3;
   color: var(--text-primary);
@@ -34,6 +52,8 @@
 
 /* Код и направление — чтобы отличить одноимённые программы разных вузов. */
 .programDetails {
+  flex: 1 1 0;
+  min-width: 0;
   font-size: var(--text-label-size);
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -57,15 +77,17 @@
   text-overflow: ellipsis;
 }
 
-/* Два значения в одной ячейке: главное сверху, уточнение под ним. */
+/* Два значения в одной ячейке: главное, за ним уточнение. */
 .stack {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .stackMain {
+  flex: none;
+  max-width: 100%;
   font-size: var(--text-body-size);
   font-weight: 500;
   color: var(--text-primary);
@@ -74,10 +96,10 @@
   text-overflow: ellipsis;
 }
 
+/* Уточнение в узком столбце плотной строки не помещается: обрывок «4…» читается
+   как поломка. Оно — в подсказке ячейки. */
 .stackSub {
-  font-size: var(--text-label-size);
-  color: var(--text-tertiary);
-  white-space: nowrap;
+  display: none;
 }
 
 /* Показатели набора — крупно: по ним программы и сравнивают. */

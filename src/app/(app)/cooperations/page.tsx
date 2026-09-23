@@ -96,7 +96,11 @@ function StageTrack({ row }: { row: CooperationListItemDto }) {
   return (
     <span
       className={styles.track}
-      title={`Закрыто ${closed} из ${progress.totalStages} этапов`}
+      title={
+        `Закрыто ${closed} из ${progress.totalStages} этапов` +
+        (progress.overdueStages > 0 ? `, просрочено ${progress.overdueStages}` : '') +
+        (progress.blockedStages > 0 ? `, заблокировано ${progress.blockedStages}` : '')
+      }
     >
       <span className={styles.segments} aria-hidden>
         {segments.map((state, index) => (
@@ -184,7 +188,7 @@ function CooperationsView() {
         const university = row.universityShortName ?? row.universityName
         return (
           <span className={styles.route}>
-            <Avatar name={university} kind="entity" size="md" />
+            <Avatar name={university} kind="entity" size="xs" />
             <span className={styles.routeText}>
               <span
                 className={styles.routeTitle}
@@ -207,7 +211,7 @@ function CooperationsView() {
     {
       key: 'stage',
       title: 'Текущий этап',
-      width: '200px',
+      width: '240px',
       render: (row) =>
         row.currentStage ? (
           <span className={styles.stage}>
@@ -238,7 +242,7 @@ function CooperationsView() {
     {
       key: 'progress',
       title: 'Прогресс',
-      width: '130px',
+      width: '150px',
       render: (row) => <StageTrack row={row} />,
     },
     {
@@ -266,7 +270,16 @@ function CooperationsView() {
       sortField: 'targetDate',
       align: 'right',
       render: (row) => (
-        <span className={styles.due}>
+        <span
+          className={styles.due}
+          title={
+            row.daysToTarget === null
+              ? undefined
+              : row.daysToTarget < 0
+                ? `Срок прошёл ${formatNumber(Math.abs(row.daysToTarget))} дн. назад`
+                : `До срока ${formatNumber(row.daysToTarget)} дн.`
+          }
+        >
           <span className={styles.dueDate}>{formatDate(row.targetDate)}</span>
           {row.daysToTarget !== null && (
             <span className={row.daysToTarget < 0 ? styles.dueLate : styles.dueNote}>
@@ -382,7 +395,7 @@ function CooperationsView() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => cooperationHref(row.id)}
-                appearance="cards"
+                appearance="grid"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={cooperations.isRefreshing}

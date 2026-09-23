@@ -1,22 +1,30 @@
 /* Реестр документов и карточка документа в боковой панели (разделы 18–19, 24). */
 
+/* Плотная строка реестра (решение 44): название, за ним тип — обрезается первым. */
 .titleCell {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .docTitle {
+  /* Не сжимается ради типа: доля пикселя сжатия уже рисует многоточие. */
+  flex: none;
+  max-width: 100%;
   font-size: var(--text-body-sm-size);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* Тип в строке реестра почти всегда повторяет название («Договор о сотрудничестве ·
+   Договор»), а обрезанный — оставлял обрывок «л». Он в подсказке строки. */
 .docMeta {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
+  display: none;
 }
 
 .version {
@@ -25,8 +33,12 @@
 }
 
 .person {
+  display: block;
   font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .muted {
@@ -51,6 +63,39 @@
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
+}
+
+/* В строке реестра — одной строкой через точку; программа обрезается первой. */
+.linksInline {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.linksInline > .link {
+  flex: none;
+  max-width: 100%;
+}
+
+.linksInline > .link + .link::before {
+  content: '·';
+  /* Справа меньше: у ссылки свой зазор между точкой и текстом. */
+  margin: 0 0 0 var(--space-2);
+  color: var(--text-tertiary);
+}
+
+/* Программа — самое длинное: она сжимается, вуз и «Связка» остаются целиком. */
+.linksInline > .link:nth-child(2):not(:last-child) {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.linksInline .linkText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .link {
