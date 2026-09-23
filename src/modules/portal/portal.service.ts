@@ -157,7 +157,9 @@ export async function confirmMaterial(
   // это уже запрещено, — и отменить изменение было некому. Сама запись — та же
   // функция, что у сотрудника: закрытый этап, очередь со сменой статусов, повтор.
   assertCooperationOpen(task.stage.cooperation.status)
-  assertTasksEditable(task.stage.status as StageStatus, task.stage.stageNumber)
+  // Уже подтверждённое подтверждается повторно без ошибки — двойное нажатие
+  // и устаревшая страница; закрытый этап запрещает только изменение.
+  if (!task.isDone) assertTasksEditable(task.stage.status as StageStatus, task.stage.stageNumber)
 
   const changed = await setTaskDone(
     { taskId, stageId: task.stage.id, cooperationId: task.stage.cooperationId },

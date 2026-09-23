@@ -313,18 +313,20 @@ export async function setTaskDone(
     // снимался в тот же миг, когда этап завершали, и завершённый этап оставался
     // с незакрытым обязательным пунктом.
     await repo.lockCooperation(tx, target.cooperationId)
+    // Повторная отметка уже отмеченного пункта ничего не меняет. Раньше она
+    // переписывала, кто и когда его отметил: подтверждение получения материалов
+    // представителем вуза переходило к менеджеру, нажавшему на устаревшей странице.
+    // Проверяется до правила закрытого этапа: повтор — не изменение, и повторное
+    // подтверждение уже подтверждённого в завершённом этапе остаётся безвредным.
+    const fresh = await tx.task.findUnique({ where: { id: target.taskId }, select: { isDone: true } })
+    if (!fresh || fresh.isDone === isDone) return false
+
     const current = await tx.workflowStage.findUnique({
       where: { id: target.stageId },
       select: { status: true, stageNumber: true },
     })
     if (!current) throw notFound('Этап не найден')
     assertTasksEditable(current.status as StageStatus, current.stageNumber)
-
-    // Повторная отметка уже отмеченного пункта ничего не меняет. Раньше она
-    // переписывала, кто и когда его отметил: подтверждение получения материалов
-    // представителем вуза переходило к менеджеру, нажавшему на устаревшей странице.
-    const fresh = await tx.task.findUnique({ where: { id: target.taskId }, select: { isDone: true } })
-    if (!fresh || fresh.isDone === isDone) return false
 
     await tx.task.update({
       where: { id: target.taskId },

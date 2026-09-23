@@ -503,6 +503,23 @@ async function main(): Promise<void> {
         `статус ${confirm.status}`,
       )
 
+      // Повтор уже подтверждённого — не изменение: ответ 200 даже в завершённом этапе.
+      const done = await call<Array<{ taskId: string; isConfirmed: boolean; stageStatus: string }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      const confirmedEarlier = (done.body.data ?? []).find(
+        (item) => item.isConfirmed && item.stageStatus === 'COMPLETED',
+      )
+      if (confirmedEarlier) {
+        const repeat = await call('POST', `/api/portal/materials/${confirmedEarlier.taskId}/confirm`, {})
+        check(
+          'повторное подтверждение в завершённом этапе безвредно',
+          repeat.status === 200,
+          `статус ${repeat.status}`,
+        )
+      }
+
       const overview = await call<{ pendingMaterials: number }>('GET', '/api/portal/overview')
       const confirmable = (list.body.data ?? []).filter((item) => item.canConfirm).length
       check(
