@@ -1,4 +1,4 @@
-/* Реестр образовательных программ: строка таблицы и её вторичные подписи. */
+/* Реестр образовательных программ: строка-плашка и её вторичные подписи. */
 
 .program {
   display: flex;
@@ -10,22 +10,80 @@
 .programText {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
   min-width: 0;
 }
 
 .programName {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-body-size);
-  font-weight: 600;
-  color: var(--text-primary);
+  min-width: 0;
 }
 
-.programUniversity {
-  font-size: var(--text-caption-size);
+/* Название — главное в строке: по нему ищут глазами и по нему щёлкают. */
+.programTitle {
+  font-size: var(--text-body-lg-size);
+  font-weight: 650;
+  line-height: 1.3;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Код и направление — чтобы отличить одноимённые программы разных вузов. */
+.programDetails {
+  font-size: var(--text-label-size);
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.university {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.universityName {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Два значения в одной ячейке: главное сверху, уточнение под ним. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.stackMain {
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stackSub {
+  font-size: var(--text-label-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Показатели набора — крупно: по ним программы и сравнивают. */
+.metric > span {
+  font-size: var(--text-value-size);
+  font-weight: 650;
 }
 
 .plain {
@@ -41,8 +99,13 @@
 }
 
 .count {
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
+  font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+}
+
+/* Таблица — в виде плашек (DataTable appearance="cards"): карточка под ней
+   прозрачна, иначе плашки строк сливаются с её фоном. */
+div.registry {
+  background: transparent;
 }

@@ -57,6 +57,7 @@ export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
       <aside
         className={[styles.sidebar, isOpen ? styles.open : ''].filter(Boolean).join(' ')}
         aria-label="Разделы системы"
+        data-nav-chrome="sidebar"
       >
         <Link href="/" className={styles.brand}>
           <Logo />

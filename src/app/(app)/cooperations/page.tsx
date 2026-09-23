@@ -9,10 +9,9 @@ import {
   type ProductDto,
 } from '@/shared/contracts'
 import {
-  Badge,
+  Avatar,
   Button,
   Card,
-  CellText,
   Checkbox,
   CooperationStatusBadge,
   DataTable,
@@ -23,7 +22,6 @@ import {
   MockBadge,
   PageHeader,
   Pagination,
-  Progress,
   Section,
   Select,
   TableSkeleton,
@@ -57,6 +55,69 @@ const PAGE_SIZE = 25
  * разные сигналы, и сваливать их в одно «проблемные» нельзя. Просрочка уже
  * случилась, блокировка — это остановка, у которой есть причина.
  */
+/** Номер этапа в записи маршрута: «06 / 14» (07, раздел 30). */
+function stageNotation(stage: number): string {
+  return `${String(stage).padStart(2, '0')} / 14`
+}
+
+/**
+ * «Савельева Ольга Дмитриевна» → «Савельева»: в узком столбце фамилия читается
+ * целиком, инициалы — в кружке рядом, полное ФИО — в подсказке.
+ */
+function surname(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName
+}
+
+type SegmentState = 'done' | 'current' | 'soon' | 'blocked' | 'late' | 'todo'
+
+/**
+ * Лента этапов связки: по сегменту на этап. Закрытые (завершённые
+ * и отменённые) — залиты, текущий окрашен своим состоянием. Этапы идут
+ * не строго по порядку, поэтому лента показывает, сколько закрыто, а не
+ * какие именно, — какие, видно в карточке связки.
+ */
+function StageTrack({ row }: { row: CooperationListItemDto }) {
+  const { progress, currentStage } = row
+  const total = Math.max(progress.totalStages, 1)
+  const closed = Math.min(progress.completedStages + progress.cancelledStages, total)
+  const currentState: SegmentState = !currentStage
+    ? 'todo'
+    : currentStage.isOverdue
+      ? 'late'
+      : currentStage.status === 'BLOCKED'
+        ? 'blocked'
+        : currentStage.isDueSoon
+          ? 'soon'
+          : 'current'
+  const segments = Array.from({ length: total }, (_, index): SegmentState =>
+    index < closed ? 'done' : index === closed ? currentState : 'todo',
+  )
+
+  return (
+    <span
+      className={styles.track}
+      title={`Закрыто ${closed} из ${progress.totalStages} этапов`}
+    >
+      <span className={styles.segments} aria-hidden>
+        {segments.map((state, index) => (
+          <span key={index} className={styles.segment} data-state={state} />
+        ))}
+      </span>
+      <span className={styles.trackMeta}>
+        <span className={styles.trackCount}>
+          {closed} из {progress.totalStages}
+        </span>
+        {progress.overdueStages > 0 && (
+          <span className={styles.trackLate}>{progress.overdueStages} просроч.</span>
+        )}
+        {progress.overdueStages === 0 && progress.blockedStages > 0 && (
+          <span className={styles.trackBlocked}>{progress.blockedStages} в блоке</span>
+        )}
+      </span>
+    </span>
+  )
+}
+
 export default function CooperationsPage() {
   return (
     // useSearchParams требует границы Suspense: без неё страница не пройдёт сборку.
@@ -116,113 +177,104 @@ function CooperationsView() {
    */
   const columns: Column<CooperationListItemDto>[] = [
     {
-      key: 'university',
-      title: 'Вуз',
-      width: '130px',
-      render: (row) => (
-        <CellText strong title={row.universityName}>
-          {row.universityShortName ?? row.universityName}
-        </CellText>
-      ),
-    },
-    {
-      key: 'program',
-      title: 'Программа · продукт',
-      render: (row) => (
-        <CellText title={`${row.programName} · ${row.productName ?? 'IT-продукт не выбран'}`}>
-          {row.programName}
-          <span className={styles.meta}> · {row.productName ?? 'продукт не выбран'}</span>
-        </CellText>
-      ),
+      // Связка читается маршрутом: вуз — программа, под ними — продукт.
+      key: 'route',
+      title: 'Связка',
+      render: (row) => {
+        const university = row.universityShortName ?? row.universityName
+        return (
+          <span className={styles.route}>
+            <Avatar name={university} kind="entity" size="md" />
+            <span className={styles.routeText}>
+              <span
+                className={styles.routeTitle}
+                title={`${row.universityName} — ${row.programName}`}
+                data-morph-title
+              >
+                {university} — {row.programName}
+              </span>
+              <span className={styles.routeProduct}>
+                <span className={styles.routeArrow} aria-hidden>
+                  →
+                </span>
+                {row.productName ?? <span className={styles.routeMissing}>продукт не выбран</span>}
+              </span>
+            </span>
+          </span>
+        )
+      },
     },
     {
       key: 'stage',
       title: 'Текущий этап',
+      width: '200px',
       render: (row) =>
         row.currentStage ? (
-          <span className={styles.inline}>
-            <CellText
+          <span className={styles.stage}>
+            <span className={styles.stageHead}>
+              <span className={styles.notation}>{stageNotation(row.currentStage.stageNumber)}</span>
+              <DeadlineBadge
+                isOverdue={row.currentStage.isOverdue}
+                isDueSoon={row.currentStage.isDueSoon}
+                daysToDeadline={row.currentStage.daysToDeadline}
+                compact
+              />
+            </span>
+            <span
+              className={styles.stageTitle}
               title={
                 row.currentStage.deadline
-                  ? `${row.currentStage.stageNumber}. ${row.currentStage.title} — срок ${formatDate(row.currentStage.deadline)}`
-                  : `${row.currentStage.stageNumber}. ${row.currentStage.title}`
+                  ? `${row.currentStage.title} — срок ${formatDate(row.currentStage.deadline)}`
+                  : row.currentStage.title
               }
             >
-              {row.currentStage.stageNumber}. {row.currentStage.title}
-            </CellText>
-            <DeadlineBadge
-              isOverdue={row.currentStage.isOverdue}
-              isDueSoon={row.currentStage.isDueSoon}
-              daysToDeadline={row.currentStage.daysToDeadline}
-              compact
-            />
+              {row.currentStage.title}
+            </span>
           </span>
         ) : (
-          <CellText muted>Все этапы закрыты</CellText>
+          <span className={styles.stageDone}>Все этапы закрыты</span>
         ),
     },
     {
       key: 'progress',
       title: 'Прогресс',
       width: '130px',
-      render: (row) => (
-        <span
-          className={styles.inline}
-          title={`Закрыто ${row.progress.completedStages} из ${row.progress.totalStages} этапов`}
-        >
-          <Progress
-            value={row.progress.percent}
-            withValue
-            label="Прогресс связки"
-            tone={row.progress.overdueStages > 0 ? 'danger' : 'default'}
-          />
-        </span>
-      ),
-    },
-    {
-      key: 'overdue',
-      title: 'Просрочено',
-      width: '92px',
-      align: 'right',
-      render: (row) =>
-        row.progress.overdueStages > 0 ? (
-          <Badge tone="danger">{row.progress.overdueStages}</Badge>
-        ) : row.progress.blockedStages > 0 ? (
-          <Badge tone="warning">блок {row.progress.blockedStages}</Badge>
-        ) : (
-          <span className={styles.meta}>—</span>
-        ),
+      render: (row) => <StageTrack row={row} />,
     },
     {
       key: 'responsible',
       title: 'Ответственный',
-      width: '150px',
-      render: (row) => <CellText muted>{row.responsible.fullName}</CellText>,
+      width: '140px',
+      render: (row) => (
+        <span className={styles.person} title={row.responsible.fullName}>
+          <Avatar name={row.responsible.fullName} size="xs" />
+          <span className={styles.personName}>{surname(row.responsible.fullName)}</span>
+        </span>
+      ),
     },
     {
       key: 'status',
       title: 'Статус',
-      width: '120px',
+      width: '116px',
       sortField: 'status',
       render: (row) => <CooperationStatusBadge status={row.status} />,
     },
     {
       key: 'targetDate',
       title: 'Срок',
-      width: '104px',
+      width: '100px',
       sortField: 'targetDate',
       align: 'right',
       render: (row) => (
-        <span
-          title={
-            row.daysToTarget === null
-              ? undefined
-              : row.daysToTarget < 0
-                ? `Прошло ${Math.abs(row.daysToTarget)} дн.`
-                : `Через ${formatNumber(row.daysToTarget)} дн.`
-          }
-        >
-          {formatDate(row.targetDate)}
+        <span className={styles.due}>
+          <span className={styles.dueDate}>{formatDate(row.targetDate)}</span>
+          {row.daysToTarget !== null && (
+            <span className={row.daysToTarget < 0 ? styles.dueLate : styles.dueNote}>
+              {row.daysToTarget < 0
+                ? `прошло ${formatNumber(Math.abs(row.daysToTarget))} дн.`
+                : `через ${formatNumber(row.daysToTarget)} дн.`}
+            </span>
+          )}
         </span>
       ),
     },
@@ -308,7 +360,7 @@ function CooperationsView() {
       </Toolbar>
 
       <Section>
-        <Card padding="none">
+        <Card padding="none" className={styles.registry}>
           {cooperations.isLoading ? (
             <TableSkeleton rows={8} columns={6} />
           ) : cooperations.error ? (
@@ -330,6 +382,7 @@ function CooperationsView() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => cooperationHref(row.id)}
+                appearance="cards"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={cooperations.isRefreshing}

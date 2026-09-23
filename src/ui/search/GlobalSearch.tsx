@@ -217,6 +217,7 @@ export function GlobalSearch() {
         ref={fabRef}
         type="button"
         className={styles.fab}
+        data-nav-chrome="search"
         onClick={toggle}
         aria-expanded={isOpen}
         aria-label="Поиск по системе"

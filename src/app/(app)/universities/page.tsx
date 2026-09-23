@@ -11,7 +11,6 @@ import {
   Badge,
   Button,
   Card,
-  CellText,
   DataTable,
   EmptyState,
   ErrorState,
@@ -140,10 +139,13 @@ export default function UniversitiesPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.name}>
-          <Avatar name={row.shortName ?? row.name} kind="entity" size="xs" />
-          <CellText strong lines={2}>
-            {row.name}
-          </CellText>
+          <Avatar name={row.shortName ?? row.name} kind="entity" size="md" />
+          <span className={styles.nameText}>
+            <span className={styles.nameTitle} title={row.name} data-morph-title>
+              {row.name}
+            </span>
+            {row.shortName && <span className={styles.nameSub}>{row.shortName}</span>}
+          </span>
         </span>
       ),
     },
@@ -153,9 +155,10 @@ export default function UniversitiesPage() {
       width: '140px',
       sortField: 'city',
       render: (row) => (
-        <CellText muted title={formatPlace(row.city, row.region)}>
-          {row.city}
-        </CellText>
+        <span className={styles.place} title={formatPlace(row.city, row.region)}>
+          <span className={styles.placeCity}>{row.city}</span>
+          {row.region !== row.city && <span className={styles.placeRegion}>{row.region}</span>}
+        </span>
       ),
     },
     {
@@ -168,7 +171,7 @@ export default function UniversitiesPage() {
     {
       key: 'rating',
       title: 'Рейтинг',
-      width: '100px',
+      width: '124px',
       align: 'right',
       sortField: 'rating',
       sortDescFirst: true,
@@ -185,6 +188,13 @@ export default function UniversitiesPage() {
           <Tooltip text={row.rating.explanation}>
             <span className={styles.rating}>
               <span className={styles.ratingValue}>{formatScore(row.rating.score)}</span>
+              {/* Полоска — тот же балл из 100: сильные и слабые видны не читая чисел. */}
+              <span className={styles.ratingBar} aria-hidden>
+                <span
+                  className={styles.ratingFill}
+                  style={{ width: `${Math.max(0, Math.min(100, row.rating.score))}%` }}
+                />
+              </span>
             </span>
           </Tooltip>
         )
@@ -195,16 +205,16 @@ export default function UniversitiesPage() {
       title: 'Программы',
       width: '90px',
       align: 'right',
-      render: (row) => <span className={styles.counts}>{formatNumber(row.programCount)}</span>,
+      render: (row) => <span className={styles.countsValue}>{formatNumber(row.programCount)}</span>,
     },
     {
       key: 'cooperations',
       title: 'Связки',
-      width: '90px',
+      width: '100px',
       align: 'right',
       render: (row) => (
         <span className={styles.counts}>
-          {formatNumber(row.activeCooperationCount)}
+          <span className={styles.countsValue}>{formatNumber(row.activeCooperationCount)}</span>
           <span className={styles.countsMuted}>из {formatNumber(row.cooperationCount)}</span>
         </span>
       ),
@@ -300,7 +310,7 @@ export default function UniversitiesPage() {
       </Toolbar>
 
       <Section>
-        <Card padding="none">
+        <Card padding="none" className={styles.registry}>
           {universities.isLoading ? (
             <TableSkeleton rows={8} columns={6} />
           ) : universities.error ? (
@@ -322,6 +332,7 @@ export default function UniversitiesPage() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => universityHref(row.id)}
+                appearance="cards"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={universities.isRefreshing}

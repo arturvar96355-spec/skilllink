@@ -1,15 +1,17 @@
 /*
- * Лента рекомендаций (07, разделы 11 и 26): строки на одной поверхности,
- * разделённые тонкой линией. Ни рамок у каждой, ни трёх значков подряд —
- * тип и приоритет читаются подписью над заголовком, статус — словом справа.
+ * Лента рекомендаций (07, разделы 11 и 26). Каждая рекомендация — отдельная
+ * карточка с воздухом вокруг: на общей поверхности с линиями строки слипались
+ * в сплошной текст, и было непонятно, где кончается одна и что в ней нажимается.
+ * Тип и приоритет читаются подписью над заголовком, статус — словом справа.
  */
 
 .rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
   list-style: none;
   margin: 0;
-  padding: var(--space-2) 0;
-  border-radius: var(--radius-panel);
-  background: var(--surface-1);
+  padding: 0;
 }
 
 .row {
@@ -17,16 +19,25 @@
   grid-template-columns: 40px minmax(0, 1fr) auto;
   gap: var(--space-2) var(--space-4);
   padding: var(--space-5) var(--space-6);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-card);
   transition: background var(--motion-fast) var(--ease-out);
 }
 
-.row + .row {
-  border-top: 1px solid var(--line-subtle);
+/* Метка важности слева: критичные и важные видны, не читая подписи. */
+.row:has(.priority[data-priority='CRITICAL']) {
+  box-shadow: inset 3px 0 0 var(--status-danger);
 }
 
-/* Наведение: лёгкий фон и сдвиг на 4px, как у строк таблиц. */
+.row:has(.priority[data-priority='HIGH']) {
+  box-shadow: inset 3px 0 0 var(--status-warning);
+}
+
+/* Наведение: карточка светлеет, рамка проступает; сдвиг на 4px — прежний. */
 .row:hover {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--surface-2);
+  border-color: var(--line-strong);
 }
 
 .row > * {
@@ -40,7 +51,7 @@
 /* Номер рекомендации — тихий, при наведении становится ярче (раздел 26). */
 .index {
   padding-top: 2px;
-  font-size: var(--text-body-sm-size);
+  font-size: var(--text-body-size);
   font-weight: 600;
   color: var(--text-disabled);
   font-variant-numeric: tabular-nums;
@@ -82,13 +93,24 @@
 }
 
 .title {
-  font-size: var(--text-card-title-size);
-  font-weight: 600;
+  align-self: flex-start;
+  font-size: var(--text-h3-size);
+  font-weight: 650;
   line-height: 1.35;
   color: var(--text-primary);
 }
 
+/* Стрелка говорит, что заголовок открывает подробности. */
+.title::after {
+  content: ' →';
+  color: var(--text-tertiary);
+}
+
 .title:hover {
+  color: var(--text-accent);
+}
+
+.title:hover::after {
   color: var(--text-accent);
 }
 
@@ -99,8 +121,8 @@
 }
 
 .description {
-  font-size: var(--text-body-sm-size);
-  line-height: var(--text-body-sm-line);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
   color: var(--text-secondary);
 }
 
@@ -137,14 +159,25 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: var(--space-1) var(--space-3);
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-primary);
+  background: var(--surface-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-pill);
   transition: color var(--motion-fast) var(--ease-out);
 }
 
+/* Объект рекомендации — чип-ссылка: видно, что по нему переходят. */
 .target:hover {
   color: var(--text-accent);
+  border-color: var(--border-active);
+}
+
+.target:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .meta {
@@ -161,7 +194,7 @@
 }
 
 .status {
-  font-size: var(--text-body-sm-size);
+  font-size: var(--text-body-size);
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;

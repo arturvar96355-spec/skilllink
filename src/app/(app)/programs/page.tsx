@@ -12,10 +12,10 @@ import {
   type UniversityListItemDto,
 } from '@/shared/contracts'
 import {
+  Avatar,
   Badge,
   Button,
   Card,
-  CellText,
   DataTable,
   EmptyState,
   ErrorState,
@@ -37,6 +37,7 @@ import {
   useCurrentUser,
   formatDate,
   formatNumber,
+  pluralize,
   programHref,
   universityShortOption,
   useDebounced,
@@ -127,71 +128,96 @@ export default function ProgramsPage() {
       key: 'name',
       title: 'Программа',
       sortField: 'name',
-      render: (row) => (
-        <span className={styles.program}>
-          <CellText strong title={row.name}>
-            {row.name}
-          </CellText>
-          {marks.row(row) && <Badge tone="mock">демо</Badge>}
-        </span>
-      ),
+      render: (row) => {
+        const details = [row.code, row.direction].filter(Boolean).join(' · ')
+        return (
+          <span className={styles.program}>
+            <span className={styles.programText}>
+              <span className={styles.programName}>
+                <span className={styles.programTitle} title={row.name} data-morph-title>
+                  {row.name}
+                </span>
+                {marks.row(row) && <Badge tone="mock">демо</Badge>}
+              </span>
+              {details && (
+                <span className={styles.programDetails} title={details}>
+                  {details}
+                </span>
+              )}
+            </span>
+          </span>
+        )
+      },
     },
     {
       key: 'university',
       title: 'Вуз',
-      width: '120px',
+      width: '150px',
       render: (row) => (
-        <CellText muted title={row.universityName}>
-          {row.universityShortName ?? row.universityName}
-        </CellText>
+        <span className={styles.university} title={row.universityName}>
+          <Avatar name={row.universityShortName ?? row.universityName} kind="entity" size="sm" />
+          <span className={styles.universityName}>{row.universityShortName ?? row.universityName}</span>
+        </span>
       ),
     },
     {
+      // Срок — под уровнем: отдельным узким столбцом он читался как ещё одно число.
       key: 'level',
       title: 'Уровень',
-      width: '116px',
+      width: '140px',
       sortField: 'level',
-      render: (row) => <CellText>{PROGRAM_LEVEL_LABELS[row.level]}</CellText>,
-    },
-    {
-      key: 'duration',
-      title: 'Срок',
-      width: '84px',
       render: (row) => (
-        <CellText muted={row.durationMonths === null}>{formatDuration(row.durationMonths)}</CellText>
+        <span className={styles.stack}>
+          <span className={styles.stackMain}>{PROGRAM_LEVEL_LABELS[row.level]}</span>
+          <span className={styles.stackSub}>{formatDuration(row.durationMonths)}</span>
+        </span>
       ),
     },
     {
       key: 'applicationCount',
       title: 'Заявки',
-      width: '96px',
+      width: '100px',
       align: 'right',
       sortField: 'applicationCount',
       sortDescFirst: true,
-      render: (row) => <MetricCell metric={row.metrics.applicationCount} />,
+      render: (row) => (
+        // Крупно — только число: «Нет данных» остаётся тихим.
+        <span className={row.metrics.applicationCount?.value == null ? undefined : styles.metric}>
+          <MetricCell metric={row.metrics.applicationCount} />
+        </span>
+      ),
     },
     {
       key: 'studentCount',
       title: 'Обучающихся',
-      width: '112px',
+      width: '124px',
       align: 'right',
       sortField: 'studentCount',
       sortDescFirst: true,
-      render: (row) => <MetricCell metric={row.metrics.studentCount} />,
+      render: (row) => (
+        // Крупно — только число: «Нет данных» остаётся тихим.
+        <span className={row.metrics.studentCount?.value == null ? undefined : styles.metric}>
+          <MetricCell metric={row.metrics.studentCount} />
+        </span>
+      ),
     },
     {
-      key: 'skillCount',
-      title: 'Навыков',
-      width: '84px',
+      key: 'links',
+      title: 'Навыки · связки',
+      width: '130px',
       align: 'right',
-      render: (row) => <span className={styles.count}>{formatNumber(row.skillCount)}</span>,
-    },
-    {
-      key: 'cooperationCount',
-      title: 'Связок',
-      width: '76px',
-      align: 'right',
-      render: (row) => <span className={styles.count}>{formatNumber(row.cooperationCount)}</span>,
+      render: (row) => (
+        <span className={styles.stack}>
+          <span className={styles.stackMain}>
+            <span className={styles.count}>{formatNumber(row.skillCount)}</span>{' '}
+            {pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])}
+          </span>
+          <span className={styles.stackSub}>
+            {formatNumber(row.cooperationCount)}{' '}
+            {pluralize(row.cooperationCount, ['связка', 'связки', 'связок'])}
+          </span>
+        </span>
+      ),
     },
     {
       key: 'status',
@@ -203,7 +229,7 @@ export default function ProgramsPage() {
     {
       key: 'updatedAt',
       title: 'Обновлено',
-      width: '104px',
+      width: '110px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       align: 'right',
@@ -325,12 +351,13 @@ export default function ProgramsPage() {
           />
         </Card>
       ) : (
-        <Card padding="none">
+        <Card padding="none" className={styles.registry}>
           <DataTable
             rows={rows}
             columns={columns}
             getRowKey={(row) => row.id}
             getRowHref={(row) => programHref(row.id)}
+            appearance="cards"
             sort={sort}
             onSortChange={(next) => {
               setSort(next)

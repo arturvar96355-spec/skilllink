@@ -17,6 +17,7 @@ import {
   Icon,
   Checkbox,
   Modal,
+  NAV_TRANSITION_ATTRIBUTE,
   StageStatusBadge,
   Textarea,
   apiPatch,
@@ -105,8 +106,11 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
       setIsOpen(true)
       // Явное 'smooth' перебивает CSS, где прокрутка при «уменьшить движение»
       // выключена (globals.css), — поэтому настройку системы читаем здесь.
+      // Во время перехода со строки (layout/navigation-motion) — сразу: плашка
+      // раскрывается прямо в этап, а плавная прокрутка поехала бы внутри неё.
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      cardRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+      const instant = reduceMotion || document.documentElement.hasAttribute(NAV_TRANSITION_ATTRIBUTE)
+      cardRef.current?.scrollIntoView({ behavior: instant ? 'auto' : 'smooth', block: 'center' })
     }
   }, [isHighlighted])
 
