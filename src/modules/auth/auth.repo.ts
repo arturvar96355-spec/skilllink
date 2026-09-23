@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { UserListQuery } from './auth.schema'
@@ -31,7 +32,7 @@ export async function findMany(query: UserListQuery): Promise<{ rows: UserRow[];
   if (query.universityId) where.universityId = query.universityId
   if (!query.includeInactive) where.isActive = true
   if (query.q) {
-    const contains = { contains: query.q, mode: 'insensitive' as const }
+    const contains = textContains(query.q)
     where.OR = [{ fullName: contains }, { email: contains }, { position: contains }]
   }
 

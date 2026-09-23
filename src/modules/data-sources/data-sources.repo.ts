@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { DataSourceListQuery } from './data-sources.schema'
@@ -22,7 +23,7 @@ export async function findMany(
   query: DataSourceListQuery,
 ): Promise<{ rows: DataSourceRow[]; total: number }> {
   const where: Prisma.DataSourceWhereInput = {}
-  if (query.q) where.name = { contains: query.q, mode: 'insensitive' }
+  if (query.q) where.name = textContains(query.q)
 
   const [rows, total] = await Promise.all([
     prisma.dataSource.findMany({
