@@ -7843,9 +7843,7 @@
                     "enum": [
                       "DRAFT",
                       "ACTIVE",
-                      "PAUSED",
-                      "COMPLETED",
-                      "CANCELLED"
+                      "PAUSED"
                     ]
                   },
                   "goal": {

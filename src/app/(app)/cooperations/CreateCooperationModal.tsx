@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
-  COOPERATION_STATUSES,
+  OPEN_COOPERATION_STATUSES,
   COOPERATION_STATUS_LABELS,
   USER_ROLE_LABELS,
   type CooperationDto,
@@ -167,7 +167,8 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
         label="Статус"
         value={status}
         onValueChange={setStatus}
-        options={COOPERATION_STATUSES.map((value) => ({
+        // Закрытой связку не создают: закрывают существующую (сервер тоже не примет).
+        options={OPEN_COOPERATION_STATUSES.map((value) => ({
           value,
           label: COOPERATION_STATUS_LABELS[value],
         }))}

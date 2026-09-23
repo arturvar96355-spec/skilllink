@@ -62,12 +62,30 @@ export function assertDocumentTransition(
     ])
   }
 
-  // Согласовывать нечего, пока нет самого документа: ни ссылки, ни текста из шаблона.
-  if (to === 'REVIEW' && !isFilled(document.fileReference) && !isFilled(document.content)) {
-    throw validationError('Нельзя отправить на согласование пустой документ', [
-      { field: 'fileReference', message: 'Добавьте ссылку на документ или соберите его из шаблона' },
-    ])
-  }
+  // Согласовывать, утверждать и подписывать нечего, пока нет самого документа.
+  assertDocumentHasContent({ ...document, status: to })
+}
+
+/** Статусы, в которых документ уже согласуют, утвердили или подписали. */
+const STATUSES_WITH_CONTENT: readonly DocumentStatus[] = ['REVIEW', 'APPROVED', 'SIGNED']
+
+/**
+ * У документа дальше черновика есть содержимое: ссылка на файл или текст из шаблона.
+ *
+ * Проверялось только при отправке на согласование. Правка ссылки этим правилам
+ * не подчинялась: у утверждённого документа без текста её можно было стереть
+ * и затем подписать — в системе появлялся подписанный документ, которого нет.
+ * Теперь то же правило проверяет итог любой записи — и перехода, и правки.
+ */
+export function assertDocumentHasContent(document: DocumentState): void {
+  if (!STATUSES_WITH_CONTENT.includes(document.status)) return
+  if (isFilled(document.fileReference) || isFilled(document.content)) return
+  throw validationError(
+    document.status === 'REVIEW'
+      ? 'Нельзя отправить на согласование пустой документ'
+      : `У документа в статусе «${STATUS_TEXT[document.status]}» должно быть содержимое`,
+    [{ field: 'fileReference', message: 'Добавьте ссылку на документ или соберите его из шаблона' }],
+  )
 }
 
 /** Подписанный документ правкам не подлежит — только новая версия. */

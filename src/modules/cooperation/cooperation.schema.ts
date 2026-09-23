@@ -1,6 +1,6 @@
 import { z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
-import { COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { COOPERATION_STATUSES, OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 
 const multi = <S extends z.ZodType>(schema: S) =>
   z.union([schema, z.array(schema)]).transform((value) => (Array.isArray(value) ? value : [value]))
@@ -54,7 +54,16 @@ export const createCooperationSchema = z.object({
   universityId: z.string().trim().min(1, 'Укажите вуз'),
   programId: z.string().trim().min(1, 'Укажите образовательную программу'),
   ...cooperationFields,
-  status: z.enum(COOPERATION_STATUSES).default('DRAFT'),
+  /**
+   * Новая связка — открытая. Созданная сразу «завершённой» получала четырнадцать
+   * нетронутых этапов и пустую дату закрытия: дату ставит только закрытие
+   * существующей связки.
+   */
+  status: z
+    .enum(OPEN_COOPERATION_STATUSES, {
+      error: 'Новая связка создаётся открытой: черновик, в работе или на паузе',
+    })
+    .default('DRAFT'),
 })
 
 export type CreateCooperationInput = z.infer<typeof createCooperationSchema>
