@@ -278,3 +278,33 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
+
+/*
+ * Продолжение сцены входа (07, раздел 18): меню проявляется от левого края,
+ * шапка — сверху. Один раз, сразу после входа; дальше каркас неподвижен.
+ * Только на широком экране: на узком меню спрятано за край, и сдвиг
+ * показал бы его на мгновение.
+ */
+@media (min-width: 1081px) and (prefers-reduced-motion: no-preference) {
+  .arrival aside {
+    animation: arriveLeft 420ms var(--ease-out) both;
+  }
+
+  .arrival header {
+    animation: arriveTop 360ms var(--ease-out) 80ms both;
+  }
+}
+
+@keyframes arriveLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes arriveTop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}

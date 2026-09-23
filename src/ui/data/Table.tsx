@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { formatNumber, pluralize } from '../lib/format'
+import { startMorph } from '../lib/morph'
 import styles from './Table.module.css'
 
 /**
@@ -154,6 +155,7 @@ export function DataTable<T>({
                         // span с role="button", и без неё щелчок по значку «i»
                         // открывал бы карточку вместо показа объяснения.
                         if ((event.target as HTMLElement).closest('a, button, [role="button"]')) return
+                        startMorph(event.currentTarget.querySelector<HTMLElement>('a'), event)
                         router.push(href)
                       }
                     : undefined
@@ -174,7 +176,11 @@ export function DataTable<T>({
                       обработчик щелчка так не умеет.
                     */}
                     {href && columnIndex === 0 ? (
-                      <Link href={href} className={styles.cellLink}>
+                      <Link
+                        href={href}
+                        className={styles.cellLink}
+                        onClick={(event) => startMorph(event.currentTarget, event)}
+                      >
                         {column.render(row)}
                       </Link>
                     ) : (

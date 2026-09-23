@@ -6,24 +6,17 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-3);
-  padding: var(--space-10) var(--space-6);
+  padding: var(--space-8) var(--space-6);
   text-align: center;
 }
 
+/* Значок ошибки — без подложки: статус, а не украшение. */
 .icon {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 
 .iconError {
-  border-color: var(--danger-border);
   color: var(--status-danger);
 }
 
