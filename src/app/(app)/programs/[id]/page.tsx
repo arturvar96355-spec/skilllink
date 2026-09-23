@@ -33,6 +33,7 @@ import {
   Icon,
   MetricValue,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Progress,
@@ -146,6 +147,7 @@ export default function ProgramPage() {
       : null,
   )
   const gapRows = gaps.data ?? []
+  const gapMarks = mockMarks(gapRows)
 
   if (program.isLoading) return <CardsSkeleton count={3} />
   // Текст отказа приходит с сервера и показывается как есть: «Программа не найдена».
@@ -224,7 +226,7 @@ export default function ProgramPage() {
           <span className={styles.plain}>
             {formatShare(row.gap)}
             {row.isCritical && <Badge tone="danger">критический</Badge>}
-            {row.isMock && <Badge tone="mock">демо</Badge>}
+            {gapMarks.row(row) && <Badge tone="mock">демо</Badge>}
           </span>
           <Progress
             value={row.gap * 100}
@@ -549,6 +551,11 @@ export default function ProgramPage() {
         </Card>
       )}
 
+      {activeTab === 'gaps' && gapMarks.section && (
+        <div className={styles.tableNote}>
+          <MockBadge title="Спрос рынка в этой таблице — демонстрационный набор, а не подтверждённая статистика." />
+        </div>
+      )}
       {activeTab === 'gaps' && (
         <Card padding="none">
           {gaps.isLoading ? (
