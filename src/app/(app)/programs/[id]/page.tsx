@@ -47,7 +47,6 @@ import {
   documentHref,
   formatDate,
   formatNumber,
-  formatPercent,
   formatScore,
   pluralize,
   universityHref,
@@ -56,6 +55,8 @@ import {
   type Column,
   type Resource,
   type TabItem,
+  formatShare,
+  formatDemand,
 } from '@/ui'
 import styles from './program.module.css'
 
@@ -200,7 +201,7 @@ export default function ProgramPage() {
         row.demandNormalized === null ? (
           <span className={styles.empty}>{NO_DATA}</span>
         ) : (
-          <span className={styles.plain}>{Math.round(row.demandNormalized * 100)} из 100</span>
+          <span className={styles.plain}>{formatDemand(row.demandNormalized)}</span>
         ),
     },
     {
@@ -209,7 +210,7 @@ export default function ProgramPage() {
       width: '190px',
       render: (row) => (
         <span className={styles.cellStack}>
-          <span className={styles.plain}>{Math.round(row.coverage * 100)}%</span>
+          <span className={styles.plain}>{formatShare(row.coverage)}</span>
           <Progress value={row.coverage * 100} label={`Покрытие навыка ${row.name}`} />
         </span>
       ),
@@ -221,7 +222,7 @@ export default function ProgramPage() {
       render: (row) => (
         <span className={styles.cellStack}>
           <span className={styles.plain}>
-            {Math.round(row.gap * 100)}%
+            {formatShare(row.gap)}
             {row.isCritical && <Badge tone="danger">критический</Badge>}
             {row.isMock && <Badge tone="mock">демо</Badge>}
           </span>
@@ -296,14 +297,13 @@ export default function ProgramPage() {
         if (!market || market.normalized === null) {
           return <span className={styles.empty}>{NO_DATA}</span>
         }
-        const percent = Math.round(market.normalized * 100)
         return (
           <span className={styles.cellStack}>
             <span className={styles.plain}>
-              {percent} из 100
+              {formatDemand(market.normalized)}
               {market.isMock && <Badge tone="mock">демо</Badge>}
             </span>
-            <Progress value={percent} label={`Спрос на навык ${row.name}`} />
+            <Progress value={market.normalized * 100} label={`Спрос на навык ${row.name}`} />
           </span>
         )
       },
@@ -412,7 +412,7 @@ export default function ProgramPage() {
       key: 'weight',
       title: 'Вес',
       align: 'right',
-      render: (row) => <span className={styles.number}>{formatPercent(row.weight * 100)}</span>,
+      render: (row) => <span className={styles.number}>{formatShare(row.weight)}</span>,
     },
     {
       key: 'contribution',
