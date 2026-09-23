@@ -21,7 +21,9 @@
   --surface-1: #101116;
   --surface-2: #15161c;
   --surface-3: #1b1c23;
-  --surface-floating: rgba(20, 20, 27, 0.92);
+  /* Плотная: сквозь панель поверх цифр текст не должен читаться даже там,
+     где размытие фона не отрисовалось (проектор, слабая видеокарта). */
+  --surface-floating: rgba(20, 20, 27, 0.97);
 
   --bg-main: var(--canvas);
   --bg-secondary: var(--surface-1);
@@ -242,7 +244,9 @@ h2,
 h3,
 h4,
 p,
-figure {
+figure,
+dl,
+dd {
   margin: 0;
 }
 

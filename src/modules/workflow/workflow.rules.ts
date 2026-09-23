@@ -260,6 +260,11 @@ export function assertStageFieldsComplete(fields: StageStatusFields): void {
  * с незакрытым обязательным пунктом — состояние, которого правила перехода не допускают.
  * Нужно поправить чек-лист закрытого этапа — этап сначала переоткрывают.
  */
+/** Можно ли менять пункты чек-листа этапа — то же правило, что в assertTasksEditable. */
+export function areTasksEditable(stageStatus: StageStatus, stageNumber: number): boolean {
+  return !isAutoManaged(stageNumber) && stageStatus !== 'COMPLETED' && stageStatus !== 'CANCELLED'
+}
+
 export function assertTasksEditable(stageStatus: StageStatus, stageNumber: number): void {
   if (isAutoManaged(stageNumber)) {
     throw conflict('У контрольного этапа нет собственного чек-листа')

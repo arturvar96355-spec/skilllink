@@ -24,10 +24,16 @@ interface Pending {
 }
 
 /**
- * Где в ячейке само название: самый длинный текст без вложенных элементов.
- * В ячейке рядом с названием бывают буква-аватар и подписи — их не переносим.
+ * Где в ячейке само название. Ссылка вне таблицы помечает его сама
+ * (`data-morph-title`): в строке-маршруте самый длинный текст — не всегда то,
+ * что станет заголовком. Иначе — самый длинный текст без вложенных элементов:
+ * рядом с названием бывают буква-аватар и подписи, их не переносим.
  */
 function titleIn(cell: HTMLElement): HTMLElement {
+  const marked = cell.matches('[data-morph-title]')
+    ? cell
+    : cell.querySelector<HTMLElement>('[data-morph-title]')
+  if (marked) return marked
   let best: HTMLElement = cell
   let bestLength = 0
   for (const element of Array.from(cell.querySelectorAll<HTMLElement>('*'))) {

@@ -1,5 +1,6 @@
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { PROGRAM_METRIC_LABELS } from '@/shared/contracts'
 import { STATUS_LABELS as STAGE_STATUS_LABELS } from '@/modules/workflow/workflow.rules'
 import type {
   ConfidenceLevel,
@@ -323,11 +324,6 @@ export interface MissingMetricsInput {
   hasCooperation: boolean
 }
 
-const METRIC_LABELS: Record<string, string> = {
-  applicationCount: 'заявки на обучение',
-  studentCount: 'количество обучающихся',
-  groupCount: 'количество параллельных групп',
-}
 
 /**
  * Не заполнены показатели набора — программа выпадает из рейтинга.
@@ -351,7 +347,7 @@ export function ruleMissingProgramMetrics(
 
   if (missing.length === 0) return null
 
-  const labels = missing.map((key) => METRIC_LABELS[key]).join(', ')
+  const labels = missing.map((key) => PROGRAM_METRIC_LABELS[key].toLowerCase()).join(', ')
 
   return {
     ruleKey: 'program.missing-metrics',

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import type { Metric } from '@/shared/contracts'
 import { Card } from '../primitives/Card'
-import { Icon, type IconName } from '../primitives/Icon'
+import { Icon } from '../primitives/Icon'
 import { Tooltip } from '../primitives/Tooltip'
 import { useCountUp } from '../hooks/dom'
 import { NO_DATA, formatMetric, formatNumber } from '../lib/format'
@@ -38,7 +38,6 @@ export interface KpiCardProps {
   /** null — «Нет данных». */
   value: number | null
   unit?: string
-  icon?: IconName
   /** Откуда число: показывается подсказкой у значка вопроса. */
   explanation?: string | null
   /** Короткая строка под значением: период, основание, уточнение. */
@@ -46,6 +45,14 @@ export interface KpiCardProps {
   footer?: ReactNode
   /** Дробная часть: у процентов она нужна, у счётчиков — нет. */
   fractionDigits?: number
+}
+
+/**
+ * Строка показателей: числа типографикой на одной поверхности, а не сетка
+ * одинаковых карточек (07, разделы 6 и 40). Разделяют их отступы, не рамки.
+ */
+export function KpiRow({ children }: { children: ReactNode }) {
+  return <div className={styles.kpiRow}>{children}</div>
 }
 
 /**
@@ -59,7 +66,6 @@ export function KpiCard({
   label,
   value,
   unit,
-  icon,
   explanation,
   note,
   footer,
@@ -74,7 +80,17 @@ export function KpiCard({
         : Math.round(animated)
 
   return (
-    <Card className={styles.kpi}>
+    <div className={styles.kpi}>
+      {/* Число над подписью: подпись в две строки не сдвигает его вниз, числа стоят в ряд. */}
+      {shown === null ? (
+        <span className={styles.kpiEmpty}>{NO_DATA}</span>
+      ) : (
+        <span className={styles.kpiValue}>
+          {fractionDigits > 0 ? shown.toFixed(fractionDigits).replace('.', ',') : formatNumber(shown)}
+          {unit && <span className={styles.kpiUnit}>{unit}</span>}
+        </span>
+      )}
+
       <div className={styles.kpiHead}>
         <span className={styles.kpiLabel}>
           {label}
@@ -86,21 +102,7 @@ export function KpiCard({
             </Tooltip>
           )}
         </span>
-        {icon && (
-          <span className={styles.kpiIcon}>
-            <Icon name={icon} size={18} />
-          </span>
-        )}
       </div>
-
-      {shown === null ? (
-        <span className={styles.kpiEmpty}>{NO_DATA}</span>
-      ) : (
-        <span className={styles.kpiValue}>
-          {fractionDigits > 0 ? shown.toFixed(fractionDigits).replace('.', ',') : formatNumber(shown)}
-          {unit && <span className={styles.kpiUnit}>{unit}</span>}
-        </span>
-      )}
 
       {(note || footer) && (
         <div className={styles.kpiFooter}>
@@ -108,7 +110,7 @@ export function KpiCard({
           {footer}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 

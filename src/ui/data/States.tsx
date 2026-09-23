@@ -75,7 +75,6 @@ export function CardsSkeleton({ count = 6 }: { count?: number }) {
     <div className={styles.cards} aria-busy="true" aria-live="polite">
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className={styles.card}>
-          <Skeleton width="46px" height="46px" radius="14px" />
           <Skeleton height="16px" width="80%" />
           <Skeleton height="12px" width="50%" />
           <Skeleton height="6px" />

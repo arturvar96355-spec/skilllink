@@ -106,12 +106,28 @@ export function Section({ title, description, action, children }: SectionProps) 
   )
 }
 
-/** Строка фильтров над списком. */
-export function Toolbar({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
+/**
+ * Строка фильтров над списком.
+ *
+ * Поля выровнены по нижнему краю — так с ними встают в ряд флажки и кнопки без
+ * подписи. Поэтому подсказку не ставят под отдельным полем: она удлиняла поле
+ * вниз, и его подпись и рамка поднимались выше соседних. Пояснения к фильтрам —
+ * одной строкой под панелью (`note`).
+ */
+export function Toolbar({
+  children,
+  actions,
+  note,
+}: {
+  children: ReactNode
+  actions?: ReactNode
+  note?: ReactNode
+}) {
   return (
     <div className={styles.toolbar}>
       {children}
       {actions && <div className={styles.toolbarActions}>{actions}</div>}
+      {note && <p className={styles.toolbarNote}>{note}</p>}
     </div>
   )
 }

@@ -15376,7 +15376,7 @@
           "Кабинет вуза"
         ],
         "summary": "Подтвердить получение материалов",
-        "description": "Подтверждать можно только задачи этапа передачи материалов.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
+        "description": "Подтверждать можно только задачи этапа передачи материалов. Закрытая связка или завершённый либо отменённый этап — конфликт, как у сотрудника ИТ-Школы.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
         "operationId": "post_api_portal_materials__taskId__confirm",
         "parameters": [
           {
@@ -15498,6 +15498,94 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
             "content": {
               "application/json": {
                 "schema": {

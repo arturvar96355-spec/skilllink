@@ -13,7 +13,7 @@ import { CurrentUserProvider } from './CurrentUser'
 import { Footer } from './Footer'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
-import { navigationFor } from './navigation'
+import { navigationFor, serviceLinksFor } from './navigation'
 import { takeArrival } from './arrival'
 import styles from './Shell.module.css'
 
@@ -34,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const me = useResource<CurrentUserDto>('/api/me')
   const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
+  const service = useMemo(() => (me.data ? serviceLinksFor(me.data) : []), [me.data])
 
   if (me.isLoading || (!me.data && !me.error)) {
     return (
@@ -81,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {children}
           </div>
         </main>
-        <Footer />
+        <Footer groups={groups} service={service} />
       </div>
       </div>
       <GlobalSearch />

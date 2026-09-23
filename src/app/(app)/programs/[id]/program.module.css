@@ -99,8 +99,11 @@
 
 .metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-5) var(--space-8);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
 }
 
 .metricLabel {

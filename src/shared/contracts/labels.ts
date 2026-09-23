@@ -192,6 +192,28 @@ export const RECOMMENDATION_STATUS_LABELS: Record<RecommendationStatus, string> 
   DONE: 'Закрыта',
 }
 
+/**
+ * Показатели набора программы — те три, из которых считается рейтинг (решение 7).
+ * Одна подпись на рейтинг, текст рекомендаций и интерфейс.
+ */
+export const PROGRAM_METRIC_LABELS = {
+  applicationCount: 'Заявки на обучение',
+  studentCount: 'Количество обучающихся',
+  groupCount: 'Количество параллельных групп',
+} as const satisfies Record<string, string>
+
+/**
+ * Подпись кнопки, переводящей рекомендацию в статус. Кнопке нужен глагол:
+ * на кнопке «Принята» непонятно, сделано это уже или ещё только предлагается.
+ */
+export const RECOMMENDATION_STATUS_ACTIONS: Record<RecommendationStatus, string> = {
+  NEW: 'Вернуть в новые',
+  IN_PROGRESS: 'Взять в работу',
+  ACCEPTED: 'Принять',
+  DISMISSED: 'Отклонить',
+  DONE: 'Закрыть',
+}
+
 export const DATA_SOURCE_TYPE_LABELS: Record<DataSourceType, string> = {
   MANUAL: 'Ручной ввод',
   CSV: 'Выгрузка CSV',

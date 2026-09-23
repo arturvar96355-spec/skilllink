@@ -129,6 +129,83 @@
   animation-delay: 380ms;
 }
 
+/* Движение у чисел — у каждого своё и один раз. */
+.motion {
+  display: flex;
+  align-items: center;
+  height: 7px;
+  margin-top: var(--space-2);
+}
+
+.linkLine,
+.segments,
+.timeline {
+  display: block;
+  width: 64px;
+}
+
+/* Активные связки: линия связи дорисовывается под числом. */
+.linkLine {
+  height: 1px;
+  background: var(--text-secondary);
+  transform-origin: left center;
+  animation: draw var(--motion-panel) var(--ease-out) both;
+  animation-delay: calc(260ms + var(--order, 0) * 40ms);
+}
+
+/* Этапы в срок: деления заполняются до доли. */
+.segments {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+  width: 120px;
+}
+
+.segment {
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+}
+
+.segmentOn {
+  background: var(--text-primary);
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(260ms + var(--s, 0) * 30ms);
+}
+
+/* Время до занятий: метка едет по шкале года. */
+.timeline {
+  position: relative;
+  height: 7px;
+  background: linear-gradient(var(--line-strong), var(--line-strong)) center / 100% 1px no-repeat;
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  left: var(--at, 0%);
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  animation: slide 700ms var(--ease-out) 300ms both;
+}
+
+@keyframes slide {
+  from {
+    left: 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .linkLine,
+  .segmentOn,
+  .marker {
+    animation: none;
+  }
+}
+
 .dots {
   list-style: none;
   margin: 0;

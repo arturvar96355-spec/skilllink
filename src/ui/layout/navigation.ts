@@ -61,6 +61,29 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   ]
 }
 
+export interface ServiceLink {
+  href: string
+  label: string
+  /** Открывается отдельной вкладкой: это ответ API, а не страница приложения. */
+  external?: boolean
+}
+
+/**
+ * Служебные ссылки подвала — по тем же правам, что и меню. Раньше подвал
+ * держал свою копию меню без учёта роли и показывал представителю вуза
+ * аналитику, рекомендации и настройки, которые ему закрыты.
+ */
+export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
+  const links: ServiceLink[] = [
+    { href: '/api/openapi.json', label: 'Контракт API', external: true },
+    { href: '/api/health', label: 'Состояние системы', external: true },
+  ]
+  if (user.role !== 'UNIVERSITY_REP') {
+    links.push({ href: `${ROUTES.settings}#integrations`, label: 'Источники данных' })
+  }
+  return links
+}
+
 /** Активен ли пункт для текущего адреса. */
 export function isActiveItem(item: NavItem, pathname: string): boolean {
   const base = item.match ?? item.href

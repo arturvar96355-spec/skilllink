@@ -31,7 +31,7 @@
   max-height: min(70vh, 560px);
   display: flex;
   flex-direction: column;
-  background: rgba(20, 20, 27, 0.92);
+  background: var(--surface-floating);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.096);
@@ -125,15 +125,13 @@
 }
 
 .icon {
+  /* Иконка различает тип записи — сама по себе, без плашки под ней (07, раздел 5). */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 20px;
+  height: 20px;
   flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 

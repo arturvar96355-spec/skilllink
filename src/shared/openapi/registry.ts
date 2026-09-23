@@ -678,11 +678,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/portal/materials/{taskId}/confirm',
     tag: 'Кабинет вуза',
     summary: 'Подтвердить получение материалов',
-    description: 'Подтверждать можно только задачи этапа передачи материалов.',
+    description:
+      'Подтверждать можно только задачи этапа передачи материалов. Закрытая связка ' +
+      'или завершённый либо отменённый этап — конфликт, как у сотрудника ИТ-Школы.',
     permission: 'UNIVERSITY_PORTAL',
     body: confirmMaterialSchema,
     bodyOptional: true,
-    errors: READ_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'patch',

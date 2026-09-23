@@ -63,9 +63,11 @@ export async function findMaterials(universityId: string) {
       stage: {
         select: {
           status: true,
+          stageNumber: true,
           cooperationId: true,
           cooperation: {
             select: {
+              status: true,
               program: { select: { name: true } },
               product: { select: { name: true } },
             },
@@ -100,13 +102,6 @@ export async function findMaterialTask(taskId: string, universityId: string) {
         },
       },
     },
-  })
-}
-
-export async function confirmMaterial(taskId: string, userId: string): Promise<void> {
-  await prisma.task.update({
-    where: { id: taskId },
-    data: { isDone: true, doneAt: new Date(), doneById: userId },
   })
 }
 

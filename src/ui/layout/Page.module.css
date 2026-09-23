@@ -131,6 +131,13 @@
   margin-left: auto;
 }
 
+.toolbarNote {
+  flex: 1 0 100%;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
 /* Вкладки раздела. */
 .tabs {
   display: flex;

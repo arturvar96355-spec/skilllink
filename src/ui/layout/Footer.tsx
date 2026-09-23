@@ -1,16 +1,17 @@
 import Link from 'next/link'
-import { ROUTES } from '../lib/links'
+import type { NavGroup, ServiceLink } from './navigation'
 import { Logo } from './Logo'
 import styles from './Shell.module.css'
 
 /**
  * Подвал.
  *
- * Разделы честные: ссылки ведут на то, что в системе действительно есть.
+ * Разделы честные: ссылки ведут на то, что в системе действительно есть
+ * и открыто этой роли, — группы те же, что в боковом меню (`navigationFor`).
  * Юридические реквизиты не придумываем (раздел 26 шаблона страниц) —
  * вместо них сказано, что это прототип и данные демонстрационные.
  */
-export function Footer() {
+export function Footer({ groups, service }: { groups: NavGroup[]; service: ServiceLink[] }) {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerInner}>
@@ -25,49 +26,30 @@ export function Footer() {
           </p>
         </div>
 
-        <div className={styles.footerGroup}>
-          <span className={styles.footerTitle}>Работа</span>
-          <Link href={ROUTES.universities} className={styles.footerLink}>
-            Университеты
-          </Link>
-          <Link href={ROUTES.programs} className={styles.footerLink}>
-            Программы
-          </Link>
-          <Link href={ROUTES.cooperations} className={styles.footerLink}>
-            Сотрудничество
-          </Link>
-          <Link href={ROUTES.recommendations} className={styles.footerLink}>
-            Рекомендации
-          </Link>
-        </div>
-
-        <div className={styles.footerGroup}>
-          <span className={styles.footerTitle}>Инструменты</span>
-          <Link href={ROUTES.analytics} className={styles.footerLink}>
-            Аналитика
-          </Link>
-          <Link href={ROUTES.documents} className={styles.footerLink}>
-            Документы
-          </Link>
-          <Link href={ROUTES.products} className={styles.footerLink}>
-            IT-продукты
-          </Link>
-          <Link href={ROUTES.settings} className={styles.footerLink}>
-            Настройки
-          </Link>
-        </div>
+        {groups.map((group) => (
+          <div key={group.key} className={styles.footerGroup}>
+            <span className={styles.footerTitle}>{group.title}</span>
+            {group.items.map((item) => (
+              <Link key={item.href} href={item.href} className={styles.footerLink}>
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        ))}
 
         <div className={styles.footerGroup}>
           <span className={styles.footerTitle}>Служебное</span>
-          <a className={styles.footerLink} href="/api/openapi.json" target="_blank" rel="noreferrer">
-            Контракт API
-          </a>
-          <a className={styles.footerLink} href="/api/health" target="_blank" rel="noreferrer">
-            Состояние системы
-          </a>
-          <Link href={`${ROUTES.settings}#integrations`} className={styles.footerLink}>
-            Источники данных
-          </Link>
+          {service.map((link) =>
+            link.external ? (
+              <a key={link.href} className={styles.footerLink} href={link.href} target="_blank" rel="noreferrer">
+                {link.label}
+              </a>
+            ) : (
+              <Link key={link.href} href={link.href} className={styles.footerLink}>
+                {link.label}
+              </Link>
+            ),
+          )}
         </div>
       </div>
 

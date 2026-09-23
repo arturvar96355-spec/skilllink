@@ -23,6 +23,7 @@ import {
   Icon,
   Input,
   KpiCard,
+  KpiRow,
   Modal,
   NO_DATA,
   PageHeader,
@@ -377,17 +378,16 @@ function PortalScreen() {
         <CardsSkeleton count={4} />
       ) : data ? (
         <>
-          <div className={styles.kpis}>
-            <KpiCard label="Программы вуза" value={data.programs.length} icon="program" />
-            <KpiCard label="Сотрудничества" value={data.cooperations.length} icon="cooperation" />
+          <KpiRow>
+            <KpiCard label="Программы вуза" value={data.programs.length} />
+            <KpiCard label="Сотрудничества" value={data.cooperations.length} />
             <KpiCard
               label="Материалы к подтверждению"
               value={data.pendingMaterials}
-              icon="document"
               explanation="Переданные вузу материалы, получение которых вы ещё не подтвердили."
             />
-            <KpiCard label="Документы" value={data.documentsCount} icon="document" />
-          </div>
+            <KpiCard label="Документы" value={data.documentsCount} />
+          </KpiRow>
 
           <Section
             title="Сотрудничества"
@@ -448,42 +448,44 @@ function PortalScreen() {
         ) : materials.data && materials.data.length > 0 ? (
           <div className={styles.list}>
             {materials.data.map((material) => (
-              <Card key={material.taskId} padding="sm">
-                <div className={styles.material}>
-                  <div className={styles.cell}>
-                    <span className={styles.cellTitle}>{material.title}</span>
-                    <span className={styles.cellMeta}>
-                      {material.programName}
-                      {material.productName ? ` · ${material.productName}` : ''}
-                    </span>
-                    <span className={styles.cellMeta}>
-                      Этап 7 · <StageStatusBadge status={material.stageStatus} />
-                    </span>
-                  </div>
-
-                  {material.isConfirmed ? (
-                    <div className={styles.confirmed}>
-                      <Badge tone="success" withDot>
-                        Получение подтверждено
-                      </Badge>
-                      <span className={styles.cellMeta}>{formatDateTime(material.confirmedAt)}</span>
-                    </div>
-                  ) : canAct ? (
-                    <Button
-                      icon="check"
-                      variant="primary"
-                      size="sm"
-                      onClick={() => onConfirm(material.taskId)}
-                      isLoading={confirmingId === material.taskId}
-                      disabled={confirmMaterial.isPending}
-                    >
-                      Подтвердить получение
-                    </Button>
-                  ) : (
-                    <Badge tone="neutral">Ожидает подтверждения вузом</Badge>
-                  )}
+              <div key={material.taskId} className={styles.material}>
+                <div className={styles.cell}>
+                  <span className={styles.cellTitle}>{material.title}</span>
+                  <span className={styles.cellMeta}>
+                    {material.programName}
+                    {material.productName ? ` · ${material.productName}` : ''}
+                  </span>
+                  <span className={styles.cellMeta}>
+                    Этап 7 · <StageStatusBadge status={material.stageStatus} />
+                  </span>
                 </div>
-              </Card>
+
+                {material.isConfirmed ? (
+                  <div className={styles.confirmed}>
+                    <Badge tone="success" withDot>
+                      Получение подтверждено
+                    </Badge>
+                    <span className={styles.cellMeta}>{formatDateTime(material.confirmedAt)}</span>
+                  </div>
+                ) : !material.canConfirm ? (
+                  // Этап отменён или связка закрыта: сервер подтверждение не примет,
+                  // и кнопка вела бы к ошибке.
+                  <Badge tone="neutral">Этап закрыт</Badge>
+                ) : canAct ? (
+                  <Button
+                    icon="check"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onConfirm(material.taskId)}
+                    isLoading={confirmingId === material.taskId}
+                    disabled={confirmMaterial.isPending}
+                  >
+                    Подтвердить получение
+                  </Button>
+                ) : (
+                  <Badge tone="neutral">Ожидает подтверждения вузом</Badge>
+                )}
+              </div>
             ))}
           </div>
         ) : (
