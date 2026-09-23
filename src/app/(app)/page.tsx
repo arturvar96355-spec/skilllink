@@ -2,17 +2,22 @@
 
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import type { DashboardOverviewDto } from '@/shared/contracts'
+import type {
+  DashboardOverviewDto,
+  ProblemCooperationDto,
+  RecommendationGenerationResultDto,
+  TopProgramDto,
+} from '@/shared/contracts'
 import {
   Badge,
   Button,
   Card,
   CardsSkeleton,
+  CellText,
   DataTable,
   EmptyState,
   ErrorState,
-  Icon,
-  KpiCard,
+  KpiStrip,
   MockBadge,
   PageHeader,
   PriorityBadge,
@@ -25,6 +30,7 @@ import {
   formatNumber,
   formatPercent,
   formatScore,
+  pluralize,
   programHref,
   recommendationHref,
   useCurrentUser,
@@ -33,16 +39,21 @@ import {
   useToast,
   type Column,
 } from '@/ui'
-import type { RecommendationGenerationResultDto, TopProgramDto } from '@/shared/contracts'
 import styles from './dashboard.module.css'
 
-/** Значок показателя подбирается по его ключу — названия приходят с сервера. */
-const METRIC_ICONS: Record<string, 'cooperation' | 'university' | 'check' | 'clock' | 'analytics'> = {
-  activeCooperations: 'cooperation',
-  universitiesInWork: 'university',
-  stagesOnTimePercent: 'check',
-  avgDaysToClasses: 'clock',
-  operationsPerCooperation: 'analytics',
+/**
+ * Подпись над списком проблем.
+ *
+ * Считаются этапы, а не связки: у одной связки их бывает несколько, и это
+ * разные проблемы с разными сроками. Если показаны не все, так и сказано —
+ * выдать десять строк за всё, когда их тринадцать, значит соврать на первом
+ * же экране.
+ */
+function problemSummary(total: number, shown: number): string {
+  if (total === 0) return 'Просроченных и заблокированных этапов нет.'
+  const stages = `${formatNumber(total)} ${pluralize(total, ['этап стоит', 'этапа стоят', 'этапов стоят'])}`
+  if (shown < total) return `${stages}: срок вышел или этап заблокирован. Показаны ${shown} самых давних.`
+  return `${stages}: срок вышел или этап заблокирован.`
 }
 
 /**
@@ -51,6 +62,10 @@ const METRIC_ICONS: Record<string, 'cooperation' | 'university' | 'check' | 'clo
  * Отвечает на четыре вопроса раздела 25 шаблона: что происходит, где проблема,
  * что делать и почему система это предлагает. Один запрос к `/api/analytics/overview`:
  * сводку собирает сервер, фронт её не пересчитывает.
+ *
+ * Порядок по решению Артура: показатели — одной строкой, проблемные связки —
+ * главным блоком первого экрана. Пять плиток одинакового веса занимали полэкрана
+ * и прятали то, ради чего главную открывают: где горит.
  */
 export default function DashboardPage() {
   const user = useCurrentUser()
@@ -86,36 +101,76 @@ export default function DashboardPage() {
 
   const data = overview.data
 
+  const problemColumns: Column<ProblemCooperationDto>[] = [
+    {
+      key: 'cooperation',
+      title: 'Связка',
+      render: (row) => (
+        <CellText strong title={`${row.universityName} — ${row.programName}`}>
+          {row.universityShortName ?? row.universityName} — {row.programName}
+        </CellText>
+      ),
+    },
+    {
+      key: 'stage',
+      title: 'Где встала',
+      render: (row) =>
+        row.stageNumber === null ? (
+          <CellText muted>—</CellText>
+        ) : (
+          <CellText title={`Этап ${row.stageNumber}: ${row.stageTitle ?? ''}`}>
+            {row.stageNumber}. {row.stageTitle}
+          </CellText>
+        ),
+    },
+    {
+      // Отдельного столбца с причиной нет: для просрочки она повторяла бы
+      // число дней. Причина блокировки — в подсказке у значка «блок».
+      key: 'days',
+      title: 'Просрочка',
+      width: '104px',
+      align: 'right',
+      render: (row) =>
+        row.daysOverdue === null ? (
+          <Badge tone="warning" withDot title={row.reason}>
+            блок
+          </Badge>
+        ) : (
+          <Badge tone="danger" withDot title={row.reason}>
+            −{Math.abs(row.daysOverdue)} дн.
+          </Badge>
+        ),
+    },
+  ]
+
   const programColumns: Column<TopProgramDto>[] = [
     {
       key: 'program',
       title: 'Программа',
       render: (row) => (
-        <span className={styles.programRow}>
-          <span className={styles.programText}>
-            <span className={styles.programName}>{row.programName}</span>
-            <span className={styles.programUniversity}>{row.universityName}</span>
-          </span>
-        </span>
+        <CellText strong title={`${row.programName} — ${row.universityName}`}>
+          {row.programName}
+          <span className={styles.muted}> · {row.universityName}</span>
+        </CellText>
       ),
     },
     {
       key: 'factors',
       title: 'Из чего сложился балл',
-      render: (row) => (
-        <span className={styles.itemMeta}>
-          {row.factors
+      render: (row) => {
+        const text =
+          row.factors
             .filter((factor) => factor.value !== null)
             .map((factor) => `${factor.title}: ${formatNumber(factor.value)}`)
-            .join(' · ') || 'Показатели не заполнены'}
-        </span>
-      ),
+            .join(' · ') || 'Показатели не заполнены'
+        return <CellText muted>{text}</CellText>
+      },
     },
     {
       key: 'score',
       title: 'Балл',
       align: 'right',
-      width: '120px',
+      width: '80px',
       render: (row) =>
         row.score === null ? (
           <span className={styles.scoreEmpty}>Нет данных</span>
@@ -129,7 +184,7 @@ export default function DashboardPage() {
     <>
       <PageHeader
         title="Главная"
-        description="Что требует внимания прямо сейчас: показатели работы, проблемные связки и предложения системы."
+        description="Что требует внимания прямо сейчас и что система предлагает сделать."
         meta={data?.containsMockData ? <MockBadge /> : undefined}
         actions={
           user.permissions.canWrite ? (
@@ -146,94 +201,75 @@ export default function DashboardPage() {
       />
 
       {overview.isLoading ? (
-        <CardsSkeleton count={4} />
+        <CardsSkeleton count={3} />
       ) : overview.error ? (
         <ErrorState error={overview.error} onRetry={overview.reload} />
       ) : data ? (
         <>
-          <div className={styles.kpis}>
-            {data.metrics.map((metric) => (
-              <KpiCard
-                key={metric.key}
-                label={metric.title}
-                value={metric.value}
-                unit={metric.unit === 'шт' ? undefined : metric.unit}
-                icon={METRIC_ICONS[metric.key] ?? 'analytics'}
-                explanation={metric.explanation}
-                fractionDigits={metric.unit === '%' ? 1 : 0}
-                note={metric.basis === 'estimate' ? 'Оценка' : (metric.period ?? undefined)}
-                footer={metric.isMock ? <Badge tone="mock">демо</Badge> : undefined}
-              />
-            ))}
-          </div>
+          <KpiStrip
+            items={data.metrics.map((metric) => ({
+              key: metric.key,
+              label: metric.title,
+              value: metric.value,
+              unit: metric.unit === 'шт' || metric.unit === '%' ? undefined : metric.unit,
+              explanation: metric.explanation,
+              fractionDigits: metric.unit === '%' ? 1 : 0,
+              note:
+                metric.unit === '%'
+                  ? metric.basis === 'estimate'
+                    ? 'процентов, оценка'
+                    : 'процентов'
+                  : metric.basis === 'estimate'
+                    ? 'оценка'
+                    : undefined,
+              isMock: metric.isMock,
+            }))}
+          />
 
-          <div className={styles.columns}>
+          <div className={styles.focus}>
             <Section
               title="Требует внимания"
-              description="Связки, где процесс встал: просроченные, заблокированные и без движения."
+              description={problemSummary(
+                data.problemStageTotal,
+                data.problemCooperations.length,
+              )}
               action={
-                data.problemCooperations.length > 0 ? (
-                  <Button href="/cooperations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
-                    Все связки
-                  </Button>
-                ) : undefined
+                <Button href="/cooperations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  Все связки
+                </Button>
               }
             >
-              {data.problemCooperations.length === 0 ? (
-                <Card muted>
+              <Card padding="none" className={styles.alert}>
+                {data.problemCooperations.length === 0 ? (
                   <EmptyState
                     icon="check"
                     title="Проблемных связок нет"
                     description="Ни одна связка не просрочена и не заблокирована."
                   />
-                </Card>
-              ) : (
-                <div className={styles.list}>
-                  {data.problemCooperations.map((problem) => (
-                    // У одной связки бывает несколько проблем: ключ собирается из связки и этапа.
-                    <Card
-                      key={`${problem.cooperationId}:${problem.stageNumber ?? 'нет'}:${problem.reason}`}
-                      href={cooperationHref(problem.cooperationId)}
-                      padding="sm"
-                    >
-                      <span className={styles.problem}>
-                        <span className={styles.problemIcon}>
-                          <Icon name="alert" size={18} />
-                        </span>
-                        <span className={styles.problemText}>
-                          <span className={styles.itemTitle}>
-                            {problem.universityName} — {problem.programName}
-                          </span>
-                          <span className={styles.itemReason}>{problem.reason}</span>
-                          {problem.stageNumber !== null && (
-                            <span className={styles.itemMeta}>
-                              Этап {problem.stageNumber}: {problem.stageTitle}
-                            </span>
-                          )}
-                        </span>
-                        {problem.daysOverdue !== null && (
-                          <Badge tone="danger">{Math.abs(problem.daysOverdue)} дн.</Badge>
-                        )}
-                      </span>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                ) : (
+                  <DataTable
+                    rows={data.problemCooperations}
+                    columns={problemColumns}
+                    // У одной связки бывает несколько проблем: ключ — связка и этап.
+                    getRowKey={(row) => `${row.cooperationId}:${row.stageId ?? row.reason}`}
+                    getRowHref={(row) => cooperationHref(row.cooperationId, row.stageId)}
+                    caption="Связки, которые требуют внимания"
+                  />
+                )}
+              </Card>
             </Section>
 
             <Section
               title="Приоритетные действия"
-              description="Открытые рекомендации системы с наибольшим приоритетом."
+              description="Открытые рекомендации с наибольшим приоритетом."
               action={
-                data.priorityActions.length > 0 ? (
-                  <Button href="/recommendations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
-                    Все рекомендации
-                  </Button>
-                ) : undefined
+                <Button href="/recommendations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  Все
+                </Button>
               }
             >
-              {data.priorityActions.length === 0 ? (
-                <Card muted>
+              <Card padding="none">
+                {data.priorityActions.length === 0 ? (
                   <EmptyState
                     icon="recommendation"
                     title="Рекомендаций нет"
@@ -246,26 +282,25 @@ export default function DashboardPage() {
                       ) : undefined
                     }
                   />
-                </Card>
-              ) : (
-                <div className={styles.list}>
-                  {data.priorityActions.map((action) => (
-                    <Card key={action.id} href={recommendationHref(action.id)} padding="sm">
-                      <span className={styles.action}>
-                        <span className={styles.actionHead}>
-                          <span className={styles.itemTitle}>{action.title}</span>
-                          <PriorityBadge priority={action.priority} />
-                        </span>
-                        <span className={styles.justification}>{action.justification}</span>
-                        <span className={styles.actionTarget}>
-                          <Icon name="arrowRight" size={16} />
-                          {action.target.label}
-                        </span>
-                      </span>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                ) : (
+                  <ul className={styles.actions}>
+                    {data.priorityActions.map((action) => (
+                      <li key={action.id}>
+                        <a className={styles.action} href={recommendationHref(action.id)}>
+                          <span className={styles.actionHead}>
+                            <span className={styles.actionTitle}>{action.title}</span>
+                            <PriorityBadge priority={action.priority} />
+                          </span>
+                          <span className={styles.actionWhy} title={action.justification}>
+                            {action.justification}
+                          </span>
+                          <span className={styles.actionTarget}>{action.target.label}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Card>
             </Section>
           </div>
 

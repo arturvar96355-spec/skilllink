@@ -12,13 +12,20 @@
   border-collapse: separate;
   border-spacing: 0;
   min-width: 720px;
+  /*
+   * Ширина столбцов задаётся заголовком, а не содержимым. При обычной раскладке
+   * длинное название вуза в строке, которую запрещено переносить, растягивало
+   * свой столбец — и остальные уезжали за край экрана. Столбцы без явной
+   * ширины делят оставшееся место поровну, текст в них обрезается многоточием.
+   */
+  table-layout: fixed;
 }
 
 .th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   text-align: left;
   font-size: var(--text-caption-size);
   font-weight: 600;
@@ -53,6 +60,9 @@
 
 .right {
   text-align: right;
+  /* Числа и короткие значения по правому краю не переносятся: «Нет данных»
+     в две строки удваивал высоту всей строки реестра. */
+  white-space: nowrap;
 }
 
 .row {
@@ -101,7 +111,9 @@
  * видно за один взгляд, — воздух здесь стоит дороже, чем кажется.
  */
 .td {
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  line-height: 1.4;
+  height: 32px;
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-primary);
@@ -141,4 +153,28 @@
   font-variant-numeric: tabular-nums;
   min-width: 96px;
   text-align: center;
+}
+
+/*
+ * Текст, который не должен переносить строку: длинное название вуза
+ * обрезается многоточием, полное видно в подсказке. Перенос удваивал
+ * высоту строки — а плотность реестра важнее, чем название целиком
+ * в каждой строке.
+ */
+.truncate {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cellMuted {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.cellStrong {
+  font-weight: 600;
+  color: var(--text-primary);
 }

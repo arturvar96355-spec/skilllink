@@ -1,5 +1,5 @@
 import { assertCan, can, universityScope } from '@/shared/auth/permissions'
-import { DASHBOARD_TOP_LIMIT } from '@/shared/config/analytics.config'
+import { DASHBOARD_PROBLEM_LIMIT, DASHBOARD_TOP_LIMIT } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type {
   DashboardMetricDto,
@@ -98,6 +98,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     cycles,
     programs,
     problemStages,
+    problemStageTotal,
     logged,
     skillMatch,
     priorityRows,
@@ -107,7 +108,8 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     repo.findCompletedStagesWithDeadline(scope),
     repo.findCycleDurations(scope),
     repo.findProgramsForRating(scope, 200),
-    repo.findProblemStages(scope, now, DASHBOARD_TOP_LIMIT),
+    repo.findProblemStages(scope, now, DASHBOARD_PROBLEM_LIMIT),
+    repo.countProblemStages(scope, now),
     repo.countLoggedOperations(scope),
     buildSkillMatch(user),
     repo.findPriorityRecommendations(scope, DASHBOARD_TOP_LIMIT),
@@ -250,11 +252,13 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     return {
       cooperationId: stage.cooperation.id,
       universityName: stage.cooperation.university.name,
+      universityShortName: stage.cooperation.university.shortName,
       programName: stage.cooperation.program.name,
       reason:
         stage.status === 'BLOCKED'
           ? `Этап заблокирован: ${stage.blockingReason ?? 'причина не указана'}`
           : `Этап просрочен на ${overdueDays ?? 0} дн.`,
+      stageId: stage.id,
       stageNumber: stage.stageNumber,
       stageTitle: stage.title,
       daysOverdue: overdueDays,
@@ -267,6 +271,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     metrics,
     topPrograms,
     problemCooperations,
+    problemStageTotal,
     priorityActions,
     skillMatch,
     generatedAt: now.toISOString(),

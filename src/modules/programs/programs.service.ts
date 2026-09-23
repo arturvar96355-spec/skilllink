@@ -57,6 +57,7 @@ function toListItem(row: repo.ProgramListRow): ProgramListItemDto {
     id: row.id,
     universityId: row.universityId,
     universityName: row.university.name,
+    universityShortName: row.university.shortName,
     name: row.name,
     code: row.code,
     direction: row.direction,
