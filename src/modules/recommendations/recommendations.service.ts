@@ -12,7 +12,7 @@ import type {
 } from '@/shared/contracts/recommendation'
 import type { SkillLevel } from '@/shared/contracts/enums'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
-import { demandNormalizer } from '@/modules/skills/skills.rules'
+import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
 import { findCurrentStage, isOverdue } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import {
@@ -113,7 +113,7 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   assertCan(user, 'WRITE')
 
   const now = new Date()
-  const input = await repo.loadGenerationInput(now)
+  const input = await repo.loadGenerationInput()
   const drafts: RecommendationDraft[] = []
 
   // ── Правила по связкам ─────────────────────────────────────────────────────
@@ -192,7 +192,11 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   }
 
   // ── Правило по критичным дефицитам навыков ─────────────────────────────────
-  const normalizeValue = demandNormalizer(input.demand.map((row) => row.value))
+  // Одна строка на навык — как в списке дефицитов (demandPerSkill): иначе два
+  // региональных замера одного навыка давали две рекомендации с одним ключом,
+  // и вторая молча затирала первую.
+  const demand = demandPerSkill(input.demand)
+  const normalizeValue = demandNormalizer(demand.map((row) => row.value))
 
   /** Лучший уровень навыка по каждой программе — нужен, чтобы понять, покрыт ли он. */
   const levelByProgramSkill = new Map<string, SkillLevel>()
@@ -212,7 +216,7 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   }
 
   const gapDrafts: RecommendationDraft[] = []
-  for (const row of input.demand) {
+  for (const row of demand) {
     const normalized = normalizeValue(row.value)
     if (normalized === null || normalized < SKILL_GAP.demandThreshold) continue
 

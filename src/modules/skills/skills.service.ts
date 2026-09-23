@@ -7,7 +7,8 @@ import type { PageMeta } from '@/shared/contracts/common'
 import type { SkillDemandDto, SkillDto, SkillGapDto } from '@/shared/contracts/skill'
 import type { SkillLevel } from '@/shared/contracts/enums'
 import * as repo from './skills.repo'
-import { calculateGap, demandNormalizer } from './skills.rules'
+import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
+import { calculateGap, demandNormalizer, demandPerSkill } from './skills.rules'
 import type { SkillDemandQuery, SkillGapQuery, SkillListQuery } from './skills.schema'
 
 export async function list(
@@ -77,6 +78,8 @@ export interface GapResult {
   data: SkillGapDto[]
   /** Сколько дефицитов найдено всего — до обрезания по `limit`. */
   total: number
+  /** Сводка по всем навыкам периода — до отбора и обрезания. */
+  summary: { demanded: number; covered: number; critical: number }
   period: string | null
   programId: string | null
   isMock: boolean
@@ -91,7 +94,14 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
 
   const period = query.period ?? (await repo.latestPeriod())
   if (!period) {
-    return { data: [], total: 0, period: null, programId: query.programId ?? null, isMock: false }
+    return {
+      data: [],
+      total: 0,
+      summary: { demanded: 0, covered: 0, critical: 0 },
+      period: null,
+      programId: query.programId ?? null,
+      isMock: false,
+    }
   }
 
   if (query.programId) {
@@ -102,7 +112,7 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     if (!program) throw notFound('Образовательная программа не найдена')
   }
 
-  const demandRows = await repo.findDemandForPeriod(period)
+  const demandRows = demandPerSkill(await repo.findDemandForPeriod(period))
   const normalizeValue = demandNormalizer(demandRows.map((row) => row.value))
 
   const programSkills = await repo.findProgramSkills(
@@ -110,8 +120,7 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
       ? { programId: query.programId }
       : {
           program: {
-            status: 'ACTIVE',
-            archivedAt: null,
+            ...ACTIVE_PROGRAM_WHERE,
             ...(query.universityId ? { universityId: query.universityId } : {}),
           },
         },
@@ -149,6 +158,15 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     }
   })
 
+  // Сводка — по всем навыкам периода, до отбора и обрезания: главная считала
+  // покрытие по первым двумстам строкам, отсортированным по дефициту, и чем больше
+  // навыков, тем больше покрытых выпадало из счёта.
+  const summary = {
+    demanded: result.length,
+    covered: result.filter((row) => row.coverage > 0).length,
+    critical: result.filter((row) => row.isCritical).length,
+  }
+
   const filtered = query.criticalOnly ? result.filter((row) => row.isCritical) : result
   filtered.sort((a, b) => b.gap - a.gap)
 
@@ -157,6 +175,7 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     // дефицитов, не должна занижать их число из-за размера страницы.
     data: filtered.slice(0, query.limit),
     total: filtered.length,
+    summary,
     period,
     programId: query.programId ?? null,
     isMock: demandRows.some((row) => row.isMock),

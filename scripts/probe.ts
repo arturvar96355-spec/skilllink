@@ -994,6 +994,34 @@ async function main(): Promise<void> {
     )
   }
 
+  // ── Архивный вуз не участвует в аналитике ─────────────────────────────────
+  step('Программы архивного вуза не попадают в рейтинг')
+
+  {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный архивный вуз ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа архивного вуза ${sfx}`,
+      level: 'BACHELOR',
+      applicationCount: 999_999,
+      studentCount: 999_999,
+      groupCount: 999,
+    })
+    const inRating = async () => {
+      const rating = await call<Array<{ programId: string }>>('GET', '/api/analytics/programs?limit=100')
+      return (rating.body.data ?? []).some((row) => row.programId === program.body.data?.id)
+    }
+    check('программа действующего вуза в рейтинге', await inRating())
+    await call('POST', `/api/universities/${uni.body.data?.id}/archive`)
+    // Раньше программа оставалась «действующей» и продолжала сдвигать шкалу рейтинга.
+    check('после архивации вуза — нет', !(await inRating()))
+  }
+
   // ── Импорт программ не стирает то, чего нет в файле ────────────────────────
   step('Импорт программ: отсутствующие колонки не стираются, повторы — ошибка строки')
 
