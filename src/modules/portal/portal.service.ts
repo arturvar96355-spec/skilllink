@@ -17,13 +17,14 @@ import {
   areTasksEditable,
   assertTasksEditable,
   computeProgressPercent,
+  describeBlockingStages,
   findCurrentStage,
   isAutoManaged,
 } from '@/modules/workflow/workflow.rules'
 import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
-import { setTaskDone } from '@/modules/workflow/workflow.service'
+import { checklistBlockers, setTaskDone } from '@/modules/workflow/workflow.service'
 import * as repo from './portal.repo'
-import { assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
+import { MATERIALS_STAGE_NUMBER, assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
 import type {
   ApplicationListQuery,
   ConfirmMaterialInput,
@@ -81,6 +82,47 @@ function toCooperationDto(
   }
 }
 
+type MaterialRow = Awaited<ReturnType<typeof repo.findMaterials>>[number]
+
+/**
+ * Почему материалы каждой связки пока нельзя подтверждать.
+ *
+ * Этап 7 — контрольная точка: пока договор не подписан, материалы не переданы.
+ * Раньше кабинет всё равно показывал их «к подтверждению» и принимал
+ * подтверждение — у связки, где этап 7 начать нельзя, появлялась отметка
+ * «Передана лицензия».
+ */
+async function materialLocks(rows: readonly MaterialRow[]): Promise<Map<string, string | null>> {
+  const cooperationIds = [...new Set(rows.filter((row) => !row.isDone).map((row) => row.stage.cooperationId))]
+  const locks = await Promise.all(
+    cooperationIds.map(async (cooperationId) => {
+      const blocking = await checklistBlockers({ cooperationId, stageNumber: MATERIALS_STAGE_NUMBER })
+      const reason =
+        blocking.length === 0
+          ? null
+          : `${blocking.length === 1 ? 'Не закрыт этап' : 'Не закрыты этапы'} ` +
+            describeBlockingStages(blocking)
+      return [cooperationId, reason] as const
+    }),
+  )
+  return new Map(locks)
+}
+
+/**
+ * Почему материалы ещё не переданы. Только когда в остальном подтверждение
+ * было бы возможно: у закрытой связки или отменённого этапа причина другая,
+ * и «Ещё не переданы: договор не подписан» её бы подменило.
+ */
+function lockedReasonOf(row: MaterialRow, locks: Map<string, string | null>): string | null {
+  if (!canConfirmMaterial(row)) return null
+  return locks.get(row.stage.cooperationId) ?? null
+}
+
+/** Подтверждение примут: правила чек-листа (canConfirmMaterial) и переданы ли материалы. */
+function isConfirmable(row: MaterialRow, locks: Map<string, string | null>): boolean {
+  return canConfirmMaterial(row) && lockedReasonOf(row, locks) === null
+}
+
 export async function overview(
   user: CurrentUser,
   universityId: string | undefined,
@@ -93,6 +135,7 @@ export async function overview(
     repo.findMaterials(university.id),
     repo.countDocuments(university.id),
   ])
+  const locks = await materialLocks(materials)
 
   return {
     universityId: university.id,
@@ -100,8 +143,8 @@ export async function overview(
     programs: programs.map(toProgramDto),
     cooperations: cooperations.map(toCooperationDto),
     // «К подтверждению» — только то, что вуз действительно может подтвердить:
-    // пункт отменённого этапа или закрытой связки ждать ему нечего.
-    pendingMaterials: materials.filter(canConfirmMaterial).length,
+    // непереданные материалы, пункты отменённого этапа и закрытой связки — нет.
+    pendingMaterials: materials.filter((task) => isConfirmable(task, locks)).length,
     documentsCount,
     generatedAt: new Date().toISOString(),
   }
@@ -125,6 +168,7 @@ export async function materials(
 ): Promise<PortalMaterialDto[]> {
   const university = await resolveUniversity(user, universityId)
   const rows = await repo.findMaterials(university.id)
+  const locks = await materialLocks(rows)
 
   return rows.map((row) => ({
     taskId: row.id,
@@ -135,7 +179,8 @@ export async function materials(
     isConfirmed: row.isDone,
     confirmedAt: toIso(row.doneAt),
     stageStatus: row.stage.status,
-    canConfirm: canConfirmMaterial(row),
+    canConfirm: isConfirmable(row, locks),
+    lockedReason: lockedReasonOf(row, locks),
   }))
 }
 

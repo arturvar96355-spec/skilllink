@@ -1327,22 +1327,37 @@ async function main(): Promise<void> {
   step('Контрольные точки нельзя обойти')
 
   {
-    // Нужна связка, у которой этапы до шестого ещё не закрыты.
-    const list = await call<Array<{ id: string; currentStage: { stageNumber: number } | null }>>(
-      'GET',
-      '/api/cooperations?pageSize=50',
-    )
-    const early = (list.body.data ?? []).find(
-      (row) => (row.currentStage?.stageNumber ?? 99) <= 4,
-    )
+    // Своя свежая связка: этапы до шестого не закрыты, контрольные точки не тронуты.
+    // Раньше бралась первая «ранняя» связка из демо-данных — раздел отменял у неё
+    // этап 7 и вернуть не мог (отменённую контрольную точку не пускают обратно
+    // незакрытые этапы), а у связки, созданной другим разделом, этап 7 мог быть
+    // уже отменён, и проверка падала из-за соседа, а не из-за системы.
+    type ProbeStage = {
+      id: string
+      stageNumber: number
+      status: string
+      tasks: Array<{ id: string; isDone: boolean }>
+    }
+    let stages: ProbeStage[] = []
+    const home = (universities.body.data ?? [])[0]
+    if (home && managerId) {
+      const sfx = Date.now().toString().slice(-6)
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: home.id,
+        name: `Пробная программа контрольных точек ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const fresh = await call<{ stages: ProbeStage[] }>('POST', '/api/cooperations', {
+        universityId: home.id,
+        programId: program.body.data?.id,
+        responsibleId: managerId,
+      })
+      stages = fresh.body.data?.stages ?? []
+    }
 
-    if (!early) {
-      check('есть связка в начале конвейера', false, 'нужен npm run db:seed')
+    if (stages.length === 0) {
+      check('пробная связка для контрольных точек создана', false, 'нужен npm run db:seed')
     } else {
-      const card = await call<{
-        stages: Array<{ id: string; stageNumber: number; status: string }>
-      }>('GET', `/api/cooperations/${early.id}`)
-      const stages = card.body.data?.stages ?? []
       const find = (number: number) => stages.find((stage) => stage.stageNumber === number)
 
       const signing = find(6)
@@ -1375,6 +1390,26 @@ async function main(): Promise<void> {
         )
       }
 
+      // Пункт контрольной точки — то же утверждение о работе, что начало этапа
+      // (решение 49): «Передана лицензия» до подписания договора не отмечается.
+      // Проверяется до отмены ниже: у отменённого этапа пункты закрыты по другой
+      // причине, и проверка прошла бы, ничего не доказав.
+      const openTask = handover?.tasks.find((task) => !task.isDone)
+      if (!openTask) {
+        check('у пробной связки есть пункт этапа 7', false)
+      } else {
+        const ticked = await call('PATCH', `/api/workflow/tasks/${openTask.id}`, { isDone: true })
+        const message = (ticked.body as { error?: { message?: string } }).error?.message ?? ''
+        check(
+          'пункт этапа 7 нельзя отметить раньше предыдущих этапов',
+          ticked.status === 409 && message.includes('пункты нельзя отмечать'),
+          `статус ${ticked.status}: ${message.slice(0, 60)}`,
+        )
+        if (ticked.status === 200) {
+          await call('PATCH', `/api/workflow/tasks/${openTask.id}`, { isDone: false })
+        }
+      }
+
       // Отмена контрольной точки ничего не утверждает о работе — она разрешена.
       if (handover) {
         const cancelled = await call('PATCH', `/api/workflow/stages/${handover.id}`, {
@@ -1387,7 +1422,8 @@ async function main(): Promise<void> {
           `статус ${cancelled.status}`,
         )
 
-        // Возвращаем как было, чтобы пробник не оставлял следов.
+        // Попытка вернуть как было. Удаётся не всегда: отменённую контрольную
+        // точку обратно в работу не пускают незакрытые этапы до неё.
         if (cancelled.status === 200) {
           await call('PATCH', `/api/workflow/stages/${handover.id}`, {
             status: 'IN_PROGRESS',
@@ -1411,6 +1447,36 @@ async function main(): Promise<void> {
         )
       }
     }
+  }
+
+  // Вуз не подтверждает то, что ему ещё не передали: этап 7 заблокирован
+  // контрольной точкой — материалов нет, и подтверждение отвергается.
+  if (rep) {
+    actAs(rep.id)
+    const materials = await call<Array<{ taskId: string; canConfirm: boolean; isConfirmed: boolean }>>(
+      'GET',
+      '/api/portal/materials',
+    )
+    const locked = (materials.body.data ?? []).find((item) => !item.isConfirmed && !item.canConfirm)
+    if (!locked) {
+      check('у вуза есть ещё не переданные материалы', false, 'нужен npm run db:seed')
+    } else {
+      const confirmed = await call('POST', `/api/portal/materials/${locked.taskId}/confirm`, {})
+      check(
+        'вуз не подтверждает материалы, которые ещё не переданы',
+        confirmed.status === 409,
+        `статус ${confirmed.status}`,
+      )
+      const after = await call<Array<{ taskId: string; isConfirmed: boolean }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      check(
+        'отказ ничего не отметил',
+        after.body.data?.find((item) => item.taskId === locked.taskId)?.isConfirmed === false,
+      )
+    }
+    actAs(null)
   }
 
   // ── Сводки не выдают обрезанную выборку за полную ──────────────────────────

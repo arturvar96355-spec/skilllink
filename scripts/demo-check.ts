@@ -257,7 +257,21 @@ async function main(): Promise<void> {
   check('вуз', portal.universityName, SPBGUT)
   check('программ', portal.programs.length, 2)
   check('связок', portal.cooperations.length, 2)
-  check('материалов к подтверждению', portal.pendingMaterials, 3)
+  // Этап 7 «Программной инженерии» — контрольная точка, договор не подписан:
+  // материалы не переданы, подтверждать нечего (решение 49).
+  check('материалов к подтверждению', portal.pendingMaterials, 0)
+  const materials = (
+    await rep.get<Array<{ programName: string; canConfirm: boolean; lockedReason: string | null }>>(
+      '/api/portal/materials',
+    )
+  ).data
+  check(
+    'материалы «Программной инженерии» ещё не переданы',
+    materials
+      .filter((item) => item.programName === 'Программная инженерия')
+      .map((item) => [item.canConfirm, item.lockedReason]),
+    Array.from({ length: 3 }, () => [false, 'Не закрыт этап 6 «Подписание документов»']),
+  )
   check('аналитика закрыта', (await rep.get('/api/analytics/overview')).status, 403)
   check('рекомендации закрыты', (await rep.get('/api/recommendations')).status, 403)
 
