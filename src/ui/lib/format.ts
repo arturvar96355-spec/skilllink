@@ -79,6 +79,14 @@ export function formatDemand(value: number | null | undefined): string {
   return `${outOf100(value)} из 100`
 }
 
+/**
+ * Место вуза: «Казань, Республика Татарстан». Город федерального значения —
+ * сам себе регион, и «Санкт-Петербург · Санкт-Петербург» читалось как ошибка.
+ */
+export function formatPlace(city: string, region: string | null | undefined): string {
+  return region && region.trim() !== city.trim() ? `${city}, ${region}` : city
+}
+
 /** Показатель вместе с единицей измерения; `basis: "none"` — «Нет данных». */
 export function formatMetric(metric: Metric | null | undefined): string {
   if (!metric || metric.value === null) return NO_DATA
