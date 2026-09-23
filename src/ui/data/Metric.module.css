@@ -93,3 +93,73 @@
   margin-left: 4px;
   vertical-align: middle;
 }
+
+/* Знак оценочного значения в ячейке таблицы: тот же цвет, что у пометки «оценка». */
+.estimateMark {
+  color: var(--status-warning);
+  margin-right: 2px;
+}
+
+/* Полоса показателей: одна карточка, ячейки через тонкий разделитель. */
+.strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.stripCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-left: 1px solid var(--border-divider);
+  min-width: 0;
+}
+
+.stripCell:first-child {
+  border-left: none;
+}
+
+.stripLabel {
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stripValue {
+  font-size: var(--text-kpi-md-size);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.stripUnit {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-left: 4px;
+  letter-spacing: 0;
+}
+
+.stripEmpty {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  line-height: 1.7;
+  color: var(--text-tertiary);
+}
+
+.stripNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.stripMock {
+  color: var(--text-warm);
+}

@@ -1,37 +1,5 @@
 /* Главная страница: показатели, проблемы, действия (раздел 25 шаблона страниц). */
 
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: var(--space-4);
-}
-
-/* Плитки показателей выходят по очереди — так видно, что их несколько,
-   и глаз успевает прочитать каждую (раздел 9 документа о движении). */
-.kpis > * {
-  animation: kpiIn 420ms var(--ease-out) both;
-}
-
-.kpis > *:nth-child(2) {
-  animation-delay: 70ms;
-}
-.kpis > *:nth-child(3) {
-  animation-delay: 140ms;
-}
-.kpis > *:nth-child(4) {
-  animation-delay: 210ms;
-}
-.kpis > *:nth-child(n + 5) {
-  animation-delay: 280ms;
-}
-
-@keyframes kpiIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-}
-
 .columns {
   display: grid;
   grid-template-columns: 1.15fr 1fr;
@@ -43,57 +11,6 @@
   .columns {
     grid-template-columns: 1fr;
   }
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.problem {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.problemIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--danger-border);
-  color: var(--status-danger);
-}
-
-.problemText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.itemTitle {
-  font-size: var(--text-card-title-size);
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.35;
-}
-
-.itemMeta {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
-}
-
-.itemReason {
-  font-size: var(--text-body-sm-size);
-  color: var(--text-secondary);
-  line-height: 1.45;
 }
 
 .action {
@@ -115,14 +32,6 @@
   gap: 6px;
   font-size: var(--text-caption-size);
   color: var(--text-accent-soft);
-}
-
-.justification {
-  font-size: var(--text-body-sm-size);
-  line-height: var(--text-body-sm-line);
-  color: var(--text-secondary);
-  padding-left: var(--space-3);
-  border-left: 2px solid var(--border-accent);
 }
 
 .coverage {
@@ -172,30 +81,6 @@
   color: var(--text-tertiary);
 }
 
-.programRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.programText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.programName {
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.programUniversity {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
-}
-
 .score {
   font-size: var(--text-kpi-sm-size);
   font-weight: 700;
@@ -212,4 +97,78 @@
 .generated {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+}
+
+/*
+ * Первый экран: проблемы — главный блок, действия — рядом, уже.
+ * Пропорция 3 к 2 оставляет списку проблем больше половины ширины:
+ * это то, ради чего главную открывают.
+ */
+.focus {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 1080px) {
+  .focus {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Проблемный блок отмечен слева тонкой красной чертой — без заливки,
+   чтобы не кричать, но чтобы взгляд попадал сюда первым. */
+.alert {
+  border-left: 2px solid var(--danger-border);
+}
+
+.muted {
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+.actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.actions li + li {
+  border-top: 1px solid var(--border-divider);
+}
+
+.action {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  transition: background var(--motion-micro) var(--ease-out);
+}
+
+.action:hover {
+  background: rgba(40, 30, 68, 0.6);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+.actionTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+/* Обоснование — две строки, полное в подсказке: список должен читаться целиком. */
+.actionWhy {
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }

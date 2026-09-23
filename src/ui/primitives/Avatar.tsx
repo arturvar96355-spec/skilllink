@@ -3,7 +3,7 @@ import styles from './Avatar.module.css'
 
 export interface AvatarProps {
   name: string
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   /** Объект (вуз, программа, продукт), а не человек: другая подача инициалов. */
   kind?: 'person' | 'entity'
 }

@@ -19,8 +19,8 @@ export { Field, Input, Textarea, Checkbox, Toggle } from './primitives/Form'
 export { Select, type SelectOption } from './primitives/Select'
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
-export { DataTable, Pagination, type Column } from './data/Table'
-export { KpiCard, MetricValue } from './data/Metric'
+export { DataTable, Pagination, CellText, type Column } from './data/Table'
+export { KpiCard, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
 export {
   UniversityStatusBadge,
   ProgramStatusBadge,

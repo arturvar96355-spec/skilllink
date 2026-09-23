@@ -48,6 +48,7 @@ function toCurrentStage(stages: StageSummary[], now: Date): CurrentStageDto | nu
     deadline: toIso(current.deadline),
     isOverdue: isOverdue(current.deadline, current.status, now),
     isDueSoon: isDueSoon(current.deadline, current.status, now),
+    daysToDeadline: daysToDeadline(current.deadline, now),
   }
 }
 
@@ -71,6 +72,7 @@ function toListItem(row: repo.CooperationListRow, now: Date): CooperationListIte
     id: row.id,
     universityId: row.universityId,
     universityName: row.university.name,
+    universityShortName: row.university.shortName,
     programId: row.programId,
     programName: row.program.name,
     productId: row.productId,

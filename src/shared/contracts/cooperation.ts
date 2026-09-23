@@ -12,6 +12,13 @@ export interface CurrentStageDto {
   isOverdue: boolean
   /** Срок ещё не вышел, но выйдет со дня на день. С `isOverdue` не пересекается. */
   isDueSoon: boolean
+  /**
+   * Дней до срока этапа: отрицательное — просрочка. null, если срока нет.
+   *
+   * Раньше список связок показывал у текущего этапа «просрочен на N дн.»,
+   * подставляя дни до контрольной даты всей связки, — число было не про этап.
+   */
+  daysToDeadline: number | null
 }
 
 export interface CooperationProgressDto {
@@ -30,6 +37,12 @@ export interface CooperationListItemDto {
   id: string
   universityId: string
   universityName: string
+  /**
+   * Краткое название вуза — «СПбГУТ», «МТУСИ». В плотной таблице полное
+   * название обрезается на первом же слове, а краткое читается целиком.
+   * null — краткого названия у вуза нет, показывать полное.
+   */
+  universityShortName: string | null
   programId: string
   programName: string
   productId: string | null

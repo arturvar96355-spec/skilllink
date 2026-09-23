@@ -21,7 +21,7 @@ const listSelect = {
   classesStartAt: true,
   isMock: true,
   updatedAt: true,
-  university: { select: { id: true, name: true } },
+  university: { select: { id: true, name: true, shortName: true } },
   program: { select: { id: true, name: true } },
   product: { select: { id: true, name: true } },
   responsible: { select: userRefSelect },
