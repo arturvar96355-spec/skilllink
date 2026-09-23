@@ -200,3 +200,14 @@
   font-weight: 600;
   color: var(--text-primary);
 }
+
+/* Переход в карточку (lib/morph): выбранная строка подсвечена, остальные приглушены. */
+.table[data-morph] tbody tr {
+  opacity: 0.85;
+}
+
+.table[data-morph] tbody tr[data-picked] {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+
