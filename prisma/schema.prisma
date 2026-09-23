@@ -614,6 +614,7 @@ model DocumentHistory {
   changedBy User     @relation("DocumentHistoryAuthor", fields: [changedById], references: [id], onDelete: Restrict)
 
   @@index([documentId])
+  @@index([changedAt])
   @@map("document_history")
 }
 
