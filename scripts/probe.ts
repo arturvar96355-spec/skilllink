@@ -641,6 +641,54 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── История документа: внутренние комментарии — только сотрудникам ────────
+  step('Представитель не видит внутренних комментариев в истории документа')
+
+  if (rep) {
+    // Причина отклонения — заметка сотрудников друг другу (решение 9). В истории
+    // этапов и в ленте событий она представителю не отдавалась, а в истории
+    // документа — отдавалась.
+    const note = `Пробник: внутренняя заметка ${Date.now()}`
+    const created = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: 'Пробник: документ с внутренней заметкой',
+      universityId: rep.universityId,
+      fileReference: 'https://example.invalid/probe.pdf',
+    })
+    const documentId = created.body.data?.id
+    if (documentId) {
+      await call('PATCH', `/api/documents/${documentId}/status`, { status: 'REVIEW' })
+      await call('PATCH', `/api/documents/${documentId}/status`, {
+        status: 'REJECTED',
+        comment: note,
+      })
+
+      const staffView = await call<{ history: Array<{ comment: string | null }> }>(
+        'GET',
+        `/api/documents/${documentId}`,
+      )
+      check(
+        'сотрудник видит причину отклонения',
+        (staffView.body.data?.history ?? []).some((entry) => entry.comment === note),
+      )
+
+      actAs(rep.id)
+      const repView = await call<{ history: Array<{ comment: string | null }> }>(
+        'GET',
+        `/api/documents/${documentId}`,
+      )
+      check('представитель документ своего вуза открывает', repView.status === 200)
+      check(
+        'но комментариев в истории не получает',
+        (repView.body.data?.history ?? []).length > 0 &&
+          (repView.body.data?.history ?? []).every((entry) => entry.comment === null),
+      )
+      actAs(null)
+    } else {
+      check('документ для проверки создан', false)
+    }
+  }
+
   // ── Рейтинг вуза: не должен становиться каналом утечки ─────────────────────
   step('Рейтинг вуза не раскрывает чужие данные')
 

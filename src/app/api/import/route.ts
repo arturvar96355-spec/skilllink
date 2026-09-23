@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/shared/auth/current-user'
-import { handle, ok, parseQuery } from '@/shared/http'
+import { handle, ok, parseQuery, readBodyBytes } from '@/shared/http'
 import { validationError } from '@/shared/http/errors'
 import * as service from '@/modules/import/import.service'
 import { decodeCsv } from '@/modules/import/decode'
@@ -17,6 +17,9 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024
  */
 export const POST = handle(async (request) => {
   const user = await getCurrentUser()
+  // Права — до чтения тела: без них файл не нужен вовсе, а читать его — работа
+  // и память, которые может заказать кто угодно из вошедших.
+  service.assertCanImport(user)
   const query = parseQuery(request, importQuerySchema)
 
   const tooLarge = () =>
@@ -24,18 +27,13 @@ export const POST = handle(async (request) => {
       { field: 'csv', message: `Допустимо не больше ${MAX_BODY_BYTES / 1024 / 1024} МБ` },
     ])
 
-  // Заголовок проверяется первым: он позволяет отказать, не читая тело.
-  const length = Number(request.headers.get('content-length') ?? 0)
-  if (length > MAX_BODY_BYTES) throw tooLarge()
-
-  // Но полагаться на него нельзя: при потоковой передаче (chunked) заголовка
-  // нет вовсе, и ограничение обходилось простым его отсутствием. Поэтому
-  // размер проверяется и по факту прочитанного.
+  // Размер проверяется по мере чтения, а не после: при потоковой передаче
+  // (chunked) заголовка длины нет, и `arrayBuffer()` успевал прочитать в память
+  // всё присланное, прежде чем доходило до сравнения.
   //
   // Файл читается байтами, а не `request.text()`: тот всегда декодирует UTF-8,
   // а Excel в Windows сохраняет CSV в Windows-1251 (см. import/decode.ts).
-  const bytes = new Uint8Array(await request.arrayBuffer())
-  if (bytes.byteLength > MAX_BODY_BYTES) throw tooLarge()
+  const bytes = await readBodyBytes(request, MAX_BODY_BYTES, tooLarge)
 
   const { text, encoding } = decodeCsv(bytes)
   return ok(await service.importDataset(user, query, text, encoding))

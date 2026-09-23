@@ -270,6 +270,11 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
   return plans
 }
 
+/** Загружать файлы могут только роли с правом записи. Проверка до чтения файла. */
+export function assertCanImport(user: CurrentUser): void {
+  assertCan(user, 'WRITE')
+}
+
 /**
  * Загрузка реестра из CSV.
  *

@@ -1,7 +1,12 @@
 import { prisma } from '@/shared/db/prisma'
 import { notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan, isUniversityVisible, universityScope } from '@/shared/auth/permissions'
+import {
+  assertCan,
+  canSeeInternalNotes,
+  isUniversityVisible,
+  universityScope,
+} from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
@@ -68,14 +73,23 @@ function toListItem(row: repo.DocumentListRow): DocumentListItemDto {
   }
 }
 
-function toDetail(row: repo.DocumentDetailRow): DocumentDto {
+/**
+ * Карточка документа с историей статусов.
+ *
+ * Комментарий в истории — внутренняя заметка: причина отклонения, что доработать.
+ * Представитель вуза его не видит (решение 9), как не видит комментариев
+ * в истории этапов и в ленте событий. Пользователь — обязательный аргумент,
+ * чтобы ни один путь к карточке не мог об этом забыть.
+ */
+function toDetail(row: repo.DocumentDetailRow, user: CurrentUser): DocumentDto {
+  const hideInternalNotes = !canSeeInternalNotes(user)
   return {
     ...toListItem(row),
     history: row.history.map((entry) => ({
       id: entry.id,
       fromStatus: entry.fromStatus,
       toStatus: entry.toStatus,
-      comment: entry.comment,
+      comment: hideInternalNotes ? null : entry.comment,
       changedBy: entry.changedBy,
       changedAt: toIsoRequired(entry.changedAt),
     })),
@@ -143,7 +157,7 @@ export async function getById(user: CurrentUser, id: string): Promise<DocumentDt
   assertCan(user, 'READ')
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Документ не найден')
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function create(
@@ -175,7 +189,7 @@ export async function create(
     payload: { type: input.type, cooperationId: input.cooperationId ?? null },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function update(
@@ -212,7 +226,7 @@ export async function update(
     payload: { fields: Object.keys(input) },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function changeStatus(
@@ -250,7 +264,7 @@ export async function changeStatus(
     payload: { from: existing.status, to: input.status },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 /**
@@ -295,7 +309,7 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
     payload: { previousId: id, version: created.version },
   })
 
-  return toDetail(created)
+  return toDetail(created, user)
 }
 
 // ─────────────────── Сборка пакета документов из шаблонов ───────────────────

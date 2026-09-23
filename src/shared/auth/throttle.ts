@@ -82,6 +82,30 @@ export function recordSuccess(accountKey: string): void {
   states.delete(accountKey)
 }
 
+/**
+ * Попытка входа под ограничением перебора.
+ *
+ * Неудача засчитывается до проверки пароля, а не после. Между проверкой
+ * блокировки и записью неудачи шли запрос к базе и bcrypt — около 50 мс,
+ * и одновременные попытки проходили проверку все разом: тысяча параллельных
+ * запросов давала тысячу догадок за окно вместо пяти. Проверка и запись теперь
+ * идут подряд, без `await` между ними, а удачный вход счётчик обнуляет —
+ * поэтому верный пароль с пятой попытки по-прежнему пускает.
+ *
+ * `attempt` возвращает пользователя или `null`, если данные не подошли.
+ */
+export async function throttledAttempt<T>(
+  accountKey: string,
+  attempt: () => Promise<T | null>,
+): Promise<{ blocked: true } | { blocked: false; result: T | null }> {
+  if (checkLogin(accountKey).blocked) return { blocked: true }
+  recordFailure(accountKey)
+
+  const result = await attempt()
+  if (result !== null) recordSuccess(accountKey)
+  return { blocked: false, result }
+}
+
 /** Только для тестов: состояние процесса между ними протекать не должно. */
 export function resetThrottle(): void {
   states.clear()

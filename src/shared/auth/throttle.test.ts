@@ -8,6 +8,7 @@ import {
   registerFailure,
   resetThrottle,
   secondsUntilUnblocked,
+  throttledAttempt,
 } from './throttle'
 
 const NOW = 1_700_000_000_000
@@ -110,3 +111,41 @@ describe('хранилище попыток', () => {
     })
   })
 })
+
+describe('одновременные попытки входа', () => {
+  beforeEach(() => {
+    resetThrottle()
+  })
+
+  /** Проверка пароля, которая, как bcrypt, занимает время. */
+  const slowWrongPassword = async (): Promise<null> => {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    return null
+  }
+
+  it('сто одновременных догадок — проверяется не больше пяти', async () => {
+    // Раньше неудача записывалась после запроса к базе и bcrypt, и все сто
+    // проходили проверку блокировки раньше, чем первая успевала записаться.
+    let checked = 0
+    const attempts = await Promise.all(
+      Array.from({ length: 100 }, () =>
+        throttledAttempt('target@example.invalid', async () => {
+          checked += 1
+          return slowWrongPassword()
+        }),
+      ),
+    )
+    expect(checked).toBe(LOGIN_THROTTLE.maxFailures)
+    expect(attempts.filter((attempt) => attempt.blocked)).toHaveLength(100 - LOGIN_THROTTLE.maxFailures)
+  })
+
+  it('верный пароль с последней разрешённой попытки пускает и обнуляет счётчик', async () => {
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailures - 1; index += 1) {
+      await throttledAttempt('user@example.invalid', slowWrongPassword)
+    }
+    const success = await throttledAttempt('user@example.invalid', async () => ({ id: 'u1' }))
+    expect(success).toEqual({ blocked: false, result: { id: 'u1' } })
+    expect(checkLogin('user@example.invalid').blocked).toBe(false)
+  })
+})
+
