@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import type { Metric } from '@/shared/contracts'
 import { Card } from '../primitives/Card'
-import { Icon, type IconName } from '../primitives/Icon'
+import { Icon } from '../primitives/Icon'
 import { Tooltip } from '../primitives/Tooltip'
 import { useCountUp } from '../hooks/dom'
 import { NO_DATA, formatMetric, formatNumber } from '../lib/format'
@@ -38,7 +38,6 @@ export interface KpiCardProps {
   /** null — «Нет данных». */
   value: number | null
   unit?: string
-  icon?: IconName
   /** Откуда число: показывается подсказкой у значка вопроса. */
   explanation?: string | null
   /** Короткая строка под значением: период, основание, уточнение. */
@@ -59,7 +58,6 @@ export function KpiCard({
   label,
   value,
   unit,
-  icon,
   explanation,
   note,
   footer,
@@ -86,11 +84,6 @@ export function KpiCard({
             </Tooltip>
           )}
         </span>
-        {icon && (
-          <span className={styles.kpiIcon}>
-            <Icon name={icon} size={18} />
-          </span>
-        )}
       </div>
 
       {shown === null ? (

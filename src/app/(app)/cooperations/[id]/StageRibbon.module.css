@@ -125,6 +125,7 @@
 
 .node {
   position: relative;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -267,8 +268,12 @@
   color: var(--text-accent);
 }
 
+/* Подпись не шире своей колонки: на экране 1280 колонка этапа — около 60 px,
+   и подпись в 96 px наезжала на соседние. Длинные слова переносятся по слогам. */
 .label {
-  max-width: 96px;
+  max-width: 100%;
+  hyphens: auto;
+  overflow-wrap: anywhere;
   font-size: var(--text-caption-size);
   line-height: 1.25;
   text-align: center;

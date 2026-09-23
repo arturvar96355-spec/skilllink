@@ -27,6 +27,7 @@ export {
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
+export { mockMarks, type MockMarks } from './data/origin'
 export { KpiCard, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
 export {
   UniversityStatusBadge,

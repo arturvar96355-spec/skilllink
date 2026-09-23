@@ -20,19 +20,6 @@
   color: var(--text-secondary);
 }
 
-.kpiIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-accent-soft);
-  flex: none;
-}
-
 .kpiValue {
   font-size: var(--text-kpi-lg-size);
   font-weight: 700;

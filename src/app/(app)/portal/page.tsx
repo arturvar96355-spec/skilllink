@@ -378,15 +378,14 @@ function PortalScreen() {
       ) : data ? (
         <>
           <div className={styles.kpis}>
-            <KpiCard label="Программы вуза" value={data.programs.length} icon="program" />
-            <KpiCard label="Сотрудничества" value={data.cooperations.length} icon="cooperation" />
+            <KpiCard label="Программы вуза" value={data.programs.length} />
+            <KpiCard label="Сотрудничества" value={data.cooperations.length} />
             <KpiCard
               label="Материалы к подтверждению"
               value={data.pendingMaterials}
-              icon="document"
               explanation="Переданные вузу материалы, получение которых вы ещё не подтвердили."
             />
-            <KpiCard label="Документы" value={data.documentsCount} icon="document" />
+            <KpiCard label="Документы" value={data.documentsCount} />
           </div>
 
           <Section

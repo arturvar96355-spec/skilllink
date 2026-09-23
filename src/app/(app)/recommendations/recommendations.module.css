@@ -243,7 +243,6 @@
 .facts {
   display: grid;
   gap: var(--space-2);
-  margin: 0;
 }
 
 .fact {
@@ -259,7 +258,6 @@
 }
 
 .fact dd {
-  margin: 0;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }

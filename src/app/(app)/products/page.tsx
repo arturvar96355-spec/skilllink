@@ -21,6 +21,7 @@ import {
   Icon,
   Input,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Pagination,
@@ -103,7 +104,7 @@ function ProductsView() {
   const rows = products.data ?? []
   const meta = products.meta
   const hasFilters = query !== '' || status !== ''
-  const containsMockData = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   function closeProduct() {
     const next = new URLSearchParams(searchParams.toString())
@@ -119,11 +120,6 @@ function ProductsView() {
     setPage(1)
   }
 
-  // Пометка «демо» в строке нужна, только когда в списке есть и настоящие записи:
-  // если демонстрационное всё, об этом говорит пометка страницы, а одинаковый
-  // значок в каждой строке — шум (07, раздел 27).
-  const mixedOrigin = rows.some((row) => row.isMock) && rows.some((row) => !row.isMock)
-
   const columns: Column<ProductListItemDto>[] = [
     {
       key: 'name',
@@ -134,7 +130,7 @@ function ProductsView() {
           <CellText strong title={row.name}>
             {row.name}
           </CellText>
-          {mixedOrigin && row.isMock && <Badge tone="mock">демо</Badge>}
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -195,7 +191,7 @@ function ProductsView() {
       <PageHeader
         title="IT-продукты"
         description="Продукты, которые передаются вузам: версии, навыки и связки."
-        meta={containsMockData ? <MockBadge /> : undefined}
+        meta={marks.section ? <MockBadge /> : undefined}
       />
 
       <Toolbar>
