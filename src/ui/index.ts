@@ -110,3 +110,4 @@ export {
   recommendationTargetHref,
 } from './lib/links'
 export { describeRelatedData, type RelatedFact } from './lib/related-data'
+export { startMorph } from './lib/morph'
