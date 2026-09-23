@@ -1254,7 +1254,13 @@ async function main(): Promise<void> {
     // совпадать: иначе одна программа покажет два разных числа.
     let compared = 0
     let differs = 0
-    for (const program of (programs.body.data ?? []).filter((item) => item.status === 'ACTIVE')) {
+    // Сравниваем только программы, попавшие в обе выдачи: рейтинг отдаёт первые
+    // сто по баллу, список — первые сто по алфавиту, и на базе больше сотни
+    // программ часть списка в рейтинг не попадает вовсе.
+    const comparable = (programs.body.data ?? []).filter(
+      (item) => item.status === 'ACTIVE' && scoreInRanking.has(item.id),
+    )
+    for (const program of comparable) {
       const card = await call<{ rating: { score: number | null } | null }>(
         'GET',
         `/api/programs/${program.id}`,
