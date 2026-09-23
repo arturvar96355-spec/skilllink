@@ -25,6 +25,12 @@ export interface PortalMaterialDto {
   isConfirmed: boolean
   confirmedAt: string | null
   stageStatus: StageStatus
+  /**
+   * Можно ли подтвердить сейчас: не подтверждено, связка открыта, этап 7
+   * не завершён и не отменён. Решает сервер — по тем же правилам, по которым
+   * примет или отклонит подтверждение.
+   */
+  canConfirm: boolean
 }
 
 export interface PortalProgramDto {

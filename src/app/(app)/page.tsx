@@ -35,6 +35,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  startMorph,
 } from '@/ui'
 import styles from './dashboard.module.css'
 
@@ -103,6 +104,15 @@ const ACTIVE_COOPERATIONS_PATH = `/api/cooperations${buildQuery({
 })}`
 
 /** Короткие подписи показателей рейтинга — для строки «из чего сложился балл». */
+/** Движение числа в Live Rail — по смыслу показателя (07, раздел 20). */
+const RAIL_MOTION: Record<string, RailNumber['motion']> = {
+  activeCooperations: 'count',
+  universitiesInWork: 'still',
+  stagesOnTimePercent: 'segments',
+  avgDaysToClasses: 'timeline',
+  operationsPerCooperation: 'still',
+}
+
 const FACTOR_SHORT: Record<string, string> = {
   applicationCount: 'заявки',
   studentCount: 'обучающиеся',
@@ -178,6 +188,7 @@ export default function DashboardPage() {
     isMock: metric.isMock ?? false,
     explanation: metric.explanation,
     secondary: metric.key === 'operationsPerCooperation',
+    motion: RAIL_MOTION[metric.key],
   }))
 
   const activeTotal = data?.metrics.find((metric) => metric.key === 'activeCooperations')?.value ?? null
@@ -249,8 +260,9 @@ export default function DashboardPage() {
                           className={styles.eventLink}
                           href={cooperationHref(row.cooperationId, row.stageId)}
                           title={`${row.universityName} — ${row.programName}\n${row.reason}`}
+                          onClick={(event) => startMorph(event.currentTarget, event)}
                         >
-                          <span className={styles.eventTitle}>
+                          <span className={styles.eventTitle} data-morph-title>
                             {row.universityShortName ?? row.universityName} — {row.programName}
                           </span>
                           {row.stageNumber !== null && (
@@ -341,10 +353,13 @@ export default function DashboardPage() {
                           className={styles.route}
                           href={cooperationHref(item.id)}
                           title={`${item.universityName} → ${item.programName} → ${item.productName ?? 'продукт не выбран'}`}
+                          onClick={(event) => startMorph(event.currentTarget, event)}
                         >
                           <span className={styles.routeUni}>{item.universityShortName ?? item.universityName}</span>
                           <span className={styles.routeLine} aria-hidden />
-                          <span className={styles.routeNode}>{item.programName}</span>
+                          <span className={styles.routeNode} data-morph-title>
+                            {item.programName}
+                          </span>
                           <span className={styles.routeLine} aria-hidden />
                           <span className={[styles.routeNode, item.productName ? '' : styles.routeMissing].filter(Boolean).join(' ')}>
                             {item.productName ?? 'продукт не выбран'}
@@ -382,13 +397,19 @@ export default function DashboardPage() {
                           .join(' · ') || 'показатели не заполнены'
                       return (
                         <li key={row.programId}>
-                          <Link className={styles.rank} href={programHref(row.programId)}>
+                          <Link
+                            className={styles.rank}
+                            href={programHref(row.programId)}
+                            onClick={(event) => startMorph(event.currentTarget, event)}
+                          >
                             <span className={styles.rankNo}>{String(index + 1).padStart(2, '0')}</span>
                             <span className={styles.rankBody}>
                               <span className={styles.rankUni} title={row.universityName}>
                                 {row.universityShortName ?? row.universityName}
                               </span>
-                              <span className={styles.rankProgram}>{row.programName}</span>
+                              <span className={styles.rankProgram} data-morph-title>
+                                {row.programName}
+                              </span>
                               <span className={styles.rankReason}>{reason}</span>
                             </span>
                             <span className={styles.rankLine} aria-hidden />

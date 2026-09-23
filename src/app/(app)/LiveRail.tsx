@@ -26,7 +26,18 @@ export interface RailNumber {
   explanation: string
   /** Второстепенный показатель — мельче, в конце строки. */
   secondary?: boolean
+  /**
+   * Своё движение у каждого числа (07, раздел 20): одинаковый счёт у всех
+   * превращал строку в шаблон. «count» — счёт и дорисовка линии связи,
+   * «segments» — заполнение делений до доли, «timeline» — метка на шкале года,
+   * «still» — без счёта: движение берёт на себя маршрут под числами.
+   */
+  motion?: 'count' | 'segments' | 'timeline' | 'still'
 }
+
+/** Длина шкалы метки «времени до занятий»: год. */
+const TIMELINE_DAYS = 365
+const SEGMENTS = 10
 
 /** Фазы конвейера — отрезками маршрута, по конфигурации этапов, а не по памяти. */
 const PHASES = WORKFLOW_STAGES.reduce<Array<{ phase: keyof typeof STAGE_PHASE_LABELS; from: number; to: number }>>(
@@ -173,7 +184,9 @@ export function LiveRail({
 }
 
 function RailValue({ number, order }: { number: RailNumber; order: number }) {
-  const animated = useCountUp(number.value, 900)
+  const motion = number.motion ?? 'count'
+  const counted = useCountUp(number.value, 900)
+  const animated = motion === 'count' ? counted : number.value
   const shown =
     animated === null
       ? null
@@ -195,6 +208,11 @@ function RailValue({ number, order }: { number: RailNumber; order: number }) {
             : formatNumber(shown)}
         {shown !== null && number.unit && <span className={styles.unit}>{number.unit}</span>}
       </span>
+      {/* Место под движение есть у каждого числа: иначе числа с полоской
+          вставали выше соседних. */}
+      <span className={styles.motion}>
+        {number.value !== null && <RailMotion motion={motion} value={number.value} />}
+      </span>
       <span className={styles.label}>{number.label}</span>
       {(number.note || number.isMock) && (
         <span className={styles.note}>
@@ -204,4 +222,31 @@ function RailValue({ number, order }: { number: RailNumber; order: number }) {
       )}
     </div>
   )
+}
+
+function RailMotion({ motion, value }: { motion: NonNullable<RailNumber['motion']>; value: number }) {
+  if (motion === 'count') return <span className={styles.linkLine} aria-hidden />
+  if (motion === 'segments') {
+    const filled = Math.round(Math.min(Math.max(value, 0), 100) / SEGMENTS)
+    return (
+      <span className={styles.segments} aria-hidden>
+        {Array.from({ length: SEGMENTS }, (_, index) => (
+          <span
+            key={index}
+            className={index < filled ? `${styles.segment} ${styles.segmentOn}` : styles.segment}
+            style={{ '--s': index } as CSSProperties}
+          />
+        ))}
+      </span>
+    )
+  }
+  if (motion === 'timeline') {
+    const at = Math.min(Math.max(value, 0) / TIMELINE_DAYS, 1) * 100
+    return (
+      <span className={styles.timeline} title="Шкала — год" aria-hidden>
+        <span className={styles.marker} style={{ '--at': `${at}%` } as CSSProperties} />
+      </span>
+    )
+  }
+  return null
 }

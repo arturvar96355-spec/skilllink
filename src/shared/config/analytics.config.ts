@@ -4,6 +4,8 @@
  * TODO: PM DECISION — утвердить веса рейтинга и пороги дефицита навыков.
  */
 
+import { PROGRAM_METRIC_LABELS } from '@/shared/contracts/labels'
+
 /**
  * Рейтинг образовательной программы считается ровно по трём показателям ТЗ (решение 7).
  * Востребованность навыков, skill gap и готовность вуза в рейтинг не входят —
@@ -17,11 +19,7 @@ export const PROGRAM_RATING_WEIGHTS = {
 
 export type ProgramRatingFactor = keyof typeof PROGRAM_RATING_WEIGHTS
 
-export const PROGRAM_RATING_LABELS: Record<ProgramRatingFactor, string> = {
-  applicationCount: 'Заявки на обучение',
-  studentCount: 'Количество обучающихся',
-  groupCount: 'Количество параллельных групп',
-}
+export const PROGRAM_RATING_LABELS: Record<ProgramRatingFactor, string> = PROGRAM_METRIC_LABELS
 
 /** Минимальная доля заполненных показателей, при которой рейтинг вообще считается. */
 export const RATING_MIN_FILLED_FACTORS = 1 // TEMP

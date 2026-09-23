@@ -7,6 +7,7 @@ import {
   RECOMMENDATION_PRIORITIES,
   RECOMMENDATION_PRIORITY_LABELS,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
+  RECOMMENDATION_STATUS_ACTIONS,
   RECOMMENDATION_STATUSES,
   RECOMMENDATION_STATUS_LABELS,
   RECOMMENDATION_TYPE_LABELS,
@@ -16,10 +17,8 @@ import {
   type RecommendationType,
 } from '@/shared/contracts'
 import {
-  Badge,
   Button,
   Card,
-  CardsSkeleton,
   Drawer,
   EmptyState,
   ErrorState,
@@ -27,10 +26,9 @@ import {
   Modal,
   PageHeader,
   Pagination,
-  PriorityBadge,
-  RecommendationStatusBadge,
   Section,
   Select,
+  TableSkeleton,
   Tabs,
   Textarea,
   Toolbar,
@@ -38,6 +36,7 @@ import {
   apiPatch,
   apiPost,
   buildQuery,
+  describeRelatedData,
   formatDate,
   recommendationTargetHref,
   useCurrentUser,
@@ -66,6 +65,11 @@ const NEXT_STATUSES: Record<RecommendationStatus, RecommendationStatus[]> = {
   ACCEPTED: ['DONE', 'DISMISSED'],
   DISMISSED: ['NEW'],
   DONE: [],
+}
+
+/** Сквозной номер строки на всех страницах списка: 01, 02 … 21. */
+function rowNumber(page: number, index: number): string {
+  return String((page - 1) * PAGE_SIZE + index + 1).padStart(2, '0')
 }
 
 /**
@@ -226,7 +230,7 @@ function RecommendationsContent() {
 
       <Section>
         {recommendations.isLoading ? (
-          <CardsSkeleton count={4} />
+          <TableSkeleton rows={5} columns={3} />
         ) : recommendations.error ? (
           <ErrorState error={recommendations.error} onRetry={recommendations.reload} />
         ) : rows.length === 0 ? (
@@ -250,53 +254,54 @@ function RecommendationsContent() {
           </Card>
         ) : (
           <>
-            <div className={styles.list}>
-              {rows.map((item) => (
-                <Card key={item.id}>
-                  <div className={styles.item}>
-                    <div className={styles.itemHead}>
-                      <div className={styles.titleBlock}>
-                        <span className={styles.title}>{item.title}</span>
-                        <span className={styles.description}>{item.description}</span>
-                      </div>
-                      <div className={styles.badges}>
-                        <PriorityBadge priority={item.priority} />
-                        <RecommendationStatusBadge status={item.status} />
-                        <Badge tone="info">{RECOMMENDATION_TYPE_LABELS[item.type as RecommendationType]}</Badge>
-                      </div>
-                    </div>
+            {/* Рекомендация — строка, а не карточка (07, раздел 11): номер, суть,
+                обоснование и действие читаются одной строкой ленты. */}
+            <ol className={styles.rows}>
+              {rows.map((item, index) => (
+                <li key={item.id} className={styles.row}>
+                  <span className={styles.index}>{rowNumber(recommendations.meta?.page ?? page, index)}</span>
 
-                    <p className={styles.justification}>
-                      <Icon name="info" size={18} className={styles.justificationIcon} />
-                      <span>{item.justification}</span>
+                  <div className={styles.body}>
+                    <span className={styles.kicker}>
+                      {RECOMMENDATION_TYPE_LABELS[item.type as RecommendationType]}
+                      <span className={styles.priority} data-priority={item.priority}>
+                        {RECOMMENDATION_PRIORITY_LABELS[item.priority]} приоритет
+                      </span>
+                    </span>
+                    <a className={styles.title} href={`/recommendations?recommendation=${item.id}`}>
+                      {item.title}
+                    </a>
+                    <p className={styles.description}>{item.description}</p>
+
+                    {/* Обоснование показывается всегда: без него рекомендация — «машина так решила». */}
+                    <p className={styles.why}>
+                      <span className={styles.whyLabel}>Почему</span>
+                      {item.justification}
                     </p>
 
                     {item.resolutionComment && (
                       <p className={styles.resolution}>Комментарий: {item.resolutionComment}</p>
                     )}
 
-                    <div className={styles.footerRow}>
+                    <div className={styles.foot}>
                       <a className={styles.target} href={recommendationTargetHref(item.target)}>
-                        <Icon name="arrowRight" size={16} />
                         {item.target.label}
+                        <Icon name="arrowRight" size={16} />
                       </a>
                       <span className={styles.meta}>
-                        Уверенность: {CONFIDENCE_LABELS[item.confidence]} · правило {item.ruleKey} ·{' '}
+                        уверенность {CONFIDENCE_LABELS[item.confidence].toLowerCase()} · {item.ruleKey} ·{' '}
                         {formatDate(item.createdAt)}
                       </span>
                     </div>
+                  </div>
 
-                    <div className={styles.actions}>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        icon="info"
-                        href={`/recommendations?recommendation=${item.id}`}
-                      >
-                        Подробности
-                      </Button>
-                      {user.permissions.canWrite &&
-                        NEXT_STATUSES[item.status].map((next) => (
+                  <div className={styles.side}>
+                    <span className={styles.status} data-status={item.status}>
+                      {RECOMMENDATION_STATUS_LABELS[item.status]}
+                    </span>
+                    {user.permissions.canWrite && NEXT_STATUSES[item.status].length > 0 && (
+                      <div className={styles.actions}>
+                        {NEXT_STATUSES[item.status].map((next) => (
                           <Button
                             key={next}
                             variant={next === 'DISMISSED' ? 'ghost' : 'secondary'}
@@ -304,14 +309,15 @@ function RecommendationsContent() {
                             onClick={() => changeStatus(item, next)}
                             isLoading={update.isPending}
                           >
-                            {RECOMMENDATION_STATUS_LABELS[next]}
+                            {RECOMMENDATION_STATUS_ACTIONS[next]}
                           </Button>
                         ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
-                </Card>
+                </li>
               ))}
-            </div>
+            </ol>
 
             <Pagination
               page={recommendations.meta?.page ?? page}
@@ -327,11 +333,15 @@ function RecommendationsContent() {
       {opened && (
         <Drawer isOpen onClose={closeDrawer} title={opened.title} description={opened.description}>
           <div className={styles.detail}>
-            <div className={styles.badges}>
-              <PriorityBadge priority={opened.priority} />
-              <RecommendationStatusBadge status={opened.status} />
-              <Badge tone="info">{RECOMMENDATION_TYPE_LABELS[opened.type as RecommendationType]}</Badge>
-            </div>
+            <span className={styles.kicker}>
+              {RECOMMENDATION_TYPE_LABELS[opened.type as RecommendationType]}
+              <span className={styles.priority} data-priority={opened.priority}>
+                {RECOMMENDATION_PRIORITY_LABELS[opened.priority]} приоритет
+              </span>
+              <span className={styles.status} data-status={opened.status}>
+                {RECOMMENDATION_STATUS_LABELS[opened.status]}
+              </span>
+            </span>
 
             <div className={styles.block}>
               <span className={styles.blockLabel}>Почему система это предлагает</span>
@@ -341,16 +351,27 @@ function RecommendationsContent() {
             <div className={styles.block}>
               <span className={styles.blockLabel}>К чему относится</span>
               <a className={styles.target} href={recommendationTargetHref(opened.target)}>
-                <Icon name="arrowRight" size={16} />
                 {opened.target.label}
+                <Icon name="arrowRight" size={16} />
               </a>
             </div>
 
             {opened.relatedData && (
               <div className={styles.block}>
                 <span className={styles.blockLabel}>Данные, на которых построено предложение</span>
-                {/* Сырые данные правила: их видно целиком, чтобы вывод можно было проверить. */}
-                <pre className={styles.data}>{JSON.stringify(opened.relatedData, null, 2)}</pre>
+                <dl className={styles.facts}>
+                  {describeRelatedData(opened.relatedData).map((fact) => (
+                    <div key={fact.label} className={styles.fact}>
+                      <dt>{fact.label}</dt>
+                      <dd>{fact.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {/* Исходник правила остаётся под рукой: по нему вывод проверяется дословно. */}
+                <details className={styles.source}>
+                  <summary>Исходные данные правила</summary>
+                  <pre className={styles.data}>{JSON.stringify(opened.relatedData, null, 2)}</pre>
+                </details>
               </div>
             )}
 
@@ -417,7 +438,7 @@ function RecommendationsContent() {
  */
 export default function RecommendationsPage() {
   return (
-    <Suspense fallback={<CardsSkeleton count={4} />}>
+    <Suspense fallback={<TableSkeleton rows={5} columns={3} />}>
       <RecommendationsContent />
     </Suspense>
   )

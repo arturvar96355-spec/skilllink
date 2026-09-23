@@ -11,7 +11,6 @@ import {
 import {
   Badge,
   Button,
-  Card,
   DeadlineBadge,
   Drawer,
   ErrorState,
@@ -196,7 +195,9 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
   const requiredLeft = stage.requiredTasksTotal - stage.requiredTasksDone
 
   return (
-    <Card padding="md" isSelected={isHighlighted}>
+    // Строка ленты этапов, а не отдельная карточка: четырнадцать одинаковых
+    // скруглённых прямоугольников подряд — тот самый шаблон, от которого уходим (07, раздел 40).
+    <div className={isHighlighted ? `${styles.stageRow} ${styles.stageRowSelected}` : styles.stageRow}>
       <div className={styles.stage} ref={cardRef}>
         <div
           className={styles.stageHead}
@@ -420,7 +421,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
       {isHistoryOpen && (
         <StageHistoryDrawer stageId={stage.id} stageTitle={stage.title} onClose={() => setIsHistoryOpen(false)} />
       )}
-    </Card>
+    </div>
   )
 }
 

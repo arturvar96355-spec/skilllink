@@ -22,6 +22,7 @@ import {
   Input,
   MetricCell,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Pagination,
@@ -110,7 +111,7 @@ export default function ProgramsPage() {
   const rows = programs.data ?? []
   const meta = programs.meta
   const hasFilters = query !== '' || level !== '' || status !== '' || universityId !== ''
-  const containsMockData = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   function resetFilters() {
     setSearch('')
@@ -119,10 +120,6 @@ export default function ProgramsPage() {
     setUniversityId('')
     setPage(1)
   }
-
-  // Пометка «демо» в строке — только если в списке есть и настоящие записи
-  // (об остальном говорит пометка страницы): одинаковый значок в каждой строке — шум.
-  const mixedOrigin = rows.some((row) => row.isMock) && rows.some((row) => !row.isMock)
 
   // Каждая ячейка — в одну строку; вуз — краткое название, полное в подсказке.
   const columns: Column<ProgramListItemDto>[] = [
@@ -135,7 +132,7 @@ export default function ProgramsPage() {
           <CellText strong title={row.name}>
             {row.name}
           </CellText>
-          {mixedOrigin && row.isMock && <Badge tone="mock">демо</Badge>}
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -219,7 +216,7 @@ export default function ProgramsPage() {
       <PageHeader
         title="Программы"
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
-        meta={containsMockData ? <MockBadge /> : undefined}
+        meta={marks.section ? <MockBadge /> : undefined}
         actions={
           <>
             {/* Если выбран вуз, выгрузка ограничивается им: этот параметр

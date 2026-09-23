@@ -10,6 +10,7 @@ import {
   CardsSkeleton,
   ErrorState,
   KpiCard,
+  KpiRow,
   MockBadge,
   NO_DATA,
   PageHeader,
@@ -106,23 +107,20 @@ export default function ProfilePage() {
           <ErrorState error={stats.error} onRetry={stats.reload} />
         ) : data ? (
           <>
-            <div className={styles.kpis}>
+            <KpiRow>
               <KpiCard
                 label="Активные связки"
                 value={data.activeCooperations}
-                icon="cooperation"
                 explanation="Связки в статусе «Черновик» или «В работе», где вы ответственный."
               />
               <KpiCard
                 label="Вузы в работе"
                 value={data.universitiesInWork}
-                icon="university"
                 explanation="Сколько разных вузов среди ваших связок."
               />
               <KpiCard
                 label="Программы под управлением"
                 value={data.programsManaged}
-                icon="program"
                 explanation="Сколько разных образовательных программ среди ваших связок."
               />
               <KpiCard
@@ -130,7 +128,6 @@ export default function ProfilePage() {
                 value={data.stagesOnTimePercent}
                 unit="%"
                 fractionDigits={1}
-                icon="check"
                 explanation="Доля ваших завершённых этапов, закрытых не позже срока."
                 note={
                   data.stagesCompletedWithDeadline > 0
@@ -145,10 +142,9 @@ export default function ProfilePage() {
               <KpiCard
                 label="Просроченные этапы"
                 value={data.overdueStages}
-                icon="alert"
                 explanation="Ваши этапы, у которых срок прошёл, а этап не закрыт."
               />
-            </div>
+            </KpiRow>
             <p className={styles.generated}>Обновлено: {formatDateTime(data.generatedAt)}</p>
           </>
         ) : null}

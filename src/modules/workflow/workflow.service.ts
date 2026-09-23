@@ -294,6 +294,52 @@ export async function updateStage(
   return toStageDto(fresh, now, { hideInternalNotes: !canSeeInternalNotes(user) })
 }
 
+/**
+ * Отметить пункт чек-листа — одна дорога для сотрудника ИТ-Школы и для
+ * представителя вуза, подтверждающего получение материалов. Раньше у кабинета
+ * вуза была своя запись в обход этих правил: он отмечал пункты завершённого
+ * этапа и не вставал в очередь со сменой статусов. Проверки прав и видимости
+ * остаются у вызывающего; здесь — то, что должно быть одинаковым у всех.
+ *
+ * Возвращает, изменилось ли что-то: повторная отметка — не событие.
+ */
+export async function setTaskDone(
+  target: { taskId: string; stageId: string; cooperationId: string },
+  isDone: boolean,
+  userId: string,
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    // В очереди со сменой статусов этой связки (lockCooperation): иначе пункт
+    // снимался в тот же миг, когда этап завершали, и завершённый этап оставался
+    // с незакрытым обязательным пунктом.
+    await repo.lockCooperation(tx, target.cooperationId)
+    // Повторная отметка уже отмеченного пункта ничего не меняет. Раньше она
+    // переписывала, кто и когда его отметил: подтверждение получения материалов
+    // представителем вуза переходило к менеджеру, нажавшему на устаревшей странице.
+    // Проверяется до правила закрытого этапа: повтор — не изменение, и повторное
+    // подтверждение уже подтверждённого в завершённом этапе остаётся безвредным.
+    const fresh = await tx.task.findUnique({ where: { id: target.taskId }, select: { isDone: true } })
+    if (!fresh || fresh.isDone === isDone) return false
+
+    const current = await tx.workflowStage.findUnique({
+      where: { id: target.stageId },
+      select: { status: true, stageNumber: true },
+    })
+    if (!current) throw notFound('Этап не найден')
+    assertTasksEditable(current.status as StageStatus, current.stageNumber)
+
+    await tx.task.update({
+      where: { id: target.taskId },
+      data: {
+        isDone,
+        doneAt: isDone ? new Date() : null,
+        doneById: isDone ? userId : null,
+      },
+    })
+    return true
+  })
+}
+
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */
 export async function toggleTask(
   user: CurrentUser,
@@ -308,34 +354,11 @@ export async function toggleTask(
   assertCooperationOpen(taskCooperation.status)
   assertTasksEditable(task.stage.status, task.stage.stageNumber)
 
-  const changed = await prisma.$transaction(async (tx) => {
-    // В очереди со сменой статусов этой связки (lockCooperation): иначе пункт
-    // снимался в тот же миг, когда этап завершали, и завершённый этап оставался
-    // с незакрытым обязательным пунктом.
-    await repo.lockCooperation(tx, task.stage.cooperationId)
-    const current = await tx.workflowStage.findUnique({
-      where: { id: task.stageId },
-      select: { status: true, stageNumber: true },
-    })
-    if (!current) throw notFound('Этап не найден')
-    assertTasksEditable(current.status as StageStatus, current.stageNumber)
-
-    // Повторная отметка уже отмеченного пункта ничего не меняет. Раньше она
-    // переписывала, кто и когда его отметил: подтверждение получения материалов
-    // представителем вуза переходило к менеджеру, нажавшему на устаревшей странице.
-    const fresh = await tx.task.findUnique({ where: { id: taskId }, select: { isDone: true } })
-    if (!fresh || fresh.isDone === input.isDone) return false
-
-    await tx.task.update({
-      where: { id: taskId },
-      data: {
-        isDone: input.isDone,
-        doneAt: input.isDone ? new Date() : null,
-        doneById: input.isDone ? user.id : null,
-      },
-    })
-    return true
-  })
+  const changed = await setTaskDone(
+    { taskId, stageId: task.stageId, cooperationId: task.stage.cooperationId },
+    input.isDone,
+    user.id,
+  )
 
   if (changed) await writeAudit({
     userId: user.id,
