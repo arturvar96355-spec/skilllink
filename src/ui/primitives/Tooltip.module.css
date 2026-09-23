@@ -7,13 +7,10 @@
 }
 
 .bubble {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
+  position: fixed;
   z-index: var(--z-overlay);
   min-width: 160px;
-  max-width: 280px;
+  max-width: min(280px, calc(100vw - 16px));
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-input);
   background: var(--surface-overlay);
@@ -27,17 +24,21 @@
   font-weight: 400;
   text-align: left;
   white-space: normal;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity var(--motion-micro) var(--ease-out),
-    transform var(--motion-micro) var(--ease-out);
+  animation: bubbleIn var(--motion-micro) var(--ease-out) both;
 }
 
-/* Показывается и при наведении, и при фокусе с клавиатуры. */
-.wrapper:hover .bubble,
-.wrapper:focus-within .bubble {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: none;
+  }
 }
 
 .trigger {
