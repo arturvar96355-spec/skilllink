@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton } from '../primitives/IconButton'
 import { useEscape } from '../hooks/dom'
+import { useFocusTrap } from '../hooks/focus-trap'
 import styles from './Overlay.module.css'
 
 export interface DrawerProps {
@@ -21,6 +22,8 @@ export interface DrawerProps {
  */
 export function Drawer({ isOpen, onClose, title, description, footer, children }: DrawerProps) {
   useEscape(onClose, isOpen)
+  const dialogRef = useRef<HTMLElement>(null)
+  useFocusTrap(dialogRef, isOpen, 'container')
 
   useEffect(() => {
     if (!isOpen) return
@@ -40,13 +43,20 @@ export function Drawer({ isOpen, onClose, title, description, footer, children }
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <aside className={styles.drawer} role="dialog" aria-modal="true" aria-label={title}>
+      <aside
+        className={styles.drawer}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={dialogRef}
+        tabIndex={-1}
+      >
         <div className={styles.head}>
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>{title}</h2>
             {description && <p className={styles.description}>{description}</p>}
           </div>
-          <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} />
+          <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} data-dialog-close />
         </div>
         <div className={styles.body}>{children}</div>
         {footer && <div className={styles.footer}>{footer}</div>}
