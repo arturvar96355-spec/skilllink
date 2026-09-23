@@ -1,10 +1,21 @@
-/* Экран входа. Первое, что видит пользователь, — поэтому появление плавное (раздел 5 движения). */
+/*
+ * Экран входа (07, раздел 17) — единственное место, где движения больше:
+ * холст проявляется, знак, схема связи дорисовывается, панель выходит справа,
+ * поля — по очереди. Поле ввода готово раньше, чем закончится декоративная часть.
+ */
 
 .screen {
   min-height: 100vh;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   align-items: stretch;
+  animation: canvasIn 250ms var(--ease-out) both;
+}
+
+@keyframes canvasIn {
+  from {
+    opacity: 0;
+  }
 }
 
 @media (max-width: 960px) {
@@ -23,21 +34,11 @@
   overflow: hidden;
 }
 
-/* Мягкие пятна фона: заметны, но читать не мешают. */
-.brandSide::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.08), transparent 42%),
-    radial-gradient(circle at 70% 80%, rgba(142, 108, 255, 0.12), transparent 46%);
-  pointer-events: none;
-}
-
 .brandRow {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  animation: riseIn 600ms var(--ease-out) both;
+  animation: riseIn 380ms var(--ease-out) 80ms both;
 }
 
 .brandName {
@@ -70,34 +71,74 @@
   animation: riseIn 600ms var(--ease-out) 160ms both;
 }
 
-.points {
+/* Схема связи: вуз ── программа ── продукт и маршрут из четырнадцати этапов. */
+.map {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  animation: riseIn 600ms var(--ease-out) 240ms both;
+  gap: var(--space-4);
+  max-width: 520px;
+  padding-top: var(--space-4);
 }
 
-.point {
+.mapChain {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-3);
-  font-size: var(--text-body-sm-size);
-  color: var(--text-secondary);
-  max-width: 44ch;
 }
 
-.pointIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
+.mapNode {
   flex: none;
-  border-radius: 10px;
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-accent-soft);
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  animation: riseIn 320ms var(--ease-out) both;
+  animation-delay: calc(300ms + var(--n, 0) * 160ms);
+}
+
+.mapLink {
+  flex: 1 1 0;
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+  animation: drawIn 380ms var(--ease-out) both;
+  animation-delay: calc(380ms + var(--n, 0) * 160ms);
+}
+
+.mapRail {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mapTick {
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+  transform-origin: left center;
+  animation: drawIn 260ms var(--ease-out) both;
+  animation-delay: calc(700ms + var(--t, 0) * 28ms);
+}
+
+.mapTickDone {
+  background: var(--text-secondary);
+}
+
+/* Текущий этап — короткая фирменная линия и один импульс. */
+.mapTickNow {
+  background: var(--gradient-brand);
+}
+
+.mapCaption {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  animation: riseIn 320ms var(--ease-out) 1100ms both;
+}
+
+@keyframes drawIn {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 .formSide {
@@ -110,7 +151,7 @@
 .panel {
   width: min(420px, 100%);
   padding: var(--space-8);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-floating);
   background: rgba(20, 20, 27, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -119,7 +160,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  animation: panelIn 560ms var(--ease-out) both;
+  animation: panelIn 520ms var(--ease-out) 180ms both;
 }
 
 .panelHead {
@@ -147,37 +188,64 @@
   gap: var(--space-4);
 }
 
-/* Поля появляются одно за другим уже после панели (раздел 5.2 документа
-   о движении): сначала видно, куда смотреть, потом — что заполнять. */
+/* Поля — одно за другим, с шагом около 50 мс, сразу за панелью: поле почты
+   готово раньше, чем дорисуется схема слева. */
 .form > * {
-  animation: riseIn 420ms var(--ease-out) both;
+  animation: riseIn 360ms var(--ease-out) both;
 }
 
 .form > *:nth-child(1) {
-  animation-delay: 220ms;
+  animation-delay: 320ms;
 }
 .form > *:nth-child(2) {
-  animation-delay: 300ms;
+  animation-delay: 370ms;
 }
 .form > *:nth-child(n + 3) {
-  animation-delay: 380ms;
+  animation-delay: 420ms;
 }
 
 /*
- * Уход с экрана входа.
- *
- * Вместо мгновенной подмены страницы поверхность входа растворяется, и только
- * потом открывается приложение (раздел 6 документа о движении). Ощущение
- * перехода, а не перезагрузки.
+ * Вход превращается в приложение (07, раздел 18): содержимое формы гаснет,
+ * панель раскрывается и растворяется в холсте, маршрут слева тянется вправо —
+ * в рабочее пространство. Главная продолжает сцену своим появлением.
  */
-.leaving {
-  animation: leave 320ms var(--ease-in) both;
+.leaving > * {
+  animation: fadeOut 140ms var(--ease-out) both;
 }
 
-@keyframes leave {
+.leaving {
+  animation: expand 420ms var(--ease-in-out) both;
+}
+
+@keyframes fadeOut {
   to {
     opacity: 0;
-    transform: translateY(-8px) scale(0.99);
+  }
+}
+
+@keyframes expand {
+  to {
+    opacity: 0;
+    transform: scale(1.18);
+    border-radius: var(--radius-panel);
+    background: var(--canvas);
+  }
+}
+
+:global(body[data-auth-leaving]) .map {
+  animation: mapCarry 420ms var(--ease-in-out) both;
+}
+
+:global(body[data-auth-leaving]) .brandRow,
+:global(body[data-auth-leaving]) .headline,
+:global(body[data-auth-leaving]) .lead {
+  animation: fadeOut 260ms var(--ease-out) both;
+}
+
+@keyframes mapCarry {
+  to {
+    transform: translateX(28vw);
+    opacity: 0;
   }
 }
 
@@ -221,9 +289,10 @@
   }
 }
 
+/* Панель выходит справа (раздел 17). */
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.97);
+    transform: translateX(28px);
   }
 }

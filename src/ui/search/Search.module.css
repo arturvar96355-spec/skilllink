@@ -63,14 +63,6 @@
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-floating);
   overflow: hidden;
-  animation: spotlightIn var(--motion-overlay) var(--ease-out);
-}
-
-@keyframes spotlightIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
 }
 
 /* Закрытие — та же анимация в обратную сторону и чуть быстрее. */

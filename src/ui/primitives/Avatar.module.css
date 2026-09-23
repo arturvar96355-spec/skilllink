@@ -50,15 +50,10 @@
   border-radius: 22px;
 }
 
-/* Свечение появляется при наведении, постоянной анимации нет. */
-.avatar:hover {
-  border-color: rgba(142, 108, 255, 0.4);
-  box-shadow: var(--glow-soft);
-}
-
-/* Контур объекта: логотип вуза или аббревиатура программы получают неоновую рамку. */
+/* Аббревиатура сущности — компактная и спокойная (07, раздел 29): без неоновой
+   рамки и свечения, узнаётся по буквам, а не по обводке. */
 .entity {
-  background: var(--surface-icon);
-  border-color: var(--border-accent);
-  color: var(--text-accent-pale);
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text-secondary);
 }

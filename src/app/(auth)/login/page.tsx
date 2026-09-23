@@ -2,8 +2,9 @@
 
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Suspense, useState, type FormEvent } from 'react'
+import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
+import { ARRIVAL_KEY } from '@/ui/layout/arrival'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
@@ -76,11 +77,22 @@ function LoginForm() {
     // но только в пределах сайта: `from` задаётся ссылкой.
     const destination = safeReturnPath(params.get('from'))
     setIsLeaving(true)
-    // Длительность совпадает с анимацией ухода в login.module.css.
+    // Экран входа превращается в приложение (07, раздел 18): форма гаснет,
+    // панель раскрывается в холст, маршрут слева уходит вправо. Длительность
+    // совпадает с анимацией в login.module.css; главная продолжает сцену
+    // своим появлением. Дольше полусекунды человек не ждёт.
+    document.body.dataset.authLeaving = 'true'
+    // Приложение само допишет сцену: меню проявится от левого края (AppShell).
+    try {
+      window.sessionStorage.setItem(ARRIVAL_KEY, '1')
+    } catch {
+      // Без хранилища — просто без продолжения сцены.
+    }
     window.setTimeout(() => {
       router.replace(destination)
       router.refresh()
-    }, 300)
+      delete document.body.dataset.authLeaving
+    }, 420)
   }
 
   return (
@@ -169,25 +181,32 @@ export default function LoginPage() {
           работы, честная аналитика и рекомендации с обоснованием.
         </p>
 
-        <div className={styles.points}>
-          <p className={styles.point}>
-            <span className={styles.pointIcon}>
-              <Icon name="cooperation" size={16} />
-            </span>
-            Все этапы сотрудничества с историей изменений и ответственными.
-          </p>
-          <p className={styles.point}>
-            <span className={styles.pointIcon}>
-              <Icon name="analytics" size={16} />
-            </span>
-            Рейтинг программ, который объясняет, из чего он сложился.
-          </p>
-          <p className={styles.point}>
-            <span className={styles.pointIcon}>
-              <Icon name="alert" size={16} />
-            </span>
-            Система не даёт закрыть этап, работа по которому не сделана.
-          </p>
+        {/*
+          Слева — не абстрактный фон, а сама система связей (07, раздел 17):
+          вуз, программа и продукт в одной связке и маршрут из четырнадцати
+          этапов под ней. Линии дорисовываются при появлении, а после входа
+          маршрут продолжается вправо — в рабочее пространство.
+        */}
+        <div className={styles.map} aria-hidden="true">
+          <div className={styles.mapChain}>
+            <span className={styles.mapNode} style={{ '--n': 0 } as CSSProperties}>Вуз</span>
+            <span className={styles.mapLink} style={{ '--n': 0 } as CSSProperties} />
+            <span className={styles.mapNode} style={{ '--n': 1 } as CSSProperties}>Программа</span>
+            <span className={styles.mapLink} style={{ '--n': 1 } as CSSProperties} />
+            <span className={styles.mapNode} style={{ '--n': 2 } as CSSProperties}>IT-продукт</span>
+          </div>
+          <div className={styles.mapRail}>
+            {Array.from({ length: 14 }, (_, index) => (
+              <span
+                key={index}
+                className={[styles.mapTick, index < 5 ? styles.mapTickDone : '', index === 5 ? styles.mapTickNow : '']
+                  .filter(Boolean)
+                  .join(' ')}
+                style={{ '--t': index } as CSSProperties}
+              />
+            ))}
+          </div>
+          <span className={styles.mapCaption}>маршрут связки — четырнадцать этапов с контрольными точками</span>
         </div>
       </section>
 

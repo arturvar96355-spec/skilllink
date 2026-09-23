@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
+import { landMorph } from '../lib/morph'
 import styles from './Page.module.css'
 
 /**
@@ -55,13 +56,22 @@ export interface PageHeaderProps {
 }
 
 export function PageHeader({ title, description, breadcrumbs, meta, actions }: PageHeaderProps) {
+  // Заголовок — место посадки перехода из реестра (lib/morph): название строки,
+  // по которой щёлкнули, переезжает сюда, а не исчезает вместе с реестром.
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useLayoutEffect(() => {
+    landMorph(titleRef.current)
+  }, [])
+
   return (
     <div className={styles.section}>
       {breadcrumbs && breadcrumbs.length > 0 && <Breadcrumbs items={breadcrumbs} />}
       <div className={styles.pageHeader}>
         <div className={styles.titleBlock}>
           <div className={styles.titleRow}>
-            <h1 className={styles.title}>{title}</h1>
+            <h1 ref={titleRef} className={styles.title}>
+              {title}
+            </h1>
             {meta}
           </div>
           {description && <p className={styles.description}>{description}</p>}

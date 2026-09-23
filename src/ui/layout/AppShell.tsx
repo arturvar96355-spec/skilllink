@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import type { CurrentUserDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
@@ -14,6 +14,7 @@ import { Footer } from './Footer'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { navigationFor } from './navigation'
+import { takeArrival } from './arrival'
 import styles from './Shell.module.css'
 
 /**
@@ -25,6 +26,11 @@ import styles from './Shell.module.css'
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  // Первое открытие после входа: меню и шапка дописывают сцену входа (07, раздел 18).
+  const [arrived, setArrived] = useState(false)
+  useEffect(() => {
+    if (takeArrival()) setArrived(true)
+  }, [])
   const pathname = usePathname()
   const me = useResource<CurrentUserDto>('/api/me')
   const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
@@ -59,6 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <CurrentUserProvider user={me.data as CurrentUserDto}>
+      <div className={arrived ? styles.arrival : undefined}>
       <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className={styles.shell}>
         <Header groups={groups} onMenuClick={() => setIsMenuOpen(true)} />
@@ -75,6 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </main>
         <Footer />
+      </div>
       </div>
       <GlobalSearch />
     </CurrentUserProvider>

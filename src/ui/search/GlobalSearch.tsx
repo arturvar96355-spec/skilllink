@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SearchEntityType, SearchItemDto, SearchResultDto } from '@/shared/contracts'
 import { Icon, type IconName } from '../primitives/Icon'
 import { Skeleton } from '../primitives/Skeleton'
@@ -49,6 +49,7 @@ export function GlobalSearch() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [position, setPosition] = useState<Position | null>(null)
   const windowRef = useRef<HTMLDivElement | null>(null)
+  const fabRef = useRef<HTMLButtonElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragOffset = useRef<Position | null>(null)
 
@@ -78,6 +79,47 @@ export function GlobalSearch() {
     document.addEventListener('keydown', handle)
     return () => document.removeEventListener('keydown', handle)
   }, [toggle])
+
+  /*
+   * Кнопка перетекает в окно (07, раздел 24): окно стартует с формы и места
+   * кнопки — капсулой в углу — и разворачивается в своё положение, а содержимое
+   * проявляется, когда форма уже почти готова. Так видно, откуда окно открылось.
+   */
+  useLayoutEffect(() => {
+    if (!isOpen) return
+    const node = windowRef.current
+    const fab = fabRef.current
+    if (!node || !fab || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const from = fab.getBoundingClientRect()
+    const to = node.getBoundingClientRect()
+    if (to.width === 0 || to.height === 0) return
+    const base = node.style.transform || 'none'
+    const origin = node.style.transformOrigin
+    node.style.transformOrigin = '0 0'
+    const morph = node.animate(
+      [
+        {
+          transform: `${base === 'none' ? '' : base} translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`,
+          borderRadius: '999px',
+          opacity: 0.6,
+        },
+        { transform: base, borderRadius: getComputedStyle(node).borderRadius, opacity: 1 },
+      ],
+      { duration: 460, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+    )
+    for (const child of Array.from(node.children)) {
+      child.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 220,
+        delay: 200,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'backwards',
+      })
+    }
+    const restore = () => {
+      node.style.transformOrigin = origin
+    }
+    morph.finished.then(restore, restore)
+  }, [isOpen])
 
   useEffect(() => {
     if (isOpen) {
@@ -172,6 +214,7 @@ export function GlobalSearch() {
   return (
     <>
       <button
+        ref={fabRef}
         type="button"
         className={styles.fab}
         onClick={toggle}

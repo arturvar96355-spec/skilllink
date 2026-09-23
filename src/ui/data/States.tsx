@@ -16,18 +16,20 @@ import styles from './States.module.css'
  */
 
 export interface EmptyStateProps {
+  /**
+   * Не рисуется: значок в скруглённом квадрате над «Ничего нет» — декор,
+   * который ничего не сообщает (07, раздел 5). Пустое состояние говорит
+   * текстом. Параметр оставлен, чтобы не трогать все вызовы разом.
+   */
   icon?: IconName
   title: string
   description?: string
   action?: ReactNode
 }
 
-export function EmptyState({ icon = 'search', title, description, action }: EmptyStateProps) {
+export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
     <div className={styles.block}>
-      <span className={styles.icon}>
-        <Icon name={icon} size={24} />
-      </span>
       <p className={styles.title}>{title}</p>
       {description && <p className={styles.description}>{description}</p>}
       {action && <div className={styles.actions}>{action}</div>}
