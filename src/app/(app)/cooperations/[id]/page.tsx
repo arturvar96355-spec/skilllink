@@ -49,6 +49,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { CooperationChain } from './CooperationChain'
+import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
 import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
@@ -68,6 +69,7 @@ function CooperationContent() {
   const toast = useToast()
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
+  const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
@@ -333,6 +335,14 @@ function CooperationContent() {
         </Card>
       )}
 
+      {tab === 'meetings' && user.permissions.canWrite && (
+        <div className={styles.tabActions}>
+          <Button icon="plus" variant="secondary" onClick={() => setIsMeetingOpen(true)}>
+            Записать встречу
+          </Button>
+        </div>
+      )}
+
       {tab === 'meetings' && (
         <Card>
           {meetings.isLoading ? (
@@ -366,6 +376,16 @@ function CooperationContent() {
             </div>
           )}
         </Card>
+      )}
+
+      {isMeetingOpen && (
+        <CreateMeetingModal
+          cooperationId={params.id}
+          onClose={(created) => {
+            setIsMeetingOpen(false)
+            if (created) meetings.reload()
+          }}
+        />
       )}
 
       {tab === 'recommendations' && (
