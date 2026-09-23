@@ -242,10 +242,21 @@ function CooperationContent() {
         <CooperationChain
           universityId={data.universityId}
           universityName={data.universityName}
+          universityShortName={data.universityShortName}
           programId={data.programId}
           programName={data.programName}
           productId={data.productId}
           productName={data.productName}
+          stage={
+            data.currentStage
+              ? {
+                  number: data.currentStage.stageNumber,
+                  title: data.currentStage.title,
+                  isProblem: data.currentStage.isOverdue || data.currentStage.status === 'BLOCKED',
+                  total: data.stages.length,
+                }
+              : null
+          }
         />
       </Card>
 
