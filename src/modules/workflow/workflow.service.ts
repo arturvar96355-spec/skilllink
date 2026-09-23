@@ -20,9 +20,12 @@ import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
+  assertChecklistReady,
   assertControlPointReady,
   assertStageFieldsComplete,
   assertTasksEditable,
+  findBlockingStages,
+  type PriorStageState,
   assertTransition,
   isControlPoint,
   isAutoManaged,
@@ -327,6 +330,17 @@ export async function setTaskDone(
     })
     if (!current) throw notFound('Этап не найден')
     assertTasksEditable(current.status as StageStatus, current.stageNumber)
+    // Пункт контрольной точки не отмечается, пока не закрыты предыдущие этапы
+    // (решение 49): отметка — такое же утверждение о сделанной работе, как начало
+    // этапа. Проверка здесь, под блокировкой связки, — её не обойти ни из кабинета
+    // вуза, ни одновременным переоткрытием предыдущего этапа. Снять отметку можно всегда.
+    if (isDone && isControlPoint(current.stageNumber)) {
+      assertChecklistReady(
+        current.stageNumber,
+        isDone,
+        await repo.findPriorStages(target.cooperationId, current.stageNumber, tx),
+      )
+    }
 
     await tx.task.update({
       where: { id: target.taskId },
@@ -338,6 +352,18 @@ export async function setTaskDone(
     })
     return true
   })
+}
+
+/**
+ * Незакрытые этапы, из-за которых пункты контрольной точки пока не отмечаются.
+ * Пусто — отмечать можно.
+ */
+export async function checklistBlockers(stage: {
+  cooperationId: string
+  stageNumber: number
+}): Promise<PriorStageState[]> {
+  if (!isControlPoint(stage.stageNumber)) return []
+  return findBlockingStages(await repo.findPriorStages(stage.cooperationId, stage.stageNumber))
 }
 
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */
