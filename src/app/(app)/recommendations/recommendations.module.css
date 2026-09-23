@@ -1,38 +1,101 @@
-/* Лента рекомендаций (раздел 23 шаблона страниц). */
+/*
+ * Лента рекомендаций (07, разделы 11 и 26): строки на одной поверхности,
+ * разделённые тонкой линией. Ни рамок у каждой, ни трёх значков подряд —
+ * тип и приоритет читаются подписью над заголовком, статус — словом справа.
+ */
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2) 0;
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
 }
 
-.item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
+.row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  transition: background var(--motion-fast) var(--ease-out);
 }
 
-.itemHead {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
+.row + .row {
+  border-top: 1px solid var(--line-subtle);
 }
 
-.titleBlock {
+/* Наведение: лёгкий фон и сдвиг на 4px, как у строк таблиц. */
+.row:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.row > * {
+  transition: transform var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
+}
+
+.row:hover > * {
+  transform: translateX(4px);
+}
+
+/* Номер рекомендации — тихий, при наведении становится ярче (раздел 26). */
+.index {
+  padding-top: 2px;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-disabled);
+  font-variant-numeric: tabular-nums;
+}
+
+.row:hover .index {
+  color: var(--text-primary);
+}
+
+.body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
-  flex: 1;
+}
+
+.kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  font-size: var(--text-kicker-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.priority {
+  color: var(--text-tertiary);
+}
+
+.priority[data-priority='HIGH'] {
+  color: var(--status-warning);
+}
+
+.priority[data-priority='CRITICAL'] {
+  color: var(--status-danger);
 }
 
 .title {
   font-size: var(--text-card-title-size);
   font-weight: 600;
-  color: var(--text-primary);
   line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.title:hover {
+  color: var(--text-accent);
+}
+
+.title:focus-visible {
+  outline: 2px solid var(--border-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
 }
 
 .description {
@@ -41,47 +104,46 @@
   color: var(--text-secondary);
 }
 
-.badges {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
 /*
  * Обоснование системы. Показывается всегда: рекомендация без объяснения —
- * это «машина так решила», и доверия к ней нет.
+ * это «машина так решила», и доверия к ней нет. Цитатой, а не плашкой в рамке.
  */
-.justification {
+.why {
   display: flex;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border-radius: var(--radius-card-sm);
-  background: var(--surface-sunken);
-  border: 1px solid var(--border-subtle);
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line-strong);
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
 }
 
-.justificationIcon {
-  color: var(--text-accent-soft);
-  flex: none;
+.whyLabel {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 
-.footerRow {
+.foot {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
   flex-wrap: wrap;
+  padding-top: var(--space-1);
 }
 
 .target {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: var(--text-caption-size);
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.target:hover {
   color: var(--text-accent);
 }
 
@@ -90,17 +152,73 @@
   color: var(--text-tertiary);
 }
 
+/* Справа — где рекомендация сейчас и что с ней можно сделать. */
+.side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.status {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.status[data-status='NEW'] {
+  color: var(--text-primary);
+}
+
+.status[data-status='ACCEPTED'],
+.status[data-status='DONE'] {
+  color: var(--status-success);
+}
+
+.status[data-status='DISMISSED'] {
+  color: var(--text-disabled);
+}
+
 .actions {
   display: flex;
+  justify-content: flex-end;
   gap: var(--space-2);
   flex-wrap: wrap;
+  max-width: 280px;
 }
 
 .resolution {
   font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
   padding-left: var(--space-3);
-  border-left: 2px solid var(--success-border);
+  border-left: 1px solid var(--success-border);
+}
+
+/* На узком экране действия уходят под текст, номер остаётся слева. */
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: 28px minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+
+  .side {
+    grid-column: 2;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .actions {
+    justify-content: flex-start;
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row:hover > * {
+    transform: none;
+  }
 }
 
 /* Подробности в боковой панели */
@@ -122,11 +240,54 @@
   color: var(--text-tertiary);
 }
 
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.fact dt {
+  color: var(--text-tertiary);
+}
+
+.fact dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.source summary {
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.source summary:hover {
+  color: var(--text-secondary);
+}
+
+.source[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+/* Внутри подписи над заголовком статус — того же кегля, что и соседние слова. */
+.kicker .status {
+  font-size: var(--text-kicker-size);
+}
+
 .data {
   margin: 0;
   padding: var(--space-3);
   border-radius: var(--radius-input);
-  background: var(--purple-900);
+  background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-label-size);

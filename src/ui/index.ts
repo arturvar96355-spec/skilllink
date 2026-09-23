@@ -108,3 +108,4 @@ export {
   notificationHref,
   recommendationTargetHref,
 } from './lib/links'
+export { describeRelatedData, type RelatedFact } from './lib/related-data'
