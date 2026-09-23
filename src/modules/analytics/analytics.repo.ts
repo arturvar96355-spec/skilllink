@@ -106,7 +106,7 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
       groupCount: true,
       metricsSource: true,
       isMock: true,
-      university: { select: { id: true, name: true } },
+      university: { select: { id: true, name: true, shortName: true } },
     },
     take: limit,
   })

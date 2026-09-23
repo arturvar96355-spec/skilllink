@@ -175,7 +175,11 @@
   --text-caption-weight: 500;
   --text-caption-line: 1.35;
 
+  --text-kpi-xl-size: 44px;
   --text-kpi-lg-size: 32px;
+  /* Надстрочная подпись блока: «АКТИВНО СЕЙЧАС». */
+  --text-kicker-size: 11px;
+  --text-kicker-tracking: 0.08em;
   --text-kpi-md-size: 24px;
   --text-kpi-sm-size: 18px;
 
