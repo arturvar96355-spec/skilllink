@@ -48,6 +48,10 @@ export default function SettingsPage() {
   const toast = useToast()
 
   const canSeeSources = user.permissions.canSeeAnalytics
+  // Синхронизация — право записи (контракт, POST /api/data-sources/sync). Кнопка
+  // показывалась только администратору, и менеджеру страница писала «запускает
+  // администратор», хотя сервер его запрос принимал.
+  const canSync = user.permissions.canWrite
 
   const sources = useResource<DataSourceDto[]>(canSeeSources ? `/api/data-sources${SOURCES_QUERY}` : null)
   const integrations = useResource<IntegrationsStatusDto>(
@@ -136,12 +140,12 @@ export default function SettingsPage() {
         title="Источники данных"
         description="Записи создаются при загрузке рыночных данных. Включение самих источников задаётся переменными окружения — их состояние показано ниже, в разделе «Интеграции»."
         action={
-          !canSeeSources ? undefined : user.permissions.isAdmin ? (
+          !canSeeSources ? undefined : canSync ? (
             <Button icon="refresh" onClick={onSync} isLoading={sync.isPending} variant="secondary">
               Синхронизировать
             </Button>
           ) : (
-            <span className={styles.permissionNote}>Синхронизацию запускает администратор</span>
+            <span className={styles.permissionNote}>Синхронизацию запускает сотрудник с правом записи</span>
           )
         }
       >
@@ -175,7 +179,7 @@ export default function SettingsPage() {
                 title="Источников нет"
                 description="Рыночные данные ещё ни разу не загружались, поэтому записи об источнике не появилось."
                 action={
-                  user.permissions.isAdmin ? (
+                  canSync ? (
                     <Button icon="refresh" onClick={onSync} isLoading={sync.isPending}>
                       Загрузить сейчас
                     </Button>

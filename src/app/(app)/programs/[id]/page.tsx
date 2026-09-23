@@ -287,6 +287,10 @@ export default function ProgramPage() {
       title: 'Спрос рынка',
       width: '170px',
       render: (row) => {
+        // Пока спрос грузится или запрос не удался — так и пишем. Раньше оба случая
+        // выглядели как «Нет данных», и сбой читался как отсутствие спроса на навык.
+        if (demand.isLoading) return <span className={styles.empty}>…</span>
+        if (demand.error) return <span className={styles.empty}>Не загрузилось</span>
         const market = demandBySkill.get(row.skillId)
         if (!market || market.normalized === null) {
           return <span className={styles.empty}>{NO_DATA}</span>
@@ -589,6 +593,7 @@ export default function ProgramPage() {
           <Card padding="none">
             <DataTable
               rows={cooperationRows}
+              total={cooperations.meta?.total}
               columns={cooperationColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => cooperationHref(row.id)}
@@ -615,6 +620,7 @@ export default function ProgramPage() {
           <Card padding="none">
             <DataTable
               rows={documentRows}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}

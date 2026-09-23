@@ -43,6 +43,14 @@ export interface DataTableProps<T> {
   /** Идёт повторная загрузка: данные остаются на месте, но приглушаются. */
   isRefreshing?: boolean
   caption?: string
+  /**
+   * Сколько записей всего, если показана только часть — без переключателя страниц.
+   *
+   * Вкладки карточек показывают первые пятьдесят, а счётчик на вкладке — всё
+   * число: пятьдесят первая связка пропадала молча. Задан и больше показанного —
+   * под таблицей пишется «Показаны первые N из M».
+   */
+  total?: number | null
 }
 
 export function DataTable<T>({
@@ -55,6 +63,7 @@ export function DataTable<T>({
   onSortChange,
   isRefreshing = false,
   caption,
+  total = null,
 }: DataTableProps<T>) {
   const router = useRouter()
 
@@ -178,6 +187,11 @@ export function DataTable<T>({
           })}
         </tbody>
       </table>
+      {total !== null && total > rows.length && (
+        <p className={styles.truncated}>
+          Показаны первые {formatNumber(rows.length)} из {formatNumber(total)}
+        </p>
+      )}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
+import { daysBetween } from '@/shared/utils/date'
 import { CONTROL_POINT_STAGES, CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
@@ -336,10 +337,9 @@ export function isDueSoon(
   if (!deadline) return false
   if (status === 'COMPLETED' || status === 'CANCELLED') return false
 
-  const remainingMs = deadline.getTime() - now.getTime()
-  if (remainingMs < 0) return false
-
-  return remainingMs <= DEADLINE_WARNING_DAYS * DAY_MS
+  if (deadline.getTime() < now.getTime()) return false
+  // По календарю, как бейдж «через N дн.»: по часам два этапа «через 3 дн.»
+  // получали разную пометку в зависимости от часа срока.
+  return daysBetween(now, deadline) <= DEADLINE_WARNING_DAYS
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000

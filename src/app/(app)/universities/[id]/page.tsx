@@ -471,6 +471,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={programs.data ?? []}
+              total={programs.meta?.total}
               columns={programColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => programHref(row.id)}
@@ -491,6 +492,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={cooperations.data ?? []}
+              total={cooperations.meta?.total}
               columns={cooperationColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => cooperationHref(row.id)}
@@ -534,6 +536,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={documents.data ?? []}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}

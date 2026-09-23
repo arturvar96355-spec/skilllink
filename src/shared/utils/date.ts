@@ -33,6 +33,14 @@ export function daysBetween(from: Date, to: Date): number {
   return businessDay(to) - businessDay(from)
 }
 
+/**
+ * Начало московских суток, сдвинутых на `shiftDays` от суток `date`.
+ * Для условий «не меньше N календарных дней» в запросах к базе.
+ */
+export function moscowDayStart(date: Date, shiftDays = 0): Date {
+  return new Date((businessDay(date) + shiftDays) * MS_IN_DAY - BUSINESS_DAY_OFFSET_MS)
+}
+
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * MS_IN_DAY)
 }
