@@ -25,7 +25,8 @@
     "openapi": "tsx scripts/openapi.ts",
     "probe": "tsx scripts/probe.ts",
     "volume": "tsx scripts/volume.ts",
-    "bench": "tsx scripts/bench.ts"
+    "bench": "tsx scripts/bench.ts",
+    "demo:check": "tsx scripts/demo-check.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

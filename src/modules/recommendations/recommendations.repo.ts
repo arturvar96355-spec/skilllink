@@ -58,7 +58,10 @@ export async function findMany(
       select: recommendationSelect,
       // Приоритет — перечисление, Prisma сортирует его по порядку объявления
       // (LOW, MEDIUM, HIGH, CRITICAL), поэтому убывание даёт критичные сверху.
-      orderBy: buildOrderBy({ field, direction }),
+      //
+      // При равном значении — сначала новые, как в блоке приоритетных действий
+      // на главной.
+      orderBy: buildOrderBy({ field, direction }, [], [{ createdAt: 'desc' }]),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.recommendation.count({ where }),

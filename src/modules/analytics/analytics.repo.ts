@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { TIE_BREAKER } from '@/shared/http/pagination'
 
 /** Связки, которые сейчас в работе. */
 export async function countActiveCooperations(scope: { universityId?: string }): Promise<number> {
@@ -124,7 +125,7 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
         },
       },
     },
-    orderBy: [{ deadline: 'asc' }],
+    orderBy: [{ deadline: 'asc' }, TIE_BREAKER],
     take: limit,
   })
 }
@@ -141,7 +142,7 @@ export async function findPriorityRecommendations(
     },
     // Приоритет — перечисление, Prisma сортирует по порядку объявления:
     // LOW, MEDIUM, HIGH, CRITICAL. Убывание даёт критичные сверху.
-    orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }, TIE_BREAKER],
     take: limit,
     select: {
       id: true,
