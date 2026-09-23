@@ -924,6 +924,12 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 }
 ```
 
+`skillMatch.coveredSkills`, `demandedSkills`, `criticalGaps` — `null`, когда рыночных
+данных за период нет (вместе с `coveragePercent: null`). `metrics[].isMock` — посчитан
+ли показатель по демонстрационным данным; `avgDaysToClasses` приходит с
+`basis: "estimate"`, если среди дат начала занятий есть плановые. Этап 14 в
+`stagesOnTimePercent` не считается.
+
 `problemCooperations[].daysOverdue` — сколько дней назад вышел срок, **положительное**
 число (до 23.09.2026 пример здесь ошибочно показывал `-12`). `0` — срок вышел сегодня,
 причина тогда «Срок этапа вышел сегодня». `null` — этап заблокирован, а не просрочен.

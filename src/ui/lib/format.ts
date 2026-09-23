@@ -1,4 +1,5 @@
 import type { Metric } from '@/shared/contracts'
+import { plural } from '@/shared/utils/text'
 
 /**
  * Форматирование чисел, дат и показателей.
@@ -149,12 +150,8 @@ export function deadlineBadgeText(
 
 /** Склонение по числу: pluralize(3, ['вуз', 'вуза', 'вузов']) → «вуза». */
 export function pluralize(count: number, forms: [string, string, string]): string {
-  const abs = Math.abs(count) % 100
-  const tail = abs % 10
-  if (abs > 10 && abs < 20) return forms[2]
-  if (tail > 1 && tail < 5) return forms[1]
-  if (tail === 1) return forms[0]
-  return forms[2]
+  // Правило одно на сервер и интерфейс: две копии уже разошлись бы на дробных числах.
+  return plural(count, forms)
 }
 
 export function formatCount(count: number, forms: [string, string, string]): string {

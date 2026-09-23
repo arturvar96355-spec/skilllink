@@ -44,9 +44,10 @@ export interface TopProgramDto {
 export interface SkillMatchSummaryDto {
   /** Доля востребованных навыков, покрытых программами, 0..100. null — нет данных. */
   coveragePercent: number | null
-  coveredSkills: number
-  demandedSkills: number
-  criticalGaps: number
+  /** null — рыночных данных за период нет: ноль означал бы «дефицитов нет». */
+  coveredSkills: number | null
+  demandedSkills: number | null
+  criticalGaps: number | null
   period: string
   isMock: boolean
 }

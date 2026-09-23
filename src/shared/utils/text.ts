@@ -7,7 +7,10 @@
  * Формы: 1 программа, 2 программы, 5 программ.
  */
 export function plural(count: number, forms: readonly [string, string, string]): string {
-  const value = Math.abs(Math.trunc(count))
+  // С дробным числом слово стоит в родительном падеже единственного числа:
+  // «8,6 операции», «89,1 процента» — не «операций» и не «процентов».
+  if (!Number.isInteger(count)) return forms[1]
+  const value = Math.abs(count)
   const hundreds = value % 100
   if (hundreds > 10 && hundreds < 20) return forms[2]
 

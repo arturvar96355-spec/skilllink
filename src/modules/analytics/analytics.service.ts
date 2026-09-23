@@ -59,12 +59,15 @@ async function buildSkillMatch(user: CurrentUser): Promise<SkillMatchSummaryDto>
   const gaps = await skillsService.gaps(user, { limit: 200 })
   const total = gaps.data.length
 
+  // Нет рыночных данных — нет и счётчиков. Раньше рядом с «Нет данных» стояло
+  // «0 навыков покрыто · 0 востребовано · 0 критических дефицитов»: отсутствие
+  // данных читалось как отсутствие дефицитов (ANALYTICS_METHODOLOGY, раздел 3).
   if (total === 0) {
     return {
       coveragePercent: null,
-      coveredSkills: 0,
-      demandedSkills: 0,
-      criticalGaps: 0,
+      coveredSkills: null,
+      demandedSkills: null,
+      criticalGaps: null,
       period: gaps.period ?? '—',
       isMock: gaps.isMock,
     }
@@ -102,6 +105,8 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     logged,
     skillMatch,
     priorityRows,
+    cooperationsAreMock,
+    universitiesAreMock,
   ] = await Promise.all([
     repo.countActiveCooperations(scope),
     repo.countUniversitiesInWork(scope),
@@ -113,6 +118,8 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     repo.countLoggedOperations(scope),
     buildSkillMatch(user),
     repo.findPriorityRecommendations(scope, DASHBOARD_TOP_LIMIT),
+    repo.hasMockCooperations(scope),
+    repo.hasMockUniversities(scope),
   ])
 
   const metrics: DashboardMetricDto[] = [
@@ -122,6 +129,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       activeCooperations,
       'связей',
       'Связки в статусах «Черновик» и «В работе»',
+      { isMock: cooperationsAreMock },
     ),
     metric(
       'universitiesInWork',
@@ -129,6 +137,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       universitiesInWork,
       'вузов',
       'Вузы в статусах «В работе» и «Активен», кроме архивных',
+      { isMock: universitiesAreMock },
     ),
   ]
 
@@ -152,7 +161,9 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
         'Этапы, закрытые в срок',
         percent(onTime, completedStages.length) ?? 0,
         '%',
-        `${onTime} из ${completedStages.length} завершённых этапов закрыты не позже срока`,
+        `${onTime} из ${completedStages.length} завершённых этапов закрыты не позже срока ` +
+          '(контрольный этап 14 не считается: он закрывается сам по остальным)',
+        { isMock: completedStages.some((stage) => stage.cooperation.isMock) },
       ),
     )
   }
@@ -172,13 +183,21 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       daysBetween(cycle.firstContactAt as Date, cycle.classesStartAt as Date),
     )
     const average = days.reduce((sum, value) => sum + value, 0) / days.length
+    // Дата начала занятий бывает плановой: занятия ещё не начались. Такой срок —
+    // оценка, а не факт, и помечается так же, как любой оценочный показатель (решение 8).
+    const planned = cycles.filter((cycle) => (cycle.classesStartAt as Date) > now).length
     metrics.push(
       metric(
         'avgDaysToClasses',
         'Среднее время до начала занятий',
         round(average, 1),
         'дней',
-        `Среднее по ${cycles.length} связкам, где заполнены первый контакт и начало занятий`,
+        `Среднее по ${cycles.length} связкам, где заполнены первый контакт и начало занятий` +
+          (planned > 0 ? `; в ${planned} из них начало занятий — плановая дата` : ''),
+        {
+          basis: planned > 0 ? 'estimate' : 'actual',
+          isMock: cycles.some((cycle) => cycle.isMock),
+        },
       ),
     )
   }
@@ -206,7 +225,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
         round(logged.operations / logged.cooperations, 1),
         'операций',
         `Учитываются только действия, попавшие в журнал: ${logged.operations} на ${logged.cooperations} связок`,
-        { basis: 'estimate' },
+        { basis: 'estimate', isMock: cooperationsAreMock },
       ),
     )
   }
@@ -277,7 +296,10 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     priorityActions,
     skillMatch,
     generatedAt: now.toISOString(),
-    containsMockData: skillMatch.isMock || programs.some((program) => program.isMock),
+    containsMockData:
+      skillMatch.isMock ||
+      programs.some((program) => program.isMock) ||
+      metrics.some((item) => item.isMock),
   }
 }
 
