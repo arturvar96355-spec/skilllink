@@ -133,7 +133,9 @@ function AnalyticsView() {
 
 function RatingTab() {
   const [limit, setLimit] = useState(20)
-  const rating = useResource<RankedProgramDto[]>(`/api/analytics/programs?limit=${limit}`)
+  const rating = useResource<RankedProgramDto[]>(`/api/analytics/programs?limit=${limit}`, {
+    keepPreviousData: true,
+  })
 
   const rows = rating.data ?? []
   const total = rating.meta?.total ?? rows.length
@@ -287,6 +289,7 @@ function GapsTab({
       criticalOnly: criticalOnly ? 'true' : undefined,
       limit,
     })}`,
+    { keepPreviousData: true },
   )
 
   const rows = gaps.data ?? []
@@ -513,6 +516,7 @@ function DemandTab() {
       category: category || undefined,
       limit,
     })}`,
+    { keepPreviousData: true },
   )
 
   const rows = demand.data ?? []

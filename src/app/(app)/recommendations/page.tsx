@@ -44,6 +44,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  usePageInRange,
   type TabItem,
 } from '@/ui'
 import styles from './recommendations.module.css'
@@ -96,7 +97,8 @@ function RecommendationsContent() {
     page,
     pageSize: PAGE_SIZE,
   })}`
-  const recommendations = useResource<RecommendationDto[]>(path)
+  const recommendations = useResource<RecommendationDto[]>(path, { keepPreviousData: true })
+  usePageInRange(page, setPage, recommendations.meta)
 
   const generate = useMutation(async () => {
     const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')

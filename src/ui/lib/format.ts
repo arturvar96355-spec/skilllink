@@ -211,6 +211,44 @@ export function dateInputToIso(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
+/**
+ * Московское смещение от UTC. Перехода на летнее время в России нет с 2014 года,
+ * поэтому смещение постоянное и таблица поясов не нужна.
+ */
+const MOSCOW_OFFSET = '+03:00'
+
+/** Части даты и времени по Москве — чтобы собрать значение поля ввода. */
+const inputPartsFormat = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+  timeZone: TIME_ZONE,
+})
+
+/**
+ * Момент времени в формате поля «дата и время» — `2026-09-23T14:30` по Москве.
+ *
+ * Поле хранит время без пояса. Раньше его заполняли и читали поясом браузера,
+ * а показывали по Москве: у сотрудника в Екатеринбурге встреча в 14:30 по его
+ * часам записывалась и показывалась как 12:30.
+ */
+export function dateToDateTimeInput(date: Date = new Date()): string {
+  const parts = Object.fromEntries(
+    inputPartsFormat.formatToParts(date).map((part) => [part.type, part.value]),
+  )
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`
+}
+
+/** Значение поля «дата и время» (время московское) — в формат API. */
+export function dateTimeInputToIso(value: string): string | null {
+  if (value.trim() === '') return null
+  const date = new Date(`${value}:00${MOSCOW_OFFSET}`)
+  return Number.isNaN(date.getTime()) ? null : date.toISOString()
+}
+
 /** Обратное преобразование — для полей формы редактирования. */
 export function isoToDateInput(iso: string | null | undefined): string {
   if (!iso) return ''

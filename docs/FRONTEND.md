@@ -56,7 +56,10 @@ import { Button, Card, DataTable, useResource } from '@/ui'
 ## Загрузка данных
 
 ```tsx
-const universities = useResource<UniversityListItemDto[]>(`/api/universities${buildQuery({ q, page })}`)
+const universities = useResource<UniversityListItemDto[]>(`/api/universities${buildQuery({ q, page })}`, {
+  keepPreviousData: true,
+})
+usePageInRange(page, setPage, universities.meta)
 
 if (universities.isLoading) return <TableSkeleton />
 if (universities.error) return <ErrorState error={universities.error} onRetry={universities.reload} />
@@ -64,7 +67,16 @@ if (universities.data?.length === 0) return <EmptyState title="Записей н
 ```
 
 `useResource` сам отменяет устаревший запрос и различает первую загрузку
-и обновление.
+и обновление. Данные он отдаёт только того адреса, который запрошен сейчас:
+адрес `null` — данных нет, новый адрес — загрузка, а не данные прежнего.
+Прежние строки на время загрузки показывает только список, который попросил
+об этом сам (`keepPreviousData`) — там адрес меняют фильтр, страница или
+«показать ещё». Карточке по id, поиску и зависимым спискам это нельзя: прежние
+данные там — другая запись (решение 54).
+
+`usePageInRange` возвращает на последнюю существующую страницу, если выдача
+сократилась под человеком: иначе он оставался на пустой странице без
+переключателя страниц.
 
 Изменения — `useMutation`:
 
