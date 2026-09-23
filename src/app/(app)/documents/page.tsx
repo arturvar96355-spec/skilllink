@@ -30,6 +30,7 @@ import {
   NO_DATA,
   PageHeader,
   Pagination,
+  RemoteSelect,
   Section,
   Select,
   SkeletonLines,
@@ -41,11 +42,14 @@ import {
   apiPatch,
   buildQuery,
   cooperationHref,
+  cooperationOption,
   documentHref,
   formatDate,
   formatDateTime,
   programHref,
+  programWithUniversityOption,
   universityHref,
+  universityShortOption,
   useCurrentUser,
   useDebounced,
   useMutation,
@@ -136,26 +140,6 @@ function DocumentsView() {
     pageSize: PAGE_SIZE,
   })}`
   const documents = useResource<DocumentListItemDto[]>(path)
-
-  // Справочники для фильтров привязки. Рейтинг вузов здесь не нужен —
-  // список используется только для выбора, а его расчёт стоит отдельного прохода.
-  const universities = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100&sort=name',
-  )
-  const programs = useResource<ProgramListItemDto[]>(
-    `/api/programs${buildQuery({
-      universityId: universityId || undefined,
-      pageSize: 100,
-      sort: 'name',
-    })}`,
-  )
-  const cooperations = useResource<CooperationListItemDto[]>(
-    `/api/cooperations${buildQuery({
-      universityId: universityId || undefined,
-      programId: programId || undefined,
-      pageSize: 100,
-    })}`,
-  )
 
   const rows = documents.data ?? []
   const openedId = params.get('document')
@@ -287,8 +271,12 @@ function DocumentsView() {
           />
         </ToolbarItem>
         <ToolbarItem>
-          <Select
+          {/* Рейтинг вузов фильтру не нужен, а его расчёт — отдельный проход. */}
+          <RemoteSelect<UniversityListItemDto>
             label="Вуз"
+            endpoint="/api/universities"
+            params={{ withRating: 'false', sort: 'name' }}
+            toOption={universityShortOption}
             placeholder="Любой вуз"
             value={universityId}
             onValueChange={(value) =>
@@ -300,15 +288,16 @@ function DocumentsView() {
                 setCooperationId('')
               })
             }
-            options={(universities.data ?? []).map((row) => ({
-              value: row.id,
-              label: row.shortName ?? row.name,
-            }))}
           />
         </ToolbarItem>
         <ToolbarItem>
-          <Select
+          <RemoteSelect<ProgramListItemDto>
             label="Программа"
+            endpoint="/api/programs"
+            params={{ universityId: universityId || undefined, sort: 'name' }}
+            toOption={
+              universityId ? (row) => ({ value: row.id, label: row.name }) : programWithUniversityOption
+            }
             placeholder="Любая программа"
             value={programId}
             onValueChange={(value) =>
@@ -317,19 +306,21 @@ function DocumentsView() {
                 setCooperationId('')
               })
             }
-            options={(programs.data ?? []).map((row) => ({ value: row.id, label: row.name }))}
           />
         </ToolbarItem>
         <ToolbarItem>
-          <Select
+          <RemoteSelect<CooperationListItemDto>
             label="Связка"
+            endpoint="/api/cooperations"
+            params={{
+              universityId: universityId || undefined,
+              programId: programId || undefined,
+            }}
+            toOption={cooperationOption}
+            searchPlaceholder="Вуз или программа"
             placeholder="Любая связка"
             value={cooperationId}
             onValueChange={(value) => changeFilter(() => setCooperationId(value))}
-            options={(cooperations.data ?? []).map((row) => ({
-              value: row.id,
-              label: `${row.universityName} — ${row.programName}`,
-            }))}
           />
         </ToolbarItem>
       </Toolbar>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import {
   PROGRAM_LEVELS,
   PROGRAM_LEVEL_LABELS,
@@ -26,6 +26,7 @@ import {
   PageHeader,
   Pagination,
   ProgramStatusBadge,
+  RemoteSelect,
   Select,
   TableSkeleton,
   Toolbar,
@@ -36,6 +37,7 @@ import {
   formatDate,
   formatNumber,
   programHref,
+  universityShortOption,
   useDebounced,
   useResource,
   type Column,
@@ -100,20 +102,6 @@ export default function ProgramsPage() {
       // всегда возвращал бы пустой список.
       includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
     })}`,
-  )
-
-  // Рейтинг вузов здесь не нужен — список идёт только в выпадающий фильтр.
-  const universities = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100',
-  )
-
-  const universityOptions = useMemo(
-    () =>
-      (universities.data ?? []).map((item) => ({
-        value: item.id,
-        label: item.shortName ?? item.name,
-      })),
-    [universities.data],
   )
 
   const rows = programs.data ?? []
@@ -287,12 +275,14 @@ export default function ProgramsPage() {
           />
         </ToolbarItem>
         <ToolbarItem>
-          <Select
+          {/* Рейтинг вузов здесь не нужен — список идёт только в фильтр. */}
+          <RemoteSelect<UniversityListItemDto>
             label="Вуз"
             hideLabel
-            placeholder={universities.error ? 'Список вузов недоступен' : 'Все вузы'}
-            options={universityOptions}
-            disabled={universityOptions.length === 0}
+            endpoint="/api/universities"
+            params={{ withRating: 'false', sort: 'name' }}
+            toOption={universityShortOption}
+            placeholder="Все вузы"
             value={universityId}
             onValueChange={(value) => {
               setUniversityId(value)

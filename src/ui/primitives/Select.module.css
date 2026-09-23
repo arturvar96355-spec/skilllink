@@ -138,3 +138,45 @@
   color: var(--accent-primary);
   flex: none;
 }
+
+/* Поиск в длинном списке: остаётся наверху, пока список прокручивается. */
+.searchRow {
+  position: sticky;
+  top: calc(-1 * var(--space-1));
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-1)) var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-overlay);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.searchIcon {
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-body-sm-size);
+}
+
+.search::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* «Показаны 50 из 1004» — честно про то, что список не весь. */
+.note {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--text-tertiary);
+  font-size: var(--text-label-size);
+}
+
