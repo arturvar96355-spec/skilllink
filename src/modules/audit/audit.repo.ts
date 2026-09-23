@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { toSkipTake } from '@/shared/http/pagination'
+import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { AuditListQuery } from './audit.schema'
 
@@ -21,7 +21,7 @@ export async function findAuditEntries(query: AuditListQuery) {
   const [rows, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, TIE_BREAKER],
       select: {
         id: true,
         action: true,

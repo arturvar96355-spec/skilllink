@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { parseSort, toSkipTake } from '@/shared/http/pagination'
+import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { SKILL_SORT_FIELDS, type SkillDemandQuery, type SkillListQuery } from './skills.schema'
 
@@ -47,7 +47,7 @@ export async function findMany(
     prisma.skill.findMany({
       where,
       select: skillSelect,
-      orderBy: { [field]: direction },
+      orderBy: buildOrderBy({ field, direction }),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.skill.count({ where }),

@@ -6,6 +6,7 @@ import {
   CONFIDENCE_LABELS,
   RECOMMENDATION_PRIORITIES,
   RECOMMENDATION_PRIORITY_LABELS,
+  RECOMMENDATION_SORT_MOST_IMPORTANT,
   RECOMMENDATION_STATUSES,
   RECOMMENDATION_STATUS_LABELS,
   RECOMMENDATION_TYPE_LABELS,
@@ -91,7 +92,7 @@ function RecommendationsContent() {
     type: tab === 'all' ? undefined : tab,
     status: status || undefined,
     priority: priority || undefined,
-    sort: 'priority',
+    sort: RECOMMENDATION_SORT_MOST_IMPORTANT,
     page,
     pageSize: PAGE_SIZE,
   })}`

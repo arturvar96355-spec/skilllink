@@ -23,6 +23,16 @@ for _ in $(seq 1 60); do
 done
 echo " $(docker inspect -f '{{.State.Health.Status}}' skilllink-postgres 2>/dev/null || echo '?')"
 
+# Образ для миграций и демо-данных собирается заново при каждом развёртывании.
+# `compose run` сам его не пересобирает — берёт тот, что уже есть. Так и было:
+# 23.09.2026 приложение на стенде было собрано утром, а образ миграций — сутками
+# раньше, с первой выкладки. Новую миграцию такой образ «применил» бы без неё
+# самой, и приложение упало бы на отсутствующем столбце; SEED=1 залил бы старый
+# seed.ts. Ступень builder у них общая, поэтому сборка приложения ниже берёт её
+# из кэша и дольше не становится.
+echo "── Собираю образ для миграций"
+$COMPOSE --profile migrate build migrate
+
 run_migrations() {
   $COMPOSE --profile migrate run --rm migrate 2>&1 | tee /tmp/skilllink-migrate.log
   return "${PIPESTATUS[0]}"
