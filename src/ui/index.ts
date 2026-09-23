@@ -76,6 +76,7 @@ export {
   formatDayMonth,
   formatRelative,
   formatCount,
+  deadlineBadgeText,
   formatDeadlineDistance,
   dateInputToIso,
   isoToDateInput,

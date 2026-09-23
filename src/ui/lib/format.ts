@@ -124,6 +124,29 @@ export function formatRelative(iso: string, now: number = Date.now()): string {
   return formatDate(iso)
 }
 
+/**
+ * Надпись значка срока этапа.
+ *
+ * В день срока — «сегодня», а не «0 дн.». Срок этапа — точный момент
+ * (начало плюс норматив), и этап с утренним сроком к вечеру уже просрочен,
+ * хотя календарных дней не прошло: значок писал «Просрочен на 0 дн.».
+ */
+export function deadlineBadgeText(
+  kind: 'overdue' | 'dueSoon',
+  days: number | null,
+  compact = false,
+): string {
+  if (kind === 'overdue') {
+    if (days === null) return 'Просрочен'
+    const passed = Math.abs(days)
+    if (passed === 0) return compact ? 'сегодня' : 'Срок вышел сегодня'
+    return compact ? `−${passed} дн.` : `Просрочен на ${passed} дн.`
+  }
+  if (days === null) return 'Скоро срок'
+  if (days <= 0) return compact ? 'сегодня' : 'Срок сегодня'
+  return compact ? `${days} дн.` : `Срок через ${days} дн.`
+}
+
 /** Склонение по числу: pluralize(3, ['вуз', 'вуза', 'вузов']) → «вуза». */
 export function pluralize(count: number, forms: [string, string, string]): string {
   const abs = Math.abs(count) % 100

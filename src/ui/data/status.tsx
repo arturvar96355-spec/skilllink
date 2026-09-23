@@ -15,6 +15,7 @@ import {
   type UniversityStatus,
 } from '@/shared/contracts'
 import { Badge, type BadgeTone } from '../primitives/Badge'
+import { deadlineBadgeText } from '../lib/format'
 
 /**
  * Значки статусов.
@@ -152,19 +153,16 @@ export function DeadlineBadge({
   compact?: boolean
 }) {
   if (isOverdue) {
-    const days = daysToDeadline === null ? null : Math.abs(daysToDeadline)
-    const full = days === null ? 'Просрочен' : `Просрочен на ${days} дн.`
     return (
-      <Badge tone="danger" withDot title={full}>
-        {compact && days !== null ? `−${days} дн.` : full}
+      <Badge tone="danger" withDot title={deadlineBadgeText('overdue', daysToDeadline)}>
+        {deadlineBadgeText('overdue', daysToDeadline, compact)}
       </Badge>
     )
   }
   if (isDueSoon) {
-    const full = daysToDeadline === null ? 'Скоро срок' : `Срок через ${daysToDeadline} дн.`
     return (
-      <Badge tone="warning" withDot title={full}>
-        {compact && daysToDeadline !== null ? `${daysToDeadline} дн.` : full}
+      <Badge tone="warning" withDot title={deadlineBadgeText('dueSoon', daysToDeadline)}>
+        {deadlineBadgeText('dueSoon', daysToDeadline, compact)}
       </Badge>
     )
   }

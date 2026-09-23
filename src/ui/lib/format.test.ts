@@ -3,6 +3,7 @@ import type { Metric } from '@/shared/contracts'
 import {
   NO_DATA,
   abbreviate,
+  deadlineBadgeText,
   formatDeadlineDistance,
   formatMetric,
   formatNumber,
@@ -75,6 +76,22 @@ describe('сроки', () => {
     expect(formatDeadlineDistance(0)).toBe('срок сегодня')
     expect(formatDeadlineDistance(3)).toContain('3 дня')
     expect(formatDeadlineDistance(null)).toBeNull()
+  })
+
+  it('в день срока значок пишет «сегодня», а не «0 дн.»', () => {
+    // Срок этапа — точный момент: к вечеру дня срока этап уже просрочен,
+    // а календарных дней прошло ноль.
+    expect(deadlineBadgeText('overdue', 0)).toBe('Срок вышел сегодня')
+    expect(deadlineBadgeText('overdue', 0, true)).toBe('сегодня')
+    expect(deadlineBadgeText('overdue', -58)).toBe('Просрочен на 58 дн.')
+    expect(deadlineBadgeText('overdue', -58, true)).toBe('−58 дн.')
+    expect(deadlineBadgeText('dueSoon', 0)).toBe('Срок сегодня')
+    expect(deadlineBadgeText('dueSoon', 2, true)).toBe('2 дн.')
+    for (const kind of ['overdue', 'dueSoon'] as const) {
+      for (const compact of [false, true]) {
+        expect(deadlineBadgeText(kind, 0, compact)).not.toMatch(/\b0 дн/)
+      }
+    }
   })
 })
 
