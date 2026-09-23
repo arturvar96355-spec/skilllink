@@ -1286,13 +1286,20 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 ```json
 [ { "taskId": "…", "title": "Переданы учебные материалы", "cooperationId": "…",
     "programName": "…", "productName": "…",
-    "isConfirmed": false, "confirmedAt": null, "stageStatus": "IN_PROGRESS" } ]
+    "isConfirmed": false, "confirmedAt": null, "stageStatus": "IN_PROGRESS",
+    "canConfirm": true } ]
 ```
+
+`canConfirm` — подтверждение сейчас примут: пункт не отмечен, связка открыта, этап 7
+не завершён и не отменён. `pendingMaterials` в обзоре считает только такие пункты.
 
 ### POST /api/portal/materials/:taskId/confirm
 
 Право: `UNIVERSITY_PORTAL`. Тело необязательно: `{ "comment": "Материалы получены" }`.
-Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+Подтверждать можно только задачи этапа 7 — иначе 404. Связка закрыта или этап 7
+завершён либо отменён — 409, как у сотрудника ИТ-Школы: запись идёт той же функцией
+(`setTaskDone`), в очереди со сменой статусов связки. Повторное подтверждение ничего
+не меняет и в журнал не пишется. В ответе — обновлённый список материалов.
 
 ### PATCH /api/portal/programs/:id/metrics
 

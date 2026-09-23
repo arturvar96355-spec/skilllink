@@ -4,6 +4,7 @@ import { assertCan, isUniversityVisible } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
+import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
 import type {
   ApplicationDto,
   PortalCooperationDto,
@@ -13,11 +14,14 @@ import type {
 } from '@/shared/contracts/portal'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import {
+  areTasksEditable,
+  assertTasksEditable,
   computeProgressPercent,
   findCurrentStage,
   isAutoManaged,
 } from '@/modules/workflow/workflow.rules'
-import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
+import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
+import { setTaskDone } from '@/modules/workflow/workflow.service'
 import * as repo from './portal.repo'
 import { assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
 import type {
@@ -95,10 +99,24 @@ export async function overview(
     universityName: university.name,
     programs: programs.map(toProgramDto),
     cooperations: cooperations.map(toCooperationDto),
-    pendingMaterials: materials.filter((task) => !task.isDone).length,
+    // «К подтверждению» — только то, что вуз действительно может подтвердить:
+    // пункт отменённого этапа или закрытой связки ждать ему нечего.
+    pendingMaterials: materials.filter(canConfirmMaterial).length,
     documentsCount,
     generatedAt: new Date().toISOString(),
   }
+}
+
+/** Подтверждение примут: пункт не отмечен, связка открыта, чек-лист этапа не закрыт. */
+function canConfirmMaterial(row: {
+  isDone: boolean
+  stage: { status: StageStatus; stageNumber: number; cooperation: { status: CooperationStatus } }
+}): boolean {
+  return (
+    !row.isDone &&
+    !isClosedStatus(row.stage.cooperation.status) &&
+    areTasksEditable(row.stage.status, row.stage.stageNumber)
+  )
 }
 
 export async function materials(
@@ -117,6 +135,7 @@ export async function materials(
     isConfirmed: row.isDone,
     confirmedAt: toIso(row.doneAt),
     stageStatus: row.stage.status,
+    canConfirm: canConfirmMaterial(row),
   }))
 }
 
@@ -135,14 +154,18 @@ export async function confirmMaterial(
 
   // Те же правила, что и на пути сотрудника ИТ-Школы (workflow.service.toggleTask).
   // Без них представитель вуза менял состояние закрытой связки, когда сотруднику
-  // это уже запрещено, — и отменить изменение было некому.
+  // это уже запрещено, — и отменить изменение было некому. Сама запись — та же
+  // функция, что у сотрудника: закрытый этап, очередь со сменой статусов, повтор.
   assertCooperationOpen(task.stage.cooperation.status)
+  assertTasksEditable(task.stage.status as StageStatus, task.stage.stageNumber)
 
-  if (!task.isDone) {
-    await repo.confirmMaterial(taskId, user.id)
-  }
+  const changed = await setTaskDone(
+    { taskId, stageId: task.stage.id, cooperationId: task.stage.cooperationId },
+    true,
+    user.id,
+  )
 
-  await writeAudit({
+  if (changed) await writeAudit({
     userId: user.id,
     action: 'portal.material.confirm',
     objectType: 'Task',

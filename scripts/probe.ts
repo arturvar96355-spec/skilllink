@@ -452,6 +452,77 @@ async function main(): Promise<void> {
     }
   }
 
+  step('2б. Кабинет вуза подтверждает материалы по тем же правилам, что сотрудник')
+
+  if (rep?.universityId && managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: rep.universityId,
+      name: `Пробная программа материалов ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const cooperation = await call<{
+      id: string
+      stages: Array<{ id: string; stageNumber: number; tasks: Array<{ id: string }> }>
+    }>('POST', '/api/cooperations', {
+      universityId: rep.universityId,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const materialsStage = cooperation.body.data?.stages.find((stage) => stage.stageNumber === 7)
+    const cancel = materialsStage
+      ? await call('PATCH', `/api/workflow/stages/${materialsStage.id}`, {
+          status: 'CANCELLED',
+          comment: 'Пробник: материалы передаются по другому договору',
+        })
+      : null
+    check(
+      'пробная связка с отменённым этапом 7 готова',
+      Boolean(materialsStage && cancel?.status === 200),
+      `статус отмены ${cancel?.status}`,
+    )
+
+    const task = materialsStage?.tasks[0]
+    if (task && cancel?.status === 200) {
+      actAs(rep.id)
+      const list = await call<Array<{ taskId: string; canConfirm: boolean }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      const listed = (list.body.data ?? []).find((item) => item.taskId === task.id)
+      check(
+        'пункт отменённого этапа не предлагается к подтверждению',
+        listed?.canConfirm === false,
+        `canConfirm ${listed?.canConfirm}`,
+      )
+
+      const confirm = await call('POST', `/api/portal/materials/${task.id}/confirm`, {})
+      check(
+        'подтверждение по отменённому этапу отклонено, как у сотрудника',
+        confirm.status === 409,
+        `статус ${confirm.status}`,
+      )
+
+      const overview = await call<{ pendingMaterials: number }>('GET', '/api/portal/overview')
+      const confirmable = (list.body.data ?? []).filter((item) => item.canConfirm).length
+      check(
+        '«Материалы к подтверждению» считают только то, что можно подтвердить',
+        overview.body.data?.pendingMaterials === confirmable,
+        `в обзоре ${overview.body.data?.pendingMaterials}, в списке ${confirmable}`,
+      )
+      actAs(null)
+
+      const reread = await call<{ stages: Array<{ tasks: Array<{ id: string; isDone: boolean }> }> }>(
+        'GET',
+        `/api/cooperations/${cooperation.body.data?.id}`,
+      )
+      const after = (reread.body.data?.stages ?? [])
+        .flatMap((item) => item.tasks)
+        .find((item) => item.id === task.id)
+      check('пункт отменённого этапа остался неотмеченным', after?.isDone === false, `isDone ${after?.isDone}`)
+    }
+  }
+
   // ── 3. Кривой ввод ─────────────────────────────────────────────────────────
   step('3. Кривой ввод не должен ронять систему')
 
