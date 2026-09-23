@@ -464,10 +464,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/workflow/tasks/{id}',
     tag: 'Workflow',
     summary: 'Отметить пункт чек-листа',
-    description: 'В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса.',
+    description:
+      'В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса. ' +
+      'Закрытая связка или этап — конфликт; пункт контрольной точки до закрытия ' +
+      'предыдущих этапов — недопустимый переход.',
     permission: 'WRITE',
     body: updateTaskSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT', 'INVALID_TRANSITION'],
   },
   {
     method: 'get',
@@ -678,11 +681,14 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/portal/materials/{taskId}/confirm',
     tag: 'Кабинет вуза',
     summary: 'Подтвердить получение материалов',
-    description: 'Подтверждать можно только задачи этапа передачи материалов.',
+    description:
+      'Подтверждать можно только задачи этапа передачи материалов. Закрытая связка ' +
+      'или завершённый либо отменённый этап — конфликт, не закрытые этапы до 7-го — ' +
+      'недопустимый переход, как у сотрудника ИТ-Школы.',
     permission: 'UNIVERSITY_PORTAL',
     body: confirmMaterialSchema,
     bodyOptional: true,
-    errors: READ_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT', 'INVALID_TRANSITION'],
   },
   {
     method: 'patch',

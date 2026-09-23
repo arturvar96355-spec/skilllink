@@ -4,6 +4,7 @@ import { DOCUMENT_TEMPLATES, MISSING_PLACEHOLDER } from '@/shared/config/documen
 import {
   ALLOWED_DOCUMENT_TRANSITIONS,
   assertDocumentEditable,
+  assertDocumentHasContent,
   assertDocumentTransition,
   assertHasLink,
   nextVersion,
@@ -281,3 +282,32 @@ describe('запрос на сборку пакета', () => {
     expect(generateDocumentsSchema.safeParse({ templateKeys: [''] }).success).toBe(false)
   })
 })
+
+describe('содержимое документа дальше черновика', () => {
+  it('у утверждённого документа ссылку не стереть, если нет текста', () => {
+    // Раньше правка ссылки правилам не подчинялась: стёртый файл, затем «Подписан».
+    expectError(
+      () => assertDocumentHasContent({ status: 'APPROVED', fileReference: null, content: null }),
+      'VALIDATION_ERROR',
+    )
+  })
+
+  it('текст из шаблона — тоже содержимое', () => {
+    expect(() =>
+      assertDocumentHasContent({ status: 'APPROVED', fileReference: null, content: 'Договор…' }),
+    ).not.toThrow()
+  })
+
+  it('черновик и отклонённый могут быть пустыми', () => {
+    expect(() => assertDocumentHasContent({ status: 'DRAFT', fileReference: null })).not.toThrow()
+    expect(() => assertDocumentHasContent({ status: 'REJECTED', fileReference: null })).not.toThrow()
+  })
+
+  it('подписать пустой нельзя и переходом', () => {
+    expectError(
+      () => assertDocumentTransition({ status: 'APPROVED', fileReference: null, content: null }, { toStatus: 'SIGNED' }),
+      'VALIDATION_ERROR',
+    )
+  })
+})
+

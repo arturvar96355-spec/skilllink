@@ -47,15 +47,14 @@
   padding: 0 var(--space-3);
   border-radius: var(--radius-button);
   border: 1px solid transparent;
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     border-color var(--motion-micro) var(--ease-out),
     box-shadow var(--motion-micro) var(--ease-out);
 }
 
 .home:hover {
-  background: rgba(90, 54, 145, 0.2);
-  border-color: rgba(180, 130, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.096);
   box-shadow: var(--glow-soft);
 }
 
@@ -96,14 +95,13 @@
   padding: 0 var(--space-3) 0 var(--space-2);
   border-radius: var(--radius-button);
   border: 1px solid transparent;
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     border-color var(--motion-micro) var(--ease-out);
 }
 
 .profile:hover {
-  background: rgba(90, 54, 145, 0.2);
-  border-color: rgba(180, 130, 255, 0.16);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.096);
 }
 
 .profileText {
@@ -194,7 +192,7 @@
 /* Подвал: спокойный, не спорит с содержимым (раздел 27 документа о движении). */
 .footer {
   border-top: 1px solid var(--border-divider);
-  background: rgba(13, 10, 26, 0.6);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .footerInner {
@@ -279,4 +277,34 @@
   flex-wrap: wrap;
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+}
+
+/*
+ * Продолжение сцены входа (07, раздел 18): меню проявляется от левого края,
+ * шапка — сверху. Один раз, сразу после входа; дальше каркас неподвижен.
+ * Только на широком экране: на узком меню спрятано за край, и сдвиг
+ * показал бы его на мгновение.
+ */
+@media (min-width: 1081px) and (prefers-reduced-motion: no-preference) {
+  .arrival aside {
+    animation: arriveLeft 420ms var(--ease-out) both;
+  }
+
+  .arrival header {
+    animation: arriveTop 360ms var(--ease-out) 80ms both;
+  }
+}
+
+@keyframes arriveLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes arriveTop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
 }

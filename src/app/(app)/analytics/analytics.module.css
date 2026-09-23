@@ -158,15 +158,13 @@
 }
 
 .warningIcon {
+  /* Иконка различает тип записи — сама по себе, без плашки под ней (07, раздел 5). */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 20px;
+  height: 20px;
   flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--purple-700);
-  border: 1px solid var(--border-subtle);
   color: var(--status-warning);
 }
 

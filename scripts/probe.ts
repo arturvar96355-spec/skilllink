@@ -452,6 +452,94 @@ async function main(): Promise<void> {
     }
   }
 
+  step('2б. Кабинет вуза подтверждает материалы по тем же правилам, что сотрудник')
+
+  if (rep?.universityId && managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: rep.universityId,
+      name: `Пробная программа материалов ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const cooperation = await call<{
+      id: string
+      stages: Array<{ id: string; stageNumber: number; tasks: Array<{ id: string }> }>
+    }>('POST', '/api/cooperations', {
+      universityId: rep.universityId,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const materialsStage = cooperation.body.data?.stages.find((stage) => stage.stageNumber === 7)
+    const cancel = materialsStage
+      ? await call('PATCH', `/api/workflow/stages/${materialsStage.id}`, {
+          status: 'CANCELLED',
+          comment: 'Пробник: материалы передаются по другому договору',
+        })
+      : null
+    check(
+      'пробная связка с отменённым этапом 7 готова',
+      Boolean(materialsStage && cancel?.status === 200),
+      `статус отмены ${cancel?.status}`,
+    )
+
+    const task = materialsStage?.tasks[0]
+    if (task && cancel?.status === 200) {
+      actAs(rep.id)
+      const list = await call<Array<{ taskId: string; canConfirm: boolean }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      const listed = (list.body.data ?? []).find((item) => item.taskId === task.id)
+      check(
+        'пункт отменённого этапа не предлагается к подтверждению',
+        listed?.canConfirm === false,
+        `canConfirm ${listed?.canConfirm}`,
+      )
+
+      const confirm = await call('POST', `/api/portal/materials/${task.id}/confirm`, {})
+      check(
+        'подтверждение по отменённому этапу отклонено, как у сотрудника',
+        confirm.status === 409,
+        `статус ${confirm.status}`,
+      )
+
+      // Повтор уже подтверждённого — не изменение: ответ 200 даже в завершённом этапе.
+      const done = await call<Array<{ taskId: string; isConfirmed: boolean; stageStatus: string }>>(
+        'GET',
+        '/api/portal/materials',
+      )
+      const confirmedEarlier = (done.body.data ?? []).find(
+        (item) => item.isConfirmed && item.stageStatus === 'COMPLETED',
+      )
+      if (confirmedEarlier) {
+        const repeat = await call('POST', `/api/portal/materials/${confirmedEarlier.taskId}/confirm`, {})
+        check(
+          'повторное подтверждение в завершённом этапе безвредно',
+          repeat.status === 200,
+          `статус ${repeat.status}`,
+        )
+      }
+
+      const overview = await call<{ pendingMaterials: number }>('GET', '/api/portal/overview')
+      const confirmable = (list.body.data ?? []).filter((item) => item.canConfirm).length
+      check(
+        '«Материалы к подтверждению» считают только то, что можно подтвердить',
+        overview.body.data?.pendingMaterials === confirmable,
+        `в обзоре ${overview.body.data?.pendingMaterials}, в списке ${confirmable}`,
+      )
+      actAs(null)
+
+      const reread = await call<{ stages: Array<{ tasks: Array<{ id: string; isDone: boolean }> }> }>(
+        'GET',
+        `/api/cooperations/${cooperation.body.data?.id}`,
+      )
+      const after = (reread.body.data?.stages ?? [])
+        .flatMap((item) => item.tasks)
+        .find((item) => item.id === task.id)
+      check('пункт отменённого этапа остался неотмеченным', after?.isDone === false, `isDone ${after?.isDone}`)
+    }
+  }
+
   // ── 3. Кривой ввод ─────────────────────────────────────────────────────────
   step('3. Кривой ввод не должен ронять систему')
 
@@ -641,6 +729,475 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Этапы одной связки меняются по очереди ────────────────────────────────
+  step('Одновременные изменения этапов одной связки не ломают этап 14')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз очереди ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа очереди ${sfx}`,
+      level: 'BACHELOR',
+    })
+
+    // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
+    // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
+    // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    const finals: string[] = []
+    for (let round = 0; round < 3; round += 1) {
+      const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+        'POST',
+        '/api/cooperations',
+        { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+      )
+      const stages = created.body.data?.stages ?? []
+      const byNumber = (n: number) => stages.find((stage) => stage.stageNumber === n)?.id
+      await Promise.all(
+        Array.from({ length: 13 }, (_, index) => index + 1).map((n) =>
+          call('PATCH', `/api/workflow/stages/${byNumber(n)}`, {
+            status: 'CANCELLED',
+            comment: 'Пробник: не требуется',
+          }),
+        ),
+      )
+      const after = await call<{ stages: Array<{ stageNumber: number; status: string }> }>(
+        'GET',
+        `/api/cooperations/${created.body.data?.id}`,
+      )
+      finals.push(after.body.data?.stages.find((stage) => stage.stageNumber === 14)?.status ?? '—')
+    }
+    check(
+      'закрыты все 1–13 одновременно — этап 14 завершён',
+      finals.every((status) => status === 'COMPLETED'),
+      `этап 14: ${finals.join(', ')}`,
+    )
+  }
+
+  // ── Итог этапа после записи ────────────────────────────────────────────────
+  step('Завершённый этап не теряет результат, заблокированный — причину')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз итога ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа итога ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{
+      stages: Array<{ id: string; stageNumber: number; tasks: Array<{ id: string; isRequired: boolean }> }>
+    }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const first = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+    const second = created.body.data?.stages.find((stage) => stage.stageNumber === 2)
+    if (first && second) {
+      await call('PATCH', `/api/workflow/stages/${first.id}`, { status: 'IN_PROGRESS' })
+      for (const task of first.tasks.filter((item) => item.isRequired)) {
+        await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+      }
+      await call('PATCH', `/api/workflow/stages/${first.id}`, { result: 'Контакт найден' })
+      const completedWithBlank = await call<{ result: string | null }>(
+        'PATCH',
+        `/api/workflow/stages/${first.id}`,
+        { status: 'COMPLETED', result: '   ' },
+      )
+      check(
+        'завершение с пустым результатом в теле сохраняет прежний',
+        completedWithBlank.status === 200 && completedWithBlank.body.data?.result === 'Контакт найден',
+        `код ${completedWithBlank.status}, результат ${JSON.stringify(completedWithBlank.body.data?.result)}`,
+      )
+      const erased = await call('PATCH', `/api/workflow/stages/${first.id}`, { result: null })
+      check('результат завершённого этапа не стирается', erased.status === 422, `код ${erased.status}`)
+
+      await call('PATCH', `/api/workflow/stages/${second.id}`, { status: 'IN_PROGRESS' })
+      await call('PATCH', `/api/workflow/stages/${second.id}`, {
+        status: 'BLOCKED',
+        blockingReason: 'Пробник: ждём ответа',
+      })
+      const noReason = await call('PATCH', `/api/workflow/stages/${second.id}`, { blockingReason: '' })
+      check('причина блокировки не стирается', noReason.status === 422, `код ${noReason.status}`)
+    } else {
+      check('связка для проверки итога создана', false)
+    }
+  }
+
+  // ── Вернувшаяся проблема — снова открытая рекомендация ─────────────────────
+  step('Рекомендация, закрытая системой, открывается, когда проблема вернулась')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз возврата ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа возврата ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+      'POST',
+      '/api/cooperations',
+      { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+    )
+    const cooperationId = created.body.data?.id
+    const stage1 = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+    const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
+    const overdueRecommendation = async () => {
+      await call('POST', '/api/recommendations/generate')
+      const list = await call<Array<{ ruleKey: string; status: string; title: string }>>(
+        'GET',
+        `/api/recommendations?cooperationId=${cooperationId}&pageSize=50`,
+      )
+      return (list.body.data ?? []).find((row) => row.ruleKey === 'stage.overdue')
+    }
+
+    if (cooperationId && stage1) {
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { status: 'IN_PROGRESS', deadline: daysFromNow(-5) })
+      const first = await overdueRecommendation()
+      check('просрочка дала рекомендацию', first?.status === 'NEW', `статус ${first?.status ?? 'нет'}`)
+
+      // Срок перенесли — просрочки нет, система закрывает рекомендацию сама.
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { deadline: daysFromNow(30) })
+      const solved = await overdueRecommendation()
+      check('проблема ушла — рекомендация закрыта системой', solved?.status === 'DONE', `статус ${solved?.status ?? 'нет'}`)
+
+      // Срок снова в прошлом — та же проблема вернулась.
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { deadline: daysFromNow(-5) })
+      const back = await overdueRecommendation()
+      check(
+        'вернулась — рекомендация снова открыта, а не «выполнена»',
+        back?.status === 'NEW',
+        `статус ${back?.status ?? 'нет'}`,
+      )
+    } else {
+      check('связка для проверки возврата создана', false)
+    }
+  }
+
+  // ── Привязки записи ведут в один вуз ───────────────────────────────────────
+  step('Встреча и документ не связывают разные вузы, счётчики представителю — свои')
+
+  if (managerId && rep && foreignUniversity) {
+    const sfx = Date.now().toString().slice(-6)
+    const foreignProgram = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: foreignUniversity.id,
+      name: `Пробная чужая программа ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const foreignContactUniversity = await call<{ id: string; contacts: Array<{ id: string }> }>(
+      'POST',
+      '/api/universities',
+      {
+        name: `Пробный вуз с контактом ${sfx}`,
+        city: 'Тверь',
+        region: 'Тверская область',
+        contacts: [{ fullName: 'Пробник Контакт Чужой', position: 'Проректор' }],
+      },
+    )
+    const foreignContactId = foreignContactUniversity.body.data?.contacts?.[0]?.id
+
+    // Раньше каждая привязка проверялась сама по себе, и такая встреча показывала
+    // представителю вуза чужую программу и ФИО чужого контакта.
+    const mixedMeeting = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      programId: foreignProgram.body.data?.id,
+      date: new Date().toISOString(),
+      topic: 'Пробник: встреча с чужой программой',
+      responsibleId: managerId,
+    })
+    check('встреча с программой другого вуза отклоняется', mixedMeeting.status === 422, `код ${mixedMeeting.status}`)
+
+    const foreignParticipant = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      date: new Date().toISOString(),
+      topic: 'Пробник: встреча с чужим контактом',
+      responsibleId: managerId,
+      participants: [{ contactId: foreignContactId }],
+    })
+    check(
+      'контактное лицо другого вуза в участниках отклоняется',
+      foreignContactId !== undefined && foreignParticipant.status === 422,
+      `код ${foreignParticipant.status}`,
+    )
+
+    const repResponsible = await call('POST', '/api/meetings', {
+      universityId: rep.universityId,
+      date: new Date().toISOString(),
+      topic: 'Пробник: представитель ответственным',
+      responsibleId: rep.id,
+    })
+    check('ответственный — только сотрудник ИТ-Школы', repResponsible.status === 422, `код ${repResponsible.status}`)
+
+    const mixedDocument = await call('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: 'Пробник: документ с чужой программой',
+      universityId: rep.universityId,
+      programId: foreignProgram.body.data?.id,
+    })
+    check('документ с программой другого вуза отклоняется', mixedDocument.status === 422, `код ${mixedDocument.status}`)
+
+    // Счётчики: у представителя — только связки и программы своего вуза.
+    const staffProducts = await call<Array<{ id: string; cooperationCount: number }>>('GET', '/api/products?pageSize=100')
+    const ownCooperations = await call<Array<{ productId: string | null }>>(
+      'GET',
+      `/api/cooperations?universityId=${rep.universityId}&pageSize=100`,
+    )
+    actAs(rep.id)
+    const repProducts = await call<Array<{ id: string; cooperationCount: number }>>('GET', '/api/products?pageSize=100')
+    actAs(null)
+    const ownByProduct = new Map<string, number>()
+    for (const row of ownCooperations.body.data ?? []) {
+      if (row.productId) ownByProduct.set(row.productId, (ownByProduct.get(row.productId) ?? 0) + 1)
+    }
+    const leaked = (repProducts.body.data ?? []).filter(
+      (row) => row.cooperationCount !== (ownByProduct.get(row.id) ?? 0),
+    )
+    check(
+      'у представителя число связок продукта — только своего вуза',
+      repProducts.status === 200 && leaked.length === 0,
+      `расхождений ${leaked.length}; у сотрудника всего ${(staffProducts.body.data ?? []).reduce((sum, row) => sum + row.cooperationCount, 0)}`,
+    )
+
+    // Журнал: создание вуза обещано в SECURITY_LIMITATIONS.
+    if (adminId) {
+      actAs(adminId)
+      const logged = await call<Array<{ action: string }>>(
+        'GET',
+        `/api/audit?objectType=University&objectId=${foreignContactUniversity.body.data?.id}`,
+      )
+      actAs(null)
+      check(
+        'создание вуза записано в журнал',
+        (logged.body.data ?? []).some((row) => row.action === 'university.create'),
+        `записей ${(logged.body.data ?? []).length}`,
+      )
+    }
+  }
+
+  // ── Документы: версии и пакеты без дублей, содержимое не стирается ─────────
+  step('Документы: двойное нажатие не плодит версий и пакетов, подписывают не пустое')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз документов ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа документов ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    const cooperationId = created.body.data?.id
+
+    // Новая версия двумя одновременными запросами — одна версия, а не две «версии 2».
+    const original = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: `Пробный договор ${sfx}`,
+      cooperationId,
+      fileReference: 'https://example.invalid/probe.pdf',
+    })
+    const originalId = original.body.data?.id
+    const versions = await Promise.all([
+      call<{ id: string }>('POST', `/api/documents/${originalId}/versions`),
+      call<{ id: string }>('POST', `/api/documents/${originalId}/versions`),
+    ])
+    const list = await call<Array<{ title: string; version: string }>>(
+      'GET',
+      `/api/documents?cooperationId=${cooperationId}&pageSize=50`,
+    )
+    const secondVersions = (list.body.data ?? []).filter(
+      (row) => row.title === `Пробный договор ${sfx}` && row.version === '2',
+    )
+    check(
+      'двойное «Новая версия» — одна версия 2',
+      secondVersions.length === 1,
+      `версий 2: ${secondVersions.length}; коды ${versions.map((result) => result.status).join(', ')}`,
+    )
+    const fromArchived = await call('POST', `/api/documents/${originalId}/versions`)
+    check('от архивной версии новая не создаётся', fromArchived.status === 409, `код ${fromArchived.status}`)
+
+    // Пакет двумя одновременными запросами — один комплект.
+    await Promise.all([
+      call('POST', `/api/cooperations/${cooperationId}/documents/generate`),
+      call('POST', `/api/cooperations/${cooperationId}/documents/generate`),
+    ])
+    const afterPackage = await call<Array<{ templateKey: string | null }>>(
+      'GET',
+      `/api/documents?cooperationId=${cooperationId}&pageSize=100`,
+    )
+    const keys = (afterPackage.body.data ?? []).flatMap((row) => (row.templateKey ? [row.templateKey] : []))
+    check(
+      'двойное «Собрать пакет» — один комплект',
+      keys.length > 0 && new Set(keys).size === keys.length,
+      `документов по шаблонам ${keys.length}, разных ${new Set(keys).size}`,
+    )
+
+    // Утверждённый документ без текста: ссылку не стереть, пустой не подписать.
+    const approved = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: `Пробный утверждаемый ${sfx}`,
+      cooperationId,
+      fileReference: 'https://example.invalid/approve.pdf',
+    })
+    const approvedId = approved.body.data?.id
+    await call('PATCH', `/api/documents/${approvedId}/status`, { status: 'REVIEW' })
+    await call('PATCH', `/api/documents/${approvedId}/status`, { status: 'APPROVED' })
+    const erased = await call('PATCH', `/api/documents/${approvedId}`, { fileReference: null })
+    check('у утверждённого документа ссылку не стереть', erased.status === 422, `код ${erased.status}`)
+
+    // Связка: закрытой не создаётся, несуществующий продукт — не «связка не найдена».
+    const closedAtBirth = await call('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+      status: 'COMPLETED',
+    })
+    check('связка не создаётся сразу закрытой', closedAtBirth.status === 422, `код ${closedAtBirth.status}`)
+    const badProduct = await call('PATCH', `/api/cooperations/${cooperationId}`, { productId: 'нет-такого' })
+    check(
+      'несуществующий продукт — ошибка поля, а не «связка не найдена»',
+      badProduct.status === 422,
+      `код ${badProduct.status}`,
+    )
+  }
+
+  // ── Архивный вуз не участвует в аналитике ─────────────────────────────────
+  step('Программы архивного вуза не попадают в рейтинг')
+
+  {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный архивный вуз ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа архивного вуза ${sfx}`,
+      level: 'BACHELOR',
+      applicationCount: 999_999,
+      studentCount: 999_999,
+      groupCount: 999,
+    })
+    const inRating = async () => {
+      const rating = await call<Array<{ programId: string }>>('GET', '/api/analytics/programs?limit=100')
+      return (rating.body.data ?? []).some((row) => row.programId === program.body.data?.id)
+    }
+    check('программа действующего вуза в рейтинге', await inRating())
+    await call('POST', `/api/universities/${uni.body.data?.id}/archive`)
+    // Раньше программа оставалась «действующей» и продолжала сдвигать шкалу рейтинга.
+    check('после архивации вуза — нет', !(await inRating()))
+  }
+
+  // ── Импорт программ не стирает то, чего нет в файле ────────────────────────
+  step('Импорт программ: отсутствующие колонки не стираются, повторы — ошибка строки')
+
+  {
+    const sfx = Date.now().toString().slice(-6)
+    const uniName = `Пробный вуз импорта ${sfx}`
+    const programName = `Пробная программа импорта ${sfx}`
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: uniName,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: programName,
+      level: 'BACHELOR',
+      code: '09.03.04',
+      applicationCount: 120,
+      studentCount: 60,
+      groupCount: 3,
+    })
+    // Файл только с обязательными колонками: раньше он стирал код и все показатели.
+    const csv = `Вуз;Программа;Уровень\r\n${uniName};${programName};BACHELOR\r\n${uniName};${programName};BACHELOR\r\n`
+    const applied = await callRaw('POST', '/api/import?dataset=programs&mode=apply', csv, 'text/csv')
+    const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
+      (row) => row.outcome,
+    )
+    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'update,error', `исходы ${outcomes?.join()}`)
+    const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
+      'GET',
+      `/api/programs/${program.body.data?.id}`,
+    )
+    const raw = JSON.stringify(after.body.data ?? {})
+    check(
+      'код и показатели программы на месте',
+      raw.includes('09.03.04') && raw.includes('120'),
+      after.status === 200 ? 'сверено по карточке программы' : `код ${after.status}`,
+    )
+  }
+
+  // ── История документа: внутренние комментарии — только сотрудникам ────────
+  step('Представитель не видит внутренних комментариев в истории документа')
+
+  if (rep) {
+    // Причина отклонения — заметка сотрудников друг другу (решение 9). В истории
+    // этапов и в ленте событий она представителю не отдавалась, а в истории
+    // документа — отдавалась.
+    const note = `Пробник: внутренняя заметка ${Date.now()}`
+    const created = await call<{ id: string }>('POST', '/api/documents', {
+      type: 'AGREEMENT',
+      title: 'Пробник: документ с внутренней заметкой',
+      universityId: rep.universityId,
+      fileReference: 'https://example.invalid/probe.pdf',
+    })
+    const documentId = created.body.data?.id
+    if (documentId) {
+      await call('PATCH', `/api/documents/${documentId}/status`, { status: 'REVIEW' })
+      await call('PATCH', `/api/documents/${documentId}/status`, {
+        status: 'REJECTED',
+        comment: note,
+      })
+
+      const staffView = await call<{ history: Array<{ comment: string | null }> }>(
+        'GET',
+        `/api/documents/${documentId}`,
+      )
+      check(
+        'сотрудник видит причину отклонения',
+        (staffView.body.data?.history ?? []).some((entry) => entry.comment === note),
+      )
+
+      actAs(rep.id)
+      const repView = await call<{ history: Array<{ comment: string | null }> }>(
+        'GET',
+        `/api/documents/${documentId}`,
+      )
+      check('представитель документ своего вуза открывает', repView.status === 200)
+      check(
+        'но комментариев в истории не получает',
+        (repView.body.data?.history ?? []).length > 0 &&
+          (repView.body.data?.history ?? []).every((entry) => entry.comment === null),
+      )
+      actAs(null)
+    } else {
+      check('документ для проверки создан', false)
+    }
+  }
+
   // ── Рейтинг вуза: не должен становиться каналом утечки ─────────────────────
   step('Рейтинг вуза не раскрывает чужие данные')
 
@@ -770,22 +1327,37 @@ async function main(): Promise<void> {
   step('Контрольные точки нельзя обойти')
 
   {
-    // Нужна связка, у которой этапы до шестого ещё не закрыты.
-    const list = await call<Array<{ id: string; currentStage: { stageNumber: number } | null }>>(
-      'GET',
-      '/api/cooperations?pageSize=50',
-    )
-    const early = (list.body.data ?? []).find(
-      (row) => (row.currentStage?.stageNumber ?? 99) <= 4,
-    )
+    // Своя свежая связка: этапы до шестого не закрыты, контрольные точки не тронуты.
+    // Раньше бралась первая «ранняя» связка из демо-данных — раздел отменял у неё
+    // этап 7 и вернуть не мог (отменённую контрольную точку не пускают обратно
+    // незакрытые этапы), а у связки, созданной другим разделом, этап 7 мог быть
+    // уже отменён, и проверка падала из-за соседа, а не из-за системы.
+    type ProbeStage = {
+      id: string
+      stageNumber: number
+      status: string
+      tasks: Array<{ id: string; isDone: boolean }>
+    }
+    let stages: ProbeStage[] = []
+    const home = (universities.body.data ?? [])[0]
+    if (home && managerId) {
+      const sfx = Date.now().toString().slice(-6)
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: home.id,
+        name: `Пробная программа контрольных точек ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const fresh = await call<{ stages: ProbeStage[] }>('POST', '/api/cooperations', {
+        universityId: home.id,
+        programId: program.body.data?.id,
+        responsibleId: managerId,
+      })
+      stages = fresh.body.data?.stages ?? []
+    }
 
-    if (!early) {
-      check('есть связка в начале конвейера', false, 'нужен npm run db:seed')
+    if (stages.length === 0) {
+      check('пробная связка для контрольных точек создана', false, 'нужен npm run db:seed')
     } else {
-      const card = await call<{
-        stages: Array<{ id: string; stageNumber: number; status: string }>
-      }>('GET', `/api/cooperations/${early.id}`)
-      const stages = card.body.data?.stages ?? []
       const find = (number: number) => stages.find((stage) => stage.stageNumber === number)
 
       const signing = find(6)
@@ -822,20 +1394,9 @@ async function main(): Promise<void> {
       // (решение 49): «Передана лицензия» до подписания договора не отмечается.
       // Проверяется до отмены ниже: у отменённого этапа пункты закрыты по другой
       // причине, и проверка прошла бы, ничего не доказав.
-      // Связку ищем заново: у первой найденной этап 7 мог остаться отменённым
-      // от прошлых прогонов — вернуть его в работу не даёт та же контрольная точка.
-      type CardStage = { stageNumber: number; status: string; tasks: Array<{ id: string; isDone: boolean }> }
-      let openTask: { id: string } | undefined
-      for (const row of (list.body.data ?? []).filter((item) => (item.currentStage?.stageNumber ?? 99) <= 5)) {
-        const candidate = await call<{ stages: CardStage[] }>('GET', `/api/cooperations/${row.id}`)
-        const handoverStage = candidate.body.data?.stages.find((stage) => stage.stageNumber === 7)
-        if (handoverStage && ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED'].includes(handoverStage.status)) {
-          openTask = handoverStage.tasks.find((task) => !task.isDone)
-          if (openTask) break
-        }
-      }
+      const openTask = handover?.tasks.find((task) => !task.isDone)
       if (!openTask) {
-        check('есть связка с открытым этапом 7 для проверки', false, 'нужен npm run db:seed')
+        check('у пробной связки есть пункт этапа 7', false)
       } else {
         const ticked = await call('PATCH', `/api/workflow/tasks/${openTask.id}`, { isDone: true })
         const message = (ticked.body as { error?: { message?: string } }).error?.message ?? ''
@@ -1197,16 +1758,19 @@ async function main(): Promise<void> {
     type CoopRow = { id: string; status: string }
     type StageRow = { cooperation?: { id?: string }; cooperationId?: string }
 
-    const coops = await call<CoopRow[]>('GET', '/api/cooperations?pageSize=100')
-    const statusById = new Map((coops.body.data ?? []).map((row) => [row.id, row.status]))
-    const isClosed = (id?: string) =>
-      id !== undefined && ['COMPLETED', 'CANCELLED'].includes(statusById.get(id) ?? '')
+    // Закрытые — отбором по статусу, а не с первой страницы реестра: на рабочей
+    // базе новые связки вытесняли закрытые за первую сотню, и проверка падала
+    // без ошибки в приложении.
+    const coops = await call<CoopRow[]>(
+      'GET',
+      '/api/cooperations?status=COMPLETED&status=CANCELLED&pageSize=100',
+    )
+    const closedIds = new Set((coops.body.data ?? []).map((row) => row.id))
+    const isClosed = (id?: string) => id !== undefined && closedIds.has(id)
 
     const coopId = (row: StageRow) => row.cooperation?.id ?? row.cooperationId
 
-    const closedCount = [...statusById.values()].filter((status) =>
-      ['COMPLETED', 'CANCELLED'].includes(status),
-    ).length
+    const closedCount = closedIds.size
     check('в данных есть закрытые связки', closedCount > 0, `закрытых ${closedCount}`)
 
     for (const [path, title] of [
@@ -1564,9 +2128,13 @@ async function main(): Promise<void> {
       )
       paged.push(...(chunk.body.data ?? []).map((row) => row.id))
     }
+    // Один запрос отдаёт не больше сотни — сверяются первые строки обхода,
+    // а обход целиком — на повторы и потери.
     check(
       'постраничный обход даёт тот же порядок, что и один запрос',
-      total <= 100 && paged.join() === rows.map((row) => row.id).join(),
+      paged.slice(0, rows.length).join() === rows.map((row) => row.id).join() &&
+        new Set(paged).size === paged.length &&
+        paged.length === Math.min(total, 120),
       `${paged.length} строк по страницам, ${new Set(paged).size} разных, всего ${total}`,
     )
 

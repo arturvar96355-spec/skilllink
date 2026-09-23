@@ -31,7 +31,7 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--text-tertiary);
-  background: rgba(16, 13, 32, 0.92);
+  background: var(--surface-floating);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border-divider);
   white-space: nowrap;
@@ -72,9 +72,14 @@
 }
 
 .row {
-  transition:
-    background var(--motion-surface) var(--ease-out),
-    box-shadow var(--motion-surface) var(--ease-out);
+  transition: background var(--motion-surface) var(--ease-out),
+    box-shadow var(--motion-surface) var(--ease-out),
+    opacity var(--motion-surface) var(--ease-out);
+}
+
+/* Сдвиг — у содержимого ячеек, а не у строки: строка таблицы не двигается, сетка не прыгает. */
+.row > td {
+  transition: transform var(--motion-surface) var(--ease-out);
 }
 
 /* Строка подсвечивается целиком; масштаб не меняем — от него таблица «прыгает». */
@@ -82,13 +87,17 @@
   cursor: pointer;
 }
 
+/* Таблица — редакционный список (07, раздел 25): лёгкий фон и сдвиг на 4px при наведении. */
 .clickable:hover {
-  background: rgba(40, 30, 68, 0.6);
-  box-shadow: inset 2px 0 0 var(--accent-primary);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.clickable:hover > td {
+  transform: translateX(4px);
 }
 
 .clickable:active {
-  background: rgba(65, 40, 95, 0.5);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* Ссылка на объект занимает всю первую ячейку: по ней удобно попасть,
@@ -105,8 +114,8 @@
 }
 
 .selected {
-  background: rgba(65, 40, 95, 0.4);
-  box-shadow: inset 2px 0 0 var(--accent-secondary);
+  background: rgba(142, 108, 255, 0.08);
+  box-shadow: inset 2px 0 0 var(--accent-violet);
 }
 
 /*
@@ -143,6 +152,13 @@
 }
 
 .total {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.truncated {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
   font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
 }
@@ -184,3 +200,14 @@
   font-weight: 600;
   color: var(--text-primary);
 }
+
+/* Переход в карточку (lib/morph): выбранная строка подсвечена, остальные приглушены. */
+.table[data-morph] tbody tr {
+  opacity: 0.85;
+}
+
+.table[data-morph] tbody tr[data-picked] {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.04);
+}
+

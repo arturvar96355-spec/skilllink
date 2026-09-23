@@ -56,7 +56,7 @@ export function isClosedStatus(status: CooperationStatus): boolean {
  * статусам — теперь то же правило действует и для просроченных, заблокированных
  * и проблемных этапов.
  */
-export const OPEN_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED'] as const
+export { OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 
 /**
  * Процесс закрытой связки заморожен: этапы не двигаются, чек-листы не меняются,

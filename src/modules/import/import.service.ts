@@ -1,5 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { validationError } from '@/shared/http/errors'
+import { toAppError } from '@/shared/http/handle'
+import { describeForLog } from '@/shared/db/log'
 import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -7,12 +9,49 @@ import type { ImportResultDto, ImportRowResultDto } from '@/shared/contracts/imp
 import type { CsvEncoding } from './decode'
 import { PROGRAM_LEVELS, type ProgramLevel } from '@/shared/contracts/enums'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
-import { cell, mapHeaders, numericCell, parseCsv, type CsvRow } from './import.rules'
 import {
-  PROGRAM_COLUMNS,
-  UNIVERSITY_COLUMNS,
-  type ImportQuery,
-} from './import.schema'
+  cell,
+  mapHeaders,
+  numericCell,
+  parseCsv,
+  presentColumns,
+  schemaIssue,
+  type CsvRow,
+} from './import.rules'
+import { PROGRAM_COLUMNS, UNIVERSITY_COLUMNS, type ImportQuery } from './import.schema'
+import { createUniversitySchema, updateUniversitySchema } from '@/modules/universities/universities.schema'
+import { createProgramSchema, updateProgramSchema } from '@/modules/programs/programs.schema'
+
+/** Необязательные колонки вузов — по полям. */
+const UNIVERSITY_OPTIONAL_COLUMNS = {
+  shortName: 'Краткое название',
+  website: 'Сайт',
+  directionCount: 'Направлений',
+  studentCount: 'Студентов',
+} as const
+
+/** Колонка по полю — для текста ошибки проверки. */
+const UNIVERSITY_COLUMN_OF: Record<string, string> = {
+  name: 'Название',
+  city: 'Город',
+  region: 'Регион',
+  ...UNIVERSITY_OPTIONAL_COLUMNS,
+}
+
+const PROGRAM_OPTIONAL_COLUMNS = {
+  code: 'Код',
+  direction: 'Направление',
+  durationMonths: 'Длительность, мес.',
+  applicationCount: 'Заявки',
+  studentCount: 'Обучающихся',
+  groupCount: 'Групп',
+} as const
+
+const PROGRAM_COLUMN_OF: Record<string, string> = {
+  name: 'Программа',
+  level: 'Уровень',
+  ...PROGRAM_OPTIONAL_COLUMNS,
+}
 
 /** Больше этого в один заход не принимаем: защита от случайной загрузки гигантского файла. */
 const MAX_ROWS = 2000
@@ -96,34 +135,39 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
     // Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
     const existing = await prisma.university.findFirst({
       where: { name },
-      select: { id: true, city: true, region: true },
+      select: { id: true, city: true, region: true, archivedAt: true },
     })
 
-    // Обновляются ТОЛЬКО те поля, чьи колонки есть в файле.
-    //
-    // Иначе загрузка файла с одними обязательными колонками стирала бы всё
-    // остальное: краткое название, сайт, численность — молча, и в предпросмотре
-    // это выглядело бы как безобидное «обновятся данные вуза».
-    //
-    // Пустая ячейка при наличии колонки — по-прежнему осознанное «нет данных»
-    // и очищает поле. Разница именно между «колонки нет» и «колонка пустая».
-    // Обновление частичное, создание требует обязательных полей — отсюда два типа.
-    const optional: {
-      shortName?: string | null
-      website?: string | null
-      directionCount?: number | null
-      studentCount?: number | null
-    } = {}
-    if (index.has('Краткое название')) optional.shortName = cell(row, index, 'Краткое название')
-    if (index.has('Сайт')) optional.website = cell(row, index, 'Сайт')
-    if (index.has('Направлений')) {
-      optional.directionCount = 'value' in directions ? directions.value : null
-    }
-    if (index.has('Студентов')) {
-      optional.studentCount = 'value' in students ? students.value : null
+    // Архивный вуз через файл не меняется — как и через карточку (assertNotArchived).
+    if (existing?.archivedAt) {
+      plans.push({
+        result: { line, label: name, outcome: 'skip', detail: 'Вуз в архиве — восстановите его, чтобы изменить' },
+      })
+      continue
     }
 
+    const optional = presentColumns(index, UNIVERSITY_OPTIONAL_COLUMNS, {
+      shortName: cell(row, index, 'Краткое название'),
+      website: cell(row, index, 'Сайт'),
+      directionCount: 'value' in directions ? directions.value : null,
+      studentCount: 'value' in students ? students.value : null,
+    })
     const data = { city, region, ...optional }
+
+    const checked = existing
+      ? updateUniversitySchema.safeParse(data)
+      : createUniversitySchema.safeParse({ name, ...data })
+    if (!checked.success) {
+      plans.push({
+        result: {
+          line,
+          label: name,
+          outcome: 'error',
+          detail: schemaIssue(checked.error.issues, UNIVERSITY_COLUMN_OF),
+        },
+      })
+      continue
+    }
 
     if (existing) {
       plans.push({
@@ -158,6 +202,8 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
 
   const index = mapHeaders(header, PROGRAM_COLUMNS.required, PROGRAM_COLUMNS.optional)
   const plans: RowPlan[] = []
+  /** Программы, уже встреченные в этом файле: строка, где встретилась впервые. */
+  const seen = new Map<string, number>()
 
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i] as CsvRow
@@ -207,6 +253,17 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
       continue
     }
 
+    // Повтор программы внутри одного файла — ошибка строки, а не вторая программа:
+    // проверка существования идёт до записи, и две одинаковые строки давали двойника.
+    const key = `${universityName.toLowerCase()}::${name.toLowerCase()}`
+    if (seen.has(key)) {
+      plans.push({
+        result: { line, label, outcome: 'error', detail: `Эта программа уже встречалась в файле (строка ${seen.get(key)})` },
+      })
+      continue
+    }
+    seen.set(key, line)
+
     const numbers = {
       duration: numericCell(row, index, 'Длительность, мес.'),
       applications: numericCell(row, index, 'Заявки'),
@@ -222,28 +279,48 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
     const pick = (item: { value: number | null } | { error: string }): number | null =>
       'value' in item ? item.value : null
 
-    const hasMetrics =
-      pick(numbers.applications) !== null ||
-      pick(numbers.students) !== null ||
-      pick(numbers.groups) !== null
-
-    const data = {
-      level,
+    const optional = presentColumns(index, PROGRAM_OPTIONAL_COLUMNS, {
       code: cell(row, index, 'Код'),
       direction: cell(row, index, 'Направление'),
       durationMonths: pick(numbers.duration),
       applicationCount: pick(numbers.applications),
       studentCount: pick(numbers.students),
       groupCount: pick(numbers.groups),
-      ...(hasMetrics
-        ? { metricsSource: 'IMPORT' as const, metricsUpdatedAt: new Date() }
-        : {}),
-    }
+    })
+
+    const hasMetrics =
+      (optional.applicationCount ?? null) !== null ||
+      (optional.studentCount ?? null) !== null ||
+      (optional.groupCount ?? null) !== null
+
+    const fields = { level, ...optional }
 
     const existing = await prisma.educationalProgram.findFirst({
       where: { universityId: university.id, name },
-      select: { id: true },
+      select: { id: true, archivedAt: true },
     })
+
+    if (existing?.archivedAt) {
+      plans.push({
+        result: { line, label, outcome: 'skip', detail: 'Программа в архиве — восстановите её, чтобы изменить' },
+      })
+      continue
+    }
+
+    const checked = existing
+      ? updateProgramSchema.safeParse(fields)
+      : createProgramSchema.safeParse({ universityId: university.id, name, ...fields })
+    if (!checked.success) {
+      plans.push({
+        result: { line, label, outcome: 'error', detail: schemaIssue(checked.error.issues, PROGRAM_COLUMN_OF) },
+      })
+      continue
+    }
+
+    const data = {
+      ...fields,
+      ...(hasMetrics ? { metricsSource: 'IMPORT' as const, metricsUpdatedAt: new Date() } : {}),
+    }
 
     if (existing) {
       plans.push({
@@ -266,6 +343,11 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
   }
 
   return plans
+}
+
+/** Загружать файлы могут только роли с правом записи. Проверка до чтения файла. */
+export function assertCanImport(user: CurrentUser): void {
+  assertCan(user, 'WRITE')
 }
 
 /**
@@ -308,10 +390,12 @@ export async function importDataset(
       try {
         await plan.apply()
       } catch (error) {
+        // Наружу — только то, что можно показать: сообщение Prisma повторяет весь
+        // вызов с данными строки и уходило в ответ целиком.
+        const known = toAppError(error)
+        if (!known) console.error('[IMPORT] строка', plan.result.line, describeForLog(error))
         plan.result.outcome = 'error'
-        plan.result.detail = `Не удалось записать: ${
-          error instanceof Error ? error.message : 'неизвестная ошибка'
-        }`
+        plan.result.detail = `Не удалось записать: ${known ? known.message : 'внутренняя ошибка сервера'}`
       }
     }
   }

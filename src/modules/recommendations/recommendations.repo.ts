@@ -1,4 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
+import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
+import { latestPeriod } from '@/modules/skills/skills.repo'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { RECOMMENDATION_SORT_FIELDS, type RecommendationListQuery } from './recommendations.schema'
@@ -101,6 +103,19 @@ export interface UpsertResult {
  * «сначала новые», и первой окажется самая важная. Без этого три записи,
  * созданные в одну миллисекунду, выстраивались в случайном порядке.
  */
+/**
+ * Рекомендацию закрыла система, а не человек: правило перестало её выдавать.
+ *
+ * Такая запись означает «проблема ушла». Если правило выдаёт её снова — проблема
+ * вернулась, и запись открывается заново. Раньше генерация обновляла у неё текст
+ * и оставляла «Выполнена»: новая просрочка по той же связке не появлялась ни
+ * в ленте, ни на главной, ни в уведомлениях — они читают только открытые.
+ * Решение человека (`resolvedById` задан) не переписывается никогда.
+ */
+function isClosedBySystem(row: { status: string; resolvedById: string | null }): boolean {
+  return row.status === 'DONE' && row.resolvedById === null
+}
+
 export async function upsertDrafts(
   drafts: RecommendationDraft[],
   generatedAt: Date,
@@ -121,13 +136,23 @@ export async function upsertDrafts(
           objectId: draft.objectId,
         },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, resolvedById: true },
     })
 
     if (existing) {
+      const reopen = isClosedBySystem(existing)
       await prisma.recommendation.update({
         where: { id: existing.id },
         data: {
+          // Вернувшаяся проблема — снова новая: открыта и стоит среди свежих.
+          ...(reopen
+            ? {
+                status: 'NEW' as const,
+                resolvedAt: null,
+                resolutionComment: null,
+                createdAt: new Date(generatedAt.getTime() - index),
+              }
+            : {}),
           type: draft.type,
           title: draft.title,
           description: draft.description,
@@ -138,7 +163,8 @@ export async function upsertDrafts(
           cooperationId: draft.cooperationId,
         },
       })
-      updated += 1
+      if (reopen) created += 1
+      else updated += 1
       continue
     }
 
@@ -241,7 +267,7 @@ export async function updateStatus(
 }
 
 /** Исходные данные для правил. Один проход по базе вместо запроса на каждое правило. */
-export async function loadGenerationInput(now: Date) {
+export async function loadGenerationInput() {
   const [cooperations, programs, demand, programSkills, productSkills] = await Promise.all([
     prisma.cooperation.findMany({
       where: { status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
@@ -259,12 +285,20 @@ export async function loadGenerationInput(now: Date) {
             status: true,
             deadline: true,
             responsible: { select: { fullName: true } },
+            // Последнее движение по этапу — для правила «связка без движения».
+            history: { select: { changedAt: true }, orderBy: { changedAt: 'desc' }, take: 1 },
+            tasks: {
+              where: { doneAt: { not: null } },
+              select: { doneAt: true },
+              orderBy: { doneAt: 'desc' },
+              take: 1,
+            },
           },
         },
       },
     }),
     prisma.educationalProgram.findMany({
-      where: { status: 'ACTIVE', archivedAt: null },
+      where: ACTIVE_PROGRAM_WHERE,
       select: {
         id: true,
         name: true,
@@ -276,11 +310,16 @@ export async function loadGenerationInput(now: Date) {
       },
     }),
     prisma.marketDemand.findMany({
-      where: { period: await latestPeriod(now) },
-      select: { skillId: true, value: true, skill: { select: { id: true, name: true } } },
+      where: { period: (await latestPeriod()) ?? undefined },
+      select: {
+        skillId: true,
+        value: true,
+        region: true,
+        skill: { select: { id: true, name: true } },
+      },
     }),
     prisma.programSkill.findMany({
-      where: { program: { status: 'ACTIVE', archivedAt: null } },
+      where: { program: ACTIVE_PROGRAM_WHERE },
       select: { programId: true, skillId: true, level: true },
     }),
     prisma.productSkill.findMany({
@@ -294,14 +333,6 @@ export async function loadGenerationInput(now: Date) {
   ])
 
   return { cooperations, programs, demand, programSkills, productSkills }
-}
-
-async function latestPeriod(_now: Date): Promise<string | undefined> {
-  const row = await prisma.marketDemand.findFirst({
-    orderBy: { period: 'desc' },
-    select: { period: true },
-  })
-  return row?.period
 }
 
 /** Ключ объекта рекомендации для словаря имён. */

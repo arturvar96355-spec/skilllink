@@ -26,6 +26,7 @@ import {
   Icon,
   Input,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Progress,
@@ -66,7 +67,7 @@ function isTabKey(value: string | null): value is TabKey {
 /** Период замера: `2026-Q1` или `2026-03` — та же проверка, что в схеме модуля навыков. */
 const PERIOD_PATTERN = /^\d{4}-(Q[1-4]|(0[1-9]|1[0-2]))$/
 
-const PERIOD_HINT = 'Формат 2026-Q1 или 2026-03. Пусто — последний доступный период.'
+const PERIOD_HINT = 'Период — в формате 2026-Q1 или 2026-03; пустое поле — последний доступный период.'
 
 /** Доли 0..1 из ответов по навыкам показываются процентами. */
 function share(value: number | null): number | null {
@@ -133,11 +134,13 @@ function AnalyticsView() {
 
 function RatingTab() {
   const [limit, setLimit] = useState(20)
-  const rating = useResource<RankedProgramDto[]>(`/api/analytics/programs?limit=${limit}`)
+  const rating = useResource<RankedProgramDto[]>(`/api/analytics/programs?limit=${limit}`, {
+    keepPreviousData: true,
+  })
 
   const rows = rating.data ?? []
   const total = rating.meta?.total ?? rows.length
-  const containsMock = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   const columns: Column<RankedProgramDto>[] = [
     {
@@ -151,7 +154,6 @@ function RatingTab() {
       width: '200px',
       render: (row) => (
         <Link className={styles.link} href={universityHref(row.universityId)}>
-          <Icon name="university" size={16} />
           {row.universityName}
         </Link>
       ),
@@ -174,11 +176,11 @@ function RatingTab() {
     {
       key: 'basis',
       title: 'Основание',
-      width: '180px',
+      width: '130px',
       render: (row) => (
         <span className={styles.basis}>
           <span className={styles.basisLabel}>{METRIC_BASIS_LABELS[row.basis]}</span>
-          {row.isMock && <MockBadge />}
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -216,7 +218,7 @@ function RatingTab() {
     <Section
       title="Рейтинг программ"
       description="Балл относительный: он сравнивает программы между собой внутри этого ответа и не означает оценку по абсолютной шкале. Считается по трём показателям набора — заявки на обучение, количество обучающихся и количество параллельных групп. Востребованность навыков, дефициты, готовность вуза и просрочки в балл не входят: они показываются отдельными сигналами, чтобы «большая программа» и «программа, отставшая от рынка» не превращались в одно число."
-      action={containsMock ? <MockBadge /> : undefined}
+      action={marks.section ? <MockBadge /> : undefined}
     >
       <Card padding="none">
         {rating.isLoading ? (
@@ -287,11 +289,12 @@ function GapsTab({
       criticalOnly: criticalOnly ? 'true' : undefined,
       limit,
     })}`,
+    { keepPreviousData: true },
   )
 
   const rows = gaps.data ?? []
   const total = gaps.meta?.total ?? rows.length
-  const containsMock = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
   const selected = selectedSkillId ? rows.find((row) => row.skillId === selectedSkillId) : undefined
 
   const columns: Column<SkillGapDto>[] = [
@@ -363,7 +366,7 @@ function GapsTab({
           ) : (
             <span className={styles.muted}>Не критичен</span>
           )}
-          {row.isMock && <MockBadge />}
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -373,9 +376,9 @@ function GapsTab({
     <Section
       title="Навыки и дефициты"
       description="Дефицит — это разрыв между спросом рынка и тем, что даёт обучение: спрос, приведённый к шкале 0..1, минус покрытие навыка программой (нет навыка — 0, базовый — 0,34, средний — 0,67, продвинутый — 1). Критичным дефицит считается тогда, когда навык действительно востребован (спрос не ниже 0,5), а в программе его нет вовсе. Без выбранной программы считается сводка по всем действующим программам: берётся лучший достигнутый уровень."
-      action={containsMock ? <MockBadge /> : undefined}
+      action={marks.section ? <MockBadge /> : undefined}
     >
-      <Toolbar>
+      <Toolbar note={PERIOD_HINT}>
         <ToolbarItem>
           <RemoteSelect<UniversityListItemDto>
             label="Вуз"
@@ -401,7 +404,6 @@ function GapsTab({
               universityId ? (row) => ({ value: row.id, label: row.name }) : programWithUniversityOption
             }
             placeholder="Все программы"
-            hint="Без выбора — сводка по всем действующим"
             value={programId}
             onValueChange={(value) => setProgramId(value)}
           />
@@ -411,7 +413,6 @@ function GapsTab({
             label="Период"
             placeholder="2026-Q1"
             value={period}
-            hint={PERIOD_HINT}
             error={isPeriodValid ? null : 'Период должен быть в формате 2026-Q1 или 2026-03'}
             onChange={(event) => setPeriod(event.target.value)}
           />
@@ -513,11 +514,12 @@ function DemandTab() {
       category: category || undefined,
       limit,
     })}`,
+    { keepPreviousData: true },
   )
 
   const rows = demand.data ?? []
   const total = demand.meta?.total ?? rows.length
-  const containsMock = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   const columns: Column<SkillDemandDto>[] = [
     {
@@ -573,7 +575,7 @@ function DemandTab() {
           <span className={styles.muted}>
             {row.confidence === null ? NO_DATA : CONFIDENCE_LABELS[row.confidence]}
           </span>
-          {row.isMock && <MockBadge />}
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -583,15 +585,14 @@ function DemandTab() {
     <Section
       title="Спрос рынка"
       description="Востребованность навыков по данным рыночной статистики. Значение нормируется по всей выборке периода, а не по показанной странице: иначе полоса менялась бы от фильтров. У каждой строки есть источник, уровень доверия и признак происхождения."
-      action={containsMock ? <MockBadge /> : undefined}
+      action={marks.section ? <MockBadge /> : undefined}
     >
-      <Toolbar>
+      <Toolbar note={PERIOD_HINT}>
         <ToolbarItem>
           <Input
             label="Период"
             placeholder="2026-Q1"
             value={period}
-            hint={PERIOD_HINT}
             error={isPeriodValid ? null : 'Период должен быть в формате 2026-Q1 или 2026-03'}
             onChange={(event) => setPeriod(event.target.value)}
           />
@@ -617,7 +618,7 @@ function DemandTab() {
         )}
       </Toolbar>
 
-      {containsMock && (
+      {marks.section && (
         <Card muted padding="sm">
           <span className={styles.warning}>
             <span className={styles.warningIcon}>

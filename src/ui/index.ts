@@ -27,7 +27,8 @@ export {
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
-export { KpiCard, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
+export { mockMarks, type MockMarks } from './data/origin'
+export { KpiCard, KpiRow, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
 export {
   UniversityStatusBadge,
   ProgramStatusBadge,
@@ -62,7 +63,16 @@ export { Logo } from './layout/Logo'
 
 export { useResource, type Resource } from './hooks/useResource'
 export { useMutation, type MutationResult } from './hooks/useMutation'
-export { useDebounced, useEscape, useOutsideClick, useStoredValue, useMediaQuery } from './hooks/dom'
+export {
+  useDebounced,
+  useEscape,
+  useOutsideClick,
+  useStoredValue,
+  useMediaQuery,
+  useCountUp,
+  usePrefersReducedMotion,
+} from './hooks/dom'
+export { usePageInRange } from './hooks/page-range'
 
 export { apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
 export {
@@ -79,6 +89,8 @@ export {
   deadlineBadgeText,
   formatDeadlineDistance,
   dateInputToIso,
+  dateTimeInputToIso,
+  dateToDateTimeInput,
   isoToDateInput,
   pluralize,
   initials,
@@ -97,3 +109,5 @@ export {
   notificationHref,
   recommendationTargetHref,
 } from './lib/links'
+export { describeRelatedData, type RelatedFact } from './lib/related-data'
+export { startMorph } from './lib/morph'

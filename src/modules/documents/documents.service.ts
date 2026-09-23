@@ -1,8 +1,14 @@
 import { prisma } from '@/shared/db/prisma'
-import { notFound, validationError } from '@/shared/http/errors'
+import { conflict, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan, isUniversityVisible, universityScope } from '@/shared/auth/permissions'
+import {
+  assertCan,
+  canSeeInternalNotes,
+  isUniversityVisible,
+  universityScope,
+} from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { assertStaffResponsible, resolveEntityLinks } from '@/shared/links/entity-links'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -22,8 +28,10 @@ import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { PROGRAM_LEVEL_FULL_LABELS } from '@/shared/contracts/labels'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './documents.repo'
+import { lockCooperation } from '@/modules/workflow/workflow.repo'
 import {
   assertDocumentEditable,
+  assertDocumentHasContent,
   assertDocumentTransition,
   assertHasLink,
   nextVersion,
@@ -68,62 +76,26 @@ function toListItem(row: repo.DocumentListRow): DocumentListItemDto {
   }
 }
 
-function toDetail(row: repo.DocumentDetailRow): DocumentDto {
+/**
+ * Карточка документа с историей статусов.
+ *
+ * Комментарий в истории — внутренняя заметка: причина отклонения, что доработать.
+ * Представитель вуза его не видит (решение 9), как не видит комментариев
+ * в истории этапов и в ленте событий. Пользователь — обязательный аргумент,
+ * чтобы ни один путь к карточке не мог об этом забыть.
+ */
+function toDetail(row: repo.DocumentDetailRow, user: CurrentUser): DocumentDto {
+  const hideInternalNotes = !canSeeInternalNotes(user)
   return {
     ...toListItem(row),
     history: row.history.map((entry) => ({
       id: entry.id,
       fromStatus: entry.fromStatus,
       toStatus: entry.toStatus,
-      comment: entry.comment,
+      comment: hideInternalNotes ? null : entry.comment,
       changedBy: entry.changedBy,
       changedAt: toIsoRequired(entry.changedAt),
     })),
-  }
-}
-
-/**
- * Проверяет, что все переданные привязки существуют и видны пользователю.
- * Без этого документ можно было бы привязать к чужому вузу.
- */
-async function assertLinksVisible(
-  user: CurrentUser,
-  links: { cooperationId?: string | null; universityId?: string | null; programId?: string | null },
-): Promise<void> {
-  if (links.cooperationId) {
-    const cooperation = await prisma.cooperation.findUnique({
-      where: { id: links.cooperationId },
-      select: { universityId: true },
-    })
-    if (!cooperation || !isUniversityVisible(user, cooperation.universityId)) {
-      throw validationError('Указана несуществующая связка', [
-        { field: 'cooperationId', message: 'Связка не найдена' },
-      ])
-    }
-  }
-
-  if (links.universityId) {
-    const university = await prisma.university.findUnique({
-      where: { id: links.universityId },
-      select: { id: true },
-    })
-    if (!university || !isUniversityVisible(user, links.universityId)) {
-      throw validationError('Указан несуществующий вуз', [
-        { field: 'universityId', message: 'Вуз не найден' },
-      ])
-    }
-  }
-
-  if (links.programId) {
-    const program = await prisma.educationalProgram.findUnique({
-      where: { id: links.programId },
-      select: { universityId: true },
-    })
-    if (!program || !isUniversityVisible(user, program.universityId)) {
-      throw validationError('Указана несуществующая программа', [
-        { field: 'programId', message: 'Программа не найдена' },
-      ])
-    }
   }
 }
 
@@ -143,7 +115,7 @@ export async function getById(user: CurrentUser, id: string): Promise<DocumentDt
   assertCan(user, 'READ')
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Документ не найден')
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function create(
@@ -152,7 +124,8 @@ export async function create(
 ): Promise<DocumentDto> {
   assertCan(user, 'WRITE')
   assertHasLink(input)
-  await assertLinksVisible(user, input)
+  await resolveEntityLinks(user, input)
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
   const row = await repo.create({
     type: input.type,
@@ -175,7 +148,7 @@ export async function create(
     payload: { type: input.type, cooperationId: input.cooperationId ?? null },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function update(
@@ -188,8 +161,16 @@ export async function update(
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Документ не найден')
   assertDocumentEditable(existing.status)
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
+  // Итог правки подчиняется тем же правилам, что и переход: у документа на согласовании
+  // или утверждённого содержимое не стирается.
+  assertDocumentHasContent({
+    status: existing.status,
+    fileReference: input.fileReference !== undefined ? input.fileReference : existing.fileReference,
+    content: existing.content,
+  })
 
-  const row = await repo.update(id, {
+  const row = await repo.update(id, existing.status, {
     ...(input.type !== undefined ? { type: input.type } : {}),
     ...(input.title !== undefined ? { title: input.title } : {}),
     ...(input.version !== undefined ? { version: input.version } : {}),
@@ -197,11 +178,7 @@ export async function update(
     ...(input.issuedAt !== undefined
       ? { issuedAt: input.issuedAt ? new Date(input.issuedAt) : null }
       : {}),
-    ...(input.responsibleId !== undefined
-      ? input.responsibleId
-        ? { responsible: { connect: { id: input.responsibleId } } }
-        : { responsible: { disconnect: true } }
-      : {}),
+    ...(input.responsibleId !== undefined ? { responsibleId: input.responsibleId } : {}),
   })
 
   await writeAudit({
@@ -212,7 +189,7 @@ export async function update(
     payload: { fields: Object.keys(input) },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 export async function changeStatus(
@@ -250,7 +227,7 @@ export async function changeStatus(
     payload: { from: existing.status, to: input.status },
   })
 
-  return toDetail(row)
+  return toDetail(row, user)
 }
 
 /**
@@ -264,28 +241,30 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
 
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Документ не найден')
-
-  const created = await repo.create({
-    type: existing.type,
-    title: existing.title,
-    version: nextVersion(existing.version),
-    fileReference: null,
-    author: { connect: { id: user.id } },
-    ...(existing.responsible ? { responsible: { connect: { id: existing.responsible.id } } } : {}),
-    ...(existing.cooperationId ? { cooperation: { connect: { id: existing.cooperationId } } } : {}),
-    ...(existing.universityId ? { university: { connect: { id: existing.universityId } } } : {}),
-    ...(existing.programId ? { program: { connect: { id: existing.programId } } } : {}),
-  })
-
-  if (existing.status !== 'ARCHIVED') {
-    await repo.changeStatus(
-      id,
-      existing.status,
-      'ARCHIVED',
-      `Заменён версией ${created.version}`,
-      user.id,
-    )
+  // Версия — от действующего документа. От архивного получалась ещё одна «версия 2»
+  // рядом с уже существующей: номер считается от исходной, а не от последней.
+  if (existing.status === 'ARCHIVED') {
+    throw conflict('Документ в архиве: новую версию создают от действующей', {
+      status: existing.status,
+    })
   }
+
+  const created = await repo.createVersion(
+    id,
+    existing.status,
+    {
+      type: existing.type,
+      title: existing.title,
+      version: nextVersion(existing.version),
+      fileReference: null,
+      author: { connect: { id: user.id } },
+      ...(existing.responsible ? { responsible: { connect: { id: existing.responsible.id } } } : {}),
+      ...(existing.cooperationId ? { cooperation: { connect: { id: existing.cooperationId } } } : {}),
+      ...(existing.universityId ? { university: { connect: { id: existing.universityId } } } : {}),
+      ...(existing.programId ? { program: { connect: { id: existing.programId } } } : {}),
+    },
+    user.id,
+  )
 
   await writeAudit({
     userId: user.id,
@@ -295,7 +274,7 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
     payload: { previousId: id, version: created.version },
   })
 
-  return toDetail(created)
+  return toDetail(created, user)
 }
 
 // ─────────────────── Сборка пакета документов из шаблонов ───────────────────
@@ -380,46 +359,55 @@ export async function generatePackage(
     date: new Date().toLocaleDateString('ru-RU'),
   }
 
-  const existingKeys = input.force ? new Set<string>() : await repo.findTemplateKeys(cooperationId)
-
   const created: GeneratedDocumentDto[] = []
   const skipped: Array<{ templateKey: string; reason: string }> = []
   const missingFields = new Set<string>()
 
-  for (const template of templates) {
-    if (existingKeys.has(template.key)) {
-      skipped.push({
+  // Проверка «что уже есть» и создание — одной транзакцией в очереди связки
+  // (lockCooperation). Иначе двойное нажатие «Собрать пакет» проходило проверку
+  // дважды и собирало два одинаковых пакета — ровно то, от чего проверка защищает.
+  await prisma.$transaction(async (tx) => {
+    await lockCooperation(tx, cooperationId)
+    const existingKeys = input.force ? new Set<string>() : await repo.findTemplateKeys(cooperationId, tx)
+
+    for (const template of templates) {
+      if (existingKeys.has(template.key)) {
+        skipped.push({
+          templateKey: template.key,
+          reason: 'Документ по этому шаблону в связке уже есть',
+        })
+        continue
+      }
+
+      const renderedTitle = renderTemplate(template.title, context)
+      const renderedBody = renderTemplate(template.body, context)
+      for (const field of renderedBody.missing) missingFields.add(field)
+      for (const field of renderedTitle.missing) missingFields.add(field)
+
+      const row = await repo.create(
+        {
+          type: template.type,
+          title: renderedTitle.text,
+          version: '1',
+          content: renderedBody.text,
+          templateKey: template.key,
+          fileReference: null,
+          author: { connect: { id: user.id } },
+          // Ответственный — тот, кто ведёт связку, а не тот, кто нажал «собрать пакет».
+          responsible: { connect: { id: source.responsible.id } },
+          cooperation: { connect: { id: cooperationId } },
+          university: { connect: { id: source.universityId } },
+        },
+        tx,
+      )
+
+      created.push({
+        document: toListItem(row),
         templateKey: template.key,
-        reason: 'Документ по этому шаблону в связке уже есть',
+        missing: [...new Set([...renderedTitle.missing, ...renderedBody.missing])].sort(),
       })
-      continue
     }
-
-    const renderedTitle = renderTemplate(template.title, context)
-    const renderedBody = renderTemplate(template.body, context)
-    for (const field of renderedBody.missing) missingFields.add(field)
-    for (const field of renderedTitle.missing) missingFields.add(field)
-
-    const row = await repo.create({
-      type: template.type,
-      title: renderedTitle.text,
-      version: '1',
-      content: renderedBody.text,
-      templateKey: template.key,
-      fileReference: null,
-      author: { connect: { id: user.id } },
-      // Ответственный — тот, кто ведёт связку, а не тот, кто нажал «собрать пакет».
-      responsible: { connect: { id: source.responsible.id } },
-      cooperation: { connect: { id: cooperationId } },
-      university: { connect: { id: source.universityId } },
-    })
-
-    created.push({
-      document: toListItem(row),
-      templateKey: template.key,
-      missing: [...new Set([...renderedTitle.missing, ...renderedBody.missing])].sort(),
-    })
-  }
+  })
 
   await writeAudit({
     userId: user.id,

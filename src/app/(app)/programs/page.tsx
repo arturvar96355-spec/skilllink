@@ -22,6 +22,7 @@ import {
   Input,
   MetricCell,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Pagination,
@@ -40,6 +41,7 @@ import {
   universityShortOption,
   useDebounced,
   useResource,
+  usePageInRange,
   type Column,
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
@@ -102,12 +104,14 @@ export default function ProgramsPage() {
       // всегда возвращал бы пустой список.
       includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
     })}`,
+    { keepPreviousData: true },
   )
+  usePageInRange(page, setPage, programs.meta)
 
   const rows = programs.data ?? []
   const meta = programs.meta
   const hasFilters = query !== '' || level !== '' || status !== '' || universityId !== ''
-  const containsMockData = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   function resetFilters() {
     setSearch('')
@@ -125,8 +129,10 @@ export default function ProgramsPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.program}>
-          <CellText strong>{row.name}</CellText>
-          {row.isMock && <Badge tone="mock">демо</Badge>}
+          <CellText strong title={row.name}>
+            {row.name}
+          </CellText>
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -210,7 +216,7 @@ export default function ProgramsPage() {
       <PageHeader
         title="Программы"
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
-        meta={containsMockData ? <MockBadge /> : undefined}
+        meta={marks.section ? <MockBadge /> : undefined}
         actions={
           <>
             {/* Если выбран вуз, выгрузка ограничивается им: этот параметр

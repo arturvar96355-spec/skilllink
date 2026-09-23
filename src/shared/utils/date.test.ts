@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { daysBetween, daysToDeadline } from './date'
+import { daysBetween, daysToDeadline, moscowDayStart } from './date'
 
 const at = (iso: string) => new Date(iso)
 
@@ -39,3 +39,18 @@ describe('дни считаются по московскому календар
     expect(daysToDeadline(null)).toBeNull()
   })
 })
+
+describe('начало московских суток', () => {
+  it('полночь по Москве — 21:00 UTC предыдущего дня', () => {
+    expect(moscowDayStart(new Date('2026-09-23T10:00:00.000Z')).toISOString()).toBe('2026-09-22T21:00:00.000Z')
+  })
+
+  it('«просрочен не меньше дня» — срок до начала сегодняшних суток', () => {
+    // Бейдж «−1 дн.» у срока вчера в 23:00 — и выборка minDaysOverdue=1 его берёт.
+    const now = new Date('2026-09-23T07:00:00.000Z')
+    const threshold = moscowDayStart(now, 1 - 1)
+    expect(new Date('2026-09-22T20:00:00.000Z') < threshold).toBe(true)
+    expect(new Date('2026-09-23T06:00:00.000Z') < threshold).toBe(false)
+  })
+})
+

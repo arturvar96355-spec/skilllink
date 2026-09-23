@@ -12,6 +12,8 @@ import {
   formatScore,
   initials,
   pluralize,
+  dateTimeInputToIso,
+  dateToDateTimeInput,
 } from './format'
 
 function metric(value: number | null, unit: string, basis: Metric['basis'] = 'actual'): Metric {
@@ -121,3 +123,42 @@ describe('сокращения', () => {
     expect(abbreviate('Инфокоммуникационные технологии и системы связи')).toBe('ИТ')
   })
 })
+
+describe('поле «дата и время» — по Москве, в каком бы поясе ни был браузер', () => {
+  it('14:30 в поле — это 11:30 UTC', () => {
+    // Раньше время читалось поясом браузера: в Екатеринбурге 14:30 уходило как 09:30 UTC
+    // и показывалось как 12:30 по Москве.
+    expect(dateTimeInputToIso('2026-09-23T14:30')).toBe('2026-09-23T11:30:00.000Z')
+  })
+
+  it('момент времени заполняет поле московским временем', () => {
+    expect(dateToDateTimeInput(new Date('2026-09-23T21:30:00.000Z'))).toBe('2026-09-24T00:30')
+  })
+
+  it('туда и обратно — то же значение', () => {
+    const value = '2026-12-31T23:59'
+    expect(dateToDateTimeInput(new Date(dateTimeInputToIso(value)!))).toBe(value)
+  })
+
+  it('пустое поле — нет даты', () => {
+    expect(dateTimeInputToIso('')).toBeNull()
+  })
+})
+
+describe('склонение по числу', () => {
+  const forms: [string, string, string] = ['вуз', 'вуза', 'вузов']
+
+  it('целые — по последней цифре', () => {
+    expect(pluralize(1, forms)).toBe('вуз')
+    expect(pluralize(4, forms)).toBe('вуза')
+    expect(pluralize(11, forms)).toBe('вузов')
+    expect(pluralize(204, ['день', 'дня', 'дней'])).toBe('дня')
+  })
+
+  it('дробные — в родительном падеже единственного числа', () => {
+    // «8,6 операции», а не «8,6 операций»; «89,1 процента», а не «процентов».
+    expect(pluralize(8.6, ['операция', 'операции', 'операций'])).toBe('операции')
+    expect(pluralize(89.1, ['процент', 'процента', 'процентов'])).toBe('процента')
+  })
+})
+

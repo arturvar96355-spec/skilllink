@@ -164,7 +164,7 @@ async function main(): Promise<void> {
 
   check('активные связи', metric('activeCooperations'), 7)
   check('вузы в работе', metric('universitiesInWork'), 4)
-  check('этапы в срок, %', metric('stagesOnTimePercent'), 89.4)
+  check('этапы в срок, %', metric('stagesOnTimePercent'), 89.1)
   check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 204)
   check('проблемных этапов всего', overview.problemStageTotal, 12)
   check('из них показано на главной', overview.problemCooperations.length, 10)

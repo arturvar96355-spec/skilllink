@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
 import { toCsv } from '@/modules/export/export.rules'
-import { cell, mapHeaders, numericCell, parseCsv } from './import.rules'
+import { cell, mapHeaders, numericCell, parseCsv, presentColumns, schemaIssue } from './import.rules'
 import { importQuerySchema } from './import.schema'
 
 describe('разбор CSV', () => {
@@ -129,6 +129,13 @@ describe('числа из ячеек', () => {
     expect(numericCell(['11 800'], index, 'Студентов')).toEqual({ value: 11800 })
   })
 
+  it('число больше, чем вмещает колонка, — ошибка строки уже в предпросмотре', () => {
+    // Раньше предпросмотр обещал «Будет создан», а запись падала с текстом ошибки Prisma.
+    const result = numericCell(['99 999 999 999'], index, 'Студентов')
+    expect('error' in result).toBe(true)
+    expect(numericCell(['2147483647'], index, 'Студентов')).toEqual({ value: 2147483647 })
+  })
+
   it('нечисловое значение — ошибка строки, а не тихий ноль', () => {
     const result = numericCell(['много'], index, 'Студентов')
     expect('error' in result).toBe(true)
@@ -194,3 +201,26 @@ describe('повтор названия внутри одного файла', (
     expect(outcomes[2]?.firstSeen).toBe(2)
   })
 })
+
+describe('поля из колонок файла', () => {
+  const index = new Map([
+    ['Вуз', 0],
+    ['Программа', 1],
+    ['Код', 2],
+  ])
+
+  it('колонки нет — поле не трогается, колонка пустая — очищается', () => {
+    // Раньше программа из файла с тремя обязательными колонками теряла код,
+    // направление, длительность и все показатели рейтинга.
+    const fields = presentColumns(index, { code: 'Код', groupCount: 'Групп' }, { code: null, groupCount: null })
+    expect(fields).toEqual({ code: null })
+    expect('groupCount' in fields).toBe(false)
+  })
+
+  it('отказ схемы называет колонку, а не поле', () => {
+    expect(schemaIssue([{ path: ['name'], message: 'слишком коротко' }], { name: 'Название' })).toBe(
+      'Колонка «Название»: слишком коротко',
+    )
+  })
+})
+

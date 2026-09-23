@@ -1,10 +1,19 @@
 /* Показатели и KPI (разделы 5 типографики и 29 интерфейса). */
 
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-6) var(--space-8);
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
+}
+
 .kpi {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  min-height: 132px;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .kpiHead {
@@ -18,19 +27,6 @@
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-secondary);
-}
-
-.kpiIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-accent-soft);
-  flex: none;
 }
 
 .kpiValue {

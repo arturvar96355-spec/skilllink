@@ -14,6 +14,7 @@ import type {
 import {
   MEETING_FORMAT_LABELS,
   PROGRAM_LEVEL_LABELS,
+  UNIVERSITY_EVENTS_MAX_LIMIT,
   USER_ROLE_LABELS,
 } from '@/shared/contracts'
 import {
@@ -108,6 +109,7 @@ export default function UniversityPage() {
   const [eventsLimit, setEventsLimit] = useState(20)
   const events = useResource<UniversityEventDto[]>(
     tab === 'history' ? `/api/universities/${id}/events${buildQuery({ limit: eventsLimit })}` : null,
+    { keepPreviousData: true },
   )
 
   if (university.isLoading) {
@@ -469,6 +471,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={programs.data ?? []}
+              total={programs.meta?.total}
               columns={programColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => programHref(row.id)}
@@ -489,6 +492,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={cooperations.data ?? []}
+              total={cooperations.meta?.total}
               columns={cooperationColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => cooperationHref(row.id)}
@@ -532,6 +536,7 @@ export default function UniversityPage() {
           ) : (
             <DataTable
               rows={documents.data ?? []}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}
@@ -611,14 +616,25 @@ export default function UniversityPage() {
                   </span>
                 ))}
               </div>
-              {/* `hasMore` приходит в meta ленты: пока он есть, показываем «ещё». */}
-              {(events.meta as { hasMore?: boolean } | null)?.hasMore && (
-                <div className={styles.center}>
-                  <Button variant="secondary" icon="chevronDown" onClick={() => setEventsLimit((value) => value + 20)}>
-                    Показать ещё
-                  </Button>
-                </div>
-              )}
+              {/* `hasMore` приходит в meta ленты: пока он есть, показываем «ещё» — до предела запроса. */}
+              {(events.meta as { hasMore?: boolean } | null)?.hasMore &&
+                (eventsLimit < UNIVERSITY_EVENTS_MAX_LIMIT ? (
+                  <div className={styles.center}>
+                    <Button
+                      variant="secondary"
+                      icon="chevronDown"
+                      onClick={() =>
+                        setEventsLimit((value) => Math.min(value + 20, UNIVERSITY_EVENTS_MAX_LIMIT))
+                      }
+                    >
+                      Показать ещё
+                    </Button>
+                  </div>
+                ) : (
+                  <p className={styles.rowMeta}>
+                    Показаны последние {UNIVERSITY_EVENTS_MAX_LIMIT} событий.
+                  </p>
+                ))}
             </>
           )}
         </Card>

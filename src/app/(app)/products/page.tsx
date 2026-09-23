@@ -21,6 +21,7 @@ import {
   Icon,
   Input,
   MockBadge,
+  mockMarks,
   NO_DATA,
   PageHeader,
   Pagination,
@@ -37,6 +38,8 @@ import {
   productHref,
   useDebounced,
   useResource,
+  usePageInRange,
+  CellText,
   type BadgeTone,
   type Column,
 } from '@/ui'
@@ -94,12 +97,14 @@ function ProductsView() {
 
   const products = useResource<ProductListItemDto[]>(
     `/api/products${buildQuery({ q: query, status, sort, page, pageSize: PAGE_SIZE })}`,
+    { keepPreviousData: true },
   )
+  usePageInRange(page, setPage, products.meta)
 
   const rows = products.data ?? []
   const meta = products.meta
   const hasFilters = query !== '' || status !== ''
-  const containsMockData = rows.some((row) => row.isMock)
+  const marks = mockMarks(rows)
 
   function closeProduct() {
     const next = new URLSearchParams(searchParams.toString())
@@ -122,8 +127,10 @@ function ProductsView() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.name}>
-          {row.name}
-          {row.isMock && <Badge tone="mock">демо</Badge>}
+          <CellText strong title={row.name}>
+            {row.name}
+          </CellText>
+          {marks.row(row) && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -131,11 +138,12 @@ function ProductsView() {
       key: 'category',
       title: 'Категория',
       sortField: 'category',
-      render: (row) => <span className={styles.plain}>{row.category}</span>,
+      render: (row) => <CellText title={row.category}>{row.category}</CellText>,
     },
     {
       key: 'version',
       title: 'Версия',
+      width: '90px',
       render: (row) =>
         row.version === null ? (
           <span className={styles.empty}>{NO_DATA}</span>
@@ -146,6 +154,7 @@ function ProductsView() {
     {
       key: 'status',
       title: 'Статус',
+      width: '150px',
       sortField: 'status',
       render: (row) => (
         <Badge tone={STATUS_TONES[row.status]} withDot>
@@ -156,18 +165,21 @@ function ProductsView() {
     {
       key: 'skillCount',
       title: 'Навыков',
+      width: '100px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.skillCount)}</span>,
     },
     {
       key: 'cooperationCount',
       title: 'Связок',
+      width: '100px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.cooperationCount)}</span>,
     },
     {
       key: 'updatedAt',
       title: 'Обновлено',
+      width: '130px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       render: (row) => <span className={styles.plain}>{formatDate(row.updatedAt)}</span>,
@@ -179,7 +191,7 @@ function ProductsView() {
       <PageHeader
         title="IT-продукты"
         description="Продукты, которые передаются вузам: версии, навыки и связки."
-        meta={containsMockData ? <MockBadge /> : undefined}
+        meta={marks.section ? <MockBadge /> : undefined}
       />
 
       <Toolbar>

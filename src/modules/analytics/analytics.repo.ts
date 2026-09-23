@@ -1,4 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
+import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
@@ -7,7 +9,7 @@ import { TIE_BREAKER } from '@/shared/http/pagination'
 /** Связки, которые сейчас в работе. */
 export async function countActiveCooperations(scope: { universityId?: string }): Promise<number> {
   return prisma.cooperation.count({
-    where: { status: { in: ['DRAFT', 'ACTIVE'] }, ...scope },
+    where: { status: { in: [...ACTIVE_COOPERATION_STATUSES] }, ...scope },
   })
 }
 
@@ -21,17 +23,46 @@ export async function countUniversitiesInWork(scope: { universityId?: string }):
   })
 }
 
+/**
+ * Этапы, по которым считается доля закрытых в срок: завершённые, со сроком.
+ *
+ * Без контрольного этапа 14: его закрывает система, когда закрыты остальные,
+ * и его «срок» — это сроки этапов 1–13, уже учтённые по отдельности. С ним
+ * одна и та же работа считалась дважды — по той же причине он не входит
+ * в процент прохождения (решение 8). Одно определение на главную и личный кабинет.
+ */
+const ON_TIME_CANDIDATES = {
+  status: 'COMPLETED',
+  deadline: { not: null },
+  completedAt: { not: null },
+  stageNumber: { not: CONTROL_STAGE_NUMBER },
+} as const
+
 /** Завершённые этапы со сроком — по ним считается доля закрытых вовремя. */
 export async function findCompletedStagesWithDeadline(scope: { universityId?: string }) {
   return prisma.workflowStage.findMany({
     where: {
-      status: 'COMPLETED',
-      deadline: { not: null },
-      completedAt: { not: null },
+      ...ON_TIME_CANDIDATES,
       ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
     },
-    select: { deadline: true, completedAt: true },
+    select: { deadline: true, completedAt: true, cooperation: { select: { isMock: true } } },
   })
+}
+
+/**
+ * Есть ли среди связок демонстрационные — в пределах видимости.
+ *
+ * Показатели главной считаются по связкам и этапам, а признак демо-данных у них
+ * всегда был «нет»: сводка по демонстрационному набору выдавалась за настоящую
+ * (CLAUDE.md, «Данные»).
+ */
+export async function hasMockCooperations(scope: { universityId?: string }): Promise<boolean> {
+  return (await prisma.cooperation.count({ where: { isMock: true, ...scope }, take: 1 })) > 0
+}
+
+export async function hasMockUniversities(scope: { universityId?: string }): Promise<boolean> {
+  const where = { isMock: true, archivedAt: null, ...(scope.universityId ? { id: scope.universityId } : {}) }
+  return (await prisma.university.count({ where, take: 1 })) > 0
 }
 
 /** Связки, где известны и первый контакт, и начало занятий: по ним считается срок цикла. */
@@ -42,7 +73,7 @@ export async function findCycleDurations(scope: { universityId?: string }) {
       classesStartAt: { not: null },
       ...scope,
     },
-    select: { firstContactAt: true, classesStartAt: true },
+    select: { firstContactAt: true, classesStartAt: true, isMock: true },
   })
 }
 
@@ -58,8 +89,15 @@ export async function findCycleDurations(scope: { universityId?: string }) {
  */
 export async function findProgramsForRating(scope: { universityId?: string }, limit: number) {
   return prisma.educationalProgram.findMany({
-    orderBy: [{ applicationCount: 'desc' }, { studentCount: 'desc' }, { id: 'asc' }],
-    where: { status: 'ACTIVE', archivedAt: null, ...scope },
+    // Пустые показатели — в конец. По умолчанию PostgreSQL ставит NULL первыми при
+    // сортировке по убыванию: при двухстах программах без заявок срез состоял
+    // только из них, и программы с данными в рейтинг не попадали.
+    orderBy: [
+      { applicationCount: { sort: 'desc', nulls: 'last' } },
+      { studentCount: { sort: 'desc', nulls: 'last' } },
+      { id: 'asc' },
+    ],
+    where: { ...ACTIVE_PROGRAM_WHERE, ...scope },
     select: {
       id: true,
       name: true,
@@ -68,7 +106,7 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
       groupCount: true,
       metricsSource: true,
       isMock: true,
-      university: { select: { id: true, name: true } },
+      university: { select: { id: true, name: true, shortName: true } },
     },
     take: limit,
   })
@@ -189,7 +227,7 @@ export async function countLoggedOperations(scope: { universityId?: string }) {
  */
 export async function findProgramsForUniversityRating(scope: { universityId?: string }) {
   return prisma.educationalProgram.findMany({
-    where: { status: 'ACTIVE', archivedAt: null, ...scope },
+    where: { ...ACTIVE_PROGRAM_WHERE, ...scope },
     select: {
       id: true,
       name: true,
@@ -210,7 +248,7 @@ export async function findProgramsForUniversityRating(scope: { universityId?: st
  */
 export async function findRatingBounds(scope: { universityId?: string }) {
   const result = await prisma.educationalProgram.aggregate({
-    where: { status: 'ACTIVE', archivedAt: null, ...scope },
+    where: { ...ACTIVE_PROGRAM_WHERE, ...scope },
     _min: { applicationCount: true, studentCount: true, groupCount: true },
     _max: { applicationCount: true, studentCount: true, groupCount: true },
   })
@@ -225,8 +263,7 @@ export async function findProgramsOfUniversities(
   if (universityIds.length === 0) return []
   return prisma.educationalProgram.findMany({
     where: {
-      status: 'ACTIVE',
-      archivedAt: null,
+      ...ACTIVE_PROGRAM_WHERE,
       universityId: { in: [...universityIds] },
       ...scope,
     },
@@ -249,7 +286,7 @@ export async function findProgramsOfUniversities(
  */
 export async function findActiveCooperationsOf(userId: string) {
   return prisma.cooperation.findMany({
-    where: { responsibleId: userId, status: { in: ['DRAFT', 'ACTIVE'] } },
+    where: { responsibleId: userId, status: { in: [...ACTIVE_COOPERATION_STATUSES] } },
     select: { universityId: true, programId: true, isMock: true },
   })
 }
@@ -257,12 +294,7 @@ export async function findActiveCooperationsOf(userId: string) {
 /** Свои завершённые этапы со сроком — по ним доля закрытых вовремя. */
 export async function findCompletedStagesWithDeadlineOf(userId: string) {
   return prisma.workflowStage.findMany({
-    where: {
-      responsibleId: userId,
-      status: 'COMPLETED',
-      deadline: { not: null },
-      completedAt: { not: null },
-    },
+    where: { responsibleId: userId, ...ON_TIME_CANDIDATES },
     select: { deadline: true, completedAt: true },
   })
 }
@@ -281,4 +313,9 @@ export async function countOverdueStagesOf(userId: string, now: Date): Promise<n
       cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
     },
   })
+}
+
+/** Сколько действующих программ в рейтинге всего — а не в срезе, который считается. */
+export async function countProgramsForRating(scope: { universityId?: string }): Promise<number> {
+  return prisma.educationalProgram.count({ where: { ...ACTIVE_PROGRAM_WHERE, ...scope } })
 }

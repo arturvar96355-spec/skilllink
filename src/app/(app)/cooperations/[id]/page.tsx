@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams, useSearchParams } from 'next/navigation'
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
@@ -49,6 +49,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { CooperationChain } from './CooperationChain'
+import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
 import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
@@ -68,9 +69,18 @@ function CooperationContent() {
   const toast = useToast()
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
+  const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
+
+  // Ссылка из уведомления на эту же связку страницу не пересоздаёт: меняется только
+  // параметр. Без этого переход по второму уведомлению не делал ничего.
+  useEffect(() => {
+    if (highlightedStageId === null) return
+    setTab('stages')
+    setFocusStageId(highlightedStageId)
+  }, [highlightedStageId])
 
   const cooperation = useResource<CooperationDto>(`/api/cooperations/${params.id}`)
 
@@ -101,9 +111,13 @@ function CooperationContent() {
         })}`
       : null,
   )
-  // Этапы держим отдельным состоянием: ответ PATCH возвращает изменённый этап
-  // целиком, и перезапрашивать всю связку ради одного поля незачем.
+  // Изменённый этап показываем сразу, из ответа PATCH, — но связку после этого
+  // перечитываем: сервер меняет не только его. Этап 14 пересчитывается сам
+  // (решение 2), а с ним прогресс, текущий этап и лента. Раньше страница брала
+  // только изменённый этап, и после «Начать этап» на новой связке этап 14 так
+  // и оставался «Не начат».
   const [patchedStages, setPatchedStages] = useState<Record<string, WorkflowStageDto>>({})
+  useEffect(() => setPatchedStages({}), [cooperation.data])
   const [packageResult, setPackageResult] = useState<DocumentPackageResultDto | null>(null)
 
   const generatePackage = useMutation(async () => {
@@ -125,6 +139,9 @@ function CooperationContent() {
       return
     }
     setPackageResult(result.data)
+    // Пустая вкладка сама предлагает эту кнопку — после сборки в ней должны
+    // появиться собранные документы.
+    documents.reload()
   }
 
   if (cooperation.isLoading) {
@@ -225,10 +242,21 @@ function CooperationContent() {
         <CooperationChain
           universityId={data.universityId}
           universityName={data.universityName}
+          universityShortName={data.universityShortName}
           programId={data.programId}
           programName={data.programName}
           productId={data.productId}
           productName={data.productName}
+          stage={
+            data.currentStage
+              ? {
+                  number: data.currentStage.stageNumber,
+                  title: data.currentStage.title,
+                  isProblem: data.currentStage.isOverdue || data.currentStage.status === 'BLOCKED',
+                  total: data.stages.length,
+                }
+              : null
+          }
         />
       </Card>
 
@@ -240,6 +268,10 @@ function CooperationContent() {
               <span className={styles.factValue}>{data.responsible.fullName}</span>
             </span>
             <span className={styles.fact}>
+              <span className={styles.factLabel}>Первый контакт</span>
+              <span className={styles.factValue}>{formatDate(data.firstContactAt)}</span>
+            </span>
+            <span className={styles.fact}>
               <span className={styles.factLabel}>Контрольная дата</span>
               <span className={styles.factValue}>{formatDate(data.targetDate)}</span>
             </span>
@@ -247,6 +279,12 @@ function CooperationContent() {
               <span className={styles.factLabel}>Начало занятий</span>
               <span className={styles.factValue}>{formatDate(data.classesStartAt)}</span>
             </span>
+            {data.closedAt && (
+              <span className={styles.fact}>
+                <span className={styles.factLabel}>Закрыта</span>
+                <span className={styles.factValue}>{formatDate(data.closedAt)}</span>
+              </span>
+            )}
           </div>
           {data.goal && <p className={styles.goal}>{data.goal}</p>}
           {data.notes && <p className={styles.goal}>{data.notes}</p>}
@@ -301,9 +339,10 @@ function CooperationContent() {
               stage={stage}
               canWrite={user.permissions.canWrite}
               isHighlighted={stage.id === focusStageId}
-              onStageChanged={(updated) =>
+              onStageChanged={(updated) => {
                 setPatchedStages((current) => ({ ...current, [updated.id]: updated }))
-              }
+                cooperation.reload()
+              }}
             />
           ))}
         </div>
@@ -324,6 +363,7 @@ function CooperationContent() {
           ) : (
             <DataTable
               rows={documents.data ?? []}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}
@@ -331,6 +371,14 @@ function CooperationContent() {
             />
           )}
         </Card>
+      )}
+
+      {tab === 'meetings' && user.permissions.canWrite && (
+        <div className={styles.tabActions}>
+          <Button icon="plus" variant="secondary" onClick={() => setIsMeetingOpen(true)}>
+            Записать встречу
+          </Button>
+        </div>
       )}
 
       {tab === 'meetings' && (
@@ -357,6 +405,14 @@ function CooperationContent() {
                       {meeting.nextActionDueAt && ` до ${formatDate(meeting.nextActionDueAt)}`}
                     </span>
                   )}
+                  {meeting.participants.length > 0 && (
+                    <span className={styles.blockText}>
+                      Участники:{' '}
+                      {meeting.participants
+                        .map((person) => (person.position ? `${person.name} (${person.position})` : person.name))
+                        .join(', ')}
+                    </span>
+                  )}
                   <span className={styles.factLabel}>
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
@@ -366,6 +422,16 @@ function CooperationContent() {
             </div>
           )}
         </Card>
+      )}
+
+      {isMeetingOpen && (
+        <CreateMeetingModal
+          cooperationId={params.id}
+          onClose={(created) => {
+            setIsMeetingOpen(false)
+            if (created) meetings.reload()
+          }}
+        />
       )}
 
       {tab === 'recommendations' && (

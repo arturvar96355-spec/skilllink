@@ -11,6 +11,7 @@ import 'dotenv/config'
 import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
+import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 
@@ -668,6 +669,11 @@ async function main(): Promise<void> {
           item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
         targetDate: item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
         isMock: true,
+        // Время записи — по сюжету, а не момент заливки: связка заведена, когда
+        // началась работа, и с тех пор не правилась. Иначе у всех связок «изменена
+        // сегодня», и застой по этапам в наборе не виден (решение 56).
+        createdAt: startedAt,
+        updatedAt: startedAt,
       },
     })
 
@@ -688,25 +694,32 @@ async function main(): Promise<void> {
       universityKey: item.university,
     })
 
+    type SeedStageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED'
+    const seedStatus = (number: number): SeedStageStatus => {
+      if (item.cancelledStages?.includes(number)) return 'CANCELLED'
+      if (number <= item.completedUpTo) return 'COMPLETED'
+      if (item.blockedStage === number) return 'BLOCKED'
+      if (number === item.completedUpTo + 1) return 'IN_PROGRESS'
+      return 'NOT_STARTED'
+    }
+    // Контрольный этап — тем же правилом, что в системе (computeControlStatus),
+    // а не своей копией: копия считала по номеру последнего закрытого этапа,
+    // и у связки с начатым первым этапом этап 14 оставался «Не начат».
+    const controlStatus = computeControlStatus(
+      WORKFLOW_STAGES.filter((definition) => definition.number !== 14).map((definition) =>
+        seedStatus(definition.number),
+      ),
+    )
+
     for (const definition of WORKFLOW_STAGES) {
       const number = definition.number
       const isControl = number === 14
-
-      let status: 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED' =
-        'NOT_STARTED'
-      if (item.cancelledStages?.includes(number)) status = 'CANCELLED'
-      else if (number <= item.completedUpTo) status = 'COMPLETED'
-      else if (item.blockedStage === number) status = 'BLOCKED'
-      else if (number === item.completedUpTo + 1 && !isControl) status = 'IN_PROGRESS'
+      const status = seedStatus(number)
 
       const isOverdue = item.overdueStages?.includes(number) ?? false
       const deadline = isOverdue
         ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
         : new Date(startedAt.getTime() + definition.normativeDays * DAY)
-
-      // Контрольный этап считается по остальным — здесь выставляется то же правило.
-      const controlStatus =
-        item.completedUpTo >= 13 ? 'COMPLETED' : item.completedUpTo > 0 ? 'IN_PROGRESS' : 'NOT_STARTED'
 
       const finalStatus = isControl ? controlStatus : status
 
@@ -951,19 +964,10 @@ async function main(): Promise<void> {
     })
   }
 
-  // ─── Застоявшаяся связка ───────────────────────────────────────────────────
-  // updatedAt проставляется Prisma автоматически, поэтому дату последнего изменения
-  // для демонстрации правила «связка без движения» сдвигаем назад запросом.
-  console.log('Сдвиг даты изменения для демонстрации застоя...')
-  const stalled = await prisma.cooperation.findFirst({
-    where: { universityId: universityId('urfu') },
-    select: { id: true },
-  })
-  if (stalled) {
-    await prisma.$executeRaw`
-      UPDATE cooperations SET updated_at = ${daysAgo(30)} WHERE id = ${stalled.id}
-    `
-  }
+  // Застой не подделывается. Раньше у связки УрФУ дату изменения сдвигали на 30 дней
+  // назад, и правило выдавало «Связка без движения 30 дн.» о связке, созданной 5 дней
+  // назад, где этап 1 начат 4 дня назад. Правило смотрит на движение по этапам
+  // (решение 56) и само находит связку, где работа действительно стоит.
 
   // ─── Заявки на обучение ────────────────────────────────────────────────────
   // applicationCount программы считается по заявкам (решение 9), поэтому демо-данные

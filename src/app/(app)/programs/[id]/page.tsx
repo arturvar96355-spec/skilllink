@@ -17,6 +17,7 @@ import {
   type SkillGapDto,
   type ProgramSkillDto,
   type RatingFactorDto,
+  PROGRAM_METRIC_LABELS,
 } from '@/shared/contracts'
 import {
   Avatar,
@@ -287,6 +288,10 @@ export default function ProgramPage() {
       title: 'Спрос рынка',
       width: '170px',
       render: (row) => {
+        // Пока спрос грузится или запрос не удался — так и пишем. Раньше оба случая
+        // выглядели как «Нет данных», и сбой читался как отсутствие спроса на навык.
+        if (demand.isLoading) return <span className={styles.empty}>…</span>
+        if (demand.error) return <span className={styles.empty}>Не загрузилось</span>
         const market = demandBySkill.get(row.skillId)
         if (!market || market.normalized === null) {
           return <span className={styles.empty}>{NO_DATA}</span>
@@ -495,19 +500,14 @@ export default function ProgramPage() {
             title="Показатели набора"
             description="Заявки, обучающиеся и параллельные группы — те самые три показателя, по которым считается рейтинг."
           >
+            {/* Три числа на одной поверхности, а не три одинаковые карточки (07, раздел 40). */}
             <div className={styles.metrics}>
-              <Card>
-                <span className={styles.metricLabel}>Заявки на обучение</span>
-                <MetricValue metric={data.metrics.applicationCount} />
-              </Card>
-              <Card>
-                <span className={styles.metricLabel}>Количество обучающихся</span>
-                <MetricValue metric={data.metrics.studentCount} />
-              </Card>
-              <Card>
-                <span className={styles.metricLabel}>Параллельных групп</span>
-                <MetricValue metric={data.metrics.groupCount} />
-              </Card>
+              {(['applicationCount', 'studentCount', 'groupCount'] as const).map((key) => (
+                <div key={key}>
+                  <span className={styles.metricLabel}>{PROGRAM_METRIC_LABELS[key]}</span>
+                  <MetricValue metric={data.metrics[key]} />
+                </div>
+              ))}
             </div>
           </Section>
 
@@ -589,6 +589,7 @@ export default function ProgramPage() {
           <Card padding="none">
             <DataTable
               rows={cooperationRows}
+              total={cooperations.meta?.total}
               columns={cooperationColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => cooperationHref(row.id)}
@@ -615,6 +616,7 @@ export default function ProgramPage() {
           <Card padding="none">
             <DataTable
               rows={documentRows}
+              total={documents.meta?.total}
               columns={documentColumns}
               getRowKey={(row) => row.id}
               getRowHref={(row) => documentHref(row.id)}

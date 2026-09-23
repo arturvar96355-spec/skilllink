@@ -11,17 +11,16 @@
   height: 44px;
   padding: 0 var(--space-5);
   border-radius: var(--radius-pill);
-  border: 1px solid rgba(200, 77, 255, 0.2);
-  background: rgba(24, 18, 43, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface-floating);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 12px 50px rgba(200, 77, 255, 0.16);
-  transition:
-    transform var(--motion-micro) var(--ease-out),
+  box-shadow: none;
+  transition: transform var(--motion-micro) var(--ease-out),
     box-shadow var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out),
     border-color var(--motion-micro) var(--ease-out);
@@ -30,8 +29,8 @@
 .fab:hover {
   transform: translateY(-1px) scale(1.02);
   color: var(--text-primary);
-  border-color: rgba(200, 77, 255, 0.38);
-  box-shadow: 0 14px 56px rgba(200, 77, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
 }
 
 .fab:active {
@@ -57,21 +56,13 @@
   width: min(620px, calc(100vw - var(--space-8)));
   display: flex;
   flex-direction: column;
-  background: rgba(24, 18, 43, 0.9);
+  background: var(--surface-floating);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(200, 77, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-floating), 0 12px 50px rgba(200, 77, 255, 0.16);
+  box-shadow: var(--shadow-floating);
   overflow: hidden;
-  animation: spotlightIn var(--motion-overlay) var(--ease-out);
-}
-
-@keyframes spotlightIn {
-  from {
-    opacity: 0;
-    transform: scale(0.98);
-  }
 }
 
 /* Закрытие — та же анимация в обратную сторону и чуть быстрее. */
@@ -161,14 +152,13 @@
   text-align: left;
   cursor: pointer;
   color: var(--text-primary);
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out);
 }
 
 .result:hover,
 .active {
-  background: rgba(90, 54, 145, 0.24);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .active {
@@ -176,15 +166,13 @@
 }
 
 .resultIcon {
+  /* Иконка различает тип записи — сама по себе, без плашки под ней (07, раздел 5). */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 20px;
+  height: 20px;
   flex: none;
-  border-radius: 10px;
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
   color: var(--text-accent-soft);
 }
 

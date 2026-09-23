@@ -27,6 +27,7 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['RecommendationType', enums.RECOMMENDATION_TYPES, labels.RECOMMENDATION_TYPE_LABELS],
   ['RecommendationPriority', enums.RECOMMENDATION_PRIORITIES, labels.RECOMMENDATION_PRIORITY_LABELS],
   ['RecommendationStatus', enums.RECOMMENDATION_STATUSES, labels.RECOMMENDATION_STATUS_LABELS],
+  ['RecommendationStatus (действия)', enums.RECOMMENDATION_STATUSES, labels.RECOMMENDATION_STATUS_ACTIONS],
   ['DataSourceType', enums.DATA_SOURCE_TYPES, labels.DATA_SOURCE_TYPE_LABELS],
   ['ApplicationStatus', enums.APPLICATION_STATUSES, labels.APPLICATION_STATUS_LABELS],
 ]

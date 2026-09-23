@@ -1,7 +1,7 @@
 import { notFound } from '@/shared/http/errors'
 import { writeAudit } from '@/shared/audit/audit'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan } from '@/shared/auth/permissions'
+import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -13,6 +13,7 @@ import type {
 } from '@/shared/contracts/product'
 import { toIsoRequired } from '@/shared/utils/date'
 import * as repo from './products.repo'
+import { auditControlStageChange } from '@/modules/workflow/workflow.repo'
 import type {
   ProductListQuery,
   ReleaseProductVersionInput,
@@ -45,7 +46,7 @@ export async function list(
   query: ProductListQuery,
 ): Promise<{ data: ProductListItemDto[]; meta: PageMeta }> {
   assertCan(user, 'READ')
-  const { rows, total } = await repo.findMany(query)
+  const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
     data: rows.map(toListItem),
     meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
@@ -54,7 +55,7 @@ export async function list(
 
 export async function getById(user: CurrentUser, id: string): Promise<ProductDto> {
   assertCan(user, 'READ')
-  const row = await repo.findById(id)
+  const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('IT-продукт не найден')
   return {
     ...toListItem(row),
@@ -83,7 +84,8 @@ async function buildReleasePlan(
   apply: Array<{ stageId: string; cooperationId: string; reopen: boolean; nextSortOrder: number }>
   productName: string
 }> {
-  const product = await repo.findById(productId)
+  // Выпуск версии — операция сотрудника по всем связкам продукта: счёт без сужения.
+  const product = await repo.findById(productId, {})
   if (!product) throw notFound('IT-продукт не найден')
 
   assertVersionFormat(version)
@@ -178,7 +180,7 @@ export async function releaseVersion(
     ? `${reopenComment(productName, input.version)}. ${input.comment}`
     : reopenComment(productName, input.version)
 
-  await repo.applyRelease({
+  const controlChanges = await repo.applyRelease({
     productId,
     version: input.version,
     taskTitle: releaseTaskTitle(productName, input.version),
@@ -186,6 +188,7 @@ export async function releaseVersion(
     userId: user.id,
     targets: apply,
   })
+  for (const change of controlChanges) await auditControlStageChange(change, user.id)
 
   await writeAudit({
     userId: user.id,

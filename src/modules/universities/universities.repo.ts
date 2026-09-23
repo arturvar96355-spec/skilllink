@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, toSkipTake, parseSort, type Pagination } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
@@ -150,7 +151,10 @@ export async function countActiveCooperations(
   if (universityIds.length === 0) return new Map()
   const rows = await prisma.cooperation.groupBy({
     by: ['universityId'],
-    where: { universityId: { in: universityIds }, status: { in: ['ACTIVE', 'DRAFT', 'PAUSED'] } },
+    where: {
+      universityId: { in: universityIds },
+      status: { in: [...ACTIVE_COOPERATION_STATUSES] },
+    },
     _count: { _all: true },
   })
   return new Map(rows.map((row) => [row.universityId, row._count._all]))

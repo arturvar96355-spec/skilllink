@@ -4,6 +4,7 @@ import { assertCan, isUniversityVisible } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
+import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
 import type {
   ApplicationDto,
   PortalCooperationDto,
@@ -13,12 +14,14 @@ import type {
 } from '@/shared/contracts/portal'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import {
+  areTasksEditable,
+  assertTasksEditable,
   computeProgressPercent,
   findCurrentStage,
   isAutoManaged,
 } from '@/modules/workflow/workflow.rules'
-import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
-import { assertChecklistMarkable, checklistBlockers } from '@/modules/workflow/workflow.service'
+import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
+import { checklistBlockers, setTaskDone } from '@/modules/workflow/workflow.service'
 import { describeBlockingStages } from '@/modules/workflow/workflow.rules'
 import * as repo from './portal.repo'
 import { MATERIALS_STAGE_NUMBER, assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
@@ -110,6 +113,11 @@ function lockedReasonOf(row: MaterialRow, locks: Map<string, string | null>): st
   return locks.get(row.stage.cooperationId) ?? null
 }
 
+/** Подтверждение примут: правила чек-листа (canConfirmMaterial) и переданы ли материалы. */
+function isConfirmable(row: MaterialRow, locks: Map<string, string | null>): boolean {
+  return canConfirmMaterial(row) && lockedReasonOf(row, locks) === null
+}
+
 export async function overview(
   user: CurrentUser,
   universityId: string | undefined,
@@ -129,14 +137,24 @@ export async function overview(
     universityName: university.name,
     programs: programs.map(toProgramDto),
     cooperations: cooperations.map(toCooperationDto),
-    // Ждут подтверждения только переданные материалы: те, что ещё не переданы,
-    // вузу подтверждать нечего.
-    pendingMaterials: materials.filter(
-      (task) => !task.isDone && lockedReasonOf(task, locks) === null,
-    ).length,
+    // «К подтверждению» — только то, что вуз действительно может подтвердить:
+    // непереданные материалы, пункты отменённого этапа и закрытой связки — нет.
+    pendingMaterials: materials.filter((task) => isConfirmable(task, locks)).length,
     documentsCount,
     generatedAt: new Date().toISOString(),
   }
+}
+
+/** Подтверждение примут: пункт не отмечен, связка открыта, чек-лист этапа не закрыт. */
+function canConfirmMaterial(row: {
+  isDone: boolean
+  stage: { status: StageStatus; stageNumber: number; cooperation: { status: CooperationStatus } }
+}): boolean {
+  return (
+    !row.isDone &&
+    !isClosedStatus(row.stage.cooperation.status) &&
+    areTasksEditable(row.stage.status, row.stage.stageNumber)
+  )
 }
 
 export async function materials(
@@ -156,7 +174,7 @@ export async function materials(
     isConfirmed: row.isDone,
     confirmedAt: toIso(row.doneAt),
     stageStatus: row.stage.status,
-    canConfirm: !row.isDone && lockedReasonOf(row, locks) === null,
+    canConfirm: isConfirmable(row, locks),
     lockedReason: lockedReasonOf(row, locks),
   }))
 }
@@ -176,17 +194,20 @@ export async function confirmMaterial(
 
   // Те же правила, что и на пути сотрудника ИТ-Школы (workflow.service.toggleTask).
   // Без них представитель вуза менял состояние закрытой связки, когда сотруднику
-  // это уже запрещено, — и отменить изменение было некому.
+  // это уже запрещено, — и отменить изменение было некому. Сама запись — та же
+  // функция, что у сотрудника: закрытый этап, очередь со сменой статусов, повтор.
   assertCooperationOpen(task.stage.cooperation.status)
+  // Уже подтверждённое подтверждается повторно без ошибки — двойное нажатие
+  // и устаревшая страница; закрытый этап запрещает только изменение.
+  if (!task.isDone) assertTasksEditable(task.stage.status as StageStatus, task.stage.stageNumber)
 
-  if (!task.isDone) {
-    // То же правило, что у сотрудника: пункт контрольной точки не отмечается,
-    // пока не закрыты предыдущие этапы.
-    await assertChecklistMarkable(task.stage, true)
-    await repo.confirmMaterial(taskId, user.id)
-  }
+  const changed = await setTaskDone(
+    { taskId, stageId: task.stage.id, cooperationId: task.stage.cooperationId },
+    true,
+    user.id,
+  )
 
-  await writeAudit({
+  if (changed) await writeAudit({
     userId: user.id,
     action: 'portal.material.confirm',
     objectType: 'Task',

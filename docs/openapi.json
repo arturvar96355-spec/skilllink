@@ -1756,7 +1756,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -1768,7 +1768,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -2440,7 +2440,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -2452,7 +2452,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -3841,7 +3841,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -3853,7 +3853,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -3865,7 +3865,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -4447,7 +4447,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -4459,7 +4459,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -4471,7 +4471,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -7843,9 +7843,7 @@
                     "enum": [
                       "DRAFT",
                       "ACTIVE",
-                      "PAUSED",
-                      "COMPLETED",
-                      "CANCELLED"
+                      "PAUSED"
                     ]
                   },
                   "goal": {
@@ -9640,7 +9638,7 @@
           "Workflow"
         ],
         "summary": "Отметить пункт чек-листа",
-        "description": "В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса. Закрытая связка или этап — конфликт; пункт контрольной точки до закрытия предыдущих этапов — недопустимый переход.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
         "operationId": "patch_api_workflow_tasks__id_",
         "parameters": [
           {
@@ -9762,6 +9760,50 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / INVALID_TRANSITION",
             "content": {
               "application/json": {
                 "schema": {
@@ -9969,7 +10011,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 36500
             }
           }
         ],
@@ -10205,7 +10247,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 9007199254740991
+              "maximum": 36500
             }
           }
         ],
@@ -15378,7 +15420,7 @@
           "Кабинет вуза"
         ],
         "summary": "Подтвердить получение материалов",
-        "description": "Подтверждать можно только задачи этапа передачи материалов.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
+        "description": "Подтверждать можно только задачи этапа передачи материалов. Закрытая связка или завершённый либо отменённый этап — конфликт, не закрытые этапы до 7-го — недопустимый переход, как у сотрудника ИТ-Школы.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
         "operationId": "post_api_portal_materials__taskId__confirm",
         "parameters": [
           {
@@ -15500,6 +15542,94 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT / INVALID_TRANSITION",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
             "content": {
               "application/json": {
                 "schema": {
@@ -15883,7 +16013,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"
@@ -15895,7 +16025,7 @@
                       {
                         "type": "integer",
                         "minimum": 0,
-                        "maximum": 9007199254740991
+                        "maximum": 2147483647
                       },
                       {
                         "type": "null"

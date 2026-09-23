@@ -70,10 +70,52 @@
 }
 
 /* Этап */
+/* Этапы — строки на одной поверхности, разделённые тонкой линией. */
 .stages {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
+}
+
+.stageRow {
+  position: relative;
+  padding: var(--space-4) var(--space-5);
+  transition: background var(--motion-fast) var(--ease-out);
+}
+
+.stageRow + .stageRow {
+  border-top: 1px solid var(--line-subtle);
+}
+
+/* Скругляются крайние строки, а не список: обрезка по списку срезала бы
+   выпадающие меню внутри раскрытого этапа. */
+.stageRow:first-child {
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+}
+
+.stageRow:last-child {
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+}
+
+.stageRow:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+/* Этап, на который привела ссылка: фон и вертикальная метка слева, как в меню. */
+.stageRowSelected {
+  background: var(--surface-2);
+}
+
+.stageRowSelected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-3);
+  bottom: var(--space-3);
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
 }
 
 .stage {
@@ -95,12 +137,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  /* Номер этапа — типографикой, без плашки: он и так отличает строку (07, раздел 5). */
+  width: 28px;
   flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
   font-size: var(--text-body-sm-size);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -108,18 +147,14 @@
 }
 
 .stageNumberDone {
-  border-color: var(--success-border);
   color: var(--status-success);
 }
 
 .stageNumberCurrent {
-  border-color: var(--border-hover);
-  color: var(--text-accent);
-  box-shadow: 0 0 16px rgba(200, 77, 255, 0.18);
+  color: var(--text-primary);
 }
 
 .stageNumberOverdue {
-  border-color: var(--danger-border);
   color: var(--status-danger);
 }
 
@@ -342,3 +377,10 @@
   padding-left: var(--space-3);
   border-left: 2px solid var(--border-accent);
 }
+
+/* Действие вкладки — над её содержимым, справа: как «Выгрузить» у реестров. */
+.tabActions {
+  display: flex;
+  justify-content: flex-end;
+}
+

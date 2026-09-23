@@ -18,7 +18,7 @@
   font-weight: 700;
   line-height: 16px;
   text-align: center;
-  box-shadow: 0 0 10px rgba(255, 79, 179, 0.4);
+  box-shadow: none;
   pointer-events: none;
 }
 
@@ -31,20 +31,41 @@
   max-height: min(70vh, 560px);
   display: flex;
   flex-direction: column;
-  background: rgba(24, 18, 43, 0.92);
+  background: var(--surface-floating);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(180, 130, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.096);
   border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-floating), 0 0 30px rgba(200, 77, 255, 0.1);
-  animation: panelIn var(--motion-overlay) var(--ease-out);
+  box-shadow: var(--shadow-floating);
+  transform-origin: top right;
+  animation: panelIn 320ms var(--ease-out);
   overflow: hidden;
 }
 
+/* Открытие от колокольчика вниз (07, раздел 23): сдвиг, прозрачность, лёгкий масштаб. */
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-8px) scale(0.985);
+  }
+}
+
+/* Строки — по очереди, с шагом 30 мс: лента собирается, а не вспыхивает. */
+.item {
+  animation: rowIn 260ms var(--ease-out) both;
+}
+
+.item:nth-child(2) { animation-delay: 30ms; }
+.item:nth-child(3) { animation-delay: 60ms; }
+.item:nth-child(4) { animation-delay: 90ms; }
+.item:nth-child(5) { animation-delay: 120ms; }
+.item:nth-child(6) { animation-delay: 150ms; }
+.item:nth-child(n + 7) { animation-delay: 180ms; }
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
   }
 }
 
@@ -96,23 +117,21 @@
 }
 
 .item:hover {
-  background: rgba(90, 54, 145, 0.18);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .unread {
-  background: rgba(90, 54, 145, 0.1);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .icon {
+  /* Иконка различает тип записи — сама по себе, без плашки под ней (07, раздел 5). */
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 20px;
+  height: 20px;
   flex: none;
-  border-radius: var(--radius-icon);
-  background: var(--surface-icon);
-  border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
 
@@ -122,12 +141,12 @@
 }
 
 .warning {
-  border-color: rgba(255, 196, 77, 0.3);
+  border-color: rgba(242, 193, 78, 0.3);
   color: var(--status-warning);
 }
 
 .info {
-  border-color: rgba(200, 77, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--text-accent-soft);
 }
 
@@ -164,7 +183,7 @@
   margin-top: 6px;
   border-radius: 50%;
   background: var(--accent-secondary);
-  box-shadow: 0 0 8px rgba(255, 79, 179, 0.5);
+  box-shadow: none;
 }
 
 .empty {

@@ -16,7 +16,10 @@ import {
   findCurrentStage,
   isAutoManaged,
   isOverdue,
+  resolveStageFields,
+  assertStageFieldsComplete,
   type StageState,
+  type StageStatusFields,
 } from './workflow.rules'
 
 const stage = (overrides: Partial<StageState> = {}): StageState => ({
@@ -497,3 +500,65 @@ describe('срок вот-вот выйдет', () => {
     expect(isDueSoon(null, 'IN_PROGRESS', now)).toBe(false)
   })
 })
+
+describe('этап после записи удовлетворяет правилам своего статуса', () => {
+  const completed: StageStatusFields = {
+    status: 'COMPLETED',
+    result: 'Договор подписан',
+    blockingReason: null,
+  }
+  const blocked: StageStatusFields = {
+    status: 'BLOCKED',
+    result: null,
+    blockingReason: 'Ждём юрслужбу вуза',
+  }
+  const afterWrite = (
+    current: StageStatusFields,
+    input: Parameters<typeof resolveStageFields>[1],
+  ): (() => void) => () => assertStageFieldsComplete(resolveStageFields(current, input))
+
+  it('результат завершённого этапа не стирается правкой полей', () => {
+    // Раньше правка без смены статуса правил не касалась, и {"result": null} проходило.
+    expectError(afterWrite(completed, { result: null }), 'VALIDATION_ERROR')
+    expectError(afterWrite(completed, { result: '' }), 'VALIDATION_ERROR')
+  })
+
+  it('завершение с пустым результатом в теле берёт сохранённый, а не пишет пустой', () => {
+    const inProgress: StageStatusFields = { status: 'IN_PROGRESS', result: 'Черновик итога', blockingReason: null }
+    expect(resolveStageFields(inProgress, { status: 'COMPLETED', result: '' })).toEqual({
+      status: 'COMPLETED',
+      result: 'Черновик итога',
+      blockingReason: null,
+    })
+  })
+
+  it('причину у заблокированного этапа не стереть', () => {
+    expectError(afterWrite(blocked, { blockingReason: '' }), 'VALIDATION_ERROR')
+    expectError(afterWrite(blocked, { blockingReason: null }), 'VALIDATION_ERROR')
+  })
+
+  it('правка результата на другой непустой — можно', () => {
+    expect(afterWrite(completed, { result: 'Договор подписан обеими сторонами' })).not.toThrow()
+  })
+
+  it('причина блокировки уходит вместе с блокировкой', () => {
+    expect(resolveStageFields(blocked, { status: 'IN_PROGRESS' }).blockingReason).toBeNull()
+  })
+})
+
+describe('дни — по московскому календарю', () => {
+  it('«скоро срок» — по календарным дням, а не по часам', () => {
+    // 21.09 10:00 по Москве. Срок 24.09 в 23:00 и 24.09 в 01:00 — оба «через 3 дн.»:
+    // по часам первый выходил за трое суток и терял пометку.
+    const now = new Date('2026-09-21T07:00:00.000Z')
+    expect(isDueSoon(new Date('2026-09-24T20:00:00.000Z'), 'IN_PROGRESS', now)).toBe(
+      isDueSoon(new Date('2026-09-23T22:00:00.000Z'), 'IN_PROGRESS', now),
+    )
+  })
+
+  it('прошедший срок — не «скоро», а просрочка', () => {
+    const now = new Date('2026-09-21T07:00:00.000Z')
+    expect(isDueSoon(new Date('2026-09-21T06:00:00.000Z'), 'IN_PROGRESS', now)).toBe(false)
+  })
+})
+

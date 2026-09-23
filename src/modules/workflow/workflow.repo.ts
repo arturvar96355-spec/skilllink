@@ -1,10 +1,13 @@
 import { prisma } from '@/shared/db/prisma'
+import { moscowDayStart } from '@/shared/utils/date'
+import { writeAudit } from '@/shared/audit/audit'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { computeControlStatus } from './workflow.rules'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -80,9 +83,12 @@ export async function findOverdue(
   scope: { universityId?: string },
   now: Date,
 ): Promise<{ rows: StageWithCooperationRow[]; total: number }> {
+  // «Просрочен не меньше N дней» — по московскому календарю, как бейдж «−N дн.»
+  // (решение 47). Раньше — по 24 часа: этап с бейджем «−1 дн.» не попадал
+  // в выборку `minDaysOverdue=1`, пока не пройдут сутки с часа срока.
   const deadlineBefore =
     query.minDaysOverdue && query.minDaysOverdue > 0
-      ? new Date(now.getTime() - query.minDaysOverdue * 24 * 60 * 60 * 1000)
+      ? moscowDayStart(now, 1 - query.minDaysOverdue)
       : now
 
   const cooperationFilter = buildCooperationFilter(query, scope)
@@ -205,10 +211,106 @@ export async function findHistory(stageId: string) {
 export async function findPriorStages(
   cooperationId: string,
   stageNumber: number,
+  client: Prisma.TransactionClient = prisma,
 ): Promise<Array<{ stageNumber: number; title: string; status: StageStatus }>> {
-  return prisma.workflowStage.findMany({
+  return client.workflowStage.findMany({
     where: { cooperationId, stageNumber: { lt: stageNumber } },
     select: { stageNumber: true, title: true, status: true },
     orderBy: { stageNumber: 'asc' },
+  })
+}
+
+/**
+ * Очередь на изменения этапов одной связки.
+ *
+ * Этапы связки зависят друг от друга: этап 14 считается по остальным, контрольная
+ * точка — по предыдущим, завершение — по чек-листу. Проверка шла вне транзакции,
+ * а транзакция ничего не блокировала: два менеджера, одновременно закрывшие
+ * этапы 12 и 13, оставляли этап 14 «в работе» при закрытых 1–13 — каждый видел
+ * чужой этап ещё открытым. Снятие обязательного пункта одновременно с завершением
+ * этапа давало завершённый этап с незакрытым пунктом.
+ *
+ * Блокировка строки связки выстраивает такие транзакции в очередь; всё, что
+ * проверяется после неё, видит уже записанное предыдущими.
+ */
+export async function lockCooperation(
+  tx: Prisma.TransactionClient,
+  cooperationId: string,
+): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM cooperations WHERE id = ${cooperationId} FOR UPDATE`
+}
+
+/**
+ * Пересчёт контрольного этапа 14 по состоянию этапов 1–13 (решение 2).
+ * Вызывается после любого изменения статуса обычного этапа.
+ */
+/** Как изменился контрольный этап — для журнала, который пишется после транзакции. */
+export interface ControlStageChange {
+  stageId: string
+  cooperationId: string
+  from: StageStatus
+  to: StageStatus
+}
+
+export async function recomputeControlStage(
+  tx: Prisma.TransactionClient,
+  cooperationId: string,
+  userId: string,
+): Promise<ControlStageChange | null> {
+  const stages = await tx.workflowStage.findMany({
+    where: { cooperationId },
+    select: { id: true, stageNumber: true, status: true },
+  })
+
+  const control = stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)
+  if (!control) return null
+
+  const others = stages
+    .filter((stage) => stage.stageNumber !== CONTROL_STAGE_NUMBER)
+    .map((stage) => stage.status as StageStatus)
+
+  const next = computeControlStatus(others)
+  if (next === control.status) return null
+
+  await tx.workflowStage.update({
+    where: { id: control.id },
+    data: {
+      status: next,
+      // Контрольный этап закрывает система, а не человек: автора завершения у него нет.
+      completedAt: next === 'COMPLETED' ? new Date() : null,
+      completedById: null,
+    },
+  })
+
+  await tx.stageHistory.create({
+    data: {
+      stageId: control.id,
+      fromStatus: control.status,
+      toStatus: next,
+      comment: 'Пересчитано автоматически по состоянию этапов 1–13',
+      changedById: userId,
+    },
+  })
+
+  return { stageId: control.id, cooperationId, from: control.status as StageStatus, to: next }
+}
+
+/**
+ * Запись в журнал об автоматическом пересчёте этапа 14.
+ *
+ * Обещана в SECURITY_LIMITATIONS, а не писалась. Пишется после транзакции:
+ * сбой вставки внутри неё оборвал бы саму смену статуса.
+ */
+export async function auditControlStageChange(
+  change: ControlStageChange | null,
+  userId: string,
+): Promise<void> {
+  if (!change) return
+  await writeAudit({
+    userId,
+    action: 'stage.auto.recompute',
+    objectType: 'WorkflowStage',
+    objectId: change.stageId,
+    payload: { cooperationId: change.cooperationId, from: change.from, to: change.to },
   })
 }

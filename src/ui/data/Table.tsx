@@ -6,6 +6,8 @@ import type { ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { formatNumber, pluralize } from '../lib/format'
+import { startMorph } from '../lib/morph'
+import { tableMinWidth } from './table-width'
 import styles from './Table.module.css'
 
 /**
@@ -43,6 +45,14 @@ export interface DataTableProps<T> {
   /** Идёт повторная загрузка: данные остаются на месте, но приглушаются. */
   isRefreshing?: boolean
   caption?: string
+  /**
+   * Сколько записей всего, если показана только часть — без переключателя страниц.
+   *
+   * Вкладки карточек показывают первые пятьдесят, а счётчик на вкладке — всё
+   * число: пятьдесят первая связка пропадала молча. Задан и больше показанного —
+   * под таблицей пишется «Показаны первые N из M».
+   */
+  total?: number | null
 }
 
 export function DataTable<T>({
@@ -55,6 +65,7 @@ export function DataTable<T>({
   onSortChange,
   isRefreshing = false,
   caption,
+  total = null,
 }: DataTableProps<T>) {
   const router = useRouter()
 
@@ -69,7 +80,10 @@ export function DataTable<T>({
 
   return (
     <div className={styles.wrapper}>
-      <table className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}>
+      <table
+        className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
+        style={{ minWidth: tableMinWidth(columns) }}
+      >
         {caption && <caption className="visually-hidden">{caption}</caption>}
         <thead>
           <tr>
@@ -145,6 +159,7 @@ export function DataTable<T>({
                         // span с role="button", и без неё щелчок по значку «i»
                         // открывал бы карточку вместо показа объяснения.
                         if ((event.target as HTMLElement).closest('a, button, [role="button"]')) return
+                        startMorph(event.currentTarget.querySelector<HTMLElement>('a'), event)
                         router.push(href)
                       }
                     : undefined
@@ -165,7 +180,11 @@ export function DataTable<T>({
                       обработчик щелчка так не умеет.
                     */}
                     {href && columnIndex === 0 ? (
-                      <Link href={href} className={styles.cellLink}>
+                      <Link
+                        href={href}
+                        className={styles.cellLink}
+                        onClick={(event) => startMorph(event.currentTarget, event)}
+                      >
                         {column.render(row)}
                       </Link>
                     ) : (
@@ -178,6 +197,11 @@ export function DataTable<T>({
           })}
         </tbody>
       </table>
+      {total !== null && total > rows.length && (
+        <p className={styles.truncated}>
+          Показаны первые {formatNumber(rows.length)} из {formatNumber(total)}
+        </p>
+      )}
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { z } from '@/shared/zod'
-import { AppError, fromZod } from './errors'
+import { describeForLog } from '@/shared/db/log'
+import { findNul } from '@/shared/db/storable'
+import { AppError, fromZod, notFound } from './errors'
 import { fail } from './response'
 
 interface PrismaLikeError {
@@ -35,27 +37,47 @@ function fromPrisma(error: PrismaLikeError): AppError | null {
 }
 
 /**
+ * Ошибка в том виде, в каком её можно показать клиенту: ошибки приложения,
+ * валидации и известные ошибки базы. `null` — внутренняя ошибка, её подробности
+ * наружу не уходят.
+ *
+ * Одна функция на всех, кто отдаёт ошибку наружу: обработчик маршрута и импорт,
+ * который сообщает об ошибке по каждой строке файла отдельно.
+ */
+export function toAppError(error: unknown): AppError | null {
+  if (error instanceof AppError) return error
+  if (error instanceof z.ZodError) return fromZod(error)
+  const prismaError = asPrismaError(error)
+  return prismaError ? fromPrisma(prismaError) : null
+}
+
+/**
+ * Параметры пути. Идентификатор с символом кода 0 существовать не может —
+ * это «не найдено», а не запрос к базе, которая такой символ не примет.
+ */
+async function rejectUnstorableParams(context: unknown): Promise<void> {
+  if (typeof context !== 'object' || context === null || !('params' in context)) return
+  const params: unknown = await (context as { params: unknown }).params
+  if (findNul(params) !== null) throw notFound()
+}
+
+/**
  * Единая обёртка обработчика маршрута: ловит всё и отдаёт ответ в формате контракта.
- * Никакие подробности внутренней ошибки наружу не уходят.
+ * Никакие подробности внутренней ошибки наружу не уходят — ни клиенту, ни в журнал
+ * вместе с данными запроса (shared/db/log.ts).
  */
 export function handle<Ctx>(
   fn: (request: Request, context: Ctx) => Promise<Response>,
 ): (request: Request, context: Ctx) => Promise<Response> {
   return async (request, context) => {
     try {
+      await rejectUnstorableParams(context)
       return await fn(request, context)
     } catch (error) {
-      if (error instanceof AppError) return fail(error)
-      if (error instanceof z.ZodError) return fail(fromZod(error))
+      const known = toAppError(error)
+      if (known) return fail(known)
 
-      const prismaError = asPrismaError(error)
-      if (prismaError) {
-        const mapped = fromPrisma(prismaError)
-        if (mapped) return fail(mapped)
-      }
-
-      // Персональные данные в лог не пишем — только тип и сообщение ошибки.
-      console.error('[INTERNAL]', error instanceof Error ? error.message : error)
+      console.error('[INTERNAL]', describeForLog(error))
       return fail(new AppError('INTERNAL', 'Внутренняя ошибка сервера'))
     }
   }
