@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
+import { latestOfPeriods } from './skills.rules'
 import { SKILL_SORT_FIELDS, type SkillDemandQuery, type SkillListQuery } from './skills.schema'
 
 /**
@@ -72,11 +73,8 @@ export async function findMany(
 
 /** Самый свежий период, за который вообще есть рыночные данные. */
 export async function latestPeriod(): Promise<string | null> {
-  const row = await prisma.marketDemand.findFirst({
-    orderBy: { period: 'desc' },
-    select: { period: true },
-  })
-  return row?.period ?? null
+  const rows = await prisma.marketDemand.findMany({ distinct: ['period'], select: { period: true } })
+  return latestOfPeriods(rows.map((row) => row.period))
 }
 
 function demandWhere(query: SkillDemandQuery, period: string): Prisma.MarketDemandWhereInput {

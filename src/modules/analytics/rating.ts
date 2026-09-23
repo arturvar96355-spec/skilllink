@@ -92,7 +92,6 @@ export function calculateRatings(
 
       filled += 1
       const normalized = round(normalize(value, factorBounds.min, factorBounds.max), 3)
-      const contribution = round(normalized * weight * RATING_SCALE, 2)
       weightedSum += normalized * weight
       usedWeight += weight
 
@@ -102,12 +101,23 @@ export function calculateRatings(
         value,
         normalized,
         weight,
-        contribution,
+        contribution: null,
       })
     }
 
     const hasEnoughData = filled >= RATING_MIN_FILLED_FACTORS && usedWeight > 0
     const score = hasEnoughData ? round((weightedSum / usedWeight) * RATING_SCALE, 1) : null
+
+    // Вклад — доля в итоговом балле, поэтому делится на вес, который реально
+    // учтён. Без этого при пустом показателе балл пересчитывался на оставшиеся
+    // веса, а вклады — нет: «45,4» раскладывалось на «19,3 + 8,0», и раскрытие
+    // балла не сходилось с самим баллом.
+    if (hasEnoughData) {
+      for (const item of factors) {
+        if (item.normalized === null) continue
+        item.contribution = round((item.normalized * item.weight * RATING_SCALE) / usedWeight, 2)
+      }
+    }
     const basis = basisFromSource(program.metricsSource, filled)
 
     result.set(program.programId, {

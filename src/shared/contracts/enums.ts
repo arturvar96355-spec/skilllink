@@ -60,6 +60,13 @@ export type CooperationStatus = (typeof COOPERATION_STATUSES)[number]
 /** Открытые связки: по ним идёт работа. Новая связка создаётся только открытой. */
 export const OPEN_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED'] as const
 
+/**
+ * «Активные связи» — те, что в работе прямо сейчас: без приостановленных.
+ * Одно определение для главной, личного кабинета и карточки вуза: карточка
+ * считала и приостановленные, и одно слово значило в двух местах разное.
+ */
+export const ACTIVE_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE'] as const
+
 export const STAGE_STATUSES = [
   'NOT_STARTED',
   'IN_PROGRESS',

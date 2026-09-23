@@ -196,3 +196,20 @@ describe('рейтинг с заранее посчитанными границ
     }
   })
 })
+
+describe('раскрытие балла', () => {
+  it('вклады складываются в балл и при пустом показателе', () => {
+    // Раньше балл пересчитывался на учтённые веса, а вклады — нет: 45,4 = 19,3 + 8,0.
+    const ratings = calculateRatings([
+      program({ programId: 'full', applicationCount: 300, studentCount: 90, groupCount: 4 }),
+      program({ programId: 'partial', applicationCount: 280, studentCount: null, groupCount: 4 }),
+      program({ programId: 'low', applicationCount: 10, studentCount: 10, groupCount: 1 }),
+    ])
+    for (const id of ['full', 'partial', 'low']) {
+      const rating = ratings.get(id)!
+      const sum = rating.factors.reduce((total, factor) => total + (factor.contribution ?? 0), 0)
+      expect(Math.abs(sum - (rating.score ?? 0))).toBeLessThan(0.1)
+    }
+  })
+})
+

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { SKILL_GAP } from '@/shared/config/analytics.config'
-import { calculateGap, coverageByLevel, demandNormalizer } from './skills.rules'
+import {
+  calculateGap,
+  coverageByLevel,
+  demandNormalizer,
+  demandPerSkill,
+  latestOfPeriods,
+} from './skills.rules'
 
 describe('покрытие навыка программой', () => {
   it('без навыка покрытие равно нулю', () => {
@@ -84,3 +90,33 @@ describe('обрезание выборки не искажает счётчик
     expect(all.length > all.slice(0, 200).length).toBe(false)
   })
 })
+
+describe('последний период рыночных данных', () => {
+  it('по календарю, а не по алфавиту', () => {
+    // Строкой «2026-Q1» больше «2026-09»: буква после цифр. По календарю — наоборот.
+    expect(latestOfPeriods(['2026-Q1', '2026-09'])).toBe('2026-09')
+    expect(latestOfPeriods(['2025-Q4', '2026-Q1'])).toBe('2026-Q1')
+    expect(latestOfPeriods(['2026-Q3', '2026-08'])).toBe('2026-Q3')
+  })
+
+  it('нет периодов — нет данных', () => {
+    expect(latestOfPeriods([])).toBeNull()
+  })
+})
+
+describe('спрос — одна строка на навык', () => {
+  it('федеральный замер важнее регионального', () => {
+    const rows = [
+      { skillId: 'sql', value: 900, region: 'Москва' },
+      { skillId: 'sql', value: 500, region: 'Россия' },
+      { skillId: 'go', value: 40, region: 'Казань' },
+      { skillId: 'go', value: 70, region: 'Москва' },
+    ]
+    const result = demandPerSkill(rows)
+    expect(result).toHaveLength(2)
+    expect(result.find((row) => row.skillId === 'sql')?.value).toBe(500)
+    // Без федерального — наибольший региональный.
+    expect(result.find((row) => row.skillId === 'go')?.value).toBe(70)
+  })
+})
+
