@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
@@ -127,14 +128,27 @@ export function DataTable<T>({
                     : undefined
                 }
               >
-                {columns.map((column) => (
+                {columns.map((column, columnIndex) => (
                   <td
                     key={column.key}
                     className={[styles.td, column.align === 'right' ? styles.right : '']
                       .filter(Boolean)
                       .join(' ')}
                   >
-                    {column.render(row)}
+                    {/*
+                      Первая ячейка строки, ведущей на объект, — настоящая ссылка.
+                      Без неё реестр открывался только щелчком мыши: тем, кто ходит
+                      клавишей, переходов не было вовсе (раздел 33 документа
+                      об интерфейсе). Ссылка ещё и открывается в новой вкладке —
+                      обработчик щелчка так не умеет.
+                    */}
+                    {href && columnIndex === 0 ? (
+                      <Link href={href} className={styles.cellLink}>
+                        {column.render(row)}
+                      </Link>
+                    ) : (
+                      column.render(row)
+                    )}
                   </td>
                 ))}
               </tr>

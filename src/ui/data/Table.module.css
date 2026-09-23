@@ -75,6 +75,19 @@
   background: rgba(65, 40, 95, 0.5);
 }
 
+/* Ссылка на объект занимает всю первую ячейку: по ней удобно попасть,
+   а фокус с клавиатуры виден так же ясно, как наведение мышью. */
+.cellLink {
+  display: block;
+  color: inherit;
+  border-radius: var(--radius-xs);
+}
+
+.cellLink:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 4px;
+}
+
 .selected {
   background: rgba(65, 40, 95, 0.4);
   box-shadow: inset 2px 0 0 var(--accent-secondary);
