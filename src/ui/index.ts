@@ -81,6 +81,7 @@ export {
   formatScore,
   formatPercent,
   formatShare,
+  formatPlace,
   formatDemand,
   formatMetric,
   formatDate,

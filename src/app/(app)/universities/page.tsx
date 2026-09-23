@@ -37,6 +37,7 @@ import {
   useResource,
   usePageInRange,
   type Column,
+  formatPlace,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
 import styles from './universities.module.css'
@@ -152,7 +153,7 @@ export default function UniversitiesPage() {
       width: '140px',
       sortField: 'city',
       render: (row) => (
-        <CellText muted title={row.region !== row.city ? `${row.city}, ${row.region}` : row.city}>
+        <CellText muted title={formatPlace(row.city, row.region)}>
           {row.city}
         </CellText>
       ),
