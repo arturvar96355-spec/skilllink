@@ -38,6 +38,7 @@ import {
   useDebounced,
   useResource,
   usePageInRange,
+  CellText,
   type BadgeTone,
   type Column,
 } from '@/ui'
@@ -118,6 +119,11 @@ function ProductsView() {
     setPage(1)
   }
 
+  // Пометка «демо» в строке нужна, только когда в списке есть и настоящие записи:
+  // если демонстрационное всё, об этом говорит пометка страницы, а одинаковый
+  // значок в каждой строке — шум (07, раздел 27).
+  const mixedOrigin = rows.some((row) => row.isMock) && rows.some((row) => !row.isMock)
+
   const columns: Column<ProductListItemDto>[] = [
     {
       key: 'name',
@@ -125,8 +131,10 @@ function ProductsView() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.name}>
-          {row.name}
-          {row.isMock && <Badge tone="mock">демо</Badge>}
+          <CellText strong title={row.name}>
+            {row.name}
+          </CellText>
+          {mixedOrigin && row.isMock && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
@@ -134,11 +142,12 @@ function ProductsView() {
       key: 'category',
       title: 'Категория',
       sortField: 'category',
-      render: (row) => <span className={styles.plain}>{row.category}</span>,
+      render: (row) => <CellText title={row.category}>{row.category}</CellText>,
     },
     {
       key: 'version',
       title: 'Версия',
+      width: '90px',
       render: (row) =>
         row.version === null ? (
           <span className={styles.empty}>{NO_DATA}</span>
@@ -149,6 +158,7 @@ function ProductsView() {
     {
       key: 'status',
       title: 'Статус',
+      width: '150px',
       sortField: 'status',
       render: (row) => (
         <Badge tone={STATUS_TONES[row.status]} withDot>
@@ -159,18 +169,21 @@ function ProductsView() {
     {
       key: 'skillCount',
       title: 'Навыков',
+      width: '100px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.skillCount)}</span>,
     },
     {
       key: 'cooperationCount',
       title: 'Связок',
+      width: '100px',
       align: 'right',
       render: (row) => <span className={styles.count}>{formatNumber(row.cooperationCount)}</span>,
     },
     {
       key: 'updatedAt',
       title: 'Обновлено',
+      width: '130px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       render: (row) => <span className={styles.plain}>{formatDate(row.updatedAt)}</span>,
