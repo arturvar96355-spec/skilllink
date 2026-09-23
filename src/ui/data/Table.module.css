@@ -191,6 +191,16 @@
   white-space: nowrap;
 }
 
+.clamp2 {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 .cellMuted {
   color: var(--text-tertiary);
   font-weight: 400;

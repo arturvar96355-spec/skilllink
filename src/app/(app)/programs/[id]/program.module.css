@@ -140,8 +140,9 @@
 
 .plain {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1) var(--space-2);
   font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
 }
@@ -175,4 +176,10 @@
     border-top: 1px solid var(--border-divider);
     width: 100%;
   }
+}
+
+/* Пометка происхождения данных над таблицей — одна на таблицу, а не в каждой строке. */
+.tableNote {
+  display: flex;
+  justify-content: flex-end;
 }

@@ -29,6 +29,7 @@ import {
   ErrorState,
   Icon,
   MockBadge,
+  mockMarks,
   PageHeader,
   Progress,
   ProgramStatusBadge,
@@ -107,6 +108,7 @@ export default function UniversityPage() {
   const gaps = useResource<SkillGapDto[]>(
     tab === 'gaps' ? `/api/skills/gaps${buildQuery({ universityId: id, limit: 50 })}` : null,
   )
+  const gapMarks = mockMarks(gaps.data ?? [])
 
   const [eventsLimit, setEventsLimit] = useState(20)
   const events = useResource<UniversityEventDto[]>(
@@ -264,9 +266,10 @@ export default function UniversityPage() {
       width: '180px',
       render: (row) => (
         <span className={styles.rowName}>
-          <span>
-            {formatShare(row.gap)}{' '}
+          <span className={styles.gapValue}>
+            {formatShare(row.gap)}
             {row.isCritical && <Badge tone="danger">критический</Badge>}
+            {gapMarks.row(row) && <Badge tone="mock">демо</Badge>}
           </span>
           <Progress
             value={row.gap * 100}
@@ -504,6 +507,11 @@ export default function UniversityPage() {
         </Card>
       )}
 
+      {tab === 'gaps' && gapMarks.section && (
+        <div className={styles.tableNote}>
+          <MockBadge title="Спрос рынка в этой таблице — демонстрационный набор, а не подтверждённая статистика." />
+        </div>
+      )}
       {tab === 'gaps' && (
         <Card padding="none">
           {gaps.isLoading ? (
