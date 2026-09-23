@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server'
+import { REAUTH_PARAM } from '@/shared/auth/reauth'
 
 /**
  * Неавторизованного посетителя страницы отправляют на вход.
@@ -9,7 +10,8 @@ import { NextResponse, type NextRequest } from 'next/server'
  *
  * Это не дыра: страницы данных не содержат — всё приходит запросами к API,
  * а там каждый маршрут проверяет сессию и права по-настоящему. Подделанная
- * кука откроет пустой каркас, который сразу же получит 401 и вернёт на вход.
+ * или устаревшая кука откроет пустой каркас, который получит 401, снимет
+ * сессию и уйдёт на вход с `reauth=1`.
  */
 const SESSION_COOKIES = [
   'authjs.session-token',
@@ -35,8 +37,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Вошедшему на странице входа делать нечего.
-  if (hasSession && isPublic) {
+  // Вошедшему на странице входа делать нечего — если только сервер его сессию
+  // не отверг: тогда приложение само ведёт сюда с `reauth=1` (src/ui/lib/session.ts).
+  // Без этого исключения вход возвращал на главную, главная — снова на вход,
+  // и экран оставался пустым, пока не почистишь cookie.
+  if (hasSession && isPublic && !request.nextUrl.searchParams.has(REAUTH_PARAM)) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     url.search = ''

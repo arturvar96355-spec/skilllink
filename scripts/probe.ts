@@ -9,6 +9,7 @@
  */
 import 'dotenv/config'
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
+import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -1505,6 +1506,25 @@ async function main(): Promise<void> {
       )
     }
     actAs(null)
+  }
+
+  // ── Устаревшая сессия не запирает вход ────────────────────────────────────
+  step('Устаревшая сессия не запирает вход')
+
+  {
+    /*
+     * Cookie сессии остался, а пользователя за ним нет — так бывает после
+     * перезаливки демо-данных. Приложение получает 401 и ведёт на вход
+     * с `reauth=1`; middleware обязан эту страницу пропустить. Раньше вход
+     * возвращал на главную, главная — на вход, и экран оставался пустым.
+     */
+    const stale = { cookie: 'authjs.session-token=stale-session-from-yesterday' }
+    const withReauth = await fetch(`${BASE_URL}/login?${REAUTH_PARAM}=1`, { headers: stale, redirect: 'manual' })
+    check('со старым cookie вход с reauth открывается', withReauth.status === 200, `код ${withReauth.status}`)
+
+    // Обычный заход на вход с живой сессией по-прежнему ведёт на главную.
+    const plain = await fetch(`${BASE_URL}/login`, { headers: stale, redirect: 'manual' })
+    check('без reauth вошедший уходит со входа на главную', plain.status === 307, `код ${plain.status}`)
   }
 
   // ── Блокировка входа называет себя ─────────────────────────────────────────
