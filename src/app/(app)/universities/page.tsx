@@ -166,6 +166,7 @@ export default function UniversitiesPage() {
       width: '130px',
       align: 'right',
       sortField: 'rating',
+      sortDescFirst: true,
       render: (row) => {
         if (!row.rating) return <span className={styles.ratingEmpty}>—</span>
         if (row.rating.score === null) {
@@ -208,6 +209,7 @@ export default function UniversitiesPage() {
       title: 'Обновлено',
       width: '130px',
       sortField: 'updatedAt',
+      sortDescFirst: true,
       render: (row) => <span className={styles.countsMuted}>{formatDate(row.updatedAt)}</span>,
     },
   ]
