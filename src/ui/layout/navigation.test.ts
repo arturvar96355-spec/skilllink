@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CurrentUserDto, UserRole } from '@/shared/contracts'
 import { ROUTES } from '../lib/links'
-import { navigationFor } from './navigation'
+import { navigationFor, serviceLinksFor } from './navigation'
 
 /**
  * Пункт меню обязан вести на существующую страницу.
@@ -83,6 +83,19 @@ describe('адреса страниц', () => {
         continue
       }
       expect(pageExists(href), `${name} → ${href}`).toBe(true)
+    }
+  })
+})
+
+describe('подвал', () => {
+  it('представителю вуза не ведёт в настройки', () => {
+    const hrefs = serviceLinksFor(user('UNIVERSITY_REP')).map((link) => link.href)
+    expect(hrefs.some((href) => href.startsWith(ROUTES.settings))).toBe(false)
+  })
+
+  it.each(ROLES)('у роли %s внутренние ссылки ведут на существующие страницы', (role) => {
+    for (const link of serviceLinksFor(user(role)).filter((item) => !item.external)) {
+      expect(pageExists(link.href.replace(/#.*$/, '')), `${link.label} → ${link.href}`).toBe(true)
     }
   })
 })

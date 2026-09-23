@@ -48,6 +48,14 @@ export interface KpiCardProps {
 }
 
 /**
+ * Строка показателей: числа типографикой на одной поверхности, а не сетка
+ * одинаковых карточек (07, разделы 6 и 40). Разделяют их отступы, не рамки.
+ */
+export function KpiRow({ children }: { children: ReactNode }) {
+  return <div className={styles.kpiRow}>{children}</div>
+}
+
+/**
  * Плитка показателя на дашборде.
  *
  * Значение добегает до настоящего за 800 мс (раздел 9 документа о движении)
@@ -72,7 +80,17 @@ export function KpiCard({
         : Math.round(animated)
 
   return (
-    <Card className={styles.kpi}>
+    <div className={styles.kpi}>
+      {/* Число над подписью: подпись в две строки не сдвигает его вниз, числа стоят в ряд. */}
+      {shown === null ? (
+        <span className={styles.kpiEmpty}>{NO_DATA}</span>
+      ) : (
+        <span className={styles.kpiValue}>
+          {fractionDigits > 0 ? shown.toFixed(fractionDigits).replace('.', ',') : formatNumber(shown)}
+          {unit && <span className={styles.kpiUnit}>{unit}</span>}
+        </span>
+      )}
+
       <div className={styles.kpiHead}>
         <span className={styles.kpiLabel}>
           {label}
@@ -86,22 +104,13 @@ export function KpiCard({
         </span>
       </div>
 
-      {shown === null ? (
-        <span className={styles.kpiEmpty}>{NO_DATA}</span>
-      ) : (
-        <span className={styles.kpiValue}>
-          {fractionDigits > 0 ? shown.toFixed(fractionDigits).replace('.', ',') : formatNumber(shown)}
-          {unit && <span className={styles.kpiUnit}>{unit}</span>}
-        </span>
-      )}
-
       {(note || footer) && (
         <div className={styles.kpiFooter}>
           {note && <span className={styles.kpiNote}>{note}</span>}
           {footer}
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 

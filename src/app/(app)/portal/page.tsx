@@ -23,6 +23,7 @@ import {
   Icon,
   Input,
   KpiCard,
+  KpiRow,
   Modal,
   NO_DATA,
   PageHeader,
@@ -377,7 +378,7 @@ function PortalScreen() {
         <CardsSkeleton count={4} />
       ) : data ? (
         <>
-          <div className={styles.kpis}>
+          <KpiRow>
             <KpiCard label="Программы вуза" value={data.programs.length} />
             <KpiCard label="Сотрудничества" value={data.cooperations.length} />
             <KpiCard
@@ -386,7 +387,7 @@ function PortalScreen() {
               explanation="Переданные вузу материалы, получение которых вы ещё не подтвердили."
             />
             <KpiCard label="Документы" value={data.documentsCount} />
-          </div>
+          </KpiRow>
 
           <Section
             title="Сотрудничества"

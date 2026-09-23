@@ -10,6 +10,7 @@ import {
   CardsSkeleton,
   ErrorState,
   KpiCard,
+  KpiRow,
   MockBadge,
   NO_DATA,
   PageHeader,
@@ -106,7 +107,7 @@ export default function ProfilePage() {
           <ErrorState error={stats.error} onRetry={stats.reload} />
         ) : data ? (
           <>
-            <div className={styles.kpis}>
+            <KpiRow>
               <KpiCard
                 label="Активные связки"
                 value={data.activeCooperations}
@@ -143,7 +144,7 @@ export default function ProfilePage() {
                 value={data.overdueStages}
                 explanation="Ваши этапы, у которых срок прошёл, а этап не закрыт."
               />
-            </div>
+            </KpiRow>
             <p className={styles.generated}>Обновлено: {formatDateTime(data.generatedAt)}</p>
           </>
         ) : null}

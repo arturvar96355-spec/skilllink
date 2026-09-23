@@ -1,11 +1,5 @@
 /* Кабинет представителя вуза: программы, связки, материалы, заявки. */
 
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: var(--space-4);
-}
-
 .cell {
   display: flex;
   flex-direction: column;

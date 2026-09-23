@@ -70,12 +70,6 @@
   color: var(--accent-primary);
 }
 
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
-  gap: var(--space-4);
-}
-
 .generated {
   margin-top: var(--space-4);
   font-size: var(--text-caption-size);
