@@ -32,17 +32,32 @@ export function parseSort<F extends string>(
 }
 
 /**
- * Строит orderBy для Prisma.
+ * Последний ключ сортировки любого списка, который отдаётся по страницам.
+ *
+ * Без него строки с равным значением — программы одного уровня, связки одного
+ * статуса — база возвращает в произвольном порядке, и соседние страницы
+ * повторяют одни строки и теряют другие. Пробник поймал это на ленте
+ * рекомендаций: 28 строк по страницам, из них 25 разных.
+ */
+export const TIE_BREAKER = { id: 'asc' } as const
+
+/**
+ * Строит orderBy для Prisma: выбранное поле, затем `then`, затем id.
  * `nulls: 'last'` допустим только у nullable-полей — иначе Prisma отклоняет запрос,
  * поэтому список таких полей задаёт вызывающий репозиторий.
  */
 export function buildOrderBy<F extends string>(
   sort: { field: F; direction: 'asc' | 'desc' },
   nullableFields: readonly F[] = [],
-): Record<string, unknown> {
-  return {
-    [sort.field]: nullableFields.includes(sort.field)
-      ? { sort: sort.direction, nulls: 'last' }
-      : sort.direction,
-  }
+  then: ReadonlyArray<Record<string, 'asc' | 'desc'>> = [],
+): Array<Record<string, unknown>> {
+  return [
+    {
+      [sort.field]: nullableFields.includes(sort.field)
+        ? { sort: sort.direction, nulls: 'last' }
+        : sort.direction,
+    },
+    ...then,
+    TIE_BREAKER,
+  ]
 }

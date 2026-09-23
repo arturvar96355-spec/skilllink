@@ -1,6 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
-import { toSkipTake } from '@/shared/http/pagination'
+import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
@@ -101,7 +101,7 @@ export async function findOverdue(
     prisma.workflowStage.findMany({
       where,
       select: stageWithCooperationSelect,
-      orderBy: { deadline: 'asc' },
+      orderBy: [{ deadline: 'asc' }, TIE_BREAKER],
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.workflowStage.count({ where }),
@@ -125,7 +125,7 @@ export async function findBlocked(
     prisma.workflowStage.findMany({
       where,
       select: stageWithCooperationSelect,
-      orderBy: { updatedAt: 'desc' },
+      orderBy: [{ updatedAt: 'desc' }, TIE_BREAKER],
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.workflowStage.count({ where }),

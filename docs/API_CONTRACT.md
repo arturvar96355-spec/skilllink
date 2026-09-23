@@ -123,6 +123,9 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 - `page` — с 1, по умолчанию 1.
 - `pageSize` — 1..100, по умолчанию 20.
 - `sort` — имя поля; минус спереди означает убывание: `sort=-updatedAt`.
+- При равном значении поля порядок задаёт `id`, поэтому страницы не повторяют
+  и не теряют строки. Без этого ключа обход по страницам терял до шести строк
+  из сорока (решение 45).
 - Повторяющийся параметр собирается в массив: `?status=ACTIVE&status=NEW`.
 - Пустое значение параметра игнорируется.
 
@@ -1004,6 +1007,12 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 
 Параметры: `type[]`, `status[]`, `priority[]`, `cooperationId`, `region`,
 `sort` (`priority`, `createdAt`, `updatedAt`), пагинация.
+
+**Лента «сначала важное» — `sort=-priority`**, с минусом: приоритет —
+перечисление `LOW < MEDIUM < HIGH < CRITICAL`, и `sort=priority` ставит сверху
+наименее важное. Значение вынесено в `RECOMMENDATION_SORT_MOST_IMPORTANT`
+(`shared/contracts`). При равном приоритете — сначала новые, как в блоке
+приоритетных действий на главной.
 
 ```json
 {

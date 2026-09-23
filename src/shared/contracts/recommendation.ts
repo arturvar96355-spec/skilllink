@@ -5,6 +5,16 @@ import type {
   RecommendationType,
 } from './enums'
 
+/**
+ * Сортировка ленты «сначала самые важные» — значение параметра `sort`.
+ *
+ * Приоритет в базе — перечисление LOW < MEDIUM < HIGH < CRITICAL, поэтому
+ * `sort=priority` (по возрастанию) ставит сверху наименее важное. До 23.09.2026
+ * лента и вкладка карточки связки запрашивали именно так: первой шла
+ * «Связка без движения» средней важности, а три критичные просрочки — в самом низу.
+ */
+export const RECOMMENDATION_SORT_MOST_IMPORTANT = '-priority'
+
 /** Ссылка на объект, к которому относится рекомендация. */
 export interface RecommendationTargetDto {
   objectType: 'Cooperation' | 'EducationalProgram' | 'University' | 'Skill'
