@@ -28,6 +28,58 @@ export interface RecommendationDraft {
   cooperationId: string | null
 }
 
+// ─────────────────────────── Порядок ленты ──────────────────────────────────
+
+const PRIORITY_RANK: Record<RecommendationPriority, number> = {
+  CRITICAL: 3,
+  HIGH: 2,
+  MEDIUM: 1,
+  LOW: 0,
+}
+
+/**
+ * Порядок правил при равной важности: просрочка — работа, которая уже горит;
+ * дефицит навыка — то, ради чего существует продукт; дальше — оформление.
+ */
+const RULE_DISPLAY_ORDER = [
+  'stage.overdue',
+  'skill.critical-gap-with-product',
+  'cooperation.no-product',
+  'program.missing-metrics',
+  'cooperation.stalled',
+]
+
+/** Внутри правила — сначала самое острое: давнее просроченное, самое востребованное. */
+function urgency(draft: RecommendationDraft): number {
+  if (draft.ruleKey === 'stage.overdue') return Number(draft.relatedData.daysOverdue ?? 0)
+  if (draft.ruleKey === 'skill.critical-gap-with-product') {
+    return Number(draft.relatedData.demandNormalized ?? 0)
+  }
+  return 0
+}
+
+/**
+ * Порядок ленты рекомендаций: важность, правило, острота, затем название.
+ *
+ * Раньше при равной важности порядок задавало время создания, а оно повторяло
+ * порядок, в котором база отдала связки, — то есть случайный. Три критичные
+ * просрочки создавались в одну миллисекунду, и после каждой перезаливки
+ * демо-данных сверху мог оказаться другой пункт, чем записано в сценарии.
+ */
+export function compareDraftsByImportance(a: RecommendationDraft, b: RecommendationDraft): number {
+  const rank = (draft: RecommendationDraft) => {
+    const index = RULE_DISPLAY_ORDER.indexOf(draft.ruleKey)
+    return index === -1 ? RULE_DISPLAY_ORDER.length : index
+  }
+  return (
+    PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] ||
+    rank(a) - rank(b) ||
+    urgency(b) - urgency(a) ||
+    a.title.localeCompare(b.title, 'ru') ||
+    a.objectId.localeCompare(b.objectId)
+  )
+}
+
 // ─────────────────────────── Правило 1: просроченный этап ────────────────────
 
 export interface OverdueStageInput {
