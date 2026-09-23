@@ -21,17 +21,46 @@ export async function countUniversitiesInWork(scope: { universityId?: string }):
   })
 }
 
+/**
+ * Этапы, по которым считается доля закрытых в срок: завершённые, со сроком.
+ *
+ * Без контрольного этапа 14: его закрывает система, когда закрыты остальные,
+ * и его «срок» — это сроки этапов 1–13, уже учтённые по отдельности. С ним
+ * одна и та же работа считалась дважды — по той же причине он не входит
+ * в процент прохождения (решение 8). Одно определение на главную и личный кабинет.
+ */
+const ON_TIME_CANDIDATES = {
+  status: 'COMPLETED',
+  deadline: { not: null },
+  completedAt: { not: null },
+  stageNumber: { not: CONTROL_STAGE_NUMBER },
+} as const
+
 /** Завершённые этапы со сроком — по ним считается доля закрытых вовремя. */
 export async function findCompletedStagesWithDeadline(scope: { universityId?: string }) {
   return prisma.workflowStage.findMany({
     where: {
-      status: 'COMPLETED',
-      deadline: { not: null },
-      completedAt: { not: null },
+      ...ON_TIME_CANDIDATES,
       ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
     },
-    select: { deadline: true, completedAt: true },
+    select: { deadline: true, completedAt: true, cooperation: { select: { isMock: true } } },
   })
+}
+
+/**
+ * Есть ли среди связок демонстрационные — в пределах видимости.
+ *
+ * Показатели главной считаются по связкам и этапам, а признак демо-данных у них
+ * всегда был «нет»: сводка по демонстрационному набору выдавалась за настоящую
+ * (CLAUDE.md, «Данные»).
+ */
+export async function hasMockCooperations(scope: { universityId?: string }): Promise<boolean> {
+  return (await prisma.cooperation.count({ where: { isMock: true, ...scope }, take: 1 })) > 0
+}
+
+export async function hasMockUniversities(scope: { universityId?: string }): Promise<boolean> {
+  const where = { isMock: true, archivedAt: null, ...(scope.universityId ? { id: scope.universityId } : {}) }
+  return (await prisma.university.count({ where, take: 1 })) > 0
 }
 
 /** Связки, где известны и первый контакт, и начало занятий: по ним считается срок цикла. */
@@ -42,7 +71,7 @@ export async function findCycleDurations(scope: { universityId?: string }) {
       classesStartAt: { not: null },
       ...scope,
     },
-    select: { firstContactAt: true, classesStartAt: true },
+    select: { firstContactAt: true, classesStartAt: true, isMock: true },
   })
 }
 
@@ -257,12 +286,7 @@ export async function findActiveCooperationsOf(userId: string) {
 /** Свои завершённые этапы со сроком — по ним доля закрытых вовремя. */
 export async function findCompletedStagesWithDeadlineOf(userId: string) {
   return prisma.workflowStage.findMany({
-    where: {
-      responsibleId: userId,
-      status: 'COMPLETED',
-      deadline: { not: null },
-      completedAt: { not: null },
-    },
+    where: { responsibleId: userId, ...ON_TIME_CANDIDATES },
     select: { deadline: true, completedAt: true },
   })
 }
