@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { countSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import { UNIVERSITY_STATUSES } from '@/shared/contracts/enums'
 
@@ -113,8 +113,8 @@ const universityFields = {
   address: z.string().trim().max(300).nullish(),
   website: z.url('Некорректный адрес сайта').nullish(),
   status: statusSchema,
-  directionCount: z.number().int().min(0).nullish(),
-  studentCount: z.number().int().min(0).nullish(),
+  directionCount: countSchema().nullish(),
+  studentCount: countSchema().nullish(),
   description: z.string().trim().max(2000).nullish(),
 }
 

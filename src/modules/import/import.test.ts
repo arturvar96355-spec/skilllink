@@ -129,6 +129,13 @@ describe('числа из ячеек', () => {
     expect(numericCell(['11 800'], index, 'Студентов')).toEqual({ value: 11800 })
   })
 
+  it('число больше, чем вмещает колонка, — ошибка строки уже в предпросмотре', () => {
+    // Раньше предпросмотр обещал «Будет создан», а запись падала с текстом ошибки Prisma.
+    const result = numericCell(['99 999 999 999'], index, 'Студентов')
+    expect('error' in result).toBe(true)
+    expect(numericCell(['2147483647'], index, 'Студентов')).toEqual({ value: 2147483647 })
+  })
+
   it('нечисловое значение — ошибка строки, а не тихий ноль', () => {
     const result = numericCell(['много'], index, 'Студентов')
     expect('error' in result).toBe(true)

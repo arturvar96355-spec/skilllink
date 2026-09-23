@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { countSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import {
   DATA_ORIGINS,
@@ -46,9 +46,9 @@ export type ProgramListQuery = z.infer<typeof programListQuerySchema>
  * null — это «Нет данных» (решение 8), а не ноль.
  */
 const metricsSchema = {
-  applicationCount: z.number().int().min(0).nullish(),
-  studentCount: z.number().int().min(0).nullish(),
-  groupCount: z.number().int().min(0).nullish(),
+  applicationCount: countSchema().nullish(),
+  studentCount: countSchema().nullish(),
+  groupCount: countSchema().nullish(),
   metricsSource: z.enum(DATA_ORIGINS).nullish(),
 }
 

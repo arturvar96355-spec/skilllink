@@ -2,6 +2,7 @@ import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/shared/db/prisma'
+import { containsNul } from '@/shared/db/storable'
 import type { UserRole } from '@/shared/contracts/enums'
 import { checkLogin, recordFailure, recordSuccess } from './throttle'
 
@@ -107,17 +108,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const accountKey = email.toLowerCase()
         if (checkLogin(accountKey).blocked) throw new LoginThrottledError()
 
-        const user = await prisma.user.findFirst({
-          where: { email: email.toLowerCase(), isActive: true },
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-            role: true,
-            universityId: true,
-            passwordHash: true,
-          },
-        })
+        // Адреса с символом кода 0 в базе нет и быть не может, а запрос с ним падает —
+        // и вход отвечал «ошибка конфигурации». Такой адрес — просто неизвестный.
+        const user = containsNul(email)
+          ? null
+          : await prisma.user.findFirst({
+              where: { email: email.toLowerCase(), isActive: true },
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+                role: true,
+                universityId: true,
+                passwordHash: true,
+              },
+            })
 
         // Одинаковый ответ на «нет пользователя» и «неверный пароль»: по разнице
         // сообщений перебирались бы существующие адреса. Исчерпанные попытки —

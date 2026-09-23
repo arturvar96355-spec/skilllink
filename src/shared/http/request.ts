@@ -1,5 +1,19 @@
 import { z } from '@/shared/zod'
-import { AppError, fromZod } from './errors'
+import { findNul } from '@/shared/db/storable'
+import { AppError, fromZod, validationError } from './errors'
+
+/**
+ * Символ с кодом 0 база не примет ни в записи, ни в поиске (shared/db/storable.ts).
+ * Останавливаем его здесь, вместе с остальной проверкой входа: иначе он доходил
+ * до запроса и возвращался как «Внутренняя ошибка сервера».
+ */
+function rejectNul(raw: unknown, message: string): void {
+  const field = findNul(raw)
+  if (field === null) return
+  throw validationError(message, [
+    { field, message: 'Содержит недопустимый символ с кодом 0 — уберите его' },
+  ])
+}
 
 /** Читает и валидирует тело запроса. Некорректный JSON — тоже ошибка валидации. */
 export async function parseBody<S extends z.ZodType>(
@@ -12,6 +26,7 @@ export async function parseBody<S extends z.ZodType>(
   } catch {
     throw new AppError('VALIDATION_ERROR', 'Тело запроса должно быть корректным JSON')
   }
+  rejectNul(raw, 'Ошибка валидации данных')
   const parsed = schema.safeParse(raw)
   if (!parsed.success) throw fromZod(parsed.error)
   return parsed.data
@@ -39,6 +54,7 @@ export async function parseOptionalBody<S extends z.ZodType>(
     throw new AppError('VALIDATION_ERROR', 'Тело запроса должно быть корректным JSON')
   }
 
+  rejectNul(parsedJson, 'Ошибка валидации данных')
   const parsed = schema.safeParse(parsedJson)
   if (!parsed.success) throw fromZod(parsed.error)
   return parsed.data
@@ -56,6 +72,7 @@ export function parseQuery<S extends z.ZodType>(request: Request, schema: S): z.
     if (values.length === 0) continue
     raw[key] = values.length === 1 ? (values[0] as string) : values
   }
+  rejectNul(raw, 'Некорректные параметры запроса')
   const parsed = schema.safeParse(raw)
   if (!parsed.success) throw fromZod(parsed.error, 'Некорректные параметры запроса')
   return parsed.data

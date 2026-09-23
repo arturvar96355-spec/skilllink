@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { prisma } from '@/shared/db/prisma'
+import { containsNul } from '@/shared/db/storable'
 import { unauthorized } from '@/shared/http/errors'
 import type { UserRole } from '@/shared/contracts/enums'
 import { auth } from './auth'
@@ -63,7 +64,8 @@ async function fromSession(): Promise<CurrentUser | null> {
 
 async function fromDemoCookie(): Promise<CurrentUser | null> {
   const cookieUserId = await readUserIdFromCookie()
-  if (!cookieUserId) return null
+  // Cookie задаёт клиент: значение с символом кода 0 — не id, а запрос к базе с ним падает.
+  if (!cookieUserId || containsNul(cookieUserId)) return null
   return prisma.user.findFirst({
     where: { id: cookieUserId, isActive: true },
     select: USER_FIELDS,

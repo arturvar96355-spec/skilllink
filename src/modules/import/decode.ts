@@ -35,9 +35,27 @@ function rejectUtf16(bytes: Uint8Array): void {
   ])
 }
 
-export function decodeCsv(bytes: Uint8Array): DecodedCsv {
-  rejectUtf16(bytes)
+/**
+ * Нулевых байтов в текстовом CSV не бывает — они есть в .xlsx, в UTF-16 без метки
+ * и в любом другом двоичном файле. Такой файл читался как Windows-1251 и дальше
+ * давал то «не найдены колонки» при колонках на месте, то внутреннюю ошибку
+ * на записи: символ с кодом 0 база не принимает (shared/db/storable.ts).
+ */
+function rejectBinary(text: string): void {
+  const position = text.indexOf('\u0000')
+  if (position === -1) return
+  const line = text.slice(0, position).split('\n').length
+  throw validationError('Файл не похож на текстовый CSV', [
+    {
+      field: 'csv',
+      message:
+        `В строке ${line} нулевой байт — так выглядят файлы Excel (.xlsx) и другие двоичные файлы. ` +
+        'В Excel сохраните как «CSV UTF-8 (разделитель — запятая)».',
+    },
+  ])
+}
 
+function decode(bytes: Uint8Array): DecodedCsv {
   try {
     return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes), encoding: 'utf-8' }
   } catch {
@@ -46,4 +64,11 @@ export function decodeCsv(bytes: Uint8Array): DecodedCsv {
     // поэтому запасного варианта дальше нет и не нужно.
     return { text: new TextDecoder('windows-1251').decode(bytes), encoding: 'windows-1251' }
   }
+}
+
+export function decodeCsv(bytes: Uint8Array): DecodedCsv {
+  rejectUtf16(bytes)
+  const decoded = decode(bytes)
+  rejectBinary(decoded.text)
+  return decoded
 }

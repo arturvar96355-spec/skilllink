@@ -1,5 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { validationError } from '@/shared/http/errors'
+import { toAppError } from '@/shared/http/handle'
+import { describeForLog } from '@/shared/db/log'
 import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -308,10 +310,12 @@ export async function importDataset(
       try {
         await plan.apply()
       } catch (error) {
+        // Наружу — только то, что можно показать: сообщение Prisma повторяет весь
+        // вызов с данными строки и уходило в ответ целиком.
+        const known = toAppError(error)
+        if (!known) console.error('[IMPORT] строка', plan.result.line, describeForLog(error))
         plan.result.outcome = 'error'
-        plan.result.detail = `Не удалось записать: ${
-          error instanceof Error ? error.message : 'неизвестная ошибка'
-        }`
+        plan.result.detail = `Не удалось записать: ${known ? known.message : 'внутренняя ошибка сервера'}`
       }
     }
   }

@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
+import { describeForLog } from '@/shared/db/log'
 
 /** Действия, которые журналируются (раздел 15 ТЗ). Список расширяется по мере надобности. */
 export type AuditAction =
@@ -59,6 +60,7 @@ export async function writeAudit(entry: AuditEntry, client: Client = prisma): Pr
       },
     })
   } catch (error) {
-    console.error('[AUDIT] не удалось записать действие', entry.action, error)
+    // Без ошибки целиком: в её тексте повторяется payload, а в нём бывают ФИО и контакты.
+    console.error('[AUDIT] не удалось записать действие', entry.action, describeForLog(error))
   }
 }
