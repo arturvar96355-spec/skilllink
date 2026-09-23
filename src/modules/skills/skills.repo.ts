@@ -4,15 +4,28 @@ import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { SKILL_SORT_FIELDS, type SkillDemandQuery, type SkillListQuery } from './skills.schema'
 
-const skillSelect = {
-  id: true,
-  name: true,
-  category: true,
-  description: true,
-  _count: { select: { programs: true, products: true } },
-} satisfies Prisma.SkillSelect
+/**
+ * Число программ с навыком — в пределах видимости: представителю вуза только
+ * его программы. Общее число раскрывало бы, сколько программ других вузов учат
+ * этому навыку (решение 9).
+ */
+const skillSelect = (scope: { universityId?: string }) =>
+  ({
+    id: true,
+    name: true,
+    category: true,
+    description: true,
+    _count: {
+      select: {
+        programs: scope.universityId
+          ? { where: { program: { universityId: scope.universityId } } }
+          : true,
+        products: true,
+      },
+    },
+  }) satisfies Prisma.SkillSelect
 
-export type SkillRow = Prisma.SkillGetPayload<{ select: typeof skillSelect }>
+export type SkillRow = Prisma.SkillGetPayload<{ select: ReturnType<typeof skillSelect> }>
 
 const demandSelect = {
   id: true,
@@ -31,6 +44,7 @@ export type DemandRow = Prisma.MarketDemandGetPayload<{ select: typeof demandSel
 
 export async function findMany(
   query: SkillListQuery,
+  scope: { universityId?: string },
 ): Promise<{ rows: SkillRow[]; total: number }> {
   const where: Prisma.SkillWhereInput = {}
   if (query.category?.length) where.category = { in: query.category }
@@ -47,7 +61,7 @@ export async function findMany(
   const [rows, total] = await Promise.all([
     prisma.skill.findMany({
       where,
-      select: skillSelect,
+      select: skillSelect(scope),
       orderBy: buildOrderBy({ field, direction }),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),

@@ -1,6 +1,7 @@
 import { notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { prisma } from '@/shared/db/prisma'
+import { writeAudit } from '@/shared/audit/audit'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
@@ -155,6 +156,13 @@ export async function create(
     metricsSource: metricsSource ?? (hasMetrics ? 'MANUAL' : null),
     metricsUpdatedAt: hasMetrics ? new Date() : null,
   })
+  await writeAudit({
+    userId: user.id,
+    action: 'program.create',
+    objectType: 'EducationalProgram',
+    objectId: row.id,
+    payload: { universityId, fields: Object.keys(fields) },
+  })
   return toDetail(user, row)
 }
 
@@ -178,6 +186,13 @@ export async function update(
           metricsUpdatedAt: new Date(),
         }
       : {}),
+  })
+  await writeAudit({
+    userId: user.id,
+    action: 'program.update',
+    objectType: 'EducationalProgram',
+    objectId: id,
+    payload: { fields: Object.keys(input) },
   })
   return toDetail(user, row)
 }
@@ -209,6 +224,13 @@ export async function setSkills(
   }
 
   await repo.replaceSkills(id, input.skills.map((skill) => ({ ...skill })))
+  await writeAudit({
+    userId: user.id,
+    action: 'program.skills.replace',
+    objectType: 'EducationalProgram',
+    objectId: id,
+    payload: { skills: ids.length },
+  })
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Образовательная программа не найдена')
   return toDetail(user, row)
@@ -219,6 +241,12 @@ export async function archive(user: CurrentUser, id: string): Promise<ProgramDto
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Образовательная программа не найдена')
   const row = await repo.update(id, { archivedAt: new Date(), status: 'ARCHIVED' })
+  await writeAudit({
+    userId: user.id,
+    action: 'program.archive',
+    objectType: 'EducationalProgram',
+    objectId: id,
+  })
   return toDetail(user, row)
 }
 
@@ -245,5 +273,11 @@ export async function restore(user: CurrentUser, id: string): Promise<ProgramDto
   }
 
   const row = await repo.update(id, { archivedAt: null, status: 'ACTIVE' })
+  await writeAudit({
+    userId: user.id,
+    action: 'program.restore',
+    objectType: 'EducationalProgram',
+    objectId: id,
+  })
   return toDetail(user, row)
 }
