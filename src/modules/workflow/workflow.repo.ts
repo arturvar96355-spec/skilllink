@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { writeAudit } from '@/shared/audit/audit'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
@@ -239,25 +240,33 @@ export async function lockCooperation(
  * Пересчёт контрольного этапа 14 по состоянию этапов 1–13 (решение 2).
  * Вызывается после любого изменения статуса обычного этапа.
  */
+/** Как изменился контрольный этап — для журнала, который пишется после транзакции. */
+export interface ControlStageChange {
+  stageId: string
+  cooperationId: string
+  from: StageStatus
+  to: StageStatus
+}
+
 export async function recomputeControlStage(
   tx: Prisma.TransactionClient,
   cooperationId: string,
   userId: string,
-): Promise<void> {
+): Promise<ControlStageChange | null> {
   const stages = await tx.workflowStage.findMany({
     where: { cooperationId },
     select: { id: true, stageNumber: true, status: true },
   })
 
   const control = stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)
-  if (!control) return
+  if (!control) return null
 
   const others = stages
     .filter((stage) => stage.stageNumber !== CONTROL_STAGE_NUMBER)
     .map((stage) => stage.status as StageStatus)
 
   const next = computeControlStatus(others)
-  if (next === control.status) return
+  if (next === control.status) return null
 
   await tx.workflowStage.update({
     where: { id: control.id },
@@ -277,5 +286,27 @@ export async function recomputeControlStage(
       comment: 'Пересчитано автоматически по состоянию этапов 1–13',
       changedById: userId,
     },
+  })
+
+  return { stageId: control.id, cooperationId, from: control.status as StageStatus, to: next }
+}
+
+/**
+ * Запись в журнал об автоматическом пересчёте этапа 14.
+ *
+ * Обещана в SECURITY_LIMITATIONS, а не писалась. Пишется после транзакции:
+ * сбой вставки внутри неё оборвал бы саму смену статуса.
+ */
+export async function auditControlStageChange(
+  change: ControlStageChange | null,
+  userId: string,
+): Promise<void> {
+  if (!change) return
+  await writeAudit({
+    userId,
+    action: 'stage.auto.recompute',
+    objectType: 'WorkflowStage',
+    objectId: change.stageId,
+    payload: { cooperationId: change.cooperationId, from: change.from, to: change.to },
   })
 }

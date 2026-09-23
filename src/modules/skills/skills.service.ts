@@ -1,7 +1,7 @@
 import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { prisma } from '@/shared/db/prisma'
-import { assertCan } from '@/shared/auth/permissions'
+import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type { SkillDemandDto, SkillDto, SkillGapDto } from '@/shared/contracts/skill'
@@ -15,7 +15,7 @@ export async function list(
   query: SkillListQuery,
 ): Promise<{ data: SkillDto[]; meta: PageMeta }> {
   assertCan(user, 'READ')
-  const { rows, total } = await repo.findMany(query)
+  const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
     data: rows.map((row) => ({
       id: row.id,

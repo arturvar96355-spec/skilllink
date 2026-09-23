@@ -1,8 +1,12 @@
-import { prisma } from '@/shared/db/prisma'
-import { notFound, validationError } from '@/shared/http/errors'
+import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan, isUniversityVisible, universityScope } from '@/shared/auth/permissions'
+import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import {
+  assertParticipantsBelong,
+  assertStaffResponsible,
+  resolveEntityLinks,
+} from '@/shared/links/entity-links'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -56,84 +60,6 @@ function toDto(row: repo.MeetingRow): MeetingDto {
   }
 }
 
-/** Привязки должны существовать и быть видны пользователю. */
-async function assertLinksVisible(
-  user: CurrentUser,
-  links: { cooperationId?: string | null; universityId?: string | null; programId?: string | null },
-): Promise<void> {
-  if (links.cooperationId) {
-    const cooperation = await prisma.cooperation.findUnique({
-      where: { id: links.cooperationId },
-      select: { universityId: true },
-    })
-    if (!cooperation || !isUniversityVisible(user, cooperation.universityId)) {
-      throw validationError('Указана несуществующая связка', [
-        { field: 'cooperationId', message: 'Связка не найдена' },
-      ])
-    }
-  }
-
-  if (links.universityId) {
-    const university = await prisma.university.findUnique({
-      where: { id: links.universityId },
-      select: { id: true },
-    })
-    if (!university || !isUniversityVisible(user, links.universityId)) {
-      throw validationError('Указан несуществующий вуз', [
-        { field: 'universityId', message: 'Вуз не найден' },
-      ])
-    }
-  }
-
-  if (links.programId) {
-    const program = await prisma.educationalProgram.findUnique({
-      where: { id: links.programId },
-      select: { universityId: true },
-    })
-    if (!program || !isUniversityVisible(user, program.universityId)) {
-      throw validationError('Указана несуществующая программа', [
-        { field: 'programId', message: 'Программа не найдена' },
-      ])
-    }
-  }
-}
-
-/** Участники должны существовать: битая ссылка в составе встречи хуже её отсутствия. */
-async function assertParticipantsExist(participants: repo.ParticipantInput[]): Promise<void> {
-  const userIds = participants
-    .map((participant) => participant.userId)
-    .filter((id): id is string => typeof id === 'string')
-  const contactIds = participants
-    .map((participant) => participant.contactId)
-    .filter((id): id is string => typeof id === 'string')
-
-  if (userIds.length > 0) {
-    const found = await prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true },
-    })
-    const missing = userIds.filter((id) => !found.some((user) => user.id === id))
-    if (missing.length > 0) {
-      throw validationError('Указаны несуществующие сотрудники', [
-        { field: 'participants', message: `Не найдены: ${missing.join(', ')}` },
-      ])
-    }
-  }
-
-  if (contactIds.length > 0) {
-    const found = await prisma.contact.findMany({
-      where: { id: { in: contactIds } },
-      select: { id: true },
-    })
-    const missing = contactIds.filter((id) => !found.some((contact) => contact.id === id))
-    if (missing.length > 0) {
-      throw validationError('Указаны несуществующие контактные лица', [
-        { field: 'participants', message: `Не найдены: ${missing.join(', ')}` },
-      ])
-    }
-  }
-}
-
 export async function list(
   user: CurrentUser,
   query: MeetingListQuery,
@@ -157,20 +83,11 @@ export async function create(user: CurrentUser, input: CreateMeetingInput): Prom
   assertCan(user, 'WRITE')
   assertHasLink(input)
   assertNextActionHasDate(input.nextAction, input.nextActionDueAt)
-  await assertLinksVisible(user, input)
+  const universityId = await resolveEntityLinks(user, input)
 
   const participants = input.participants ?? []
-  await assertParticipantsExist(participants)
-
-  const responsible = await prisma.user.findFirst({
-    where: { id: input.responsibleId, isActive: true },
-    select: { id: true },
-  })
-  if (!responsible) {
-    throw validationError('Указан несуществующий ответственный', [
-      { field: 'responsibleId', message: 'Сотрудник не найден' },
-    ])
-  }
+  await assertParticipantsBelong(universityId, participants)
+  await assertStaffResponsible(input.responsibleId)
 
   const row = await repo.create(
     {
@@ -217,19 +134,16 @@ export async function update(
       : existing.nextActionDueAt?.toISOString(),
   )
 
-  if (input.participants) await assertParticipantsExist(input.participants)
-
-  if (input.responsibleId) {
-    const responsible = await prisma.user.findFirst({
-      where: { id: input.responsibleId, isActive: true },
-      select: { id: true },
+  if (input.participants) {
+    // Вуз встречи — по её привязкам: участники обязаны быть из него.
+    const universityId = await resolveEntityLinks(user, {
+      cooperationId: existing.cooperationId,
+      universityId: existing.universityId,
+      programId: existing.programId,
     })
-    if (!responsible) {
-      throw validationError('Указан несуществующий ответственный', [
-        { field: 'responsibleId', message: 'Сотрудник не найден' },
-      ])
-    }
+    await assertParticipantsBelong(universityId, input.participants)
   }
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
   const row = await repo.update(
     id,

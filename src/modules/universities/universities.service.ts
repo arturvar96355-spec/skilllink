@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { writeAudit } from '@/shared/audit/audit'
 import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, can, universityScope } from '@/shared/auth/permissions'
@@ -227,6 +228,16 @@ export async function create(
     ...fields,
     ...(contacts?.length ? { contacts: { create: contacts } } : {}),
   })
+  // Журнал обещан в SECURITY_LIMITATIONS («создание и изменение вуза»), а записи
+  // не было ни одной. Только имена полей: значения — в самой записи, а в контактах
+  // есть персональные данные, которым в журнале не место.
+  await writeAudit({
+    userId: user.id,
+    action: 'university.create',
+    objectType: 'University',
+    objectId: row.id,
+    payload: { fields: Object.keys(fields), contacts: contacts?.length ?? 0 },
+  })
   return toDetail(row, 0)
 }
 
@@ -241,6 +252,13 @@ export async function update(
   assertNotArchived(existing.archivedAt)
 
   const row = await repo.update(id, input)
+  await writeAudit({
+    userId: user.id,
+    action: 'university.update',
+    objectType: 'University',
+    objectId: id,
+    payload: { fields: Object.keys(input) },
+  })
   const activeByUniversity = await repo.countActiveCooperations([row.id])
 
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
@@ -266,6 +284,12 @@ export async function archive(user: CurrentUser, id: string): Promise<University
   assertCanArchive(openCooperations)
 
   const row = await repo.update(id, { archivedAt: new Date(), status: 'ARCHIVED' })
+  await writeAudit({
+    userId: user.id,
+    action: 'university.archive',
+    objectType: 'University',
+    objectId: id,
+  })
   return toDetail(row, 0)
 }
 
@@ -274,6 +298,12 @@ export async function restore(user: CurrentUser, id: string): Promise<University
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Вуз не найден')
   const row = await repo.update(id, { archivedAt: null, status: 'IN_PROGRESS' })
+  await writeAudit({
+    userId: user.id,
+    action: 'university.restore',
+    objectType: 'University',
+    objectId: id,
+  })
   const activeByUniversity = await repo.countActiveCooperations([row.id])
 
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой

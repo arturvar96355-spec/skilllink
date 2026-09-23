@@ -1,4 +1,3 @@
-import { prisma } from '@/shared/db/prisma'
 import { notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import {
@@ -8,6 +7,7 @@ import {
   universityScope,
 } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { assertStaffResponsible, resolveEntityLinks } from '@/shared/links/entity-links'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -96,51 +96,6 @@ function toDetail(row: repo.DocumentDetailRow, user: CurrentUser): DocumentDto {
   }
 }
 
-/**
- * Проверяет, что все переданные привязки существуют и видны пользователю.
- * Без этого документ можно было бы привязать к чужому вузу.
- */
-async function assertLinksVisible(
-  user: CurrentUser,
-  links: { cooperationId?: string | null; universityId?: string | null; programId?: string | null },
-): Promise<void> {
-  if (links.cooperationId) {
-    const cooperation = await prisma.cooperation.findUnique({
-      where: { id: links.cooperationId },
-      select: { universityId: true },
-    })
-    if (!cooperation || !isUniversityVisible(user, cooperation.universityId)) {
-      throw validationError('Указана несуществующая связка', [
-        { field: 'cooperationId', message: 'Связка не найдена' },
-      ])
-    }
-  }
-
-  if (links.universityId) {
-    const university = await prisma.university.findUnique({
-      where: { id: links.universityId },
-      select: { id: true },
-    })
-    if (!university || !isUniversityVisible(user, links.universityId)) {
-      throw validationError('Указан несуществующий вуз', [
-        { field: 'universityId', message: 'Вуз не найден' },
-      ])
-    }
-  }
-
-  if (links.programId) {
-    const program = await prisma.educationalProgram.findUnique({
-      where: { id: links.programId },
-      select: { universityId: true },
-    })
-    if (!program || !isUniversityVisible(user, program.universityId)) {
-      throw validationError('Указана несуществующая программа', [
-        { field: 'programId', message: 'Программа не найдена' },
-      ])
-    }
-  }
-}
-
 export async function list(
   user: CurrentUser,
   query: DocumentListQuery,
@@ -166,7 +121,8 @@ export async function create(
 ): Promise<DocumentDto> {
   assertCan(user, 'WRITE')
   assertHasLink(input)
-  await assertLinksVisible(user, input)
+  await resolveEntityLinks(user, input)
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
   const row = await repo.create({
     type: input.type,
@@ -202,6 +158,7 @@ export async function update(
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Документ не найден')
   assertDocumentEditable(existing.status)
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
   const row = await repo.update(id, {
     ...(input.type !== undefined ? { type: input.type } : {}),
