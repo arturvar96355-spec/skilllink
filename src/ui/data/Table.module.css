@@ -221,3 +221,76 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+
+/*
+ * Вид «плашки» (appearance="cards"): каждая строка — отдельная плашка
+ * с воздухом вокруг, крупнее и без сетки линий. Для реестров, где строку ищут
+ * глазами и открывают. Появление, сдвиг при наведении и переход в карточку —
+ * те же, что у обычной таблицы.
+ */
+.cards {
+  padding: var(--space-2) var(--space-4) 0;
+}
+
+.cards .table {
+  border-spacing: 0 var(--space-2);
+}
+
+.cards .th {
+  padding: var(--space-2) var(--space-4);
+  /* Прозрачная: под ней живой фон, сплошная полоса лежала бы на нём тёмной заплаткой.
+     Шапка здесь не прилипает — прокручивается не таблица, а страница. */
+  background: transparent;
+  backdrop-filter: none;
+  font-size: var(--text-kicker-size);
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  border-bottom: none;
+}
+
+.cards .td {
+  height: 68px;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-body-size);
+  background: var(--surface-1);
+  border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.cards .td:first-child {
+  border-left: 1px solid var(--line-subtle);
+  border-top-left-radius: var(--radius-card);
+  border-bottom-left-radius: var(--radius-card);
+}
+
+.cards .td:last-child {
+  border-right: 1px solid var(--line-subtle);
+  border-top-right-radius: var(--radius-card);
+  border-bottom-right-radius: var(--radius-card);
+}
+
+/* Наведение: плашка светлеет, рамка проступает, слева — фирменная метка. */
+.cards .clickable:hover > .td {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.cards .clickable:hover > .td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent-violet);
+}
+
+/* Главное в строке — то, по чему щёлкают: оно светлеет в акцент. */
+.cards .clickable:hover [data-morph-title] {
+  color: var(--text-accent-pale);
+}
+
+@media (max-width: 720px) {
+  .cards {
+    padding: var(--space-1) var(--space-2) 0;
+  }
+
+  .cards .td {
+    height: 60px;
+    padding: var(--space-2) var(--space-3);
+  }
+}

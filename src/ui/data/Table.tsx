@@ -53,6 +53,12 @@ export interface DataTableProps<T> {
    * под таблицей пишется «Показаны первые N из M».
    */
   total?: number | null
+  /**
+   * Вид таблицы. `grid` — плотный список с линиями, `cards` — каждая строка
+   * отдельной плашкой с воздухом вокруг: для реестров, где строку ищут глазами
+   * и открывают, а не сравнивают по столбцам.
+   */
+  appearance?: 'grid' | 'cards'
 }
 
 export function DataTable<T>({
@@ -66,6 +72,7 @@ export function DataTable<T>({
   isRefreshing = false,
   caption,
   total = null,
+  appearance = 'grid',
 }: DataTableProps<T>) {
   const router = useRouter()
 
@@ -79,7 +86,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={styles.wrapper}>
+    <div className={[styles.wrapper, appearance === 'cards' ? styles.cards : ''].filter(Boolean).join(' ')}>
       <table
         className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
         style={{ minWidth: tableMinWidth(columns) }}
@@ -159,6 +166,8 @@ export function DataTable<T>({
                         // span с role="button", и без неё щелчок по значку «i»
                         // открывал бы карточку вместо показа объяснения.
                         if ((event.target as HTMLElement).closest('a, button, [role="button"]')) return
+                        // Переход между страницами уже ведёт каркас (layout/navigation-motion).
+                        if (event.defaultPrevented) return
                         startMorph(event.currentTarget.querySelector<HTMLElement>('a'), event)
                         router.push(href)
                       }

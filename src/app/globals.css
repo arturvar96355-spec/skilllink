@@ -17,37 +17,51 @@
    * руками, L3 — то, что всплывает поверх. 90% интерфейса — нейтральный графит:
    * фиолетовый, розовый и оранжевый — сигналы, а не материал.
    */
-  --canvas: #0b0b10;
-  --surface-1: #101116;
-  --surface-2: #15161c;
-  --surface-3: #1b1c23;
+  /*
+   * Холст и уровни — чёрно-фиолетовые, а не нейтральный графит: серый читался
+   * как приборная панель. Оттенок едва заметный — контраст текста тот же,
+   * а вся система держится в одной гамме с акцентами. Оранжевого в материале нет.
+   */
+  --canvas: #0b0914;
+  --surface-1: #110e1b;
+  --surface-2: #171322;
+  --surface-3: #1d1929;
   /* Плотная: сквозь панель поверх цифр текст не должен читаться даже там,
      где размытие фона не отрисовалось (проектор, слабая видеокарта). */
-  --surface-floating: rgba(20, 20, 27, 0.97);
+  --surface-floating: rgba(22, 18, 33, 0.97);
 
   --bg-main: var(--canvas);
   --bg-secondary: var(--surface-1);
-  --bg-sidebar: #0d0d12;
-  --bg-header: rgba(11, 11, 16, 0.82);
+  --bg-sidebar: rgba(12, 10, 21, 0.92);
+  --bg-header: rgba(11, 9, 20, 0.78);
+
+  /*
+   * Живой фон (ui/layout/LiveBackground): свечение за курсором и медленная дымка.
+   * Слабые: фон — атмосфера, а не рисунок, читать поверх него должно быть легко.
+   */
+  --bg-glow: rgba(142, 108, 255, 0.17);
+  --bg-glow-deep: rgba(92, 50, 196, 0.2);
+  --bg-haze-violet: rgba(116, 76, 230, 0.12);
+  --bg-haze-deep: rgba(58, 28, 138, 0.18);
 
   --surface-card: var(--surface-1);
-  --surface-card-muted: #0e0f14;
+  --surface-card-muted: #0f0c18;
   --surface-hover: var(--surface-2);
   --surface-overlay: var(--surface-floating);
   --surface-raised: var(--surface-3);
   /* Прежние имена, которые ещё читают страницы: теперь это те же уровни графита. */
   --surface-icon: var(--surface-2);
-  --surface-sunken: #0d0e13;
+  --surface-sunken: #0d0b16;
   --border-accent: rgba(142, 108, 255, 0.34);
   --danger-surface: rgba(240, 97, 111, 0.1);
   --danger-border: rgba(240, 97, 111, 0.32);
   --success-border: rgba(85, 200, 194, 0.3);
 
   /* Графитовая шкала (прежние имена «purple-*» — для совместимости страниц). */
-  --purple-900: #0d0e13;
-  --purple-800: #121318;
-  --purple-700: #17181e;
-  --purple-600: #1d1e25;
+  --purple-900: #0d0b16;
+  --purple-800: #120f1c;
+  --purple-700: #171422;
+  --purple-600: #1d1929;
   --purple-500: #8e6cff;
 
   /* Акценты — сигналы: этап, связь, статус. */
@@ -233,7 +247,7 @@ body {
   line-height: var(--text-body-line);
   font-weight: 400;
   color: var(--text-primary);
-  /* Холст — ровный графит без цветных пятен: цвет остаётся за сигналами. */
+  /* Холст — глубокий чёрно-фиолетовый; живое свечение над ним — ui/layout/LiveBackground. */
   background-color: var(--canvas);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -334,5 +348,140 @@ textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/*
+ * Переход «карточка раскрывается в свою страницу» — снимки View Transitions
+ * (ui/layout/navigation-motion.ts). Здесь — постоянная часть хореографии;
+ * расхождение соседних строк зависит от места щелчка и пишется скриптом.
+ */
+
+/* Остальной старый экран — заголовок, фильтры — отступает вглубь и гаснет. */
+::view-transition-old(root) {
+  transform-origin: 50% 35%;
+  animation: nav-recede 520ms cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+::view-transition-new(root) {
+  animation: nav-root-in var(--motion-page) var(--ease-out) 360ms both;
+}
+
+@keyframes nav-recede {
+  to {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+}
+
+@keyframes nav-root-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Меню, шапка и поиск — над движением; меняются спокойным переливом. */
+::view-transition-group(nav-chrome-sidebar),
+::view-transition-group(nav-chrome-header),
+::view-transition-group(nav-chrome-search) {
+  z-index: 20;
+  animation-duration: var(--motion-surface);
+}
+
+/*
+ * Плашка вырастает в страницу. Снимки не растягиваются, а стоят в левом
+ * верхнем углу растущей плашки: строка гаснет, страница проявляется — и её
+ * становится видно больше по мере того, как плашка растёт.
+ */
+::view-transition-group(nav-card) {
+  z-index: 15;
+  animation-duration: 720ms;
+  animation-timing-function: cubic-bezier(0.2, 0.9, 0.1, 1);
+}
+
+/*
+ * Поверхность плашки — неподвижная: сплошной фон и тонкая кромка без размытия.
+ * Анимировать их нельзя: плашка растёт до размеров страницы, и перерисовка
+ * тени с размытием на такой площади каждый кадр давала рывки.
+ */
+::view-transition-image-pair(nav-card) {
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--canvas);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet) 35%, transparent);
+}
+
+::view-transition-old(nav-card),
+::view-transition-new(nav-card) {
+  inline-size: auto;
+  block-size: auto;
+}
+
+::view-transition-old(nav-card) {
+  animation: nav-fade-out 200ms var(--ease-in) both;
+}
+
+/* Содержимое проявляется сразу, пока плашка растёт: пустой растущий прямоугольник читался как провал. */
+::view-transition-new(nav-card) {
+  animation: nav-card-in 420ms var(--ease-out) 40ms both;
+}
+
+@keyframes nav-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes nav-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Название перелетает в заголовок карточки — поверх всего — и светится в полёте. */
+::view-transition-group(nav-source) {
+  z-index: 30;
+  animation-duration: 720ms;
+  animation-timing-function: cubic-bezier(0.2, 0.9, 0.1, 1);
+}
+
+::view-transition-image-pair(nav-source) {
+  animation: nav-source-glow 720ms var(--ease-soft) both;
+}
+
+/*
+ * Текст масштабируется по высоте, а не растягивается в ширину: у строки
+ * реестра название обрезано многоточием, у заголовка — целиком, и картинка
+ * короткой строки, растянутая до длинной, читалась бы как искажённая.
+ */
+::view-transition-old(nav-source),
+::view-transition-new(nav-source) {
+  width: auto;
+  height: 100%;
+}
+
+/* Строка гаснет почти сразу: заголовок бывает в две строки, и однострочная картинка раздувалась бы. */
+::view-transition-old(nav-source) {
+  animation: nav-fade-out 100ms var(--ease-in) both;
+}
+
+::view-transition-new(nav-source) {
+  animation: nav-source-in var(--motion-control) var(--ease-out) 80ms both;
+}
+
+@keyframes nav-source-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes nav-source-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  45% {
+    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent-violet) 60%, transparent));
   }
 }

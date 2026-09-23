@@ -155,6 +155,7 @@
  * Блоки страницы появляются по очереди с короткой задержкой: сначала заголовок,
  * потом показатели, потом списки (раздел 7 документа о движении). Задержки
  * маленькие — страница должна быть пригодна к работе сразу, а не «доезжать».
+ * Так страница приходит по меню; раскрытие карточки ведёт свой переход.
  */
 .page > * {
   animation: blockIn 320ms var(--ease-out) both;
@@ -164,16 +165,16 @@
   animation-delay: 0ms;
 }
 .page > *:nth-child(2) {
-  animation-delay: 50ms;
+  animation-delay: 40ms;
 }
 .page > *:nth-child(3) {
-  animation-delay: 100ms;
+  animation-delay: 80ms;
 }
 .page > *:nth-child(4) {
-  animation-delay: 150ms;
+  animation-delay: 120ms;
 }
 .page > *:nth-child(n + 5) {
-  animation-delay: 200ms;
+  animation-delay: 160ms;
 }
 
 @keyframes blockIn {
@@ -181,6 +182,14 @@
     opacity: 0;
     transform: translateY(10px);
   }
+}
+
+/*
+ * Страницу привёл переход между страницами (layout/navigation-motion): её
+ * появление уже сыграно веером на снимках, своё поверх было бы вторым.
+ */
+.page[data-vt] > * {
+  animation: none;
 }
 
 @media (max-width: 720px) {
@@ -306,5 +315,98 @@
   from {
     opacity: 0;
     transform: translateY(-6px);
+  }
+}
+
+/*
+ * Линия перехода вверху: бежит, пока идёт переход, и дотягивается до конца,
+ * когда следующая страница пришла, — затем гаснет.
+ */
+.progress {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 0;
+  right: 0;
+  z-index: 90;
+  height: 2px;
+  background: var(--gradient-brand);
+  transform-origin: left center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-overlay) var(--ease-out) 120ms;
+}
+
+.progress[data-active] {
+  opacity: 1;
+  transition: opacity var(--motion-micro) var(--ease-out);
+  animation: progressRun 1600ms var(--ease-out) both;
+}
+
+@keyframes progressRun {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(0.85);
+  }
+}
+
+/*
+ * Живой фон (LiveBackground): под всем содержимым, над холстом. Карточки
+ * и панели лежат на нём своими непрозрачными поверхностями — текст в них
+ * читается как прежде; свечение видно между ними и сквозь шапку.
+ */
+.liveBackground {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Дымка: два пятна, фиолетовое сверху слева и глубокое снизу справа, едва дышат. */
+.haze {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(40% 45% at 18% 12%, var(--bg-haze-violet), transparent 70%),
+    radial-gradient(45% 50% at 85% 90%, var(--bg-haze-deep), transparent 70%);
+  animation: hazeDrift 28s var(--ease-in-out) infinite alternate;
+  will-change: transform;
+}
+
+@keyframes hazeDrift {
+  to {
+    transform: translate3d(3%, -2%, 0) scale(1.06);
+  }
+}
+
+/* Свечение за курсором: центр слоя — точка курсора (сдвиг задаёт скрипт). */
+.glowNear,
+.glowFar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: var(--radius-pill);
+  will-change: transform;
+}
+
+.glowNear {
+  width: 640px;
+  height: 640px;
+  margin: -320px 0 0 -320px;
+  background: radial-gradient(circle, var(--bg-glow) 0%, transparent 62%);
+}
+
+.glowFar {
+  width: 1100px;
+  height: 1100px;
+  margin: -550px 0 0 -550px;
+  background: radial-gradient(circle, var(--bg-glow-deep) 0%, transparent 60%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haze {
+    animation: none;
   }
 }

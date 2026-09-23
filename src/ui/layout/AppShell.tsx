@@ -15,6 +15,8 @@ import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { navigationFor, serviceLinksFor } from './navigation'
 import { takeArrival } from './arrival'
+import { useNavigationMotion } from './navigation-motion'
+import { LiveBackground } from './LiveBackground'
 import styles from './Shell.module.css'
 
 /**
@@ -32,6 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     if (takeArrival()) setArrived(true)
   }, [])
   const pathname = usePathname()
+  const motion = useNavigationMotion(pathname)
   const me = useResource<CurrentUserDto>('/api/me')
   const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
   const service = useMemo(() => (me.data ? serviceLinksFor(me.data) : []), [me.data])
@@ -66,9 +69,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <CurrentUserProvider user={me.data as CurrentUserDto}>
+      <LiveBackground />
       <div className={arrived ? styles.arrival : undefined}>
       <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className={styles.shell}>
+        {/* Линия перехода: щелчок принят, следующая страница уже в пути. */}
+        <div className={styles.progress} data-active={motion.isLeaving || undefined} aria-hidden />
         <Header groups={groups} onMenuClick={() => setIsMenuOpen(true)} />
         <main className={styles.main}>
           {/*
@@ -78,7 +84,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             на месте — приложение ощущается одним рабочим пространством
             (раздел 19 документа о движении).
           */}
-          <div key={pathname} className={styles.page}>
+          <div
+            key={pathname}
+            className={styles.page}
+            data-page
+          >
             {children}
           </div>
         </main>

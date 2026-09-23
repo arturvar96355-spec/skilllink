@@ -1,44 +1,97 @@
 /* Реестр вузов (раздел 20 шаблона страниц). */
 
+/* ── Ячейки ──────────────────────────────────────────────────────────────── */
+
 .name {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-width: 0;
 }
 
 .nameText {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   min-width: 0;
 }
 
+/*
+ * Название — главное в строке: по нему ищут глазами и по нему щёлкают.
+ * До двух строк, а не одна с многоточием: полные названия вузов начинаются
+ * одинаково («Санкт-Петербургский…»), и в одну строку реестр переставал их различать.
+ */
 .nameTitle {
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
+  display: -webkit-box;
+  font-size: var(--text-body-lg-size);
+  font-weight: 650;
   color: var(--text-primary);
-  line-height: 1.35;
+  line-height: 1.3;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.nameCity {
-  font-size: var(--text-caption-size);
-  font-weight: 400;
+.nameSub {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-accent-soft);
+}
+
+.place {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.placeCity {
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.placeRegion {
+  font-size: var(--text-label-size);
   color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rating {
   display: inline-flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 6px;
-  justify-content: flex-end;
 }
 
 .ratingValue {
-  font-size: var(--text-body-size);
-  font-weight: 650;
+  font-size: var(--text-value-size);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
+  color: var(--text-accent-pale);
+}
+
+/* Полоска балла: шкала 0–100, фон — дорожка, заливка — фирменный акцент. */
+.ratingBar {
+  display: block;
+  width: 88px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--line-strong);
+  overflow: hidden;
+}
+
+.ratingFill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
 }
 
 .ratingEmpty {
@@ -49,17 +102,30 @@
 .counts {
   display: inline-flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 6px;
   font-variant-numeric: tabular-nums;
+}
+
+.countsValue {
+  font-size: var(--text-value-size);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
 }
 
 .countsMuted {
   color: var(--text-tertiary);
-  font-size: var(--text-caption-size);
+  font-size: var(--text-label-size);
 }
 
 .hint {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
   line-height: 1.45;
+}
+
+/* Таблица — в виде плашек (DataTable appearance="cards"): карточка под ней
+   прозрачна, иначе плашки строк сливаются с её фоном. */
+div.registry {
+  background: transparent;
 }

@@ -26,7 +26,7 @@ export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClic
   const section = currentSectionTitle(groups, pathname)
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} data-nav-chrome="header">
       <IconButton
         icon="menu"
         label="Открыть меню"

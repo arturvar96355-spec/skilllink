@@ -236,7 +236,7 @@ export default function DashboardPage() {
                 title="Требует внимания"
                 description={problemSummary(data.problemStageTotal, data.problemCooperations.length)}
                 action={
-                  <Button href="/cooperations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все связки
                   </Button>
                 }
@@ -262,25 +262,28 @@ export default function DashboardPage() {
                           title={`${row.universityName} — ${row.programName}\n${row.reason}`}
                           onClick={(event) => startMorph(event.currentTarget, event)}
                         >
-                          <span className={styles.eventTitle} data-morph-title>
-                            {row.universityShortName ?? row.universityName} — {row.programName}
-                          </span>
-                          {row.stageNumber !== null && (
-                            <span className={styles.eventMeta}>
-                              <span className={styles.notation}>{stageNotation(row.stageNumber)}</span>
-                              {row.stageTitle}
+                          <span className={styles.eventText}>
+                            <span className={styles.eventTitle} data-morph-title>
+                              {row.universityShortName ?? row.universityName} — {row.programName}
                             </span>
+                            {row.stageNumber !== null && (
+                              <span className={styles.eventMeta}>
+                                <span className={styles.notation}>{stageNotation(row.stageNumber)}</span>
+                                {row.stageTitle}
+                              </span>
+                            )}
+                          </span>
+                          {/* Значок внутри ссылки: вся плашка — одна цель для щелчка. */}
+                          {row.daysOverdue === null ? (
+                            <Badge tone="warning" withDot title={row.reason}>
+                              блок
+                            </Badge>
+                          ) : (
+                            <Badge tone="danger" withDot title={row.reason}>
+                              {deadlineBadgeText('overdue', row.daysOverdue, true)}
+                            </Badge>
                           )}
                         </Link>
-                        {row.daysOverdue === null ? (
-                          <Badge tone="warning" withDot title={row.reason}>
-                            блок
-                          </Badge>
-                        ) : (
-                          <Badge tone="danger" withDot title={row.reason}>
-                            {deadlineBadgeText('overdue', row.daysOverdue, true)}
-                          </Badge>
-                        )}
                       </li>
                     ))}
                   </ol>
@@ -293,7 +296,7 @@ export default function DashboardPage() {
                 title="Приоритетные действия"
                 description="Открытые рекомендации с наибольшим приоритетом."
                 action={
-                  <Button href="/recommendations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  <Button href="/recommendations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все
                   </Button>
                 }
@@ -338,7 +341,7 @@ export default function DashboardPage() {
                 title="Связки в работе"
                 description="Вуз — программа — IT-продукт и этап, на котором связка сейчас."
                 action={
-                  <Button href="/cooperations" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все связки
                   </Button>
                 }
@@ -380,7 +383,7 @@ export default function DashboardPage() {
                 title="Ключевые программы"
                 description="Верх рейтинга. Балл относительный — программы сравниваются между собой."
                 action={
-                  <Button href="/analytics" variant="ghost" size="sm" icon="arrowRight" iconPosition="right">
+                  <Button href="/analytics" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Вся аналитика
                   </Button>
                 }
@@ -453,7 +456,7 @@ export default function DashboardPage() {
                       <span className={styles.factValue}>{formatNumber(data.skillMatch.criticalGaps)}</span>
                       <span className={styles.factLabel}>критических дефицитов</span>
                     </span>
-                    <Button href="/analytics?tab=skills" variant="ghost" size="sm" iconPosition="right" icon="arrowRight">
+                    <Button href="/analytics?tab=skills" variant="secondary" size="sm" iconPosition="right" icon="arrowRight">
                       Разобрать дефициты
                     </Button>
                   </div>

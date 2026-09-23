@@ -45,6 +45,7 @@ export { Drawer } from './overlays/Drawer'
 export { ToastProvider, useToast } from './overlays/Toast'
 
 export { AppShell } from './layout/AppShell'
+export { NAV_TRANSITION_ATTRIBUTE } from './layout/navigation-motion'
 export { useCurrentUser, isUniversityRep } from './layout/CurrentUser'
 export {
   PageHeader,

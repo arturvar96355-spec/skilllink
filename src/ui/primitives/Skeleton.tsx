@@ -12,6 +12,9 @@ export function Skeleton({ width = '100%', height = '14px', radius }: SkeletonPr
       className={styles.skeleton}
       style={{ width, height, borderRadius: radius }}
       aria-hidden="true"
+      // Заготовка вот-вот сменится данными: переход между страницами
+      // (layout/navigation-motion) по этой метке ждёт их и не берёт её в веер.
+      data-skeleton
     />
   )
 }

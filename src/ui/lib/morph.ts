@@ -16,6 +16,8 @@
  * тихо исчезает: переход — украшение, а не условие работы.
  */
 
+import { NAV_TRANSITION_ATTRIBUTE } from '../layout/navigation-motion'
+
 interface Pending {
   clone: HTMLElement
   from: DOMRect
@@ -79,6 +81,9 @@ export function startMorph(
   event?: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; button?: number },
 ): void {
   if (!cell || reducedMotion()) return
+  // Переход ведёт layout/navigation-motion: название уже перетекает в заголовок
+  // средствами браузера, второй перелёт поверх него был бы лишним.
+  if (document.documentElement.hasAttribute(NAV_TRANSITION_ATTRIBUTE)) return
   if (event && (event.metaKey || event.ctrlKey || event.shiftKey || (event.button ?? 0) !== 0)) return
 
   release()
