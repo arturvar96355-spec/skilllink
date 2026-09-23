@@ -171,8 +171,7 @@
   bottom: -1px;
   height: 2px;
   border-radius: var(--radius-pill);
-  background: var(--gradient-primary);
-  box-shadow: 0 0 12px rgba(200, 77, 255, 0.4);
+  background: var(--text-primary);
 }
 
 .tabCount {

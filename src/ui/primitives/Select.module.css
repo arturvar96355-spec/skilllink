@@ -16,28 +16,27 @@
   height: 38px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-input);
-  background: rgba(24, 19, 45, 0.64);
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-size: var(--text-body-size);
   font-weight: 500;
   cursor: pointer;
   text-align: left;
-  transition:
-    border-color var(--motion-micro) var(--ease-out),
+  transition: border-color var(--motion-micro) var(--ease-out),
     background var(--motion-micro) var(--ease-out),
     box-shadow var(--motion-micro) var(--ease-out);
 }
 
 .trigger:hover:not(:disabled) {
-  border-color: rgba(180, 130, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.132);
 }
 
 .open,
 .trigger:focus-visible {
-  border-color: rgba(200, 77, 255, 0.5);
-  box-shadow: 0 0 0 3px rgba(200, 77, 255, 0.12);
-  background: rgba(29, 23, 52, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .trigger:disabled {
@@ -46,7 +45,7 @@
 }
 
 .invalid {
-  border-color: rgba(255, 95, 115, 0.55);
+  border-color: rgba(240, 97, 111, 0.55);
 }
 
 /* Значение и подсказка различаются яркостью: пустой фильтр не должен читаться как выбранный. */
@@ -85,7 +84,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(180, 130, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.096);
   box-shadow: var(--shadow-floating);
   animation: listIn var(--motion-micro) var(--ease-out);
 }
@@ -118,14 +117,13 @@
   font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out);
 }
 
 .option:hover,
 .active {
-  background: rgba(90, 54, 145, 0.28);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
 }
 

@@ -12,7 +12,7 @@ import styles from './Button.module.css'
  * нельзя (раздел 35 документа об интерфейсе). Если действие выглядит иначе —
  * значит, у него другая роль, и нужен существующий вариант, а не новый стиль.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
+export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface CommonProps {
