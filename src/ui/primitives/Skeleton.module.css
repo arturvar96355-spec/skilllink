@@ -5,9 +5,9 @@
   border-radius: var(--radius-xs);
   background: linear-gradient(
     90deg,
-    rgba(150, 120, 220, 0.08) 0%,
-    rgba(150, 120, 220, 0.16) 50%,
-    rgba(150, 120, 220, 0.08) 100%
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1400ms linear infinite;

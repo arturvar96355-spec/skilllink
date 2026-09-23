@@ -11,97 +11,126 @@
   /* Шрифт: переменную задаёт next/font в корневом макете, стек — запасной. */
   --font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* Поверхности */
-  --bg-main: #0c0a18;
-  --bg-secondary: #100d20;
-  --bg-sidebar: #0d0b1a;
-  --bg-header: rgba(12, 10, 24, 0.78);
+  /*
+   * Поверхности — четыре уровня (docs/design/07_Human_Crafted_Override.md, раздел 1).
+   * L0 — холст, L1 — крупные зоны страницы без рамки, L2 — то, с чем работают
+   * руками, L3 — то, что всплывает поверх. 90% интерфейса — нейтральный графит:
+   * фиолетовый, розовый и оранжевый — сигналы, а не материал.
+   */
+  --canvas: #0b0b10;
+  --surface-1: #101116;
+  --surface-2: #15161c;
+  --surface-3: #1b1c23;
+  --surface-floating: rgba(20, 20, 27, 0.92);
 
-  --surface-card: rgba(29, 23, 52, 0.72);
-  --surface-card-muted: rgba(24, 19, 45, 0.64);
-  --surface-hover: rgba(40, 30, 68, 0.78);
-  --surface-overlay: rgba(24, 18, 43, 0.88);
-  --surface-raised: #21183a;
-  /* Поверхности и границы, которые повторяются на страницах:
-     контейнер значка, подсветка акцента, состояния «опасно» и «в порядке». */
-  --surface-icon: rgba(44, 29, 70, 0.9);
-  --surface-sunken: rgba(24, 19, 45, 0.55);
-  --border-accent: rgba(200, 77, 255, 0.28);
-  --danger-surface: rgba(255, 95, 115, 0.1);
-  --danger-border: rgba(255, 95, 115, 0.32);
-  --success-border: rgba(37, 224, 210, 0.3);
+  --bg-main: var(--canvas);
+  --bg-secondary: var(--surface-1);
+  --bg-sidebar: #0d0d12;
+  --bg-header: rgba(11, 11, 16, 0.82);
 
-  /* Фиолетовая шкала */
-  --purple-900: #120d25;
-  --purple-800: #19122f;
-  --purple-700: #241a42;
-  --purple-600: #302052;
-  --purple-500: #6d3fd6;
+  --surface-card: var(--surface-1);
+  --surface-card-muted: #0e0f14;
+  --surface-hover: var(--surface-2);
+  --surface-overlay: var(--surface-floating);
+  --surface-raised: var(--surface-3);
+  /* Прежние имена, которые ещё читают страницы: теперь это те же уровни графита. */
+  --surface-icon: var(--surface-2);
+  --surface-sunken: #0d0e13;
+  --border-accent: rgba(142, 108, 255, 0.34);
+  --danger-surface: rgba(240, 97, 111, 0.1);
+  --danger-border: rgba(240, 97, 111, 0.32);
+  --success-border: rgba(85, 200, 194, 0.3);
 
-  /* Неоновые акценты */
-  --neon-pink: #ff4fb3;
-  --neon-magenta: #c84dff;
-  --neon-orange: #ff7a45;
-  --neon-violet: #a855f7;
-  --neon-cyan: #25e0d2;
+  /* Графитовая шкала (прежние имена «purple-*» — для совместимости страниц). */
+  --purple-900: #0d0e13;
+  --purple-800: #121318;
+  --purple-700: #17181e;
+  --purple-600: #1d1e25;
+  --purple-500: #8e6cff;
 
-  --accent-primary: #c34cff;
-  --accent-secondary: #ff4fa3;
-  --accent-warm: #ff7a4d;
+  /* Акценты — сигналы: этап, связь, статус. */
+  --accent-violet: #8e6cff;
+  --accent-pink: #ed5aa7;
+  --accent-orange: #f28a52;
+  --accent-cyan: #55c8c2;
 
-  --gradient-primary: linear-gradient(135deg, #ff4fb3 0%, #c84dff 48%, #ff7a45 100%);
-  --gradient-button: linear-gradient(135deg, #c84dff, #ff4fb3 55%, #ff7a45);
-  --gradient-secondary: linear-gradient(135deg, #8b5cf6, #c84dff);
-  --gradient-progress: linear-gradient(90deg, #a855f7, #ff4fb3, #ff7a45);
+  --neon-pink: var(--accent-pink);
+  --neon-magenta: var(--accent-violet);
+  --neon-orange: var(--accent-orange);
+  --neon-violet: var(--accent-violet);
+  --neon-cyan: var(--accent-cyan);
+
+  --accent-primary: var(--accent-violet);
+  --accent-secondary: var(--accent-pink);
+  --accent-warm: var(--accent-orange);
+
+  /*
+   * Градиент — редкий фирменный момент (раздел 3): линия текущего этапа, импульс
+   * связи, вход. Кнопки, прогресс и рамки его больше не носят.
+   */
+  --gradient-brand: linear-gradient(90deg, #8e6cff 0%, #ed5aa7 58%, #f28a52 100%);
+  --gradient-primary: var(--gradient-brand);
+  --gradient-button: var(--accent-violet);
+  --gradient-secondary: var(--accent-violet);
+  --gradient-progress: var(--accent-violet);
 
   /* Текст */
-  --text-primary: #f4f1fa;
-  --text-secondary: #9b95b5;
-  --text-tertiary: #706a8a;
-  --text-disabled: #4d4865;
+  --text-primary: #f3f1ed;
+  --text-secondary: #a8a6af;
+  --text-tertiary: #73717c;
+  --text-disabled: #4a4952;
   /* Акцентные оттенки текста: ссылки на объект, значки, текст отказа.
      Отдельными токенами, чтобы один и тот же смысл не красился по-разному. */
-  --text-accent: #d9a2ff;
-  --text-accent-soft: #c9a6ff;
-  --text-accent-pale: #dcc7ff;
-  --text-danger-strong: #ffb3bc;
+  --text-accent: #b9a6ff;
+  --text-accent-soft: #a896f2;
+  --text-accent-pale: #d6ccff;
+  --text-danger-strong: #ffb0b8;
   --text-danger-soft: #ffc6cd;
-  --text-warm: #ffa579;
-  --text-muted-cool: #a7a1bd;
-  --text-violet: #c0a6f5;
+  --text-warm: #f5a77b;
+  --text-muted-cool: #a8a6af;
+  --text-violet: #a896f2;
+  /* Текст на светлой основной кнопке. */
+  --text-on-light: #111116;
 
   /* Размеры, которые типографика задаёт для конкретных мест интерфейса. */
   --text-label-size: 12px;
   --text-card-title-size: 15px;
   --text-value-size: 17px;
 
-  /* Границы и разделители */
-  --border-subtle: rgba(150, 120, 220, 0.14);
-  --border-hover: rgba(200, 77, 255, 0.3);
-  --border-active: rgba(255, 79, 179, 0.48);
-  --border-divider: rgba(150, 120, 220, 0.1);
+  /* Границы и разделители. По умолчанию поверхности без рамки (раздел 12):
+     рамка — для фокуса, выбранного, всплывающего и полей ввода. */
+  --line-subtle: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.13);
+  --border-subtle: var(--line-subtle);
+  --border-hover: var(--line-strong);
+  --border-active: rgba(142, 108, 255, 0.55);
+  --border-divider: rgba(255, 255, 255, 0.06);
 
-  /* Свечения и тени */
-  --glow-soft: 0 0 24px rgba(200, 77, 255, 0.16);
-  --glow-active: 0 0 20px rgba(255, 79, 179, 0.2);
-  --glow-cta: 0 8px 28px rgba(255, 79, 179, 0.2);
-  --shadow-base: 0 12px 40px rgba(0, 0, 0, 0.22);
-  --shadow-floating: 0 20px 60px rgba(0, 0, 0, 0.32);
+  /* Свечение — не состояние по умолчанию (раздел 13). Имена оставлены, чтобы
+     страницы не ломались, а значения погашены. */
+  --glow-soft: 0 0 0 transparent;
+  --glow-active: 0 0 0 transparent;
+  --glow-cta: 0 0 0 transparent;
+  --shadow-base: 0 1px 0 rgba(255, 255, 255, 0.02);
+  --shadow-floating: 0 24px 64px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
 
   /* Статусы */
-  --status-success: #25e0d2;
-  --status-warning: #ffc44d;
-  --status-danger: #ff5f73;
-  --status-neutral: #77708f;
+  --status-success: #55c8c2;
+  --status-warning: #f2c14e;
+  --status-danger: #f0616f;
+  --status-neutral: #75737e;
 
-  /* Радиусы */
+  /* Радиусы (раздел 14): не 20 на всём подряд. */
   --radius-xs: 8px;
   --radius-input: 10px;
+  --radius-control: 10px;
+  --radius-row: 10px;
   --radius-button: 12px;
-  --radius-icon: 14px;
-  --radius-card-sm: 16px;
-  --radius-card: 20px;
-  --radius-panel: 24px;
+  --radius-icon: 10px;
+  --radius-card-sm: 12px;
+  --radius-card: 14px;
+  --radius-panel: 18px;
+  --radius-floating: 22px;
   --radius-pill: 999px;
 
   /* Отступы: только эти значения, произвольных чисел в компонентах быть не должно. */
@@ -150,12 +179,18 @@
   --text-kpi-md-size: 24px;
   --text-kpi-sm-size: 18px;
 
-  /* Движение (docs/design/06_Motion.md) */
+  /* Движение (07, раздел 16): непрерывность важнее зрелища. */
   --motion-micro: 160ms;
   --motion-surface: 220ms;
-  --motion-overlay: 280ms;
+  --motion-overlay: 300ms;
   --motion-page: 360ms;
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-fast: 160ms;
+  --motion-control: 220ms;
+  --motion-panel: 360ms;
+  --motion-scene: 520ms;
+  --motion-hero: 760ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.55, 0, 0.68, 0.32);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
@@ -192,13 +227,8 @@ body {
   line-height: var(--text-body-line);
   font-weight: 400;
   color: var(--text-primary);
-  background-color: var(--bg-main);
-  /* Два очень мягких пятна вместо плоского фона. Градиент не должен мешать читать:
-     прозрачность держим низкой, к центру текста он не доходит. */
-  background-image:
-    radial-gradient(circle at 85% 8%, rgba(255, 79, 179, 0.1), transparent 30%),
-    radial-gradient(circle at 15% 92%, rgba(120, 70, 255, 0.08), transparent 32%);
-  background-attachment: fixed;
+  /* Холст — ровный графит без цветных пятен: цвет остаётся за сигналами. */
+  background-color: var(--canvas);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -239,7 +269,7 @@ textarea {
 }
 
 ::selection {
-  background: rgba(200, 77, 255, 0.32);
+  background: rgba(142, 108, 255, 0.32);
   color: var(--text-primary);
 }
 
@@ -253,14 +283,14 @@ textarea {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(150, 120, 220, 0.18);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(200, 77, 255, 0.3);
+  background: rgba(255, 255, 255, 0.18);
   background-clip: content-box;
 }
 

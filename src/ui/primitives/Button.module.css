@@ -15,8 +15,7 @@
   white-space: nowrap;
   cursor: pointer;
   text-decoration: none;
-  transition:
-    background var(--motion-micro) var(--ease-out),
+  transition: background var(--motion-micro) var(--ease-out),
     border-color var(--motion-micro) var(--ease-out),
     box-shadow var(--motion-micro) var(--ease-out),
     filter var(--motion-micro) var(--ease-out),
@@ -43,49 +42,63 @@
   font-weight: 650;
 }
 
+/*
+ * Основная кнопка — светлая и сплошная (07, раздел 4), а не градиент.
+ * Градиент на каждой кнопке — главный источник «шаблонного» вида.
+ */
 .primary {
-  background: var(--gradient-button);
-  color: #fff;
-  box-shadow: 0 4px 18px rgba(255, 79, 179, 0.16);
+  background: #f1eee8;
+  color: var(--text-on-light);
 }
 
 .primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  box-shadow: var(--glow-cta);
+  background: #ffffff;
   transform: translateY(-1px);
 }
 
-/* Нажатие видно сразу: кнопка чуть сжимается, свечение становится компактнее. */
 .primary:active:not(:disabled) {
   transform: translateY(0) scale(0.985);
-  box-shadow: 0 2px 10px rgba(255, 79, 179, 0.18);
-  filter: brightness(1);
+}
+
+/* Акцентная — только для продуктового действия, не больше одной на экран. */
+.accent {
+  background: var(--accent-violet);
+  color: #ffffff;
+}
+
+.accent:hover:not(:disabled) {
+  background: #9d80ff;
+  transform: translateY(-1px);
+}
+
+.accent:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
 }
 
 .secondary {
-  background: rgba(48, 32, 82, 0.65);
-  border-color: rgba(180, 130, 255, 0.18);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
 }
 
 .secondary:hover:not(:disabled) {
-  background: var(--surface-hover);
-  border-color: var(--border-hover);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line-strong);
   transform: translateY(-1px);
 }
 
 .secondary:active:not(:disabled) {
   transform: translateY(0) scale(0.985);
-  border-color: var(--border-active);
 }
 
+/* Без контейнера до наведения. */
 .ghost {
   background: transparent;
   color: var(--text-secondary);
 }
 
 .ghost:hover:not(:disabled) {
-  background: rgba(90, 54, 145, 0.22);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
 
@@ -95,14 +108,14 @@
 
 /* Опасное действие: цвет не единственный признак — рядом всегда текст действия. */
 .danger {
-  background: rgba(255, 95, 115, 0.12);
+  background: rgba(240, 97, 111, 0.12);
   border-color: var(--danger-border);
   color: var(--text-danger-strong);
 }
 
 .danger:hover:not(:disabled) {
-  background: rgba(255, 95, 115, 0.2);
-  border-color: rgba(255, 95, 115, 0.5);
+  background: rgba(240, 97, 111, 0.2);
+  border-color: rgba(240, 97, 111, 0.5);
   transform: translateY(-1px);
 }
 

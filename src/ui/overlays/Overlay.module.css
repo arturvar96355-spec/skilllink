@@ -5,7 +5,7 @@
   inset: 0;
   z-index: var(--z-overlay);
   display: flex;
-  background: rgba(8, 6, 16, 0.62);
+  background: rgba(5, 5, 8, 0.62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: fadeIn var(--motion-overlay) var(--ease-out);
@@ -29,9 +29,9 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(180, 130, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.096);
   border-radius: var(--radius-panel);
-  box-shadow: var(--shadow-floating), 0 0 30px rgba(200, 77, 255, 0.1);
+  box-shadow: var(--shadow-floating);
   animation: modalIn var(--motion-overlay) var(--ease-out);
 }
 
@@ -47,7 +47,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-left: 1px solid rgba(180, 130, 255, 0.16);
+  border-left: 1px solid rgba(255, 255, 255, 0.096);
   border-radius: var(--radius-panel) 0 0 var(--radius-panel);
   box-shadow: var(--shadow-floating);
   animation: drawerIn var(--motion-overlay) var(--ease-out);
@@ -127,7 +127,7 @@
 }
 
 .toastSuccess {
-  border-color: rgba(37, 224, 210, 0.28);
+  border-color: rgba(85, 200, 194, 0.28);
   color: var(--status-success);
 }
 
@@ -137,7 +137,7 @@
 }
 
 .toastInfo {
-  border-color: rgba(200, 77, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--text-accent);
 }
 

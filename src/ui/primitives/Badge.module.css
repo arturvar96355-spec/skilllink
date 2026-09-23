@@ -28,38 +28,38 @@
 }
 
 .success {
-  background: rgba(37, 224, 210, 0.12);
-  border-color: rgba(37, 224, 210, 0.32);
+  background: rgba(85, 200, 194, 0.12);
+  border-color: rgba(85, 200, 194, 0.32);
   color: var(--status-success);
 }
 
 .warning {
-  background: rgba(255, 196, 77, 0.12);
-  border-color: rgba(255, 196, 77, 0.32);
+  background: rgba(242, 193, 78, 0.12);
+  border-color: rgba(242, 193, 78, 0.32);
   color: var(--status-warning);
 }
 
 .danger {
-  background: rgba(255, 95, 115, 0.12);
-  border-color: rgba(255, 95, 115, 0.34);
+  background: rgba(240, 97, 111, 0.12);
+  border-color: rgba(240, 97, 111, 0.34);
   color: var(--status-danger);
 }
 
 .accent {
-  background: rgba(200, 77, 255, 0.14);
-  border-color: rgba(200, 77, 255, 0.32);
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--text-accent);
 }
 
 .info {
-  background: rgba(168, 85, 247, 0.1);
-  border-color: rgba(168, 85, 247, 0.24);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
   color: var(--text-violet);
 }
 
 /* Демонстрационные данные помечаются всегда: выдавать их за настоящие нельзя. */
 .mock {
-  background: rgba(255, 122, 69, 0.12);
-  border-color: rgba(255, 122, 69, 0.3);
+  background: rgba(242, 138, 82, 0.12);
+  border-color: rgba(242, 138, 82, 0.3);
   color: var(--text-warm);
 }
