@@ -1,5 +1,6 @@
 import { z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
+import { UNIVERSITY_EVENTS_MAX_LIMIT } from '@/shared/contracts/audit'
 
 const isoDate = z.iso.datetime({ message: 'Дата должна быть в формате ISO 8601' })
 
@@ -15,7 +16,7 @@ export const auditListQuerySchema = paginationSchema.extend({
 export type AuditListQuery = z.infer<typeof auditListQuerySchema>
 
 export const universityEventsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(UNIVERSITY_EVENTS_MAX_LIMIT).default(20),
 })
 
 export type UniversityEventsQuery = z.infer<typeof universityEventsQuerySchema>

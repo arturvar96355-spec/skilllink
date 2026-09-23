@@ -17,27 +17,14 @@ import {
   Textarea,
   apiPost,
   dateInputToIso,
+  dateTimeInputToIso,
+  dateToDateTimeInput,
   fieldErrors,
   useCurrentUser,
   useMutation,
   useResource,
   useToast,
 } from '@/ui'
-
-/** Сейчас в формате поля «дата и время»: `2026-09-23T14:30` по местному времени. */
-function nowForInput(): string {
-  const now = new Date()
-  now.setSeconds(0, 0)
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-  return local.toISOString().slice(0, 16)
-}
-
-/** Поле «дата и время» хранит местное время без пояса — в API уходит UTC. */
-function dateTimeInputToIso(value: string): string | null {
-  if (value.trim() === '') return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
 
 /**
  * Запись встречи по связке.
@@ -58,7 +45,7 @@ export function CreateMeetingModal({
   const user = useCurrentUser()
 
   const [topic, setTopic] = useState('')
-  const [date, setDate] = useState(nowForInput)
+  const [date, setDate] = useState(() => dateToDateTimeInput())
   const [format, setFormat] = useState<MeetingFormat>('ONLINE')
   const [result, setResult] = useState('')
   const [nextAction, setNextAction] = useState('')

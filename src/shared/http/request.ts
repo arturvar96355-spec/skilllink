@@ -120,12 +120,16 @@ export async function parseOptionalBody<S extends z.ZodType>(
 /**
  * Валидирует query-параметры.
  * Повторяющиеся ключи (?status=A&status=B) собираются в массив — так работают фильтры списков.
+ *
+ * Пустое значение — то же, что его отсутствие, и значение из одних пробелов тоже:
+ * схемы обрезают пробелы, и `?q=%20` раньше превращался в отказ «введите хотя бы
+ * один символ» — поиск из пробела ломал таблицу программ и продуктов ошибкой.
  */
 export function parseQuery<S extends z.ZodType>(request: Request, schema: S): z.infer<S> {
   const params = new URL(request.url).searchParams
   const raw: Record<string, string | string[]> = {}
   for (const key of new Set(params.keys())) {
-    const values = params.getAll(key).filter((value) => value !== '')
+    const values = params.getAll(key).filter((value) => value.trim() !== '')
     if (values.length === 0) continue
     raw[key] = values.length === 1 ? (values[0] as string) : values
   }

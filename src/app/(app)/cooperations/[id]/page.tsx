@@ -1,7 +1,7 @@
 'use client'
 
 import { useParams, useSearchParams } from 'next/navigation'
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
@@ -74,6 +74,14 @@ function CooperationContent() {
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
 
+  // Ссылка из уведомления на эту же связку страницу не пересоздаёт: меняется только
+  // параметр. Без этого переход по второму уведомлению не делал ничего.
+  useEffect(() => {
+    if (highlightedStageId === null) return
+    setTab('stages')
+    setFocusStageId(highlightedStageId)
+  }, [highlightedStageId])
+
   const cooperation = useResource<CooperationDto>(`/api/cooperations/${params.id}`)
 
   // Документы и встречи связки грузятся только при открытии своей вкладки.
@@ -103,9 +111,13 @@ function CooperationContent() {
         })}`
       : null,
   )
-  // Этапы держим отдельным состоянием: ответ PATCH возвращает изменённый этап
-  // целиком, и перезапрашивать всю связку ради одного поля незачем.
+  // Изменённый этап показываем сразу, из ответа PATCH, — но связку после этого
+  // перечитываем: сервер меняет не только его. Этап 14 пересчитывается сам
+  // (решение 2), а с ним прогресс, текущий этап и лента. Раньше страница брала
+  // только изменённый этап, и после «Начать этап» на новой связке этап 14 так
+  // и оставался «Не начат».
   const [patchedStages, setPatchedStages] = useState<Record<string, WorkflowStageDto>>({})
+  useEffect(() => setPatchedStages({}), [cooperation.data])
   const [packageResult, setPackageResult] = useState<DocumentPackageResultDto | null>(null)
 
   const generatePackage = useMutation(async () => {
@@ -127,6 +139,9 @@ function CooperationContent() {
       return
     }
     setPackageResult(result.data)
+    // Пустая вкладка сама предлагает эту кнопку — после сборки в ней должны
+    // появиться собранные документы.
+    documents.reload()
   }
 
   if (cooperation.isLoading) {
@@ -313,9 +328,10 @@ function CooperationContent() {
               stage={stage}
               canWrite={user.permissions.canWrite}
               isHighlighted={stage.id === focusStageId}
-              onStageChanged={(updated) =>
+              onStageChanged={(updated) => {
                 setPatchedStages((current) => ({ ...current, [updated.id]: updated }))
-              }
+                cooperation.reload()
+              }}
             />
           ))}
         </div>

@@ -35,6 +35,7 @@ import {
   useCurrentUser,
   useDebounced,
   useResource,
+  usePageInRange,
   type Column,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
@@ -90,7 +91,8 @@ export default function UniversitiesPage() {
     page,
     pageSize: PAGE_SIZE,
   })}`
-  const universities = useResource<UniversityListItemDto[]>(path)
+  const universities = useResource<UniversityListItemDto[]>(path, { keepPreviousData: true })
+  usePageInRange(page, setPage, universities.meta)
 
   /**
    * Список регионов для фильтра.

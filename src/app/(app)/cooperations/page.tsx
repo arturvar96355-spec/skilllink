@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   COOPERATION_STATUSES,
   COOPERATION_STATUS_LABELS,
   type CooperationListItemDto,
+  type ProductDto,
 } from '@/shared/contracts'
 import {
   Badge,
@@ -35,6 +37,7 @@ import {
   formatNumber,
   useDebounced,
   useResource,
+  usePageInRange,
   type Column,
 } from '@/ui'
 import { CreateCooperationModal } from './CreateCooperationModal'
@@ -55,6 +58,24 @@ const PAGE_SIZE = 25
  * случилась, блокировка — это остановка, у которой есть причина.
  */
 export default function CooperationsPage() {
+  return (
+    // useSearchParams требует границы Suspense: без неё страница не пройдёт сборку.
+    <Suspense fallback={<TableSkeleton rows={8} columns={6} />}>
+      <CooperationsView />
+    </Suspense>
+  )
+}
+
+function CooperationsView() {
+  const router = useRouter()
+  /**
+   * Отбор по продукту приходит ссылкой «Связки с этим продуктом» из карточки
+   * продукта. Раньше страница параметр не читала и показывала все связки.
+   */
+  const productId = useSearchParams().get('productId')
+  const product = useResource<ProductDto>(
+    productId ? `/api/products/${encodeURIComponent(productId)}` : null,
+  )
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('')
   const [onlyOverdue, setOnlyOverdue] = useState(false)
@@ -71,11 +92,13 @@ export default function CooperationsPage() {
     status: status || undefined,
     onlyOverdue: onlyOverdue ? 'true' : undefined,
     onlyBlocked: onlyBlocked ? 'true' : undefined,
+    productId: productId ?? undefined,
     sort,
     page,
     pageSize: PAGE_SIZE,
   })}`
-  const cooperations = useResource<CooperationListItemDto[]>(path)
+  const cooperations = useResource<CooperationListItemDto[]>(path, { keepPreviousData: true })
+  usePageInRange(page, setPage, cooperations.meta)
 
   const rows = cooperations.data ?? []
   const containsMock = rows.some((row) => row.isMock)
@@ -269,6 +292,19 @@ export default function CooperationsPage() {
             />
           </div>
         </ToolbarItem>
+        {productId && (
+          <ToolbarItem>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="close"
+              onClick={() => router.replace('/cooperations')}
+              title="Показать связки всех продуктов"
+            >
+              {`Продукт: ${product.data?.name ?? '…'}`}
+            </Button>
+          </ToolbarItem>
+        )}
       </Toolbar>
 
       <Section>
@@ -282,7 +318,7 @@ export default function CooperationsPage() {
               icon="cooperation"
               title="Связок не найдено"
               description={
-                query || status || onlyOverdue || onlyBlocked
+                query || status || onlyOverdue || onlyBlocked || productId
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
                   : 'Ни одной связки ещё не заведено.'
               }

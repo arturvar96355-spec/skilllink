@@ -37,6 +37,7 @@ import {
   productHref,
   useDebounced,
   useResource,
+  usePageInRange,
   type BadgeTone,
   type Column,
 } from '@/ui'
@@ -94,7 +95,9 @@ function ProductsView() {
 
   const products = useResource<ProductListItemDto[]>(
     `/api/products${buildQuery({ q: query, status, sort, page, pageSize: PAGE_SIZE })}`,
+    { keepPreviousData: true },
   )
+  usePageInRange(page, setPage, products.meta)
 
   const rows = products.data ?? []
   const meta = products.meta

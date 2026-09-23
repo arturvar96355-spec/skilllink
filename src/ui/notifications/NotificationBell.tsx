@@ -47,7 +47,7 @@ export function NotificationBell() {
   const path = isReady
     ? `/api/notifications${buildQuery({ limit: 20, since: seenAt ?? undefined })}`
     : null
-  const feed = useResource<NotificationFeedDto>(path)
+  const feed = useResource<NotificationFeedDto>(path, { keepPreviousData: true })
 
   const unread = feed.data?.unreadCount ?? 0
   const items = useMemo(() => feed.data?.items ?? [], [feed.data])

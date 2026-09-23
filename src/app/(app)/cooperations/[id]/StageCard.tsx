@@ -143,14 +143,31 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
     if (ok) toast.success(`Этап ${stage.stageNumber} взят в работу`)
   }
 
+  /**
+   * Окно действия показывает отказ только своей отправки.
+   *
+   * Отказ хранится в общей для карточки мутации: без сброса окно «Отменить»
+   * открывалось с отказом прошлой попытки «Начать этап» — «Система не разрешает
+   * это действие» ещё до того, как человек что-то отправил.
+   */
+  function openAction(kind: ActionKind) {
+    updateStage.reset()
+    setAction(kind)
+  }
+
+  function closeAction() {
+    updateStage.reset()
+    setAction(null)
+    setText('')
+  }
+
   async function onSubmitAction() {
     if (action === null) return
     const form = ACTION_FORMS[action]
     const ok = await apply({ status: form.status, [form.field]: text.trim() })
     if (ok) {
       toast.success(`Этап ${stage.stageNumber}: ${STAGE_STATUS_LABELS[form.status].toLowerCase()}`)
-      setAction(null)
-      setText('')
+      closeAction()
     }
   }
 
@@ -317,23 +334,23 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
                   )}
                   {stage.status === 'IN_PROGRESS' && (
                     <>
-                      <Button variant="primary" size="sm" icon="check" onClick={() => setAction('complete')}>
+                      <Button variant="primary" size="sm" icon="check" onClick={() => openAction('complete')}>
                         Завершить
                       </Button>
-                      <Button variant="secondary" size="sm" icon="pause" onClick={() => setAction('block')}>
+                      <Button variant="secondary" size="sm" icon="pause" onClick={() => openAction('block')}>
                         Заблокировать
                       </Button>
                     </>
                   )}
                   {isDone && (
-                    <Button variant="secondary" size="sm" icon="refresh" onClick={() => setAction('reopen')}>
+                    <Button variant="secondary" size="sm" icon="refresh" onClick={() => openAction('reopen')}>
                       Переоткрыть
                     </Button>
                   )}
                   {(stage.status === 'NOT_STARTED' ||
                     stage.status === 'IN_PROGRESS' ||
                     stage.status === 'BLOCKED') && (
-                    <Button variant="ghost" size="sm" icon="block" onClick={() => setAction('cancel')}>
+                    <Button variant="ghost" size="sm" icon="block" onClick={() => openAction('cancel')}>
                       Отменить
                     </Button>
                   )}
@@ -359,23 +376,14 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
       {action !== null && (
         <Modal
           isOpen
-          onClose={() => {
-            setAction(null)
-            setText('')
-          }}
+          onClose={closeAction}
           title={ACTION_FORMS[action].title}
           description={ACTION_FORMS[action].description}
           // Закрытие щелчком по фону отключено: набранный текст жалко терять.
           closeOnBackdrop={false}
           footer={
             <>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setAction(null)
-                  setText('')
-                }}
-              >
+              <Button variant="ghost" onClick={closeAction}>
                 Отмена
               </Button>
               <Button
