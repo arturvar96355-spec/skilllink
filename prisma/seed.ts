@@ -802,27 +802,46 @@ async function main(): Promise<void> {
   // ─── Документы и встречи ───────────────────────────────────────────────────
   console.log('Документы и встречи...')
 
+  /**
+   * Связка по ключу «вуз-программа», а не по номеру в списке.
+   *
+   * Документы и встречи раньше ссылались на номер. 22.09.2026 в начало списка
+   * вставили завершённую связку КНИТУ-КАИ, номера съехали на один, и всё
+   * уехало к соседям: у «Программной инженерии» СПбГУТ, где подписание ещё
+   * идёт, договор значился подписанным, а у связки на этапе 13 — «на
+   * согласовании». Неизвестный ключ роняет заливку, а не пропускается молча.
+   */
+  const cooperationByKey = (key: string) => {
+    const found = createdCooperations.find((item) => item.key === key)
+    if (!found) throw new Error(`В демонстрационном наборе нет связки ${key}`)
+    return found
+  }
+
   const docPlan: Array<{
-    coopIndex: number
+    coopKey: string
     type: 'NDA' | 'AGREEMENT' | 'ANNEX' | 'ACT' | 'LICENSE' | 'CURRICULUM' | 'METHODOLOGY'
     title: string
     status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED'
     version: string
     daysAgoIssued: number
   }> = [
-    { coopIndex: 0, type: 'NDA', title: 'Соглашение о неразглашении', status: 'SIGNED', version: '1', daysAgoIssued: 190 },
-    { coopIndex: 0, type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '2', daysAgoIssued: 170 },
-    { coopIndex: 0, type: 'LICENSE', title: 'Лицензия на IT-продукт', status: 'SIGNED', version: '1', daysAgoIssued: 120 },
-    { coopIndex: 1, type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'REVIEW', version: '1', daysAgoIssued: 20 },
-    { coopIndex: 2, type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '1', daysAgoIssued: 60 },
-    { coopIndex: 2, type: 'LICENSE', title: 'Лицензия на облачную платформу', status: 'APPROVED', version: '1', daysAgoIssued: 15 },
-    { coopIndex: 3, type: 'CURRICULUM', title: 'Обновлённый учебный план', status: 'DRAFT', version: '1', daysAgoIssued: 10 },
-    { coopIndex: 4, type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'REJECTED', version: '1', daysAgoIssued: 25 },
+    // Связка на этапе 13: всё давно подписано.
+    { coopKey: 'spbgu-spbgu-infosec', type: 'NDA', title: 'Соглашение о неразглашении', status: 'SIGNED', version: '1', daysAgoIssued: 190 },
+    { coopKey: 'spbgu-spbgu-infosec', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '2', daysAgoIssued: 170 },
+    { coopKey: 'spbgu-spbgu-infosec', type: 'LICENSE', title: 'Лицензия на IT-продукт', status: 'SIGNED', version: '1', daysAgoIssued: 120 },
+    // Подписание идёт (этап 6), договор на согласовании: не подписан, пока
+    // обе подписи не отмечены в чек-листе — ровно то, что показывается жюри.
+    { coopKey: 'spbgu-spbgu-soft', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'REVIEW', version: '1', daysAgoIssued: 20 },
+    // Договор подписан, лицензия согласована, этап 7 заблокирован: вуз
+    // не подтвердил получение лицензии.
+    { coopKey: 'mtuci-mtuci-cloud', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '1', daysAgoIssued: 60 },
+    { coopKey: 'mtuci-mtuci-cloud', type: 'LICENSE', title: 'Лицензия на облачную платформу', status: 'APPROVED', version: '1', daysAgoIssued: 15 },
+    { coopKey: 'mtuci-mtuci-data', type: 'CURRICULUM', title: 'Обновлённый учебный план', status: 'DRAFT', version: '1', daysAgoIssued: 10 },
+    { coopKey: 'kazan-kazan-devops', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'REJECTED', version: '1', daysAgoIssued: 25 },
   ]
 
   for (const plan of docPlan) {
-    const coop = createdCooperations[plan.coopIndex]
-    if (!coop) continue
+    const coop = cooperationByKey(plan.coopKey)
 
     const document = await prisma.document.create({
       data: {
@@ -872,7 +891,7 @@ async function main(): Promise<void> {
   }
 
   const meetingPlan: Array<{
-    coopIndex: number
+    coopKey: string
     daysAgoDate: number
     topic: string
     format: 'ONLINE' | 'OFFLINE' | 'CALL' | 'CORRESPONDENCE'
@@ -881,30 +900,29 @@ async function main(): Promise<void> {
     nextActionInDays: number | null
   }> = [
     {
-      coopIndex: 0, daysAgoDate: 195, topic: 'Первичное знакомство с кафедрой', format: 'ONLINE',
+      coopKey: 'spbgu-spbgu-infosec', daysAgoDate: 195, topic: 'Первичное знакомство с кафедрой', format: 'ONLINE',
       result: 'Кафедра подтвердила интерес, назначен ответственный',
       nextAction: 'Направить пакет документов', nextActionInDays: -188,
     },
     {
-      coopIndex: 0, daysAgoDate: 120, topic: 'Передача учебных материалов', format: 'OFFLINE',
+      coopKey: 'spbgu-spbgu-infosec', daysAgoDate: 120, topic: 'Передача учебных материалов', format: 'OFFLINE',
       result: 'Материалы переданы, лицензия активирована',
       nextAction: null, nextActionInDays: null,
     },
     {
-      coopIndex: 2, daysAgoDate: 40, topic: 'Согласование условий лицензии', format: 'CALL',
+      coopKey: 'mtuci-mtuci-cloud', daysAgoDate: 40, topic: 'Согласование условий лицензии', format: 'CALL',
       result: 'Юридическая служба вуза запросила дополнительные сведения',
       nextAction: 'Подготовить ответ юридической службе', nextActionInDays: 7,
     },
     {
-      coopIndex: 4, daysAgoDate: 30, topic: 'Обсуждение DevOps-практик в программе', format: 'ONLINE',
+      coopKey: 'kazan-kazan-devops', daysAgoDate: 30, topic: 'Обсуждение DevOps-практик в программе', format: 'ONLINE',
       result: 'Вуз просит расширить блок по контейнеризации',
       nextAction: 'Согласовать обновлённую программу', nextActionInDays: 14,
     },
   ]
 
   for (const plan of meetingPlan) {
-    const coop = createdCooperations[plan.coopIndex]
-    if (!coop) continue
+    const coop = cooperationByKey(plan.coopKey)
 
     const contact = await prisma.contact.findFirst({
       where: { universityId: universityId(coop.universityKey) },
