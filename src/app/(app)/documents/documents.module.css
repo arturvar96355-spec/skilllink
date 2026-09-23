@@ -211,6 +211,6 @@
 
 @media (max-width: 720px) {
   .facts {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
