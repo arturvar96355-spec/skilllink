@@ -101,6 +101,19 @@ export interface UpsertResult {
  * «сначала новые», и первой окажется самая важная. Без этого три записи,
  * созданные в одну миллисекунду, выстраивались в случайном порядке.
  */
+/**
+ * Рекомендацию закрыла система, а не человек: правило перестало её выдавать.
+ *
+ * Такая запись означает «проблема ушла». Если правило выдаёт её снова — проблема
+ * вернулась, и запись открывается заново. Раньше генерация обновляла у неё текст
+ * и оставляла «Выполнена»: новая просрочка по той же связке не появлялась ни
+ * в ленте, ни на главной, ни в уведомлениях — они читают только открытые.
+ * Решение человека (`resolvedById` задан) не переписывается никогда.
+ */
+function isClosedBySystem(row: { status: string; resolvedById: string | null }): boolean {
+  return row.status === 'DONE' && row.resolvedById === null
+}
+
 export async function upsertDrafts(
   drafts: RecommendationDraft[],
   generatedAt: Date,
@@ -121,13 +134,23 @@ export async function upsertDrafts(
           objectId: draft.objectId,
         },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, resolvedById: true },
     })
 
     if (existing) {
+      const reopen = isClosedBySystem(existing)
       await prisma.recommendation.update({
         where: { id: existing.id },
         data: {
+          // Вернувшаяся проблема — снова новая: открыта и стоит среди свежих.
+          ...(reopen
+            ? {
+                status: 'NEW' as const,
+                resolvedAt: null,
+                resolutionComment: null,
+                createdAt: new Date(generatedAt.getTime() - index),
+              }
+            : {}),
           type: draft.type,
           title: draft.title,
           description: draft.description,
@@ -138,7 +161,8 @@ export async function upsertDrafts(
           cooperationId: draft.cooperationId,
         },
       })
-      updated += 1
+      if (reopen) created += 1
+      else updated += 1
       continue
     }
 
@@ -259,6 +283,14 @@ export async function loadGenerationInput(now: Date) {
             status: true,
             deadline: true,
             responsible: { select: { fullName: true } },
+            // Последнее движение по этапу — для правила «связка без движения».
+            history: { select: { changedAt: true }, orderBy: { changedAt: 'desc' }, take: 1 },
+            tasks: {
+              where: { doneAt: { not: null } },
+              select: { doneAt: true },
+              orderBy: { doneAt: 'desc' },
+              take: 1,
+            },
           },
         },
       },

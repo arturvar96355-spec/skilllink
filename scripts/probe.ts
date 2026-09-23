@@ -745,6 +745,61 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── Вернувшаяся проблема — снова открытая рекомендация ─────────────────────
+  step('Рекомендация, закрытая системой, открывается, когда проблема вернулась')
+
+  if (managerId) {
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз возврата ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа возврата ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+      'POST',
+      '/api/cooperations',
+      { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+    )
+    const cooperationId = created.body.data?.id
+    const stage1 = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+    const daysFromNow = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString()
+    const overdueRecommendation = async () => {
+      await call('POST', '/api/recommendations/generate')
+      const list = await call<Array<{ ruleKey: string; status: string; title: string }>>(
+        'GET',
+        `/api/recommendations?cooperationId=${cooperationId}&pageSize=50`,
+      )
+      return (list.body.data ?? []).find((row) => row.ruleKey === 'stage.overdue')
+    }
+
+    if (cooperationId && stage1) {
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { status: 'IN_PROGRESS', deadline: daysFromNow(-5) })
+      const first = await overdueRecommendation()
+      check('просрочка дала рекомендацию', first?.status === 'NEW', `статус ${first?.status ?? 'нет'}`)
+
+      // Срок перенесли — просрочки нет, система закрывает рекомендацию сама.
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { deadline: daysFromNow(30) })
+      const solved = await overdueRecommendation()
+      check('проблема ушла — рекомендация закрыта системой', solved?.status === 'DONE', `статус ${solved?.status ?? 'нет'}`)
+
+      // Срок снова в прошлом — та же проблема вернулась.
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, { deadline: daysFromNow(-5) })
+      const back = await overdueRecommendation()
+      check(
+        'вернулась — рекомендация снова открыта, а не «выполнена»',
+        back?.status === 'NEW',
+        `статус ${back?.status ?? 'нет'}`,
+      )
+    } else {
+      check('связка для проверки возврата создана', false)
+    }
+  }
+
   // ── История документа: внутренние комментарии — только сотрудникам ────────
   step('Представитель не видит внутренних комментариев в истории документа')
 

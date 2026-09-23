@@ -99,15 +99,23 @@ function overduePriority(daysOverdue: number): RecommendationPriority {
   return 'MEDIUM'
 }
 
-/** Этап просрочен: срок прошёл, а этап не закрыт и не отменён. */
+/**
+ * Этап просрочен: срок прошёл, а этап не закрыт и не отменён.
+ *
+ * Просрочка — с момента срока, как на главной и в уведомлениях (`isOverdue`),
+ * а не с первых полных суток. Раньше в день срока главная уже писала
+ * «просрочен… сегодня», а здесь было пусто — и вместо просрочки срабатывало
+ * «связка без движения», о другой проблеме и с другим советом.
+ */
 export function ruleOverdueStage(
   input: OverdueStageInput,
   now: Date,
 ): RecommendationDraft | null {
   if (input.status === 'COMPLETED' || input.status === 'CANCELLED') return null
+  if (input.deadline.getTime() >= now.getTime()) return null
 
-  const daysOverdue = -daysBetween(now, input.deadline)
-  if (daysOverdue <= 0) return null
+  // В день срока — ноль дней по московскому календарю (решение 47).
+  const daysOverdue = Math.max(0, -daysBetween(now, input.deadline))
 
   return {
     ruleKey: 'stage.overdue',
@@ -120,7 +128,9 @@ export function ruleOverdueStage(
       `Вуз: ${input.universityName}, программа: ${input.programName}.`,
     priority: overduePriority(daysOverdue),
     justification:
-      `Нормативный срок этапа прошёл ${daysOverdue} дн. назад, этап всё ещё в статусе ` +
+      (daysOverdue === 0
+        ? 'Нормативный срок этапа истёк сегодня, этап всё ещё в статусе '
+        : `Нормативный срок этапа прошёл ${daysOverdue} дн. назад, этап всё ещё в статусе `) +
       `«${STAGE_STATUS_LABELS[input.status]}».` +
       (input.responsibleName ? ` Ответственный: ${input.responsibleName}.` : ''),
     relatedData: {
@@ -144,8 +154,35 @@ export interface StalledCooperationInput {
   stageTitle: string
   /** Статус текущего этапа: от него зависит, что именно предложить сделать. */
   stageStatus: StageStatus
-  /** Когда связка последний раз менялась. */
+  /**
+   * Последнее движение по связке: смена статуса этапа, отметка в чек-листе
+   * или правка самой связки — что позже.
+   */
+  lastActivityAt: Date
+}
+
+/**
+ * Последнее движение по связке.
+ *
+ * Движение — это прежде всего работа по этапам: смена статуса и отметки
+ * в чек-листе. Сама запись связки при них не меняется, поэтому её `updatedAt`
+ * говорил «без движения 30 дн.» о связке, где вчера закрыли три этапа, —
+ * и сбрасывался правкой цели, где работы не было. Берётся самое позднее из трёх.
+ */
+export function lastCooperationActivity(cooperation: {
   updatedAt: Date
+  stages: ReadonlyArray<{
+    history: ReadonlyArray<{ changedAt: Date }>
+    tasks: ReadonlyArray<{ doneAt: Date | null }>
+  }>
+}): Date {
+  let latest = cooperation.updatedAt
+  for (const stage of cooperation.stages) {
+    for (const moment of [stage.history[0]?.changedAt, stage.tasks[0]?.doneAt]) {
+      if (moment && moment > latest) latest = moment
+    }
+  }
+  return latest
 }
 
 /** Что предложить сделать, в зависимости от того, на чём связка встала. */
@@ -190,7 +227,7 @@ export function ruleStalledCooperation(
   // Закрытые этапы текущими не бывают, но защищаемся от рассинхрона данных.
   if (input.stageStatus === 'COMPLETED' || input.stageStatus === 'CANCELLED') return null
 
-  const idleDays = daysBetween(input.updatedAt, now)
+  const idleDays = daysBetween(input.lastActivityAt, now)
   if (idleDays < RECOMMENDATION_RULES.stalledDays) return null
 
   const { action, priority } = stalledAction(input.stageStatus, input.stageNumber, input.stageTitle)
@@ -205,13 +242,14 @@ export function ruleStalledCooperation(
     priority,
     justification:
       `Текущий этап ${input.stageNumber} в статусе «${STAGE_STATUS_LABELS[input.stageStatus]}», ` +
-      `изменений по связке не было ${idleDays} дн. ` +
+      `движения по связке — смены статуса этапа, отметки в чек-листе, правки связки — ` +
+      `не было ${idleDays} дн. ` +
       `Порог — ${RECOMMENDATION_RULES.stalledDays} дн.`,
     relatedData: {
       stageNumber: input.stageNumber,
       stageStatus: input.stageStatus,
       idleDays,
-      updatedAt: input.updatedAt.toISOString(),
+      lastActivityAt: input.lastActivityAt.toISOString(),
     },
     confidence: 'MEDIUM',
     cooperationId: input.cooperationId,
