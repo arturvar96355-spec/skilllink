@@ -17,12 +17,12 @@ import {
   areTasksEditable,
   assertTasksEditable,
   computeProgressPercent,
+  describeBlockingStages,
   findCurrentStage,
   isAutoManaged,
 } from '@/modules/workflow/workflow.rules'
 import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
 import { checklistBlockers, setTaskDone } from '@/modules/workflow/workflow.service'
-import { describeBlockingStages } from '@/modules/workflow/workflow.rules'
 import * as repo from './portal.repo'
 import { MATERIALS_STAGE_NUMBER, assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
 import type {
@@ -108,8 +108,13 @@ async function materialLocks(rows: readonly MaterialRow[]): Promise<Map<string, 
   return new Map(locks)
 }
 
+/**
+ * Почему материалы ещё не переданы. Только когда в остальном подтверждение
+ * было бы возможно: у закрытой связки или отменённого этапа причина другая,
+ * и «Ещё не переданы: договор не подписан» её бы подменило.
+ */
 function lockedReasonOf(row: MaterialRow, locks: Map<string, string | null>): string | null {
-  if (row.isDone) return null
+  if (!canConfirmMaterial(row)) return null
   return locks.get(row.stage.cooperationId) ?? null
 }
 
