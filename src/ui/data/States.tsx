@@ -51,14 +51,22 @@ export interface ErrorStateProps {
  */
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
   const isAccessDenied = error.code === 'FORBIDDEN'
+  // «Нет такой записи» — не сбой: повтор ничего не даст, а «Не удалось загрузить»
+  // с кнопкой «Повторить» обещало, что со второго раза получится.
+  const isMissing = error.code === 'NOT_FOUND'
+  const title = isAccessDenied ? 'Раздел недоступен' : isMissing ? 'Не найдено' : 'Не удалось загрузить'
   return (
     <div className={styles.block}>
-      <span className={[styles.icon, styles.iconError].join(' ')}>
-        <Icon name={isAccessDenied ? 'lock' : 'alert'} size={24} />
+      <span className={[styles.icon, isMissing ? '' : styles.iconError].filter(Boolean).join(' ')}>
+        <Icon name={isAccessDenied ? 'lock' : isMissing ? 'search' : 'alert'} size={24} />
       </span>
-      <p className={styles.title}>{isAccessDenied ? 'Раздел недоступен' : 'Не удалось загрузить'}</p>
-      <p className={styles.description}>{error.message}</p>
-      {onRetry && !isAccessDenied && (
+      <p className={styles.title}>{title}</p>
+      <p className={styles.description}>
+        {isMissing
+          ? `${error.message.replace(/\.$/, '')}. Возможно, запись удалили или ссылка устарела.`
+          : error.message}
+      </p>
+      {onRetry && !isAccessDenied && !isMissing && (
         <div className={styles.actions}>
           <Button icon="refresh" onClick={onRetry}>
             Повторить
