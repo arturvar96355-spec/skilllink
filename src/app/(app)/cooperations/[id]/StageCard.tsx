@@ -104,7 +104,10 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
   useEffect(() => {
     if (isHighlighted) {
       setIsOpen(true)
-      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      // Явное 'smooth' перебивает CSS, где прокрутка при «уменьшить движение»
+      // выключена (globals.css), — поэтому настройку системы читаем здесь.
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      cardRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
     }
   }, [isHighlighted])
 
