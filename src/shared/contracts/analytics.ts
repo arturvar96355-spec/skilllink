@@ -30,6 +30,8 @@ export interface TopProgramDto {
   programName: string
   universityId: string
   universityName: string
+  /** Краткое название вуза для плотного списка. null — краткого нет. */
+  universityShortName: string | null
   score: number | null
   basis: 'actual' | 'estimate' | 'none'
   factors: Array<{

@@ -249,6 +249,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
         programName: program.name,
         universityId: program.university.id,
         universityName: program.university.name,
+        universityShortName: program.university.shortName,
         score: rating?.score ?? null,
         basis: rating?.basis ?? 'none',
         factors:

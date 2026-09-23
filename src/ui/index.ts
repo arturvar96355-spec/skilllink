@@ -62,7 +62,15 @@ export { Logo } from './layout/Logo'
 
 export { useResource, type Resource } from './hooks/useResource'
 export { useMutation, type MutationResult } from './hooks/useMutation'
-export { useDebounced, useEscape, useOutsideClick, useStoredValue, useMediaQuery } from './hooks/dom'
+export {
+  useDebounced,
+  useEscape,
+  useOutsideClick,
+  useStoredValue,
+  useMediaQuery,
+  useCountUp,
+  usePrefersReducedMotion,
+} from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
 
 export { apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'

@@ -1,54 +1,377 @@
-/* Главная страница: показатели, проблемы, действия (раздел 25 шаблона страниц). */
+/*
+ * Главная (07, раздел 10): Live Rail сверху, под ним — лента «Требует внимания»
+ * и строки действий, ниже — связки маршрутами и рейтинг программ. Не сетка
+ * одинаковых карточек: у блоков разная ширина и разная форма, потому что
+ * у них разный смысл.
+ */
+
+.focus {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-8);
+  align-items: start;
+}
 
 .columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-8);
   align-items: start;
 }
 
 @media (max-width: 1080px) {
+  .focus,
   .columns {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
+/* Появление группами — продолжение композиции Live Rail (раздел 19). */
+.reveal {
+  min-width: 0;
+  animation: rise var(--motion-panel) var(--ease-out) both;
+  animation-delay: var(--delay, 0ms);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Запись маршрута «06 / 14» — одна и та же везде, где назван этап. */
+.notation {
+  flex: none;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Требует внимания: лента событий ─────────────────────────────────────── */
+
+.queue {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Линия ленты: события нанизаны на время, а не разложены по ячейкам. */
+.queue::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: var(--space-3);
+  bottom: var(--space-3);
+  width: 1px;
+  background: var(--line-subtle);
+}
+
+.event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+}
+
+.eventMark {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger);
+  box-shadow: 0 0 0 3px var(--canvas);
+}
+
+.blocked {
+  background: var(--status-warning);
+}
+
+.eventLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  margin: 0 calc(var(--space-2) * -1);
+  border-radius: var(--radius-row);
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.eventLink:hover {
+  background: rgba(255, 255, 255, 0.025);
+  transform: translateX(4px);
+}
+
+.eventTitle {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eventMeta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Приоритетные действия: строки, не карточки ──────────────────────────── */
+
+.actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.actions li + li {
+  border-top: 1px solid var(--border-divider);
+}
+
 .action {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: 4px;
+  padding: var(--space-3) 0;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.action:hover {
+  transform: translateX(4px);
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
 .actionHead {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.actionTarget {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-caption-size);
-  color: var(--text-accent-soft);
+.actionTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
 }
+
+/* Обоснование — две строки, полное в подсказке: список должен читаться целиком. */
+.actionWhy {
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.actionTarget {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* ── Связки в работе: строки-маршруты ────────────────────────────────────── */
+
+.routes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.routes li + li {
+  border-top: 1px solid var(--border-divider);
+}
+
+.route {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) 20px minmax(0, 1.3fr) 20px minmax(0, 1.1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  font-size: var(--text-body-sm-size);
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.route:hover {
+  transform: translateX(4px);
+}
+
+.routeUni {
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.routeNode {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.routeMissing {
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
+/* Звено маршрута. При наведении связь «включается» — единственный градиент строки. */
+.routeLine {
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+  transition: background var(--motion-control) var(--ease-out);
+}
+
+.route:hover .routeLine {
+  background: var(--gradient-brand);
+}
+
+.route:hover .routeNode:not(.routeMissing) {
+  color: var(--text-primary);
+}
+
+/* ── Ключевые программы: ранжированные строки ────────────────────────────── */
+
+.ranking {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ranking li + li {
+  border-top: 1px solid var(--border-divider);
+}
+
+.rank {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) minmax(24px, 0.35fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.rankNo {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.rankBody {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.rankUni {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rankProgram {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+/* Из чего сложился балл — проявляется при наведении (раздел 26). */
+.rankReason {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.6;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+/* Тонкая линия к баллу дорисовывается при наведении. */
+.rankLine {
+  height: 1px;
+  background: var(--line-strong);
+  transform: scaleX(0.25);
+  transform-origin: left center;
+  transition: transform var(--motion-control) var(--ease-out);
+}
+
+.rank:hover .rankNo,
+.rank:hover .rankProgram {
+  color: var(--text-primary);
+}
+
+.rank:hover .rankReason {
+  opacity: 1;
+}
+
+.rank:hover .rankLine {
+  transform: scaleX(1);
+}
+
+.score {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.scoreEmpty {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+/* ── Покрытие навыков: блок данных ───────────────────────────────────────── */
 
 .coverage {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-divider);
 }
 
 .coverageTop {
   display: flex;
   align-items: baseline;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .coverageValue {
   font-size: var(--text-kpi-lg-size);
-  font-weight: 700;
+  font-weight: 650;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
@@ -60,6 +383,7 @@
 
 .coverageFacts {
   display: flex;
+  align-items: center;
   gap: var(--space-6);
   flex-wrap: wrap;
 }
@@ -81,94 +405,43 @@
   color: var(--text-tertiary);
 }
 
-.score {
-  font-size: var(--text-kpi-sm-size);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
+/* Телефон: маршрут в две строки — вуз и этап, под ними программа → продукт. */
+@media (max-width: 720px) {
+  .route {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 2px;
+  }
 
-.scoreEmpty {
-  font-size: var(--text-body-sm-size);
-  font-weight: 500;
-  color: var(--text-tertiary);
-}
+  .route .routeLine {
+    display: none;
+  }
 
-.generated {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
-}
+  .route .routeNode {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: var(--text-caption-size);
+  }
 
-/*
- * Первый экран: проблемы — главный блок, действия — рядом, уже.
- * Пропорция 3 к 2 оставляет списку проблем больше половины ширины:
- * это то, ради чего главную открывают.
- */
-.focus {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--space-5);
-  align-items: start;
-}
+  .route .routeNode + .routeNode {
+    grid-row: 3;
+  }
 
-@media (max-width: 1080px) {
-  .focus {
-    grid-template-columns: minmax(0, 1fr);
+  .route .notation {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .rank {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+  }
+
+  .rankLine {
+    display: none;
   }
 }
 
-/* Проблемный блок отмечен слева тонкой красной чертой — без заливки,
-   чтобы не кричать, но чтобы взгляд попадал сюда первым. */
-.alert {
-  border-left: 2px solid var(--danger-border);
-}
-
-.muted {
-  color: var(--text-tertiary);
-  font-weight: 400;
-}
-
-.actions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.actions li + li {
-  border-top: 1px solid var(--border-divider);
-}
-
-.action {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--space-3) var(--space-4);
-  transition: background var(--motion-micro) var(--ease-out);
-}
-
-.action:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.action:focus-visible {
-  outline: 2px solid var(--accent-primary);
-  outline-offset: -2px;
-}
-
-.actionTitle {
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.35;
-}
-
-/* Обоснование — две строки, полное в подсказке: список должен читаться целиком. */
-.actionWhy {
-  font-size: var(--text-caption-size);
-  line-height: 1.45;
-  color: var(--text-secondary);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    animation: none;
+  }
 }
