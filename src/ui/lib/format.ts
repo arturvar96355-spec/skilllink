@@ -208,6 +208,14 @@ export function initials(fullName: string): string {
   return `${parts[0]![0]!}${parts[1]![0]!}`.toUpperCase()
 }
 
+/** ФИО для плотной строки: «Кириллов Пётр Андреевич» → «Кириллов П. А.». */
+export function formatPersonShort(fullName: string): string {
+  const [surname, ...rest] = fullName.trim().split(/\s+/).filter(Boolean)
+  if (!surname) return '—'
+  const letters = rest.map((part) => `${part[0]!.toUpperCase()}.`).join(' ')
+  return letters ? `${surname} ${letters}` : surname
+}
+
 /** Короткая аббревиатура программы для иконки: «Программная инженерия» → «ПИ». */
 export function abbreviate(name: string): string {
   const words = name

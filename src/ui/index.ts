@@ -98,6 +98,7 @@ export {
   isoToDateInput,
   pluralize,
   initials,
+  formatPersonShort,
   abbreviate,
 } from './lib/format'
 export {

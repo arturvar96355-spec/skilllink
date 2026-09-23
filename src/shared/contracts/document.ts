@@ -5,6 +5,8 @@ export interface DocumentLinksDto {
   cooperationId: string | null
   universityId: string | null
   universityName: string | null
+  /** Краткое название вуза («СПбГУТ») — для плотной строки реестра (решение 44). */
+  universityShortName: string | null
   programId: string | null
   programName: string | null
 }

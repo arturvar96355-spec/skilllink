@@ -58,6 +58,7 @@ import {
   usePageInRange,
   type Column,
   type SelectOption,
+  formatPersonShort,
 } from '@/ui'
 import styles from './documents.module.css'
 
@@ -173,7 +174,10 @@ function DocumentsView() {
       title: 'Документ',
       sortField: 'title',
       render: (row) => (
-        <span className={styles.titleCell}>
+        <span
+          className={styles.titleCell}
+          title={`${row.title} · ${DOCUMENT_TYPE_LABELS[row.type]}${row.templateKey ? ' · собран из шаблона' : ''}`}
+        >
           <span className={styles.docTitle}>{row.title}</span>
           <span className={styles.docMeta}>
             {DOCUMENT_TYPE_LABELS[row.type]}
@@ -198,30 +202,34 @@ function DocumentsView() {
     {
       key: 'links',
       title: 'К чему относится',
-      render: (row) => <DocumentLinks links={row.links} />,
+      width: '200px',
+      render: (row) => <DocumentLinks links={row.links} inline />,
     },
     {
       // Автор — в карточке документа: в реестре его столбец отнимал место
       // у названия, и на проекторе оно сжималось в столбик.
       key: 'responsible',
       title: 'Ответственный',
-      width: '150px',
+      width: '130px',
       render: (row) => (
-        <span className={styles.person}>{row.responsible?.fullName ?? NO_DATA}</span>
+        <span className={styles.person} title={row.responsible?.fullName}>
+          {row.responsible ? formatPersonShort(row.responsible.fullName) : NO_DATA}
+        </span>
       ),
     },
     {
+      // Плотная строка (решение 44): в строке — дата выдачи, подписание — в подсказке;
+      // подписан ли документ, и так говорит статус рядом. Нет даты подписания —
+      // это факт «не подписан», а не нехватка данных.
       key: 'dates',
-      title: 'Даты',
-      width: '140px',
+      title: 'Выдан',
+      width: '112px',
       render: (row) => (
-        <span className={styles.dates}>
-          <span className={styles.dateRow}>Выдан: {formatDate(row.issuedAt)}</span>
-          {/* Нет даты подписания — это факт «не подписан», а не нехватка данных:
-              «Нет данных» здесь читалось как «неизвестно, подписан ли». */}
-          <span className={styles.dateRow}>
-            {row.signedAt ? `Подписан: ${formatDate(row.signedAt)}` : 'Не подписан'}
-          </span>
+        <span
+          className={styles.dateRow}
+          title={row.signedAt ? `Подписан: ${formatDate(row.signedAt)}` : 'Не подписан'}
+        >
+          {formatDate(row.issuedAt)}
         </span>
       ),
     },
@@ -385,27 +393,35 @@ function DocumentsView() {
 }
 
 /** Привязки документа: к вузу, программе и связке ведут обычные ссылки. */
-function DocumentLinks({ links }: { links: DocumentLinksDto }) {
+/**
+ * К чему относится документ. В строке реестра (`inline`) — одной строкой:
+ * вуз кратко, программа, связка; полные названия — в подсказках. В карточке —
+ * столбиком, с полными названиями.
+ */
+function DocumentLinks({ links, inline = false }: { links: DocumentLinksDto; inline?: boolean }) {
   const hasAny = links.universityId || links.programId || links.cooperationId
   if (!hasAny) return <span className={styles.muted}>{NO_DATA}</span>
+  const universityLabel = inline
+    ? (links.universityShortName ?? links.universityName ?? 'Вуз')
+    : (links.universityName ?? 'Вуз')
 
   return (
-    <span className={styles.links}>
+    <span className={inline ? styles.linksInline : styles.links}>
       {links.universityId && (
         <Link className={styles.link} href={universityHref(links.universityId)} title={links.universityName ?? undefined}>
-          <Icon name="university" size={16} />
-          <span className={styles.linkText}>{links.universityName ?? 'Вуз'}</span>
+          {!inline && <Icon name="university" size={16} />}
+          <span className={styles.linkText}>{universityLabel}</span>
         </Link>
       )}
       {links.programId && (
         <Link className={styles.link} href={programHref(links.programId)} title={links.programName ?? undefined}>
-          <Icon name="program" size={16} />
+          {!inline && <Icon name="program" size={16} />}
           <span className={styles.linkText}>{links.programName ?? 'Программа'}</span>
         </Link>
       )}
       {links.cooperationId && (
         <Link className={styles.link} href={cooperationHref(links.cooperationId)}>
-          <Icon name="cooperation" size={16} />
+          {!inline && <Icon name="cooperation" size={16} />}
           Связка
         </Link>
       )}

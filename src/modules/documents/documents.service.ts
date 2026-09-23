@@ -51,6 +51,7 @@ function toLinks(row: repo.DocumentListRow): DocumentLinksDto {
     cooperationId: row.cooperationId,
     universityId: row.universityId,
     universityName: row.university?.name ?? null,
+    universityShortName: row.university?.shortName ?? null,
     programId: row.programId,
     programName: row.program?.name ?? null,
   }

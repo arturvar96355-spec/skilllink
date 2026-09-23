@@ -152,10 +152,10 @@ export default function ProgramsPage() {
     {
       key: 'university',
       title: 'Вуз',
-      width: '150px',
+      width: '145px',
       render: (row) => (
         <span className={styles.university} title={row.universityName}>
-          <Avatar name={row.universityShortName ?? row.universityName} kind="entity" size="sm" />
+          <Avatar name={row.universityShortName ?? row.universityName} kind="entity" size="xs" />
           <span className={styles.universityName}>{row.universityShortName ?? row.universityName}</span>
         </span>
       ),
@@ -164,10 +164,13 @@ export default function ProgramsPage() {
       // Срок — под уровнем: отдельным узким столбцом он читался как ещё одно число.
       key: 'level',
       title: 'Уровень',
-      width: '140px',
+      width: '125px',
       sortField: 'level',
       render: (row) => (
-        <span className={styles.stack}>
+        <span
+          className={styles.stack}
+          title={`${PROGRAM_LEVEL_LABELS[row.level]} · ${formatDuration(row.durationMonths)}`}
+        >
           <span className={styles.stackMain}>{PROGRAM_LEVEL_LABELS[row.level]}</span>
           <span className={styles.stackSub}>{formatDuration(row.durationMonths)}</span>
         </span>
@@ -176,7 +179,7 @@ export default function ProgramsPage() {
     {
       key: 'applicationCount',
       title: 'Заявки',
-      width: '100px',
+      width: '90px',
       align: 'right',
       sortField: 'applicationCount',
       sortDescFirst: true,
@@ -190,7 +193,7 @@ export default function ProgramsPage() {
     {
       key: 'studentCount',
       title: 'Обучающихся',
-      width: '124px',
+      width: '110px',
       align: 'right',
       sortField: 'studentCount',
       sortDescFirst: true,
@@ -203,11 +206,17 @@ export default function ProgramsPage() {
     },
     {
       key: 'links',
-      title: 'Навыки · связки',
-      width: '130px',
+      title: 'Навыки',
+      width: '115px',
       align: 'right',
       render: (row) => (
-        <span className={styles.stack}>
+        <span
+          className={styles.stack}
+          title={
+            `${formatNumber(row.skillCount)} ${pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])} · ` +
+            `${formatNumber(row.cooperationCount)} ${pluralize(row.cooperationCount, ['связка', 'связки', 'связок'])}`
+          }
+        >
           <span className={styles.stackMain}>
             <span className={styles.count}>{formatNumber(row.skillCount)}</span>{' '}
             {pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])}
@@ -222,14 +231,14 @@ export default function ProgramsPage() {
     {
       key: 'status',
       title: 'Статус',
-      width: '130px',
+      width: '120px',
       sortField: 'status',
       render: (row) => <ProgramStatusBadge status={row.status} />,
     },
     {
       key: 'updatedAt',
       title: 'Обновлено',
-      width: '110px',
+      width: '95px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       align: 'right',
@@ -357,7 +366,7 @@ export default function ProgramsPage() {
             columns={columns}
             getRowKey={(row) => row.id}
             getRowHref={(row) => programHref(row.id)}
-            appearance="cards"
+            appearance="grid"
             sort={sort}
             onSortChange={(next) => {
               setSort(next)

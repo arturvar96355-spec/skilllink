@@ -1093,8 +1093,9 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
   "author": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "issuedAt": "…", "signedAt": "…",
-  "links": { "cooperationId": "…", "universityId": "…", "universityName": "СПбГУТ",
-             "programId": null, "programName": null },
+  "links": { "cooperationId": "…", "universityId": "…",
+             "universityName": "Санкт-Петербургский государственный университет телекоммуникаций",
+             "universityShortName": "СПбГУТ", "programId": null, "programName": null },
   "createdAt": "…", "updatedAt": "…"
 }
 ```

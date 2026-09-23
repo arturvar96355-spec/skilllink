@@ -139,7 +139,7 @@ export default function UniversitiesPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.name}>
-          <Avatar name={row.shortName ?? row.name} kind="entity" size="md" />
+          <Avatar name={row.shortName ?? row.name} kind="entity" size="xs" />
           <span className={styles.nameText}>
             <span className={styles.nameTitle} title={row.name} data-morph-title>
               {row.name}
@@ -152,7 +152,7 @@ export default function UniversitiesPage() {
     {
       key: 'city',
       title: 'Город',
-      width: '140px',
+      width: '150px',
       sortField: 'city',
       render: (row) => (
         <span className={styles.place} title={formatPlace(row.city, row.region)}>
@@ -164,7 +164,7 @@ export default function UniversitiesPage() {
     {
       key: 'status',
       title: 'Статус',
-      width: '130px',
+      width: '140px',
       sortField: 'status',
       render: (row) => <UniversityStatusBadge status={row.status} />,
     },
@@ -332,7 +332,7 @@ export default function UniversitiesPage() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => universityHref(row.id)}
-                appearance="cards"
+                appearance="grid"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={universities.isRefreshing}

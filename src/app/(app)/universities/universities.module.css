@@ -9,44 +9,53 @@
   min-width: 0;
 }
 
+/*
+ * Плотный реестр (решение 44, Артур подтвердил 24.09: 20–25 строк на экран).
+ * Всё в одну строку: название, за ним сокращение. Полные названия вузов
+ * начинаются одинаково («Санкт-Петербургский…»), поэтому сокращение стоит
+ * справа и не обрезается — по нему строки и различаются; обрезается название,
+ * полное — в подсказке.
+ */
 .nameText {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
-/*
- * Название — главное в строке: по нему ищут глазами и по нему щёлкают.
- * До двух строк, а не одна с многоточием: полные названия вузов начинаются
- * одинаково («Санкт-Петербургский…»), и в одну строку реестр переставал их различать.
- */
+/* Название — главное в строке: по нему ищут глазами и по нему щёлкают. */
 .nameTitle {
-  display: -webkit-box;
-  font-size: var(--text-body-lg-size);
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--text-body-size);
   font-weight: 650;
   color: var(--text-primary);
-  line-height: 1.3;
+  white-space: nowrap;
   overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  text-overflow: ellipsis;
 }
 
 .nameSub {
+  flex: none;
   font-size: var(--text-label-size);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text-accent-soft);
 }
 
+/* Город, за ним регион — регион обрезается первым. */
 .place {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .placeCity {
+  /* Не сжимается: даже доля пикселя сжатия рисует многоточие («Каза…»).
+     Обрезается, только если сам не помещается в столбец. */
+  flex: none;
+  max-width: 100%;
   font-size: var(--text-body-size);
   font-weight: 500;
   color: var(--text-secondary);
@@ -56,6 +65,9 @@
 }
 
 .placeRegion {
+  /* Сжимается раньше города. */
+  flex: 0 100 auto;
+  min-width: 0;
   font-size: var(--text-label-size);
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -63,11 +75,12 @@
   text-overflow: ellipsis;
 }
 
+/* Полоска слева от балла, в одну строку с ним. */
 .rating {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .ratingValue {
@@ -80,7 +93,7 @@
 /* Полоска балла: шкала 0–100, фон — дорожка, заливка — фирменный акцент. */
 .ratingBar {
   display: block;
-  width: 88px;
+  width: 40px;
   height: 4px;
   border-radius: var(--radius-pill);
   background: var(--line-strong);
