@@ -46,6 +46,12 @@
   color: var(--text-secondary);
 }
 
+.sortable:focus-visible {
+  outline: 2px solid var(--border-accent);
+  outline-offset: -2px;
+  color: var(--text-secondary);
+}
+
 .sortIcon {
   display: inline-flex;
   vertical-align: middle;
