@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { useMemo, useState, type ReactNode } from 'react'
+import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import type { CurrentUserDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
 import { Skeleton } from '../primitives/Skeleton'
@@ -48,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className={styles.main}>
         <ErrorState error={me.error} onRetry={me.reload} />
         <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <Button href="/login" variant="primary">
+          <Button href={`/login?${REAUTH_PARAM}=1`} variant="primary">
             Войти заново
           </Button>
         </div>

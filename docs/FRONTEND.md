@@ -63,16 +63,28 @@ if (universities.error) return <ErrorState error={universities.error} onRetry={u
 if (universities.data?.length === 0) return <EmptyState title="Записей нет" />
 ```
 
-`useResource` сам отменяет устаревший запрос, различает первую загрузку
-и обновление и уводит на `/login`, если сессия кончилась.
+`useResource` сам отменяет устаревший запрос и различает первую загрузку
+и обновление.
 
 Изменения — `useMutation`:
 
 ```tsx
 const save = useMutation(async (input: PatchInput) => apiPatch<WorkflowStageDto>(`/api/workflow/stages/${id}`, input))
 const result = await save.run(input)
-if (!result) toast.error(save.error?.message ?? 'Не удалось сохранить')
+if (!result.ok) toast.error(result.error.message)
 ```
+
+Ошибку брать из результата `run()`, а не из `save.error`: внутри обработчика
+`save` — объект того рендера, в котором обработчик создан, и сразу после `await`
+его `error` ещё пустой. Так однажды пропал отказ контрольной точки — главное,
+что должен увидеть человек на показе.
+
+**Сессия.** На 401 оба хука сами уводят на вход (`src/ui/lib/session.ts`):
+снимают старую сессию и открывают `/login?reauth=1&from=<где был>`. Параметр
+`reauth` нужен middleware: он видит только наличие cookie и вошедшего
+со страницы входа отправляет на главную. Когда cookie остался, а пользователя
+за ним нет (демо-данные перезалиты, пользователи созданы заново), главная
+уводила на вход, вход — на главную, и экран оставался пустым (решение 48).
 
 Отказ системы (409 `INVALID_TRANSITION`) — это нормальный ответ, а не сбой:
 его текст показывается пользователю целиком.
