@@ -11,6 +11,19 @@ export interface SelectOption {
   label: string
 }
 
+/**
+ * Поиск по списку на сервере. Нужен спискам, которые целиком не загружаются:
+ * вузов бывает тысяча, а в выпадающий список раньше попадала первая сотня —
+ * связку с вузом дальше по алфавиту нельзя было создать. Задаёт `RemoteSelect`.
+ */
+export interface SelectSearch {
+  query: string
+  onQueryChange: (query: string) => void
+  placeholder: string
+  /** Строка под списком: «показаны 50 из 1004» или «ничего не найдено». */
+  note?: string | null
+}
+
 export interface SelectProps {
   label?: string
   hint?: string
@@ -26,6 +39,12 @@ export interface SelectProps {
   name?: string
   /** Подпись только для программ чтения с экрана — см. Field. */
   hideLabel?: boolean
+  search?: SelectSearch
+  /**
+   * Подпись выбранного значения, если его нет среди `options`: выбрано
+   * через поиск, а сейчас в списке другая выборка.
+   */
+  valueLabel?: string
 }
 
 /**
@@ -52,21 +71,36 @@ export function Select({
   required = false,
   name,
   hideLabel = false,
+  search,
+  valueLabel,
 }: SelectProps) {
   const id = useId()
   const [isOpen, setIsOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [openUpward, setOpenUpward] = useState(false)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const searchRef = useRef<HTMLInputElement | null>(null)
 
-  const items: SelectOption[] =
-    placeholder === undefined ? options : [{ value: '', label: placeholder }, ...options]
+  // Пока идёт поиск, пункт «любое» не нужен: человек ищет конкретное.
+  const withPlaceholder = placeholder !== undefined && !(search && search.query !== '')
+  const items: SelectOption[] = withPlaceholder
+    ? [{ value: '', label: placeholder }, ...options]
+    : options
 
   const close = useCallback(() => setIsOpen(false), [])
   const wrapperRef = useOutsideClick<HTMLDivElement>(close, isOpen)
-  useEscape(close, isOpen)
+  // По Escape фокус возвращается на кнопку списка, а не теряется: поле
+  // поиска, где он был, исчезает вместе со списком. По щелчку снаружи — нет:
+  // там фокус уходит туда, куда щёлкнули.
+  const closeByEscape = useCallback(() => {
+    setIsOpen(false)
+    triggerRef.current?.focus()
+  }, [])
+  useEscape(closeByEscape, isOpen)
 
   const selected = items.find((option) => option.value === value)
+  const shownLabel = selected?.label ?? (value !== '' ? valueLabel : undefined)
+  const hasValue = value !== '' && shownLabel !== undefined
 
   function open() {
     if (disabled) return
@@ -83,6 +117,24 @@ export function Select({
     triggerRef.current?.focus()
   }
 
+  /** Перебор и выбор — общие для кнопки и поля поиска. */
+  function navigate(event: React.KeyboardEvent, chooseKeys: string[]) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (items.length > 0) setActiveIndex((current) => (current + 1) % items.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (items.length > 0) setActiveIndex((current) => (current - 1 + items.length) % items.length)
+    } else if (chooseKeys.includes(event.key)) {
+      // Enter в модальном окне иначе отправил бы форму.
+      event.preventDefault()
+      const option = items[activeIndex]
+      if (option) choose(option)
+    } else if (event.key === 'Tab') {
+      setIsOpen(false)
+    }
+  }
+
   function onKeyDown(event: React.KeyboardEvent) {
     if (!isOpen) {
       if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
@@ -91,21 +143,26 @@ export function Select({
       }
       return
     }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      setActiveIndex((current) => (current + 1) % items.length)
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      setActiveIndex((current) => (current - 1 + items.length) % items.length)
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      const option = items[activeIndex]
-      if (option) choose(option)
-    } else if (event.key === 'Tab') {
-      setIsOpen(false)
-    }
+    navigate(event, ['Enter', ' '])
   }
+
+  // В поле поиска пробел — часть запроса («Уральский федеральный»), а не выбор.
+  // Escape здесь не ловится: его разбирает стопка слоёв (useEscape).
+  function onSearchKeyDown(event: React.KeyboardEvent) {
+    navigate(event, ['Enter'])
+  }
+
+  // С поиском фокус сразу в поле: открыл список — и печатаешь. Только
+  // в момент открытия, иначе каждый ответ поиска выдёргивал бы фокус.
+  const hasSearch = search !== undefined
+  useEffect(() => {
+    if (isOpen && hasSearch) searchRef.current?.focus()
+  }, [isOpen, hasSearch])
+
+  // Новая выборка — подсветка на первом пункте, а не за концом списка.
+  useEffect(() => {
+    setActiveIndex((current) => (current < items.length ? current : 0))
+  }, [items.length])
 
   // Выбранный пункт должен быть виден, когда список открыли с клавиатуры.
   useEffect(() => {
@@ -140,11 +197,9 @@ export function Select({
           aria-invalid={error ? true : undefined}
         >
           <span
-            className={[styles.value, selected && selected.value !== '' ? '' : styles.placeholder]
-              .filter(Boolean)
-              .join(' ')}
+            className={[styles.value, hasValue ? '' : styles.placeholder].filter(Boolean).join(' ')}
           >
-            {selected?.label ?? placeholder ?? 'Выберите'}
+            {shownLabel ?? placeholder ?? 'Выберите'}
           </span>
           <Icon
             name="chevronDown"
@@ -154,32 +209,50 @@ export function Select({
         </button>
 
         {isOpen && (
-          <div
-            className={[styles.list, openUpward ? styles.listUp : ''].filter(Boolean).join(' ')}
-            role="listbox"
-            aria-label={label}
-          >
-            {items.map((option, index) => (
-              <button
-                key={option.value || 'any'}
-                id={`${id}-option-${index}`}
-                type="button"
-                role="option"
-                aria-selected={option.value === value}
-                className={[
-                  styles.option,
-                  index === activeIndex ? styles.active : '',
-                  option.value === value ? styles.selected : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => choose(option)}
-              >
-                {option.label}
-                {option.value === value && <Icon name="check" size={16} className={styles.check} />}
-              </button>
-            ))}
+          <div className={[styles.list, openUpward ? styles.listUp : ''].filter(Boolean).join(' ')}>
+            {search && (
+              <div className={styles.searchRow}>
+                <Icon name="search" size={16} className={styles.searchIcon} />
+                <input
+                  ref={searchRef}
+                  className={styles.search}
+                  value={search.query}
+                  placeholder={search.placeholder}
+                  aria-label={search.placeholder}
+                  aria-controls={`${id}-listbox`}
+                  aria-activedescendant={items[activeIndex] ? `${id}-option-${activeIndex}` : undefined}
+                  onChange={(event) => {
+                    search.onQueryChange(event.target.value)
+                    setActiveIndex(0)
+                  }}
+                  onKeyDown={onSearchKeyDown}
+                />
+              </div>
+            )}
+            <div id={`${id}-listbox`} role="listbox" aria-label={label}>
+              {items.map((option, index) => (
+                <button
+                  key={option.value || 'any'}
+                  id={`${id}-option-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={option.value === value}
+                  className={[
+                    styles.option,
+                    index === activeIndex ? styles.active : '',
+                    option.value === value ? styles.selected : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  onClick={() => choose(option)}
+                >
+                  {option.label}
+                  {option.value === value && <Icon name="check" size={16} className={styles.check} />}
+                </button>
+              ))}
+            </div>
+            {search?.note && <div className={styles.note}>{search.note}</div>}
           </div>
         )}
       </div>

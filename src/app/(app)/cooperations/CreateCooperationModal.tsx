@@ -16,16 +16,17 @@ import {
   Button,
   Input,
   Modal,
+  RemoteSelect,
   Select,
   Textarea,
   apiPost,
-  buildQuery,
   cooperationHref,
   dateInputToIso,
   fieldErrors,
   useMutation,
   useResource,
   useToast,
+  universityFullOption,
 } from '@/ui'
 
 /**
@@ -52,12 +53,6 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
   const [targetDate, setTargetDate] = useState('')
   const [classesStartAt, setClassesStartAt] = useState('')
 
-  const universities = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100&sort=name',
-  )
-  const programs = useResource<ProgramListItemDto[]>(
-    universityId ? `/api/programs${buildQuery({ universityId, pageSize: 100, sort: 'name' })}` : null,
-  )
   const products = useResource<ProductListItemDto[]>('/api/products?pageSize=100&sort=name')
   const users = useResource<UserDto[]>('/api/users?pageSize=100')
 
@@ -109,39 +104,34 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
         </>
       }
     >
-      <Select
+      <RemoteSelect<UniversityListItemDto>
         label="Вуз"
         required
+        endpoint="/api/universities"
+        params={{ withRating: 'false', sort: 'name' }}
+        toOption={universityFullOption}
+        searchPlaceholder="Название, краткое название или город"
         value={universityId}
         onValueChange={(value) => {
           setUniversityId(value)
           // Программа принадлежит вузу: прежний выбор после смены вуза недействителен.
           setProgramId('')
         }}
-        placeholder={universities.isLoading ? 'Загрузка…' : 'Выберите вуз'}
-        options={(universities.data ?? []).map((row) => ({
-          value: row.id,
-          label: row.shortName ? `${row.name} (${row.shortName})` : row.name,
-        }))}
+        placeholder="Выберите вуз"
         error={errorFor('universityId')}
       />
 
-      <Select
+      <RemoteSelect<ProgramListItemDto>
         label="Образовательная программа"
         required
+        endpoint="/api/programs"
+        params={{ universityId, sort: 'name' }}
+        toOption={(row) => ({ value: row.id, label: row.name })}
         value={programId}
         onValueChange={setProgramId}
         disabled={universityId === ''}
-        placeholder={
-          universityId === ''
-            ? 'Сначала выберите вуз'
-            : programs.isLoading
-              ? 'Загрузка…'
-              : (programs.data ?? []).length === 0
-                ? 'У вуза нет программ'
-                : 'Выберите программу'
-        }
-        options={(programs.data ?? []).map((row) => ({ value: row.id, label: row.name }))}
+        placeholder={universityId === '' ? 'Сначала выберите вуз' : 'Выберите программу'}
+        emptyPlaceholder="У вуза нет программ"
         error={errorFor('programId')}
       />
 
