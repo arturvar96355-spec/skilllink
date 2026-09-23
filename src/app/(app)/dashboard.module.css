@@ -9,7 +9,7 @@
 
 @media (max-width: 1080px) {
   .columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -113,7 +113,7 @@
 
 @media (max-width: 1080px) {
   .focus {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

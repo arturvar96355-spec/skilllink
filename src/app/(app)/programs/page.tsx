@@ -161,6 +161,7 @@ export default function ProgramsPage() {
       width: '96px',
       align: 'right',
       sortField: 'applicationCount',
+      sortDescFirst: true,
       render: (row) => <MetricCell metric={row.metrics.applicationCount} />,
     },
     {
@@ -169,6 +170,7 @@ export default function ProgramsPage() {
       width: '112px',
       align: 'right',
       sortField: 'studentCount',
+      sortDescFirst: true,
       render: (row) => <MetricCell metric={row.metrics.studentCount} />,
     },
     {
@@ -197,6 +199,7 @@ export default function ProgramsPage() {
       title: 'Обновлено',
       width: '104px',
       sortField: 'updatedAt',
+      sortDescFirst: true,
       align: 'right',
       render: (row) => <span className={styles.plain}>{formatDate(row.updatedAt)}</span>,
     },

@@ -99,7 +99,6 @@ git archive --format=tar HEAD | ssh_run "$TARGET" "
   rm -rf $REMOTE_DIR/app.old
   [ -d $REMOTE_DIR/app ] && mv $REMOTE_DIR/app $REMOTE_DIR/app.old
   mv $REMOTE_DIR/app.new $REMOTE_DIR/app
-  echo $COMMIT > $REMOTE_DIR/app/DEPLOYED_COMMIT
 "
 
 # ── 4. Сборка и запуск ──────────────────────────────────────────────────────
@@ -110,6 +109,13 @@ git archive --format=tar HEAD | ssh_run "$TARGET" "
 # он уехал на сервер вместе с кодом.
 echo "── Поднимаю стенд (первый раз — несколько минут)"
 ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
+
+# Отметка «развёрнут такой-то коммит» — только после того, как стенд поднялся.
+# Раньше она писалась вместе с кодом, до сборки. 23.09.2026 сервер оборвал
+# соединение посреди сборки: отметка уже говорила «df2ac15», а работало
+# приложение прошлой версии. Задача, которая обновляет стенд по этой отметке,
+# сочла бы его свежим и больше не пыталась.
+ssh_run "$TARGET" "echo $COMMIT > $REMOTE_DIR/app/DEPLOYED_COMMIT"
 
 # ── 5. Проверка снаружи ─────────────────────────────────────────────────────
 # С доменом Caddy получает сертификат уже после старта — первый раз это

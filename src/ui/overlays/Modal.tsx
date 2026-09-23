@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { IconButton } from '../primitives/IconButton'
 import { useEscape } from '../hooks/dom'
+import { useFocusTrap } from '../hooks/focus-trap'
 import styles from './Overlay.module.css'
 
 export interface ModalProps {
@@ -36,6 +37,8 @@ export function Modal({
   children,
 }: ModalProps) {
   useEscape(onClose, isOpen)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, isOpen, 'field')
 
   // Страница под окном не должна прокручиваться вместе с ним.
   useEffect(() => {
@@ -61,13 +64,15 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        ref={dialogRef}
+        tabIndex={-1}
       >
         <div className={styles.head}>
           <div className={styles.titleGroup}>
             <h2 className={styles.title}>{title}</h2>
             {description && <p className={styles.description}>{description}</p>}
           </div>
-          <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} />
+          <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} data-dialog-close />
         </div>
         <div className={styles.body}>{children}</div>
         {footer && <div className={styles.footer}>{footer}</div>}
