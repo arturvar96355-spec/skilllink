@@ -342,3 +342,10 @@
   padding-left: var(--space-3);
   border-left: 2px solid var(--border-accent);
 }
+
+/* Действие вкладки — над её содержимым, справа: как «Выгрузить» у реестров. */
+.tabActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
