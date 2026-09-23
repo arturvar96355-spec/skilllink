@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type FormEvent } from 'react'
+import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
 import styles from './login.module.css'
@@ -40,6 +41,9 @@ function LoginForm() {
   const [message, setMessage] = useState<string | null>(
     errorMessage(params.get('error'), params.get('code')),
   )
+  // Сюда привело приложение: сессия была, но сервер её больше не принимает —
+  // например, демо-данные перезалиты и пользователи созданы заново.
+  const isReauth = params.has(REAUTH_PARAM)
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -101,6 +105,12 @@ function LoginForm() {
           required
         />
 
+        {isReauth && !message && (
+          <p className={styles.notice} role="status">
+            <Icon name="info" size={18} />
+            Сессия устарела — войдите снова.
+          </p>
+        )}
         {message && (
           <p className={styles.error} role="alert">
             <Icon name="alert" size={18} />

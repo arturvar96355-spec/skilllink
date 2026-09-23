@@ -9,6 +9,7 @@
  */
 import 'dotenv/config'
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
+import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -726,8 +727,11 @@ async function main(): Promise<void> {
     )
     const expectedOrder = (wholeList.body.data ?? []).map((row) => row.id)
 
+    // Одна выдача — не больше сотни (предел API). На рабочей базе, где пробник
+    // заводит вузы при каждом прогоне, их больше, поэтому обход сверяется
+    // с первыми строками выдачи, а не со всей базой.
     const collected: string[] = []
-    for (let page = 1; page <= 40; page += 1) {
+    for (let page = 1; page <= 40 && collected.length < expectedOrder.length; page += 1) {
       const chunk = await call<Array<{ id: string }>>(
         'GET',
         `/api/universities?pageSize=3&page=${page}&sort=-rating`,
@@ -736,16 +740,17 @@ async function main(): Promise<void> {
       if (rows.length === 0) break
       collected.push(...rows.map((row) => row.id))
     }
+    const walked = collected.slice(0, expectedOrder.length)
 
     check(
       'постраничный обход по рейтингу ничего не теряет',
-      collected.length === expectedOrder.length,
-      `собрано ${collected.length}, ожидалось ${expectedOrder.length}`,
+      walked.length === expectedOrder.length,
+      `собрано ${walked.length}, ожидалось ${expectedOrder.length}`,
     )
     check('постраничный обход не повторяет записи', new Set(collected).size === collected.length)
     check(
       'порядок при обходе по страницам совпадает с одной выдачей',
-      collected.join(',') === expectedOrder.join(','),
+      walked.join(',') === expectedOrder.join(','),
     )
 
     // Отбор по рейтингу не должен ослаблять остальные фильтры.
@@ -1311,7 +1316,13 @@ async function main(): Promise<void> {
     // совпадать: иначе одна программа покажет два разных числа.
     let compared = 0
     let differs = 0
-    for (const program of (programs.body.data ?? []).filter((item) => item.status === 'ACTIVE')) {
+    // Сравниваем только программы, попавшие в обе выдачи: рейтинг отдаёт первые
+    // сто по баллу, список — первые сто по алфавиту, и на базе больше сотни
+    // программ часть списка в рейтинг не попадает вовсе.
+    const comparable = (programs.body.data ?? []).filter(
+      (item) => item.status === 'ACTIVE' && scoreInRanking.has(item.id),
+    )
+    for (const program of comparable) {
       const card = await call<{ rating: { score: number | null } | null }>(
         'GET',
         `/api/programs/${program.id}`,
@@ -1387,6 +1398,25 @@ async function main(): Promise<void> {
       check('поиск находит вуз администратору', adminFinds, `по слову «${word}»`)
       check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
     }
+
+    // Знаки LIKE в запросе — обычные символы, а не «что угодно»: поиск «_»
+    // находил все вузы базы. От имени администратора: представитель вуза
+    // видит один вуз, и сравнение с ним ничего не доказало бы.
+    const actorBefore = actingUserId
+    actAs(adminId)
+    const all = await call<unknown[]>('GET', '/api/universities?withRating=false&pageSize=1')
+    for (const wildcard of ['_', '%']) {
+      const found = await call<unknown[]>(
+        'GET',
+        `/api/universities?withRating=false&pageSize=1&q=${encodeURIComponent(wildcard)}`,
+      )
+      check(
+        `поиск «${wildcard}» не находит всё подряд`,
+        Number(found.body.meta?.total ?? -1) < Number(all.body.meta?.total ?? 0),
+        `найдено ${String(found.body.meta?.total)} из ${String(all.body.meta?.total)}`,
+      )
+    }
+    actAs(actorBefore)
 
     const tooShort = await call('GET', '/api/search?q=a')
     check('поиск по одной букве отклоняется', tooShort.status === 422)
@@ -1567,6 +1597,25 @@ async function main(): Promise<void> {
       )
     }
     actAs(null)
+  }
+
+  // ── Устаревшая сессия не запирает вход ────────────────────────────────────
+  step('Устаревшая сессия не запирает вход')
+
+  {
+    /*
+     * Cookie сессии остался, а пользователя за ним нет — так бывает после
+     * перезаливки демо-данных. Приложение получает 401 и ведёт на вход
+     * с `reauth=1`; middleware обязан эту страницу пропустить. Раньше вход
+     * возвращал на главную, главная — на вход, и экран оставался пустым.
+     */
+    const stale = { cookie: 'authjs.session-token=stale-session-from-yesterday' }
+    const withReauth = await fetch(`${BASE_URL}/login?${REAUTH_PARAM}=1`, { headers: stale, redirect: 'manual' })
+    check('со старым cookie вход с reauth открывается', withReauth.status === 200, `код ${withReauth.status}`)
+
+    // Обычный заход на вход с живой сессией по-прежнему ведёт на главную.
+    const plain = await fetch(`${BASE_URL}/login`, { headers: stale, redirect: 'manual' })
+    check('без reauth вошедший уходит со входа на главную', plain.status === 307, `код ${plain.status}`)
   }
 
   // ── Блокировка входа называет себя ─────────────────────────────────────────

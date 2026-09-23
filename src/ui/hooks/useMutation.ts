@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { ApiRequestError } from '../lib/api'
+import { leaveToLogin } from '../lib/session'
 
 /**
  * Изменяющий запрос: отправка формы, смена статуса этапа, отметка в чек-листе.
@@ -53,6 +54,9 @@ export function useMutation<TInput, TOutput>(
             ? caught
             : new ApiRequestError('Непредвиденная ошибка', 'INTERNAL', 0)
         setError(apiError)
+        // Без сессии действие не выполнится и со второй попытки: отказ
+        // «Требуется вход» в карточке этапа читался бы как отказ системы.
+        if (apiError.code === 'UNAUTHORIZED') void leaveToLogin()
         return { ok: false, error: apiError }
       } finally {
         setIsPending(false)

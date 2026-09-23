@@ -3,7 +3,7 @@
 .screen {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   align-items: stretch;
 }
 
@@ -192,6 +192,19 @@
   background: var(--danger-surface);
   border: 1px solid rgba(255, 95, 115, 0.3);
   color: var(--text-danger-strong);
+  font-size: var(--text-body-sm-size);
+  line-height: 1.45;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-input);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
   font-size: var(--text-body-sm-size);
   line-height: 1.45;
 }

@@ -88,6 +88,29 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
 }
 
 /**
+ * Все строки списка, по страницам.
+ *
+ * Один запрос с `pageSize=50` видит только первые пятьдесят. На рабочей базе,
+ * где пробник и прошлые прогоны оставили записи, нужная рекомендация уезжала
+ * на вторую страницу, и проверка «сработало правило» падала без ошибки
+ * в приложении.
+ */
+async function callAll<T>(path: string): Promise<{ status: number; rows: T[]; total: number }> {
+  const separator = path.includes('?') ? '&' : '?'
+  const rows: T[] = []
+  let status = 0
+  let total = 0
+  for (let page = 1; page <= 50; page += 1) {
+    const result = await call<T[]>('GET', `${path}${separator}page=${page}&pageSize=100`)
+    status = result.status
+    total = Number(result.body.meta?.total ?? 0)
+    rows.push(...(result.body.data ?? []))
+    if (result.status !== 200 || rows.length >= total || (result.body.data ?? []).length === 0) break
+  }
+  return { status, rows, total }
+}
+
+/**
  * Запрос за файлом: выгрузка отдаёт CSV, а не JSON.
  *
  * Тело читается байтами: `response.text()` по спецификации удаляет BOM при декодировании,
@@ -440,7 +463,10 @@ async function main(): Promise<void> {
     check('программа архивируется', archived.body.data?.status === 'ARCHIVED')
     check('дата архивирования проставлена', Boolean(archived.body.data?.archivedAt))
 
-    const hidden = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=100')
+    // Сужаем по уникальному суффиксу: на рабочей базе программ больше сотни,
+    // и по алфавиту «Программа для архива…» уезжала за первую страницу.
+    const byName = `q=${encodeURIComponent(suffix)}`
+    const hidden = await call<Array<{ id: string }>>('GET', `/api/programs?pageSize=100&${byName}`)
     check(
       'архивная программа скрыта из списка по умолчанию',
       !(hidden.body.data ?? []).some((item) => item.id === archivableId),
@@ -448,7 +474,7 @@ async function main(): Promise<void> {
 
     const visible = await call<Array<{ id: string }>>(
       'GET',
-      '/api/programs?pageSize=100&includeArchived=true',
+      `/api/programs?pageSize=100&includeArchived=true&${byName}`,
     )
     check(
       'архивную программу видно по явному запросу',
@@ -774,20 +800,18 @@ async function main(): Promise<void> {
     `всего ${generated.body.data?.total ?? 0}, создано ${generated.body.data?.created ?? 0}`,
   )
 
-  const recommendations = await call<
-    Array<{
-      id: string
-      ruleKey: string
-      title: string
-      justification: string
-      priority: string
-      confidence: string
-      status: string
-      relatedData: Record<string, unknown> | null
-    }>
-  >('GET', '/api/recommendations?pageSize=50')
+  const recommendations = await callAll<{
+    id: string
+    ruleKey: string
+    title: string
+    justification: string
+    priority: string
+    confidence: string
+    status: string
+    relatedData: Record<string, unknown> | null
+  }>('/api/recommendations')
   check('GET /api/recommendations отвечает 200', recommendations.status === 200)
-  const recs = recommendations.body.data ?? []
+  const recs = recommendations.rows
   check('рекомендации получены', recs.length > 0, `${recs.length} штук`)
   check(
     'у каждой рекомендации есть основание',
@@ -830,11 +854,14 @@ async function main(): Promise<void> {
     `создано заново: ${regenerated.body.data?.created}`,
   )
 
-  const afterRegen = await call<unknown[]>('GET', '/api/recommendations?pageSize=50')
+  // Сравнивается общее число, а не длина страницы: при сотне записей страница
+  // в пятьдесят строк одинакова до и после, и дубликаты прошли бы незамеченными.
+  const afterRegen = await call<unknown[]>('GET', '/api/recommendations?pageSize=1')
+  const totalAfter = Number(afterRegen.body.meta?.total ?? -1)
   check(
     'количество рекомендаций не выросло',
-    (afterRegen.body.data?.length ?? 0) === recs.length,
-    `было ${recs.length}, стало ${afterRegen.body.data?.length ?? 0}`,
+    totalAfter === recommendations.total,
+    `было ${recommendations.total}, стало ${totalAfter}`,
   )
 
   const firstRec = recs[0]
