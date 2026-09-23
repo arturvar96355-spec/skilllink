@@ -14,13 +14,14 @@ import {
   Button,
   Input,
   Modal,
+  RemoteSelect,
   Select,
   apiPost,
   fieldErrors,
   programHref,
   useMutation,
-  useResource,
   useToast,
+  universityFullOption,
 } from '@/ui'
 
 /**
@@ -39,10 +40,6 @@ export function CreateProgramModal({
 }) {
   const router = useRouter()
   const toast = useToast()
-
-  const universities = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100&sort=name',
-  )
 
   const [universityId, setUniversityId] = useState(defaultUniversityId ?? '')
   const [name, setName] = useState('')
@@ -100,16 +97,16 @@ export function CreateProgramModal({
         </>
       }
     >
-      <Select
+      <RemoteSelect<UniversityListItemDto>
         label="Вуз"
         required
+        endpoint="/api/universities"
+        params={{ withRating: 'false', sort: 'name' }}
+        toOption={universityFullOption}
+        searchPlaceholder="Название, краткое название или город"
         value={universityId}
         onValueChange={setUniversityId}
-        placeholder={universities.isLoading ? 'Загрузка…' : 'Выберите вуз'}
-        options={(universities.data ?? []).map((row) => ({
-          value: row.id,
-          label: row.shortName ? `${row.name} (${row.shortName})` : row.name,
-        }))}
+        placeholder="Выберите вуз"
         error={errorFor('universityId')}
       />
       <Input

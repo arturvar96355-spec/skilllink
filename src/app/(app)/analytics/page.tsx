@@ -29,6 +29,7 @@ import {
   NO_DATA,
   PageHeader,
   Progress,
+  RemoteSelect,
   Section,
   Select,
   TableSkeleton,
@@ -41,7 +42,9 @@ import {
   formatPercent,
   formatScore,
   programHref,
+  programWithUniversityOption,
   universityHref,
+  universityShortOption,
   useResource,
   type Column,
   type TabItem,
@@ -271,17 +274,6 @@ function GapsTab({
   const [criticalOnly, setCriticalOnly] = useState(false)
   const [limit, setLimit] = useState(50)
 
-  const universities = useResource<UniversityListItemDto[]>(
-    '/api/universities?withRating=false&pageSize=100&sort=name',
-  )
-  const programs = useResource<ProgramListItemDto[]>(
-    `/api/programs${buildQuery({
-      universityId: universityId || undefined,
-      pageSize: 100,
-      sort: 'name',
-    })}`,
-  )
-
   // Некорректный период не отправляется вовсе: сервер ответил бы ошибкой
   // валидации на каждое нажатие клавиши, а человек просто дописывает номер.
   const isPeriodValid = period === '' || PERIOD_PATTERN.test(period.trim())
@@ -385,8 +377,11 @@ function GapsTab({
     >
       <Toolbar>
         <ToolbarItem>
-          <Select
+          <RemoteSelect<UniversityListItemDto>
             label="Вуз"
+            endpoint="/api/universities"
+            params={{ withRating: 'false', sort: 'name' }}
+            toOption={universityShortOption}
             placeholder="Все вузы"
             value={universityId}
             onValueChange={(value) => {
@@ -395,20 +390,20 @@ function GapsTab({
               // дал бы заведомо пустую выборку.
               setProgramId('')
             }}
-            options={(universities.data ?? []).map((row) => ({
-              value: row.id,
-              label: row.shortName ?? row.name,
-            }))}
           />
         </ToolbarItem>
         <ToolbarItem>
-          <Select
+          <RemoteSelect<ProgramListItemDto>
             label="Программа"
+            endpoint="/api/programs"
+            params={{ universityId: universityId || undefined, sort: 'name' }}
+            toOption={
+              universityId ? (row) => ({ value: row.id, label: row.name }) : programWithUniversityOption
+            }
             placeholder="Все программы"
             hint="Без выбора — сводка по всем действующим"
             value={programId}
             onValueChange={(value) => setProgramId(value)}
-            options={(programs.data ?? []).map((row) => ({ value: row.id, label: row.name }))}
           />
         </ToolbarItem>
         <ToolbarItem>

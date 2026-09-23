@@ -17,6 +17,13 @@ export { Avatar } from './primitives/Avatar'
 export { Tooltip } from './primitives/Tooltip'
 export { Field, Input, Textarea, Checkbox, Toggle } from './primitives/Form'
 export { Select, type SelectOption } from './primitives/Select'
+export { RemoteSelect } from './data/RemoteSelect'
+export {
+  cooperationOption,
+  programWithUniversityOption,
+  universityFullOption,
+  universityShortOption,
+} from './lib/options'
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
