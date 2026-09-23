@@ -367,6 +367,14 @@ function CooperationContent() {
                       {meeting.nextActionDueAt && ` до ${formatDate(meeting.nextActionDueAt)}`}
                     </span>
                   )}
+                  {meeting.participants.length > 0 && (
+                    <span className={styles.blockText}>
+                      Участники:{' '}
+                      {meeting.participants
+                        .map((person) => (person.position ? `${person.name} (${person.position})` : person.name))
+                        .join(', ')}
+                    </span>
+                  )}
                   <span className={styles.factLabel}>
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
