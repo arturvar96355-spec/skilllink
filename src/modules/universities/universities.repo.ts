@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, toSkipTake, parseSort, type Pagination } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { UNIVERSITY_SORT_FIELDS, type UniversityListQuery } from './universities.schema'
@@ -70,7 +71,7 @@ export function buildWhere(
   if (!query.includeArchived) where.archivedAt = null
 
   if (query.q) {
-    const contains = { contains: query.q, mode: 'insensitive' as const }
+    const contains = textContains(query.q)
     where.OR = [
       { name: contains },
       { shortName: contains },
