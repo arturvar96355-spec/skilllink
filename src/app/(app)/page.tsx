@@ -42,6 +42,32 @@ import {
 } from '@/ui'
 import styles from './dashboard.module.css'
 
+/** Знаков после запятой у показателей главной. Остальные — целые. */
+const FRACTION_DIGITS: Record<string, number> = {
+  stagesOnTimePercent: 1,
+  operationsPerCooperation: 1,
+}
+
+/**
+ * Единицы показателей — по числу: сервер присылает одну форму («вузов», «дней»),
+ * и главная писала «4 вузов», «204 дней».
+ */
+const UNIT_FORMS: Record<string, [string, string, string]> = {
+  activeCooperations: ['связь', 'связи', 'связей'],
+  universitiesInWork: ['вуз', 'вуза', 'вузов'],
+  stagesOnTimePercent: ['процент', 'процента', 'процентов'],
+  avgDaysToClasses: ['день', 'дня', 'дней'],
+  operationsPerCooperation: ['операция', 'операции', 'операций'],
+}
+
+/** Единица показателя в нужной форме — по значению, как оно показано. */
+function unitFor(key: string, value: number | null, fallback: string): string {
+  const forms = UNIT_FORMS[key]
+  if (!forms || value === null) return fallback
+  const digits = FRACTION_DIGITS[key] ?? 0
+  return pluralize(Number(value.toFixed(digits)), forms)
+}
+
 /**
  * Подпись над списком проблем.
  *
@@ -212,14 +238,18 @@ export default function DashboardPage() {
               key: metric.key,
               label: metric.title,
               value: metric.value,
-              unit: metric.unit === 'шт' || metric.unit === '%' ? undefined : metric.unit,
+              unit:
+                metric.unit === 'шт' || metric.unit === '%'
+                  ? undefined
+                  : unitFor(metric.key, metric.value, metric.unit),
               explanation: metric.explanation,
-              fractionDigits: metric.unit === '%' ? 1 : 0,
+              // Точность — по показателю: «0,4 операции на связку» округлялось до нуля.
+              fractionDigits: FRACTION_DIGITS[metric.key] ?? 0,
               note:
                 metric.unit === '%'
                   ? metric.basis === 'estimate'
-                    ? 'процентов, оценка'
-                    : 'процентов'
+                    ? `${unitFor(metric.key, metric.value, 'процентов')}, оценка`
+                    : unitFor(metric.key, metric.value, 'процентов')
                   : metric.basis === 'estimate'
                     ? 'оценка'
                     : undefined,
