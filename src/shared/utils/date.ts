@@ -9,11 +9,28 @@ export function toIsoRequired(value: Date): string {
   return value.toISOString()
 }
 
-/** Полных дней от `from` до `to`. Отрицательное значение — `to` уже в прошлом. */
+/**
+ * Смещение московских суток от UTC.
+ *
+ * Сутки считаются по Москве — там же, где их показывает интерфейс
+ * (`TIME_ZONE` в `src/ui/lib/format.ts`). Раньше считались по UTC: срок
+ * «01.10, 01:00» по Москве — это 30.09, 22:00 по UTC, и 30 сентября днём
+ * рядом с датой «01.10» стояло «срок через 0 дн.». Перехода на летнее время
+ * в Москве с 2014 года нет, поэтому смещение постоянное.
+ */
+const BUSINESS_DAY_OFFSET_MS = 3 * 60 * 60 * 1000
+
+/** Номер московских суток — для сравнения дат по календарю, а не по часам. */
+function businessDay(date: Date): number {
+  return Math.floor((date.getTime() + BUSINESS_DAY_OFFSET_MS) / MS_IN_DAY)
+}
+
+/**
+ * Календарных дней от `from` до `to` по московским суткам. Отрицательное
+ * значение — `to` уже в прошлом; ноль — тот же день, даже если часы разные.
+ */
 export function daysBetween(from: Date, to: Date): number {
-  const fromDay = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate())
-  const toDay = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate())
-  return Math.round((toDay - fromDay) / MS_IN_DAY)
+  return businessDay(to) - businessDay(from)
 }
 
 export function addDays(date: Date, days: number): Date {

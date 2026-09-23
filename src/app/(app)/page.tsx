@@ -26,6 +26,7 @@ import {
   Tooltip,
   apiPost,
   cooperationHref,
+  deadlineBadgeText,
   formatDateTime,
   formatNumber,
   formatPercent,
@@ -137,7 +138,7 @@ export default function DashboardPage() {
           </Badge>
         ) : (
           <Badge tone="danger" withDot title={row.reason}>
-            −{Math.abs(row.daysOverdue)} дн.
+            {deadlineBadgeText('overdue', row.daysOverdue, true)}
           </Badge>
         ),
     },
