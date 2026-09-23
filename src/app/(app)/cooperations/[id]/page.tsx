@@ -5,6 +5,7 @@ import { Suspense, useMemo, useState } from 'react'
 import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
+  RECOMMENDATION_SORT_MOST_IMPORTANT,
   type CooperationDto,
   type DocumentListItemDto,
   type DocumentPackageResultDto,
@@ -93,7 +94,11 @@ function CooperationContent() {
    */
   const advice = useResource<RecommendationDto[]>(
     user.permissions.canSeeAnalytics && tab === 'recommendations'
-      ? `/api/recommendations${buildQuery({ cooperationId: params.id, sort: 'priority', pageSize: 50 })}`
+      ? `/api/recommendations${buildQuery({
+          cooperationId: params.id,
+          sort: RECOMMENDATION_SORT_MOST_IMPORTANT,
+          pageSize: 50,
+        })}`
       : null,
   )
   // Этапы держим отдельным состоянием: ответ PATCH возвращает изменённый этап

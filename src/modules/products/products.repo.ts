@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { parseSort, toSkipTake } from '@/shared/http/pagination'
+import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
@@ -55,7 +55,7 @@ export async function findMany(
     prisma.iTProduct.findMany({
       where,
       select: listSelect,
-      orderBy: { [field]: direction },
+      orderBy: buildOrderBy({ field, direction }),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.iTProduct.count({ where }),

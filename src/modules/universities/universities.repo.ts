@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { toSkipTake, parseSort, type Pagination } from '@/shared/http/pagination'
+import { buildOrderBy, toSkipTake, parseSort, type Pagination } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { UNIVERSITY_SORT_FIELDS, type UniversityListQuery } from './universities.schema'
 
@@ -99,7 +99,7 @@ export async function findMany(
     prisma.university.findMany({
       where,
       select: listSelect,
-      orderBy: { [field]: direction },
+      orderBy: buildOrderBy({ field, direction }),
       ...toSkipTake(pagination),
     }),
     prisma.university.count({ where }),

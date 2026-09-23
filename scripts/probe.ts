@@ -8,6 +8,7 @@
  * Запуск: npm run dev, затем npm run probe
  */
 import 'dotenv/config'
+import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -1428,6 +1429,81 @@ async function main(): Promise<void> {
       'каждая показанная проблема есть в списках',
       shown.every((item) => item.stageId !== null && listed.has(item.stageId)),
     )
+    actAs(null)
+  }
+
+  // ── Лента рекомендаций — по важности ──────────────────────────────────────
+  step('Лента рекомендаций — по важности, страницы устойчивы')
+
+  {
+    /*
+     * Приоритет — перечисление LOW < MEDIUM < HIGH < CRITICAL, и сортировка
+     * «по приоритету» по возрастанию ставит сверху наименее важное. Так и было:
+     * лента открывалась рекомендацией средней важности, а критичные
+     * просрочки стояли в самом низу. Проверяем тем же запросом, что делает
+     * интерфейс, и заодно — что при равной важности страницы не теряют
+     * и не повторяют строки.
+     */
+    actAs(adminId)
+    const rank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
+    const sortParam = `sort=${RECOMMENDATION_SORT_MOST_IMPORTANT}`
+    const all = await call<Array<{ id: string; priority: string }>>(
+      'GET',
+      `/api/recommendations?${sortParam}&pageSize=100`,
+    )
+    const rows = all.body.data ?? []
+    const firstOutOfOrder = rows.findIndex(
+      (row, index) => index > 0 && (rank[row.priority] ?? -1) > (rank[rows[index - 1]?.priority ?? ''] ?? -1),
+    )
+    check(
+      'важность в ленте не растёт сверху вниз',
+      rows.length > 1 && firstOutOfOrder === -1,
+      firstOutOfOrder === -1
+        ? `${rows.length} рекомендаций, сверху ${rows[0]?.priority ?? '—'}`
+        : `строка ${firstOutOfOrder + 1} важнее предыдущей`,
+    )
+
+    const paged: string[] = []
+    const total = Number(all.body.meta?.total ?? 0)
+    for (let page = 1; page <= Math.ceil(total / 3) && page <= 40; page += 1) {
+      const chunk = await call<Array<{ id: string }>>(
+        'GET',
+        `/api/recommendations?${sortParam}&page=${page}&pageSize=3`,
+      )
+      paged.push(...(chunk.body.data ?? []).map((row) => row.id))
+    }
+    check(
+      'постраничный обход даёт тот же порядок, что и один запрос',
+      total <= 100 && paged.join() === rows.map((row) => row.id).join(),
+      `${paged.length} строк по страницам, ${new Set(paged).size} разных, всего ${total}`,
+    )
+
+    /*
+     * То же для реестров, где равные значения — норма: десятки программ
+     * одного уровня, связки одного статуса. Сортировка по такому полю без
+     * последнего ключа отдаёт равные строки в произвольном порядке.
+     */
+    for (const list of [
+      '/api/programs?sort=level',
+      '/api/cooperations?sort=status',
+      '/api/universities?sort=status&withRating=false',
+      '/api/documents?sort=status',
+    ]) {
+      const whole = await call<Array<{ id: string }>>('GET', `${list}&pageSize=100`)
+      const expected = (whole.body.data ?? []).map((row) => row.id)
+      const listTotal = Number(whole.body.meta?.total ?? 0)
+      const walked: string[] = []
+      for (let page = 1; page <= Math.ceil(Math.min(listTotal, 100) / 7); page += 1) {
+        const chunk = await call<Array<{ id: string }>>('GET', `${list}&page=${page}&pageSize=7`)
+        walked.push(...(chunk.body.data ?? []).map((row) => row.id))
+      }
+      const comparable = walked.slice(0, expected.length)
+      check(
+        `${list.split('?')[0]}: страницы не повторяют и не теряют строки`,
+        expected.length > 0 && comparable.join() === expected.join(),
+        `${new Set(comparable).size} разных из ${expected.length}`,
+      )
+    }
     actAs(null)
   }
 

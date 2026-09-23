@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { toSkipTake } from '@/shared/http/pagination'
+import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import type { UserListQuery } from './auth.schema'
 
@@ -39,7 +39,7 @@ export async function findMany(query: UserListQuery): Promise<{ rows: UserRow[];
     prisma.user.findMany({
       where,
       select: userSelect,
-      orderBy: [{ role: 'asc' }, { fullName: 'asc' }],
+      orderBy: [{ role: 'asc' }, { fullName: 'asc' }, TIE_BREAKER],
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.user.count({ where }),
