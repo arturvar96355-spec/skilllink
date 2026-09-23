@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
@@ -59,7 +60,7 @@ export async function findMany(
   if (query.cooperationId) where.cooperationId = query.cooperationId
   if (query.universityId) where.universityId = query.universityId
   if (query.programId) where.programId = query.programId
-  if (query.q) where.topic = { contains: query.q, mode: 'insensitive' }
+  if (query.q) where.topic = textContains(query.q)
 
   if (query.from || query.to) {
     where.date = {

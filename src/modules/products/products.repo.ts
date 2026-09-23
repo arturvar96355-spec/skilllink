@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
@@ -42,7 +43,7 @@ export async function findMany(
   if (query.status?.length) where.status = { in: query.status }
   if (query.skillId?.length) where.skills = { some: { skillId: { in: query.skillId } } }
   if (query.q) {
-    const contains = { contains: query.q, mode: 'insensitive' as const }
+    const contains = textContains(query.q)
     where.OR = [{ name: contains }, { category: contains }, { description: contains }]
   }
 
