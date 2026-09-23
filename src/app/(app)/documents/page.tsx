@@ -185,13 +185,13 @@ function DocumentsView() {
     {
       key: 'version',
       title: 'Версия',
-      width: '90px',
+      width: '72px',
       render: (row) => <span className={styles.version}>{row.version}</span>,
     },
     {
       key: 'status',
       title: 'Статус',
-      width: '160px',
+      width: '130px',
       sortField: 'status',
       render: (row) => <DocumentStatusBadge status={row.status} />,
     },
@@ -201,15 +201,11 @@ function DocumentsView() {
       render: (row) => <DocumentLinks links={row.links} />,
     },
     {
-      key: 'author',
-      title: 'Автор',
-      width: '160px',
-      render: (row) => <span className={styles.person}>{row.author?.fullName ?? NO_DATA}</span>,
-    },
-    {
+      // Автор — в карточке документа: в реестре его столбец отнимал место
+      // у названия, и на проекторе оно сжималось в столбик.
       key: 'responsible',
       title: 'Ответственный',
-      width: '160px',
+      width: '150px',
       render: (row) => (
         <span className={styles.person}>{row.responsible?.fullName ?? NO_DATA}</span>
       ),
@@ -217,7 +213,7 @@ function DocumentsView() {
     {
       key: 'dates',
       title: 'Даты',
-      width: '170px',
+      width: '140px',
       render: (row) => (
         <span className={styles.dates}>
           <span className={styles.dateRow}>Выдан: {formatDate(row.issuedAt)}</span>
@@ -232,7 +228,7 @@ function DocumentsView() {
     {
       key: 'updatedAt',
       title: 'Обновлено',
-      width: '150px',
+      width: '124px',
       sortField: 'updatedAt',
       sortDescFirst: true,
       render: (row) => <span className={styles.muted}>{formatDateTime(row.updatedAt)}</span>,
@@ -396,15 +392,15 @@ function DocumentLinks({ links }: { links: DocumentLinksDto }) {
   return (
     <span className={styles.links}>
       {links.universityId && (
-        <Link className={styles.link} href={universityHref(links.universityId)}>
+        <Link className={styles.link} href={universityHref(links.universityId)} title={links.universityName ?? undefined}>
           <Icon name="university" size={16} />
-          {links.universityName ?? 'Вуз'}
+          <span className={styles.linkText}>{links.universityName ?? 'Вуз'}</span>
         </Link>
       )}
       {links.programId && (
-        <Link className={styles.link} href={programHref(links.programId)}>
+        <Link className={styles.link} href={programHref(links.programId)} title={links.programName ?? undefined}>
           <Icon name="program" size={16} />
-          {links.programName ?? 'Программа'}
+          <span className={styles.linkText}>{links.programName ?? 'Программа'}</span>
         </Link>
       )}
       {links.cooperationId && (

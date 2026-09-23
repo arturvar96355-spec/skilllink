@@ -7,6 +7,7 @@ import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { formatNumber, pluralize } from '../lib/format'
 import { startMorph } from '../lib/morph'
+import { tableMinWidth } from './table-width'
 import styles from './Table.module.css'
 
 /**
@@ -79,7 +80,10 @@ export function DataTable<T>({
 
   return (
     <div className={styles.wrapper}>
-      <table className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}>
+      <table
+        className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
+        style={{ minWidth: tableMinWidth(columns) }}
+      >
         {caption && <caption className="visually-hidden">{caption}</caption>}
         <thead>
           <tr>

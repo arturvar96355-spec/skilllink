@@ -120,6 +120,10 @@ export default function ProgramsPage() {
     setPage(1)
   }
 
+  // Пометка «демо» в строке — только если в списке есть и настоящие записи
+  // (об остальном говорит пометка страницы): одинаковый значок в каждой строке — шум.
+  const mixedOrigin = rows.some((row) => row.isMock) && rows.some((row) => !row.isMock)
+
   // Каждая ячейка — в одну строку; вуз — краткое название, полное в подсказке.
   const columns: Column<ProgramListItemDto>[] = [
     {
@@ -128,8 +132,10 @@ export default function ProgramsPage() {
       sortField: 'name',
       render: (row) => (
         <span className={styles.program}>
-          <CellText strong>{row.name}</CellText>
-          {row.isMock && <Badge tone="mock">демо</Badge>}
+          <CellText strong title={row.name}>
+            {row.name}
+          </CellText>
+          {mixedOrigin && row.isMock && <Badge tone="mock">демо</Badge>}
         </span>
       ),
     },
