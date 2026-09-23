@@ -49,6 +49,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { CooperationChain } from './CooperationChain'
+import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
 import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
@@ -68,6 +69,7 @@ function CooperationContent() {
   const toast = useToast()
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
+  const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
@@ -240,6 +242,10 @@ function CooperationContent() {
               <span className={styles.factValue}>{data.responsible.fullName}</span>
             </span>
             <span className={styles.fact}>
+              <span className={styles.factLabel}>Первый контакт</span>
+              <span className={styles.factValue}>{formatDate(data.firstContactAt)}</span>
+            </span>
+            <span className={styles.fact}>
               <span className={styles.factLabel}>Контрольная дата</span>
               <span className={styles.factValue}>{formatDate(data.targetDate)}</span>
             </span>
@@ -247,6 +253,12 @@ function CooperationContent() {
               <span className={styles.factLabel}>Начало занятий</span>
               <span className={styles.factValue}>{formatDate(data.classesStartAt)}</span>
             </span>
+            {data.closedAt && (
+              <span className={styles.fact}>
+                <span className={styles.factLabel}>Закрыта</span>
+                <span className={styles.factValue}>{formatDate(data.closedAt)}</span>
+              </span>
+            )}
           </div>
           {data.goal && <p className={styles.goal}>{data.goal}</p>}
           {data.notes && <p className={styles.goal}>{data.notes}</p>}
@@ -333,6 +345,14 @@ function CooperationContent() {
         </Card>
       )}
 
+      {tab === 'meetings' && user.permissions.canWrite && (
+        <div className={styles.tabActions}>
+          <Button icon="plus" variant="secondary" onClick={() => setIsMeetingOpen(true)}>
+            Записать встречу
+          </Button>
+        </div>
+      )}
+
       {tab === 'meetings' && (
         <Card>
           {meetings.isLoading ? (
@@ -357,6 +377,14 @@ function CooperationContent() {
                       {meeting.nextActionDueAt && ` до ${formatDate(meeting.nextActionDueAt)}`}
                     </span>
                   )}
+                  {meeting.participants.length > 0 && (
+                    <span className={styles.blockText}>
+                      Участники:{' '}
+                      {meeting.participants
+                        .map((person) => (person.position ? `${person.name} (${person.position})` : person.name))
+                        .join(', ')}
+                    </span>
+                  )}
                   <span className={styles.factLabel}>
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
@@ -366,6 +394,16 @@ function CooperationContent() {
             </div>
           )}
         </Card>
+      )}
+
+      {isMeetingOpen && (
+        <CreateMeetingModal
+          cooperationId={params.id}
+          onClose={(created) => {
+            setIsMeetingOpen(false)
+            if (created) meetings.reload()
+          }}
+        />
       )}
 
       {tab === 'recommendations' && (
