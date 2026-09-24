@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { formatNumber, pluralize } from '../lib/format'
@@ -145,7 +145,7 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.map((row, rowIndex) => {
             const key = getRowKey(row)
             const href = getRowHref?.(row)
             return (
@@ -158,6 +158,8 @@ export function DataTable<T>({
                 ]
                   .filter(Boolean)
                   .join(' ')}
+                // Номер строки для волны появления (стили `.row`): дальше 24-й экран кончается.
+                style={{ '--row': Math.min(rowIndex, 24) } as CSSProperties}
                 onClick={
                   href
                     ? (event) => {

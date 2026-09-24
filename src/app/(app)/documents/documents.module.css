@@ -71,6 +71,8 @@
   align-items: baseline;
   min-width: 0;
   white-space: nowrap;
+  /* Страховка: ничего из ячейки не наезжает на соседний столбец. */
+  overflow: hidden;
 }
 
 .linksInline > .link {
@@ -87,6 +89,15 @@
 
 /* Программа — самое длинное: она сжимается, вуз и «Связка» остаются целиком. */
 .linksInline > .link:nth-child(2):not(:last-child) {
+  flex: 0 1000 auto;
+  min-width: 0;
+}
+
+/*
+ * Вуз сжимается тоже, но последним: у вуза без краткого названия полное
+ * название длиннее ячейки, и «· Связка» после него выезжала на соседний столбец.
+ */
+.linksInline > .link:first-child {
   flex: 0 1 auto;
   min-width: 0;
 }

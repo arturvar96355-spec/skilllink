@@ -5,6 +5,8 @@
   overflow-x: auto;
   /* На узком экране таблица прокручивается, а не ломает страницу (раздел 32). */
   -webkit-overflow-scrolling: touch;
+  /* Поле внутри панели: подсвеченная строка — капсулой, не упирается в край. */
+  padding: var(--space-1) var(--space-2);
 }
 
 .table {
@@ -21,19 +23,24 @@
   table-layout: fixed;
 }
 
+/*
+ * Шапка — подписью, а не полосой: мелкие заглавные с разрядкой над тонкой
+ * линией. Тёмная полоса шапки и была главным, от чего реестр читался таблицей
+ * из офисной программы.
+ */
 .th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
   text-align: left;
-  font-size: var(--text-caption-size);
+  font-size: var(--text-kicker-size);
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
   color: var(--text-tertiary);
-  background: var(--surface-floating);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border-divider);
+  background: transparent;
+  border-bottom: 1px solid var(--line-subtle);
   white-space: nowrap;
 }
 
@@ -87,17 +94,54 @@
   cursor: pointer;
 }
 
-/* Таблица — редакционный список (07, раздел 25): лёгкий фон и сдвиг на 4px при наведении. */
-.clickable:hover {
-  background: rgba(255, 255, 255, 0.025);
-}
-
+/*
+ * Таблица — редакционный список (07, раздел 25). Строка под курсором —
+ * капсулой: тон светлее, скруглённые края, фиолетовая метка слева, название
+ * светлеет в акцент; содержимое сдвигается на 4px. Так видно, что строка открывается.
+ */
 .clickable:hover > td {
+  background: var(--surface-2);
   transform: translateX(4px);
 }
 
-.clickable:active {
-  background: rgba(255, 255, 255, 0.04);
+.clickable:hover > td:first-child {
+  box-shadow: inset 2px 0 0 var(--accent-violet);
+}
+
+.clickable:hover [data-morph-title] {
+  color: var(--text-accent-pale);
+}
+
+.clickable:active > td {
+  background: var(--surface-3);
+}
+
+.row > td:first-child {
+  border-top-left-radius: var(--radius-row);
+  border-bottom-left-radius: var(--radius-row);
+}
+
+.row > td:last-child {
+  border-top-right-radius: var(--radius-row);
+  border-bottom-right-radius: var(--radius-row);
+}
+
+/*
+ * Появление: строки проявляются короткой волной сверху вниз — один раз, когда
+ * пришла выдача (новая страница, новый фильтр). Обновление тех же строк и смена
+ * сортировки волны не запускают: элементы строк те же. Задержку задаёт номер
+ * строки (`--row`), не больше 24-й: дальше экран всё равно кончается.
+ */
+.row {
+  animation: rowIn 300ms var(--ease-out) both;
+  animation-delay: calc(var(--row, 0) * 14ms);
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 /* Ссылка на объект занимает всю первую ячейку: по ней удобно попасть,
@@ -113,8 +157,11 @@
   outline-offset: 4px;
 }
 
-.selected {
+.selected > td {
   background: rgba(142, 108, 255, 0.08);
+}
+
+.selected > td:first-child {
   box-shadow: inset 2px 0 0 var(--accent-violet);
 }
 
@@ -130,10 +177,15 @@
   line-height: 1.4;
   height: 32px;
   font-size: var(--text-body-sm-size);
-  font-weight: 500;
+  font-weight: 450;
   color: var(--text-primary);
-  border-bottom: 1px solid var(--border-divider);
+  /* Разделитель — едва видимый: строки держит ритм, а не сетка линий. */
+  border-bottom: 1px solid var(--line-faint);
   vertical-align: middle;
+}
+
+.row:last-child > .td {
+  border-bottom-color: transparent;
 }
 
 .refreshing {
