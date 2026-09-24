@@ -18,11 +18,13 @@ import type {
   DocumentPackageResultDto,
   DocumentTemplateDto,
   GeneratedDocumentDto,
+  SkippedTemplateDto,
 } from '@/shared/contracts/document'
 import {
   DOCUMENT_TEMPLATES,
   TEMPLATE_BY_KEY,
   TEMPLATE_PLACEHOLDERS,
+  placeholderLabel,
 } from '@/shared/config/document-templates.config'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { PROGRAM_LEVEL_FULL_LABELS } from '@/shared/contracts/labels'
@@ -35,7 +37,10 @@ import {
   assertDocumentTransition,
   assertHasLink,
   nextVersion,
+  packageSkipReason,
+  positionInText,
   renderTemplate,
+  type ExistingPackageDocument,
   type TemplateContext,
 } from './documents.rules'
 import type {
@@ -66,6 +71,7 @@ function toListItem(row: repo.DocumentListRow): DocumentListItemDto {
     status: row.status,
     content: row.content,
     templateKey: row.templateKey,
+    templateName: row.templateKey ? (TEMPLATE_BY_KEY.get(row.templateKey)?.name ?? null) : null,
     fileReference: row.fileReference,
     author: row.author,
     responsible: row.responsible,
@@ -294,6 +300,7 @@ export function listTemplates(user: CurrentUser): DocumentTemplateDto[] {
   return DOCUMENT_TEMPLATES.map((template) => ({
     key: template.key,
     type: template.type,
+    name: template.name,
     title: template.title,
     description: template.description,
     inDefaultPackage: template.inDefaultPackage,
@@ -309,8 +316,10 @@ export function listPlaceholders(): string[] {
 /**
  * Собирает пакет документов по связке с автоподстановкой реквизитов (концепция).
  *
- * Документ по уже использованному шаблону повторно не создаётся: иначе повторное нажатие
+ * Шаблон, по которому в связке уже есть действующий документ (собранный или заведённый
+ * вручную, см. findExistingForTemplate), повторно не собирается: иначе повторное нажатие
  * кнопки засыпало бы связку дублями. Пересборка — явным флагом `force`.
+ * Лицензия без выбранного IT-продукта не собирается никогда: у неё нет предмета.
  */
 export async function generatePackage(
   user: CurrentUser,
@@ -348,20 +357,20 @@ export async function generatePackage(
     'university.address': source.university.address,
     'university.website': source.university.website,
     'contact.fullName': contact?.fullName ?? null,
-    'contact.position': contact?.position ?? null,
+    'contact.position': positionInText(contact?.position),
     'program.name': source.program.name,
     'program.level': PROGRAM_LEVEL_FULL_LABELS[source.program.level] ?? source.program.level,
     'program.code': source.program.code,
     'product.name': source.product?.name ?? null,
     'product.version': source.product?.version ?? null,
     'responsible.fullName': source.responsible.fullName,
-    'responsible.position': source.responsible.position,
+    'responsible.position': positionInText(source.responsible.position),
     'cooperation.goal': source.goal,
     date: new Date().toLocaleDateString('ru-RU'),
   }
 
   const created: GeneratedDocumentDto[] = []
-  const skipped: Array<{ templateKey: string; reason: string }> = []
+  const skipped: SkippedTemplateDto[] = []
   const missingFields = new Set<string>()
 
   // Проверка «что уже есть» и создание — одной транзакцией в очереди связки
@@ -369,14 +378,18 @@ export async function generatePackage(
   // дважды и собирало два одинаковых пакета — ровно то, от чего проверка защищает.
   await prisma.$transaction(async (tx) => {
     await lockCooperation(tx, cooperationId)
-    const existingKeys = input.force ? new Set<string>() : await repo.findTemplateKeys(cooperationId, tx)
+    const documents: ExistingPackageDocument[] = input.force
+      ? []
+      : await repo.findPackageDocuments(cooperationId, tx)
 
     for (const template of templates) {
-      if (existingKeys.has(template.key)) {
-        skipped.push({
-          templateKey: template.key,
-          reason: 'Документ по этому шаблону в связке уже есть',
-        })
+      const reason = packageSkipReason(template, {
+        documents,
+        hasProduct: source.product !== null,
+        force: input.force,
+      })
+      if (reason) {
+        skipped.push({ templateKey: template.key, templateName: template.name, reason })
         continue
       }
 
@@ -402,10 +415,21 @@ export async function generatePackage(
         tx,
       )
 
+      // Собранный в этом же вызове тоже считается: ключ, переданный дважды без force, —
+      // один документ.
+      documents.push({
+        title: row.title,
+        type: row.type,
+        status: row.status,
+        templateKey: row.templateKey,
+      })
+
+      const missing = [...new Set([...renderedTitle.missing, ...renderedBody.missing])].sort()
       created.push({
         document: toListItem(row),
         templateKey: template.key,
-        missing: [...new Set([...renderedTitle.missing, ...renderedBody.missing])].sort(),
+        missing,
+        missingLabels: missing.map(placeholderLabel),
       })
     }
   })
@@ -422,11 +446,13 @@ export async function generatePackage(
     },
   })
 
+  const missingSorted = [...missingFields].sort()
   return {
     cooperationId,
     created,
     skipped,
-    missingFields: [...missingFields].sort(),
+    missingFields: missingSorted,
+    missingFieldLabels: missingSorted.map(placeholderLabel),
     generatedAt: new Date().toISOString(),
   }
 }

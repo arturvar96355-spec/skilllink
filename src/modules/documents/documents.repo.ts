@@ -218,16 +218,19 @@ export async function changeStatus(
   })
 }
 
-/** Ключи шаблонов, по которым в связке уже есть документы: пакет не пересобирается вслепую. */
-export async function findTemplateKeys(
+/**
+ * Действующие документы связки, с которыми сверяется пакет: пакет не пересобирается вслепую.
+ * Свежие первыми — в причине пропуска называется последний документ.
+ */
+export async function findPackageDocuments(
   cooperationId: string,
   client: Prisma.TransactionClient = prisma,
-): Promise<Set<string>> {
-  const rows = await client.document.findMany({
-    where: { cooperationId, templateKey: { not: null } },
-    select: { templateKey: true },
+) {
+  return client.document.findMany({
+    where: { cooperationId, status: { not: 'ARCHIVED' } },
+    orderBy: { createdAt: 'desc' },
+    select: { title: true, type: true, status: true, templateKey: true },
   })
-  return new Set(rows.map((row) => row.templateKey).filter((key): key is string => key !== null))
 }
 
 /** Реквизиты для подстановки в шаблоны: всё одним запросом. */

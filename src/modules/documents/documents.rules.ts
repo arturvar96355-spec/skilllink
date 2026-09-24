@@ -1,6 +1,9 @@
 import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
-import { MISSING_PLACEHOLDER } from '@/shared/config/document-templates.config'
-import type { DocumentStatus } from '@/shared/contracts/enums'
+import {
+  MISSING_PLACEHOLDER,
+  type DocumentTemplate,
+} from '@/shared/config/document-templates.config'
+import type { DocumentStatus, DocumentType } from '@/shared/contracts/enums'
 import { DOCUMENT_STATUS_LABELS as STATUS_TEXT } from '@/shared/contracts/labels'
 
 /**
@@ -164,4 +167,75 @@ export function renderTemplate(template: string, context: TemplateContext): Rend
   })
 
   return { text, missing: [...missing].sort() }
+}
+
+/**
+ * Должность в тексте документа: «Представитель вуза: заместитель декана Ветрова И. П.».
+ *
+ * В карточке должность записана с заглавной, как в подписи письма; внутри фразы
+ * она пишется со строчной. Аббревиатуру («ИТ-директор», «CIO») не трогаем:
+ * первая буква опускается, только если за ней строчная.
+ */
+export function positionInText(position: string | null | undefined): string | null {
+  if (typeof position !== 'string') return null
+  const trimmed = position.trim()
+  if (trimmed.length < 2) return trimmed || null
+  const second = trimmed[1]!
+  const secondIsLowercaseLetter = second !== second.toUpperCase()
+  return secondIsLowercaseLetter ? trimmed[0]!.toLowerCase() + trimmed.slice(1) : trimmed
+}
+
+// ───────────────────── Что пакет документов не пересобирает ─────────────────
+
+/** Документ связки, с которым сверяется пакет. */
+export interface ExistingPackageDocument {
+  title: string
+  type: DocumentType
+  status: DocumentStatus
+  templateKey: string | null
+}
+
+/**
+ * Документ, который уже закрывает шаблон.
+ *
+ * Сверка по ключу шаблона ловила только собранное из шаблона. Договор, заведённый
+ * вручную, или новая версия собранного (у неё ключа нет) проходили мимо — и пакет
+ * добавлял к связке второй договор. Поэтому совпадением считается и документ того же
+ * типа: у каждого шаблона свой тип. Архивные не в счёт — их заменили, действующего
+ * документа по ним нет.
+ */
+export function findExistingForTemplate<T extends ExistingPackageDocument>(
+  template: Pick<DocumentTemplate, 'key' | 'type'>,
+  documents: readonly T[],
+): T | null {
+  const active = documents.filter((document) => document.status !== 'ARCHIVED')
+  return (
+    active.find((document) => document.templateKey === template.key) ??
+    active.find((document) => document.type === template.type) ??
+    null
+  )
+}
+
+export const SKIP_REASON_NO_PRODUCT = 'не выбран IT-продукт — выберите его в связке'
+
+/**
+ * Почему шаблон не собирается, или null, если собирается.
+ *
+ * `force` снимает только проверку «уже есть» — это осознанная пересборка.
+ * Лицензию без продукта `force` не собирает: документа «на ______» не бывает.
+ */
+export function packageSkipReason(
+  template: Pick<DocumentTemplate, 'key' | 'type' | 'requiresProduct'>,
+  options: {
+    documents: readonly ExistingPackageDocument[]
+    hasProduct: boolean
+    force?: boolean
+  },
+): string | null {
+  if (template.requiresProduct && !options.hasProduct) return SKIP_REASON_NO_PRODUCT
+  if (options.force) return null
+
+  const existing = findExistingForTemplate(template, options.documents)
+  if (!existing) return null
+  return `уже есть: «${existing.title}», ${STATUS_TEXT[existing.status].toLowerCase()}`
 }

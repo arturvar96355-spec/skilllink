@@ -506,7 +506,7 @@ function CooperationContent() {
               <span className={styles.blockLabel}>Пропущено</span>
               {packageResult.skipped.map((item) => (
                 <span key={item.templateKey} className={styles.blockText}>
-                  {item.templateKey}: {item.reason}
+                  {item.templateName} — {item.reason}
                 </span>
               ))}
             </div>
@@ -519,8 +519,8 @@ function CooperationContent() {
                 <span className={styles.refusalTitle}>
                   Не хватает реквизитов: {formatNumber(packageResult.missingFields.length)}
                 </span>
-                {packageResult.missingFields.join(', ')}. В тексте на их месте стоит прочерк —
-                документ с невидимой дырой подписали бы не глядя.
+                {capitalize(packageResult.missingFieldLabels.join(', '))}. В тексте на их месте
+                стоит прочерк — допишите их в документе или в карточках вуза, программы и связки.
               </span>
             </p>
           )}
@@ -528,6 +528,11 @@ function CooperationContent() {
       )}
     </>
   )
+}
+
+/** Список реквизитов начинается с заглавной: подписи в словаре — строчные, для середины фразы. */
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 /**

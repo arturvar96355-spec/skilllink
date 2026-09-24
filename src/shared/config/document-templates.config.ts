@@ -3,18 +3,32 @@ import type { DocumentType } from '@/shared/contracts/enums'
 /**
  * Шаблоны документов для сборки пакета с автоподстановкой реквизитов (концепция).
  *
- * Тексты помечены TEMP: это рабочие болванки, а не юридически выверенные формы.
- * Реальные формулировки предоставляет заказчик.
+ * TEMP: тексты — рабочие формы, юридической службой не утверждены. Реальные
+ * формулировки предоставляет заказчик. Пометка живёт здесь, а не в самом тексте:
+ * служебная строка «болванка для демонстрации» попадала в документ, который
+ * уходит вузу на согласование.
  * TODO: PM DECISION — утвердить состав пакета и тексты шаблонов с юридической службой.
+ *
+ * Тексты не склоняют подставляемые значения: ФИО и должность встают в именительном
+ * падеже после подписи поля («Представитель вуза: …»). Конструкция «в лице …»
+ * требует родительного падежа, а его из карточки не получить — выходило
+ * «в лице Ветрова Ирина Павловна, Заместитель декана».
  */
 export interface DocumentTemplate {
   key: string
   type: DocumentType
+  /** Название шаблона для людей: в реестре, в итоге сборки пакета. */
+  name: string
   /** Заголовок документа; тоже поддерживает подстановки. */
   title: string
   description: string
   /** Входит ли шаблон в пакет по умолчанию. */
   inDefaultPackage: boolean
+  /**
+   * Без выбранного IT-продукта документ не имеет предмета — он не собирается.
+   * Остальные шаблоны упоминают продукт попутно и собираются с прочерком.
+   */
+  requiresProduct?: boolean
   body: string
 }
 
@@ -43,10 +57,41 @@ export const TEMPLATE_PLACEHOLDERS = [
 
 export type TemplatePlaceholder = (typeof TEMPLATE_PLACEHOLDERS)[number]
 
+/**
+ * Подписи реквизитов для человека. Список недостающих показывается менеджеру,
+ * и «product.name, product.version» ему ничего не говорит — нужно «название
+ * IT-продукта, версия IT-продукта» и понимание, в какой карточке это дописать.
+ * Record по типу подстановки: новый реквизит без подписи не соберётся.
+ */
+export const TEMPLATE_PLACEHOLDER_LABELS: Record<TemplatePlaceholder, string> = {
+  'university.name': 'полное название вуза',
+  'university.shortName': 'краткое название вуза',
+  'university.city': 'город вуза',
+  'university.address': 'адрес вуза',
+  'university.website': 'сайт вуза',
+  'contact.fullName': 'ФИО контактного лица вуза',
+  'contact.position': 'должность контактного лица вуза',
+  'program.name': 'название программы',
+  'program.level': 'уровень программы',
+  'program.code': 'код программы',
+  'product.name': 'название IT-продукта',
+  'product.version': 'версия IT-продукта',
+  'responsible.fullName': 'ФИО ответственного',
+  'responsible.position': 'должность ответственного',
+  'cooperation.goal': 'цель сотрудничества',
+  date: 'дата',
+}
+
+/** Подпись реквизита; неизвестный ключ показывается как есть, чтобы не потеряться. */
+export function placeholderLabel(key: string): string {
+  return (TEMPLATE_PLACEHOLDER_LABELS as Record<string, string>)[key] ?? key
+}
+
 export const DOCUMENT_TEMPLATES: readonly DocumentTemplate[] = [
   {
     key: 'nda',
     type: 'NDA',
+    name: 'Соглашение о неразглашении',
     title: 'Соглашение о неразглашении — {{university.shortName}}',
     description: 'Подписывается до обмена материалами и документацией.',
     inDefaultPackage: true,
@@ -55,20 +100,21 @@ export const DOCUMENT_TEMPLATES: readonly DocumentTemplate[] = [
 Дата: {{date}}
 
 Стороны:
-1. IT Школа РТК, в лице {{responsible.fullName}}, {{responsible.position}}.
+1. ИТ-Школа РТК.
+   Представитель: {{responsible.position}} {{responsible.fullName}}.
 2. {{university.name}} ({{university.shortName}}), {{university.city}},
-   {{university.address}}, в лице {{contact.fullName}}, {{contact.position}}.
+   {{university.address}}.
+   Представитель вуза: {{contact.position}} {{contact.fullName}}.
 
 Предмет: стороны обязуются не разглашать сведения, полученные в ходе сотрудничества
 по образовательной программе «{{program.name}}».
 
-Срок действия: до прекращения сотрудничества и три года после.
-
-TEMP: болванка для демонстрации. Формулировки согласуются с юридической службой.`, // TEMP
+Срок действия: до прекращения сотрудничества и три года после.`, // TEMP
   },
   {
     key: 'agreement',
     type: 'AGREEMENT',
+    name: 'Договор о сотрудничестве',
     title: 'Договор о сотрудничестве — {{university.shortName}}',
     description: 'Основной документ связки: закрепляет предмет и стороны.',
     inDefaultPackage: true,
@@ -76,32 +122,35 @@ TEMP: болванка для демонстрации. Формулировки
 
 Дата: {{date}}
 
-{{university.name}} ({{university.shortName}}), {{university.city}},
-в лице {{contact.fullName}}, {{contact.position}}, с одной стороны,
-и IT Школа РТК, в лице {{responsible.fullName}}, {{responsible.position}},
-с другой стороны, заключили настоящий договор о нижеследующем.
+Стороны:
+1. {{university.name}} ({{university.shortName}}), {{university.city}}.
+   Представитель вуза: {{contact.position}} {{contact.fullName}}.
+2. ИТ-Школа РТК.
+   Представитель: {{responsible.position}} {{responsible.fullName}}.
+
+Стороны заключили настоящий договор о нижеследующем.
 
 1. Предмет договора
 Стороны сотрудничают по образовательной программе «{{program.name}}»
-(код {{program.code}}, уровень {{program.level}}) с применением
-IT-продукта «{{product.name}}» версии {{product.version}}.
+(код {{program.code}}, уровень: {{program.level}}) с применением
+IT-продукта «{{product.name}}», версия {{product.version}}.
 
 2. Цель сотрудничества
 {{cooperation.goal}}
 
 3. Обязательства сторон
-3.1. IT Школа РТК передаёт учебные материалы, лицензию и документацию.
+3.1. ИТ-Школа РТК передаёт учебные материалы, лицензию и документацию.
 3.2. {{university.shortName}} обеспечивает проведение занятий и подтверждает
-     получение переданных материалов.
-
-TEMP: болванка для демонстрации. Формулировки согласуются с юридической службой.`, // TEMP
+     получение переданных материалов.`, // TEMP
   },
   {
     key: 'license',
     type: 'LICENSE',
+    name: 'Лицензия на IT-продукт',
     title: 'Лицензия на IT-продукт «{{product.name}}»',
     description: 'Передаётся на этапе передачи материалов и лицензии.',
     inDefaultPackage: true,
+    requiresProduct: true,
     body: `ЛИЦЕНЗИЯ НА ИСПОЛЬЗОВАНИЕ IT-ПРОДУКТА
 
 Дата: {{date}}
@@ -112,13 +161,12 @@ TEMP: болванка для демонстрации. Формулировки
 Лицензия предоставляется для использования в учебном процессе по указанной
 образовательной программе. Передача третьим лицам не допускается.
 
-Ответственный со стороны IT Школы РТК: {{responsible.fullName}}.
-
-TEMP: болванка для демонстрации. Формулировки согласуются с юридической службой.`, // TEMP
+Ответственный со стороны ИТ-Школы РТК: {{responsible.position}} {{responsible.fullName}}.`, // TEMP
   },
   {
     key: 'materials-act',
     type: 'ACT',
+    name: 'Акт передачи материалов',
     title: 'Акт передачи материалов — {{university.shortName}}',
     description: 'Подтверждает передачу учебных материалов и документации.',
     inDefaultPackage: true,
@@ -126,18 +174,19 @@ TEMP: болванка для демонстрации. Формулировки
 
 Дата: {{date}}
 
-IT Школа РТК передала, а {{university.name}} приняла учебные материалы
-и документацию по IT-продукту «{{product.name}}» версии {{product.version}}
-для образовательной программы «{{program.name}}».
+Передающая сторона: ИТ-Школа РТК.
+Принимающая сторона: {{university.name}}.
 
-Передал: {{responsible.fullName}}, {{responsible.position}}.
-Принял: {{contact.fullName}}, {{contact.position}}.
+Переданы учебные материалы и документация по IT-продукту «{{product.name}}»,
+версия {{product.version}}, для образовательной программы «{{program.name}}».
 
-TEMP: болванка для демонстрации. Формулировки согласуются с юридической службой.`, // TEMP
+Передал: {{responsible.position}} {{responsible.fullName}}.
+Принял: {{contact.position}} {{contact.fullName}}.`, // TEMP
   },
   {
     key: 'curriculum-annex',
     type: 'ANNEX',
+    name: 'Приложение: изменения в программе',
     title: 'Приложение: изменения в программе «{{program.name}}»',
     description: 'Готовится на этапе обновления образовательной программы.',
     inDefaultPackage: false,
@@ -150,9 +199,7 @@ TEMP: болванка для демонстрации. Формулировки
 Предмет приложения: изменения в образовательной программе, связанные
 с внедрением IT-продукта «{{product.name}}».
 
-Разделы, подлежащие обновлению, согласуются сторонами дополнительно.
-
-TEMP: болванка для демонстрации. Формулировки согласуются с юридической службой.`, // TEMP
+Разделы, подлежащие обновлению, согласуются сторонами дополнительно.`, // TEMP
   },
 ]
 

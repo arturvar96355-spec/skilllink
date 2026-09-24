@@ -493,7 +493,9 @@ function DocumentDrawer({
         <div className={styles.drawer}>
           <div className={styles.statusRow}>
             <DocumentStatusBadge status={card.status} />
-            {card.templateKey && <Badge tone="info">Шаблон: {card.templateKey}</Badge>}
+            {card.templateKey && (
+              <Badge tone="info">Шаблон: {card.templateName ?? card.templateKey}</Badge>
+            )}
           </div>
 
           <dl className={styles.facts}>

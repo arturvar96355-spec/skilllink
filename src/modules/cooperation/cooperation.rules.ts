@@ -2,6 +2,7 @@ import { conflict, validationError } from '@/shared/http/errors'
 import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { addDays } from '@/shared/utils/date'
 import type { CooperationStatus } from '@/shared/contracts/enums'
+import { COOPERATION_STATUS_LABELS } from '@/shared/contracts/labels'
 
 export interface NewStageData {
   stageNumber: number
@@ -94,5 +95,28 @@ export function assertCooperationEditable(
   throw conflict(
     'Связка закрыта: её можно только переоткрыть, изменив статус на действующий',
     { status: current },
+  )
+}
+
+/** Незакрытая связка с тем же «вуз + программа + IT-продукт». */
+export interface DuplicateCooperation {
+  id: string
+  status: CooperationStatus
+  universityName: string
+  programName: string
+}
+
+/**
+ * Одна незакрытая связка на «вуз + программа + IT-продукт» (продукт «не выбран» —
+ * тоже значение). Вторая такая же делит с первой этапы, документы и встречи:
+ * работа расползается по двум карточкам, прогресс и просрочки считаются дважды.
+ * Закрытые не мешают — сотрудничество можно начать заново после завершения.
+ */
+export function assertNoDuplicateCooperation(duplicate: DuplicateCooperation | null): void {
+  if (!duplicate) return
+  throw conflict(
+    `Такая связка уже есть: ${duplicate.universityName} — ${duplicate.programName}, ` +
+      `статус «${COOPERATION_STATUS_LABELS[duplicate.status]}»`,
+    { cooperationId: duplicate.id },
   )
 }

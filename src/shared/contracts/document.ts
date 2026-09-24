@@ -23,6 +23,8 @@ export interface DocumentListItemDto {
   content: string | null
   /** Ключ шаблона, из которого собран документ. */
   templateKey: string | null
+  /** Название шаблона по-русски («Договор о сотрудничестве»); null — документ не из шаблона. */
+  templateName: string | null
   author: UserRefDto | null
   responsible: UserRefDto | null
   issuedAt: string | null
@@ -48,6 +50,8 @@ export interface DocumentDto extends DocumentListItemDto {
 export interface DocumentTemplateDto {
   key: string
   type: DocumentType
+  /** Название шаблона по-русски. */
+  name: string
   title: string
   description: string
   inDefaultPackage: boolean
@@ -60,14 +64,26 @@ export interface GeneratedDocumentDto {
   templateKey: string
   /** Реквизиты, которых не хватило: в тексте на их месте прочерки. */
   missing: string[]
+  /** Те же реквизиты подписями для человека, в том же порядке. */
+  missingLabels: string[]
+}
+
+export interface SkippedTemplateDto {
+  templateKey: string
+  /** Название шаблона по-русски — его и показывать, а не ключ. */
+  templateName: string
+  /** «уже есть: «Договор…», черновик» или «не выбран IT-продукт — …». */
+  reason: string
 }
 
 export interface DocumentPackageResultDto {
   cooperationId: string
   created: GeneratedDocumentDto[]
-  /** Шаблоны, пропущенные потому, что документ уже существует. */
-  skipped: Array<{ templateKey: string; reason: string }>
-  /** Сводный список недостающих реквизитов по всему пакету. */
+  /** Шаблоны, которые не собраны: документ уже есть или не выбран IT-продукт. */
+  skipped: SkippedTemplateDto[]
+  /** Сводный список недостающих реквизитов по всему пакету — ключи подстановок. */
   missingFields: string[]
+  /** Те же реквизиты подписями для человека, в том же порядке. */
+  missingFieldLabels: string[]
   generatedAt: string
 }
