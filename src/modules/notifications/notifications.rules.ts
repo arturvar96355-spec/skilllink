@@ -20,6 +20,11 @@ export interface StageDeadlineSource {
   cooperationId: string
   universityName: string
   programName: string
+  /**
+   * Этап не начат и стоит за незавершённой контрольной точкой (`isLockedByControlPoint`):
+   * начать его нельзя, и напоминать о его сроке — значит торопить с запрещённым.
+   */
+  lockedByControlPoint: boolean
 }
 
 /** Смена статуса этапа, сделанная кем-то другим. */
@@ -49,6 +54,10 @@ export interface DocumentChangeSource {
 
 export interface RecommendationSource {
   id: string
+  /** Правило рекомендации: по нему видно, о каком событии она говорит. */
+  ruleKey: string
+  /** Номер этапа, если рекомендация о конкретном этапе (просрочка), иначе null. */
+  stageNumber: number | null
   title: string
   /** Имя объекта: «СПбГУТ — Программная инженерия». Заголовок его не содержит. */
   label: string
@@ -70,6 +79,11 @@ function where(universityName: string, programName: string): string {
 
 function withAuthor(text: string, authorName: string | null): string {
   return authorName ? `${text} · ${authorName}` : text
+}
+
+/** Ключ события «просрочен этап» — вид события и объект, одинаковый у обоих источников. */
+function overdueEventKey(cooperationId: string, stageNumber: number): string {
+  return `stage.overdue:${cooperationId}:${stageNumber}`
 }
 
 const RECOMMENDATION_SEVERITY: Record<RecommendationPriority, NotificationSeverity> = {
@@ -98,7 +112,14 @@ export function buildFeed(
   const { now, since, limit } = options
   const items: Array<Omit<NotificationDto, 'isUnread'>> = []
 
+  // Одно событие — одно уведомление. Просрочку этапа знают два источника: срок
+  // этапа и рекомендация «Просрочен этап N». Остаётся пункт срока: он ведёт прямо
+  // к этапу, где делается работа, и его время — истёкший срок, так что пересборка
+  // рекомендаций не выдаёт давно известную просрочку за новую.
+  const overdueEvents = new Set<string>()
+
   for (const stage of sources.deadlines) {
+    if (stage.lockedByControlPoint) continue
     const target = {
       type: 'cooperation' as const,
       id: stage.cooperationId,
@@ -106,6 +127,7 @@ export function buildFeed(
       stageId: stage.stageId,
     }
     if (isOverdue(stage.deadline, stage.status, now)) {
+      overdueEvents.add(overdueEventKey(stage.cooperationId, stage.stageNumber))
       items.push({
         id: `stage-overdue:${stage.stageId}`,
         kind: 'stage.overdue',
@@ -164,6 +186,14 @@ export function buildFeed(
   }
 
   for (const recommendation of sources.recommendations) {
+    if (
+      recommendation.ruleKey === 'stage.overdue' &&
+      recommendation.cooperationId !== null &&
+      recommendation.stageNumber !== null &&
+      overdueEvents.has(overdueEventKey(recommendation.cooperationId, recommendation.stageNumber))
+    ) {
+      continue
+    }
     items.push({
       id: `recommendation:${recommendation.id}`,
       kind: 'recommendation',

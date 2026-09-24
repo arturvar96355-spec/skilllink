@@ -518,7 +518,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/recommendations/generate',
     tag: 'Рекомендации',
     summary: 'Пересобрать рекомендации по правилам',
-    description: 'Не плодит дубликаты и не переписывает решение сотрудника.',
+    description:
+      'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
+      'вернулась, открывает; отклонённые с основанием не трогает.',
     permission: 'WRITE',
     errors: COMMON_ERRORS,
   },
@@ -544,11 +546,14 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     method: 'patch',
     path: '/api/recommendations/{id}',
     tag: 'Рекомендации',
-    summary: 'Принять, отложить или отклонить рекомендацию',
-    description: 'Отклонение требует комментария с основанием.',
+    summary: 'Принять, взять в работу, закрыть или отклонить рекомендацию',
+    description:
+      'Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию ' +
+      'о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда ' +
+      'условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.',
     permission: 'WRITE',
     body: updateRecommendationSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
 
   // ── Документы ─────────────────────────────────────────────────────────────

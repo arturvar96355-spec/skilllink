@@ -10,6 +10,7 @@ import {
   RECOMMENDATION_STATUS_ACTIONS,
   RECOMMENDATION_STATUSES,
   RECOMMENDATION_STATUS_LABELS,
+  RECOMMENDATION_TRANSITIONS,
   RECOMMENDATION_TYPE_LABELS,
   type RecommendationDto,
   type RecommendationGenerationResultDto,
@@ -57,15 +58,6 @@ const TABS: TabItem[] = [
   { key: 'SKILL', label: 'Навыки' },
   { key: 'ACTION', label: 'Действия' },
 ]
-
-/** Куда можно перевести рекомендацию из текущего состояния. */
-const NEXT_STATUSES: Record<RecommendationStatus, RecommendationStatus[]> = {
-  NEW: ['IN_PROGRESS', 'ACCEPTED', 'DISMISSED'],
-  IN_PROGRESS: ['DONE', 'ACCEPTED', 'DISMISSED'],
-  ACCEPTED: ['DONE', 'DISMISSED'],
-  DISMISSED: ['NEW'],
-  DONE: [],
-}
 
 /** Сквозной номер строки на всех страницах списка: 01, 02 … 21. */
 function rowNumber(page: number, index: number): string {
@@ -305,9 +297,9 @@ function RecommendationsContent() {
                     <span className={styles.status} data-status={item.status}>
                       {RECOMMENDATION_STATUS_LABELS[item.status]}
                     </span>
-                    {user.permissions.canWrite && NEXT_STATUSES[item.status].length > 0 && (
+                    {user.permissions.canWrite && RECOMMENDATION_TRANSITIONS[item.status].length > 0 && (
                       <div className={styles.actions}>
-                        {NEXT_STATUSES[item.status].map((next) => (
+                        {RECOMMENDATION_TRANSITIONS[item.status].map((next) => (
                           <Button
                             key={next}
                             variant={next === 'DISMISSED' ? 'ghost' : 'secondary'}

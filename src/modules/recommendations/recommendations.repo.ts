@@ -3,8 +3,19 @@ import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
 import { latestPeriod } from '@/modules/skills/skills.repo'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
+import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
+import type { RecommendationStatus } from '@/shared/contracts/enums'
 import { RECOMMENDATION_SORT_FIELDS, type RecommendationListQuery } from './recommendations.schema'
-import type { RecommendationDraft } from './recommendations.rules'
+import {
+  COOPERATION_RULE_KEYS,
+  OPEN_RECOMMENDATION_STATUSES,
+  findObsolete,
+  isSameOccurrence,
+  planCooperationSync,
+  recommendationKey,
+  shouldReopen,
+  type RecommendationDraft,
+} from './recommendations.rules'
 
 const recommendationSelect = {
   id: true,
@@ -90,32 +101,33 @@ export interface UpsertResult {
   keys: string[]
 }
 
+/** Поля, которые пересборка переписывает у существующей записи: текст и данные правила. */
+function draftFields(draft: RecommendationDraft) {
+  return {
+    type: draft.type,
+    title: draft.title,
+    description: draft.description,
+    priority: draft.priority,
+    justification: draft.justification,
+    relatedData: draft.relatedData as Prisma.InputJsonValue,
+    confidence: draft.confidence,
+    cooperationId: draft.cooperationId,
+  }
+}
+
 /**
  * Сохраняет черновики правил.
  *
  * Рекомендация опознаётся тройкой (ruleKey, objectType, objectId). Повторная генерация
  * обновляет текст и приоритет существующей записи, но **не трогает статус**: если сотрудник
- * уже отклонил предложение, оно не должно всплывать снова как новое.
- */
-/**
+ * уже отклонил предложение, оно не должно всплывать снова как новое. Исключение —
+ * закрытая запись, чья проблема вернулась (`shouldReopen`).
+ *
  * `drafts` приходят уже в порядке ленты. Новая запись получает время создания
  * на миллисекунду раньше предыдущей: список при равной важности сортируется
  * «сначала новые», и первой окажется самая важная. Без этого три записи,
  * созданные в одну миллисекунду, выстраивались в случайном порядке.
  */
-/**
- * Рекомендацию закрыла система, а не человек: правило перестало её выдавать.
- *
- * Такая запись означает «проблема ушла». Если правило выдаёт её снова — проблема
- * вернулась, и запись открывается заново. Раньше генерация обновляла у неё текст
- * и оставляла «Выполнена»: новая просрочка по той же связке не появлялась ни
- * в ленте, ни на главной, ни в уведомлениях — они читают только открытые.
- * Решение человека (`resolvedById` задан) не переписывается никогда.
- */
-function isClosedBySystem(row: { status: string; resolvedById: string | null }): boolean {
-  return row.status === 'DONE' && row.resolvedById === null
-}
-
 export async function upsertDrafts(
   drafts: RecommendationDraft[],
   generatedAt: Date,
@@ -125,7 +137,7 @@ export async function upsertDrafts(
   const keys: string[] = []
 
   for (const [index, draft] of drafts.entries()) {
-    const key = `${draft.ruleKey}::${draft.objectType}::${draft.objectId}`
+    const key = recommendationKey(draft)
     keys.push(key)
 
     const existing = await prisma.recommendation.findUnique({
@@ -136,11 +148,14 @@ export async function upsertDrafts(
           objectId: draft.objectId,
         },
       },
-      select: { id: true, status: true, resolvedById: true },
+      select: { id: true, status: true, resolvedById: true, ruleKey: true, relatedData: true },
     })
 
     if (existing) {
-      const reopen = isClosedBySystem(existing)
+      const reopen = shouldReopen(existing)
+      // Тот же случай проблемы — время создания прежнее, иначе лента уведомлений
+      // показала бы давно известную просрочку новой.
+      const sameOccurrence = isSameOccurrence(existing, draft)
       await prisma.recommendation.update({
         where: { id: existing.id },
         data: {
@@ -149,18 +164,12 @@ export async function upsertDrafts(
             ? {
                 status: 'NEW' as const,
                 resolvedAt: null,
+                resolvedById: null,
                 resolutionComment: null,
-                createdAt: new Date(generatedAt.getTime() - index),
+                ...(sameOccurrence ? {} : { createdAt: new Date(generatedAt.getTime() - index) }),
               }
             : {}),
-          type: draft.type,
-          title: draft.title,
-          description: draft.description,
-          priority: draft.priority,
-          justification: draft.justification,
-          relatedData: draft.relatedData as Prisma.InputJsonValue,
-          confidence: draft.confidence,
-          cooperationId: draft.cooperationId,
+          ...draftFields(draft),
         },
       })
       if (reopen) created += 1
@@ -224,37 +233,73 @@ export async function upsertDrafts(
  * в ответ из-за лимита показа. Закрывать «лишнее по лимиту» как выполненное нельзя:
  * проблема никуда не делась, а система соврала бы, что её решили.
  *
- * Затрагиваются только открытые записи — решение сотрудника не переписывается.
+ * Затрагиваются открытые записи, включая принятые: «принято» при ушедшей
+ * проблеме оставляло в работе то, что уже неправда. Отклонённые не трогаются —
+ * это решение человека с основанием. Закрывает система: `resolvedById` пуст.
  */
 export async function closeObsolete(actualKeys: string[]): Promise<number> {
   const open = await prisma.recommendation.findMany({
-    where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+    where: { status: { in: [...OPEN_RECOMMENDATION_STATUSES] } },
     select: { id: true, ruleKey: true, objectType: true, objectId: true },
   })
 
-  const actual = new Set(actualKeys)
-  const obsolete = open
-    .filter((row) => !actual.has(`${row.ruleKey}::${row.objectType}::${row.objectId}`))
-    .map((row) => row.id)
+  return closeBySystem(findObsolete(open, actualKeys))
+}
 
-  if (obsolete.length === 0) return 0
-
+async function closeBySystem(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0
   const result = await prisma.recommendation.updateMany({
-    where: { id: { in: obsolete } },
-    data: { status: 'DONE', resolvedAt: new Date() },
+    // Статус проверяется ещё раз: между чтением и записью сотрудник мог отклонить её сам.
+    where: { id: { in: ids }, status: { in: [...OPEN_RECOMMENDATION_STATUSES] } },
+    data: { status: 'DONE', resolvedAt: new Date(), resolvedById: null },
   })
   return result.count
 }
 
+/**
+ * Сверяет открытые рекомендации одной связки с тем, что правила выдают сейчас.
+ *
+ * Вызывается после смены статуса или срока этапа. Новых записей не создаёт
+ * и закрытых не открывает — это дело пересборки. Только то, что уже висит
+ * открытым: всё ещё правда — обновляется текст (просрочка переходит на следующий
+ * этап, число дней), неправда — закрывается системой.
+ */
+export async function syncCooperation(
+  cooperationId: string,
+  drafts: readonly RecommendationDraft[],
+): Promise<{ updated: number; closed: number }> {
+  const open = await prisma.recommendation.findMany({
+    where: {
+      objectType: 'Cooperation',
+      objectId: cooperationId,
+      ruleKey: { in: [...COOPERATION_RULE_KEYS] },
+      status: { in: [...OPEN_RECOMMENDATION_STATUSES] },
+    },
+    select: { id: true, ruleKey: true },
+  })
+
+  const plan = planCooperationSync(open, drafts)
+  for (const { id, draft } of plan.update) {
+    await prisma.recommendation.update({ where: { id }, data: draftFields(draft) })
+  }
+  return { updated: plan.update.length, closed: await closeBySystem(plan.close) }
+}
+
+/**
+ * Меняет статус, только если он всё ещё тот, из которого проверялся переход.
+ * Иначе двойной клик или сотрудник на устаревшей странице переписали бы
+ * чужое решение мимо таблицы переходов. `null` — статус уже другой.
+ */
 export async function updateStatus(
   id: string,
-  status: 'NEW' | 'IN_PROGRESS' | 'ACCEPTED' | 'DISMISSED' | 'DONE',
+  from: RecommendationStatus,
+  status: RecommendationStatus,
   userId: string,
   comment: string | null,
-): Promise<RecommendationRow> {
+): Promise<RecommendationRow | null> {
   const isResolved = status === 'ACCEPTED' || status === 'DISMISSED' || status === 'DONE'
-  return prisma.recommendation.update({
-    where: { id },
+  const changed = await prisma.recommendation.updateMany({
+    where: { id, status: from },
     data: {
       status,
       resolvedById: isResolved ? userId : null,
@@ -262,7 +307,65 @@ export async function updateStatus(
       // Обоснование системы не переписывается: комментарий человека живёт отдельным полем.
       resolutionComment: comment,
     },
-    select: recommendationSelect,
+  })
+  if (changed.count === 0) return null
+  return findById(id)
+}
+
+/** Связка со всем, что нужно правилам по связке (`draftsForCooperation`). */
+const cooperationRuleSelect = {
+  id: true,
+  productId: true,
+  updatedAt: true,
+  university: { select: { id: true, name: true } },
+  program: { select: { id: true, name: true } },
+  stages: {
+    orderBy: { stageNumber: 'asc' },
+    select: {
+      stageNumber: true,
+      title: true,
+      status: true,
+      deadline: true,
+      responsible: { select: { fullName: true } },
+      // Последнее движение по этапу — для правила «связка без движения».
+      history: { select: { changedAt: true }, orderBy: { changedAt: 'desc' }, take: 1 },
+      tasks: {
+        where: { doneAt: { not: null } },
+        select: { doneAt: true },
+        orderBy: { doneAt: 'desc' },
+        take: 1,
+      },
+    },
+  },
+} satisfies Prisma.CooperationSelect
+
+/** Программа со всем, что нужно правилу о недостающих показателях. */
+const programRuleSelect = {
+  id: true,
+  name: true,
+  applicationCount: true,
+  studentCount: true,
+  groupCount: true,
+  university: { select: { name: true } },
+  _count: { select: { cooperations: true } },
+} satisfies Prisma.EducationalProgramSelect
+
+/**
+ * Одна связка для правил. Закрытая связка правилам не нужна — как и в пересборке,
+ * её рекомендации неактуальны: null.
+ */
+export async function loadCooperationForRules(id: string) {
+  return prisma.cooperation.findFirst({
+    where: { id, status: { in: [...OPEN_COOPERATION_STATUSES] } },
+    select: cooperationRuleSelect,
+  })
+}
+
+/** Одна действующая программа для правила о недостающих показателях. */
+export async function loadProgramForRules(id: string) {
+  return prisma.educationalProgram.findFirst({
+    where: { id, ...ACTIVE_PROGRAM_WHERE },
+    select: programRuleSelect,
   })
 }
 
@@ -270,44 +373,12 @@ export async function updateStatus(
 export async function loadGenerationInput() {
   const [cooperations, programs, demand, programSkills, productSkills] = await Promise.all([
     prisma.cooperation.findMany({
-      where: { status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
-      select: {
-        id: true,
-        productId: true,
-        updatedAt: true,
-        university: { select: { id: true, name: true } },
-        program: { select: { id: true, name: true } },
-        stages: {
-          orderBy: { stageNumber: 'asc' },
-          select: {
-            stageNumber: true,
-            title: true,
-            status: true,
-            deadline: true,
-            responsible: { select: { fullName: true } },
-            // Последнее движение по этапу — для правила «связка без движения».
-            history: { select: { changedAt: true }, orderBy: { changedAt: 'desc' }, take: 1 },
-            tasks: {
-              where: { doneAt: { not: null } },
-              select: { doneAt: true },
-              orderBy: { doneAt: 'desc' },
-              take: 1,
-            },
-          },
-        },
-      },
+      where: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
+      select: cooperationRuleSelect,
     }),
     prisma.educationalProgram.findMany({
       where: ACTIVE_PROGRAM_WHERE,
-      select: {
-        id: true,
-        name: true,
-        applicationCount: true,
-        studentCount: true,
-        groupCount: true,
-        university: { select: { name: true } },
-        _count: { select: { cooperations: true } },
-      },
+      select: programRuleSelect,
     }),
     prisma.marketDemand.findMany({
       where: { period: (await latestPeriod()) ?? undefined },

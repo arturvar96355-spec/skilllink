@@ -865,7 +865,10 @@ async function main(): Promise<void> {
     `было ${recommendations.total}, стало ${totalAfter}`,
   )
 
-  const firstRec = recs[0]
+  // Новая: переходы статусов проверяет сервер, и «Принять» есть только у открытой.
+  // В базе после прошлых прогонов первой по времени может оказаться уже закрытая.
+  const firstRec = recs.find((rec) => rec.status === 'NEW')
+  check('есть новая рекомендация для проверки решения сотрудника', Boolean(firstRec))
   if (firstRec) {
     const dismissNoComment = await call('PATCH', `/api/recommendations/${firstRec.id}`, {
       status: 'DISMISSED',
