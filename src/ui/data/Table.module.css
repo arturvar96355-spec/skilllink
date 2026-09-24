@@ -461,3 +461,142 @@
     border-color: var(--line-strong);
   }
 }
+
+/*
+ * Вид «лента» (appearance="list") — компактные карточки, как лента рекомендаций.
+ * Слева первый столбец: название и строка пояснения (её собирает страница).
+ * Справа — несколько фактов, у каждого подпись сверху (`data-label`). Столбцы,
+ * чьё значение уже сказано пояснением, скрыты (`hideInList`), но их заголовок
+ * остаётся кнопкой сортировки. Карточка ~52 px: на экран — 12–14 записей.
+ */
+.list {
+  padding: 0;
+  overflow-x: visible;
+}
+
+.list .table {
+  display: block;
+  min-width: 0 !important;
+}
+
+.list thead,
+.list tbody {
+  display: block;
+}
+
+/* Сортировка — рядом кнопок над лентой. */
+.list thead tr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-3);
+}
+
+.list .th {
+  display: none;
+}
+
+.list .th.sortable {
+  display: inline-flex;
+  align-items: center;
+  width: auto !important;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+
+.list .th.sortable[aria-sort] {
+  color: var(--text-primary);
+  border-color: var(--border-active);
+}
+
+.list tbody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.list .row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: 10px var(--space-5);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-card);
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.list .clickable:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  box-shadow: inset 3px 0 0 var(--accent-violet);
+  transform: translateX(4px);
+}
+
+.list .selected {
+  border-color: var(--border-active);
+  box-shadow: inset 3px 0 0 var(--accent-violet);
+}
+
+.list .td,
+.list .row > td,
+.list .clickable:hover > td,
+.list .selected > td {
+  display: block;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  transform: none;
+  text-align: left;
+}
+
+.list .td:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list .td:not(:first-child) {
+  /* Ширина — от столбца: колонки фактов стоят ровно одна под другой. */
+  flex: 0 0 var(--col-w, 124px);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list .row > .td[data-hidden-in-list] {
+  display: none;
+}
+
+.list .td:not(:first-child)::before {
+  content: attr(data-label);
+  display: block;
+  margin-bottom: 2px;
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 720px) {
+  .list .row {
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-5);
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .list .td:first-child {
+    flex-basis: 100%;
+  }
+}

@@ -42,6 +42,9 @@ import {
   CellText,
   type BadgeTone,
   type Column,
+  ListTitle,
+  Avatar,
+  pluralize,
 } from '@/ui'
 import styles from './products.module.css'
 
@@ -126,17 +129,24 @@ function ProductsView() {
       title: 'Продукт',
       sortField: 'name',
       render: (row) => (
-        <span className={styles.name}>
-          <CellText strong title={row.name}>
-            {row.name}
-          </CellText>
-          {marks.row(row) && <Badge tone="mock">демо</Badge>}
-        </span>
+        // Лента: название и пояснение — категория, версия, навыки.
+        <ListTitle
+          leading={<Avatar name={row.name} kind="entity" size="sm" />}
+          title={row.name}
+          tooltip={row.name}
+          badge={marks.row(row) ? <Badge tone="mock">демо</Badge> : undefined}
+          subline={[
+            row.category,
+            row.version ? `версия ${row.version}` : null,
+            `${formatNumber(row.skillCount)} ${pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])}`,
+          ]}
+        />
       ),
     },
     {
       key: 'category',
       title: 'Категория',
+      hideInList: true,
       sortField: 'category',
       render: (row) => <CellText title={row.category}>{row.category}</CellText>,
     },
@@ -227,12 +237,13 @@ function ProductsView() {
           />
         </Card>
       ) : (
-        <Card padding="none">
+        <Card padding="none" className={styles.registry}>
           <DataTable
             rows={rows}
             columns={columns}
             getRowKey={(row) => row.id}
             getRowHref={(row) => productHref(row.id)}
+            appearance="list"
             selectedKey={openedProductId}
             sort={sort}
             onSortChange={(next) => {

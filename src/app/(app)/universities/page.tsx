@@ -36,6 +36,7 @@ import {
   useResource,
   usePageInRange,
   type Column,
+  ListTitle,
   formatPlace,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
@@ -138,15 +139,17 @@ export default function UniversitiesPage() {
       title: 'Университет',
       sortField: 'name',
       render: (row) => (
-        <span className={styles.name}>
-          <Avatar name={row.shortName ?? row.name} kind="entity" size="xs" />
-          <span className={styles.nameText}>
-            <span className={styles.nameTitle} title={row.name} data-morph-title>
-              {row.name}
-            </span>
-            {row.shortName && <span className={styles.nameSub}>{row.shortName}</span>}
-          </span>
-        </span>
+        // Лента: название и одна строка пояснения — сокращение, город с регионом, связки.
+        <ListTitle
+          leading={<Avatar name={row.shortName ?? row.name} kind="entity" size="sm" />}
+          title={row.name}
+          tooltip={row.name}
+          subline={[
+            row.shortName,
+            formatPlace(row.city, row.region),
+            `${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
+          ]}
+        />
       ),
     },
     {
@@ -154,6 +157,7 @@ export default function UniversitiesPage() {
       title: 'Город',
       width: '150px',
       sortField: 'city',
+      hideInList: true,
       render: (row) => (
         <span className={styles.place} title={formatPlace(row.city, row.region)}>
           {/* Регион — в подсказке: обрывок «Тверская о…» в каждой строке был шумом. */}
@@ -205,6 +209,7 @@ export default function UniversitiesPage() {
       title: 'Связки',
       width: '100px',
       align: 'right',
+      hideInList: true,
       render: (row) => (
         <span className={styles.counts}>
           <span className={styles.countsValue}>{formatNumber(row.activeCooperationCount)}</span>
@@ -325,7 +330,7 @@ export default function UniversitiesPage() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => universityHref(row.id)}
-                appearance="grid"
+                appearance="list"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={universities.isRefreshing}

@@ -49,6 +49,7 @@ import {
   type Column,
   type TabItem,
   formatShare,
+  ListTitle,
 } from '@/ui'
 import styles from './analytics.module.css'
 
@@ -153,11 +154,15 @@ function RatingTab() {
     {
       key: 'program',
       title: 'Программа',
-      render: (row) => <span className={styles.rowTitle}>{row.programName}</span>,
+      // Лента: программа и её вуз строкой пояснения.
+      render: (row) => (
+        <ListTitle title={row.programName} tooltip={`${row.programName} — ${row.universityName}`} subline={[row.universityName]} />
+      ),
     },
     {
       key: 'university',
       title: 'Вуз',
+      hideInList: true,
       width: '200px',
       render: (row) => (
         <Link className={styles.link} href={universityHref(row.universityId)} title={row.universityName}>
@@ -250,7 +255,7 @@ function RatingTab() {
       description="Балл относительный: он сравнивает программы между собой внутри этого ответа и не означает оценку по абсолютной шкале. Считается по трём показателям набора — заявки на обучение, количество обучающихся и количество параллельных групп. Востребованность навыков, дефициты, готовность вуза и просрочки в балл не входят: они показываются отдельными сигналами, чтобы «большая программа» и «программа, отставшая от рынка» не превращались в одно число."
       action={marks.section ? <MockBadge /> : undefined}
     >
-      <Card padding="none">
+      <Card padding="none" className={styles.registry}>
         {rating.isLoading ? (
           <TableSkeleton rows={6} columns={5} />
         ) : rating.error ? (
@@ -267,6 +272,7 @@ function RatingTab() {
             columns={columns}
             getRowKey={(row) => row.programId}
             getRowHref={(row) => programHref(row.programId)}
+            appearance="list"
             isRefreshing={rating.isRefreshing}
             caption="Рейтинг образовательных программ"
           />

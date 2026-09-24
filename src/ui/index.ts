@@ -27,6 +27,7 @@ export {
 
 export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
+export { ListTitle } from './data/ListTitle'
 export { mockMarks, type MockMarks } from './data/origin'
 export { KpiCard, KpiRow, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
 export {

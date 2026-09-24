@@ -43,6 +43,7 @@ import {
   useResource,
   usePageInRange,
   type Column,
+  ListTitle,
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
 import styles from './programs.module.css'
@@ -129,28 +130,26 @@ export default function ProgramsPage() {
       sortField: 'name',
       render: (row) => {
         const details = [row.code, row.direction].filter(Boolean).join(' · ')
+        // Лента: название и пояснение — вуз, уровень со сроком, код.
         return (
-          <span className={styles.program}>
-            <span className={styles.programText}>
-              <span className={styles.programName}>
-                {/* Код и направление — в подсказке: в строке они превращали реестр в сплошной текст. */}
-                <span
-                  className={styles.programTitle}
-                  title={details ? `${row.name} — ${details}` : row.name}
-                  data-morph-title
-                >
-                  {row.name}
-                </span>
-                {marks.row(row) && <Badge tone="mock">демо</Badge>}
-              </span>
-            </span>
-          </span>
+          <ListTitle
+            leading={<Avatar name={row.universityShortName ?? row.universityName} kind="entity" size="sm" />}
+            title={row.name}
+            tooltip={details ? `${row.name} — ${details}` : row.name}
+            badge={marks.row(row) ? <Badge tone="mock">демо</Badge> : undefined}
+            subline={[
+              row.universityShortName ?? row.universityName,
+              `${PROGRAM_LEVEL_LABELS[row.level]}, ${formatDuration(row.durationMonths)}`,
+              row.code,
+            ]}
+          />
         )
       },
     },
     {
       key: 'university',
       title: 'Вуз',
+      hideInList: true,
       width: '145px',
       render: (row) => (
         <span className={styles.university} title={row.universityName}>
@@ -163,6 +162,7 @@ export default function ProgramsPage() {
       // Срок — под уровнем: отдельным узким столбцом он читался как ещё одно число.
       key: 'level',
       title: 'Уровень',
+      hideInList: true,
       width: '125px',
       sortField: 'level',
       render: (row) => (
@@ -341,7 +341,7 @@ export default function ProgramsPage() {
             columns={columns}
             getRowKey={(row) => row.id}
             getRowHref={(row) => programHref(row.id)}
-            appearance="grid"
+            appearance="list"
             sort={sort}
             onSortChange={(next) => {
               setSort(next)

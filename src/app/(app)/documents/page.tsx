@@ -59,6 +59,7 @@ import {
   type Column,
   type SelectOption,
   formatPersonShort,
+  ListTitle,
 } from '@/ui'
 import styles from './documents.module.css'
 
@@ -174,16 +175,17 @@ function DocumentsView() {
       title: 'Документ',
       sortField: 'title',
       render: (row) => (
-        <span
-          className={styles.titleCell}
-          title={`${row.title} · ${DOCUMENT_TYPE_LABELS[row.type]}${row.templateKey ? ' · собран из шаблона' : ''}`}
-        >
-          <span className={styles.docTitle}>{row.title}</span>
-          <span className={styles.docMeta}>
-            {DOCUMENT_TYPE_LABELS[row.type]}
-            {row.templateKey && ' · собран из шаблона'}
-          </span>
-        </span>
+        // Лента: название и пояснение — тип, вуз, версия.
+        <ListTitle
+          title={row.title}
+          tooltip={`${row.title} · ${DOCUMENT_TYPE_LABELS[row.type]}${row.templateKey ? ' · собран из шаблона' : ''}`}
+          subline={[
+            DOCUMENT_TYPE_LABELS[row.type],
+            row.links.universityShortName ?? row.links.universityName,
+            `версия ${row.version}`,
+            row.templateKey && 'собран из шаблона',
+          ]}
+        />
       ),
     },
     {
@@ -196,6 +198,7 @@ function DocumentsView() {
     {
       key: 'links',
       title: 'К чему относится',
+      hideInList: true,
       width: '200px',
       render: (row) => <DocumentLinks links={row.links} inline />,
     },
@@ -315,7 +318,7 @@ function DocumentsView() {
       </Toolbar>
 
       <Section>
-        <Card padding="none">
+        <Card padding="none" className={styles.registry}>
           {documents.isLoading ? (
             <TableSkeleton rows={8} columns={6} />
           ) : documents.error ? (
@@ -337,6 +340,7 @@ function DocumentsView() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => documentHref(row.id)}
+                appearance="list"
                 selectedKey={openedId}
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}

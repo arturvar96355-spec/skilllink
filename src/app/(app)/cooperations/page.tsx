@@ -37,6 +37,7 @@ import {
   useResource,
   usePageInRange,
   type Column,
+  ListTitle,
 } from '@/ui'
 import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
@@ -179,25 +180,17 @@ function CooperationsView() {
       title: 'Связка',
       render: (row) => {
         const university = row.universityShortName ?? row.universityName
+        // Лента: вуз — программа, под ними продукт и ответственный.
         return (
-          <span className={styles.route}>
-            <Avatar name={university} kind="entity" size="xs" />
-            <span className={styles.routeText}>
-              <span
-                className={styles.routeTitle}
-                title={`${row.universityName} — ${row.programName}`}
-                data-morph-title
-              >
-                {university} — {row.programName}
-              </span>
-              <span className={styles.routeProduct}>
-                <span className={styles.routeArrow} aria-hidden>
-                  →
-                </span>
-                {row.productName ?? <span className={styles.routeMissing}>продукт не выбран</span>}
-              </span>
-            </span>
-          </span>
+          <ListTitle
+            leading={<Avatar name={university} kind="entity" size="sm" />}
+            title={`${university} — ${row.programName}`}
+            tooltip={`${row.universityName} — ${row.programName}`}
+            subline={[
+              row.productName ? `→ ${row.productName}` : 'продукт не выбран',
+              row.responsible.fullName,
+            ]}
+          />
         )
       },
     },
@@ -377,7 +370,7 @@ function CooperationsView() {
                 columns={columns}
                 getRowKey={(row) => row.id}
                 getRowHref={(row) => cooperationHref(row.id)}
-                appearance="grid"
+                appearance="list"
                 sort={sort}
                 onSortChange={(next) => changeFilter(() => setSort(next))}
                 isRefreshing={cooperations.isRefreshing}
