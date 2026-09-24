@@ -23,11 +23,23 @@ const SESSION_COOKIES = [
 
 const PUBLIC_PATHS = ['/login']
 
+/**
+ * Открыты всем — и с сессией, и без: презентация проекта для защиты и её файлы
+ * в `public/presentation/`. Данных системы не содержат, в API не ходят.
+ */
+const OPEN_PATHS = ['/presentation']
+
+function matches(paths: readonly string[], pathname: string): boolean {
+  return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
 
+  if (matches(OPEN_PATHS, pathname)) return NextResponse.next()
+
   const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name))
-  const isPublic = PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
+  const isPublic = matches(PUBLIC_PATHS, pathname)
 
   if (!hasSession && !isPublic) {
     const url = request.nextUrl.clone()
