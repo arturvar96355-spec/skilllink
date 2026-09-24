@@ -7,23 +7,43 @@ import styles from './login.module.css'
  * 3D-созвездие «Вузы × IT-компании» за экраном входа (07, раздел 31: Three.js —
  * только для необязательной картинки входа и только с запасным вариантом).
  *
- * Два скопления светящихся точек — вузы вверху слева, IT-компании внизу справа, — между ними
- * тонкие связи, по связям бегут импульсы: знак SkillLink, разложенный в пространство.
- * Сцена медленно покачивается и поворачивается за курсором; при появлении камера
- * подлетает издалека, после входа — пролетает сквозь созвездие в приложение.
+ * Два скопления светящихся точек — вузы вверху слева, IT-компании внизу справа, —
+ * между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
+ * Сцена покачивается и поворачивается за курсором; при появлении камера подлетает.
  *
- * Бережно к устройству (навык ui-ux-pro-max, раздел Three.js):
- * - Three.js подгружается отдельно и только здесь — к остальному сайту не добавляется;
- * - частицы — одним `Points` на `BufferGeometry`, всего ~2,4 тыс. (1,2 тыс. на узком экране);
- * - плотность пикселей не выше 1,5, кадры не считаются во скрытой вкладке;
- * - «уменьшить движение» — один неподвижный кадр; нет WebGL — сцены нет,
- *   остаётся обычный фон страницы.
+ * Вход — «варп в систему» (решение 72):
+ * 1. скопления летят навстречу и сливаются в центре — связь установлена;
+ * 2. камера ныряет сквозь ядро, звёзды растягиваются навстречу, вспышка;
+ * 3. из вспышки проступает сайт — его рабочая область выплывает из глубины
+ *    (продолжение — `.arrival` в ui/layout/Shell.module.css).
+ * Экран входа уходит на середине прыжка, поэтому холст на время прыжка
+ * переносится в `body` поверх всего и доигрывает уже над сайтом, а потом гаснет
+ * и освобождает ресурсы сам.
+ *
+ * Бережно к устройству (навык ui-ux-pro-max, раздел Three.js): библиотека
+ * грузится динамическим import() только здесь и после показа страницы; частицы —
+ * `Points` на `BufferGeometry`, ~2,4 тыс. (вдвое меньше на узком экране); плотность
+ * пикселей ≤ 1,5; во скрытой вкладке кадры не считаются. «Уменьшить движение» —
+ * один неподвижный кадр и вход без прыжка; нет WebGL — сцены нет.
  */
 
 const LINKS = 28
 const BRAND_VIOLET = 0x8e6cff
 const BRAND_PINK = 0xed5aa7
 const LIGHT = 0xf3f1ed
+
+/** Прыжок целиком: слияние, нырок, вспышка, угасание над сайтом. */
+const WARP_MS = 1500
+/** Доли прыжка: к этому моменту скопления слились… */
+const MERGE_END = 0.42
+/** …с этого камера ныряет… */
+const DIVE_START = 0.3
+/** …а с этого холст гаснет, открывая сайт. */
+const FADE_START = 0.72
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+const easeIn = (t: number) => t * t * t
 
 /** Точка с нормальным разбросом вокруг центра — скопление плотное в середине. */
 function gaussian(): number {
@@ -40,11 +60,13 @@ export function Constellation() {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    let disposed = false
-    let cleanup = () => {}
+    let unmounted = false
+    // Прыжок начался: холст передан сайту и уберёт себя сам.
+    let handedOff = false
+    let dispose = () => {}
 
     void import('three').then((THREE) => {
-      if (disposed) return
+      if (unmounted) return
 
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
       const narrow = window.innerWidth < 720
@@ -65,9 +87,8 @@ export function Constellation() {
       camera.position.set(0, 0, reduced ? 14 : 26)
 
       const world = new THREE.Group()
-      // Скопления — в пустых углах экрана (вузы — вверху слева над описанием,
-      // IT-компании — внизу справа под формой), связи — по диагонали через
-      // свободную середину: ни заголовок, ни форму сцена не пересекает.
+      // Скопления — в пустых углах экрана, связи — по диагонали через свободную
+      // середину: ни заголовок, ни форму сцена не пересекает.
       world.position.set(0, 0, -1.5)
       scene.add(world)
 
@@ -84,91 +105,101 @@ export function Constellation() {
         ctx.fillRect(0, 0, 64, 64)
       }
       const dot = new THREE.CanvasTexture(dotCanvas)
+      const pointsMaterial = (size: number, extra: Record<string, unknown> = {}) =>
+        new THREE.PointsMaterial({
+          size,
+          map: dot,
+          transparent: true,
+          opacity: 0,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          ...extra,
+        })
 
       const hubs = [
-        { center: new THREE.Vector3(narrow ? -2.4 : -6.2, narrow ? 4.2 : 3.6, 0), from: new THREE.Color(LIGHT), to: new THREE.Color(BRAND_VIOLET) },
-        { center: new THREE.Vector3(narrow ? 2.4 : 7.4, narrow ? -4.2 : -4.6, -0.6), from: new THREE.Color(BRAND_VIOLET), to: new THREE.Color(BRAND_PINK) },
+        {
+          home: new THREE.Vector3(narrow ? -2.4 : -6.2, narrow ? 4.2 : 3.6, 0),
+          from: new THREE.Color(LIGHT),
+          to: new THREE.Color(BRAND_VIOLET),
+          core: LIGHT,
+        },
+        {
+          home: new THREE.Vector3(narrow ? 2.4 : 7.4, narrow ? -4.2 : -4.6, -0.6),
+          from: new THREE.Color(BRAND_VIOLET),
+          to: new THREE.Color(BRAND_PINK),
+          core: BRAND_VIOLET,
+        },
       ]
 
-      // ── Скопления и рассеянное поле ─────────────────────────────────────────
+      // ── Скопления: у каждого своя группа — их можно свести вместе ──────────
       const clusterSize = Math.round(900 * scale)
-      const fieldSize = Math.round(600 * scale)
-      const total = clusterSize * 2 + fieldSize
-      const positions = new Float32Array(total * 3)
-      const colors = new Float32Array(total * 3)
       const color = new THREE.Color()
-      const anchors: InstanceType<typeof THREE.Vector3>[][] = [[], []]
-      let cursor = 0
-      hubs.forEach((hub, hubIndex) => {
-        for (let i = 0; i < clusterSize; i += 1) {
-          const x = hub.center.x + gaussian() * 1.5
-          const y = hub.center.y + gaussian() * 1.15
-          const z = hub.center.z + gaussian() * 1.5
-          positions.set([x, y, z], cursor * 3)
-          const t = Math.min(1, Math.hypot(x - hub.center.x, y - hub.center.y, z - hub.center.z) / 2.4)
-          color.copy(hub.from).lerp(hub.to, t).multiplyScalar(0.75 + 0.5 * (1 - t))
-          colors.set([color.r, color.g, color.b], cursor * 3)
-          // Ядро скопления — концы связей.
-          if (t < 0.35 && anchors[hubIndex]!.length < 120) anchors[hubIndex]!.push(new THREE.Vector3(x, y, z))
-          cursor += 1
-        }
-      })
-      for (let i = 0; i < fieldSize; i += 1) {
-        positions.set([(Math.random() - 0.5) * 22, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12 - 2], cursor * 3)
-        color.set(BRAND_VIOLET).multiplyScalar(0.25 + Math.random() * 0.25)
-        colors.set([color.r, color.g, color.b], cursor * 3)
-        cursor += 1
-      }
-      const starsGeometry = new THREE.BufferGeometry()
-      starsGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-      starsGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-      const starsMaterial = new THREE.PointsMaterial({
-        size: 0.11,
-        map: dot,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      })
-      world.add(new THREE.Points(starsGeometry, starsMaterial))
+      const geometries: Array<InstanceType<typeof THREE.BufferGeometry>> = []
+      const clusterMaterial = pointsMaterial(0.11, { vertexColors: true })
+      const coreMaterial = pointsMaterial(1.4, { vertexColors: true })
+      const clusters = hubs.map((hub) => {
+        const group = new THREE.Group()
+        group.position.copy(hub.home)
+        world.add(group)
 
-      // ── Центры скоплений — две точки знака SkillLink ────────────────────────
-      const hubGeometry = new THREE.BufferGeometry()
-      hubGeometry.setAttribute(
-        'position',
-        new THREE.BufferAttribute(new Float32Array([...hubs[0]!.center.toArray(), ...hubs[1]!.center.toArray()]), 3),
-      )
-      hubGeometry.setAttribute(
-        'color',
-        new THREE.BufferAttribute(new Float32Array([...new THREE.Color(LIGHT).toArray(), ...new THREE.Color(BRAND_VIOLET).toArray()]), 3),
-      )
-      const hubMaterial = new THREE.PointsMaterial({
-        size: 1.4,
-        map: dot,
-        vertexColors: true,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        const positions = new Float32Array(clusterSize * 3)
+        const colors = new Float32Array(clusterSize * 3)
+        const anchors: Array<InstanceType<typeof THREE.Vector3>> = []
+        for (let i = 0; i < clusterSize; i += 1) {
+          const x = gaussian() * 1.5
+          const y = gaussian() * 1.15
+          const z = gaussian() * 1.5
+          positions.set([x, y, z], i * 3)
+          const t = Math.min(1, Math.hypot(x, y, z) / 2.4)
+          color.copy(hub.from).lerp(hub.to, t).multiplyScalar(0.75 + 0.5 * (1 - t))
+          colors.set([color.r, color.g, color.b], i * 3)
+          // Ядро скопления — концы связей.
+          if (t < 0.35 && anchors.length < 120) anchors.push(new THREE.Vector3(x, y, z))
+        }
+        const geometry = new THREE.BufferGeometry()
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+        group.add(new THREE.Points(geometry, clusterMaterial))
+
+        // Центр скопления — одна из двух точек знака SkillLink.
+        const core = new THREE.BufferGeometry()
+        core.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3))
+        core.setAttribute('color', new THREE.BufferAttribute(new Float32Array(new THREE.Color(hub.core).toArray()), 3))
+        group.add(new THREE.Points(core, coreMaterial))
+        geometries.push(geometry, core)
+        return { group, anchors, home: hub.home }
       })
-      world.add(new THREE.Points(hubGeometry, hubMaterial))
+
+      // ── Рассеянное поле — звёздная пыль вокруг ──────────────────────────────
+      const fieldSize = Math.round(600 * scale)
+      const fieldPositions = new Float32Array(fieldSize * 3)
+      const fieldColors = new Float32Array(fieldSize * 3)
+      for (let i = 0; i < fieldSize; i += 1) {
+        fieldPositions.set([(Math.random() - 0.5) * 22, (Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12 - 2], i * 3)
+        color.set(BRAND_VIOLET).multiplyScalar(0.25 + Math.random() * 0.25)
+        fieldColors.set([color.r, color.g, color.b], i * 3)
+      }
+      const fieldGeometry = new THREE.BufferGeometry()
+      fieldGeometry.setAttribute('position', new THREE.BufferAttribute(fieldPositions, 3))
+      fieldGeometry.setAttribute('color', new THREE.BufferAttribute(fieldColors, 3))
+      const fieldMaterial = pointsMaterial(0.11, { vertexColors: true })
+      const field = new THREE.Points(fieldGeometry, fieldMaterial)
+      world.add(field)
+      geometries.push(fieldGeometry)
 
       // ── Связи между скоплениями и импульсы по ним ───────────────────────────
+      const [left, right] = clusters as [(typeof clusters)[number], (typeof clusters)[number]]
       const links: Array<[InstanceType<typeof THREE.Vector3>, InstanceType<typeof THREE.Vector3>]> = []
       for (let i = 0; i < LINKS; i += 1) {
-        const a = anchors[0]![Math.floor(Math.random() * anchors[0]!.length)]
-        const b = anchors[1]![Math.floor(Math.random() * anchors[1]!.length)]
+        const a = left.anchors[Math.floor(Math.random() * left.anchors.length)]
+        const b = right.anchors[Math.floor(Math.random() * right.anchors.length)]
         if (a && b) links.push([a, b])
       }
       const linePositions = new Float32Array(links.length * 6)
       const lineColors = new Float32Array(links.length * 6)
       const violet = new THREE.Color(BRAND_VIOLET)
       const pink = new THREE.Color(BRAND_PINK)
-      links.forEach(([a, b], i) => {
-        linePositions.set([...a.toArray(), ...b.toArray()], i * 6)
-        lineColors.set([...violet.toArray(), ...pink.toArray()], i * 6)
-      })
+      links.forEach((_, i) => lineColors.set([...violet.toArray(), ...pink.toArray()], i * 6))
       const lineGeometry = new THREE.BufferGeometry()
       lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
       lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3))
@@ -180,22 +211,39 @@ export function Constellation() {
         blending: THREE.AdditiveBlending,
       })
       world.add(new THREE.LineSegments(lineGeometry, lineMaterial))
+      geometries.push(lineGeometry)
 
       const pulsePositions = new Float32Array(links.length * 3)
       const pulseGeometry = new THREE.BufferGeometry()
       pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3))
-      const pulseMaterial = new THREE.PointsMaterial({
-        size: 0.22,
-        map: dot,
-        color: 0xd6ccff,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-      })
+      const pulseMaterial = pointsMaterial(0.22, { color: 0xd6ccff })
       world.add(new THREE.Points(pulseGeometry, pulseMaterial))
+      geometries.push(pulseGeometry)
       const phases = links.map(() => Math.random())
       const speeds = links.map(() => 0.12 + Math.random() * 0.18)
+
+      /** Связи и импульсы — по текущему положению скоплений: при слиянии они сжимаются. */
+      const a = new THREE.Vector3()
+      const b = new THREE.Vector3()
+      const updateLinks = (time: number) => {
+        links.forEach(([fromAnchor, toAnchor], i) => {
+          a.copy(fromAnchor).multiplyScalar(left.group.scale.x).add(left.group.position)
+          b.copy(toAnchor).multiplyScalar(right.group.scale.x).add(right.group.position)
+          linePositions.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6)
+          const t = (phases[i]! + time * speeds[i]!) % 1
+          pulsePositions.set([a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t], i * 3)
+        })
+        lineGeometry.attributes.position!.needsUpdate = true
+        pulseGeometry.attributes.position!.needsUpdate = true
+      }
+
+      const setOpacity = (value: number) => {
+        clusterMaterial.opacity = value
+        coreMaterial.opacity = value
+        fieldMaterial.opacity = value
+        lineMaterial.opacity = value * 0.16
+        pulseMaterial.opacity = value
+      }
 
       // ── Поворот за курсором ─────────────────────────────────────────────────
       let pointerX = 0
@@ -214,72 +262,107 @@ export function Constellation() {
       }
       window.addEventListener('resize', onResize)
 
-      const setOpacity = (value: number) => {
-        starsMaterial.opacity = value
-        hubMaterial.opacity = value
-        lineMaterial.opacity = value * 0.16
-        pulseMaterial.opacity = value
-      }
-
-      const updatePulses = (time: number) => {
-        links.forEach(([a, b], i) => {
-          const t = (phases[i]! + time * speeds[i]!) % 1
-          pulsePositions[i * 3] = a.x + (b.x - a.x) * t
-          pulsePositions[i * 3 + 1] = a.y + (b.y - a.y) * t
-          pulsePositions[i * 3 + 2] = a.z + (b.z - a.z) * t
-        })
-        pulseGeometry.attributes.position!.needsUpdate = true
-      }
-
+      // Вспышка прыжка — слой поверх холста, создаётся при передаче холста сайту.
+      let flash: HTMLDivElement | null = null
       let frame = 0
-      if (reduced) {
-        // Неподвижный кадр: та же картина, без движения.
-        setOpacity(1)
-        world.rotation.set(0.05, 0.1, 0)
-        updatePulses(0.4)
-        renderer.render(scene, camera)
-      } else {
-        const start = performance.now()
-        let leavingSince: number | null = null
-        const loop = (now: number) => {
-          frame = requestAnimationFrame(loop)
-          if (document.hidden) return
-          const time = (now - start) / 1000
-          const intro = Math.min(1, time / 1.8)
-          const eased = 1 - Math.pow(1 - intro, 3)
-
-          // После входа — пролёт сквозь созвездие (форма входа уходит за 420 мс).
-          if (document.body.dataset.authLeaving && leavingSince === null) leavingSince = now
-          const leave = leavingSince === null ? 0 : Math.min(1, (now - leavingSince) / 420)
-          const leaveEased = leave * leave
-
-          camera.position.z = 26 - 12 * eased - 11 * leaveEased
-          setOpacity(eased * (1 - leaveEased * 0.8))
-
-          // Лёгкое покачивание вместо полного оборота: скопления остаются в своих углах.
-          world.rotation.y += (pointerX * 0.35 + Math.sin(time * 0.15) * 0.12 - world.rotation.y) * 0.04
-          world.rotation.x += (pointerY * 0.22 + Math.cos(time * 0.12) * 0.05 - world.rotation.x) * 0.04
-          updatePulses(time)
-          renderer.render(scene, camera)
-        }
-        frame = requestAnimationFrame(loop)
-      }
-
-      cleanup = () => {
+      let disposed = false
+      dispose = () => {
+        if (disposed) return
+        disposed = true
         cancelAnimationFrame(frame)
         window.removeEventListener('pointermove', onPointer)
         window.removeEventListener('resize', onResize)
-        ;[starsGeometry, hubGeometry, lineGeometry, pulseGeometry].forEach((geometry) => geometry.dispose())
-        ;[starsMaterial, hubMaterial, lineMaterial, pulseMaterial].forEach((material) => material.dispose())
+        geometries.forEach((geometry) => geometry.dispose())
+        ;[clusterMaterial, coreMaterial, fieldMaterial, lineMaterial, pulseMaterial].forEach((material) =>
+          material.dispose(),
+        )
         dot.dispose()
         renderer.dispose()
         renderer.domElement.remove()
+        flash?.remove()
       }
+
+      if (reduced) {
+        // Неподвижный кадр: та же картина, без движения; вход — без прыжка.
+        setOpacity(1)
+        world.rotation.set(0.05, 0.1, 0)
+        updateLinks(0.4)
+        renderer.render(scene, camera)
+        return
+      }
+
+      const start = performance.now()
+      let warpSince: number | null = null
+      const meetLeft = new THREE.Vector3(-0.4, 0.2, 0)
+      const meetRight = new THREE.Vector3(0.4, -0.2, 0)
+
+      /** Холст — поверх всего, в body: экран входа уйдёт, а прыжок доиграет над сайтом. */
+      const handOff = () => {
+        handedOff = true
+        renderer.domElement.className = styles.warpCanvas ?? ''
+        document.body.appendChild(renderer.domElement)
+        flash = document.createElement('div')
+        flash.className = styles.warpFlash ?? ''
+        flash.setAttribute('aria-hidden', 'true')
+        document.body.appendChild(flash)
+      }
+
+      const loop = (now: number) => {
+        frame = requestAnimationFrame(loop)
+        // Во скрытой вкладке кадры не считаются — кроме прыжка: он должен доиграть и убрать себя.
+        if (document.hidden && warpSince === null) return
+        const time = (now - start) / 1000
+        const intro = 1 - Math.pow(1 - Math.min(1, time / 1.8), 3)
+
+        if (document.body.dataset.authLeaving && warpSince === null) {
+          warpSince = now
+          handOff()
+        }
+        const warp = warpSince === null ? 0 : clamp01((now - warpSince) / WARP_MS)
+
+        // 1. Слияние: скопления летят навстречу друг другу к центру.
+        const merge = easeInOut(clamp01(warp / MERGE_END))
+        left.group.position.lerpVectors(left.home, meetLeft, merge)
+        right.group.position.lerpVectors(right.home, meetRight, merge)
+        const squeeze = 1 - 0.35 * merge
+        left.group.scale.setScalar(squeeze)
+        right.group.scale.setScalar(squeeze)
+
+        // 2. Нырок: камера проходит сквозь ядро, звёзды растут и летят навстречу.
+        const dive = easeIn(clamp01((warp - DIVE_START) / (1 - DIVE_START)))
+        camera.position.z = 26 - 12 * intro - 17 * dive
+        field.position.z = 16 * dive
+        const stretch = 1 + 5 * dive
+        clusterMaterial.size = 0.11 * stretch
+        fieldMaterial.size = 0.11 * stretch
+        // Покачивание гасится к прыжку: в центр смотрим прямо.
+        const sway = 1 - merge
+        world.rotation.y += ((pointerX * 0.35 + Math.sin(time * 0.15) * 0.12) * sway - world.rotation.y) * 0.06
+        world.rotation.x += ((pointerY * 0.22 + Math.cos(time * 0.12) * 0.05) * sway - world.rotation.x) * 0.06
+        world.rotation.z = dive * 0.6
+
+        // 3. Угасание над сайтом.
+        const fade = clamp01((warp - FADE_START) / (1 - FADE_START))
+        setOpacity(intro * (1 - fade))
+        if (warpSince !== null) renderer.domElement.style.opacity = String(1 - fade)
+        if (flash) {
+          // Вспышка — пик в момент прохода сквозь ядро.
+          const peak = Math.max(0, 1 - Math.abs(warp - 0.62) / 0.2)
+          flash.style.opacity = String(peak * 0.85)
+        }
+
+        updateLinks(time)
+        renderer.render(scene, camera)
+
+        if (warp >= 1) dispose()
+      }
+      frame = requestAnimationFrame(loop)
     })
 
     return () => {
-      disposed = true
-      cleanup()
+      unmounted = true
+      // Прыжок идёт над сайтом — холст уберёт себя сам, когда доиграет.
+      if (!handedOff) dispose()
     }
   }, [])
 

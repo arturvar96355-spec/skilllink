@@ -314,3 +314,30 @@
   position: relative;
   z-index: 1;
 }
+
+/*
+ * Прыжок в систему после входа (Constellation.tsx, решение 72). Холст на время
+ * прыжка переносится в body — поверх сайта, который уже открывается под ним;
+ * вспышка — в момент прохода сквозь ядро созвездия. Оба слоя убираются сами.
+ */
+.warpCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  pointer-events: none;
+}
+
+.warpFlash {
+  position: fixed;
+  inset: 0;
+  z-index: 1201;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--text-primary) 70%, transparent) 0%,
+    color-mix(in srgb, var(--accent-violet) 55%, transparent) 22%,
+    color-mix(in srgb, var(--accent-violet) 12%, transparent) 55%,
+    transparent 80%
+  );
+}
