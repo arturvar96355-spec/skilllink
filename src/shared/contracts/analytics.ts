@@ -3,9 +3,29 @@ import type { ProgramRatingFactorKey } from './rating'
 import type { RecommendationDto } from './recommendation'
 
 /** Показатель дашборда: значение, единица, период, источник, признак демо-данных. */
+/**
+ * Сравнение показателя с прошлым периодом: что было на его начале и насколько изменилось.
+ * Считается по датам в данных (заведение и закрытие связок, сроки и закрытие этапов),
+ * а не по сохранённым снимкам.
+ */
+export interface MetricTrendDto {
+  /** Значение на начало периода. */
+  previous: number
+  /** Изменение: для долей — в процентных пунктах, для счётчиков — в штуках. */
+  delta: number
+  direction: 'up' | 'down' | 'flat'
+  /** С каким моментом сравнили: «за 30 дней». */
+  periodLabel: string
+}
+
 export interface DashboardMetricDto extends Metric {
   key: string
   title: string
+  /**
+   * Сравнение с прошлым периодом. Есть у «Активных связей» и «Этапов в срок»;
+   * `null` — сравнить не с чем (например, 30 дней назад закрытых этапов ещё не было).
+   */
+  trend?: MetricTrendDto | null
 }
 
 export interface ProblemCooperationDto {

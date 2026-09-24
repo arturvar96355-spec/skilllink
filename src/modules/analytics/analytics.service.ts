@@ -1,8 +1,13 @@
 import { assertCan, can, universityScope } from '@/shared/auth/permissions'
-import { DASHBOARD_PROBLEM_LIMIT, DASHBOARD_TOP_LIMIT } from '@/shared/config/analytics.config'
+import {
+  DASHBOARD_PROBLEM_LIMIT,
+  DASHBOARD_TOP_LIMIT,
+  TREND_PERIOD_DAYS,
+} from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type {
   DashboardMetricDto,
+  MetricTrendDto,
   DashboardOverviewDto,
   ProblemCooperationDto,
   SkillMatchSummaryDto,
@@ -14,6 +19,7 @@ import { percent, round } from '@/shared/utils/number'
 import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
+import { compareWithPast, isClosedOnTime, onTimePercent } from './trend'
 import { aggregateUniversityRatings, calculateRatings, type RatingBounds, type RatingInput } from './rating'
 import type { ProgramRatingDto, RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
 import type { CurrentUserStatsDto } from '@/shared/contracts/user'
@@ -39,7 +45,7 @@ function metric(
   value: number,
   unit: string,
   explanation: string,
-  options: { basis?: 'actual' | 'estimate'; isMock?: boolean } = {},
+  options: { basis?: 'actual' | 'estimate'; isMock?: boolean; trend?: MetricTrendDto | null } = {},
 ): DashboardMetricDto {
   return {
     key,
@@ -51,6 +57,7 @@ function metric(
     period: null,
     source: 'Данные системы',
     isMock: options.isMock ?? false,
+    ...(options.trend !== undefined ? { trend: options.trend } : {}),
   }
 }
 
@@ -94,8 +101,11 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
   const now = new Date()
   const scope = universityScope(user)
 
+  const trendStart = new Date(now.getTime() - TREND_PERIOD_DAYS * 24 * 60 * 60 * 1000)
+
   const [
     activeCooperations,
+    activeCooperationsBefore,
     universitiesInWork,
     completedStages,
     cycles,
@@ -109,6 +119,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     universitiesAreMock,
   ] = await Promise.all([
     repo.countActiveCooperations(scope),
+    repo.countCooperationsOpenAt(scope, trendStart),
     repo.countUniversitiesInWork(scope),
     repo.findCompletedStagesWithDeadline(scope),
     repo.findCycleDurations(scope),
@@ -129,7 +140,10 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       activeCooperations,
       'связей',
       'Связки в статусах «Черновик» и «В работе»',
-      { isMock: cooperationsAreMock },
+      {
+        isMock: cooperationsAreMock,
+        trend: compareWithPast(activeCooperations, activeCooperationsBefore),
+      },
     ),
     metric(
       'universitiesInWork',
@@ -152,18 +166,27 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       ),
     )
   } else {
-    const onTime = completedStages.filter(
-      (stage) => stage.completedAt && stage.deadline && stage.completedAt <= stage.deadline,
-    ).length
+    const onTimeShare = onTimePercent(completedStages)
+    const onTime = completedStages.filter(isClosedOnTime).length
+    // Тот же показатель на начало периода — по этапам, закрытым к тому дню.
+    const onTimeShareBefore = onTimePercent(
+      completedStages.filter((stage) => stage.completedAt && stage.completedAt <= trendStart),
+    )
     metrics.push(
       metric(
         'stagesOnTimePercent',
         'Этапы, закрытые в срок',
-        percent(onTime, completedStages.length) ?? 0,
+        onTimeShare ?? 0,
         '%',
         `${onTime} из ${completedStages.length} завершённых этапов закрыты не позже срока ` +
           '(контрольный этап 14 не считается: он закрывается сам по остальным)',
-        { isMock: completedStages.some((stage) => stage.cooperation.isMock) },
+        {
+          isMock: completedStages.some((stage) => stage.cooperation.isMock),
+          trend:
+            onTimeShare === null || onTimeShareBefore === null
+              ? null
+              : compareWithPast(onTimeShare, onTimeShareBefore),
+        },
       ),
     )
   }
