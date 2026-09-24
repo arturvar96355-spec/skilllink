@@ -25,6 +25,7 @@
     "openapi": "tsx scripts/openapi.ts",
     "probe": "tsx scripts/probe.ts",
     "volume": "tsx scripts/volume.ts",
+    "db:verify": "tsx scripts/db-verify.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts"
   },

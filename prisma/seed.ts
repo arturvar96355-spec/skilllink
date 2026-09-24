@@ -711,6 +711,8 @@ async function main(): Promise<void> {
       ),
     )
 
+    let lastCompletedAt: Date | null = null
+
     for (const definition of WORKFLOW_STAGES) {
       const number = definition.number
       const isControl = number === 14
@@ -767,6 +769,10 @@ async function main(): Promise<void> {
         },
       })
 
+      if (stage.completedAt && (!lastCompletedAt || stage.completedAt > lastCompletedAt)) {
+        lastCompletedAt = stage.completedAt
+      }
+
       if (finalStatus !== 'NOT_STARTED') {
         const changedAt = daysAgo(Math.max(1, item.startedDaysAgo - number))
 
@@ -796,6 +802,16 @@ async function main(): Promise<void> {
           },
         })
       }
+    }
+
+    // Закрытая связка закрыта вместе с последним этапом. Приложение ставит дату
+    // закрытия при смене статуса; без неё карточка не показывает «Закрыта»,
+    // а db:verify считает запись противоречивой.
+    if (item.status === 'COMPLETED' && lastCompletedAt) {
+      await prisma.cooperation.update({
+        where: { id: cooperation.id },
+        data: { closedAt: lastCompletedAt, updatedAt: lastCompletedAt },
+      })
     }
   }
 
