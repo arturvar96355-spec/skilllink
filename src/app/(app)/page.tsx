@@ -47,6 +47,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  useUiMode,
   startMorph,
 } from '@/ui'
 import styles from './dashboard.module.css'
@@ -158,6 +159,9 @@ export default function DashboardPage() {
   const user = useCurrentUser()
   const router = useRouter()
   const toast = useToast()
+  // Рабочий режим (решение 80): без бегущей строки, колец и карты — «Требует
+  // внимания» и «Приоритетные действия» сразу под полосой «Активно сейчас».
+  const { isWork } = useUiMode()
 
   // Представителю вуза аналитика закрыта — у него свой кабинет.
   useEffect(() => {
@@ -178,7 +182,9 @@ export default function DashboardPage() {
   const funnelCounted = funnelSource.data?.length ?? 0
 
   // Бегущая строка — последние события ленты уведомлений (решение 79).
-  const feed = useResource<NotificationFeedDto>(user.role === 'UNIVERSITY_REP' ? null : '/api/notifications?limit=12')
+  const feed = useResource<NotificationFeedDto>(
+    user.role === 'UNIVERSITY_REP' || isWork ? null : '/api/notifications?limit=12',
+  )
   const tickerItems: TickerItem[] = useMemo(
     () =>
       (feed.data?.items ?? []).map((item) => ({
@@ -192,7 +198,7 @@ export default function DashboardPage() {
 
   // Карта: вузы в своих городах, размер точки — число связок.
   const universities = useResource<UniversityListItemDto[]>(
-    user.role === 'UNIVERSITY_REP' ? null : '/api/universities?withRating=false&pageSize=100&sort=name',
+    user.role === 'UNIVERSITY_REP' || isWork ? null : '/api/universities?withRating=false&pageSize=100&sort=name',
   )
   const mapPoints: MapPoint[] = useMemo(
     () =>
@@ -295,7 +301,7 @@ export default function DashboardPage() {
         <ErrorState error={overview.error} onRetry={overview.reload} />
       ) : data ? (
         <>
-          <Ticker items={tickerItems} label="Последние события" />
+          {!isWork && <Ticker items={tickerItems} label="Последние события" />}
 
           <LiveRail
             numbers={numbers}
@@ -304,66 +310,68 @@ export default function DashboardPage() {
             generatedAt={data.generatedAt}
           />
 
-          {/* Бенто: здоровье портфеля кольцами и вузы на карте (решение 79). */}
-          <div className={styles.bento}>
-            <div
-              className={`${styles.reveal} ${styles.bentoCell}`}
-              data-assemble="left"
-              style={{ '--delay': '380ms' } as CSSProperties}
-            >
-              <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану.">
-                <div className={styles.rings}>
-                  <Ring
-                    value={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
-                    label="Этапы в срок"
-                    caption="Закрыты до своего срока — из всех закрытых"
-                  />
-                  <Ring
-                    value={cleanShare}
-                    label="Связки без просрочек"
-                    caption={`Из ${formatNumber(cooperations.length)} связок в работе и черновиков`}
-                    tone="cyan"
-                    delay={0.15}
-                  />
-                  <Ring
-                    value={data.skillMatch.coveragePercent}
-                    label="Покрытие навыков"
-                    caption={`Востребованные рынком навыки в программах · ${data.skillMatch.period}`}
-                    tone="pink"
-                    delay={0.3}
-                  />
-                </div>
-              </Section>
-            </div>
-            <div
-              className={`${styles.reveal} ${styles.bentoCell}`}
-              data-assemble="right"
-              style={{ '--delay': '440ms' } as CSSProperties}
-            >
-              <Section
-                title="Вузы на карте"
-                description="Размер точки — число связок. Щелчок — страница вуза."
-                action={
-                  <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                    Все вузы
-                  </Button>
-                }
+          {/* Бенто: здоровье портфеля кольцами и вузы на карте (решение 79). Только в презентационном режиме. */}
+          {!isWork && (
+            <div className={styles.bento}>
+              <div
+                className={`${styles.reveal} ${styles.bentoCell}`}
+                data-assemble="left"
+                style={{ '--delay': '380ms' } as CSSProperties}
               >
-                <div className={styles.mapPanel}>
-                  <RussiaMap points={mapPoints} label="Вузы на карте России" />
-                </div>
-                {offMap > 0 && (
-                  <p className={styles.funnelNote}>
-                    Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
-                    нет координат.
-                  </p>
-                )}
-              </Section>
+                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану.">
+                  <div className={styles.rings}>
+                    <Ring
+                      value={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
+                      label="Этапы в срок"
+                      caption="Закрыты до своего срока — из всех закрытых"
+                    />
+                    <Ring
+                      value={cleanShare}
+                      label="Связки без просрочек"
+                      caption={`Из ${formatNumber(cooperations.length)} связок в работе и черновиков`}
+                      tone="cyan"
+                      delay={0.15}
+                    />
+                    <Ring
+                      value={data.skillMatch.coveragePercent}
+                      label="Покрытие навыков"
+                      caption={`Востребованные рынком навыки в программах · ${data.skillMatch.period}`}
+                      tone="pink"
+                      delay={0.3}
+                    />
+                  </div>
+                </Section>
+              </div>
+              <div
+                className={`${styles.reveal} ${styles.bentoCell}`}
+                data-assemble="right"
+                style={{ '--delay': '440ms' } as CSSProperties}
+              >
+                <Section
+                  title="Вузы на карте"
+                  description="Размер точки — число связок. Щелчок — страница вуза."
+                  action={
+                    <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                      Все вузы
+                    </Button>
+                  }
+                >
+                  <div className={styles.mapPanel}>
+                    <RussiaMap points={mapPoints} label="Вузы на карте России" />
+                  </div>
+                  {offMap > 0 && (
+                    <p className={styles.funnelNote}>
+                      Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
+                      нет координат.
+                    </p>
+                  )}
+                </Section>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className={styles.focus}>
-            <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': '410ms' } as CSSProperties}>
+            <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': isWork ? '160ms' : '410ms' } as CSSProperties}>
               <Section
                 title="Требует внимания"
                 description={problemSummary(data.problemStageTotal, data.problemCooperations.length)}
@@ -423,7 +431,7 @@ export default function DashboardPage() {
               </Section>
             </div>
 
-            <div className={styles.reveal} data-assemble="right" style={{ '--delay': '480ms' } as CSSProperties}>
+            <div className={styles.reveal} data-assemble="right" style={{ '--delay': isWork ? '220ms' : '480ms' } as CSSProperties}>
               <Section
                 title="Приоритетные действия"
                 description="Открытые рекомендации с наибольшим приоритетом."
