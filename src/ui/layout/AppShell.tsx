@@ -17,6 +17,7 @@ import { navigationFor, serviceLinksFor } from './navigation'
 import { takeArrival } from './arrival'
 import { useNavigationMotion } from './navigation-motion'
 import { LiveBackground } from './LiveBackground'
+import { useMagneticButtons } from './magnetic'
 import styles from './Shell.module.css'
 
 /**
@@ -35,6 +36,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [])
   const pathname = usePathname()
   const motion = useNavigationMotion(pathname)
+  useMagneticButtons()
   const me = useResource<CurrentUserDto>('/api/me')
   const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
   const service = useMemo(() => (me.data ? serviceLinksFor(me.data) : []), [me.data])

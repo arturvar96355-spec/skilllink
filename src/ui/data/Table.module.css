@@ -600,3 +600,19 @@
     flex-basis: 100%;
   }
 }
+
+/*
+ * Появление ленты — заметной волной (навык ui-ux-pro-max, Stagger List / Subtle:
+ * шаг 20–40 мс, сдвиг 8–16 px). Шаг 30 мс, до 24-й карточки — дальше экран кончается.
+ */
+.list .row {
+  animation: listRowIn 380ms var(--ease-out) both;
+  animation-delay: calc(var(--row, 0) * 30ms);
+}
+
+@keyframes listRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+}
