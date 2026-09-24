@@ -16,6 +16,7 @@ import {
   computeProgressPercent,
   findCurrentStage,
   isAutoManaged,
+  isLockedByControlPoint,
   isOverdue,
   resolveStageFields,
   assertStageFieldsComplete,
@@ -541,6 +542,53 @@ describe('контрольная точка — шлагбаум для всех
     const closed = prior([[6, 'IN_PROGRESS']])
     expect(() => assertControlPointReady(8, 'BLOCKED', closed)).not.toThrow()
     expect(() => assertControlPointReady(8, 'CANCELLED', closed)).not.toThrow()
+  })
+})
+
+describe('этап заперт контрольной точкой', () => {
+  const stages = (entries: Array<[number, StageStatus]>) =>
+    entries.map(([stageNumber, status]) => ({ stageNumber, title: `Этап ${stageNumber}`, status }))
+
+  it('не начатый этап за незавершённой точкой заперт', () => {
+    const all = stages([
+      [6, 'IN_PROGRESS'],
+      [7, 'NOT_STARTED'],
+      [8, 'NOT_STARTED'],
+    ])
+    expect(isLockedByControlPoint({ stageNumber: 7, status: 'NOT_STARTED' }, all)).toBe(true)
+    expect(isLockedByControlPoint({ stageNumber: 8, status: 'NOT_STARTED' }, all)).toBe(true)
+  })
+
+  it('начатый, заблокированный этап и этап после пройденной точки — не заперты', () => {
+    // Этап 7, который уже в работе или заблокирован, — живая работа, о его сроке напоминают.
+    const all = stages([
+      [6, 'COMPLETED'],
+      [7, 'BLOCKED'],
+    ])
+    expect(isLockedByControlPoint({ stageNumber: 7, status: 'BLOCKED' }, all)).toBe(false)
+    expect(isLockedByControlPoint({ stageNumber: 5, status: 'NOT_STARTED' }, all)).toBe(false)
+    expect(
+      isLockedByControlPoint(
+        { stageNumber: 7, status: 'NOT_STARTED' },
+        stages([
+          [1, 'COMPLETED'],
+          [5, 'CANCELLED'],
+          [6, 'COMPLETED'],
+        ]),
+      ),
+    ).toBe(false)
+  })
+
+  it('отменённая точка не пройдена: этап за ней заперт', () => {
+    expect(
+      isLockedByControlPoint(
+        { stageNumber: 7, status: 'NOT_STARTED' },
+        stages([
+          [5, 'COMPLETED'],
+          [6, 'CANCELLED'],
+        ]),
+      ),
+    ).toBe(true)
   })
 })
 
