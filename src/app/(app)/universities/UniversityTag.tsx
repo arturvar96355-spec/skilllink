@@ -1,5 +1,6 @@
 import { UNIVERSITY_STATUS_LABELS, type UniversityListItemDto } from '@/shared/contracts'
 import { formatNumber, formatScore } from '@/ui'
+import { logoFor } from './university-logos'
 import styles from './UniversityTag.module.css'
 
 /*
@@ -33,6 +34,7 @@ export function UniversityTag({
   canSeeAnalytics: boolean
 }) {
   const code = (row.shortName ?? row.name).toUpperCase()
+  const logo = logoFor(row.shortName)
   const score = canSeeAnalytics ? (row.rating?.score ?? null) : null
   return (
     <span className={styles.tag}>
@@ -69,9 +71,16 @@ export function UniversityTag({
       </span>
 
       <span className={styles.bottom}>
-        <span className={styles.photo}>
-          {code.slice(0, 4)}
-        </span>
+        {logo ? (
+          // Логотип вместо фото — на подложке своего цвета (решение 77).
+          <span className={`${styles.photo} ${styles.logoPlate} ${logo.plate === 'dark' ? styles.logoPlateDark : ''}`}>
+            {/* Обычный img: файл из public/, оптимизатор Next для шести значков не нужен. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className={styles.logo} src={logo.src} alt="" draggable={false} loading="lazy" />
+          </span>
+        ) : (
+          <span className={styles.photo}>{code.slice(0, 4)}</span>
+        )}
         <span className={styles.stats}>
           <span className={styles.stat}>
             <span className={styles.label}>Программ</span>
