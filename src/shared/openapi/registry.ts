@@ -396,10 +396,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/cooperations',
     tag: 'Сотрудничество',
     summary: 'Создать связку',
-    description: 'Сразу создаются все 14 этапов с чек-листами и нормативными сроками.',
+    description:
+      'Сразу создаются все 14 этапов с чек-листами и нормативными сроками. ' +
+      'Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT ' +
+      'с details.cooperationId существующей.',
     permission: 'WRITE',
     body: createCooperationSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'get',
@@ -433,11 +436,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Собрать пакет документов из шаблонов',
     description:
       'Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком ' +
-      'и перечисляются в ответе.',
+      'и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, ' +
+      'и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.',
     permission: 'WRITE',
     body: generateDocumentsSchema,
     bodyOptional: true,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
 
   // ── Workflow ──────────────────────────────────────────────────────────────
