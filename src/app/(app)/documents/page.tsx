@@ -187,12 +187,6 @@ function DocumentsView() {
       ),
     },
     {
-      key: 'version',
-      title: 'Версия',
-      width: '72px',
-      render: (row) => <span className={styles.version}>{row.version}</span>,
-    },
-    {
       key: 'status',
       title: 'Статус',
       width: '130px',
@@ -214,22 +208,6 @@ function DocumentsView() {
       render: (row) => (
         <span className={styles.person} title={row.responsible?.fullName}>
           {row.responsible ? formatPersonShort(row.responsible.fullName) : NO_DATA}
-        </span>
-      ),
-    },
-    {
-      // Плотная строка (решение 44): в строке — дата выдачи, подписание — в подсказке;
-      // подписан ли документ, и так говорит статус рядом. Нет даты подписания —
-      // это факт «не подписан», а не нехватка данных.
-      key: 'dates',
-      title: 'Выдан',
-      width: '112px',
-      render: (row) => (
-        <span
-          className={styles.dateRow}
-          title={row.signedAt ? `Подписан: ${formatDate(row.signedAt)}` : 'Не подписан'}
-        >
-          {formatDate(row.issuedAt)}
         </span>
       ),
     },

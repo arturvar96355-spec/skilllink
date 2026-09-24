@@ -88,9 +88,9 @@
 .stackMain {
   flex: none;
   max-width: 100%;
-  font-size: var(--text-body-size);
+  font-size: var(--text-body-sm-size);
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -104,8 +104,9 @@
 
 /* Показатели набора — крупно: по ним программы и сравнивают. */
 .metric > span {
-  font-size: var(--text-body-size);
-  font-weight: 650;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .plain {

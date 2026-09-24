@@ -141,17 +141,6 @@ function ProductsView() {
       render: (row) => <CellText title={row.category}>{row.category}</CellText>,
     },
     {
-      key: 'version',
-      title: 'Версия',
-      width: '90px',
-      render: (row) =>
-        row.version === null ? (
-          <span className={styles.empty}>{NO_DATA}</span>
-        ) : (
-          <span className={styles.plain}>{row.version}</span>
-        ),
-    },
-    {
       key: 'status',
       title: 'Статус',
       width: '150px',
@@ -161,13 +150,6 @@ function ProductsView() {
           {PRODUCT_STATUS_LABELS[row.status]}
         </Badge>
       ),
-    },
-    {
-      key: 'skillCount',
-      title: 'Навыков',
-      width: '100px',
-      align: 'right',
-      render: (row) => <span className={styles.count}>{formatNumber(row.skillCount)}</span>,
     },
     {
       key: 'cooperationCount',

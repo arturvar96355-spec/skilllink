@@ -156,8 +156,8 @@ export default function UniversitiesPage() {
       sortField: 'city',
       render: (row) => (
         <span className={styles.place} title={formatPlace(row.city, row.region)}>
+          {/* Регион — в подсказке: обрывок «Тверская о…» в каждой строке был шумом. */}
           <span className={styles.placeCity}>{row.city}</span>
-          {row.region !== row.city && <span className={styles.placeRegion}>{row.region}</span>}
         </span>
       ),
     },
@@ -199,13 +199,6 @@ export default function UniversitiesPage() {
           </Tooltip>
         )
       },
-    },
-    {
-      key: 'programs',
-      title: 'Программы',
-      width: '90px',
-      align: 'right',
-      render: (row) => <span className={styles.countsValue}>{formatNumber(row.programCount)}</span>,
     },
     {
       key: 'cooperations',

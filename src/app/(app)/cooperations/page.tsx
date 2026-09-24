@@ -60,13 +60,6 @@ function stageNotation(stage: number): string {
   return `${String(stage).padStart(2, '0')} / 14`
 }
 
-/**
- * «Савельева Ольга Дмитриевна» → «Савельева»: в узком столбце фамилия читается
- * целиком, инициалы — в кружке рядом, полное ФИО — в подсказке.
- */
-function surname(fullName: string): string {
-  return fullName.trim().split(/\s+/)[0] ?? fullName
-}
 
 type SegmentState = 'done' | 'current' | 'soon' | 'blocked' | 'late' | 'todo'
 
@@ -244,17 +237,6 @@ function CooperationsView() {
       title: 'Прогресс',
       width: '150px',
       render: (row) => <StageTrack row={row} />,
-    },
-    {
-      key: 'responsible',
-      title: 'Ответственный',
-      width: '140px',
-      render: (row) => (
-        <span className={styles.person} title={row.responsible.fullName}>
-          <Avatar name={row.responsible.fullName} size="xs" />
-          <span className={styles.personName}>{surname(row.responsible.fullName)}</span>
-        </span>
-      ),
     },
     {
       key: 'status',

@@ -188,6 +188,43 @@
   border-bottom-color: transparent;
 }
 
+/*
+ * Иерархия строки — цветом. Ярко только главное: первый столбец (то, что
+ * ищут глазами). Остальные значения — спокойным вторым цветом; одинаково
+ * яркие столбцы читались сплошным текстом, «как книга».
+ */
+.td {
+  color: var(--text-secondary);
+}
+
+.td:first-child {
+  color: var(--text-primary);
+}
+
+/*
+ * Статус в таблице — цветной точкой и приглушённой подписью, без плашки:
+ * цветные плашки в каждой строке спорили с названием. Цвет-сигнал остаётся
+ * у точки, смысл — у подписи.
+ */
+.td [data-badge] {
+  padding-inline: 0;
+  background: none;
+  border-color: transparent;
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+}
+
+.td [data-badge] [data-badge-label] {
+  color: var(--text-secondary);
+}
+
+/* Тревога не приглушается: просрочка и блокировка — главный сигнал строки. */
+.td [data-badge][data-tone='danger'] [data-badge-label],
+.td [data-badge][data-tone='warning'] [data-badge-label] {
+  color: inherit;
+  font-weight: 600;
+}
+
 .refreshing {
   opacity: 0.6;
   transition: opacity var(--motion-micro) var(--ease-out);

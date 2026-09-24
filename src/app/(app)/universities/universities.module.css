@@ -56,8 +56,8 @@
      Обрезается, только если сам не помещается в столбец. */
   flex: none;
   max-width: 100%;
-  font-size: var(--text-body-size);
-  font-weight: 500;
+  font-size: var(--text-body-sm-size);
+  font-weight: 450;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
@@ -120,10 +120,10 @@
 }
 
 .countsValue {
-  font-size: var(--text-body-size);
-  font-weight: 650;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .countsMuted {
