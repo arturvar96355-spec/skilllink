@@ -425,6 +425,15 @@
   pointer-events: none;
 }
 
+/* Сетка точек под свечением (решение 79): видна между карточками, у краёв гаснет. */
+.dots {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, var(--line-strong) 1px, transparent 1.3px) 0 0 / 22px 22px;
+  mask-image: radial-gradient(ellipse 80% 70% at 60% 30%, var(--canvas) 0%, transparent 85%);
+  opacity: 0.55;
+}
+
 /* Дымка: два пятна, фиолетовое сверху слева и глубокое снизу справа, едва дышат. */
 .haze {
   position: absolute;
@@ -471,3 +480,64 @@
     animation: none;
   }
 }
+
+/* ── Нижняя панель разделов на телефоне (решение 79) ─────────────────────── */
+
+.tabBar {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .tabBar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: var(--z-header);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line-subtle);
+    background: var(--bg-header);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  /* Содержимое не прячется под панелью. */
+  .main {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}
+
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 2px;
+  border-radius: var(--radius-control);
+  color: var(--text-tertiary);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.tab span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabActive {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-violet) 18%, transparent);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+

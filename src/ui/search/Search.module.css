@@ -255,3 +255,10 @@
     display: none;
   }
 }
+
+/* Телефон: кнопка поиска — над нижней панелью разделов, а не поверх неё (решение 79). */
+@media (max-width: 720px) {
+  .fab {
+    bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+}

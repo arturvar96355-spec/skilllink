@@ -486,3 +486,40 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
+
+/* Бенто: кольца и карта (решение 79). */
+.bento {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-8);
+  align-items: stretch;
+}
+
+.bentoCell {
+  min-width: 0;
+}
+
+.rings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface-1);
+}
+
+.mapPanel {
+  padding: var(--space-4);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(circle, var(--line-subtle) 1px, transparent 1.2px) 0 0 / 16px 16px,
+    var(--surface-sunken);
+}
+
+@media (max-width: 1080px) {
+  .bento {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

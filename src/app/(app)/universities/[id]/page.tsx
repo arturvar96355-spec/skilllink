@@ -54,7 +54,9 @@ import {
   formatShare,
   formatDemand,
   formatPlace,
+  ScrollRuler,
 } from '@/ui'
+import { UniversityGraph } from '../UniversityGraph'
 import styles from './university.module.css'
 
 type TabKey =
@@ -88,6 +90,7 @@ export default function UniversityPage() {
   const [tab, setTab] = useState<TabKey>('overview')
 
   const university = useResource<UniversityDto>(`/api/universities/${id}`)
+  // Соседи по реестру — для «Следующего вуза» внизу (решение 79).
   const programs = useResource<ProgramListItemDto[]>(
     tab === 'programs' ? `/api/programs${buildQuery({ universityId: id, pageSize: 50 })}` : null,
   )
@@ -315,6 +318,7 @@ export default function UniversityPage() {
   return (
     <>
       <PageHeader
+        variant="display"
         title={data.name}
         breadcrumbs={[{ label: 'Университеты', href: '/universities' }, { label: data.shortName ?? data.name }]}
         meta={
@@ -401,6 +405,20 @@ export default function UniversityPage() {
       </div>
 
       <Tabs items={tabs} active={tab} onChange={(key) => setTab(key as TabKey)} />
+
+      {tab === 'overview' && (
+        // Граф связей — первым: суть вуза в SkillLink видна до контактов и реквизитов (решение 79).
+        <Section
+          title="Связи вуза"
+          description="Программы вуза и IT-продукты, с которыми они связаны. Цвет провода — статус связки, метка — текущий этап."
+        >
+          <UniversityGraph
+            universityId={data.id}
+            universityName={data.name}
+            universityCode={data.shortName ?? data.name}
+          />
+        </Section>
+      )}
 
       {tab === 'overview' && (
         <div className={styles.grid}>
@@ -668,6 +686,7 @@ export default function UniversityPage() {
           </Tooltip>
         </p>
       )}
+      <ScrollRuler />
     </>
   )
 }

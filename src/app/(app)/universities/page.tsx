@@ -43,6 +43,8 @@ import {
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
 import { UniversityTag } from './UniversityTag'
+import { UniversityFacts } from './UniversityFacts'
+import { UniversityGraphSheet, type GraphOrigin } from './UniversityGraphSheet'
 import styles from './universities.module.css'
 
 /**
@@ -86,6 +88,8 @@ export default function UniversitiesPage() {
   // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
   const storedView = useStoredValue('skilllink.universities.view', 'cards')
   const view = storedView.value === 'list' ? 'list' : 'cards'
+  // Щелчок по центральной бирке раскрывает граф связей вуза (решение 79).
+  const [graph, setGraph] = useState<GraphOrigin | null>(null)
 
   const query = useDebounced(search.trim(), 300)
 
@@ -362,6 +366,11 @@ export default function UniversitiesPage() {
                   )}
                   label="Вузы"
                   noun={{ previous: 'Предыдущий вуз', next: 'Следующий вуз' }}
+                  onOpen={(row, card) => setGraph({ row, card })}
+                  renderFacts={(row) => (
+                    <UniversityFacts row={row} canSeeAnalytics={user.permissions.canSeeAnalytics} />
+                  )}
+                  getIndexMeta={(row) => row.shortName ?? row.city}
                 />
               ) : (
                 <DataTable
@@ -394,6 +403,12 @@ export default function UniversitiesPage() {
           </p>
         )}
       </Section>
+
+      <UniversityGraphSheet
+        origin={graph}
+        onClose={() => setGraph(null)}
+        canSeeAnalytics={user.permissions.canSeeAnalytics}
+      />
 
       {isCreateOpen && (
         <CreateUniversityModal

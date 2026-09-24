@@ -1,0 +1,81 @@
+/* Кольцо прогресса (решение 79). */
+
+.root {
+  position: relative;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  min-width: 0;
+}
+
+.violet {
+  --ring: var(--accent-violet);
+}
+
+.cyan {
+  --ring: var(--accent-cyan);
+}
+
+.pink {
+  --ring: var(--accent-pink);
+}
+
+.svg {
+  grid-row: 1;
+  grid-column: 1;
+  width: 96px;
+  height: 96px;
+}
+
+.track {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 10;
+}
+
+.arc {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 10;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--ring) 55%, transparent));
+}
+
+/* Число — в центре кольца, поверх той же ячейки сетки. */
+.value {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: center;
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.empty {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.label {
+  font-size: var(--text-body-size);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.note {
+  font-size: var(--text-label-size);
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}

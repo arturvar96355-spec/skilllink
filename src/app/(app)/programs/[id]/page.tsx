@@ -39,6 +39,7 @@ import {
   Progress,
   ProgramStatusBadge,
   ROUTES,
+  Radar,
   Section,
   StageStatusBadge,
   TableSkeleton,
@@ -58,6 +59,7 @@ import {
   type TabItem,
   formatShare,
   formatDemand,
+  ScrollRuler,
 } from '@/ui'
 import styles from './program.module.css'
 
@@ -100,6 +102,20 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
+/**
+ * Оси радара: до четырёх навыков, которые программа покрывает (самые
+ * востребованные из них), и остальное — самые востребованные непокрытые.
+ * Одни непокрытые схлопнули бы заливку покрытия в точку.
+ */
+function radarAxes(rows: SkillGapDto[]) {
+  const byDemand = [...rows].sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
+  const covered = byDemand.filter((row) => row.coverage > 0).slice(0, 4)
+  const rest = byDemand.filter((row) => !covered.includes(row)).slice(0, 8 - covered.length)
+  return [...covered, ...rest]
+    .sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
+    .map((row) => ({ key: row.skillId, label: row.name, values: [row.demandNormalized, row.coverage] }))
+}
+
 export default function ProgramPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
@@ -108,6 +124,7 @@ export default function ProgramPage() {
   const [isRatingOpen, setRatingOpen] = useState(false)
 
   const program = useResource<ProgramDto>(`/api/programs/${id}`)
+  // Соседи по реестру — для «Следующей программы» внизу (решение 79).
   const data = program.data
 
   // Связки и документы запрашиваются только после того, как программа нашлась:
@@ -431,6 +448,7 @@ export default function ProgramPage() {
   return (
     <>
       <PageHeader
+        variant="display"
         breadcrumbs={[{ label: 'Программы', href: ROUTES.programs }, { label: data.name }]}
         title={data.name}
         description={data.direction ?? undefined}
@@ -552,6 +570,24 @@ export default function ProgramPage() {
           <MockBadge title="Спрос рынка в этой таблице — демонстрационный набор, а не подтверждённая статистика." />
         </div>
       )}
+      {activeTab === 'gaps' && gapRows.length >= 3 && (
+        // Радар: где пунктир спроса выходит за покрытие — там дефицит (решение 79).
+        <Card>
+          <Section
+            title="Спрос против покрытия"
+            description="Навыки, которые программа уже даёт, и самые востребованные из тех, что она не даёт. Пунктир — спрос рынка, заливка — покрытие программой."
+          >
+            <Radar
+              label="Спрос рынка и покрытие программой по навыкам"
+              axes={radarAxes(gapRows)}
+              series={[
+                { label: 'Спрос рынка', tone: 'cyan', dashed: true },
+                { label: 'Покрытие программой', tone: 'violet' },
+              ]}
+            />
+          </Section>
+        </Card>
+      )}
       {activeTab === 'gaps' && (
         <Card padding="none">
           {gaps.isLoading ? (
@@ -628,6 +664,7 @@ export default function ProgramPage() {
             />
           </Card>
         ))}
+      <ScrollRuler />
     </>
   )
 }

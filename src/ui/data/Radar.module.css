@@ -1,0 +1,128 @@
+/* Радар (решение 79). */
+
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  max-width: 440px;
+  height: auto;
+  overflow: visible;
+}
+
+.violet {
+  --tone: var(--accent-violet);
+}
+
+.cyan {
+  --tone: var(--accent-cyan);
+}
+
+.grid {
+  fill: none;
+  stroke: var(--line-subtle);
+}
+
+.spoke {
+  stroke: var(--line-subtle);
+}
+
+.axisLabel {
+  fill: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.axisActive {
+  fill: var(--text-primary);
+}
+
+.area {
+  fill: color-mix(in srgb, var(--tone) 22%, transparent);
+  stroke: var(--tone);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.dashed {
+  fill: color-mix(in srgb, var(--tone) 8%, transparent);
+  stroke-dasharray: 6 5;
+}
+
+.hit {
+  fill: transparent;
+  cursor: default;
+  outline: none;
+}
+
+.hit:focus-visible {
+  stroke: var(--border-active);
+  stroke-width: 2;
+}
+
+.tooltip {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-floating);
+  font-size: var(--text-label-size);
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.tooltipTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.tooltipRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltipRow strong {
+  color: var(--text-primary);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-5);
+  font-size: var(--text-label-size);
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--tone);
+}
+
+.swatchDashed {
+  background: repeating-linear-gradient(90deg, var(--tone) 0 4px, transparent 4px 7px);
+}

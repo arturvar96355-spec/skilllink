@@ -1,0 +1,27 @@
+.kicker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.logo {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--logo-plate);
+}
+
+.logoDark {
+  background: var(--surface-2);
+}
+
+.logo img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
