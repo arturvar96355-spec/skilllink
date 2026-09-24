@@ -604,6 +604,73 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
 Право: `READ`. Дополнительно `description` и `skills[]` с полем
 `relevance` (`CORE`, `RELATED`, `OPTIONAL`).
 
+### POST /api/products
+
+Право: `WRITE` (представителю вуза, аналитику и наблюдателю — 403). Ответ 201 —
+карточка продукта, как у `GET /api/products/:id`. Заведённый вручную продукт
+не демонстрационный: `isMock: false`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `name` | string | да | 2..200, **уникально без учёта регистра** |
+| `category` | string | да | 2..100 |
+| `description` | string \| null | нет | до 2000 |
+| `documentationUrl` | string \| null | нет | только `http://` или `https://`, до 500 |
+| `version` | string \| null | нет | 1..50 |
+| `status` | enum | нет | `PLANNED`, `ACTIVE`, `DEPRECATED`; по умолчанию `ACTIVE` |
+
+```bash
+curl -s -X POST http://localhost:3000/api/products \
+  -H 'content-type: application/json' \
+  -d '{"name":"Платформа видеоконференций","category":"Коммуникации","version":"1.0","documentationUrl":"https://example.invalid/docs"}'
+```
+
+Ошибки:
+
+- `CONFLICT` 409 — продукт с таким названием уже есть (регистр не важен).
+  `details: [{ "field": "name", "message": "Продукт с таким названием уже есть" }]`,
+  текст: «IT-продукт «…» уже есть в реестре. Выберите другое название.»
+- `VALIDATION_ERROR` 422 — например, `documentationUrl` вида `javascript:…` или `ftp://…`.
+
+### PATCH /api/products/:id
+
+Право: `WRITE`. Любое подмножество полей создания. **Пустое тело — 422.**
+Ответ — карточка продукта.
+
+- Дубль названия — `CONFLICT`, как при создании. Своё же название в другом регистре — не дубль.
+- **Версию продукта с открытыми связками (`DRAFT`, `ACTIVE`, `PAUSED`) правкой не поменять** —
+  `CONFLICT` с `details: [{ "field": "version", … }]`. Новая версия передаётся вузам выпуском
+  версии (`POST /api/products/:id/release`, раздел 15в): он ставит задачи и переоткрывает этап
+  обновления материалов. Тихая правка оставила бы этап закрытым со старыми материалами.
+  У продукта без открытых связок версию можно исправить здесь.
+
+```bash
+curl -s -X PATCH http://localhost:3000/api/products/PRODUCT_ID \
+  -H 'content-type: application/json' \
+  -d '{"status":"DEPRECATED","description":"Выводится из эксплуатации"}'
+```
+
+### PUT /api/products/:id/skills
+
+Право: `WRITE`. **Полная замена** набора навыков продукта — как `PUT /api/programs/:id/skills`.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/products/PRODUCT_ID/skills \
+  -H 'content-type: application/json' \
+  -d '{"skills":[{"skillId":"SKILL_ID","relevance":"CORE"}]}'
+```
+
+| Поле элемента | По умолчанию |
+| --- | --- |
+| `skillId` | обязательно |
+| `relevance` | `RELATED` (`CORE`, `RELATED`, `OPTIONAL`) |
+
+`{"skills": []}` снимает все навыки. Ошибки: `VALIDATION_ERROR` при повторе навыка или
+несуществующем `skillId`.
+
+Все три записи попадают в журнал действий: `product.create`, `product.update`,
+`product.skills.replace` (в журнале — имена изменённых полей, не значения).
+
 ---
 
 ## 7. Сотрудничество
