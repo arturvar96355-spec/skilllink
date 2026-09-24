@@ -27,7 +27,6 @@ import {
   findBlockingStages,
   type PriorStageState,
   assertTransition,
-  isControlPoint,
   isAutoManaged,
   isDueSoon,
   isOverdue,
@@ -148,7 +147,7 @@ export async function updateStage(
   if (input.status !== undefined) {
     // Контрольная точка проверяется до таблицы переходов: сообщение «сначала
     // закройте этапы 4 и 5» полезнее, чем «переход недопустим».
-    if (statusChanged && isControlPoint(stage.stageNumber)) {
+    if (statusChanged && !isAutoManaged(stage.stageNumber)) {
       assertControlPointReady(
         stage.stageNumber,
         input.status,
@@ -198,7 +197,7 @@ export async function updateStage(
 
     // Проверки выше — до очереди, чтобы отказ приходил сразу. То, что могли
     // изменить параллельно другие этапы этой связки, проверяется ещё раз здесь.
-    if (statusChanged && isControlPoint(stage.stageNumber)) {
+    if (statusChanged && !isAutoManaged(stage.stageNumber)) {
       assertControlPointReady(
         stage.stageNumber,
         next,
@@ -330,11 +329,11 @@ export async function setTaskDone(
     })
     if (!current) throw notFound('Этап не найден')
     assertTasksEditable(current.status as StageStatus, current.stageNumber)
-    // Пункт контрольной точки не отмечается, пока не закрыты предыдущие этапы
-    // (решение 49): отметка — такое же утверждение о сделанной работе, как начало
-    // этапа. Проверка здесь, под блокировкой связки, — её не обойти ни из кабинета
-    // вуза, ни одновременным переоткрытием предыдущего этапа. Снять отметку можно всегда.
-    if (isDone && isControlPoint(current.stageNumber)) {
+    // Пункт не отмечается там, куда контрольная точка ещё не пускает: отметка —
+    // такое же утверждение о сделанной работе, как начало этапа. Проверка здесь,
+    // под блокировкой связки, — её не обойти ни из кабинета вуза, ни одновременным
+    // переоткрытием предыдущего этапа. Снять отметку можно всегда.
+    if (isDone) {
       assertChecklistReady(
         current.stageNumber,
         isDone,
@@ -355,15 +354,17 @@ export async function setTaskDone(
 }
 
 /**
- * Незакрытые этапы, из-за которых пункты контрольной точки пока не отмечаются.
+ * Незакрытые этапы, из-за которых пункты этапа пока не отмечаются.
  * Пусто — отмечать можно.
  */
 export async function checklistBlockers(stage: {
   cooperationId: string
   stageNumber: number
 }): Promise<PriorStageState[]> {
-  if (!isControlPoint(stage.stageNumber)) return []
-  return findBlockingStages(await repo.findPriorStages(stage.cooperationId, stage.stageNumber))
+  return findBlockingStages(
+    stage.stageNumber,
+    await repo.findPriorStages(stage.cooperationId, stage.stageNumber),
+  )
 }
 
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */
