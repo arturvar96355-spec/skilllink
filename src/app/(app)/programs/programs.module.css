@@ -133,3 +133,9 @@
 div.registry {
   background: transparent;
 }
+
+/* Переключатель вида: бирки или лента (решение 73). */
+.viewSwitch {
+  display: inline-flex;
+  gap: var(--space-1);
+}

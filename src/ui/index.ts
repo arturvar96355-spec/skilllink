@@ -117,3 +117,5 @@ export {
 } from './lib/links'
 export { describeRelatedData, type RelatedFact } from './lib/related-data'
 export { startMorph } from './lib/morph'
+export { TagCarousel, type TagCarouselProps } from './data/TagCarousel'
+export { Funnel, type FunnelStep } from './data/Funnel'

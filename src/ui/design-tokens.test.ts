@@ -78,11 +78,13 @@ describe('переменные оформления', () => {
     const missing: string[] = []
     for (const file of files) {
       const css = readFileSync(join(ROOT, file), 'utf8')
+      // Своя переменная модуля (оттенок бирки программы) объявлена в нём же.
+      const local = new Set([...css.matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((match) => match[1]!))
       for (const match of css.matchAll(/var\((--[a-z0-9-]+)\)/g)) {
         const name = match[1]!
         // Переменная шрифта приходит из next/font и объявляется в разметке.
         if (name === '--font-inter') continue
-        if (!declared.has(name)) missing.push(`${relative('.', file)}: ${name}`)
+        if (!declared.has(name) && !local.has(name)) missing.push(`${relative('.', file)}: ${name}`)
       }
     }
 
