@@ -433,6 +433,32 @@ async function main(): Promise<void> {
   const productCard = await call('GET', `/api/products/${productId}`)
   check('карточка продукта открывается', productCard.status === 200)
 
+  // Продукт заводится вручную — вопрос «добавьте продукт» не должен ломать показ.
+  // Сценарий дальше работает с продуктом из демо-набора: новый без связок,
+  // выпуск версии на нём ничего бы не проверил.
+  const newProductName = `Продукт сквозного сценария ${Date.now().toString().slice(-6)}`
+  const newProduct = await call<Identified & { name: string; isMock: boolean }>(
+    'POST',
+    '/api/products',
+    { name: newProductName, category: 'Проверка', version: '1.0' },
+  )
+  check('POST /api/products отвечает 201', newProduct.status === 201, `статус ${newProduct.status}`)
+  check('заведённый продукт не помечен как демо', newProduct.body.data?.isMock === false)
+  const productDuplicate = await call('POST', '/api/products', {
+    name: newProductName,
+    category: 'Проверка',
+  })
+  check('дубль названия продукта — 409', productDuplicate.status === 409)
+  const productEdited = await call<{ description: string | null }>(
+    'PATCH',
+    `/api/products/${newProduct.body.data?.id}`,
+    { description: 'Заведён сквозным сценарием' },
+  )
+  check(
+    'PATCH /api/products/:id сохраняет правку',
+    productEdited.body.data?.description === 'Заведён сквозным сценарием',
+  )
+
   // ── 7a. Списки и сортировка ────────────────────────────────────────────────
   step('7a. Списки программ: пагинация, фильтры, сортировка')
   const programList = await call<Array<{ id: string; metrics: Record<string, { value: number | null }> }>>(
@@ -551,6 +577,28 @@ async function main(): Promise<void> {
   check('в прогресс входят 13 этапов', cooperation.body.data?.progress.totalStages === 13)
 
   const cooperationId = cooperation.body.data?.id
+
+  // Вторая незакрытая связка на тот же «вуз + программа + продукт» не заводится.
+  const duplicateCooperation = await call<unknown>('POST', '/api/cooperations', {
+    universityId,
+    programId,
+    productId,
+    responsibleId: managerId,
+  })
+  const duplicateDetails = duplicateCooperation.body.error?.details as
+    | { cooperationId?: string }
+    | undefined
+  check(
+    'дубль связки отклоняется с 409',
+    duplicateCooperation.status === 409,
+    `статус ${duplicateCooperation.status}`,
+  )
+  check(
+    'в отказе — ссылка на существующую связку',
+    duplicateDetails?.cooperationId === cooperationId,
+    duplicateCooperation.body.error?.message,
+  )
+
   const stage1 = stages[0]
   const stage2 = stages[1]
   const stage3 = stages[2]
@@ -1474,8 +1522,10 @@ async function main(): Promise<void> {
   step('21. Выпуск новой версии продукта: групповая операция')
 
   // Сценарий сам готовит предусловие — в отдельной связке, чтобы не менять ту,
-  // на которой держатся шаги выше, и не зависеть от прошлых запусков. Связка
-  // проводится до этапа 12 по правилам: обычные этапы отменяются с основанием,
+  // на которой держатся шаги выше, и не зависеть от прошлых запусков. Связке нужен
+  // тот же продукт, а вторая незакрытая связка «вуз + программа + продукт» запрещена
+  // (решение 80) — поэтому она заводится на отдельной программе того же вуза.
+  // Связка проводится до этапа 12 по правилам: обычные этапы отменяются с основанием,
   // контрольные точки 6, 7 и 11 завершаются с чек-листом и результатом — иначе
   // шлагбаум (решение 78) не пустит к этапу 12.
   type ReleaseStage = {
@@ -1484,16 +1534,31 @@ async function main(): Promise<void> {
     status: string
     tasks: Array<{ id: string; isRequired: boolean; isDone: boolean }>
   }
+  const releaseProgram = await call<Identified>('POST', '/api/programs', {
+    universityId,
+    name: `Проверочная программа выпуска версии ${suffix}`,
+    level: 'BACHELOR',
+  })
+  check(
+    'отдельная программа для выпуска версии создана',
+    releaseProgram.status === 201,
+    `статус ${releaseProgram.status}`,
+  )
   const releaseCooperation = await call<{ id: string; stages: ReleaseStage[] }>(
     'POST',
     '/api/cooperations',
     {
       universityId,
-      programId,
+      programId: releaseProgram.body.data?.id,
       productId,
       responsibleId: managerId,
       goal: 'Связка сквозного сценария для выпуска версии продукта',
     },
+  )
+  check(
+    'связка для выпуска версии создана',
+    releaseCooperation.status === 201,
+    `статус ${releaseCooperation.status} ${releaseCooperation.body.error?.message ?? ''}`,
   )
   const releaseCooperationId = releaseCooperation.body.data?.id
   const releaseStages = [...(releaseCooperation.body.data?.stages ?? [])].sort(
@@ -1659,8 +1724,9 @@ async function main(): Promise<void> {
       missing: string[]
       document: { id: string; title: string; content: string | null; templateKey: string | null }
     }>
-    skipped: Array<{ templateKey: string }>
+    skipped: Array<{ templateKey: string; templateName: string; reason: string }>
     missingFields: string[]
+    missingFieldLabels: string[]
   }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
   check('POST .../documents/generate отвечает 200', packageResult.status === 200, `статус ${packageResult.status}`)
 
@@ -1697,6 +1763,32 @@ async function main(): Promise<void> {
     'пропущенные шаблоны объяснены',
     (secondPackage.body.data?.skipped ?? []).every((item) => item.reason.length > 0),
     `${secondPackage.body.data?.skipped.length ?? 0} пропущено`,
+  )
+  // В шаге 16 договор заведён вручную и выпущен новой версией. Пакет не должен
+  // добавить к нему второй договор из шаблона.
+  const agreementSkip = (packageResult.body.data?.skipped ?? []).find(
+    (item) => item.templateKey === 'agreement',
+  )
+  check(
+    'пакет не добавляет второй договор к заведённому вручную',
+    Boolean(agreementSkip?.reason.startsWith('уже есть:')) &&
+      !packageDocuments.some((item) => item.templateKey === 'agreement'),
+    agreementSkip?.reason,
+  )
+  check(
+    'пропущенный шаблон назван по-русски',
+    (packageResult.body.data?.skipped ?? []).every((item) => /[а-яА-Я]/.test(item.templateName)),
+  )
+  check(
+    'недостающие реквизиты названы по-русски',
+    (packageResult.body.data?.missingFieldLabels ?? []).length ===
+      (packageResult.body.data?.missingFields ?? []).length &&
+      (packageResult.body.data?.missingFieldLabels ?? []).every((label) => !label.includes('.')),
+    (packageResult.body.data?.missingFieldLabels ?? []).join(', '),
+  )
+  check(
+    'в тексте документов нет служебных пометок',
+    packageDocuments.every((item) => !/TEMP|болванк/i.test(item.document.content ?? '')),
   )
 
   // Отдельный шаблон вне пакета по умолчанию.

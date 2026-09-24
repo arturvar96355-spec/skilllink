@@ -8,7 +8,7 @@ import {
   type ControlStageChange,
 } from '@/modules/workflow/workflow.repo'
 import { PRODUCT_SORT_FIELDS, type ProductListQuery } from './products.schema'
-import { BULK_TARGET_STATUSES } from './products.rules'
+import { BULK_TARGET_STATUSES, duplicateNameConflict } from './products.rules'
 
 /** Кому считаются связки продукта: представителю вуза — только его вуз. */
 export type ProductScope = { universityId?: string }
@@ -91,6 +91,96 @@ export async function findMany(
 
 export async function findById(id: string, scope: ProductScope): Promise<ProductDetailRow | null> {
   return prisma.iTProduct.findUnique({ where: { id }, select: detailSelect(scope) })
+}
+
+/**
+ * Продукт с таким же названием без учёта регистра — для понятного отказа на дубль.
+ * `excludeId` — сам изменяемый продукт: сохранить своё же название не дубль.
+ */
+export async function findByNameInsensitive(
+  name: string,
+  excludeId?: string,
+): Promise<{ id: string; name: string } | null> {
+  return prisma.iTProduct.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+    },
+    select: { id: true, name: true },
+  })
+}
+
+/** P2002 — нарушение уникального ограничения: то же название успел сохранить параллельный запрос. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === 'P2002'
+  )
+}
+
+/**
+ * Проверка названия в сервисе и запись — два запроса: между ними то же название
+ * может сохранить другой человек. Тогда сработает ограничение базы, и ответ
+ * должен быть тем же понятным 409, а не общим «запись уже существует: name».
+ */
+async function withNameGuard<T>(name: string | undefined, action: () => Promise<T>): Promise<T> {
+  try {
+    return await action()
+  } catch (error) {
+    if (name !== undefined && isUniqueViolation(error)) throw duplicateNameConflict(name)
+    throw error
+  }
+}
+
+export async function create(data: Prisma.ITProductCreateInput): Promise<ProductDetailRow> {
+  return withNameGuard(data.name, () =>
+    prisma.iTProduct.create({ data, select: detailSelect({}) }),
+  )
+}
+
+export async function update(
+  id: string,
+  data: Prisma.ITProductUpdateInput & { name?: string },
+): Promise<ProductDetailRow> {
+  return withNameGuard(data.name, () =>
+    prisma.iTProduct.update({ where: { id }, data, select: detailSelect({}) }),
+  )
+}
+
+/** Связки продукта, которым новая версия ещё нужна: закрытые и отменённые не считаются. */
+export async function countOpenCooperations(productId: string): Promise<number> {
+  return prisma.cooperation.count({
+    where: { productId, status: { in: [...BULK_TARGET_STATUSES] } },
+  })
+}
+
+/** Какие из переданных навыков существуют. */
+export async function findExistingSkillIds(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return []
+  const rows = await prisma.skill.findMany({ where: { id: { in: ids } }, select: { id: true } })
+  return rows.map((row) => row.id)
+}
+
+/** Заменяет набор навыков продукта одной транзакцией. */
+export async function replaceSkills(
+  productId: string,
+  skills: Array<{ skillId: string; relevance: 'CORE' | 'RELATED' | 'OPTIONAL' }>,
+): Promise<void> {
+  await prisma.$transaction([
+    prisma.productSkill.deleteMany({ where: { productId } }),
+    ...(skills.length > 0
+      ? [
+          prisma.productSkill.createMany({
+            data: skills.map((skill) => ({
+              productId,
+              skillId: skill.skillId,
+              relevance: skill.relevance,
+            })),
+          }),
+        ]
+      : []),
+  ])
 }
 
 /** Связки с этим продуктом, которые затрагивает групповая операция, и их этап материалов. */

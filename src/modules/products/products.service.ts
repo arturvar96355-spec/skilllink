@@ -1,4 +1,4 @@
-import { notFound } from '@/shared/http/errors'
+import { notFound, validationError } from '@/shared/http/errors'
 import { writeAudit } from '@/shared/audit/audit'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
@@ -15,13 +15,18 @@ import { toIsoRequired } from '@/shared/utils/date'
 import * as repo from './products.repo'
 import { auditControlStageChange } from '@/modules/workflow/workflow.repo'
 import type {
+  CreateProductInput,
   ProductListQuery,
   ReleaseProductVersionInput,
+  SetProductSkillsInput,
+  UpdateProductInput,
 } from './products.schema'
 import {
   MATERIALS_UPDATE_STAGE_NUMBER,
   assertVersionChanged,
+  assertVersionEditable,
   assertVersionFormat,
+  duplicateNameConflict,
   releaseTaskTitle,
   reopenComment,
 } from './products.rules'
@@ -53,10 +58,7 @@ export async function list(
   }
 }
 
-export async function getById(user: CurrentUser, id: string): Promise<ProductDto> {
-  assertCan(user, 'READ')
-  const row = await repo.findById(id, universityScope(user))
-  if (!row) throw notFound('IT-продукт не найден')
+function toDetail(row: repo.ProductDetailRow): ProductDto {
   return {
     ...toListItem(row),
     description: row.description,
@@ -68,6 +70,101 @@ export async function getById(user: CurrentUser, id: string): Promise<ProductDto
     })),
     createdAt: toIsoRequired(row.createdAt),
   }
+}
+
+export async function getById(user: CurrentUser, id: string): Promise<ProductDto> {
+  assertCan(user, 'READ')
+  const row = await repo.findById(id, universityScope(user))
+  if (!row) throw notFound('IT-продукт не найден')
+  return toDetail(row)
+}
+
+/**
+ * Заведение IT-продукта в реестр.
+ *
+ * Без него продукт существовал только в демо-наборе: у новой связки он навсегда
+ * оставался «не выбран». Продукт, заведённый вручную, — не демонстрационный.
+ */
+export async function create(user: CurrentUser, input: CreateProductInput): Promise<ProductDto> {
+  assertCan(user, 'WRITE')
+  if (await repo.findByNameInsensitive(input.name)) throw duplicateNameConflict(input.name)
+
+  const row = await repo.create({ ...input, isMock: false })
+  await writeAudit({
+    userId: user.id,
+    action: 'product.create',
+    objectType: 'ITProduct',
+    objectId: row.id,
+    payload: { fields: Object.keys(input) },
+  })
+  return toDetail(row)
+}
+
+export async function update(
+  user: CurrentUser,
+  id: string,
+  input: UpdateProductInput,
+): Promise<ProductDto> {
+  assertCan(user, 'WRITE')
+  // Изменение — операция сотрудника: сужение по вузу здесь не нужно.
+  const existing = await repo.findById(id, {})
+  if (!existing) throw notFound('IT-продукт не найден')
+
+  if (input.name !== undefined && (await repo.findByNameInsensitive(input.name, id))) {
+    throw duplicateNameConflict(input.name)
+  }
+  if (input.version !== undefined && input.version !== existing.version) {
+    assertVersionEditable(existing.version, input.version, await repo.countOpenCooperations(id))
+  }
+
+  const row = await repo.update(id, input)
+  await writeAudit({
+    userId: user.id,
+    action: 'product.update',
+    objectType: 'ITProduct',
+    objectId: id,
+    payload: { fields: Object.keys(input) },
+  })
+  return toDetail(row)
+}
+
+/** Полная замена набора навыков продукта — по тем же правилам, что у программ. */
+export async function setSkills(
+  user: CurrentUser,
+  id: string,
+  input: SetProductSkillsInput,
+): Promise<ProductDto> {
+  assertCan(user, 'WRITE')
+  const existing = await repo.findById(id, {})
+  if (!existing) throw notFound('IT-продукт не найден')
+
+  const ids = input.skills.map((skill) => skill.skillId)
+  const duplicates = ids.filter((value, index) => ids.indexOf(value) !== index)
+  if (duplicates.length > 0) {
+    throw validationError('Навык указан несколько раз', [
+      { field: 'skills', message: `Повторяются: ${[...new Set(duplicates)].join(', ')}` },
+    ])
+  }
+
+  const found = new Set(await repo.findExistingSkillIds(ids))
+  const missing = ids.filter((skillId) => !found.has(skillId))
+  if (missing.length > 0) {
+    throw validationError('Указаны несуществующие навыки', [
+      { field: 'skills', message: `Не найдены: ${missing.join(', ')}` },
+    ])
+  }
+
+  await repo.replaceSkills(id, input.skills)
+  await writeAudit({
+    userId: user.id,
+    action: 'product.skills.replace',
+    objectType: 'ITProduct',
+    objectId: id,
+    payload: { skills: ids.length },
+  })
+  const row = await repo.findById(id, {})
+  if (!row) throw notFound('IT-продукт не найден')
+  return toDetail(row)
 }
 
 /**

@@ -604,6 +604,73 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
 Право: `READ`. Дополнительно `description` и `skills[]` с полем
 `relevance` (`CORE`, `RELATED`, `OPTIONAL`).
 
+### POST /api/products
+
+Право: `WRITE` (представителю вуза, аналитику и наблюдателю — 403). Ответ 201 —
+карточка продукта, как у `GET /api/products/:id`. Заведённый вручную продукт
+не демонстрационный: `isMock: false`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `name` | string | да | 2..200, **уникально без учёта регистра** |
+| `category` | string | да | 2..100 |
+| `description` | string \| null | нет | до 2000 |
+| `documentationUrl` | string \| null | нет | только `http://` или `https://`, до 500 |
+| `version` | string \| null | нет | 1..50 |
+| `status` | enum | нет | `PLANNED`, `ACTIVE`, `DEPRECATED`; по умолчанию `ACTIVE` |
+
+```bash
+curl -s -X POST http://localhost:3000/api/products \
+  -H 'content-type: application/json' \
+  -d '{"name":"Платформа видеоконференций","category":"Коммуникации","version":"1.0","documentationUrl":"https://example.invalid/docs"}'
+```
+
+Ошибки:
+
+- `CONFLICT` 409 — продукт с таким названием уже есть (регистр не важен).
+  `details: [{ "field": "name", "message": "Продукт с таким названием уже есть" }]`,
+  текст: «IT-продукт «…» уже есть в реестре. Выберите другое название.»
+- `VALIDATION_ERROR` 422 — например, `documentationUrl` вида `javascript:…` или `ftp://…`.
+
+### PATCH /api/products/:id
+
+Право: `WRITE`. Любое подмножество полей создания. **Пустое тело — 422.**
+Ответ — карточка продукта.
+
+- Дубль названия — `CONFLICT`, как при создании. Своё же название в другом регистре — не дубль.
+- **Версию продукта с открытыми связками (`DRAFT`, `ACTIVE`, `PAUSED`) правкой не поменять** —
+  `CONFLICT` с `details: [{ "field": "version", … }]`. Новая версия передаётся вузам выпуском
+  версии (`POST /api/products/:id/release`, раздел 15в): он ставит задачи и переоткрывает этап
+  обновления материалов. Тихая правка оставила бы этап закрытым со старыми материалами.
+  У продукта без открытых связок версию можно исправить здесь.
+
+```bash
+curl -s -X PATCH http://localhost:3000/api/products/PRODUCT_ID \
+  -H 'content-type: application/json' \
+  -d '{"status":"DEPRECATED","description":"Выводится из эксплуатации"}'
+```
+
+### PUT /api/products/:id/skills
+
+Право: `WRITE`. **Полная замена** набора навыков продукта — как `PUT /api/programs/:id/skills`.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/products/PRODUCT_ID/skills \
+  -H 'content-type: application/json' \
+  -d '{"skills":[{"skillId":"SKILL_ID","relevance":"CORE"}]}'
+```
+
+| Поле элемента | По умолчанию |
+| --- | --- |
+| `skillId` | обязательно |
+| `relevance` | `RELATED` (`CORE`, `RELATED`, `OPTIONAL`) |
+
+`{"skills": []}` снимает все навыки. Ошибки: `VALIDATION_ERROR` при повторе навыка или
+несуществующем `skillId`.
+
+Все три записи попадают в журнал действий: `product.create`, `product.update`,
+`product.skills.replace` (в журнале — имена изменённых полей, не значения).
+
 ---
 
 ## 7. Сотрудничество
@@ -692,11 +759,27 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 Ошибки `VALIDATION_ERROR`: программы нет, программа в архиве, программа принадлежит другому вузу,
 ответственный не найден, продукт не найден.
 
+**Одна незакрытая связка на «вуз + программа + IT-продукт».** Если такая уже есть в статусе
+`DRAFT`, `ACTIVE` или `PAUSED` (продукт «не выбран» — тоже значение), ответ `CONFLICT` 409,
+в `details.cooperationId` — существующая связка:
+
+```json
+{ "error": { "code": "CONFLICT",
+             "message": "Такая связка уже есть: СПбГУТ — Информационная безопасность, статус «В работе»",
+             "details": { "cooperationId": "…" } } }
+```
+
+Закрытые (`COMPLETED`, `CANCELLED`) не мешают: сотрудничество можно начать заново.
+Проверка и создание идут одной транзакцией в очереди программы — два одновременных
+запроса не заведут двух одинаковых связок.
+
 ### PATCH /api/cooperations/:id
 
 Право: `WRITE`. Поля: `productId`, `responsibleId`, `status`, `goal`, `notes`, `firstContactAt`,
 `classesStartAt`, `targetDate`. Пустое тело — 422. Закрытую связку (`COMPLETED`, `CANCELLED`)
 править нельзя, кроме смены статуса — `CONFLICT`. `productId: null` отвязывает продукт.
+Смена продукта и переоткрытие подчиняются тому же правилу, что создание: если получится
+вторая незакрытая связка «вуз + программа + продукт» — `CONFLICT` с `details.cooperationId`.
 
 ---
 
@@ -1176,6 +1259,7 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
   "fileReference": "https://example.invalid/docs/agreement-2.pdf",
   "content": null,
   "templateKey": null,
+  "templateName": null,
   "author": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "responsible": { "id": "…", "fullName": "…", "role": "MANAGER" },
   "issuedAt": "…", "signedAt": "…",
@@ -1185,6 +1269,10 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
   "createdAt": "…", "updatedAt": "…"
 }
 ```
+
+`templateName` — название шаблона по-русски («Договор о сотрудничестве»), `null` у документа,
+заведённого вручную. Добавлено 25.09.2026, чтобы интерфейс не показывал ключ `agreement`;
+`templateKey` не менялся.
 
 ### GET /api/documents/:id
 
@@ -1232,7 +1320,7 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 {
   "data": {
     "templates": [
-      { "key": "agreement", "type": "AGREEMENT",
+      { "key": "agreement", "type": "AGREEMENT", "name": "Договор о сотрудничестве",
         "title": "Договор о сотрудничестве — {{university.shortName}}",
         "description": "Основной документ связки: закрепляет предмет и стороны.",
         "inDefaultPackage": true,
@@ -1251,30 +1339,48 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 | Поле | Описание |
 | --- | --- |
 | `templateKeys` | какие шаблоны собрать; без списка берётся пакет по умолчанию |
-| `force` | пересобрать, даже если документ по шаблону уже есть |
+| `force` | пересобрать, даже если документ по шаблону уже есть; лицензию без продукта не собирает |
 
 ```json
 {
   "data": {
     "cooperationId": "…",
     "created": [
-      { "templateKey": "agreement", "missing": ["program.code"],
-        "document": { "id": "…", "title": "Договор о сотрудничестве — СПбГУТ",
-                      "content": "ДОГОВОР О СОТРУДНИЧЕСТВЕ…", "templateKey": "agreement", "…": "…" } }
+      { "templateKey": "nda", "missing": ["program.code"], "missingLabels": ["код программы"],
+        "document": { "id": "…", "title": "Соглашение о неразглашении — СПбГУТ",
+                      "content": "СОГЛАШЕНИЕ О НЕРАЗГЛАШЕНИИ…", "templateKey": "nda",
+                      "templateName": "Соглашение о неразглашении", "…": "…" } }
     ],
-    "skipped": [ { "templateKey": "nda", "reason": "Документ по этому шаблону в связке уже есть" } ],
+    "skipped": [
+      { "templateKey": "agreement", "templateName": "Договор о сотрудничестве",
+        "reason": "уже есть: «Договор о сотрудничестве — СПбГУТ», подписан" },
+      { "templateKey": "license", "templateName": "Лицензия на IT-продукт",
+        "reason": "не выбран IT-продукт — выберите его в связке" }
+    ],
     "missingFields": ["program.code"],
+    "missingFieldLabels": ["код программы"],
     "generatedAt": "…"
   }
 }
 ```
 
 **Недостающий реквизит не оставляет пустоту.** На его месте в тексте стоит видимый прочерк
-`__________`, а сам реквизит перечислен в `missing` документа и в сводном `missingFields`.
-Документ с невидимой дырой подписали бы не глядя — с явным пропуском заполнят.
+`__________`, а сам реквизит перечислен в `missing` документа и в сводном `missingFields`
+(ключи подстановок); `missingLabels` и `missingFieldLabels` — те же реквизиты подписями
+для человека, в том же порядке. Показывать пользователю — подписи.
 
-Повторный вызов не создаёт дубликаты: шаблоны, по которым документ в связке уже есть,
-попадают в `skipped` с причиной.
+**Шаблон не собирается** и попадает в `skipped` с `templateName` и причиной, если:
+
+- в связке уже есть действующий документ по этому шаблону — собранный из него (тот же
+  `templateKey`) или того же типа, например договор, заведённый вручную, или новая версия
+  собранного. Любой статус, кроме `ARCHIVED`. Причина — «уже есть: «<название>», <статус>».
+  `force: true` снимает эту проверку;
+- шаблону нужен IT-продукт (лицензия), а в связке он не выбран. Причина — «не выбран
+  IT-продукт — выберите его в связке». `force` эту проверку не снимает.
+
+Повторный вызов поэтому ничего не создаёт. Закрытая связка — `CONFLICT` 409.
+Добавлено 25.09.2026: `templateName` в `skipped`, `missingLabels`, `missingFieldLabels`,
+сверка по типу документа и пропуск лицензии без продукта. Старые поля не менялись.
 
 Собранный документ хранит текст в `content`. Ссылка на файл ему не нужна: на согласование
 он уходит и так — текст и есть документ.
