@@ -208,6 +208,19 @@ export async function findHistory(stageId: string) {
  * Берутся именно предшествующие, а не все: этапы после контрольной точки её
  * не касаются, и подтягивать их значит притворяться, что порядок жёсткий целиком.
  */
+/** Этапы связки после `stageNumber` — для проверки отмены контрольной точки. */
+export async function findLaterStages(
+  cooperationId: string,
+  stageNumber: number,
+  client: Prisma.TransactionClient = prisma,
+): Promise<Array<{ stageNumber: number; title: string; status: StageStatus }>> {
+  return client.workflowStage.findMany({
+    where: { cooperationId, stageNumber: { gt: stageNumber } },
+    select: { stageNumber: true, title: true, status: true },
+    orderBy: { stageNumber: 'asc' },
+  })
+}
+
 export async function findPriorStages(
   cooperationId: string,
   stageNumber: number,
