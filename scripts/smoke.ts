@@ -433,6 +433,32 @@ async function main(): Promise<void> {
   const productCard = await call('GET', `/api/products/${productId}`)
   check('карточка продукта открывается', productCard.status === 200)
 
+  // Продукт заводится вручную — вопрос «добавьте продукт» не должен ломать показ.
+  // Сценарий дальше работает с продуктом из демо-набора: новый без связок,
+  // выпуск версии на нём ничего бы не проверил.
+  const newProductName = `Продукт сквозного сценария ${Date.now().toString().slice(-6)}`
+  const newProduct = await call<Identified & { name: string; isMock: boolean }>(
+    'POST',
+    '/api/products',
+    { name: newProductName, category: 'Проверка', version: '1.0' },
+  )
+  check('POST /api/products отвечает 201', newProduct.status === 201, `статус ${newProduct.status}`)
+  check('заведённый продукт не помечен как демо', newProduct.body.data?.isMock === false)
+  const productDuplicate = await call('POST', '/api/products', {
+    name: newProductName,
+    category: 'Проверка',
+  })
+  check('дубль названия продукта — 409', productDuplicate.status === 409)
+  const productEdited = await call<{ description: string | null }>(
+    'PATCH',
+    `/api/products/${newProduct.body.data?.id}`,
+    { description: 'Заведён сквозным сценарием' },
+  )
+  check(
+    'PATCH /api/products/:id сохраняет правку',
+    productEdited.body.data?.description === 'Заведён сквозным сценарием',
+  )
+
   // ── 7a. Списки и сортировка ────────────────────────────────────────────────
   step('7a. Списки программ: пагинация, фильтры, сортировка')
   const programList = await call<Array<{ id: string; metrics: Record<string, { value: number | null }> }>>(

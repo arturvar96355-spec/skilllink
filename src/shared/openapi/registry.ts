@@ -36,9 +36,12 @@ import {
   updateProgramMetricsSchema,
 } from '@/modules/portal/portal.schema'
 import {
+  createProductSchema,
   productListQuerySchema,
   releasePreviewQuerySchema,
   releaseProductVersionSchema,
+  setProductSkillsSchema,
+  updateProductSchema,
 } from '@/modules/products/products.schema'
 import {
   createProgramSchema,
@@ -350,12 +353,44 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
   {
+    method: 'post',
+    path: '/api/products',
+    tag: 'IT-продукты',
+    summary: 'Завести IT-продукт',
+    description: 'Название уникально без учёта регистра: дубль — CONFLICT.',
+    permission: 'WRITE',
+    body: createProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
     method: 'get',
     path: '/api/products/{id}',
     tag: 'IT-продукты',
     summary: 'Карточка IT-продукта',
     permission: 'READ',
     errors: READ_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/products/{id}',
+    tag: 'IT-продукты',
+    summary: 'Изменить IT-продукт',
+    description:
+      'Частичное изменение. Дубль названия — CONFLICT. Версию продукта с открытыми связками ' +
+      'меняет выпуск версии, а не правка карточки — CONFLICT.',
+    permission: 'WRITE',
+    body: updateProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'put',
+    path: '/api/products/{id}/skills',
+    tag: 'IT-продукты',
+    summary: 'Заменить набор навыков продукта',
+    description: 'Полная замена: пустой список снимает все навыки.',
+    permission: 'WRITE',
+    body: setProductSkillsSchema,
+    errors: WRITE_ERRORS,
   },
   {
     method: 'get',
