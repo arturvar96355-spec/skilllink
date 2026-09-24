@@ -121,6 +121,7 @@ const PERMISSION_NOTES: Record<string, string> = {
   ANALYTICS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
   ADMIN: 'Роль: ADMIN',
   UNIVERSITY_PORTAL: 'Роли: ADMIN, MANAGER, UNIVERSITY_REP',
+  UNIVERSITY_PORTAL_WRITE: 'Роль: UNIVERSITY_REP. Сотрудник ИТ-Школы в кабинете вуза только просматривает',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {

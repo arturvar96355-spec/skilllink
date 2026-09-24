@@ -24,7 +24,12 @@ import {
 import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
 import { checklistBlockers, setTaskDone } from '@/modules/workflow/workflow.service'
 import * as repo from './portal.repo'
-import { MATERIALS_STAGE_NUMBER, assertMaterialsTask, resolvePortalUniversityId } from './portal.rules'
+import {
+  MATERIALS_STAGE_NUMBER,
+  assertMaterialsTask,
+  assertPortalWritable,
+  resolvePortalUniversityId,
+} from './portal.rules'
 import type {
   ApplicationListQuery,
   ConfirmMaterialInput,
@@ -39,8 +44,11 @@ import type {
 async function resolveUniversity(
   user: CurrentUser,
   requested: string | undefined,
+  mode: 'read' | 'write' = 'read',
 ): Promise<{ id: string; name: string }> {
   assertCan(user, 'UNIVERSITY_PORTAL')
+  // До поиска вуза: запись сотруднику запрещена в кабинете любого вуза.
+  if (mode === 'write') assertPortalWritable(user)
 
   const universityId = resolvePortalUniversityId(user, requested)
   if (!isUniversityVisible(user, universityId)) throw notFound('Вуз не найден')
@@ -191,7 +199,7 @@ export async function confirmMaterial(
   universityId: string | undefined,
   input: ConfirmMaterialInput,
 ): Promise<PortalMaterialDto[]> {
-  const university = await resolveUniversity(user, universityId)
+  const university = await resolveUniversity(user, universityId, 'write')
 
   const task = await repo.findMaterialTask(taskId, university.id)
   if (!task) throw notFound('Задача не найдена')
@@ -217,7 +225,9 @@ export async function confirmMaterial(
     action: 'portal.material.confirm',
     objectType: 'Task',
     objectId: taskId,
-    payload: { universityId: university.id, comment: input.comment ?? null },
+    // Свободный текст в журнал не пишется: в комментарии бывают ФИО и телефоны,
+    // а в журнал идут только служебные поля.
+    payload: { universityId: university.id, withComment: Boolean(input.comment) },
   })
 
   return materials(user, universityId)
@@ -233,7 +243,7 @@ export async function updateProgramMetrics(
   universityId: string | undefined,
   input: UpdateProgramMetricsInput,
 ): Promise<PortalProgramDto> {
-  const university = await resolveUniversity(user, universityId)
+  const university = await resolveUniversity(user, universityId, 'write')
 
   const program = await repo.findProgram(programId, university.id)
   if (!program) throw notFound('Образовательная программа не найдена')
@@ -280,7 +290,7 @@ export async function submitApplication(
   universityId: string | undefined,
   input: SubmitApplicationInput,
 ): Promise<ApplicationDto> {
-  const university = await resolveUniversity(user, universityId)
+  const university = await resolveUniversity(user, universityId, 'write')
 
   const program = await repo.findProgram(input.programId, university.id)
   if (!program) {

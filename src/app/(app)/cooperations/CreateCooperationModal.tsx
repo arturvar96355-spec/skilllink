@@ -6,6 +6,7 @@ import {
   OPEN_COOPERATION_STATUSES,
   COOPERATION_STATUS_LABELS,
   USER_ROLE_LABELS,
+  canBeResponsible,
   type CooperationDto,
   type ProductListItemDto,
   type ProgramListItemDto,
@@ -155,7 +156,8 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
         onValueChange={setResponsibleId}
         placeholder={users.isLoading ? 'Загрузка…' : 'Выберите сотрудника'}
         options={(users.data ?? [])
-          .filter((row) => row.role !== 'UNIVERSITY_REP')
+          // Сервер примет только менеджера или администратора (RESPONSIBLE_ROLES).
+          .filter((row) => canBeResponsible(row.role))
           .map((row) => ({
             value: row.id,
             label: `${row.fullName} — ${USER_ROLE_LABELS[row.role]}`,

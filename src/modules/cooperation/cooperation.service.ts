@@ -132,7 +132,7 @@ export async function create(
 ): Promise<CooperationDto> {
   assertCan(user, 'WRITE')
 
-  const [university, program, responsible, product] = await Promise.all([
+  const [university, program, product] = await Promise.all([
     prisma.university.findUnique({
       where: { id: input.universityId },
       select: { id: true, archivedAt: true },
@@ -140,10 +140,6 @@ export async function create(
     prisma.educationalProgram.findUnique({
       where: { id: input.programId },
       select: { id: true, universityId: true, archivedAt: true },
-    }),
-    prisma.user.findFirst({
-      where: { id: input.responsibleId, isActive: true },
-      select: { id: true },
     }),
     input.productId
       ? prisma.iTProduct.findUnique({ where: { id: input.productId }, select: { id: true } })
@@ -177,11 +173,9 @@ export async function create(
   }
   assertProgramBelongsToUniversity(program.universityId, input.universityId)
 
-  if (!responsible) {
-    throw validationError('Указан несуществующий ответственный', [
-      { field: 'responsibleId', message: 'Сотрудник не найден' },
-    ])
-  }
+  // Та же проверка, что при изменении связки, встречи и документа: ответственным
+  // становится и связка, и все её 14 этапов (buildStages).
+  await assertStaffResponsible(input.responsibleId)
   if (input.productId && !product) {
     throw validationError('Указан несуществующий IT-продукт', [
       { field: 'productId', message: 'Продукт не найден' },

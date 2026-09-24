@@ -7,6 +7,19 @@
 export const USER_ROLES = ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
+/**
+ * Кого можно назначить ответственным за этап, связку, встречу или документ.
+ *
+ * Ответственный ведёт запись и меняет её, а менять данные могут только ADMIN
+ * и MANAGER. Аналитик или наблюдатель в этой роли числился бы за работой,
+ * которую не может сделать, а представитель вуза — вообще не сотрудник ИТ-Школы.
+ */
+export const RESPONSIBLE_ROLES = ['ADMIN', 'MANAGER'] as const satisfies readonly UserRole[]
+
+export function canBeResponsible(role: UserRole): boolean {
+  return (RESPONSIBLE_ROLES as readonly UserRole[]).includes(role)
+}
+
 export const UNIVERSITY_STATUSES = ['NEW', 'IN_PROGRESS', 'ACTIVE', 'PAUSED', 'ARCHIVED'] as const
 export type UniversityStatus = (typeof UNIVERSITY_STATUSES)[number]
 

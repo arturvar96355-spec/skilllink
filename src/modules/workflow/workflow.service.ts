@@ -19,6 +19,7 @@ import type {
 import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
+import { assertStaffResponsible } from '@/shared/links/entity-links'
 import {
   assertChecklistReady,
   assertControlPointCancellable,
@@ -141,6 +142,10 @@ export async function updateStage(
   if (!stage) throw notFound('Этап не найден')
   const cooperation = await loadVisibleCooperation(user, stage.cooperationId)
   assertCooperationOpen(cooperation.status)
+  // Ответственный этапа проверялся только внешним ключом: аналитик, наблюдатель
+  // и представитель вуза проходили, а несуществующий id давал ошибку базы.
+  // null снимает ответственного — это разрешено.
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
   const requiredTasks = stage.tasks.filter((task) => task.isRequired)
   const statusChanged = input.status !== undefined && input.status !== stage.status
