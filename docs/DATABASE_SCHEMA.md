@@ -198,6 +198,7 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 `file_reference`, `author_id`,
 `responsible_id`, `issued_at`, `signed_at`. Файлы **не хранятся**: в MVP только метаданные и
 ссылка (решение 14).
+`document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`.
 
 `meeting_participants` допускает участника-пользователя, участника-контакт или внешнее имя
 строкой.
