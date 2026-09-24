@@ -306,6 +306,9 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* Декоративный слой не выходит за экран (правило для мобилки, пункт 1). */
+  overflow: hidden;
+  contain: strict;
   animation: canvasIn 900ms var(--ease-out) both;
 }
 
@@ -323,6 +326,8 @@
 .warpCanvas {
   position: fixed;
   inset: 0;
+  overflow: hidden;
+  contain: strict;
   /*
    * Под содержимым сайта, над его живым фоном (тот же слой −1, но позже в
    * документе): звёзды прилетают на пустое место, и проявившийся блок закрывает

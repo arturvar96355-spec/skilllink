@@ -65,6 +65,17 @@ export function Constellation() {
     const host = hostRef.current
     if (!host) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    /**
+     * Сенсорный экран: курсора нет — сцена не поворачивается за касаниями
+     * (правило для мобилки после PR #73, пункт 2).
+     */
+    const touch = window.matchMedia('(hover: none)').matches
+    /**
+     * Сборка сайта звёздами — только на широком экране, как и обычная сборка
+     * каркаса (.arrival, решение 75): на узком меню спрятано, а блоки при сборке
+     * съезжали бы вбок за край экрана.
+     */
+    const assembles = !touch && window.matchMedia('(min-width: 1081px)').matches
     const makeCanvas = () => {
       const element = document.createElement('canvas')
       element.className = styles.sceneCanvas ?? ''
@@ -217,6 +228,7 @@ export function Constellation() {
 
     // ── События страницы — в сцену ─────────────────────────────────────────
     const onPointer = (event: PointerEvent) =>
+      !touch &&
       channel?.send({
         type: 'pointer',
         x: event.clientX / window.innerWidth - 0.5,
@@ -392,7 +404,9 @@ export function Constellation() {
       canvas.className = `${styles.sceneCanvas} ${styles.warpCanvas}`
       document.body.appendChild(canvas)
       channel.send({ type: 'warp' })
-      waitForPage()
+      if (assembles) waitForPage()
+      // Без сборки — звёзды собираются в диск и разлетаются, сайт приходит сам.
+      else window.setTimeout(() => channel?.send({ type: 'release' }), 900)
       // Страховка: если сцена не сообщит об окончании, слои снимутся по времени.
       cleanupTimer = window.setTimeout(finish, PAGE_WAIT_MS + 5000)
     })
