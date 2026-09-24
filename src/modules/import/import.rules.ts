@@ -6,11 +6,44 @@ import { CSV_DELIMITER } from '@/modules/export/export.rules'
  * Разбор CSV из Excel.
  *
  * Пишется вручную, а не берётся библиотекой: формат нужен ровно тот, который отдаёт
- * наша же выгрузка — точка с запятой, кавычки, BOM. Зависимость ради тридцати строк
+ * наша же выгрузка — точка с запятой, кавычки, BOM — плюс запятая, которую ставят
+ * Excel с английскими настройками и Google Таблицы. Зависимость ради тридцати строк
  * пришлось бы обосновывать, а проверить разбор тестами дешевле.
  */
 
 const BOM = '﻿'
+
+/** Разделители, которые понимает загрузка. */
+export const CSV_DELIMITERS = [CSV_DELIMITER, ','] as const
+export type CsvDelimiter = (typeof CSV_DELIMITERS)[number]
+
+/**
+ * Разделитель файла — по строке заголовков.
+ *
+ * Русский Excel сохраняет CSV через точку с запятой, английский и Google Таблицы —
+ * через запятую. Раньше загрузка знала только точку с запятой, файл через запятую
+ * читался одной колонкой, и человек получал «не найдены: Название, Город, Регион».
+ * Считаются разделители вне кавычек: запятая внутри «"Москва, Россия"» — часть
+ * значения. При равенстве — точка с запятой: это формат нашей выгрузки.
+ */
+export function detectDelimiter(text: string): CsvDelimiter {
+  const source = text.startsWith(BOM) ? text.slice(BOM.length) : text
+  const counts = { [CSV_DELIMITER]: 0, ',': 0 } as Record<CsvDelimiter, number>
+  let inQuotes = false
+
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+    if (char === '"') {
+      inQuotes = !inQuotes
+      continue
+    }
+    if (inQuotes) continue
+    if (char === '\n' || char === '\r') break
+    if (char === CSV_DELIMITER || char === ',') counts[char] += 1
+  }
+
+  return counts[','] > counts[CSV_DELIMITER] ? ',' : CSV_DELIMITER
+}
 
 /** Одна строка файла как массив ячеек. */
 export type CsvRow = string[]
@@ -98,8 +131,14 @@ export function mapHeaders(
 
   const missing = required.filter((name) => !index.has(name))
   if (missing.length > 0) {
+    // Одна колонка на весь заголовок — почти всегда чужой разделитель, а не
+    // пропавшие колонки: об этом и надо сказать.
+    const oneColumn =
+      header.length === 1
+        ? '. Файл прочитан одной колонкой — разделитель колонок должен быть «;» или «,»'
+        : ''
     throw validationError('В файле не хватает обязательных колонок', [
-      { field: 'csv', message: `Не найдены: ${missing.join(', ')}` },
+      { field: 'csv', message: `Не найдены: ${missing.join(', ')}${oneColumn}` },
     ])
   }
 
@@ -181,3 +220,21 @@ export function schemaIssue(
   return column ? `Колонка «${column}»: ${issue.message}` : issue.message
 }
 
+
+/**
+ * Какие колонки строки меняют запись — по сравнению с тем, что уже в базе.
+ *
+ * Без сравнения предпросмотр обещал «Обновятся данные» каждой найденной
+ * записи, и повторная загрузка только что выгруженного файла выглядела
+ * как правка всего реестра. Сравниваются только поля из файла: колонки,
+ * которой нет, загрузка не трогает.
+ */
+export function changedColumns(
+  existing: Readonly<Record<string, unknown>>,
+  next: Readonly<Record<string, unknown>>,
+  columnOf: Readonly<Record<string, string>>,
+): string[] {
+  return Object.keys(next)
+    .filter((key) => (existing[key] ?? null) !== (next[key] ?? null))
+    .map((key) => columnOf[key] ?? key)
+}

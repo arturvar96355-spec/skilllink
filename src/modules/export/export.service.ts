@@ -1,17 +1,37 @@
 import { prisma } from '@/shared/db/prisma'
-import { assertCan, universityScope } from '@/shared/auth/permissions'
-import { intersectUniversityFilter } from '@/shared/auth/scope'
+import { assertCan, can, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import {
   COOPERATION_STATUS_LABELS,
+  DATA_ORIGIN_LABELS,
   PROGRAM_LEVEL_LABELS,
+  PROGRAM_STATUS_LABELS,
+  SKILL_LEVEL_LABELS,
+  STAGE_STATUS_LABELS,
   UNIVERSITY_STATUS_LABELS,
 } from '@/shared/contracts/labels'
+import type { CooperationListQuery } from '@/modules/cooperation/cooperation.schema'
+import type { ProgramListQuery } from '@/modules/programs/programs.schema'
+import type { UniversityListQuery } from '@/modules/universities/universities.schema'
 import { computeProgressPercent, findCurrentStage, isAutoManaged } from '@/modules/workflow/workflow.rules'
+import * as analyticsService from '@/modules/analytics/analytics.service'
+import * as cooperationRepo from '@/modules/cooperation/cooperation.repo'
+import * as programsRepo from '@/modules/programs/programs.repo'
 import * as skillsService from '@/modules/skills/skills.service'
-import { csvDate, exportFileName, toCsv, type CsvValue } from './export.rules'
-import type { ExportQuery } from './export.schema'
+import * as universitiesService from '@/modules/universities/universities.service'
+import {
+  PROGRAM_RATING_HEADERS,
+  UNIVERSITY_RATING_HEADERS,
+  csvDate,
+  csvLabel,
+  exportFileName,
+  programRatingCells,
+  toCsv,
+  universityRatingCells,
+  type CsvValue,
+} from './export.rules'
+import type { ExportRequest } from './export.schema'
 
 export interface ExportResult {
   fileName: string
@@ -19,38 +39,32 @@ export interface ExportResult {
   rows: number
 }
 
-const PROGRAM_HEADERS = [
-  'Вуз', 'Программа', 'Код', 'Направление', 'Уровень', 'Длительность, мес.', 'Статус',
-  'Заявки', 'Обучающихся', 'Групп', 'Источник показателей', 'Навыков', 'Связок', 'Демо-данные',
-]
-
 const COOPERATION_HEADERS = [
   'Вуз', 'Программа', 'IT-продукт', 'Статус', 'Ответственный', 'Текущий этап',
   'Название этапа', 'Статус этапа', 'Выполнено, %', 'Просрочено этапов', 'Начало занятий',
   'Цель', 'Демо-данные', 'Обновлено',
 ]
 
+/**
+ * Вузы — через тот же список, что открывает реестр: те же фильтры, порядок
+ * и рейтинг. Балл в файле обязан совпадать с баллом на экране, поэтому он не
+ * пересчитывается здесь, а приходит из сервиса реестра. Поля, которых в строке
+ * реестра нет (контакт, сайт, численность), дочитываются по найденным вузам.
+ */
 async function exportUniversities(
-  scope: { universityId?: string },
+  user: CurrentUser,
+  filters: UniversityListQuery,
   limit: number,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
-  const rows = await prisma.university.findMany({
-    where: { ...(scope.universityId ? { id: scope.universityId } : {}) },
-    orderBy: { name: 'asc' },
-    take: limit,
+  const list = await universitiesService.list(user, { ...filters, page: 1, pageSize: limit })
+  const ids = list.data.map((row) => row.id)
+  const extras = await prisma.university.findMany({
+    where: { id: { in: ids } },
     select: {
-      name: true,
-      shortName: true,
-      city: true,
-      region: true,
-      status: true,
+      id: true,
       directionCount: true,
       studentCount: true,
       website: true,
-      isMock: true,
-      archivedAt: true,
-      updatedAt: true,
-      _count: { select: { programs: true, cooperations: true } },
       contacts: {
         where: { isPrimary: true },
         take: 1,
@@ -58,6 +72,9 @@ async function exportUniversities(
       },
     },
   })
+  const extraById = new Map(extras.map((row) => [row.id, row]))
+  // Рейтинг — аналитика: роли без доступа к ней колонки не показываются вовсе.
+  const withRating = can(user, 'ANALYTICS')
 
   return {
     headers: [
@@ -66,6 +83,7 @@ async function exportUniversities(
       'Город',
       'Регион',
       'Статус',
+      ...(withRating ? UNIVERSITY_RATING_HEADERS : []),
       'Направлений',
       'Студентов',
       'Программ',
@@ -78,57 +96,60 @@ async function exportUniversities(
       'В архиве',
       'Обновлено',
     ],
-    rows: rows.map((row) => [
-      row.name,
-      row.shortName,
-      row.city,
-      row.region,
-      UNIVERSITY_STATUS_LABELS[row.status] ?? row.status,
-      row.directionCount,
-      row.studentCount,
-      row._count.programs,
-      row._count.cooperations,
-      row.contacts[0]?.fullName ?? null,
-      row.contacts[0]?.position ?? null,
-      row.contacts[0]?.email ?? null,
-      row.website,
-      row.isMock,
-      row.archivedAt !== null,
-      csvDate(row.updatedAt),
-    ]),
+    rows: list.data.map((row) => {
+      const extra = extraById.get(row.id)
+      const contact = extra?.contacts[0]
+      return [
+        row.name,
+        row.shortName,
+        row.city,
+        row.region,
+        csvLabel(UNIVERSITY_STATUS_LABELS, row.status),
+        ...(withRating ? universityRatingCells(row.rating) : []),
+        extra?.directionCount ?? null,
+        extra?.studentCount ?? null,
+        row.programCount,
+        row.cooperationCount,
+        contact?.fullName ?? null,
+        contact?.position ?? null,
+        contact?.email ?? null,
+        extra?.website ?? null,
+        row.isMock,
+        row.archivedAt !== null,
+        csvDate(new Date(row.updatedAt)),
+      ]
+    }),
   }
 }
 
 async function exportPrograms(
-  scope: { universityId?: string },
-  query: ExportQuery,
+  user: CurrentUser,
+  filters: ProgramListQuery,
+  limit: number,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
-  const universityFilter = intersectUniversityFilter(scope, query.universityId)
-  if (universityFilter === null) return { headers: PROGRAM_HEADERS, rows: [] }
-
-  const rows = await prisma.educationalProgram.findMany({
-    where: { ...universityFilter },
-    orderBy: [{ university: { name: 'asc' } }, { name: 'asc' }],
-    take: query.limit,
-    select: {
-      name: true,
-      code: true,
-      direction: true,
-      level: true,
-      durationMonths: true,
-      status: true,
-      applicationCount: true,
-      studentCount: true,
-      groupCount: true,
-      metricsSource: true,
-      isMock: true,
-      university: { select: { name: true } },
-      _count: { select: { skills: true, cooperations: true } },
-    },
-  })
+  // Тот же запрос, что у реестра программ: фильтры, область видимости и порядок.
+  const { rows } = await programsRepo.findMany(
+    { ...filters, page: 1, pageSize: limit },
+    universityScope(user),
+  )
+  const ratings = await analyticsService.ratingsOfPrograms(
+    user,
+    rows.map((row) => ({
+      programId: row.id,
+      applicationCount: row.applicationCount,
+      studentCount: row.studentCount,
+      groupCount: row.groupCount,
+      metricsSource: row.metricsSource,
+      isActive: row.status === 'ACTIVE' && row.archivedAt === null,
+    })),
+  )
 
   return {
-    headers: PROGRAM_HEADERS,
+    headers: [
+      'Вуз', 'Программа', 'Код', 'Направление', 'Уровень', 'Длительность, мес.', 'Статус',
+      ...(ratings ? PROGRAM_RATING_HEADERS : []),
+      'Заявки', 'Обучающихся', 'Групп', 'Источник показателей', 'Навыков', 'Связок', 'Демо-данные',
+    ],
     // Пустой показатель остаётся пустым: в таблице не должно появиться ноля,
     // которого в системе нет.
     rows: rows.map((row) => [
@@ -136,13 +157,14 @@ async function exportPrograms(
       row.name,
       row.code,
       row.direction,
-      PROGRAM_LEVEL_LABELS[row.level] ?? row.level,
+      csvLabel(PROGRAM_LEVEL_LABELS, row.level),
       row.durationMonths,
-      row.status,
+      csvLabel(PROGRAM_STATUS_LABELS, row.status),
+      ...(ratings ? programRatingCells(ratings.get(row.id)) : []),
       row.applicationCount,
       row.studentCount,
       row.groupCount,
-      row.metricsSource,
+      csvLabel(DATA_ORIGIN_LABELS, row.metricsSource),
       row._count.skills,
       row._count.cooperations,
       row.isMock,
@@ -151,17 +173,19 @@ async function exportPrograms(
 }
 
 async function exportCooperations(
-  scope: { universityId?: string },
-  query: ExportQuery,
+  user: CurrentUser,
+  filters: CooperationListQuery,
+  limit: number,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
-  const universityFilter = intersectUniversityFilter(scope, query.universityId)
-  if (universityFilter === null) return { headers: COOPERATION_HEADERS, rows: [] }
-
   const now = new Date()
+  // Условия и порядок — из реестра связок: в файл попадает то, что отобрано на экране.
+  const where = cooperationRepo.buildWhere(filters, universityScope(user), now)
+  if (where === null) return { headers: COOPERATION_HEADERS, rows: [] }
+
   const rows = await prisma.cooperation.findMany({
-    where: { ...universityFilter },
-    orderBy: { updatedAt: 'desc' },
-    take: query.limit,
+    where,
+    orderBy: cooperationRepo.listOrderBy(filters),
+    take: limit,
     select: {
       status: true,
       goal: true,
@@ -197,11 +221,11 @@ async function exportCooperations(
         row.university.name,
         row.program.name,
         row.product?.name ?? null,
-        COOPERATION_STATUS_LABELS[row.status] ?? row.status,
+        csvLabel(COOPERATION_STATUS_LABELS, row.status),
         row.responsible.fullName,
         current?.stageNumber ?? null,
         current?.title ?? null,
-        current?.status ?? null,
+        csvLabel(STAGE_STATUS_LABELS, current?.status),
         computeProgressPercent(countable.map((stage) => stage.status)),
         overdue,
         csvDate(row.classesStartAt ?? row.targetDate),
@@ -215,12 +239,12 @@ async function exportCooperations(
 
 async function exportSkillGaps(
   user: CurrentUser,
-  query: ExportQuery,
+  request: Extract<ExportRequest, { dataset: 'skill-gaps' }>,
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
   // Переиспользуется тот же расчёт, что отдаёт API: выгрузка не должна считать по-своему.
   const result = await skillsService.gaps(user, {
-    limit: Math.min(query.limit, 200),
-    ...(query.universityId ? { universityId: query.universityId } : {}),
+    limit: Math.min(request.limit, 200),
+    ...(request.universityId ? { universityId: request.universityId } : {}),
   })
 
   return {
@@ -246,7 +270,7 @@ async function exportSkillGaps(
       row.coverage,
       row.gap,
       row.isCritical,
-      row.level,
+      csvLabel(SKILL_LEVEL_LABELS, row.level),
       row.explanation,
       row.isMock,
     ]),
@@ -260,31 +284,39 @@ async function exportSkillGaps(
  * к данным, которые роль не видит в интерфейсе. Для представителя вуза выборка сужается
  * тем же хелпером, что и везде.
  */
-export async function exportDataset(user: CurrentUser, query: ExportQuery): Promise<ExportResult> {
+export async function exportDataset(
+  user: CurrentUser,
+  request: ExportRequest,
+): Promise<ExportResult> {
   // Аналитика по навыкам закрыта для представителя вуза — значит, и её выгрузка тоже.
-  assertCan(user, query.dataset === 'skill-gaps' ? 'ANALYTICS' : 'READ')
-
-  const scope = universityScope(user)
+  assertCan(user, request.dataset === 'skill-gaps' ? 'ANALYTICS' : 'READ')
 
   const data =
-    query.dataset === 'universities'
-      ? await exportUniversities(scope, query.limit)
-      : query.dataset === 'programs'
-        ? await exportPrograms(scope, query)
-        : query.dataset === 'cooperations'
-          ? await exportCooperations(scope, query)
-          : await exportSkillGaps(user, query)
+    request.dataset === 'universities'
+      ? await exportUniversities(user, request.filters, request.limit)
+      : request.dataset === 'programs'
+        ? await exportPrograms(user, request.filters, request.limit)
+        : request.dataset === 'cooperations'
+          ? await exportCooperations(user, request.filters, request.limit)
+          : await exportSkillGaps(user, request)
 
   await writeAudit({
     userId: user.id,
     action: 'export.download',
     objectType: 'Export',
-    objectId: query.dataset,
-    payload: { rows: data.rows.length, limit: query.limit },
+    objectId: request.dataset,
+    payload: {
+      rows: data.rows.length,
+      limit: request.limit,
+      // Какие фильтры стояли — без значений: в поиске может оказаться фамилия.
+      filters: 'filters' in request
+        ? Object.keys(request.filters).filter((key) => key !== 'page' && key !== 'pageSize')
+        : [],
+    },
   })
 
   return {
-    fileName: exportFileName(query.dataset),
+    fileName: exportFileName(request.dataset),
     csv: toCsv(data.headers, data.rows),
     rows: data.rows.length,
   }

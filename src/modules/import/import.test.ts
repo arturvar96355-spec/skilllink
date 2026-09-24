@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
 import { toCsv } from '@/modules/export/export.rules'
-import { cell, mapHeaders, numericCell, parseCsv, presentColumns, schemaIssue } from './import.rules'
+import {
+  cell,
+  changedColumns,
+  detectDelimiter,
+  mapHeaders,
+  numericCell,
+  parseCsv,
+  presentColumns,
+  schemaIssue,
+} from './import.rules'
 import { importQuerySchema } from './import.schema'
 
 describe('разбор CSV', () => {
@@ -224,3 +233,80 @@ describe('поля из колонок файла', () => {
   })
 })
 
+
+describe('разделитель файла', () => {
+  it('точка с запятой — формат нашей выгрузки', () => {
+    expect(detectDelimiter('﻿Название;Город;Регион\r\nВуз;Москва;Москва\r\n')).toBe(';')
+  })
+
+  it('запятая — Excel с английскими настройками и Google Таблицы', () => {
+    expect(detectDelimiter('Название,Город,Регион\r\nВуз,Москва,Москва\r\n')).toBe(',')
+  })
+
+  it('запятая внутри кавычек в заголовке не считается', () => {
+    expect(detectDelimiter('"Длительность, мес.";Название\r\n')).toBe(';')
+    expect(detectDelimiter('"Длительность, мес.",Название,Уровень\r\n')).toBe(',')
+  })
+
+  it('смотрит только на строку заголовков', () => {
+    expect(detectDelimiter('Название;Город\r\nа,б,в,г,д;Москва\r\n')).toBe(';')
+  })
+
+  it('без разделителей — точка с запятой', () => {
+    expect(detectDelimiter('Название\r\nВуз\r\n')).toBe(';')
+  })
+
+  it('файл через запятую разбирается по колонкам', () => {
+    const csv = 'Название,Город,Регион\r\n"Вуз ""Связь""","Москва, центр",Москва\r\n'
+    expect(parseCsv(csv, detectDelimiter(csv))).toEqual([
+      ['Название', 'Город', 'Регион'],
+      ['Вуз "Связь"', 'Москва, центр', 'Москва'],
+    ])
+  })
+
+  it('заголовок одной колонкой подсказывает про разделитель', () => {
+    try {
+      mapHeaders(['Название|Город|Регион'], ['Название', 'Город', 'Регион'])
+      expect.unreachable()
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError)
+      expect(JSON.stringify((error as AppError).details)).toContain('«;» или «,»')
+    }
+  })
+})
+
+describe('строка без изменений', () => {
+  const columnOf = { city: 'Город', website: 'Сайт', studentCount: 'Студентов' }
+
+  it('совпадающие значения — пустой список изменений', () => {
+    expect(
+      changedColumns(
+        { city: 'Москва', website: null, studentCount: 7500, region: 'Москва' },
+        { city: 'Москва', website: null, studentCount: 7500 },
+        columnOf,
+      ),
+    ).toEqual([])
+  })
+
+  it('называет изменившиеся колонки', () => {
+    expect(
+      changedColumns(
+        { city: 'Москва', website: null, studentCount: 7500 },
+        { city: 'Тверь', website: 'https://example.invalid', studentCount: 7500 },
+        columnOf,
+      ),
+    ).toEqual(['Город', 'Сайт'])
+  })
+
+  it('отсутствующая колонка не считается изменением', () => {
+    expect(
+      changedColumns({ city: 'Москва', studentCount: 7500 }, { city: 'Москва' }, columnOf),
+    ).toEqual([])
+  })
+
+  it('пустая ячейка против заполненного поля — изменение: поле очистится', () => {
+    expect(changedColumns({ studentCount: 7500 }, { studentCount: null }, columnOf)).toEqual([
+      'Студентов',
+    ])
+  })
+})

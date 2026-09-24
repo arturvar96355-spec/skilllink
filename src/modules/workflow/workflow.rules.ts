@@ -332,6 +332,36 @@ export function resolveStageFields(
   return { status, result, blockingReason }
 }
 
+/**
+ * Текст записи истории при смене статуса.
+ *
+ * В историю шёл только комментарий запроса, а причина блокировки и результат
+ * приходят своими полями — и записи «Заблокирован» и «Завершён» оставались
+ * пустыми. Хуже того, причина блокировки на этапе стирается при снятии
+ * блокировки (`resolveStageFields`), и после этого узнать, почему этап стоял,
+ * было негде. Теперь запись несёт то, ради чего переход делался:
+ * у блокировки — причину, у завершения — результат, у остальных — комментарий
+ * (при снятии блокировки это «что изменилось», оно необязательное).
+ * Комментарий, присланный вместе с причиной или результатом, не теряется.
+ */
+export function historyComment(
+  toStatus: StageStatus,
+  resulting: StageStatusFields,
+  comment: string | null | undefined,
+): string | null {
+  const main =
+    toStatus === 'BLOCKED'
+      ? resulting.blockingReason
+      : toStatus === 'COMPLETED'
+        ? resulting.result
+        : null
+  const parts = [main, comment]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter((part) => part.length > 0)
+  const unique = parts.filter((part, index) => parts.indexOf(part) === index)
+  return unique.length > 0 ? unique.join('\n') : null
+}
+
 /** Итоговое состояние этапа само удовлетворяет правилам своего статуса. */
 export function assertStageFieldsComplete(fields: StageStatusFields): void {
   if (fields.status === 'COMPLETED' && !isFilled(fields.result)) {

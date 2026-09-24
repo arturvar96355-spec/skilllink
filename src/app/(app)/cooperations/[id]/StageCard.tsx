@@ -30,12 +30,24 @@ import {
 } from '@/ui'
 import styles from './cooperation.module.css'
 
-/** Действие над этапом: у каждого свой обязательный комментарий. */
-type ActionKind = 'complete' | 'block' | 'cancel' | 'reopen'
+/**
+ * Действие над этапом: у каждого свой комментарий. Обязателен он везде,
+ * кроме снятия блокировки: там «что изменилось» полезно, но не всегда известно.
+ */
+type ActionKind = 'complete' | 'block' | 'unblock' | 'cancel' | 'reopen'
 
 const ACTION_FORMS: Record<
   ActionKind,
-  { title: string; description: string; label: string; hint: string; field: 'result' | 'comment' | 'blockingReason'; status: StageStatus; submit: string }
+  {
+    title: string
+    description: string
+    label: string
+    hint: string
+    field: 'result' | 'comment' | 'blockingReason'
+    status: StageStatus
+    submit: string
+    optional?: boolean
+  }
 > = {
   complete: {
     title: 'Завершить этап',
@@ -54,6 +66,16 @@ const ACTION_FORMS: Record<
     field: 'blockingReason',
     status: 'BLOCKED',
     submit: 'Заблокировать',
+  },
+  unblock: {
+    title: 'Снять блокировку',
+    description: 'Этап вернётся в работу. Причина блокировки останется в истории этапа.',
+    label: 'Что изменилось',
+    hint: 'Необязательно: например, «вуз подписал NDA». Текст попадёт в историю этапа.',
+    field: 'comment',
+    status: 'IN_PROGRESS',
+    submit: 'Снять блокировку',
+    optional: true,
   },
   cancel: {
     title: 'Отменить этап',
@@ -167,7 +189,9 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
   async function onSubmitAction() {
     if (action === null) return
     const form = ACTION_FORMS[action]
-    const ok = await apply({ status: form.status, [form.field]: text.trim() })
+    const value = text.trim()
+    // Пустое необязательное поле не отправляется: пустой комментарий стёр бы сохранённый.
+    const ok = await apply({ status: form.status, ...(value ? { [form.field]: value } : {}) })
     if (ok) {
       toast.success(`Этап ${stage.stageNumber}: ${STAGE_STATUS_LABELS[form.status].toLowerCase()}`)
       closeAction()
@@ -326,7 +350,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
                 </span>
               ) : canWrite ? (
                 <>
-                  {(stage.status === 'NOT_STARTED' || stage.status === 'BLOCKED') && (
+                  {stage.status === 'NOT_STARTED' && (
                     <Button
                       variant="primary"
                       size="sm"
@@ -334,7 +358,12 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
                       onClick={onStart}
                       isLoading={updateStage.isPending}
                     >
-                      {stage.status === 'BLOCKED' ? 'Снять блокировку' : 'Начать этап'}
+                      Начать этап
+                    </Button>
+                  )}
+                  {stage.status === 'BLOCKED' && (
+                    <Button variant="primary" size="sm" icon="play" onClick={() => openAction('unblock')}>
+                      Снять блокировку
                     </Button>
                   )}
                   {stage.status === 'IN_PROGRESS' && (
@@ -395,7 +424,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
                 variant="primary"
                 onClick={onSubmitAction}
                 isLoading={updateStage.isPending}
-                disabled={text.trim().length === 0}
+                disabled={!ACTION_FORMS[action].optional && text.trim().length === 0}
               >
                 {ACTION_FORMS[action].submit}
               </Button>

@@ -1,4 +1,14 @@
 import { z } from '@/shared/zod'
+import { parseQuery } from '@/shared/http/request'
+import {
+  cooperationListQuerySchema,
+  type CooperationListQuery,
+} from '@/modules/cooperation/cooperation.schema'
+import { programListQuerySchema, type ProgramListQuery } from '@/modules/programs/programs.schema'
+import {
+  universityListQuerySchema,
+  type UniversityListQuery,
+} from '@/modules/universities/universities.schema'
 
 export const EXPORT_DATASETS = ['universities', 'programs', 'cooperations', 'skill-gaps'] as const
 export type ExportDataset = (typeof EXPORT_DATASETS)[number]
@@ -11,3 +21,31 @@ export const exportQuerySchema = z.object({
 })
 
 export type ExportQuery = z.infer<typeof exportQuerySchema>
+
+/**
+ * Что выгружать: раздел, предел строк и фильтры его списка.
+ *
+ * Фильтры — те же параметры и та же схема, что у `GET /api/<раздел>`: кнопка
+ * «Выгрузить» передаёт то, что стоит на экране, и в файл попадают ровно
+ * отобранные строки. Раньше выгрузка знала только вуз, и человек, отобравший
+ * заблокированные связки, получал в файле все.
+ */
+export type ExportRequest =
+  | { dataset: 'universities'; limit: number; filters: UniversityListQuery }
+  | { dataset: 'programs'; limit: number; filters: ProgramListQuery }
+  | { dataset: 'cooperations'; limit: number; filters: CooperationListQuery }
+  | { dataset: 'skill-gaps'; limit: number; universityId?: string }
+
+export function parseExportRequest(request: Request): ExportRequest {
+  const { dataset, limit, universityId } = parseQuery(request, exportQuerySchema)
+  switch (dataset) {
+    case 'universities':
+      return { dataset, limit, filters: parseQuery(request, universityListQuerySchema) }
+    case 'programs':
+      return { dataset, limit, filters: parseQuery(request, programListQuerySchema) }
+    case 'cooperations':
+      return { dataset, limit, filters: parseQuery(request, cooperationListQuerySchema) }
+    case 'skill-gaps':
+      return { dataset, limit, ...(universityId ? { universityId } : {}) }
+  }
+}

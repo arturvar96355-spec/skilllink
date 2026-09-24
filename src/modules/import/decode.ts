@@ -30,7 +30,8 @@ function rejectUtf16(bytes: Uint8Array): void {
     {
       field: 'csv',
       message:
-        'Это формат «Текст Юникод», а не CSV. В Excel сохраните как «CSV UTF-8 (разделитель — запятая)».',
+        'Это формат «Текст Юникод», а не CSV. В Excel сохраните как «CSV UTF-8» — ' +
+        'подойдёт разделитель «;» или «,».',
     },
   ])
 }
@@ -50,7 +51,7 @@ function rejectBinary(text: string): void {
       field: 'csv',
       message:
         `В строке ${line} нулевой байт — так выглядят файлы Excel (.xlsx) и другие двоичные файлы. ` +
-        'В Excel сохраните как «CSV UTF-8 (разделитель — запятая)».',
+        'В Excel сохраните как «CSV UTF-8» — подойдёт разделитель «;» или «,».',
     },
   ])
 }

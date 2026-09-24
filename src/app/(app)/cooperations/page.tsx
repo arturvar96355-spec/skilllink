@@ -151,16 +151,16 @@ function CooperationsView() {
 
   const query = useDebounced(search.trim(), 300)
 
-  const path = `/api/cooperations${buildQuery({
+  /** Фильтры экрана — общие для реестра и его выгрузки. */
+  const listFilters = {
     q: query.length >= 2 ? query : undefined,
     status: status || undefined,
     onlyOverdue: onlyOverdue ? 'true' : undefined,
     onlyBlocked: onlyBlocked ? 'true' : undefined,
     productId: productId ?? undefined,
     sort,
-    page,
-    pageSize: PAGE_SIZE,
-  })}`
+  }
+  const path = `/api/cooperations${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`
   const cooperations = useResource<CooperationListItemDto[]>(path, { keepPreviousData: true })
   usePageInRange(page, setPage, cooperations.meta)
 
@@ -284,9 +284,9 @@ function CooperationsView() {
             <Button
               variant="secondary"
               icon="download"
-              href="/api/export?dataset=cooperations"
+              href={`/api/export${buildQuery({ dataset: 'cooperations', ...listFilters })}`}
               external
-              title="Все связки в CSV, до 1000 строк. Фильтры на экране не применяются."
+              title="Связки с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
             </Button>
@@ -304,7 +304,7 @@ function CooperationsView() {
           <Input
             label="Поиск"
             hideLabel
-            placeholder="Вуз, программа, продукт, цель"
+            placeholder="Вуз, программа, продукт, ответственный"
             icon="search"
             value={search}
             onChange={(event) => changeFilter(() => setSearch(event.target.value))}

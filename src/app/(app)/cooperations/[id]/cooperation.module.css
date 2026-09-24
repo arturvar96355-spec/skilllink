@@ -229,6 +229,10 @@
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
+  /* Результат и причина набираются в многострочном поле, а запись истории
+     соединяет причину с комментарием переносом строки — переносы сохраняются. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 /* Чек-лист этапа */
