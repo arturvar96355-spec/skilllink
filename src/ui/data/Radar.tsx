@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import styles from './Radar.module.css'
 
 /**
@@ -34,7 +34,7 @@ function point(index: number, count: number, share: number): [number, number] {
 }
 
 export function Radar({ axes, series, label }: { axes: RadarAxis[]; series: RadarSeries[]; label: string }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [hovered, setHovered] = useState<number | null>(null)
   const count = axes.length
   if (count < 3) return null

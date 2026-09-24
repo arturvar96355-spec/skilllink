@@ -79,6 +79,19 @@
   color: var(--text-secondary);
 }
 
+.modeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.modeRow .note {
+  flex: 1 1 320px;
+  max-width: 640px;
+}
+
 .note + .note {
   margin-top: var(--space-3);
 }
