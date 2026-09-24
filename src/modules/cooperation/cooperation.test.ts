@@ -10,6 +10,7 @@ import {
   assertProgramBelongsToUniversity,
   buildStages,
 } from './cooperation.rules'
+import { buildWhere } from './cooperation.repo'
 
 describe('набор этапов новой связки', () => {
   const startedAt = new Date('2026-01-01T00:00:00.000Z')
@@ -107,5 +108,46 @@ describe('валидация связки', () => {
     const parsed = updateCooperationSchema.safeParse({ goal: 'Новая цель' })
     expect(parsed.success).toBe(true)
     expect(parsed.success && 'status' in parsed.data).toBe(false)
+  })
+})
+
+describe('поиск связок', () => {
+  const now = new Date('2026-09-25T00:00:00.000Z')
+  const where = (q: string) =>
+    buildWhere({ q, page: 1, pageSize: 20 }, {}, now) as { AND: Array<{ OR: object[] }> }
+
+  it('ищет по краткому имени вуза и по ответственному', () => {
+    const fields = where('СПбГУТ').AND[0]?.OR ?? []
+    expect(fields).toContainEqual({
+      university: { shortName: { contains: 'СПбГУТ', mode: 'insensitive' } },
+    })
+    expect(fields).toContainEqual({
+      responsible: { fullName: { contains: 'СПбГУТ', mode: 'insensitive' } },
+    })
+    expect(fields).toContainEqual({
+      program: { name: { contains: 'СПбГУТ', mode: 'insensitive' } },
+    })
+    expect(fields).toContainEqual({
+      product: { name: { contains: 'СПбГУТ', mode: 'insensitive' } },
+    })
+  })
+
+  it('каждое слово запроса — отдельное условие: «спбгут программная» ищет оба', () => {
+    const conditions = where('спбгут программная').AND
+    expect(conditions).toHaveLength(2)
+    expect(conditions[1]?.OR).toContainEqual({
+      program: { name: { contains: 'программная', mode: 'insensitive' } },
+    })
+  })
+
+  it('поиск не отменяет остальные фильтры', () => {
+    const result = buildWhere(
+      { q: 'Савельева', status: ['ACTIVE'], onlyBlocked: true, page: 1, pageSize: 20 },
+      {},
+      now,
+    )
+    expect(result?.status).toEqual({ in: ['ACTIVE'] })
+    expect(result?.stages).toEqual({ some: { status: 'BLOCKED' } })
+    expect(result?.AND).toHaveLength(1)
   })
 })

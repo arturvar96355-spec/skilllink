@@ -19,6 +19,7 @@ import {
   isOverdue,
   resolveStageFields,
   assertStageFieldsComplete,
+  historyComment,
   type StageState,
   type StageStatusFields,
 } from './workflow.rules'
@@ -663,5 +664,66 @@ describe('отмена контрольной точки', () => {
 
   it('обычный этап отменяется без этой проверки', () => {
     expect(() => assertControlPointCancellable(5, later([[7, 'IN_PROGRESS']]))).not.toThrow()
+  })
+})
+
+describe('запись истории этапа', () => {
+  const inProgress: StageStatusFields = { status: 'IN_PROGRESS', result: null, blockingReason: null }
+  const blocked: StageStatusFields = {
+    status: 'BLOCKED',
+    result: null,
+    blockingReason: 'Вуз не подписал NDA',
+  }
+
+  it('блокировка пишет причину, хотя она пришла не комментарием', () => {
+    const resulting = resolveStageFields(inProgress, {
+      status: 'BLOCKED',
+      blockingReason: 'Вуз не подписал NDA',
+    })
+    expect(historyComment('BLOCKED', resulting, undefined)).toBe('Вуз не подписал NDA')
+  })
+
+  it('завершение пишет результат — и присланный, и сохранённый ранее', () => {
+    const sent = resolveStageFields(inProgress, { status: 'COMPLETED', result: 'Договор подписан' })
+    expect(historyComment('COMPLETED', sent, null)).toBe('Договор подписан')
+
+    const stored = resolveStageFields(
+      { status: 'IN_PROGRESS', result: 'Материалы переданы', blockingReason: null },
+      { status: 'COMPLETED' },
+    )
+    expect(historyComment('COMPLETED', stored, undefined)).toBe('Материалы переданы')
+  })
+
+  it('снятие блокировки пишет «что изменилось», хотя причина на этапе стирается', () => {
+    const resulting = resolveStageFields(blocked, { status: 'IN_PROGRESS' })
+    expect(resulting.blockingReason).toBeNull()
+    expect(historyComment('IN_PROGRESS', resulting, 'NDA подписан 24.09')).toBe('NDA подписан 24.09')
+  })
+
+  it('снятие блокировки без комментария — запись без текста, а не отказ', () => {
+    const resulting = resolveStageFields(blocked, { status: 'IN_PROGRESS' })
+    expect(historyComment('IN_PROGRESS', resulting, undefined)).toBeNull()
+    expect(historyComment('IN_PROGRESS', resulting, '   ')).toBeNull()
+  })
+
+  it('комментарий рядом с причиной не теряется и не повторяется', () => {
+    const resulting = resolveStageFields(inProgress, {
+      status: 'BLOCKED',
+      blockingReason: 'Нет ответа от вуза',
+    })
+    expect(historyComment('BLOCKED', resulting, 'Напомнить в понедельник')).toBe(
+      'Нет ответа от вуза\nНапомнить в понедельник',
+    )
+    expect(historyComment('BLOCKED', resulting, 'Нет ответа от вуза')).toBe('Нет ответа от вуза')
+  })
+
+  it('снятие блокировки разрешено без комментария', () => {
+    expect(() =>
+      assertTransition(
+        { stageNumber: 3, status: 'BLOCKED', result: null, requiredTasksTotal: 0, requiredTasksDone: 0 },
+        { toStatus: 'IN_PROGRESS' },
+        'MANAGER',
+      ),
+    ).not.toThrow()
   })
 })

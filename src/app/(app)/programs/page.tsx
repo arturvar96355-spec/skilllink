@@ -99,19 +99,19 @@ export default function ProgramsPage() {
 
   const query = useDebounced(search)
 
+  /** Фильтры экрана — общие для реестра и его выгрузки. */
+  const listFilters = {
+    q: query,
+    level,
+    status,
+    universityId,
+    sort,
+    // Архивные программы скрыты по умолчанию: без этого фильтр «В архиве»
+    // всегда возвращал бы пустой список.
+    includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
+  }
   const programs = useResource<ProgramListItemDto[]>(
-    `/api/programs${buildQuery({
-      q: query,
-      level,
-      status,
-      universityId,
-      sort,
-      page,
-      pageSize: PAGE_SIZE,
-      // Архивные программы скрыты по умолчанию: без этого фильтр «В архиве»
-      // всегда возвращал бы пустой список.
-      includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
-    })}`,
+    `/api/programs${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`,
     { keepPreviousData: true },
   )
   usePageInRange(page, setPage, programs.meta)
@@ -236,18 +236,13 @@ export default function ProgramsPage() {
         meta={marks.section ? <MockBadge /> : undefined}
         actions={
           <>
-            {/* Если выбран вуз, выгрузка ограничивается им: этот параметр
-                эндпоинт понимает, остальные фильтры — нет. */}
+            {/* Выгрузка берёт фильтры и порядок экрана: в файле те же программы, что в реестре. */}
             <Button
               variant="secondary"
               icon="download"
-              href={`/api/export${buildQuery({ dataset: 'programs', universityId: universityId || undefined })}`}
+              href={`/api/export${buildQuery({ dataset: 'programs', ...listFilters })}`}
               external
-              title={
-                universityId
-                  ? 'Программы выбранного вуза в CSV, до 1000 строк.'
-                  : 'Все программы в CSV, до 1000 строк. Фильтры на экране не применяются.'
-              }
+              title="Программы с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
             </Button>

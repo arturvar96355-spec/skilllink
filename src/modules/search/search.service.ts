@@ -25,6 +25,18 @@ function joined(...parts: Array<string | null | undefined>): string | null {
   return present.length > 0 ? present.join(' · ') : null
 }
 
+/**
+ * Связка в выдаче — так же, как в реестре: «СПбГУТ — Программная инженерия».
+ * Полное имя вуза длиннее строки окна и обрезалось раньше, чем доходило до программы.
+ */
+export function cooperationTitle(row: {
+  universityName: string
+  universityShortName: string | null
+  programName: string
+}): string {
+  return `${row.universityShortName ?? row.universityName} — ${row.programName}`
+}
+
 function group(
   type: SearchGroupDto['type'],
   title: string,
@@ -41,6 +53,10 @@ function group(
  * списки уже проверяют права и сами ограничивают представителя вуза его вузом.
  * Свой запрос пришлось бы защищать заново — и одно упущение показало бы
  * чужой вуз в строке поиска.
+ *
+ * Сотрудники отдельной группой не выводятся: страницы сотрудника нет, вести
+ * такой результат некуда, а список пользователей закрыт для представителя вуза.
+ * Фамилия ответственного ищется в связках — результатом приходят его связки.
  */
 export async function search(user: CurrentUser, query: SearchQuery): Promise<SearchResultDto> {
   assertCan(user, 'READ')
@@ -86,8 +102,14 @@ export async function search(user: CurrentUser, query: SearchQuery): Promise<Sea
       c.data.map((row) => ({
         type: 'cooperation',
         id: row.id,
-        title: `${row.universityName} — ${row.programName}`,
-        subtitle: joined(row.productName ?? 'Продукт не выбран', COOPERATION_STATUS_LABELS[row.status]),
+        title: cooperationTitle(row),
+        // Ответственный — в подписи: связку ищут и по его фамилии, и без него
+        // было бы непонятно, почему она нашлась.
+        subtitle: joined(
+          row.productName ?? 'Продукт не выбран',
+          COOPERATION_STATUS_LABELS[row.status],
+          row.responsible.fullName,
+        ),
       })),
     ),
     group(

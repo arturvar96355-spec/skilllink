@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { textContains } from '@/shared/db/text-search'
+import { everyWordInSomeField } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
 import type { Prisma } from '@/generated/prisma/client'
@@ -78,16 +78,29 @@ export function buildWhere(
   }
 
   if (query.q) {
-    const contains = textContains(query.q)
-    where.OR = [
+    // Связку ищут так, как её называют вслух: «СПбГУТ программная», «Савельева».
+    // Краткое имя вуза и ответственный — поля, по которым связку узнают в реестре;
+    // без них поиск находил её только по полному имени вуза.
+    where.AND = everyWordInSomeField(query.q, (contains) => [
       { university: { name: contains } },
+      { university: { shortName: contains } },
       { program: { name: contains } },
       { product: { name: contains } },
+      { responsible: { fullName: contains } },
       { goal: contains },
-    ]
+    ])
   }
 
   return where
+}
+
+/** Порядок списка — общий для реестра и его выгрузки: файл идёт в том же порядке, что экран. */
+export function listOrderBy(query: Pick<CooperationListQuery, 'sort'>) {
+  const { field, direction } = parseSort(query.sort, COOPERATION_SORT_FIELDS, {
+    field: 'updatedAt',
+    direction: 'desc',
+  })
+  return buildOrderBy({ field, direction }, NULLABLE_SORT_FIELDS)
 }
 
 export async function findMany(
@@ -98,16 +111,11 @@ export async function findMany(
   const where = buildWhere(query, scope, now)
   if (where === null) return { rows: [], total: 0 }
 
-  const { field, direction } = parseSort(query.sort, COOPERATION_SORT_FIELDS, {
-    field: 'updatedAt',
-    direction: 'desc',
-  })
-
   const [rows, total] = await Promise.all([
     prisma.cooperation.findMany({
       where,
       select: listSelect,
-      orderBy: buildOrderBy({ field, direction }, NULLABLE_SORT_FIELDS),
+      orderBy: listOrderBy(query),
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.cooperation.count({ where }),

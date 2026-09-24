@@ -4,7 +4,11 @@ export interface ImportRowResultDto {
   line: number
   /** Чем строка опознана: название вуза или «вуз — программа». */
   label: string
-  outcome: 'create' | 'update' | 'skip' | 'error'
+  /**
+   * `unchanged` — запись найдена, и файл ничего в ней не меняет: повторная
+   * загрузка только что выгруженного файла — не правка реестра.
+   */
+  outcome: 'create' | 'update' | 'unchanged' | 'skip' | 'error'
   /** Что именно изменится или почему строка не принята. */
   detail: string
 }
@@ -23,6 +27,8 @@ export interface ImportResultDto {
   created: number
   updated: number
   skipped: number
+  /** Найдены, но не меняются. */
+  unchanged: number
   errors: number
   rows: ImportRowResultDto[]
   processedAt: string
