@@ -61,6 +61,18 @@
   pointer-events: none;
 }
 
+/* Крайние шаги: подсказка прижата к своему краю и не выходит за экран (мобилка, пункт 1). */
+.hit:first-child .tooltip {
+  left: 0;
+  transform: none;
+}
+
+.hit:last-child .tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
 .tooltipTitle {
   font-size: var(--text-label-size);
   color: var(--text-secondary);
