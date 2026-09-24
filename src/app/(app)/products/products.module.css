@@ -143,3 +143,8 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
+
+/* Лента (DataTable appearance="list"): карточки лежат прямо на фоне, без панели под ними. */
+div.registry {
+  background: transparent;
+}

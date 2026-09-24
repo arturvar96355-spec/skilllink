@@ -280,3 +280,8 @@
   -webkit-box-orient: vertical;
 }
 
+
+/* Лента (DataTable appearance="list"): карточки лежат прямо на фоне, без панели под ними. */
+div.registry {
+  background: transparent;
+}

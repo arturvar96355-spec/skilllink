@@ -29,6 +29,11 @@ export interface Column<T> {
    * обновления: щёлкнув «Рейтинг», ждут сильнейших сверху, а не слабейших.
    */
   sortDescFirst?: boolean
+  /**
+   * В виде `list` значение ячейки не показывается — оно уже сказано строкой
+   * пояснения под названием. Заголовок остаётся кнопкой сортировки.
+   */
+  hideInList?: boolean
   render: (row: T) => ReactNode
 }
 
@@ -56,9 +61,11 @@ export interface DataTableProps<T> {
   /**
    * Вид таблицы. `grid` — плотный список с линиями, `cards` — каждая строка
    * отдельной плашкой с воздухом вокруг: для реестров, где строку ищут глазами
-   * и открывают, а не сравнивают по столбцам.
+   * и открывают, а не сравнивают по столбцам. `list` — компактные карточки как
+   * в ленте рекомендаций: слева название и строка пояснения, справа несколько
+   * фактов с подписями; сортировка — кнопками над списком.
    */
-  appearance?: 'grid' | 'cards'
+  appearance?: 'grid' | 'cards' | 'list'
 }
 
 export function DataTable<T>({
@@ -86,7 +93,15 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={[styles.wrapper, appearance === 'cards' ? styles.cards : ''].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        styles.wrapper,
+        appearance === 'cards' ? styles.cards : '',
+        appearance === 'list' ? styles.list : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       <table
         className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
         style={{ minWidth: tableMinWidth(columns) }}
@@ -185,6 +200,9 @@ export function DataTable<T>({
                     // Подпись ячейки для узкого экрана: там строка-плашка раскладывается
                     // карточкой, и у каждого значения видно, что это (вид `cards`).
                     data-label={column.title}
+                    data-hidden-in-list={column.hideInList || undefined}
+                    // В ленте ширина факта — ширина столбца: «Текущий этап» шире «Срока».
+                    style={column.width ? ({ '--col-w': column.width } as CSSProperties) : undefined}
                   >
                     {/*
                       Первая ячейка строки, ведущей на объект, — настоящая ссылка.
