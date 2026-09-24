@@ -37,7 +37,6 @@ import {
   useCurrentUser,
   formatDate,
   formatNumber,
-  pluralize,
   programHref,
   universityShortOption,
   useDebounced,
@@ -134,16 +133,16 @@ export default function ProgramsPage() {
           <span className={styles.program}>
             <span className={styles.programText}>
               <span className={styles.programName}>
-                <span className={styles.programTitle} title={row.name} data-morph-title>
+                {/* Код и направление — в подсказке: в строке они превращали реестр в сплошной текст. */}
+                <span
+                  className={styles.programTitle}
+                  title={details ? `${row.name} — ${details}` : row.name}
+                  data-morph-title
+                >
                   {row.name}
                 </span>
                 {marks.row(row) && <Badge tone="mock">демо</Badge>}
               </span>
-              {details && (
-                <span className={styles.programDetails} title={details}>
-                  {details}
-                </span>
-              )}
             </span>
           </span>
         )
@@ -201,30 +200,6 @@ export default function ProgramsPage() {
         // Крупно — только число: «Нет данных» остаётся тихим.
         <span className={row.metrics.studentCount?.value == null ? undefined : styles.metric}>
           <MetricCell metric={row.metrics.studentCount} />
-        </span>
-      ),
-    },
-    {
-      key: 'links',
-      title: 'Навыки',
-      width: '115px',
-      align: 'right',
-      render: (row) => (
-        <span
-          className={styles.stack}
-          title={
-            `${formatNumber(row.skillCount)} ${pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])} · ` +
-            `${formatNumber(row.cooperationCount)} ${pluralize(row.cooperationCount, ['связка', 'связки', 'связок'])}`
-          }
-        >
-          <span className={styles.stackMain}>
-            <span className={styles.count}>{formatNumber(row.skillCount)}</span>{' '}
-            {pluralize(row.skillCount, ['навык', 'навыка', 'навыков'])}
-          </span>
-          <span className={styles.stackSub}>
-            {formatNumber(row.cooperationCount)}{' '}
-            {pluralize(row.cooperationCount, ['связка', 'связки', 'связок'])}
-          </span>
         </span>
       ),
     },

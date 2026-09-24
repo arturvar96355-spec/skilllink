@@ -88,7 +88,7 @@
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   line-height: 1.35;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -189,8 +189,8 @@
 
 .dueDate {
   font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  color: var(--text-primary);
+  font-weight: 500;
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 

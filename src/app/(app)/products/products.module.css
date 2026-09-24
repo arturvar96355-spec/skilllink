@@ -26,7 +26,7 @@
 .count {
   font-size: var(--text-body-sm-size);
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 

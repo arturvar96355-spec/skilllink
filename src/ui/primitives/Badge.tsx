@@ -13,9 +13,11 @@ export interface BadgeProps {
 
 export function Badge({ tone = 'neutral', withDot = false, title, children }: BadgeProps) {
   return (
-    <span className={[styles.badge, styles[tone]].join(' ')} title={title}>
+    // `data-badge` — для спокойного вида внутри таблиц (data/Table): там значок
+    // статуса — цветная точка и приглушённая подпись, без плашки.
+    <span className={[styles.badge, styles[tone]].join(' ')} title={title} data-badge data-tone={tone}>
       {withDot && <span className={styles.dot} aria-hidden="true" />}
-      {children}
+      <span data-badge-label>{children}</span>
     </span>
   )
 }
