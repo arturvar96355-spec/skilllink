@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
+import { AppError } from '@/shared/http/errors'
+import {
+  RECOMMENDATION_STATUSES,
+  RECOMMENDATION_TRANSITIONS,
+  type StageStatus,
+} from '@/shared/contracts'
 import { updateRecommendationSchema } from './recommendations.schema'
 import {
+  OPEN_RECOMMENDATION_STATUSES,
+  assertRecommendationTransition,
+  draftsForCooperation,
+  findObsolete,
+  isConditionChecked,
+  isSameOccurrence,
+  planCooperationSync,
+  shouldReopen,
+  stillActualMessage,
+  type CooperationRuleInput,
   compareDraftsByImportance,
   type RecommendationDraft,
   ruleCooperationWithoutProduct,
@@ -395,6 +411,277 @@ describe('движение по связке', () => {
 
   it('без работы по этапам — время правки связки', () => {
     expect(lastCooperationActivity({ updatedAt: daysAgo(30), stages: [] })).toEqual(daysAgo(30))
+  })
+})
+
+// ─────────────────────── Честные статусы рекомендаций ───────────────────────
+
+/** Связка из 14 этапов: статусы и сроки задаются по номеру, остальное — по умолчанию. */
+function cooperation(
+  stages: Record<number, { status: StageStatus; deadline?: Date }>,
+  overrides: Partial<CooperationRuleInput> = {},
+): CooperationRuleInput {
+  return {
+    id: 'coop-1',
+    productId: 'product-1',
+    // Свежее движение: застой не мешает проверять просрочку.
+    updatedAt: daysAgo(1),
+    university: { name: 'СПбГУТ' },
+    program: { name: 'Программная инженерия' },
+    stages: Array.from({ length: 14 }, (_, index) => {
+      const stageNumber = index + 1
+      const given = stages[stageNumber]
+      return {
+        stageNumber,
+        title: `Этап ${stageNumber}`,
+        status: given?.status ?? 'NOT_STARTED',
+        // По умолчанию срок далеко впереди: просрочен только тот, кому задан срок в прошлом.
+        deadline: given?.deadline ?? daysAhead(60),
+        responsible: null,
+        history: [],
+        tasks: [],
+      }
+    }),
+    ...overrides,
+  }
+}
+
+const closedUpTo = (last: number): Record<number, { status: StageStatus }> =>
+  Object.fromEntries(Array.from({ length: last }, (_, index) => [index + 1, { status: 'COMPLETED' }]))
+
+function expectCode(fn: () => void, code: string): void {
+  try {
+    fn()
+  } catch (error) {
+    expect(error).toBeInstanceOf(AppError)
+    expect((error as AppError).code).toBe(code)
+    return
+  }
+  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
+}
+
+describe('переходы статусов рекомендации', () => {
+  it('разрешённое таблицей проходит', () => {
+    for (const from of RECOMMENDATION_STATUSES) {
+      for (const to of RECOMMENDATION_TRANSITIONS[from]) {
+        expect(() => assertRecommendationTransition(from, to)).not.toThrow()
+      }
+    }
+  })
+
+  it('закрытую руками не вернуть в новые — её открывает пересборка', () => {
+    expectCode(() => assertRecommendationTransition('DONE', 'NEW'), 'INVALID_TRANSITION')
+    expect(() => assertRecommendationTransition('DONE', 'NEW')).toThrow(/пересборка/)
+  })
+
+  it('новую нельзя сразу закрыть и нельзя поставить в тот же статус', () => {
+    expectCode(() => assertRecommendationTransition('NEW', 'DONE'), 'INVALID_TRANSITION')
+    expectCode(() => assertRecommendationTransition('ACCEPTED', 'ACCEPTED'), 'INVALID_TRANSITION')
+    expectCode(() => assertRecommendationTransition('DISMISSED', 'DONE'), 'INVALID_TRANSITION')
+  })
+
+  it('отклонённую можно вернуть в новые', () => {
+    expect(() => assertRecommendationTransition('DISMISSED', 'NEW')).not.toThrow()
+  })
+})
+
+describe('рекомендации по одной связке', () => {
+  it('просроченный этап в работе даёт рекомендацию о нём', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'IN_PROGRESS', deadline: daysAgo(12) } }),
+      NOW,
+    )
+    const overdue = drafts.find((draft) => draft.ruleKey === 'stage.overdue')
+    expect(overdue?.relatedData).toMatchObject({ stageNumber: 6, daysOverdue: 12 })
+  })
+
+  it('не начатый этап за незавершённой контрольной точкой не «просрочен»', () => {
+    // Этап 7 нельзя начать, пока не подписан договор (этап 6): совет «закройте
+    // этап 7» предлагал бы запрещённое.
+    const drafts = draftsForCooperation(
+      cooperation({
+        ...closedUpTo(5),
+        6: { status: 'IN_PROGRESS', deadline: daysAhead(3) },
+        7: { status: 'NOT_STARTED', deadline: daysAgo(10) },
+        8: { status: 'NOT_STARTED', deadline: daysAgo(5) },
+      }),
+      NOW,
+    )
+    expect(drafts.filter((draft) => draft.ruleKey === 'stage.overdue')).toEqual([])
+  })
+
+  it('отменённая точка не открывает этапы за ней — и просрочки по ним нет', () => {
+    const drafts = draftsForCooperation(
+      cooperation({
+        ...closedUpTo(5),
+        6: { status: 'CANCELLED' },
+        7: { status: 'NOT_STARTED', deadline: daysAgo(10) },
+      }),
+      NOW,
+    )
+    expect(drafts.some((draft) => draft.ruleKey === 'stage.overdue')).toBe(false)
+  })
+
+  it('точка завершена — не начатый просроченный этап за ней снова «просрочен»', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(6), 7: { status: 'NOT_STARTED', deadline: daysAgo(10) } }),
+      NOW,
+    )
+    expect(drafts.find((draft) => draft.ruleKey === 'stage.overdue')?.relatedData.stageNumber).toBe(7)
+  })
+
+  it('заблокированный просроченный этап — просрочка, даже за точкой', () => {
+    const drafts = draftsForCooperation(
+      cooperation({
+        ...closedUpTo(5),
+        6: { status: 'IN_PROGRESS', deadline: daysAhead(3) },
+        7: { status: 'BLOCKED', deadline: daysAgo(10) },
+      }),
+      NOW,
+    )
+    expect(drafts.find((draft) => draft.ruleKey === 'stage.overdue')?.relatedData.stageNumber).toBe(7)
+  })
+
+  it('завершили просроченный этап — рекомендации о просрочке больше нет', () => {
+    const before = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'IN_PROGRESS', deadline: daysAgo(12) } }),
+      NOW,
+    )
+    const after = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'COMPLETED', deadline: daysAgo(12) } }),
+      NOW,
+    )
+    expect(before.some((draft) => draft.ruleKey === 'stage.overdue')).toBe(true)
+    expect(after.some((draft) => draft.ruleKey === 'stage.overdue')).toBe(false)
+  })
+
+  it('без продукта на этапе оформления — рекомендация выбрать продукт', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(4), 5: { status: 'IN_PROGRESS' } }, { productId: null }),
+      NOW,
+    )
+    expect(drafts.map((draft) => draft.ruleKey)).toContain('cooperation.no-product')
+  })
+})
+
+describe('закрыть можно, только когда условие ушло', () => {
+  it('условие проверяется у просрочки, застоя, продукта и показателей, но не у дефицита', () => {
+    expect(isConditionChecked('stage.overdue')).toBe(true)
+    expect(isConditionChecked('cooperation.stalled')).toBe(true)
+    expect(isConditionChecked('cooperation.no-product')).toBe(true)
+    expect(isConditionChecked('program.missing-metrics')).toBe(true)
+    expect(isConditionChecked('skill.critical-gap-with-product')).toBe(false)
+  })
+
+  it('отказ называет просрочку и предлагает отклонить с основанием', () => {
+    const draft = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'IN_PROGRESS', deadline: daysAgo(12) } }),
+      NOW,
+    ).find((item) => item.ruleKey === 'stage.overdue')!
+    expect(stillActualMessage(draft)).toBe(
+      'Этап 6 всё ещё просрочен на 12 дн. — закройте или перенесите этап; ' +
+        'рекомендацию можно отклонить с основанием.',
+    )
+  })
+
+  it('в день срока отказ не пишет «0 дн.»', () => {
+    const draft = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'IN_PROGRESS', deadline: new Date(NOW.getTime() - 60_000) } }),
+      NOW,
+    ).find((item) => item.ruleKey === 'stage.overdue')!
+    expect(stillActualMessage(draft)).toMatch(/^Срок этапа 6 истёк сегодня/)
+  })
+
+  it('отказ по показателям программы перечисляет, чего нет', () => {
+    const draft = ruleMissingProgramMetrics({
+      programId: 'p1',
+      programName: 'ПИ',
+      universityName: 'СПбГУТ',
+      applicationCount: null,
+      studentCount: 10,
+      groupCount: null,
+      hasCooperation: true,
+    })!
+    expect(stillActualMessage(draft)).toMatch(/^По программе всё ещё нет данных: .+ — внесите показатели/)
+  })
+})
+
+describe('пересборка: что открыть и что закрыть', () => {
+  it('закрытую открывает, если проблема снова есть — кто бы ни закрыл', () => {
+    expect(shouldReopen({ status: 'DONE', resolvedById: null, ruleKey: 'stage.overdue' })).toBe(true)
+    expect(shouldReopen({ status: 'DONE', resolvedById: 'user-1', ruleKey: 'stage.overdue' })).toBe(true)
+    expect(shouldReopen({ status: 'DONE', resolvedById: 'user-1', ruleKey: 'cooperation.no-product' })).toBe(true)
+  })
+
+  it('закрытый человеком дефицит навыка не открывает: действие сделано, дефицит остаётся', () => {
+    expect(
+      shouldReopen({ status: 'DONE', resolvedById: 'user-1', ruleKey: 'skill.critical-gap-with-product' }),
+    ).toBe(false)
+    expect(
+      shouldReopen({ status: 'DONE', resolvedById: null, ruleKey: 'skill.critical-gap-with-product' }),
+    ).toBe(true)
+  })
+
+  it('отклонённую с основанием и принятую не открывает', () => {
+    expect(shouldReopen({ status: 'DISMISSED', resolvedById: 'user-1', ruleKey: 'stage.overdue' })).toBe(false)
+    expect(shouldReopen({ status: 'ACCEPTED', resolvedById: 'user-1', ruleKey: 'stage.overdue' })).toBe(false)
+  })
+
+  it('закрывает открытые, включая принятые, но не отклонённые', () => {
+    expect([...OPEN_RECOMMENDATION_STATUSES]).toEqual(['NEW', 'IN_PROGRESS', 'ACCEPTED'])
+    expect(OPEN_RECOMMENDATION_STATUSES).not.toContain('DISMISSED')
+    expect(OPEN_RECOMMENDATION_STATUSES).not.toContain('DONE')
+  })
+
+  it('закрывает то, чего правила больше не выдают, и оставляет актуальное', () => {
+    const open = [
+      { id: 'a', ruleKey: 'stage.overdue', objectType: 'Cooperation', objectId: 'coop-1' },
+      { id: 'b', ruleKey: 'stage.overdue', objectType: 'Cooperation', objectId: 'coop-2' },
+    ]
+    expect(findObsolete(open, ['stage.overdue::Cooperation::coop-1'])).toEqual(['b'])
+  })
+
+  it('та же просрочка — тот же случай; другой срок или этап — новый', () => {
+    const draft = draftsForCooperation(
+      cooperation({ ...closedUpTo(5), 6: { status: 'IN_PROGRESS', deadline: daysAgo(12) } }),
+      NOW,
+    ).find((item) => item.ruleKey === 'stage.overdue')!
+    const stored = { ruleKey: 'stage.overdue', relatedData: { ...draft.relatedData, daysOverdue: 3 } }
+    expect(isSameOccurrence(stored, draft)).toBe(true)
+    expect(
+      isSameOccurrence({ ruleKey: 'stage.overdue', relatedData: { ...draft.relatedData, deadline: daysAgo(1).toISOString() } }, draft),
+    ).toBe(false)
+    expect(
+      isSameOccurrence({ ruleKey: 'stage.overdue', relatedData: { ...draft.relatedData, stageNumber: 5 } }, draft),
+    ).toBe(false)
+  })
+})
+
+describe('сверка рекомендаций связки после смены этапа', () => {
+  it('этап завершили — просрочка закрывается, выбор продукта обновляется', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(6), 7: { status: 'IN_PROGRESS' } }, { productId: null }),
+      NOW,
+    )
+    const plan = planCooperationSync(
+      [
+        { id: 'overdue', ruleKey: 'stage.overdue' },
+        { id: 'product', ruleKey: 'cooperation.no-product' },
+      ],
+      drafts,
+    )
+    expect(plan.close).toEqual(['overdue'])
+    expect(plan.update.map((item) => item.id)).toEqual(['product'])
+  })
+
+  it('просрочка перешла на следующий этап — запись обновляется, а не закрывается', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(6), 7: { status: 'IN_PROGRESS', deadline: daysAgo(4) } }),
+      NOW,
+    )
+    const plan = planCooperationSync([{ id: 'overdue', ruleKey: 'stage.overdue' }], drafts)
+    expect(plan.close).toEqual([])
+    expect(plan.update[0]?.draft.title).toBe('Просрочен этап 7: Этап 7')
   })
 })
 
