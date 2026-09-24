@@ -1,0 +1,208 @@
+/*
+ * Заставка при входе (Splash.tsx). Всё на CSS: сцена играет сразу, до загрузки
+ * JavaScript. Двигаются только transform, opacity, stroke-dashoffset и clip-path.
+ */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: var(--canvas);
+  clip-path: circle(150% at 50% 50%);
+}
+
+/* Уже видели или «уменьшить движение»: скрипт до первой отрисовки ставит метку. */
+:global(html[data-splash='skip']) .splash {
+  display: none;
+}
+
+/* Уход — раскрытие кругом из центра: за заставкой уже стоит сайт. */
+.exit {
+  pointer-events: none;
+  animation: splashOpen 650ms cubic-bezier(0.7, 0, 0.2, 1) forwards;
+}
+
+.exit .scene {
+  animation: sceneOut 450ms var(--ease-in) forwards;
+}
+
+@keyframes splashOpen {
+  from {
+    clip-path: circle(150% at 50% 50%);
+  }
+  to {
+    clip-path: circle(0% at 50% 50%);
+  }
+}
+
+@keyframes sceneOut {
+  to {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+/* Свечение за знаком — дышит, пока идёт сцена. */
+.glow {
+  position: absolute;
+  width: 620px;
+  height: 620px;
+  border-radius: var(--radius-pill);
+  background: radial-gradient(circle, var(--bg-glow) 0%, transparent 62%);
+  animation: glowIn 1400ms var(--ease-out) both, glowPulse 2600ms var(--ease-in-out) 1400ms infinite alternate;
+}
+
+@keyframes glowIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@keyframes glowPulse {
+  to {
+    transform: scale(1.12);
+  }
+}
+
+.scene {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Знак: линия связи прорисовывается, затем вспыхивают точки. */
+.mark {
+  margin-bottom: var(--space-2);
+  overflow: visible;
+}
+
+.markLine {
+  stroke: var(--text-secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 420ms var(--ease-out) 120ms forwards;
+}
+
+.markDotA,
+.markDotB {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(0);
+}
+
+.markDotA {
+  fill: var(--text-primary);
+  animation: pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 60ms forwards;
+}
+
+.markDotB {
+  fill: var(--accent-violet);
+  filter: drop-shadow(0 0 6px var(--accent-violet));
+  animation: pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1) 460ms forwards;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pop {
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Слово: буквы поднимаются по одной. */
+.word {
+  display: flex;
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.letter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(14px);
+  animation: letterIn 420ms var(--ease-out) forwards;
+}
+
+/* «Link» — фирменным цветом: связь — главное слово. */
+.letter:nth-child(n + 6) {
+  color: var(--text-accent);
+}
+
+@keyframes letterIn {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.caption {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  opacity: 0;
+  animation: letterIn 420ms var(--ease-out) 820ms forwards;
+}
+
+/* Маршрут из 14 этапов: линия дорисовывается, засечки зажигаются по очереди. */
+.rail {
+  position: relative;
+  width: 240px;
+  height: 10px;
+  margin-top: var(--space-4);
+}
+
+.railLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--gradient-brand);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: railIn 800ms var(--ease-out) 880ms forwards;
+}
+
+.tick {
+  position: absolute;
+  top: 1px;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  box-shadow: 0 0 0 2px var(--canvas);
+  animation: tickOn 300ms var(--ease-out) forwards;
+}
+
+@keyframes railIn {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes tickOn {
+  50% {
+    transform: scale(1.5);
+  }
+  to {
+    background: var(--text-accent-pale);
+    transform: scale(1);
+  }
+}

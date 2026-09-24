@@ -122,6 +122,19 @@
   background: var(--line-strong);
 }
 
+/* Этапы зажигаются по очереди слева направо, когда запись появилась. */
+.segment[data-state]:not([data-state='todo']) {
+  animation: segmentOn 320ms var(--ease-out) both;
+  animation-delay: calc(200ms + var(--i, 0) * 40ms);
+}
+
+@keyframes segmentOn {
+  from {
+    opacity: 0.15;
+    transform: scaleY(0.4);
+  }
+}
+
 .segment[data-state='done'] {
   background: var(--accent-violet);
 }

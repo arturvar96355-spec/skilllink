@@ -46,6 +46,13 @@
  * Основная кнопка — светлая и сплошная (07, раздел 4), а не градиент.
  * Градиент на каждой кнопке — главный источник «шаблонного» вида.
  */
+/* Притяжение к курсору (layout/magnetic.ts) — плавно, отдельным свойством translate. */
+.button[data-magnetic] {
+  transition-property: background, color, border-color, transform, translate, box-shadow;
+  transition-duration: var(--motion-micro), var(--motion-micro), var(--motion-micro), var(--motion-micro), 260ms, var(--motion-micro);
+  transition-timing-function: var(--ease-out);
+}
+
 .primary {
   background: #f1eee8;
   color: var(--text-on-light);

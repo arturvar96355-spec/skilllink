@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useState, type CSSProperties } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   COOPERATION_STATUSES,
@@ -98,7 +98,12 @@ function StageTrack({ row }: { row: CooperationListItemDto }) {
     >
       <span className={styles.segments} aria-hidden>
         {segments.map((state, index) => (
-          <span key={index} className={styles.segment} data-state={state} />
+          <span
+            key={index}
+            className={styles.segment}
+            data-state={state}
+            style={{ '--i': index } as CSSProperties}
+          />
         ))}
       </span>
       <span className={styles.trackMeta}>

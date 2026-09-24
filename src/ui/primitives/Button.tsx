@@ -66,6 +66,8 @@ export function Button({
   ]
     .filter(Boolean)
     .join(' ')
+  // Главные действия чуть тянутся за курсором (layout/magnetic.ts).
+  const magnetic = variant === 'primary' || variant === 'accent' ? true : undefined
 
   const iconSize = size === 'lg' ? 20 : 18
   const content = (
@@ -92,7 +94,7 @@ export function Button({
       )
     }
     return (
-      <Link href={href} className={classes} title={title} aria-label={ariaLabel}>
+      <Link href={href} className={classes} title={title} aria-label={ariaLabel} data-magnetic={magnetic}>
         {content}
       </Link>
     )
@@ -102,6 +104,7 @@ export function Button({
     <button
       type="button"
       className={classes}
+      data-magnetic={magnetic}
       title={title}
       aria-label={ariaLabel}
       // Пока запрос идёт, повторное нажатие запрещено: иначе уйдут два запроса.

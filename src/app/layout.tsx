@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import type { ReactNode } from 'react'
 import { Providers } from './providers'
+import { SPLASH_BOOT_SCRIPT, Splash } from '@/ui/layout/Splash'
 import './globals.css'
 
 /**
@@ -30,8 +31,12 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ru" className={inter.variable}>
+    // suppressHydrationWarning: скрипт заставки до загрузки приложения ставит
+    // на <html> метку data-splash — её в серверной разметке нет, и это нормально.
+    <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <body>
+        <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
+        <Splash />
         <Providers>{children}</Providers>
       </body>
     </html>
