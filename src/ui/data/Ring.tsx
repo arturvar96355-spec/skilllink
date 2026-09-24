@@ -1,7 +1,7 @@
 'use client'
 
 import { motion } from 'motion/react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import styles from './Ring.module.css'
 
 /**
@@ -24,7 +24,7 @@ export function Ring({
   tone?: 'violet' | 'cyan' | 'pink'
   delay?: number
 }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const share = value === null ? 0 : Math.max(0, Math.min(100, value)) / 100
   const text = value === null ? 'Нет данных' : `${value.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`
   return (
