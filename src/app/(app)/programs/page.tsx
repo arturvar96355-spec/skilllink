@@ -49,6 +49,7 @@ import {
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
 import { ProgramTag } from './ProgramTag'
+import { ProgramFacts } from './ProgramFacts'
 import styles from './programs.module.css'
 
 /**
@@ -372,6 +373,8 @@ export default function ProgramsPage() {
               label="Программы"
               noun={{ previous: 'Предыдущая программа', next: 'Следующая программа' }}
               tint="var(--accent-pink)"
+              renderFacts={(row) => <ProgramFacts row={row} />}
+              getIndexMeta={(row) => row.universityShortName ?? row.universityName}
             />
           ) : (
             <DataTable

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { IconButton } from '../primitives/IconButton'
+import { Icon } from '../primitives/Icon'
 import { usePrefersReducedMotion } from '../hooks/dom'
 import { expandInto } from '../lib/expand'
 import styles from './TagCarousel.module.css'
@@ -78,6 +79,15 @@ export interface TagCarouselProps<T> {
   noun: { previous: string; next: string }
   /** Оттенок листа, в который бирка перетекает в страницу. */
   tint?: string
+  /**
+   * Своё открытие центральной бирки вместо перехода на страницу: вузы
+   * раскрывают граф связей (решение 79).
+   */
+  onOpen?: (item: T, card: HTMLElement) => void
+  /** Факты центральной бирки слева от карусели, как у A24 (решение 79). */
+  renderFacts?: (item: T) => ReactNode
+  /** Строка в списке «Index»: название и пояснение справа. */
+  getIndexMeta?: (item: T) => string
 }
 
 export function TagCarousel<T>({
@@ -89,6 +99,9 @@ export function TagCarousel<T>({
   label,
   noun,
   tint,
+  onOpen,
+  renderFacts,
+  getIndexMeta,
 }: TagCarouselProps<T>) {
   const router = useRouter()
   const reduced = usePrefersReducedMotion()
@@ -103,6 +116,14 @@ export function TagCarousel<T>({
   const wheelLock = useRef(0)
   /** Щелчок, которым закончилось перетаскивание, бирку не открывает. */
   const justDragged = useRef(false)
+  const [indexOpen, setIndexOpen] = useState(false)
+  const indexRef = useRef<HTMLDivElement>(null)
+  /** Подпись у курсора над сценой (как у Altitude): «листать» или «открыть». */
+  const [cursor, setCursor] = useState<{ x: number; y: number; label: string } | null>(null)
+  const hoverCapable = useRef(false)
+  useEffect(() => {
+    hoverCapable.current = window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  }, [])
 
   const count = rows.length
   const last = Math.max(count - 1, 0)
@@ -135,21 +156,47 @@ export function TagCarousel<T>({
     setIndex(Math.max(0, Math.min(last, next)))
   }
 
-  // Горизонтальная прокрутка тачпада листает; вертикальная — прокручивает страницу, как обычно.
+  /**
+   * Колесо над сценой листает (как у A24): и горизонтальная прокрутка тачпада,
+   * и обычное колесо. На первой и последней бирке прокрутка в сторону края
+   * отдаётся странице — сцена не запирает человека.
+   */
+  const currentRef = useRef(current)
+  currentRef.current = current
   useEffect(() => {
     const stage = stageRef.current
     if (!stage) return
     function onWheel(event: WheelEvent) {
-      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) || Math.abs(event.deltaX) < 8) return
+      const horizontal = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+      const delta = horizontal ? event.deltaX : event.deltaY
+      if (Math.abs(delta) < 4) return
+      const step = Math.sign(delta)
+      const at = currentRef.current
+      if (!horizontal && ((step < 0 && at === 0) || (step > 0 && at === last))) return
       event.preventDefault()
       const now = performance.now()
       if (now < wheelLock.current) return
-      wheelLock.current = now + 180
-      setIndex((value) => Math.max(0, Math.min(last, value + Math.sign(event.deltaX))))
+      wheelLock.current = now + 220
+      setIndex((value) => Math.max(0, Math.min(last, value + step)))
     }
     stage.addEventListener('wheel', onWheel, { passive: false })
     return () => stage.removeEventListener('wheel', onWheel)
   }, [last])
+
+  // Список «Index» закрывается щелчком мимо и клавишей Escape.
+  useEffect(() => {
+    if (!indexOpen) return
+    const onDown = (event: globalThis.PointerEvent) => {
+      if (!indexRef.current?.contains(event.target as Node)) setIndexOpen(false)
+    }
+    const onKey = (event: globalThis.KeyboardEvent) => event.key === 'Escape' && setIndexOpen(false)
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [indexOpen])
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.button !== 0 || leaving) return
@@ -157,6 +204,15 @@ export function TagCarousel<T>({
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (hoverCapable.current && event.pointerType === 'mouse') {
+      const box = event.currentTarget.getBoundingClientRect()
+      const onCurrent = (event.target as Element).closest('[aria-current]') !== null
+      setCursor({
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+        label: isDragging ? 'листаю' : onCurrent ? 'открыть' : 'листать',
+      })
+    }
     const start = pointer.current
     if (!start || start.id !== event.pointerId) return
     const dx = event.clientX - start.x
@@ -195,6 +251,7 @@ export function TagCarousel<T>({
 
   function open(row: T, card: HTMLElement) {
     if (leaving) return
+    if (onOpen) return onOpen(row, card)
     const href = getHref(row)
     if (reduced) {
       router.push(href)
@@ -219,61 +276,134 @@ export function TagCarousel<T>({
   const focus = current + drag
 
   return (
-    <div className={styles.root}>
-      <div
-        ref={stageRef}
-        className={`${styles.stage} ${isDragging ? styles.dragging : ''}`}
-        role="region"
-        aria-roledescription="карусель"
-        aria-label={label}
-        tabIndex={0}
-        onKeyDown={onKeyDown}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        {rows.map((row, position) => {
-          const d = position - focus
-          if (Math.abs(d) > VISIBLE_SIDE + 1) return null
-          const isCurrent = position === current
-          const a = Math.abs(d)
-          const pose = leaving ? stackedAt(d) : poseAt(d, spread)
-          return (
-            <motion.button
-              key={getKey(row)}
-              type="button"
-              className={`${styles.slot} ${isCurrent ? styles.current : ''}`}
-              style={{ zIndex: 100 - Math.round(Math.abs(d) * 2) }}
-              initial={false}
-              animate={pose}
-              transition={
-                leaving === 'stack'
-                  ? // От дальних к ближним: веер схлопывается к центру волной.
-                    { duration: STACK_S, ease: EASE_STACK, delay: Math.max(0, VISIBLE_SIDE - a) * STACK_STEP_S }
-                  : leaving === 'go'
-                    ? { duration: 0 }
-                    : isDragging || reduced
-                      ? { duration: 0 }
-                      : { type: 'spring', stiffness: 170, damping: 24, mass: 0.9 }
-              }
-              tabIndex={isCurrent ? 0 : -1}
-              aria-label={isCurrent ? `${getLabel(row)} — открыть` : `${getLabel(row)} — показать`}
-              aria-current={isCurrent || undefined}
-              onClick={(event) => onCardClick(position, event)}
+    <div className={`${styles.root} ${renderFacts ? styles.withFacts : ''}`}>
+      {renderFacts && currentItem && (
+        // Факты центральной бирки — сменяются вместе с ней (A24).
+        <aside className={styles.facts} aria-live="polite">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={getKey(currentItem)}
+              initial={reduced ? false : { opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduced ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             >
-              {renderTag(row)}
-            </motion.button>
-          )
-        })}
-      </div>
+              {renderFacts(currentItem)}
+            </motion.div>
+          </AnimatePresence>
+        </aside>
+      )}
+      <div className={styles.main}>
+        <div
+          ref={stageRef}
+          className={`${styles.stage} ${isDragging ? styles.dragging : ''}`}
+          role="region"
+          aria-roledescription="карусель"
+          aria-label={label}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onPointerLeave={() => setCursor(null)}
+        >
+          {cursor && (
+            <span
+              className={styles.cursorLabel}
+              style={{ transform: `translate(${cursor.x + 16}px, ${cursor.y + 16}px)` }}
+              aria-hidden
+            >
+              {cursor.label}
+            </span>
+          )}
+          {rows.map((row, position) => {
+            const d = position - focus
+            if (Math.abs(d) > VISIBLE_SIDE + 1) return null
+            const isCurrent = position === current
+            const a = Math.abs(d)
+            const pose = leaving ? stackedAt(d) : poseAt(d, spread)
+            return (
+              <motion.button
+                key={getKey(row)}
+                type="button"
+                className={`${styles.slot} ${isCurrent ? styles.current : ''}`}
+                style={{ zIndex: 100 - Math.round(Math.abs(d) * 2) }}
+                initial={false}
+                animate={pose}
+                transition={
+                  leaving === 'stack'
+                    ? // От дальних к ближним: веер схлопывается к центру волной.
+                      { duration: STACK_S, ease: EASE_STACK, delay: Math.max(0, VISIBLE_SIDE - a) * STACK_STEP_S }
+                    : leaving === 'go'
+                      ? { duration: 0 }
+                      : isDragging || reduced
+                        ? { duration: 0 }
+                        : { type: 'spring', stiffness: 170, damping: 24, mass: 0.9 }
+                }
+                tabIndex={isCurrent ? 0 : -1}
+                aria-label={isCurrent ? `${getLabel(row)} — открыть` : `${getLabel(row)} — показать`}
+                aria-current={isCurrent || undefined}
+                onClick={(event) => onCardClick(position, event)}
+              >
+                {renderTag(row)}
+              </motion.button>
+            )
+          })}
+        </div>
 
-      <div className={styles.controls}>
-        <IconButton icon="arrowLeft" label={noun.previous} onClick={() => go(current - 1)} disabled={current === 0} />
-        <span className={styles.counter} aria-live="polite">
-          {count === 0 ? 0 : current + 1} / {count}
-        </span>
-        <IconButton icon="arrowRight" label={noun.next} onClick={() => go(current + 1)} disabled={current >= last} />
+        <div className={styles.controls}>
+          <IconButton icon="arrowLeft" label={noun.previous} onClick={() => go(current - 1)} disabled={current === 0} />
+          <span className={styles.counter} aria-live="polite">
+            {count === 0 ? 0 : current + 1} / {count}
+          </span>
+          <IconButton icon="arrowRight" label={noun.next} onClick={() => go(current + 1)} disabled={current >= last} />
+          {/* «Index» — весь список сразу, как у A24: к любой бирке за один щелчок. */}
+          <div ref={indexRef} className={styles.index}>
+            <button
+              type="button"
+              className={styles.indexButton}
+              aria-expanded={indexOpen}
+              aria-haspopup="listbox"
+              onClick={() => setIndexOpen((open) => !open)}
+            >
+              Весь список
+              <Icon name="chevronDown" size={16} />
+            </button>
+            <AnimatePresence>
+              {indexOpen && (
+                <motion.ul
+                  className={styles.indexList}
+                  role="listbox"
+                  aria-label={label}
+                  initial={reduced ? false : { opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={reduced ? undefined : { opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {rows.map((row, position) => (
+                    <li key={getKey(row)}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={position === current}
+                        className={`${styles.indexItem} ${position === current ? styles.indexItemCurrent : ''}`}
+                        onClick={() => {
+                          go(position)
+                          setIndexOpen(false)
+                        }}
+                      >
+                        <span className={styles.indexNumber}>{String(position + 1).padStart(2, '0')}</span>
+                        <span className={styles.indexTitle}>{getLabel(row)}</span>
+                        {getIndexMeta && <span className={styles.indexMeta}>{getIndexMeta(row)}</span>}
+                      </button>
+                    </li>
+                  ))}
+                </motion.ul>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
   )

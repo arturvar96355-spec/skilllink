@@ -1,0 +1,81 @@
+/* Бегущая строка событий (решение 79). */
+
+.root {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid var(--line-subtle);
+  border-bottom: 1px solid var(--line-subtle);
+  background: color-mix(in srgb, var(--accent-violet) 10%, var(--surface-1));
+  /* Края растворяются — лента выходит из-за края, а не обрезается. */
+  mask-image: linear-gradient(90deg, transparent 0, var(--canvas) 6%, var(--canvas) 94%, transparent 100%);
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  animation: ticker linear infinite;
+}
+
+.root:hover .track,
+.root:focus-within .track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root {
+    overflow-x: auto;
+  }
+
+  .track {
+    animation: none;
+  }
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 9px var(--space-6) 9px 0;
+  color: var(--text-secondary);
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.item:hover {
+  color: var(--text-primary);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 6px var(--tone);
+}
+
+.danger {
+  --tone: var(--status-danger);
+}
+
+.warning {
+  --tone: var(--status-warning);
+}
+
+.info {
+  --tone: var(--accent-violet);
+}

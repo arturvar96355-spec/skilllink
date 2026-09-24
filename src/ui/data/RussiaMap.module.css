@@ -1,0 +1,98 @@
+/* Карта России с точками (решение 79). */
+
+.root {
+  margin: 0;
+  min-width: 0;
+}
+
+.map {
+  position: relative;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.land {
+  fill: color-mix(in srgb, var(--accent-violet) 9%, var(--surface-3));
+  stroke: color-mix(in srgb, var(--accent-violet) 30%, transparent);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.point {
+  cursor: pointer;
+  outline: none;
+}
+
+.dot {
+  fill: var(--accent-violet);
+  stroke: var(--surface-sunken);
+  stroke-width: 2;
+}
+
+.point:hover .dot,
+.point:focus-visible .dot {
+  fill: var(--accent-pink);
+}
+
+.pulse {
+  fill: none;
+  stroke: var(--accent-violet);
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse 2.8s var(--ease-out) infinite;
+}
+
+@keyframes pulse {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+.label {
+  fill: var(--text-secondary);
+  font-size: 22px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--surface-sunken);
+  stroke-width: 4px;
+  pointer-events: none;
+}
+
+.tooltip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 240px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-floating);
+  transform: translate(-50%, calc(-100% - 18px));
+  pointer-events: none;
+}
+
+.tooltipTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.tooltipText {
+  font-size: var(--text-label-size);
+  color: var(--text-tertiary);
+}

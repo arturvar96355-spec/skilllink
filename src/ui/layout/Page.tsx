@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { landMorph } from '../lib/morph'
+import { ScrambleText } from './ScrambleText'
 import styles from './Page.module.css'
 
 /**
@@ -53,9 +54,24 @@ export interface PageHeaderProps {
   /** Значки рядом с заголовком: статус, пометка демонстрационных данных. */
   meta?: ReactNode
   actions?: ReactNode
+  /**
+   * `display` — крупный заголовок с засечками для страниц объекта (вуз,
+   * программа), как у A24 (решение 79). Реестры и служебные страницы — обычный.
+   */
+  variant?: 'default' | 'display'
+  /** Заголовок проявляется из «рассыпки» букв (решение 79) — для приветствия на главной. */
+  scramble?: boolean
 }
 
-export function PageHeader({ title, description, breadcrumbs, meta, actions }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  breadcrumbs,
+  meta,
+  actions,
+  variant = 'default',
+  scramble = false,
+}: PageHeaderProps) {
   // Заголовок — место посадки перехода из реестра (lib/morph): название строки,
   // по которой щёлкнули, переезжает сюда, а не исчезает вместе с реестром.
   const titleRef = useRef<HTMLHeadingElement>(null)
@@ -69,8 +85,8 @@ export function PageHeader({ title, description, breadcrumbs, meta, actions }: P
       <div className={styles.pageHeader}>
         <div className={styles.titleBlock}>
           <div className={styles.titleRow}>
-            <h1 ref={titleRef} className={styles.title}>
-              {title}
+            <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
+              {scramble ? <ScrambleText text={title} /> : title}
             </h1>
             {meta}
           </div>

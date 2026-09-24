@@ -172,7 +172,8 @@
   bottom: 9px;
   width: 2px;
   border-radius: var(--radius-pill);
-  background: var(--accent-violet);
+  background: var(--group-tone, var(--accent-violet));
+  box-shadow: 0 0 8px var(--group-tone, var(--accent-violet));
 }
 
 .itemActive .itemIcon {
@@ -219,3 +220,96 @@
     backdrop-filter: blur(2px);
   }
 }
+
+/* ── Решение 79: оттенок группы, перекатывание букв, мини-сводка ── */
+
+/* У каждой группы свой оттенок метки текущего пункта (Seasats). */
+.group[data-tone='0'] {
+  --group-tone: var(--accent-violet);
+}
+
+.group[data-tone='1'] {
+  --group-tone: var(--accent-cyan);
+}
+
+.group[data-tone='2'] {
+  --group-tone: var(--accent-pink);
+}
+
+/* Буквы перекатываются: копия буквы стоит тенью ниже и въезжает на её место. */
+.itemLabel {
+  display: inline-flex;
+  height: 1.15em;
+  line-height: 1.15em;
+  overflow: hidden;
+}
+
+.rollChar {
+  /* Номер буквы задаёт разметка; здесь — значение по умолчанию. */
+  --i: 0;
+  display: inline-block;
+  text-shadow: 0 1.15em currentColor;
+  transition: transform 280ms var(--ease-out);
+  transition-delay: calc(var(--i) * 10ms);
+}
+
+.item:hover .rollChar {
+  transform: translateY(-1.15em);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rollChar {
+    transition: none;
+  }
+
+  .item:hover .rollChar {
+    transform: none;
+  }
+}
+
+/* Мини-сводка раздела справа от пункта. */
+.preview {
+  position: fixed;
+  z-index: var(--z-floating);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-overlay);
+  box-shadow: var(--shadow-floating);
+  transform: translateY(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: previewIn var(--motion-micro) var(--ease-out) both;
+}
+
+@keyframes previewIn {
+  from {
+    opacity: 0;
+    transform: translate(-6px, -50%);
+  }
+}
+
+.previewValue {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.previewHint {
+  font-size: var(--text-label-size);
+  color: var(--text-tertiary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+

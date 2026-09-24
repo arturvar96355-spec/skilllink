@@ -72,6 +72,8 @@ export function LiveBackground() {
   return (
     <div className={styles.liveBackground} aria-hidden="true">
       <div className={styles.haze} />
+      {/* Сетка точек — как холст у Altitude и Melius (решение 79); у краёв гаснет. */}
+      <div className={styles.dots} />
       <div ref={farRef} className={styles.glowFar} />
       <div ref={nearRef} className={styles.glowNear} />
     </div>

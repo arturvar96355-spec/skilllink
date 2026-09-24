@@ -62,6 +62,8 @@ export {
   type TabItem,
 } from './layout/Page'
 export { Logo } from './layout/Logo'
+export { ScrollRuler } from './layout/ScrollRuler'
+export { NextObject } from './layout/NextObject'
 
 export { useResource, type Resource } from './hooks/useResource'
 export { useMutation, type MutationResult } from './hooks/useMutation'
@@ -119,3 +121,9 @@ export { describeRelatedData, type RelatedFact } from './lib/related-data'
 export { startMorph } from './lib/morph'
 export { TagCarousel, type TagCarouselProps } from './data/TagCarousel'
 export { Funnel, type FunnelStep } from './data/Funnel'
+export { FactSheet, type Fact } from './data/FactSheet'
+export { Ring } from './data/Ring'
+export { RussiaMap, type MapPoint } from './data/RussiaMap'
+export { Ticker, type TickerItem } from './data/Ticker'
+export { Radar, type RadarAxis, type RadarSeries } from './data/Radar'
+export { Sankey, type SankeyNode, type SankeyLink } from './data/Sankey'

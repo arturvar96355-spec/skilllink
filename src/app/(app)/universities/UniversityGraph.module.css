@@ -1,0 +1,290 @@
+/* Граф связей вуза (решение 79, по образцу Melius «Node Explainer»). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Цвет связки — её статус; подпись рядом в легенде (цвет не единственный признак). */
+.toneActive {
+  --wire: var(--accent-violet);
+}
+
+.toneDraft {
+  --wire: var(--status-neutral);
+}
+
+.tonePaused {
+  --wire: var(--status-warning);
+}
+
+.toneDone {
+  --wire: var(--accent-cyan);
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-self: flex-start;
+  padding: var(--space-1);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-button);
+  background: var(--surface-1);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px var(--space-3);
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-body-sm-size);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tabActive {
+  background: var(--accent-violet);
+  color: var(--text-primary);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+.tabCount {
+  font-size: var(--text-caption-size);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+/* Полотно — тёмная доска с сеткой точек, как холст узлового редактора. */
+.canvas {
+  position: relative;
+  min-width: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(circle, var(--line-strong) 1px, transparent 1.2px) 0 0 / 18px 18px,
+    var(--surface-sunken);
+}
+
+/* Узкий экран: полотно прокручивается вбок внутри себя, страница не шире экрана. */
+.scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.stage {
+  position: relative;
+}
+
+.wires {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.wire {
+  fill: none;
+  stroke: var(--wire, var(--line-strong));
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.wireBase {
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.wireDim {
+  opacity: 0.2;
+}
+
+.pulse {
+  fill: var(--wire);
+  filter: drop-shadow(0 0 4px var(--wire));
+}
+
+/* Узлы */
+
+.nodeWrap {
+  position: absolute;
+}
+
+.node {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transition:
+    border-color var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
+}
+
+.nodeUni {
+  border-color: var(--border-active);
+  background: color-mix(in srgb, var(--accent-violet) 18%, var(--surface-2));
+}
+
+a.node:hover {
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+}
+
+a.node:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+.nodeProduct {
+  border-color: color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+}
+
+.nodeEmpty {
+  border-style: dashed;
+  background: var(--surface-1);
+  color: var(--text-tertiary);
+}
+
+/* Программа без связок выбранного статуса — приглушена, но на месте. */
+.nodeIdle {
+  opacity: 0.45;
+}
+
+.kind {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.tag {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--accent-violet);
+  color: var(--text-primary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.title {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nodeEmpty .title {
+  color: var(--text-tertiary);
+}
+
+.sub {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Метка этапа посередине провода */
+
+/* Обёртку двигает Motion (своим transform) — центрирование делает сама метка. */
+.chipWrap {
+  position: absolute;
+  z-index: 1;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transform: translate(-50%, -50%);
+}
+
+.chip:hover {
+  background: var(--surface-2);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+.chipPct {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.noLinks {
+  position: absolute;
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-label-size);
+  color: var(--text-secondary);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legendLine {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--wire);
+}

@@ -7,15 +7,25 @@ import Link from 'next/link'
 import type {
   CooperationListItemDto,
   DashboardOverviewDto,
+  NotificationFeedDto,
   RecommendationGenerationResultDto,
+  UniversityListItemDto,
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
 import { phaseFunnel } from './phase-funnel'
+import { cityCoordinates } from './city-coordinates'
 import {
   Badge,
   Button,
   CardsSkeleton,
   Funnel,
+  Ring,
+  RussiaMap,
+  Ticker,
+  notificationHref,
+  universityHref,
+  type MapPoint,
+  type TickerItem,
   EmptyState,
   ErrorState,
   MockBadge,
@@ -167,6 +177,50 @@ export default function DashboardPage() {
   const funnelTotal = funnelSource.meta?.total ?? null
   const funnelCounted = funnelSource.data?.length ?? 0
 
+  // Бегущая строка — последние события ленты уведомлений (решение 79).
+  const feed = useResource<NotificationFeedDto>(user.role === 'UNIVERSITY_REP' ? null : '/api/notifications?limit=12')
+  const tickerItems: TickerItem[] = useMemo(
+    () =>
+      (feed.data?.items ?? []).map((item) => ({
+        key: item.id,
+        text: item.description ? `${item.title} · ${item.description}` : item.title,
+        href: notificationHref(item.target),
+        tone: item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : 'info',
+      })),
+    [feed.data],
+  )
+
+  // Карта: вузы в своих городах, размер точки — число связок.
+  const universities = useResource<UniversityListItemDto[]>(
+    user.role === 'UNIVERSITY_REP' ? null : '/api/universities?withRating=false&pageSize=100&sort=name',
+  )
+  const mapPoints: MapPoint[] = useMemo(
+    () =>
+      (universities.data ?? []).flatMap((row) => {
+        const at = cityCoordinates(row.city)
+        if (!at) return []
+        return [
+          {
+            key: row.id,
+            label: row.shortName ?? row.name,
+            ...at,
+            value: row.cooperationCount,
+            detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
+            href: universityHref(row.id),
+          },
+        ]
+      }),
+    [universities.data],
+  )
+  const offMap = (universities.data?.length ?? 0) - mapPoints.length
+
+  // Связки в работе без просроченных этапов — доля для кольца.
+  const cleanShare = useMemo(() => {
+    const list = active.data ?? []
+    if (list.length === 0) return null
+    return Math.round((list.filter((item) => item.progress.overdueStages === 0).length / list.length) * 1000) / 10
+  }, [active.data])
+
   const regenerate = useMutation(async () => {
     const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')
     return result.data
@@ -213,6 +267,7 @@ export default function DashboardPage() {
   return (
     <>
       <PageHeader
+        scramble
         title={`${greeting()}, ${firstName}`}
         description={
           data
@@ -240,12 +295,72 @@ export default function DashboardPage() {
         <ErrorState error={overview.error} onRetry={overview.reload} />
       ) : data ? (
         <>
+          <Ticker items={tickerItems} label="Последние события" />
+
           <LiveRail
             numbers={numbers}
             cooperations={cooperations}
             problemTotal={data.problemStageTotal}
             generatedAt={data.generatedAt}
           />
+
+          {/* Бенто: здоровье портфеля кольцами и вузы на карте (решение 79). */}
+          <div className={styles.bento}>
+            <div
+              className={`${styles.reveal} ${styles.bentoCell}`}
+              data-assemble="left"
+              style={{ '--delay': '380ms' } as CSSProperties}
+            >
+              <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану.">
+                <div className={styles.rings}>
+                  <Ring
+                    value={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
+                    label="Этапы в срок"
+                    caption="Закрыты до своего срока — из всех закрытых"
+                  />
+                  <Ring
+                    value={cleanShare}
+                    label="Связки без просрочек"
+                    caption={`Из ${formatNumber(cooperations.length)} связок в работе и черновиков`}
+                    tone="cyan"
+                    delay={0.15}
+                  />
+                  <Ring
+                    value={data.skillMatch.coveragePercent}
+                    label="Покрытие навыков"
+                    caption={`Востребованные рынком навыки в программах · ${data.skillMatch.period}`}
+                    tone="pink"
+                    delay={0.3}
+                  />
+                </div>
+              </Section>
+            </div>
+            <div
+              className={`${styles.reveal} ${styles.bentoCell}`}
+              data-assemble="right"
+              style={{ '--delay': '440ms' } as CSSProperties}
+            >
+              <Section
+                title="Вузы на карте"
+                description="Размер точки — число связок. Щелчок — страница вуза."
+                action={
+                  <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                    Все вузы
+                  </Button>
+                }
+              >
+                <div className={styles.mapPanel}>
+                  <RussiaMap points={mapPoints} label="Вузы на карте России" />
+                </div>
+                {offMap > 0 && (
+                  <p className={styles.funnelNote}>
+                    Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
+                    нет координат.
+                  </p>
+                )}
+              </Section>
+            </div>
+          </div>
 
           <div className={styles.focus}>
             <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': '410ms' } as CSSProperties}>
