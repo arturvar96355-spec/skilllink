@@ -2,6 +2,7 @@ import { z } from '@/shared/zod'
 import { describeForLog } from '@/shared/db/log'
 import { findNul } from '@/shared/db/storable'
 import { AppError, fromZod, notFound } from './errors'
+import { assertSameOrigin } from './origin'
 import { fail } from './response'
 
 interface PrismaLikeError {
@@ -93,6 +94,7 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
 
 /**
  * Единая обёртка обработчика маршрута: ловит всё и отдаёт ответ в формате контракта.
+ * Изменяющие запросы с чужим `Origin` отклоняет (origin.ts).
  * Никакие подробности внутренней ошибки наружу не уходят — ни клиенту, ни в журнал
  * вместе с данными запроса (shared/db/log.ts).
  */
@@ -101,6 +103,8 @@ export function handle<Ctx>(
 ): (request: Request, context: Ctx) => Promise<Response> {
   return async (request, context) => {
     try {
+      // Изменяющий запрос со страницы чужого сайта отклоняется до всего остального.
+      assertSameOrigin(request)
       await rejectUnstorableParams(context)
       return await fn(request, context)
     } catch (error) {
