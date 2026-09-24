@@ -36,9 +36,12 @@ import {
   updateProgramMetricsSchema,
 } from '@/modules/portal/portal.schema'
 import {
+  createProductSchema,
   productListQuerySchema,
   releasePreviewQuerySchema,
   releaseProductVersionSchema,
+  setProductSkillsSchema,
+  updateProductSchema,
 } from '@/modules/products/products.schema'
 import {
   createProgramSchema,
@@ -352,12 +355,44 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
   {
+    method: 'post',
+    path: '/api/products',
+    tag: 'IT-продукты',
+    summary: 'Завести IT-продукт',
+    description: 'Название уникально без учёта регистра: дубль — CONFLICT.',
+    permission: 'WRITE',
+    body: createProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
     method: 'get',
     path: '/api/products/{id}',
     tag: 'IT-продукты',
     summary: 'Карточка IT-продукта',
     permission: 'READ',
     errors: READ_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/products/{id}',
+    tag: 'IT-продукты',
+    summary: 'Изменить IT-продукт',
+    description:
+      'Частичное изменение. Дубль названия — CONFLICT. Версию продукта с открытыми связками ' +
+      'меняет выпуск версии, а не правка карточки — CONFLICT.',
+    permission: 'WRITE',
+    body: updateProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'put',
+    path: '/api/products/{id}/skills',
+    tag: 'IT-продукты',
+    summary: 'Заменить набор навыков продукта',
+    description: 'Полная замена: пустой список снимает все навыки.',
+    permission: 'WRITE',
+    body: setProductSkillsSchema,
+    errors: WRITE_ERRORS,
   },
   {
     method: 'get',
@@ -401,10 +436,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/cooperations',
     tag: 'Сотрудничество',
     summary: 'Создать связку',
-    description: 'Сразу создаются все 14 этапов с чек-листами и нормативными сроками.',
+    description:
+      'Сразу создаются все 14 этапов с чек-листами и нормативными сроками. ' +
+      'Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT ' +
+      'с details.cooperationId существующей.',
     permission: 'WRITE',
     body: createCooperationSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'get',
@@ -438,11 +476,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Собрать пакет документов из шаблонов',
     description:
       'Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком ' +
-      'и перечисляются в ответе.',
+      'и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, ' +
+      'и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.',
     permission: 'WRITE',
     body: generateDocumentsSchema,
     bodyOptional: true,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
 
   // ── Workflow ──────────────────────────────────────────────────────────────

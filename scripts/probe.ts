@@ -31,7 +31,11 @@ function actAs(userId: string | null): void {
 
 interface Result<T> {
   status: number
-  body: { data?: T; meta?: Record<string, unknown>; error?: { code: string; message: string } }
+  body: {
+    data?: T
+    meta?: Record<string, unknown>
+    error?: { code: string; message: string; details?: unknown }
+  }
   raw: string
 }
 
@@ -739,17 +743,19 @@ async function main(): Promise<void> {
       city: 'Тверь',
       region: 'Тверская область',
     })
-    const program = await call<{ id: string }>('POST', '/api/programs', {
-      universityId: uni.body.data?.id,
-      name: `Пробная программа очереди ${sfx}`,
-      level: 'BACHELOR',
-    })
 
     // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
     // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
     // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    // У каждого раунда своя программа: вторая незакрытая связка на ту же
+    // «вуз + программа + продукт» запрещена (решение 80).
     const finals: string[] = []
     for (let round = 0; round < 3; round += 1) {
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа очереди ${sfx}-${round + 1}`,
+        level: 'BACHELOR',
+      })
       const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
         'POST',
         '/api/cooperations',
@@ -1087,6 +1093,35 @@ async function main(): Promise<void> {
       `документов по шаблонам ${keys.length}, разных ${new Set(keys).size}`,
     )
 
+    // Ещё одно нажатие — ни одного нового документа. Договор здесь заведён вручную
+    // (и выпущен новой версией), продукт у связки не выбран: пакет не должен ни
+    // добавить второй договор, ни собрать «Лицензию на IT-продукт «______»».
+    const again = await call<{
+      created: unknown[]
+      skipped: Array<{ templateKey: string; templateName: string; reason: string }>
+    }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
+    const skippedReason = (key: string) =>
+      again.body.data?.skipped.find((item) => item.templateKey === key)?.reason ?? ''
+    check(
+      'повторный «Собрать пакет» не создаёт документов',
+      again.status === 200 && (again.body.data?.created.length ?? -1) === 0,
+      `создано ${again.body.data?.created.length ?? '—'}, код ${again.status}`,
+    )
+    check(
+      'договор, заведённый вручную, пакет не дублирует',
+      !keys.includes('agreement') && skippedReason('agreement').startsWith('уже есть:'),
+      skippedReason('agreement'),
+    )
+    check(
+      'лицензия без выбранного продукта не собирается',
+      !keys.includes('license') && skippedReason('license').includes('не выбран IT-продукт'),
+      skippedReason('license'),
+    )
+    check(
+      'пропущенные шаблоны названы по-русски, не ключами',
+      (again.body.data?.skipped ?? []).every((item) => /[а-яА-Я]/.test(item.templateName)),
+    )
+
     // Утверждённый документ без текста: ссылку не стереть, пустой не подписать.
     const approved = await call<{ id: string }>('POST', '/api/documents', {
       type: 'AGREEMENT',
@@ -1113,6 +1148,56 @@ async function main(): Promise<void> {
       'несуществующий продукт — ошибка поля, а не «связка не найдена»',
       badProduct.status === 422,
       `код ${badProduct.status}`,
+    )
+
+    // Вторая незакрытая связка на те же «вуз + программа + продукт» (продукт не выбран —
+    // тоже значение) — 409 со ссылкой на существующую.
+    const duplicate = await call('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check(
+      'дубль незакрытой связки — 409 со ссылкой на существующую',
+      duplicate.status === 409 &&
+        (duplicate.body.error?.details as { cooperationId?: string } | undefined)?.cooperationId ===
+          cooperationId,
+      `код ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+    )
+
+    // Закрытая связка новой не мешает: сотрудничество можно начать заново.
+    await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'CANCELLED' })
+    const afterClosed = await call<{ id: string }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check('после закрытия прежней связка заводится заново', afterClosed.status === 201, `код ${afterClosed.status}`)
+
+    // И переоткрыть прежнюю, пока открыта новая такая же, нельзя.
+    const reopenDuplicate = await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'ACTIVE' })
+    check('переоткрытие в дубль — 409', reopenDuplicate.status === 409, `код ${reopenDuplicate.status}`)
+
+    // Двойное «Создать связку» — одна связка, второй запрос получает 409.
+    const raceProgram = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа двойного создания ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const doubleCreate = await Promise.all(
+      [0, 1].map(() =>
+        call('POST', '/api/cooperations', {
+          universityId: uni.body.data?.id,
+          programId: raceProgram.body.data?.id,
+          responsibleId: managerId,
+        }),
+      ),
+    )
+    const createStatuses = doubleCreate.map((result) => result.status).sort()
+    check(
+      'двойное «Создать связку» — одна связка',
+      createStatuses.join(',') === '201,409',
+      `коды ${createStatuses.join(', ')}`,
     )
   }
 
@@ -1142,6 +1227,204 @@ async function main(): Promise<void> {
     await call('POST', `/api/universities/${uni.body.data?.id}/archive`)
     // Раньше программа оставалась «действующей» и продолжала сдвигать шкалу рейтинга.
     check('после архивации вуза — нет', !(await inRating()))
+  }
+
+  // ── IT-продукт заводится и правится ──────────────────────────────────────
+  step('IT-продукт: создание, дубль 409, правка, права')
+
+  {
+    type ProductCard = {
+      id: string
+      name: string
+      category: string
+      status: string
+      version: string | null
+      description: string | null
+      documentationUrl: string | null
+      isMock: boolean
+      skills: Array<{ skillId: string; relevance: string }>
+    }
+    const sfx = Date.now().toString().slice(-6)
+    const name = `Пробный продукт ${sfx}`
+
+    const created = await call<ProductCard>('POST', '/api/products', {
+      name,
+      category: 'Пробная категория',
+      version: '1.0',
+      documentationUrl: 'https://docs.example.invalid/probe',
+    })
+    const productId = created.body.data?.id
+    check('продукт заводится: 201', created.status === 201, `статус ${created.status}`)
+    check(
+      'заведённый вручную продукт не демо, статус по умолчанию — действующий',
+      created.body.data?.isMock === false && created.body.data?.status === 'ACTIVE',
+    )
+
+    const found = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/products?q=${encodeURIComponent(name)}`,
+    )
+    check(
+      'новый продукт виден в реестре',
+      (found.body.data ?? []).some((row) => row.id === productId),
+    )
+
+    const duplicate = await call('POST', '/api/products', { name, category: 'Другая' })
+    check(
+      'дубль названия — 409 с понятным текстом',
+      duplicate.status === 409 && (duplicate.body.error?.message ?? '').includes('уже есть'),
+      `статус ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+    )
+    const duplicateCase = await call('POST', '/api/products', {
+      name: name.toUpperCase(),
+      category: 'Другая',
+    })
+    check('дубль в другом регистре — тоже 409', duplicateCase.status === 409, `статус ${duplicateCase.status}`)
+
+    const scriptUrl = await call('POST', '/api/products', {
+      name: `Пробный продукт со ссылкой ${sfx}`,
+      category: 'Пробная категория',
+      documentationUrl: 'javascript:alert(1)',
+    })
+    check('ссылка javascript: отклоняется — 422', scriptUrl.status === 422, `статус ${scriptUrl.status}`)
+
+    if (productId) {
+      const edited = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+        status: 'DEPRECATED',
+        description: 'Правка пробника',
+      })
+      check(
+        'правка сохраняет только переданные поля',
+        edited.status === 200 &&
+          edited.body.data?.status === 'DEPRECATED' &&
+          edited.body.data?.description === 'Правка пробника' &&
+          edited.body.data?.version === '1.0' &&
+          edited.body.data?.documentationUrl === 'https://docs.example.invalid/probe',
+        `статус ${edited.status}`,
+      )
+
+      const empty = await call('PATCH', `/api/products/${productId}`, {})
+      check('пустая правка — 422', empty.status === 422, `статус ${empty.status}`)
+
+      const ownNameOtherCase = await call('PATCH', `/api/products/${productId}`, {
+        name: name.toLowerCase(),
+      })
+      check(
+        'своё название в другом регистре — не дубль',
+        ownNameOtherCase.status === 200,
+        `статус ${ownNameOtherCase.status}`,
+      )
+
+      const others = await call<Array<{ id: string; name: string }>>('GET', '/api/products?pageSize=5')
+      const other = (others.body.data ?? []).find((row) => row.id !== productId)
+      if (other) {
+        const renamed = await call('PATCH', `/api/products/${productId}`, { name: other.name })
+        check('переименование в чужое название — 409', renamed.status === 409, `статус ${renamed.status}`)
+      }
+
+      const freeVersion = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+        version: '1.1',
+      })
+      check(
+        'версию продукта без связок можно исправить',
+        freeVersion.body.data?.version === '1.1',
+        `статус ${freeVersion.status}`,
+      )
+
+      const skills = await call<Array<{ id: string }>>('GET', '/api/skills?pageSize=2')
+      const skillIds = (skills.body.data ?? []).map((skill) => skill.id)
+      const withSkills = await call<ProductCard>('PUT', `/api/products/${productId}/skills`, {
+        skills: skillIds.map((skillId, index) => ({
+          skillId,
+          relevance: index === 0 ? 'CORE' : 'RELATED',
+        })),
+      })
+      check(
+        'навыки продукта заменяются набором',
+        withSkills.status === 200 && withSkills.body.data?.skills.length === skillIds.length,
+        `статус ${withSkills.status}`,
+      )
+      const repeated = await call('PUT', `/api/products/${productId}/skills`, {
+        skills: [{ skillId: skillIds[0] }, { skillId: skillIds[0] }],
+      })
+      check('повтор навыка — 422', repeated.status === 422, `статус ${repeated.status}`)
+      const unknownSkill = await call('PUT', `/api/products/${productId}/skills`, {
+        skills: [{ skillId: 'no-such-skill' }],
+      })
+      check('несуществующий навык — 422', unknownSkill.status === 422, `статус ${unknownSkill.status}`)
+
+      // Новый продукт выбирается в связке — ради этого его и заводят.
+      if (managerId) {
+        const uni = await call<{ id: string }>('POST', '/api/universities', {
+          name: `Пробный вуз для продукта ${sfx}`,
+          city: 'Тверь',
+          region: 'Тверская область',
+        })
+        const program = await call<{ id: string }>('POST', '/api/programs', {
+          universityId: uni.body.data?.id,
+          name: `Пробная программа для продукта ${sfx}`,
+          level: 'BACHELOR',
+        })
+        const cooperation = await call<{ productId: string | null }>('POST', '/api/cooperations', {
+          universityId: uni.body.data?.id,
+          programId: program.body.data?.id,
+          productId,
+          responsibleId: managerId,
+          goal: 'Связка пробника с новым продуктом',
+        })
+        check(
+          'новый продукт выбирается в связке',
+          cooperation.status === 201 && cooperation.body.data?.productId === productId,
+          `статус ${cooperation.status}`,
+        )
+
+        const lockedVersion = await call('PATCH', `/api/products/${productId}`, { version: '2.0' })
+        check(
+          'версию продукта с открытой связкой меняет выпуск версии, а не правка — 409',
+          lockedVersion.status === 409,
+          `статус ${lockedVersion.status}`,
+        )
+      }
+
+      // Права — как у остальных справочников с записью.
+      for (const role of ['UNIVERSITY_REP', 'VIEWER', 'ANALYST']) {
+        const users = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}`)
+        const roleUserId = users.body.data?.[0]?.id
+        if (!roleUserId) {
+          check(`${role}: демо-пользователь есть`, false, 'запустите npm run db:seed')
+          continue
+        }
+        actAs(roleUserId)
+        const denied = [
+          await call('POST', '/api/products', { name: `Чужой продукт ${sfx}`, category: 'Проба' }),
+          await call('PATCH', `/api/products/${productId}`, { description: 'Не должно сохраниться' }),
+          await call('PUT', `/api/products/${productId}/skills`, { skills: [] }),
+        ]
+        check(
+          `${role}: заведение, правка и навыки продукта — 403`,
+          denied.every((result) => result.status === 403),
+          denied.map((result) => result.status).join(', '),
+        )
+        actAs(null)
+      }
+
+      if (adminId) {
+        actAs(adminId)
+        const journal = await call<Array<{ action: string }>>(
+          'GET',
+          `/api/audit?objectType=ITProduct&objectId=${productId}&pageSize=50`,
+        )
+        const actions = new Set((journal.body.data ?? []).map((row) => row.action))
+        check(
+          'заведение, правка и навыки продукта — в журнале',
+          ['product.create', 'product.update', 'product.skills.replace'].every((action) =>
+            actions.has(action),
+          ),
+          [...actions].join(', '),
+        )
+        actAs(null)
+      }
+    }
   }
 
   // ── Импорт программ не стирает то, чего нет в файле ────────────────────────

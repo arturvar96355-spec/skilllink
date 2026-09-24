@@ -7,7 +7,8 @@ import { COOPERATION_SORT_FIELDS, type CooperationListQuery } from './cooperatio
 
 /** Контрольные даты заполнены не у всех связок. */
 const NULLABLE_SORT_FIELDS = ['targetDate', 'classesStartAt'] as const
-import type { NewStageData } from './cooperation.rules'
+import type { DuplicateCooperation, NewStageData } from './cooperation.rules'
+import { OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
 
@@ -133,35 +134,76 @@ export async function findById(
   })
 }
 
-/** Создаёт связку вместе со всеми 14 этапами и их чек-листами одной транзакцией. */
+/**
+ * Очередь создания связок по программе: блокировка строки программы до конца транзакции.
+ *
+ * Проверка «такой связки ещё нет» и создание идут в одной транзакции, но без очереди
+ * два одновременных «Создать» оба видели пустоту и заводили две одинаковые связки.
+ * Связка всегда принадлежит программе, поэтому очереди по программе достаточно.
+ */
+export async function lockProgram(tx: Prisma.TransactionClient, programId: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM educational_programs WHERE id = ${programId} FOR UPDATE`
+}
+
+/** Незакрытая связка с тем же «вуз + программа + продукт»; `productId: null` — продукт не выбран. */
+export async function findOpenDuplicate(
+  tx: Prisma.TransactionClient,
+  key: { universityId: string; programId: string; productId: string | null; excludeId?: string },
+): Promise<DuplicateCooperation | null> {
+  const row = await tx.cooperation.findFirst({
+    where: {
+      universityId: key.universityId,
+      programId: key.programId,
+      productId: key.productId,
+      status: { in: [...OPEN_COOPERATION_STATUSES] },
+      ...(key.excludeId ? { id: { not: key.excludeId } } : {}),
+    },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      status: true,
+      university: { select: { name: true, shortName: true } },
+      program: { select: { name: true } },
+    },
+  })
+  if (!row) return null
+  return {
+    id: row.id,
+    status: row.status,
+    universityName: row.university.shortName ?? row.university.name,
+    programName: row.program.name,
+  }
+}
+
+/** Создаёт связку вместе со всеми 14 этапами и их чек-листами в транзакции вызывающего. */
 export async function createWithStages(
+  tx: Prisma.TransactionClient,
   data: Prisma.CooperationCreateInput,
   stages: NewStageData[],
 ): Promise<string> {
-  return prisma.$transaction(async (tx) => {
-    const cooperation = await tx.cooperation.create({ data, select: { id: true } })
+  const cooperation = await tx.cooperation.create({ data, select: { id: true } })
 
-    for (const stage of stages) {
-      await tx.workflowStage.create({
-        data: {
-          cooperationId: cooperation.id,
-          stageNumber: stage.stageNumber,
-          title: stage.title,
-          phase: stage.phase,
-          deadline: stage.deadline,
-          responsibleId: stage.responsibleId,
-          ...(stage.tasks.length > 0 ? { tasks: { createMany: { data: stage.tasks } } } : {}),
-        },
-      })
-    }
+  for (const stage of stages) {
+    await tx.workflowStage.create({
+      data: {
+        cooperationId: cooperation.id,
+        stageNumber: stage.stageNumber,
+        title: stage.title,
+        phase: stage.phase,
+        deadline: stage.deadline,
+        responsibleId: stage.responsibleId,
+        ...(stage.tasks.length > 0 ? { tasks: { createMany: { data: stage.tasks } } } : {}),
+      },
+    })
+  }
 
-    return cooperation.id
-  })
+  return cooperation.id
 }
 
 export async function update(
   id: string,
   data: Prisma.CooperationUpdateInput,
+  client: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await prisma.cooperation.update({ where: { id }, data })
+  await client.cooperation.update({ where: { id }, data })
 }

@@ -11,6 +11,7 @@ import { useCurrentUser } from './CurrentUser'
 import { currentSectionTitle, type NavGroup } from './navigation'
 import { ROUTES } from '../lib/links'
 import { Logo } from './Logo'
+import { UiModeSwitch } from './UiModeSwitch'
 import styles from './Shell.module.css'
 
 /**
@@ -18,7 +19,8 @@ import styles from './Shell.module.css'
  *
  * Постоянной строки поиска здесь нет — она заменена плавающей кнопкой
  * (раздел 7 шаблона страниц). Слева кнопка с логотипом: она всегда ведёт
- * на главную, справа — уведомления и переход в личный кабинет.
+ * на главную, справа — режим интерфейса (решение 80), уведомления и переход
+ * в личный кабинет.
  */
 export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClick: () => void }) {
   const user = useCurrentUser()
@@ -55,6 +57,7 @@ export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClic
       <span className={styles.spacer} />
 
       <div className={styles.headerRight}>
+        <UiModeSwitch placement="header" />
         <NotificationBell />
         <Link href={ROUTES.profile} className={styles.profile} aria-label="Личный кабинет">
           <Avatar name={user.fullName} />

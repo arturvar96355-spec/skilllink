@@ -36,6 +36,7 @@ import {
   formatDate,
   formatNumber,
   productHref,
+  useCurrentUser,
   useDebounced,
   useResource,
   usePageInRange,
@@ -46,6 +47,7 @@ import {
   Avatar,
   pluralize,
 } from '@/ui'
+import { ProductFormModal } from './ProductFormModal'
 import styles from './products.module.css'
 
 /**
@@ -94,6 +96,8 @@ function ProductsView() {
   const [status, setStatus] = useState<ProductStatus | ''>('')
   const [sort, setSort] = useState('name')
   const [page, setPage] = useState(1)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const user = useCurrentUser()
 
   const query = useDebounced(search)
   const openedProductId = searchParams.get('product')
@@ -115,6 +119,13 @@ function ProductsView() {
     const rest = next.toString()
     // Закрытие панели убирает продукт из адреса, но не добавляет запись в историю.
     router.replace(rest === '' ? pathname : `${pathname}?${rest}`, { scroll: false })
+  }
+
+  /** Новый продукт сразу открывается в панели: видно, что он заведён и каким. */
+  function openProduct(id: string) {
+    const next = new URLSearchParams(searchParams.toString())
+    next.set('product', id)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }
 
   function resetFilters() {
@@ -184,6 +195,13 @@ function ProductsView() {
         title="IT-продукты"
         description="Продукты, которые передаются вузам: версии, навыки и связки."
         meta={marks.section ? <MockBadge /> : undefined}
+        actions={
+          user.permissions.canWrite ? (
+            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+              Добавить продукт
+            </Button>
+          ) : undefined
+        }
       />
 
       <Toolbar>
@@ -232,6 +250,10 @@ function ProductsView() {
                 <Button icon="refresh" onClick={resetFilters}>
                   Сбросить фильтры
                 </Button>
+              ) : user.permissions.canWrite ? (
+                <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+                  Добавить продукт
+                </Button>
               ) : undefined
             }
           />
@@ -266,15 +288,44 @@ function ProductsView() {
       {/* Своя копия панели на каждый продукт: иначе при переходе к соседнему
           продукту в ней на мгновение остались бы данные предыдущего. */}
       {openedProductId !== null && (
-        <ProductDrawer key={openedProductId} productId={openedProductId} onClose={closeProduct} />
+        <ProductDrawer
+          key={openedProductId}
+          productId={openedProductId}
+          canEdit={user.permissions.canWrite}
+          onClose={closeProduct}
+          onSaved={products.reload}
+        />
+      )}
+
+      {isCreateOpen && (
+        <ProductFormModal
+          onClose={(saved) => {
+            setIsCreateOpen(false)
+            if (!saved) return
+            products.reload()
+            openProduct(saved.id)
+          }}
+        />
       )}
     </>
   )
 }
 
-function ProductDrawer({ productId, onClose }: { productId: string; onClose: () => void }) {
+function ProductDrawer({
+  productId,
+  canEdit,
+  onClose,
+  onSaved,
+}: {
+  productId: string
+  canEdit: boolean
+  onClose: () => void
+  /** Реестр перечитывается после правки: в строке те же название, версия и статус. */
+  onSaved: () => void
+}) {
   const product = useResource<ProductDto>(`/api/products/${productId}`)
   const data = product.data
+  const [isEditOpen, setIsEditOpen] = useState(false)
 
   return (
     <Drawer
@@ -350,16 +401,35 @@ function ProductDrawer({ productId, onClose }: { productId: string; onClose: () 
             )}
           </div>
 
-          <Button
-            href={`${ROUTES.cooperations}${buildQuery({ productId: data.id })}`}
-            variant="secondary"
-            size="sm"
-            icon="cooperation"
-          >
-            Связки с этим продуктом
-          </Button>
+          <div className={styles.drawerActions}>
+            {canEdit && (
+              <Button variant="primary" size="sm" onClick={() => setIsEditOpen(true)}>
+                Изменить
+              </Button>
+            )}
+            <Button
+              href={`${ROUTES.cooperations}${buildQuery({ productId: data.id })}`}
+              variant="secondary"
+              size="sm"
+              icon="cooperation"
+            >
+              Связки с этим продуктом
+            </Button>
+          </div>
         </div>
       ) : null}
+
+      {isEditOpen && data && (
+        <ProductFormModal
+          product={data}
+          onClose={(saved) => {
+            setIsEditOpen(false)
+            if (!saved) return
+            product.reload()
+            onSaved()
+          }}
+        />
+      )}
     </Drawer>
   )
 }
