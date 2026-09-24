@@ -53,22 +53,32 @@ export function isControlPoint(stageNumber: number): boolean {
 }
 
 /**
- * Что мешает пройти контрольную точку.
+ * Что мешает этапу `stageNumber` начаться, завершиться или получить отметку в чек-листе.
  *
- * Отменённый этап считается закрытым наравне с завершённым: этап 5 необязательный,
- * и его отмена — обычный ход дела. Иначе отмена доработки документов навсегда
- * заперла бы подписание.
+ * Контрольная точка — шлагбаум: дальше неё не пускает, пока она не **завершена**.
+ * Отменённая точка не пройдена: «договор не понадобился» не значит «договор подписан»,
+ * иначе отмена этапа 6 одним комментарием открывала передачу лицензии.
+ *
+ * Сама контрольная точка ждёт ещё и все предыдущие этапы. Для них отменённый этап
+ * закрыт наравне с завершённым: этап 5 необязательный, и его отмена — обычный ход дела.
  */
 export function findBlockingStages(
+  stageNumber: number,
   priorStages: readonly PriorStageState[],
 ): PriorStageState[] {
+  const waitsForAll = isControlPoint(stageNumber)
   return priorStages
-    .filter((stage) => stage.status !== 'COMPLETED' && stage.status !== 'CANCELLED')
+    .filter((stage) => stage.stageNumber < stageNumber)
+    .filter((stage) =>
+      isControlPoint(stage.stageNumber)
+        ? stage.status !== 'COMPLETED'
+        : waitsForAll && stage.status !== 'COMPLETED' && stage.status !== 'CANCELLED',
+    )
     .sort((left, right) => left.stageNumber - right.stageNumber)
 }
 
 /**
- * Проверка контрольной точки.
+ * Проверка контрольных точек для любого этапа.
  *
  * Применяется к началу работы и к завершению — это два утверждения о процессе,
  * и оба обязаны быть правдой. Отмена и блокировка не проверяются: они ничего
@@ -80,10 +90,9 @@ export function assertControlPointReady(
   toStatus: StageStatus,
   priorStages: readonly PriorStageState[],
 ): void {
-  if (!isControlPoint(stageNumber)) return
   if (toStatus !== 'IN_PROGRESS' && toStatus !== 'COMPLETED') return
 
-  const blocking = findBlockingStages(priorStages)
+  const blocking = findBlockingStages(stageNumber, priorStages)
   if (blocking.length === 0) return
 
   const forbidden = toStatus === 'COMPLETED' ? 'его нельзя завершить' : 'его нельзя начать'
@@ -91,7 +100,7 @@ export function assertControlPointReady(
 }
 
 /**
- * Пункт чек-листа контрольной точки не отмечается, пока не закрыты предыдущие этапы.
+ * Пункт чек-листа не отмечается там, куда контрольная точка ещё не пускает.
  *
  * Начать этап 7 до подписания договора было нельзя, а отметить в его чек-листе
  * «Передана лицензия» — можно: и сотруднику, и представителю вуза в кабинете.
@@ -103,9 +112,9 @@ export function assertChecklistReady(
   isDone: boolean,
   priorStages: readonly PriorStageState[],
 ): void {
-  if (!isDone || !isControlPoint(stageNumber)) return
+  if (!isDone) return
 
-  const blocking = findBlockingStages(priorStages)
+  const blocking = findBlockingStages(stageNumber, priorStages)
   if (blocking.length === 0) return
 
   throw controlPointRefusal(stageNumber, 'его пункты нельзя отмечать', blocking)
@@ -122,12 +131,15 @@ function controlPointRefusal(
   forbidden: string,
   blocking: readonly PriorStageState[],
 ) {
-  return invalidTransition(
-    `Этап ${stageNumber} — контрольная точка: ${forbidden}, пока не закрыты предыдущие этапы. ` +
-      `Не закрыты: ${describeBlockingStages(blocking)}.`,
+  const message = isControlPoint(stageNumber)
+    ? `Этап ${stageNumber} — контрольная точка: ${forbidden}, пока не закрыты предыдущие этапы. ` +
+      `Не закрыты: ${describeBlockingStages(blocking)}.`
+    : `Этап ${stageNumber} идёт после контрольной точки: ${forbidden}, пока она не завершена. ` +
+      `Не завершены: ${describeBlockingStages(blocking)}.`
+  return invalidTransition(message,
     {
       stageNumber,
-      isControlPoint: true,
+      isControlPoint: isControlPoint(stageNumber),
       blockingStages: blocking.map((stage) => ({
         stageNumber: stage.stageNumber,
         title: stage.title,

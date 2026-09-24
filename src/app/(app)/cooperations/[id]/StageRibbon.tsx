@@ -207,7 +207,7 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
         </span>
         <span className={styles.legendItem}>
           <Icon name="lock" size={16} />
-          контрольная точка: дальше не пускает, пока не закрыты предыдущие
+          контрольная точка: дальше не пускает, пока не завершена
         </span>
       </div>
     </div>

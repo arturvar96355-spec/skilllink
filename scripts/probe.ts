@@ -1410,6 +1410,56 @@ async function main(): Promise<void> {
         }
       }
 
+      // Шлагбаум: этапы за контрольной точкой ждут её завершения. Раньше точка
+      // защищала только саму себя — этап 8 начинался при неподписанном договоре,
+      // а отмена этапа 6 с любым комментарием открывала передачу лицензии.
+      const support = find(8)
+      if (support && signing) {
+        type Refusal = {
+          error?: { message?: string; details?: { blockingStages?: Array<{ stageNumber: number }> } }
+        }
+        const early = await call('PATCH', `/api/workflow/stages/${support.id}`, {
+          status: 'IN_PROGRESS',
+        })
+        const earlyMessage = (early.body as Refusal).error?.message ?? ''
+        check(
+          'этап 8 нельзя начать, пока не завершены контрольные точки 6 и 7',
+          early.status === 409 && earlyMessage.includes('идёт после контрольной точки'),
+          `статус ${early.status}: ${earlyMessage.slice(0, 60)}`,
+        )
+
+        const supportTask = support.tasks.find((task) => !task.isDone)
+        if (supportTask) {
+          const ticked = await call('PATCH', `/api/workflow/tasks/${supportTask.id}`, {
+            isDone: true,
+          })
+          check(
+            'пункт этапа 8 нельзя отметить до завершения контрольных точек',
+            ticked.status === 409,
+            `статус ${ticked.status}`,
+          )
+          if (ticked.status === 200) {
+            await call('PATCH', `/api/workflow/tasks/${supportTask.id}`, { isDone: false })
+          }
+        }
+
+        const cancelledSigning = await call('PATCH', `/api/workflow/stages/${signing.id}`, {
+          status: 'CANCELLED',
+          comment: 'Пробник: отмена подписания не должна открывать следующие этапы',
+        })
+        const after = await call('PATCH', `/api/workflow/stages/${support.id}`, {
+          status: 'IN_PROGRESS',
+        })
+        const stillBlocking = ((after.body as Refusal).error?.details?.blockingStages ?? []).map(
+          (item) => item.stageNumber,
+        )
+        check(
+          'отменённый этап 6 не открывает дорогу дальше',
+          cancelledSigning.status === 200 && after.status === 409 && stillBlocking.includes(6),
+          `отмена ${cancelledSigning.status}, этап 8 ${after.status}, мешают ${stillBlocking.join(', ')}`,
+        )
+      }
+
       // Отмена контрольной точки ничего не утверждает о работе — она разрешена.
       if (handover) {
         const cancelled = await call('PATCH', `/api/workflow/stages/${handover.id}`, {
