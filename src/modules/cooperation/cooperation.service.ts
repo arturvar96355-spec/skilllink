@@ -25,6 +25,7 @@ import * as workflowRepo from '@/modules/workflow/workflow.repo'
 import * as repo from './cooperation.repo'
 import {
   assertCooperationEditable,
+  assertNoDuplicateCooperation,
   assertProgramBelongsToUniversity,
   buildStages,
   isClosedStatus,
@@ -189,22 +190,35 @@ export async function create(
   }
 
   const startedAt = new Date()
-  const id = await repo.createWithStages(
-    {
-      university: { connect: { id: input.universityId } },
-      program: { connect: { id: input.programId } },
-      ...(input.productId ? { product: { connect: { id: input.productId } } } : {}),
-      responsible: { connect: { id: input.responsibleId } },
-      status: input.status,
-      goal: input.goal ?? null,
-      notes: input.notes ?? null,
-      firstContactAt: input.firstContactAt ? new Date(input.firstContactAt) : null,
-      classesStartAt: input.classesStartAt ? new Date(input.classesStartAt) : null,
-      targetDate: input.targetDate ? new Date(input.targetDate) : null,
-      startedAt,
-    },
-    buildStages(startedAt, input.responsibleId),
-  )
+  // Проверка дубля и создание — одной транзакцией в очереди программы: иначе
+  // двойное «Создать» проходило проверку дважды и заводило две одинаковые связки.
+  const id = await prisma.$transaction(async (tx) => {
+    await repo.lockProgram(tx, input.programId)
+    assertNoDuplicateCooperation(
+      await repo.findOpenDuplicate(tx, {
+        universityId: input.universityId,
+        programId: input.programId,
+        productId: input.productId ?? null,
+      }),
+    )
+    return repo.createWithStages(
+      tx,
+      {
+        university: { connect: { id: input.universityId } },
+        program: { connect: { id: input.programId } },
+        ...(input.productId ? { product: { connect: { id: input.productId } } } : {}),
+        responsible: { connect: { id: input.responsibleId } },
+        status: input.status,
+        goal: input.goal ?? null,
+        notes: input.notes ?? null,
+        firstContactAt: input.firstContactAt ? new Date(input.firstContactAt) : null,
+        classesStartAt: input.classesStartAt ? new Date(input.classesStartAt) : null,
+        targetDate: input.targetDate ? new Date(input.targetDate) : null,
+        startedAt,
+      },
+      buildStages(startedAt, input.responsibleId),
+    )
+  })
 
   await writeAudit({
     userId: user.id,
@@ -249,7 +263,7 @@ export async function update(
   // когда её якобы закрыли.
   const reopening = input.status !== undefined && !isClosedStatus(input.status) && wasClosed
 
-  await repo.update(id, {
+  const data = {
     ...(input.status !== undefined ? { status: input.status } : {}),
     ...(input.responsibleId
       ? { responsible: { connect: { id: input.responsibleId } } }
@@ -272,7 +286,29 @@ export async function update(
       : {}),
     ...(closing ? { closedAt: new Date() } : {}),
     ...(reopening ? { closedAt: null } : {}),
-  })
+  } satisfies Parameters<typeof repo.update>[1]
+
+  // Правка тоже может дать дубль: смена продукта на тот, что уже в соседней незакрытой
+  // связке, или переоткрытие, когда такую же успели завести заново. Правило то же,
+  // что при создании, и в той же очереди программы.
+  const productChanges =
+    input.productId !== undefined && (input.productId ?? null) !== existing.productId
+  if (!isClosedStatus(input.status ?? existing.status) && (reopening || productChanges)) {
+    await prisma.$transaction(async (tx) => {
+      await repo.lockProgram(tx, existing.programId)
+      assertNoDuplicateCooperation(
+        await repo.findOpenDuplicate(tx, {
+          universityId: existing.universityId,
+          programId: existing.programId,
+          productId: input.productId !== undefined ? (input.productId ?? null) : existing.productId,
+          excludeId: id,
+        }),
+      )
+      await repo.update(id, data, tx)
+    })
+  } else {
+    await repo.update(id, data)
+  }
 
   await writeAudit({
     userId: user.id,
