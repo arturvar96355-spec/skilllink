@@ -3,7 +3,11 @@ import type { UserRole } from './enums'
 /** Пользователь системы. Персональные данные — минимум: ФИО, должность, рабочая почта. */
 export interface UserDto {
   id: string
-  email: string
+  /**
+   * Рабочая почта — только для ADMIN и MANAGER: им она нужна, чтобы связаться
+   * с ответственным. Аналитику и наблюдателю приходит null.
+   */
+  email: string | null
   fullName: string
   position: string | null
   role: UserRole
@@ -29,6 +33,8 @@ export interface CurrentUserDto {
     canWrite: boolean
     canSeeAnalytics: boolean
     canUsePortal: boolean
+    /** Подтверждать материалы, вносить показатели и подавать заявки в кабинете вуза. */
+    canWritePortal: boolean
     isAdmin: boolean
   }
 }

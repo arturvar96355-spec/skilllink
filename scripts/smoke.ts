@@ -531,11 +531,10 @@ async function main(): Promise<void> {
 
   // ── 8. Создание связки и 14 этапов ─────────────────────────────────────────
   step('8. Создание связки: вуз — программа — продукт')
-  const existingCooperations = await call<Array<{ responsible: Identified }>>(
-    'GET',
-    '/api/cooperations?pageSize=1',
-  )
-  const managerId = existingCooperations.body.data?.[0]?.responsible.id
+  // Ответственным назначается только менеджер или администратор — берём менеджера
+  // из справочника, а не ответственного первой попавшейся связки.
+  const managers = await call<Identified[]>('GET', '/api/users?role=MANAGER&pageSize=1')
+  const managerId = managers.body.data?.[0]?.id
   check('ответственный найден в демо-данных', Boolean(managerId))
 
   const cooperation = await call<{
@@ -1164,6 +1163,18 @@ async function main(): Promise<void> {
     `/api/portal/overview?universityId=${ownUniversity.id}`,
   )
   check('сотрудник открывает кабинет любого вуза по идентификатору', staffPortal.status === 200)
+
+  // Записывает в кабинете только сам вуз: сотрудник ИТ-Школы не подаёт заявки
+  // и не вносит показатели от его имени.
+  const staffProgramId = (staffPortal.body.data?.programs as Array<{ id: string }> | undefined)?.[0]?.id
+  if (staffProgramId) {
+    const staffApplication = await call(
+      'POST',
+      `/api/portal/applications?universityId=${ownUniversity.id}`,
+      { programId: staffProgramId, quantity: 1 },
+    )
+    check('сотрудник не подаёт заявку от имени вуза', staffApplication.status === 403, `код ${staffApplication.status}`)
+  }
 
   // Дальше работаем от имени представителя вуза: находим его в справочнике пользователей.
   const repUsers = await call<Array<{ id: string; universityId: string | null; fullName: string }>>(

@@ -734,7 +734,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Подтверждать можно только задачи этапа передачи материалов. Закрытая связка ' +
       'или завершённый либо отменённый этап — конфликт, не закрытые этапы до 7-го — ' +
       'недопустимый переход, как у сотрудника ИТ-Школы.',
-    permission: 'UNIVERSITY_PORTAL',
+    permission: 'UNIVERSITY_PORTAL_WRITE',
     body: confirmMaterialSchema,
     bodyOptional: true,
     errors: [...WRITE_ERRORS, 'CONFLICT', 'INVALID_TRANSITION'],
@@ -745,7 +745,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Кабинет вуза',
     summary: 'Внести численность обучающихся и количество групп',
     description: 'Заявки через кабинет не правятся: они считаются по поданным заявкам.',
-    permission: 'UNIVERSITY_PORTAL',
+    permission: 'UNIVERSITY_PORTAL_WRITE',
     body: updateProgramMetricsSchema,
     errors: WRITE_ERRORS,
   },
@@ -765,7 +765,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Кабинет вуза',
     summary: 'Подать заявку на обучение',
     description: 'Персональных данных обучающихся заявка не содержит.',
-    permission: 'UNIVERSITY_PORTAL',
+    permission: 'UNIVERSITY_PORTAL_WRITE',
     body: submitApplicationSchema,
     errors: WRITE_ERRORS,
   },

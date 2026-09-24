@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import {
+  UNKNOWN_ADDRESS,
   checkLogin,
+  clientAddress,
+  forgiveFailure,
   isBlocked,
   recordFailure,
   recordSuccess,
@@ -9,9 +12,13 @@ import {
   resetThrottle,
   secondsUntilUnblocked,
   throttledAttempt,
+  trackedCounts,
+  type LoginSource,
 } from './throttle'
 
 const NOW = 1_700_000_000_000
+
+const from = (account: string, address = '203.0.113.10'): LoginSource => ({ account, address })
 
 describe('счётчик неудачных попыток', () => {
   it('первая неудача не блокирует', () => {
@@ -80,35 +87,154 @@ describe('хранилище попыток', () => {
 
   it('учётные записи считаются независимо', () => {
     for (let attempt = 0; attempt < LOGIN_THROTTLE.maxFailures; attempt += 1) {
-      recordFailure('first@example.invalid', NOW)
+      recordFailure(from('first@example.invalid'), NOW)
     }
-    expect(checkLogin('first@example.invalid', NOW).blocked).toBe(true)
-    expect(checkLogin('second@example.invalid', NOW).blocked).toBe(false)
+    expect(checkLogin(from('first@example.invalid'), NOW).blocked).toBe(true)
+    expect(checkLogin(from('second@example.invalid'), NOW).blocked).toBe(false)
+  })
+
+  it('чужой адрес не закрывает вход владельцу учётной записи', () => {
+    // Раньше счёт шёл по одной учётной записи: пять неверных паролей с любого
+    // ноутбука закрывали демо-вход менеджера всем, включая его самого.
+    const attacker = from('manager@skilllink.demo', '198.51.100.7')
+    for (let attempt = 0; attempt < LOGIN_THROTTLE.maxFailures; attempt += 1) {
+      recordFailure(attacker, NOW)
+    }
+    expect(checkLogin(attacker, NOW).blocked).toBe(true)
+    expect(checkLogin(from('manager@skilllink.demo', '203.0.113.10'), NOW).blocked).toBe(false)
+  })
+
+  it('с одного адреса нельзя перебирать пароль по многим учётным записям', () => {
+    const address = '198.51.100.7'
+    // По одной неудаче на учётную запись: ни одна пара до своего предела не дошла.
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailuresPerAddress; index += 1) {
+      recordFailure(from(`user-${index}@example.invalid`, address), NOW)
+    }
+    const next = checkLogin(from('fresh@example.invalid', address), NOW)
+    expect(next.blocked).toBe(true)
+    expect(next.retryAfterSeconds).toBe(LOGIN_THROTTLE.blockMs / 1000)
+    // С другого адреса та же учётная запись свободна.
+    expect(checkLogin(from('fresh@example.invalid', '203.0.113.10'), NOW).blocked).toBe(false)
+  })
+
+  it('перебор одной учётной записи с множества адресов упирается в общий потолок', () => {
+    // У каждого адреса свои пять попыток; без общего потолка перебор
+    // с тысячи адресов давал бы пять тысяч догадок.
+    const perAddress = LOGIN_THROTTLE.maxFailures - 1
+    let failures = 0
+    for (let index = 0; failures < LOGIN_THROTTLE.maxFailuresPerAccount; index += 1) {
+      for (let attempt = 0; attempt < perAddress && failures < LOGIN_THROTTLE.maxFailuresPerAccount; attempt += 1) {
+        recordFailure(from('target@example.invalid', `198.51.100.${index}`), NOW)
+        failures += 1
+      }
+    }
+    const fresh = checkLogin(from('target@example.invalid', '203.0.113.200'), NOW)
+    expect(fresh.blocked).toBe(true)
+    // Потолок — по учётной записи: другие с того же адреса входят.
+    expect(checkLogin(from('other@example.invalid', '203.0.113.200'), NOW).blocked).toBe(false)
+  })
+
+  it('общий потолок учётной записи считается за час, а не за пять минут', () => {
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailuresPerAccount - 1; index += 1) {
+      // Каждая неудача — с нового адреса и позже окна пары.
+      recordFailure(from('slow@example.invalid', `198.51.100.${index}`), NOW + index * 60_000)
+    }
+    const last = NOW + (LOGIN_THROTTLE.maxFailuresPerAccount - 1) * 60_000
+    expect(last - NOW).toBeLessThan(LOGIN_THROTTLE.accountWindowMs)
+    recordFailure(from('slow@example.invalid', '203.0.113.1'), last)
+    expect(checkLogin(from('slow@example.invalid', '203.0.113.2'), last).blocked).toBe(true)
+  })
+
+  it('неудача сообщает, какой счётчик она закрыла, — один раз', () => {
+    const source = from('audit@example.invalid')
+    for (let attempt = 0; attempt < LOGIN_THROTTLE.maxFailures - 1; attempt += 1) {
+      expect(recordFailure(source, NOW)).toEqual([])
+    }
+    expect(recordFailure(source, NOW)).toEqual(['account-address'])
+    expect(recordFailure(source, NOW)).toEqual([])
   })
 
   it('удачный вход обнуляет счётчик', () => {
     for (let attempt = 0; attempt < LOGIN_THROTTLE.maxFailures - 1; attempt += 1) {
-      recordFailure('user@example.invalid', NOW)
+      recordFailure(from('user@example.invalid'), NOW)
     }
-    recordSuccess('user@example.invalid')
-    recordFailure('user@example.invalid', NOW)
-    expect(checkLogin('user@example.invalid', NOW).blocked).toBe(false)
+    recordSuccess(from('user@example.invalid'), NOW)
+    recordFailure(from('user@example.invalid'), NOW)
+    expect(checkLogin(from('user@example.invalid'), NOW).blocked).toBe(false)
+  })
+
+  it('удачные входы не расходуют попытки адреса', () => {
+    // Неудача пишется до проверки пароля, и удачный вход её снимает — иначе
+    // двадцать входов коллег из одной сети закрыли бы её целиком.
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailuresPerAddress * 2; index += 1) {
+      const source = from(`colleague-${index}@example.invalid`)
+      recordFailure(source, NOW)
+      recordSuccess(source, NOW)
+    }
+    expect(checkLogin(from('late@example.invalid'), NOW).blocked).toBe(false)
+  })
+
+  it('удачный вход снимает с адреса одну неудачу, а не все', () => {
+    const state = { failures: 7, windowStartedAt: NOW, blockedUntil: null }
+    expect(forgiveFailure(state, LOGIN_THROTTLE.maxFailuresPerAddress)?.failures).toBe(6)
+    expect(forgiveFailure({ ...state, failures: 0 }, 20)?.failures).toBe(0)
+    expect(forgiveFailure(undefined, 20)).toBeUndefined()
   })
 
   it('перебор по случайным адресам не растит карту без предела', () => {
-    for (let index = 0; index < LOGIN_THROTTLE.maxTrackedAccounts + 500; index += 1) {
-      recordFailure(`random-${index}@example.invalid`, NOW)
+    for (let index = 0; index < LOGIN_THROTTLE.maxTrackedKeys + 500; index += 1) {
+      recordFailure(from(`random-${index}@example.invalid`, `10.0.${index >> 8}.${index & 255}`), NOW)
     }
     // Предел соблюдён: иначе перебор по несуществующим адресам стал бы способом
     // израсходовать память процесса.
-    expect(checkLogin('random-0@example.invalid', NOW).blocked).toBe(false)
+    const counts = trackedCounts()
+    expect(counts.byAccountAndAddress).toBeLessThanOrEqual(LOGIN_THROTTLE.maxTrackedKeys)
+    expect(counts.byAddress).toBeLessThanOrEqual(LOGIN_THROTTLE.maxTrackedKeys)
+    expect(counts.byAccount).toBeLessThanOrEqual(LOGIN_THROTTLE.maxTrackedKeys)
+  })
+
+  it('полная карта вытесняет самые старые записи, а не перестаёт считать новые', () => {
+    for (let index = 0; index < LOGIN_THROTTLE.maxTrackedKeys; index += 1) {
+      recordFailure(from(`random-${index}@example.invalid`, `10.0.${index >> 8}.${index & 255}`), NOW)
+    }
+    // Раньше новая учётная запись в полную карту не попадала, и её перебор
+    // не ограничивался вовсе.
+    const target = from('target@example.invalid', '203.0.113.99')
+    for (let attempt = 0; attempt < LOGIN_THROTTLE.maxFailures; attempt += 1) {
+      recordFailure(target, NOW + 1)
+    }
+    expect(checkLogin(target, NOW + 1).blocked).toBe(true)
+    expect(trackedCounts().byAccountAndAddress).toBe(LOGIN_THROTTLE.maxTrackedKeys)
   })
 
   it('неизвестная учётная запись не заблокирована', () => {
-    expect(checkLogin('nobody@example.invalid', NOW)).toEqual({
+    expect(checkLogin(from('nobody@example.invalid'), NOW)).toEqual({
       blocked: false,
       retryAfterSeconds: 0,
     })
+  })
+})
+
+describe('адрес клиента', () => {
+  const headers = (value: string | null) => ({
+    get: (name: string) => (name === 'x-forwarded-for' ? value : null),
+  })
+
+  it('Caddy присылает один адрес — он и берётся', () => {
+    expect(clientAddress(headers('203.0.113.10'))).toBe('203.0.113.10')
+    expect(clientAddress(headers(' 2001:DB8::1 '))).toBe('2001:db8::1')
+  })
+
+  it('из цепочки берётся последний адрес — его добавил ближайший прокси', () => {
+    // Первый задаёт клиент: подставляя каждый раз новый, он обходил бы счётчик.
+    expect(clientAddress(headers('1.2.3.4, 203.0.113.10'))).toBe('203.0.113.10')
+  })
+
+  it('без заголовка или с мусором в нём — unknown', () => {
+    expect(clientAddress(headers(null))).toBe(UNKNOWN_ADDRESS)
+    expect(clientAddress(headers(''))).toBe(UNKNOWN_ADDRESS)
+    expect(clientAddress(headers('10.0.0.2, '))).toBe(UNKNOWN_ADDRESS)
+    expect(clientAddress(headers('x'.repeat(500)))).toBe(UNKNOWN_ADDRESS)
   })
 })
 
@@ -129,7 +255,7 @@ describe('одновременные попытки входа', () => {
     let checked = 0
     const attempts = await Promise.all(
       Array.from({ length: 100 }, () =>
-        throttledAttempt('target@example.invalid', async () => {
+        throttledAttempt(from('target@example.invalid'), async () => {
           checked += 1
           return slowWrongPassword()
         }),
@@ -139,13 +265,25 @@ describe('одновременные попытки входа', () => {
     expect(attempts.filter((attempt) => attempt.blocked)).toHaveLength(100 - LOGIN_THROTTLE.maxFailures)
   })
 
+  it('сто одновременных догадок по разным учётным записям — не больше предела адреса', async () => {
+    let checked = 0
+    await Promise.all(
+      Array.from({ length: 100 }, (_, index) =>
+        throttledAttempt(from(`spray-${index}@example.invalid`), async () => {
+          checked += 1
+          return slowWrongPassword()
+        }),
+      ),
+    )
+    expect(checked).toBe(LOGIN_THROTTLE.maxFailuresPerAddress)
+  })
+
   it('верный пароль с последней разрешённой попытки пускает и обнуляет счётчик', async () => {
     for (let index = 0; index < LOGIN_THROTTLE.maxFailures - 1; index += 1) {
-      await throttledAttempt('user@example.invalid', slowWrongPassword)
+      await throttledAttempt(from('user@example.invalid'), slowWrongPassword)
     }
-    const success = await throttledAttempt('user@example.invalid', async () => ({ id: 'u1' }))
-    expect(success).toEqual({ blocked: false, result: { id: 'u1' } })
-    expect(checkLogin('user@example.invalid').blocked).toBe(false)
+    const success = await throttledAttempt(from('user@example.invalid'), async () => ({ id: 'u1' }))
+    expect(success).toEqual({ blocked: false, result: { id: 'u1' }, triggered: [] })
+    expect(checkLogin(from('user@example.invalid')).blocked).toBe(false)
   })
 })
-

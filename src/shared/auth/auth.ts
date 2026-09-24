@@ -4,7 +4,9 @@ import { compare } from 'bcryptjs'
 import { prisma } from '@/shared/db/prisma'
 import { containsNul } from '@/shared/db/storable'
 import type { UserRole } from '@/shared/contracts/enums'
-import { throttledAttempt } from './throttle'
+import { writeAudit } from '@/shared/audit/audit'
+import { clientAddress, throttledAttempt } from './throttle'
+import { loginAuditEntries, type LoginOutcome } from './login-audit'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -15,7 +17,7 @@ import { throttledAttempt } from './throttle'
  */
 
 /**
- * Вход по учётной записи временно закрыт: исчерпаны попытки.
+ * Вход временно закрыт: исчерпаны попытки.
  *
  * Отдельный код, а не общий «неверные данные»: иначе человек 15 минут вводит
  * правильный пароль, получает отказ и решает, что забыл его. Экран входа
@@ -80,7 +82,12 @@ function resolveSecret(): string {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: resolveSecret(),
-  session: { strategy: 'jwt' },
+  /**
+   * Сессия живёт восемь часов — рабочий день, а не тридцать дней по умолчанию:
+   * забытый открытым ноутбук на показе или в аудитории не должен оставаться
+   * входом в систему на месяц. Продлевается не чаще раза в час.
+   */
+  session: { strategy: 'jwt', maxAge: 8 * 3600, updateAge: 3600 },
   trustHost: true,
   /**
    * Своя страница входа.
@@ -97,16 +104,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: 'Электронная почта', type: 'email' },
         password: { label: 'Пароль', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = typeof credentials?.email === 'string' ? credentials.email.trim() : ''
         const password = typeof credentials?.password === 'string' ? credentials.password : ''
         if (email === '' || password === '') return null
 
-        // Перебор пароля ограничивается по учётной записи. Проверка идёт до запроса
-        // к базе и до сравнения хеша: заблокированная попытка не должна стоить
-        // ни запроса, ни bcrypt. Неудача засчитывается сразу — иначе одновременные
-        // попытки проходили проверку все разом (throttledAttempt).
-        const attempt = await throttledAttempt(email.toLowerCase(), async () => {
+        // Перебор пароля ограничивается по паре «учётная запись + адрес клиента»,
+        // по адресу и общим потолком учётной записи (throttle.ts). Проверка идёт
+        // до запроса к базе и до сравнения хеша: заблокированная попытка не должна
+        // стоить ни запроса, ни bcrypt. Неудача засчитывается сразу — иначе
+        // одновременные попытки проходили проверку все разом (throttledAttempt).
+        const source = { account: email.toLowerCase(), address: clientAddress(request.headers) }
+        // Для журнала: чья учётная запись, если она существует. Почта в журнал не идёт.
+        let knownUserId: string | null = null
+        const attempt = await throttledAttempt(source, async () => {
           // Адреса с символом кода 0 в базе нет и быть не может, а запрос с ним падает —
           // и вход отвечал «ошибка конфигурации». Такой адрес — просто неизвестный.
           const user = containsNul(email)
@@ -137,12 +148,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             return null
           }
 
+          knownUserId = user.id
           const matches = await compare(password, user.passwordHash)
           return matches ? user : null
         })
 
         if (attempt.blocked) throw new LoginThrottledError()
         const user = attempt.result
+
+        const outcome: LoginOutcome = user
+          ? { kind: 'success', userId: user.id, address: source.address }
+          : { kind: 'failure', userId: knownUserId, address: source.address, triggered: attempt.triggered }
+        for (const entry of loginAuditEntries(outcome)) await writeAudit(entry)
+
         if (!user) return null
 
         return {

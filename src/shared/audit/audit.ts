@@ -4,6 +4,9 @@ import { describeForLog } from '@/shared/db/log'
 
 /** Действия, которые журналируются (раздел 15 ТЗ). Список расширяется по мере надобности. */
 export type AuditAction =
+  | 'auth.login.success'
+  | 'auth.login.failure'
+  | 'auth.login.blocked'
   | 'university.create'
   | 'university.update'
   | 'university.archive'

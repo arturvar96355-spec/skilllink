@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
-import type { UserRole } from '@/shared/contracts/enums'
+import { RESPONSIBLE_ROLES, canBeResponsible, type UserRole } from '@/shared/contracts/enums'
 import {
+  PERMISSIONS,
   assertCan,
   can,
   canSeeInternalNotes,
@@ -66,6 +67,12 @@ describe('кабинет вуза', () => {
     expect(can(user('UNIVERSITY_REP', 'uni-1'), 'UNIVERSITY_PORTAL')).toBe(true)
   })
 
+  it('записывает в кабинете только представитель вуза', () => {
+    expect(can(user('UNIVERSITY_REP', 'uni-1'), 'UNIVERSITY_PORTAL_WRITE')).toBe(true)
+    expect(can(user('ADMIN'), 'UNIVERSITY_PORTAL_WRITE')).toBe(false)
+    expect(can(user('MANAGER'), 'UNIVERSITY_PORTAL_WRITE')).toBe(false)
+  })
+
   it('аналитику и наблюдателю кабинет не нужен', () => {
     expect(can(user('ANALYST'), 'UNIVERSITY_PORTAL')).toBe(false)
     expect(can(user('VIEWER'), 'UNIVERSITY_PORTAL')).toBe(false)
@@ -100,5 +107,26 @@ describe('ограничение по вузу', () => {
 
   it('остальным ролям видны все вузы', () => {
     expect(isUniversityVisible(user('MANAGER'), 'uni-2')).toBe(true)
+  })
+})
+
+describe('ответственный за запись', () => {
+  it('назначается только администратор или менеджер', () => {
+    expect(canBeResponsible('ADMIN')).toBe(true)
+    expect(canBeResponsible('MANAGER')).toBe(true)
+  })
+
+  it('аналитик, наблюдатель и представитель вуза ответственными не бывают', () => {
+    // Раньше проходил любой сотрудник: аналитик числился ответственным за связку,
+    // в которой не может изменить ни этапа.
+    expect(canBeResponsible('ANALYST')).toBe(false)
+    expect(canBeResponsible('VIEWER')).toBe(false)
+    expect(canBeResponsible('UNIVERSITY_REP')).toBe(false)
+  })
+
+  it('ответственный всегда может изменять данные', () => {
+    for (const role of RESPONSIBLE_ROLES) {
+      expect((PERMISSIONS.WRITE as readonly UserRole[]).includes(role)).toBe(true)
+    }
   })
 })

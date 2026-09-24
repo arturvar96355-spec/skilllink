@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { prisma } from '@/shared/db/prisma'
 import { containsNul } from '@/shared/db/storable'
-import { unauthorized } from '@/shared/http/errors'
+import { AppError, unauthorized } from '@/shared/http/errors'
 import type { UserRole } from '@/shared/contracts/enums'
 import { auth } from './auth'
 import { DEMO_USER_COOKIE, isDemoAuthEnabled } from './demo-mode'
@@ -42,6 +42,18 @@ async function readUserIdFromCookie(): Promise<string | null> {
   }
 }
 
+/**
+ * Текст ошибки для журнала — без токенов.
+ *
+ * Сообщения библиотек разбора JWT обычно токен не повторяют, но полагаться на это
+ * нельзя: токен сессии в журнале — это вход под чужим именем для любого, кто журнал
+ * читает. Всё, что похоже на JWT, вырезается, длина ограничена.
+ */
+export function describeAuthError(error: unknown): string {
+  const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  return text.replace(/eyJ[\w-]*(?:\.[\w-]*)*/g, '[токен скрыт]').slice(0, 300)
+}
+
 /** Пользователь из настоящей сессии NextAuth. */
 async function fromSession(): Promise<CurrentUser | null> {
   // Тип выводится из вызова без аргументов: у `auth` несколько перегрузок,
@@ -50,9 +62,13 @@ async function fromSession(): Promise<CurrentUser | null> {
   try {
     const session = await auth()
     userId = session?.user?.id ?? null
-  } catch {
-    // Сессии может не быть вовсе — это штатная ситуация, а не сбой.
-    return null
+  } catch (error) {
+    // Отсутствие сессии — это `null` от auth(), а не исключение. Исключение — сбой
+    // проверки входа, и молча считать его «сессии нет» нельзя: в демо-режиме запрос
+    // ушёл бы к демо-пользователю и получил права менеджера, хотя за ним могла
+    // стоять чья-то настоящая сессия. Поэтому — в журнал и отказ, без запасного пути.
+    console.error('[AUTH] не удалось прочитать сессию:', describeAuthError(error))
+    throw new AppError('INTERNAL', 'Не удалось проверить вход. Обновите страницу или войдите заново')
   }
 
   if (!userId) return null

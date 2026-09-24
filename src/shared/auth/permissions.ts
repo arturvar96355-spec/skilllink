@@ -15,8 +15,14 @@ export const PERMISSIONS = {
   ANALYTICS: ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER'],
   /** Настройка системы, пользователи, справочники. */
   ADMIN: ['ADMIN'],
-  /** Действия кабинета представителя вуза: подтверждение материалов, заявки, показатели. */
+  /** Просмотр кабинета вуза. Сотрудник ИТ-Школы открывает кабинет любого вуза. */
   UNIVERSITY_PORTAL: ['ADMIN', 'MANAGER', 'UNIVERSITY_REP'],
+  /**
+   * Запись в кабинете вуза: подтверждение материалов, заявки, показатели.
+   * Только сам вуз — сотрудник, подтвердивший получение материалов «от имени вуза»,
+   * подменил бы подтверждение второй стороны своим.
+   */
+  UNIVERSITY_PORTAL_WRITE: ['UNIVERSITY_REP'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS

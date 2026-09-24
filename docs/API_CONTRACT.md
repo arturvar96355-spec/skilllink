@@ -107,6 +107,19 @@ PostgreSQL такой символ не принимает. Количества
 | `credentials` | «Неверная почта или пароль». Какое из двух — не говорится намеренно |
 | `too_many_attempts` | «Слишком много попыток. Вход закрыт на 15 минут». После пяти неудач подряд — **даже с верным паролем**. Без этого сообщения человек решит, что забыл пароль |
 
+Пять неудач считаются для пары «учётная запись + адрес клиента» (с 25.09.2026; раньше —
+для учётной записи с любых адресов, и посторонний закрывал вход владельцу). Кроме того,
+тот же код приходит после 20 неудач с одного адреса по любым учётным записям за 5 минут
+и после 50 неудач по одной учётной записи со всех адресов за час. Значения — TEMP
+в `src/shared/config/auth.config.ts`.
+
+**Изменяющие запросы с чужого сайта** (`POST`, `PUT`, `PATCH`, `DELETE` с заголовком
+`Origin`, который не совпадает с `AUTH_URL` или хостом запроса) получают `FORBIDDEN` 403
+«Запрос пришёл с другого сайта и отклонён» (с 25.09.2026). Запрос без `Origin` — скрипты,
+curl — не затрагивается. `/api/auth/*` не затрагивается.
+
+**Срок сессии** — 8 часов с момента входа (с 25.09.2026; раньше 30 дней).
+
 Пространство `/api/auth/*` целиком принадлежит NextAuth. Сведения о текущем пользователе
 системы отдаёт **`GET /api/me`**.
 
@@ -126,7 +139,13 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `WRITE` | ADMIN, MANAGER |
 | `ANALYTICS` | ADMIN, MANAGER, ANALYST, VIEWER |
 | `ADMIN` | ADMIN |
-| `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP |
+| `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP — просмотр кабинета вуза |
+| `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
+
+**Ответственным** за связку, этап, встречу и документ назначается только действующий
+ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
+Иначе — `VALIDATION_ERROR` 422 по полю `responsibleId`: «Ответственным может быть только
+менеджер или администратор ИТ-Школы»; несуществующий — «Сотрудник не найден».
 
 ### Пагинация, фильтры, сортировка
 
@@ -207,6 +226,11 @@ curl -s http://localhost:3000/api/health
 
 Полная ошибка пишется в журнал приложения (`docker compose logs app`): подсказка
 отвечает на «что делать», а разбираться в неожиданном сбое нужно по ней.
+
+**В продакшене (`NODE_ENV=production`) подробностей нет** (с 25.09.2026): поля `hint` нет,
+`database` — только `connected`, `unknown` или `unavailable`, `status` — `ok` или `degraded`
+(вместо `misconfigured`). Подсказка пишется в журнал приложения. `status` и `schema`
+значат то же, что и вне продакшена: на них смотрят `scripts/deploy/check.sh` и Docker.
 
 ---
 
@@ -324,7 +348,7 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
 | `region` | string | да | 2..120 |
 | `shortName` | string \| null | нет | до 100 |
 | `address` | string \| null | нет | до 300 |
-| `website` | string \| null | нет | корректный URL |
+| `website` | string \| null | нет | ссылка `http://` или `https://`, до 2000 символов |
 | `status` | enum | нет | по умолчанию `NEW` |
 | `directionCount` | number \| null | нет | ≥ 0 |
 | `studentCount` | number \| null | нет | ≥ 0 |
@@ -830,7 +854,7 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 | Поле | Тип |
 | --- | --- |
 | `status` | enum: `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, `CANCELLED` |
-| `responsibleId` | string \| null |
+| `responsibleId` | string \| null — ADMIN или MANAGER; `null` снимает ответственного |
 | `deadline` | ISO 8601 \| null |
 | `comment` | string \| null (до 2000) |
 | `result` | string \| null (до 2000) |
@@ -1303,7 +1327,7 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 | `title` | да (3..300) |
 | `cooperationId` / `universityId` / `programId` | **хотя бы одно** — иначе 422 |
 | `version` | нет, по умолчанию `"1"` |
-| `fileReference` | нет, корректный URL |
+| `fileReference` | нет, ссылка `http://` или `https://`, до 2000 символов |
 | `responsibleId`, `issuedAt` | нет |
 
 ### PATCH /api/documents/:id
@@ -1462,7 +1486,10 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 и внутренние комментарии к этапам ей недоступны (решение 9).
 
 Сотрудник ИТ-Школы (`ADMIN`, `MANAGER`) может открыть кабинет любого вуза, указав
-`?universityId=…`. Без параметра он получит 404.
+`?universityId=…`. Без параметра он получит 404. **В кабинете вуза сотрудник только
+просматривает** (с 25.09.2026): подтверждение материалов, показатели и заявки — право
+`UNIVERSITY_PORTAL_WRITE`, у сотрудника — `FORBIDDEN` 403 «В кабинете вуза сотрудник
+только просматривает; подтверждает сам вуз».
 
 ### GET /api/portal/overview
 
@@ -1506,7 +1533,8 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 
 ### POST /api/portal/materials/:taskId/confirm
 
-Право: `UNIVERSITY_PORTAL`. Тело необязательно: `{ "comment": "Материалы получены" }`.
+Право: `UNIVERSITY_PORTAL_WRITE`. Тело необязательно: `{ "comment": "Материалы получены" }`.
+Текст комментария в журнал действий не пишется — только признак, что он был.
 Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
 Запись идёт той же функцией, что у сотрудника ИТ-Школы (`setTaskDone`), в очереди со сменой
 статусов связки, и отказывает так же — 409:
@@ -1521,14 +1549,14 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 
 ### PATCH /api/portal/programs/:id/metrics
 
-Право: `UNIVERSITY_PORTAL`. Тело: `{ "studentCount": 137, "groupCount": 6 }`.
+Право: `UNIVERSITY_PORTAL_WRITE`. Тело: `{ "studentCount": 137, "groupCount": 6 }`.
 
 **`applicationCount` через кабинет не правится** — он считается по поданным заявкам.
 Попытка передать его даёт 422.
 
 ### GET /api/portal/applications, POST /api/portal/applications
 
-Право: `UNIVERSITY_PORTAL`.
+Право: чтение — `UNIVERSITY_PORTAL`, создание — `UNIVERSITY_PORTAL_WRITE`.
 
 Создание: `{ "programId": "…", "quantity": 25, "comment": "Заявки весеннего набора" }`.
 **Персональных данных обучающихся заявка не содержит** — только количество; неизвестные поля
@@ -1566,13 +1594,16 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
     "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
     "role": "MANAGER", "universityId": null, "universityName": null,
     "permissions": { "canWrite": true, "canSeeAnalytics": true,
-                     "canUsePortal": true, "isAdmin": false }
+                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false }
   }
 }
 ```
 
 `position` и `universityName` — для шапки и личного кабинета: имя, должность,
 у представителя вуза — название вуза. Могут быть `null`.
+
+`canWritePortal` (с 25.09.2026) — может ли пользователь записывать в кабинете вуза:
+`true` только у `UNIVERSITY_REP`. У сотрудника кабинет открывается только для просмотра.
 
 ### GET /api/me/stats
 
@@ -1701,6 +1732,9 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 
 Право: `ANALYTICS`. Справочник для выбора ответственного и участников встреч.
 Параметры: `q`, `role[]`, `universityId`, `includeInactive`, пагинация.
+
+`email` отдаётся только ADMIN и MANAGER; ANALYST и VIEWER получают `null`, и `q` у них
+по почте не ищет (с 25.09.2026).
 
 ---
 
