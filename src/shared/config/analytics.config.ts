@@ -77,6 +77,9 @@ export const DEADLINE_WARNING_DAYS = 3 // TEMP
  */
 export const DEFAULT_MARKET_PERIOD = '2026-Q1' // TEMP
 
+/** За какой период главная показывает изменение «Активных связей» и «Этапов в срок». */
+export const TREND_PERIOD_DAYS = 30
+
 /** Сколько записей отдаётся в блоках дашборда «ключевые программы» и «приоритетные действия». */
 export const DASHBOARD_TOP_LIMIT = 5 // TEMP
 

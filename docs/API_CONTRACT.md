@@ -901,9 +901,10 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 {
   "data": {
     "metrics": [
-      { "key": "activeCooperations", "title": "Активные связи", "value": 6, "unit": "связей",
+      { "key": "activeCooperations", "title": "Активные связи", "value": 7, "unit": "связей",
         "basis": "actual", "explanation": "Связки в статусах «Черновик» и «В работе»",
-        "period": null, "source": "Данные системы", "isMock": false },
+        "period": null, "source": "Данные системы", "isMock": false,
+        "trend": { "previous": 6, "delta": 1, "direction": "up", "periodLabel": "за 30 дней" } },
       { "key": "universitiesInWork", "title": "Вузы в работе", "…": "…" },
       { "key": "stagesOnTimePercent", "title": "Этапы, закрытые в срок", "…": "…" },
       { "key": "avgDaysToClasses", "title": "Среднее время до начала занятий", "…": "…" },
@@ -930,6 +931,14 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
   }
 }
 ```
+
+`metrics[].trend` — сравнение с началом периода (30 дней, `TREND_PERIOD_DAYS`), есть
+у `activeCooperations` и `stagesOnTimePercent`; у остальных показателей поля нет.
+Считается по датам в данных, без снимков: «активные связи» тогда — заведённые к тому
+дню и ещё не закрытые (связки на паузе не считаются: историю паузы система не хранит);
+«этапы в срок» тогда — та же доля по этапам, закрытым к тому дню. `delta` — в штуках
+или процентных пунктах, `direction` — `up` / `down` / `flat`. `trend: null` — сравнить
+не с чем (30 дней назад завершённых этапов ещё не было); интерфейс тогда подпись не показывает.
 
 `skillMatch.coveredSkills`, `demandedSkills`, `criticalGaps` — `null`, когда рыночных
 данных за период нет (вместе с `coveragePercent: null`). `metrics[].isMock` — посчитан
