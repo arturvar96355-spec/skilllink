@@ -325,6 +325,8 @@
   inset: 0;
   z-index: 1200;
   pointer-events: none;
+  /* Свой слой: угасание холста не перерисовывает сайт под ним. */
+  will-change: opacity;
 }
 
 .warpFlash {
@@ -333,6 +335,7 @@
   z-index: 1201;
   pointer-events: none;
   opacity: 0;
+  will-change: opacity;
   background: radial-gradient(
     circle at 50% 50%,
     color-mix(in srgb, var(--text-primary) 70%, transparent) 0%,

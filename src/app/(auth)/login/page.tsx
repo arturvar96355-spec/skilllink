@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import { ARRIVAL_KEY } from '@/ui/layout/arrival'
-import { Constellation } from './Constellation'
+import { Constellation, WARP_NAVIGATE_MS } from './Constellation'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
@@ -77,6 +77,8 @@ function LoginForm() {
     // Возвращаем туда, куда человек шёл до перенаправления на вход, —
     // но только в пределах сайта: `from` задаётся ссылкой.
     const destination = safeReturnPath(params.get('from'))
+    // Главная собирается заранее, пока идёт анимация: переход потом почти мгновенный.
+    router.prefetch(destination)
     setIsLeaving(true)
     // Экран входа превращается в приложение (07, раздел 18): форма гаснет,
     // панель раскрывается в холст, маршрут слева уходит вправо. Длительность
@@ -89,11 +91,15 @@ function LoginForm() {
     } catch {
       // Без хранилища — просто без продолжения сцены.
     }
+    // С 3D-прыжком (Constellation) страница меняется под пиком вспышки: сборка
+    // главной — работа, от которой кадры на мгновение замирают, — закрыта светом,
+    // а не видна рывком звёзд. Без прыжка — как раньше.
+    const warp = document.body.dataset.warp === 'ready'
     window.setTimeout(() => {
       router.replace(destination)
       router.refresh()
       delete document.body.dataset.authLeaving
-    }, 420)
+    }, warp ? WARP_NAVIGATE_MS : 420)
   }
 
   return (
