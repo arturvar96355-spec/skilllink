@@ -1,16 +1,16 @@
 import { getCurrentUser } from '@/shared/auth/current-user'
-import { handle, parseQuery } from '@/shared/http'
+import { handle } from '@/shared/http'
 import * as service from '@/modules/export/export.service'
-import { exportQuerySchema } from '@/modules/export/export.schema'
+import { parseExportRequest } from '@/modules/export/export.schema'
 
 /**
  * Выгрузка реестра в CSV для Excel.
  * Права совпадают с правами соответствующего раздела: выгрузка — не обходной путь к данным.
+ * Фильтры — те же параметры, что у списка раздела.
  */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()
-  const query = parseQuery(request, exportQuerySchema)
-  const result = await service.exportDataset(user, query)
+  const result = await service.exportDataset(user, parseExportRequest(request))
 
   return new Response(result.csv, {
     status: 200,

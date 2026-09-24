@@ -27,6 +27,7 @@ import {
   assertStageFieldsComplete,
   assertTasksEditable,
   findBlockingStages,
+  historyComment,
   type PriorStageState,
   assertTransition,
   isAutoManaged,
@@ -263,7 +264,7 @@ export async function updateStage(
           stageId,
           fromStatus: stage.status,
           toStatus: next,
-          comment: input.comment ?? null,
+          comment: historyComment(next, resulting, input.comment),
           changedById: user.id,
         },
       })

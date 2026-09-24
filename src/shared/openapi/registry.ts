@@ -161,7 +161,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Глобальный поиск по разделам',
     description:
       'Вузы, программы, связки, продукты, навыки и документы одним запросом, ' +
-      'сгруппированные по разделам. Права и видимость — как у соответствующих списков.',
+      'сгруппированные по разделам. Права и видимость — как у соответствующих списков. ' +
+      'Связки ищутся по словам: каждое слово — в полном или кратком имени вуза, программе, ' +
+      'продукте, цели или ФИО ответственного.',
     query: searchQuerySchema,
     permission: 'READ',
     errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
@@ -421,6 +423,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/cooperations',
     tag: 'Сотрудничество',
     summary: 'Список связок',
+    description:
+      'q — поиск по словам без учёта регистра: каждое слово найдено хотя бы в одном поле — ' +
+      'полное или краткое имя вуза, программа, продукт, цель, ФИО ответственного.',
     permission: 'READ',
     query: cooperationListQuerySchema,
     list: true,
@@ -801,8 +806,10 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Выгрузка',
     summary: 'Выгрузка реестра в CSV',
     description:
-      'Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой. ' +
-      'Права совпадают с правами соответствующего раздела.',
+      'Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой, дробные числа — с запятой, ' +
+      'перечисления — русскими словами. Права совпадают с правами соответствующего раздела. ' +
+      'Для universities, programs и cooperations принимаются фильтры и сортировка их списков ' +
+      '(те же параметры, что у GET /api/<раздел>, кроме page и pageSize).',
     permission: 'READ',
     query: exportQuerySchema,
     errors: COMMON_ERRORS,
@@ -814,7 +821,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Загрузка реестра из CSV',
     description:
       'Тело запроса — сам файл (text/csv). По умолчанию предпросмотр: запись происходит ' +
-      'только при mode=apply. Колонки совпадают с заголовками выгрузки.',
+      'только при mode=apply. Колонки совпадают с заголовками выгрузки. Разделитель «;» или «,» ' +
+      'определяется по строке заголовков.',
     permission: 'WRITE',
     query: importQuerySchema,
     errors: WRITE_ERRORS,

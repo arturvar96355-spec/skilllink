@@ -14,6 +14,10 @@ export const COOPERATION_SORT_FIELDS = [
 ] as const
 
 export const cooperationListQuerySchema = paginationSchema.extend({
+  /**
+   * Поиск по словам: каждое слово — хотя бы в одном из полей (полное или краткое
+   * имя вуза, программа, продукт, цель, ответственный), без учёта регистра.
+   */
   q: z.string().trim().min(1).max(200).optional(),
   universityId: z.string().trim().min(1).optional(),
   programId: z.string().trim().min(1).optional(),

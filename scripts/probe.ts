@@ -870,6 +870,40 @@ async function main(): Promise<void> {
       })
       const noReason = await call('PATCH', `/api/workflow/stages/${second.id}`, { blockingReason: '' })
       check('причина блокировки не стирается', noReason.status === 422, `код ${noReason.status}`)
+
+      // История хранит причину и результат: на этапе причина стирается
+      // при снятии блокировки, и узнать её потом можно только из истории.
+      const unblocked = await call('PATCH', `/api/workflow/stages/${second.id}`, {
+        status: 'IN_PROGRESS',
+        comment: 'Пробник: ответ получен',
+      })
+      type HistoryEntry = { fromStatus: string | null; toStatus: string; comment: string | null }
+      const secondHistory = await call<HistoryEntry[]>(
+        'GET',
+        `/api/workflow/stages/${second.id}/history`,
+      )
+      const entries = secondHistory.body.data ?? []
+      const blockEntry = entries.find((entry) => entry.toStatus === 'BLOCKED')
+      const unblockEntry = entries.find(
+        (entry) => entry.fromStatus === 'BLOCKED' && entry.toStatus === 'IN_PROGRESS',
+      )
+      check(
+        'история блокировки хранит причину',
+        blockEntry?.comment === 'Пробник: ждём ответа',
+        `запись: ${JSON.stringify(blockEntry?.comment)}`,
+      )
+      check(
+        'снятие блокировки пишет в историю «что изменилось»',
+        unblocked.status === 200 && unblockEntry?.comment === 'Пробник: ответ получен',
+        `код ${unblocked.status}, запись: ${JSON.stringify(unblockEntry?.comment)}`,
+      )
+      const firstHistory = await call<HistoryEntry[]>('GET', `/api/workflow/stages/${first.id}/history`)
+      const completeEntry = (firstHistory.body.data ?? []).find((entry) => entry.toStatus === 'COMPLETED')
+      check(
+        'история завершения хранит результат',
+        completeEntry?.comment === 'Контакт найден',
+        `запись: ${JSON.stringify(completeEntry?.comment)}`,
+      )
     } else {
       check('связка для проверки итога создана', false)
     }
@@ -1553,7 +1587,9 @@ async function main(): Promise<void> {
     const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
       (row) => row.outcome,
     )
-    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'update,error', `исходы ${outcomes?.join()}`)
+    // Первая строка совпадает с программой (тот же уровень, других колонок нет) —
+    // «без изменений»; вторая — повтор первой.
+    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'unchanged,error', `исходы ${outcomes?.join()}`)
     const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
       'GET',
       `/api/programs/${program.body.data?.id}`,
@@ -2522,6 +2558,81 @@ async function main(): Promise<void> {
       }
       check('каждое уведомление представителя вуза открывается у него', broken === 0)
     }
+  }
+
+  // ── Поиск связки по краткому имени вуза и по словам ───────────────────────
+  step('Связку находят по краткому имени вуза, по словам и по ответственному')
+
+  if (managerId) {
+    // Свой вуз с уникальным кратким именем: демо-данные не трогаются, и совпадение
+    // не может прийти от соседней записи.
+    const actorBefore = actingUserId
+    actAs(adminId)
+    const sfx = Date.now().toString().slice(-6)
+    const shortName = `ПРБ${sfx}`
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный университет поиска ${sfx}`,
+      shortName,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Программная инженерия поиска ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string; responsible: { fullName: string } }>(
+      'POST',
+      '/api/cooperations',
+      { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+    )
+    const cooperationId = created.body.data?.id
+    const surname = created.body.data?.responsible.fullName.split(' ')[0] ?? ''
+
+    const byShortName = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(shortName.toLowerCase())}`,
+    )
+    check(
+      'реестр связок находит связку по краткому имени вуза',
+      (byShortName.body.data ?? []).some((row) => row.id === cooperationId),
+      `найдено ${byShortName.body.data?.length ?? 0}`,
+    )
+
+    type Search = { groups: Array<{ type: string; items: Array<{ id: string; title: string }> }> }
+    const twoWords = await call<Search>(
+      'GET',
+      `/api/search?q=${encodeURIComponent(`${shortName.toLowerCase()} программная`)}`,
+    )
+    const found = (twoWords.body.data?.groups ?? [])
+      .find((group) => group.type === 'cooperation')
+      ?.items.find((item) => item.id === cooperationId)
+    check(
+      'глобальный поиск по двум словам находит связку',
+      found !== undefined,
+      `запрос «${shortName.toLowerCase()} программная»`,
+    )
+    check(
+      'связка в поиске подписана кратким именем вуза',
+      found?.title === `${shortName} — Программная инженерия поиска ${sfx}`,
+      `заголовок: ${found?.title ?? '—'}`,
+    )
+
+    const byResponsible = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(`${surname} ${shortName}`)}`,
+    )
+    check(
+      'связку находят по фамилии ответственного',
+      (byResponsible.body.data ?? []).some((row) => row.id === cooperationId),
+      `запрос «${surname} ${shortName}»`,
+    )
+    const wrongWord = await call<unknown[]>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(`${shortName} несуществующееслово`)}`,
+    )
+    check('каждое слово запроса обязательно', (wrongWord.body.data?.length ?? -1) === 0)
+    actAs(actorBefore)
   }
 
   // ── Главная не выдаёт показанное за всё ───────────────────────────────────
