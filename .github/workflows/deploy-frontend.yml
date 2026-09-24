@@ -1,0 +1,108 @@
+name: Выкладка фронта
+
+# Фронт выкладывается на стенд сам, как только на main прошли «Проверки».
+# Только фронт: страницы (кроме API), компоненты, стили, документация и
+# зависимости. Если среди изменений с прошлой выкладки есть база, API,
+# серверная логика, скрипты или сборка — выкладка пропускается: такие
+# изменения выкладывает ответственный за серверную часть после своей проверки.
+# С 25.09.2026 18:00 по 29.09.2026 включительно (МСК) — заморозка стенда.
+
+on:
+  workflow_run:
+    workflows: ['Проверки']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-stand
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Выложить фронт на стенд
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    env:
+      TARGET: skilllink@51.250.27.144
+      DOMAIN: skilllink.site
+      # Пароль демо-входа — секретом: скрипт выкладки печатает его в конце,
+      # а GitHub прячет значения секретов в журнале.
+      SEED_DEMO_PASSWORD: ${{ secrets.SEED_DEMO_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Заморозка
+        id: freeze
+        run: |
+          now=$(date -u +%s)
+          from=$(date -u -d '2026-09-25T15:00:00Z' +%s)
+          to=$(date -u -d '2026-09-29T21:00:00Z' +%s)
+          if [ "$now" -ge "$from" ] && [ "$now" -lt "$to" ]; then
+            echo "Заморозка стенда (25.09 18:00 — 29.09 включительно): не выкладываю." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ключ к серверу
+        if: steps.freeze.outputs.skip != 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Только ли фронт
+        id: scope
+        if: steps.freeze.outputs.skip != 'true'
+        run: |
+          deployed=$(ssh -o BatchMode=yes "$TARGET" 'cat ~/skilllink/app/DEPLOYED_COMMIT' 2>/dev/null || true)
+          head=$(git rev-parse --short HEAD)
+          echo "deployed=$deployed" >> "$GITHUB_OUTPUT"
+          skip() { echo "$1" | tee -a "$GITHUB_STEP_SUMMARY"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          [ -n "$deployed" ] || skip "Не удалось узнать выложенный коммит — не выкладываю."
+          [ "$deployed" != "$head" ] || skip "Стенд уже на $head."
+          git merge-base --is-ancestor "$deployed" HEAD || skip "Выложенный $deployed не предок $head — выкладка вручную."
+          # Фронт: страницы вне API, компоненты, стили, документация, зависимости.
+          other=$(git diff --name-only "$deployed" HEAD \
+            | grep -vE '^(src/app/|src/ui/|public/|docs/|README\.md$|package\.json$|package-lock\.json$)' || true)
+          api=$(git diff --name-only "$deployed" HEAD | grep -E '^src/app/api/' || true)
+          if [ -n "$other$api" ]; then
+            {
+              echo "С $deployed есть изменения не только во фронте — выкладка вручную, после проверки:"
+              printf '%s\n' $other $api | sed 's/^/- /'
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Выкладываю $deployed → $head: только фронт." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Выкладка
+        if: steps.freeze.outputs.skip != 'true' && steps.scope.outputs.skip != 'true'
+        run: scripts/deploy/deploy.sh "$TARGET" "$DOMAIN"
+
+      - uses: actions/setup-node@v7
+        if: steps.freeze.outputs.skip != 'true' && steps.scope.outputs.skip != 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Сверка стенда со сценарием показа
+        id: check
+        if: steps.freeze.outputs.skip != 'true' && steps.scope.outputs.skip != 'true'
+        run: |
+          npm ci --no-audit --no-fund
+          npm run -s demo:check -- "https://$DOMAIN"
+
+      - name: Откат на прошлую версию
+        if: failure() && steps.scope.outputs.deployed != '' && steps.scope.outputs.skip != 'true'
+        run: |
+          echo "Выкладка или сверка не прошли — возвращаю ${{ steps.scope.outputs.deployed }}." | tee -a "$GITHUB_STEP_SUMMARY"
+          git checkout --detach "${{ steps.scope.outputs.deployed }}"
+          scripts/deploy/deploy.sh "$TARGET" "$DOMAIN"
