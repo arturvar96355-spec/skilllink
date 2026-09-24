@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import { ARRIVAL_KEY } from '@/ui/layout/arrival'
+import { Constellation } from './Constellation'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
@@ -164,6 +165,8 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className={styles.screen}>
+      {/* 3D-созвездие за экраном; без WebGL или при «уменьшить движение» — фон как был. */}
+      <Constellation />
       <section className={styles.brandSide}>
         <div className={styles.brandRow}>
           <Logo size={34} />

@@ -296,3 +296,21 @@
     transform: translateX(28px);
   }
 }
+
+/*
+ * 3D-созвездие (Constellation.tsx) — за всем экраном входа. Колонки лежат
+ * поверх него; форма — на плотной панели, её текст читается как прежде.
+ */
+.constellation {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  animation: canvasIn 900ms var(--ease-out) both;
+}
+
+.brandSide,
+.formSide {
+  position: relative;
+  z-index: 1;
+}
