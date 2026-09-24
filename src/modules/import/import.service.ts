@@ -11,6 +11,8 @@ import { PROGRAM_LEVELS, type ProgramLevel } from '@/shared/contracts/enums'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
 import {
   cell,
+  changedColumns,
+  detectDelimiter,
   mapHeaders,
   numericCell,
   parseCsv,
@@ -46,6 +48,13 @@ const PROGRAM_OPTIONAL_COLUMNS = {
   studentCount: 'Обучающихся',
   groupCount: 'Групп',
 } as const
+
+/** Колонки показателей рейтинга: их изменение меняет источник показателей. */
+const METRIC_COLUMNS: readonly string[] = [
+  PROGRAM_OPTIONAL_COLUMNS.applicationCount,
+  PROGRAM_OPTIONAL_COLUMNS.studentCount,
+  PROGRAM_OPTIONAL_COLUMNS.groupCount,
+]
 
 const PROGRAM_COLUMN_OF: Record<string, string> = {
   name: 'Программа',
@@ -135,7 +144,16 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
     // Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
     const existing = await prisma.university.findFirst({
       where: { name },
-      select: { id: true, city: true, region: true, archivedAt: true },
+      select: {
+        id: true,
+        city: true,
+        region: true,
+        shortName: true,
+        website: true,
+        directionCount: true,
+        studentCount: true,
+        archivedAt: true,
+      },
     })
 
     // Архивный вуз через файл не меняется — как и через карточку (assertNotArchived).
@@ -170,12 +188,17 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
     }
 
     if (existing) {
+      const changed = changedColumns(existing, data, UNIVERSITY_COLUMN_OF)
+      if (changed.length === 0) {
+        plans.push({ result: { line, label: name, outcome: 'unchanged', detail: 'Без изменений' } })
+        continue
+      }
       plans.push({
         result: {
           line,
           label: name,
           outcome: 'update',
-          detail: `Обновятся данные вуза (город: ${existing.city} → ${city})`,
+          detail: `Обновятся: ${changed.join(', ')}`,
         },
         apply: async () => {
           await prisma.university.update({ where: { id: existing.id }, data })
@@ -297,7 +320,17 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
 
     const existing = await prisma.educationalProgram.findFirst({
       where: { universityId: university.id, name },
-      select: { id: true, archivedAt: true },
+      select: {
+        id: true,
+        level: true,
+        code: true,
+        direction: true,
+        durationMonths: true,
+        applicationCount: true,
+        studentCount: true,
+        groupCount: true,
+        archivedAt: true,
+      },
     })
 
     if (existing?.archivedAt) {
@@ -317,14 +350,25 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
       continue
     }
 
+    const changed = existing ? changedColumns(existing, fields, PROGRAM_COLUMN_OF) : []
+    // Источник показателей меняется, только если файл меняет сами показатели:
+    // повторная загрузка выгрузки не должна выдавать демо-набор за импортированный.
+    const metricsChanged = existing
+      ? changed.some((column) => METRIC_COLUMNS.includes(column))
+      : hasMetrics
     const data = {
       ...fields,
-      ...(hasMetrics ? { metricsSource: 'IMPORT' as const, metricsUpdatedAt: new Date() } : {}),
+      ...(metricsChanged ? { metricsSource: 'IMPORT' as const, metricsUpdatedAt: new Date() } : {}),
+    }
+
+    if (existing && changed.length === 0) {
+      plans.push({ result: { line, label, outcome: 'unchanged', detail: 'Без изменений' } })
+      continue
     }
 
     if (existing) {
       plans.push({
-        result: { line, label, outcome: 'update', detail: 'Обновятся данные программы' },
+        result: { line, label, outcome: 'update', detail: `Обновятся: ${changed.join(', ')}` },
         apply: async () => {
           await prisma.educationalProgram.update({ where: { id: existing.id }, data })
         },
@@ -369,7 +413,7 @@ export async function importDataset(
     throw validationError('Файл пуст', [{ field: 'csv', message: 'Передайте содержимое файла' }])
   }
 
-  const rows = parseCsv(csv)
+  const rows = parseCsv(csv, detectDelimiter(csv))
   if (rows.length < 2) {
     throw validationError('В файле нет строк с данными', [
       { field: 'csv', message: 'Ожидались заголовок и хотя бы одна строка' },
@@ -422,6 +466,7 @@ export async function importDataset(
     created: count('create'),
     updated: count('update'),
     skipped: count('skip'),
+    unchanged: count('unchanged'),
     errors: count('error'),
     rows: results,
     processedAt: new Date().toISOString(),

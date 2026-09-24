@@ -36,9 +36,12 @@ import {
   updateProgramMetricsSchema,
 } from '@/modules/portal/portal.schema'
 import {
+  createProductSchema,
   productListQuerySchema,
   releasePreviewQuerySchema,
   releaseProductVersionSchema,
+  setProductSkillsSchema,
+  updateProductSchema,
 } from '@/modules/products/products.schema'
 import {
   createProgramSchema,
@@ -158,7 +161,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Глобальный поиск по разделам',
     description:
       'Вузы, программы, связки, продукты, навыки и документы одним запросом, ' +
-      'сгруппированные по разделам. Права и видимость — как у соответствующих списков.',
+      'сгруппированные по разделам. Права и видимость — как у соответствующих списков. ' +
+      'Связки ищутся по словам: каждое слово — в полном или кратком имени вуза, программе, ' +
+      'продукте, цели или ФИО ответственного.',
     query: searchQuerySchema,
     permission: 'READ',
     errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
@@ -350,12 +355,44 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
   {
+    method: 'post',
+    path: '/api/products',
+    tag: 'IT-продукты',
+    summary: 'Завести IT-продукт',
+    description: 'Название уникально без учёта регистра: дубль — CONFLICT.',
+    permission: 'WRITE',
+    body: createProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
     method: 'get',
     path: '/api/products/{id}',
     tag: 'IT-продукты',
     summary: 'Карточка IT-продукта',
     permission: 'READ',
     errors: READ_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/products/{id}',
+    tag: 'IT-продукты',
+    summary: 'Изменить IT-продукт',
+    description:
+      'Частичное изменение. Дубль названия — CONFLICT. Версию продукта с открытыми связками ' +
+      'меняет выпуск версии, а не правка карточки — CONFLICT.',
+    permission: 'WRITE',
+    body: updateProductSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'put',
+    path: '/api/products/{id}/skills',
+    tag: 'IT-продукты',
+    summary: 'Заменить набор навыков продукта',
+    description: 'Полная замена: пустой список снимает все навыки.',
+    permission: 'WRITE',
+    body: setProductSkillsSchema,
+    errors: WRITE_ERRORS,
   },
   {
     method: 'get',
@@ -386,6 +423,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/cooperations',
     tag: 'Сотрудничество',
     summary: 'Список связок',
+    description:
+      'q — поиск по словам без учёта регистра: каждое слово найдено хотя бы в одном поле — ' +
+      'полное или краткое имя вуза, программа, продукт, цель, ФИО ответственного.',
     permission: 'READ',
     query: cooperationListQuerySchema,
     list: true,
@@ -396,10 +436,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/cooperations',
     tag: 'Сотрудничество',
     summary: 'Создать связку',
-    description: 'Сразу создаются все 14 этапов с чек-листами и нормативными сроками.',
+    description:
+      'Сразу создаются все 14 этапов с чек-листами и нормативными сроками. ' +
+      'Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT ' +
+      'с details.cooperationId существующей.',
     permission: 'WRITE',
     body: createCooperationSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'get',
@@ -433,11 +476,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Собрать пакет документов из шаблонов',
     description:
       'Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком ' +
-      'и перечисляются в ответе.',
+      'и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, ' +
+      'и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.',
     permission: 'WRITE',
     body: generateDocumentsSchema,
     bodyOptional: true,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
 
   // ── Workflow ──────────────────────────────────────────────────────────────
@@ -518,7 +562,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/recommendations/generate',
     tag: 'Рекомендации',
     summary: 'Пересобрать рекомендации по правилам',
-    description: 'Не плодит дубликаты и не переписывает решение сотрудника.',
+    description:
+      'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
+      'вернулась, открывает; отклонённые с основанием не трогает.',
     permission: 'WRITE',
     errors: COMMON_ERRORS,
   },
@@ -544,11 +590,14 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     method: 'patch',
     path: '/api/recommendations/{id}',
     tag: 'Рекомендации',
-    summary: 'Принять, отложить или отклонить рекомендацию',
-    description: 'Отклонение требует комментария с основанием.',
+    summary: 'Принять, взять в работу, закрыть или отклонить рекомендацию',
+    description:
+      'Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию ' +
+      'о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда ' +
+      'условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.',
     permission: 'WRITE',
     body: updateRecommendationSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
 
   // ── Документы ─────────────────────────────────────────────────────────────
@@ -757,8 +806,10 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Выгрузка',
     summary: 'Выгрузка реестра в CSV',
     description:
-      'Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой. ' +
-      'Права совпадают с правами соответствующего раздела.',
+      'Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой, дробные числа — с запятой, ' +
+      'перечисления — русскими словами. Права совпадают с правами соответствующего раздела. ' +
+      'Для universities, programs и cooperations принимаются фильтры и сортировка их списков ' +
+      '(те же параметры, что у GET /api/<раздел>, кроме page и pageSize).',
     permission: 'READ',
     query: exportQuerySchema,
     errors: COMMON_ERRORS,
@@ -770,7 +821,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Загрузка реестра из CSV',
     description:
       'Тело запроса — сам файл (text/csv). По умолчанию предпросмотр: запись происходит ' +
-      'только при mode=apply. Колонки совпадают с заголовками выгрузки.',
+      'только при mode=apply. Колонки совпадают с заголовками выгрузки. Разделитель «;» или «,» ' +
+      'определяется по строке заголовков.',
     permission: 'WRITE',
     query: importQuerySchema,
     errors: WRITE_ERRORS,

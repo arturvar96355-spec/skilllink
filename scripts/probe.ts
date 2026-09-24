@@ -10,6 +10,8 @@
 import 'dotenv/config'
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
+import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
+import type { StageStatus } from '@/shared/contracts/enums'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -31,7 +33,11 @@ function actAs(userId: string | null): void {
 
 interface Result<T> {
   status: number
-  body: { data?: T; meta?: Record<string, unknown>; error?: { code: string; message: string } }
+  body: {
+    data?: T
+    meta?: Record<string, unknown>
+    error?: { code: string; message: string; details?: unknown }
+  }
   raw: string
 }
 
@@ -132,6 +138,40 @@ async function warmUp(): Promise<void> {
         .catch(() => undefined),
     ),
   )
+}
+
+/**
+ * Сколько просроченных этапов пользователя не начать из-за незавершённой
+ * контрольной точки. Сроки берутся из общего списка просрочек, этапы связки —
+ * из её карточки: правило то же, что у ленты (`isLockedByControlPoint`).
+ */
+async function countLockedOverdueOf(userId: string): Promise<number> {
+  type Overdue = {
+    cooperationId: string
+    stageNumber: number
+    status: StageStatus
+    responsible: { id: string } | null
+  }
+  const rows: Overdue[] = []
+  for (let page = 1; page <= 50; page += 1) {
+    const chunk = await call<Overdue[]>('GET', `/api/workflow/overdue?page=${page}&pageSize=100`)
+    rows.push(...(chunk.body.data ?? []))
+    if ((chunk.body.data ?? []).length < 100) break
+  }
+  const stagesOf = new Map<string, Array<{ stageNumber: number; title: string; status: StageStatus }>>()
+  let locked = 0
+  for (const row of rows) {
+    if (row.responsible?.id !== userId || row.status !== 'NOT_STARTED') continue
+    if (!stagesOf.has(row.cooperationId)) {
+      const card = await call<{ stages: Array<{ stageNumber: number; title: string; status: StageStatus }> }>(
+        'GET',
+        `/api/cooperations/${row.cooperationId}`,
+      )
+      stagesOf.set(row.cooperationId, card.body.data?.stages ?? [])
+    }
+    if (isLockedByControlPoint(row, stagesOf.get(row.cooperationId) ?? [])) locked += 1
+  }
+  return locked
 }
 
 async function main(): Promise<void> {
@@ -742,17 +782,19 @@ async function main(): Promise<void> {
       city: 'Тверь',
       region: 'Тверская область',
     })
-    const program = await call<{ id: string }>('POST', '/api/programs', {
-      universityId: uni.body.data?.id,
-      name: `Пробная программа очереди ${sfx}`,
-      level: 'BACHELOR',
-    })
 
     // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
     // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
     // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    // У каждого раунда своя программа: вторая незакрытая связка на ту же
+    // «вуз + программа + продукт» запрещена (решение 80).
     const finals: string[] = []
     for (let round = 0; round < 3; round += 1) {
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа очереди ${sfx}-${round + 1}`,
+        level: 'BACHELOR',
+      })
       const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
         'POST',
         '/api/cooperations',
@@ -831,6 +873,40 @@ async function main(): Promise<void> {
       })
       const noReason = await call('PATCH', `/api/workflow/stages/${second.id}`, { blockingReason: '' })
       check('причина блокировки не стирается', noReason.status === 422, `код ${noReason.status}`)
+
+      // История хранит причину и результат: на этапе причина стирается
+      // при снятии блокировки, и узнать её потом можно только из истории.
+      const unblocked = await call('PATCH', `/api/workflow/stages/${second.id}`, {
+        status: 'IN_PROGRESS',
+        comment: 'Пробник: ответ получен',
+      })
+      type HistoryEntry = { fromStatus: string | null; toStatus: string; comment: string | null }
+      const secondHistory = await call<HistoryEntry[]>(
+        'GET',
+        `/api/workflow/stages/${second.id}/history`,
+      )
+      const entries = secondHistory.body.data ?? []
+      const blockEntry = entries.find((entry) => entry.toStatus === 'BLOCKED')
+      const unblockEntry = entries.find(
+        (entry) => entry.fromStatus === 'BLOCKED' && entry.toStatus === 'IN_PROGRESS',
+      )
+      check(
+        'история блокировки хранит причину',
+        blockEntry?.comment === 'Пробник: ждём ответа',
+        `запись: ${JSON.stringify(blockEntry?.comment)}`,
+      )
+      check(
+        'снятие блокировки пишет в историю «что изменилось»',
+        unblocked.status === 200 && unblockEntry?.comment === 'Пробник: ответ получен',
+        `код ${unblocked.status}, запись: ${JSON.stringify(unblockEntry?.comment)}`,
+      )
+      const firstHistory = await call<HistoryEntry[]>('GET', `/api/workflow/stages/${first.id}/history`)
+      const completeEntry = (firstHistory.body.data ?? []).find((entry) => entry.toStatus === 'COMPLETED')
+      check(
+        'история завершения хранит результат',
+        completeEntry?.comment === 'Контакт найден',
+        `запись: ${JSON.stringify(completeEntry?.comment)}`,
+      )
     } else {
       check('связка для проверки итога создана', false)
     }
@@ -888,6 +964,103 @@ async function main(): Promise<void> {
       )
     } else {
       check('связка для проверки возврата создана', false)
+    }
+  }
+
+  // ── Рекомендация о просрочке честна о просрочке ───────────────────────────
+  step('Рекомендацию о просрочке не закрыть, пока просрочка есть; переходы проверяет сервер')
+
+  if (managerId) {
+    // Свои записи: демонстрационные рекомендации не трогаются.
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз честной просрочки ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    type Rec = { id: string; ruleKey: string; status: string }
+    const makeOverdue = async (label: string) => {
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа ${label} ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+        'POST',
+        '/api/cooperations',
+        { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+      )
+      const cooperationId = created.body.data?.id
+      const stage1 = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+      if (!cooperationId || !stage1) return null
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, {
+        status: 'IN_PROGRESS',
+        deadline: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      })
+      await call('POST', '/api/recommendations/generate')
+      const list = await call<Rec[]>('GET', `/api/recommendations?cooperationId=${cooperationId}&pageSize=50`)
+      const rec = (list.body.data ?? []).find((row) => row.ruleKey === 'stage.overdue')
+      return rec ? { cooperationId, stageId: stage1.id, rec } : null
+    }
+    const statusOf = async (id: string) =>
+      (await call<Rec>('GET', `/api/recommendations/${id}`)).body.data?.status ?? 'нет'
+
+    const first = await makeOverdue('закрытия')
+    if (first) {
+      const skip = await call<Rec>('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'DONE' })
+      check(
+        'недопустимый переход «Новая → Закрыта» — 409 INVALID_TRANSITION',
+        skip.status === 409 && skip.body.error?.code === 'INVALID_TRANSITION',
+        `код ${skip.status} ${skip.body.error?.code ?? ''}`,
+      )
+
+      await call('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'IN_PROGRESS' })
+      const close = await call<Rec>('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'DONE' })
+      check(
+        'закрыть просроченную рекомендацию, пока этап просрочен, — 409',
+        close.status === 409 && close.body.error?.code === 'CONFLICT',
+        `код ${close.status} ${close.body.error?.code ?? ''}`,
+      )
+      check(
+        'отказ говорит, сколько дней просрочки и что делать',
+        /просрочен на 5 дн\..*отклонить с основанием/.test(close.body.error?.message ?? ''),
+        close.body.error?.message ?? '',
+      )
+      check('рекомендация осталась в работе', (await statusOf(first.rec.id)) === 'IN_PROGRESS')
+
+      // Этап отменили — просрочки нет: рекомендация закрывается сразу, без пересборки.
+      await call('PATCH', `/api/workflow/stages/${first.stageId}`, {
+        status: 'CANCELLED',
+        comment: 'Не требуется для этой связки',
+      })
+      check(
+        'этап отменён — рекомендация о его просрочке закрыта системой',
+        (await statusOf(first.rec.id)) === 'DONE',
+        `статус ${await statusOf(first.rec.id)}`,
+      )
+      const reopenByHand = await call('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'NEW' })
+      check(
+        'закрытую руками в новые не вернуть — 409 INVALID_TRANSITION',
+        reopenByHand.status === 409 && reopenByHand.body.error?.code === 'INVALID_TRANSITION',
+      )
+    } else {
+      check('рекомендация о просрочке для проверки закрытия создана', false)
+    }
+
+    const dismissed = await makeOverdue('отклонения')
+    if (dismissed) {
+      await call('PATCH', `/api/recommendations/${dismissed.rec.id}`, {
+        status: 'DISMISSED',
+        comment: 'Срок согласован с вузом устно',
+      })
+      await call('POST', '/api/recommendations/generate')
+      check(
+        'отклонённую с основанием пересборка не трогает',
+        (await statusOf(dismissed.rec.id)) === 'DISMISSED',
+        `статус ${await statusOf(dismissed.rec.id)}`,
+      )
+    } else {
+      check('рекомендация о просрочке для проверки отклонения создана', false)
     }
   }
 
@@ -1073,6 +1246,35 @@ async function main(): Promise<void> {
       `документов по шаблонам ${keys.length}, разных ${new Set(keys).size}`,
     )
 
+    // Ещё одно нажатие — ни одного нового документа. Договор здесь заведён вручную
+    // (и выпущен новой версией), продукт у связки не выбран: пакет не должен ни
+    // добавить второй договор, ни собрать «Лицензию на IT-продукт «______»».
+    const again = await call<{
+      created: unknown[]
+      skipped: Array<{ templateKey: string; templateName: string; reason: string }>
+    }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
+    const skippedReason = (key: string) =>
+      again.body.data?.skipped.find((item) => item.templateKey === key)?.reason ?? ''
+    check(
+      'повторный «Собрать пакет» не создаёт документов',
+      again.status === 200 && (again.body.data?.created.length ?? -1) === 0,
+      `создано ${again.body.data?.created.length ?? '—'}, код ${again.status}`,
+    )
+    check(
+      'договор, заведённый вручную, пакет не дублирует',
+      !keys.includes('agreement') && skippedReason('agreement').startsWith('уже есть:'),
+      skippedReason('agreement'),
+    )
+    check(
+      'лицензия без выбранного продукта не собирается',
+      !keys.includes('license') && skippedReason('license').includes('не выбран IT-продукт'),
+      skippedReason('license'),
+    )
+    check(
+      'пропущенные шаблоны названы по-русски, не ключами',
+      (again.body.data?.skipped ?? []).every((item) => /[а-яА-Я]/.test(item.templateName)),
+    )
+
     // Утверждённый документ без текста: ссылку не стереть, пустой не подписать.
     const approved = await call<{ id: string }>('POST', '/api/documents', {
       type: 'AGREEMENT',
@@ -1099,6 +1301,56 @@ async function main(): Promise<void> {
       'несуществующий продукт — ошибка поля, а не «связка не найдена»',
       badProduct.status === 422,
       `код ${badProduct.status}`,
+    )
+
+    // Вторая незакрытая связка на те же «вуз + программа + продукт» (продукт не выбран —
+    // тоже значение) — 409 со ссылкой на существующую.
+    const duplicate = await call('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check(
+      'дубль незакрытой связки — 409 со ссылкой на существующую',
+      duplicate.status === 409 &&
+        (duplicate.body.error?.details as { cooperationId?: string } | undefined)?.cooperationId ===
+          cooperationId,
+      `код ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+    )
+
+    // Закрытая связка новой не мешает: сотрудничество можно начать заново.
+    await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'CANCELLED' })
+    const afterClosed = await call<{ id: string }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check('после закрытия прежней связка заводится заново', afterClosed.status === 201, `код ${afterClosed.status}`)
+
+    // И переоткрыть прежнюю, пока открыта новая такая же, нельзя.
+    const reopenDuplicate = await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'ACTIVE' })
+    check('переоткрытие в дубль — 409', reopenDuplicate.status === 409, `код ${reopenDuplicate.status}`)
+
+    // Двойное «Создать связку» — одна связка, второй запрос получает 409.
+    const raceProgram = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа двойного создания ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const doubleCreate = await Promise.all(
+      [0, 1].map(() =>
+        call('POST', '/api/cooperations', {
+          universityId: uni.body.data?.id,
+          programId: raceProgram.body.data?.id,
+          responsibleId: managerId,
+        }),
+      ),
+    )
+    const createStatuses = doubleCreate.map((result) => result.status).sort()
+    check(
+      'двойное «Создать связку» — одна связка',
+      createStatuses.join(',') === '201,409',
+      `коды ${createStatuses.join(', ')}`,
     )
   }
 
@@ -1130,6 +1382,204 @@ async function main(): Promise<void> {
     check('после архивации вуза — нет', !(await inRating()))
   }
 
+  // ── IT-продукт заводится и правится ──────────────────────────────────────
+  step('IT-продукт: создание, дубль 409, правка, права')
+
+  {
+    type ProductCard = {
+      id: string
+      name: string
+      category: string
+      status: string
+      version: string | null
+      description: string | null
+      documentationUrl: string | null
+      isMock: boolean
+      skills: Array<{ skillId: string; relevance: string }>
+    }
+    const sfx = Date.now().toString().slice(-6)
+    const name = `Пробный продукт ${sfx}`
+
+    const created = await call<ProductCard>('POST', '/api/products', {
+      name,
+      category: 'Пробная категория',
+      version: '1.0',
+      documentationUrl: 'https://docs.example.invalid/probe',
+    })
+    const productId = created.body.data?.id
+    check('продукт заводится: 201', created.status === 201, `статус ${created.status}`)
+    check(
+      'заведённый вручную продукт не демо, статус по умолчанию — действующий',
+      created.body.data?.isMock === false && created.body.data?.status === 'ACTIVE',
+    )
+
+    const found = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/products?q=${encodeURIComponent(name)}`,
+    )
+    check(
+      'новый продукт виден в реестре',
+      (found.body.data ?? []).some((row) => row.id === productId),
+    )
+
+    const duplicate = await call('POST', '/api/products', { name, category: 'Другая' })
+    check(
+      'дубль названия — 409 с понятным текстом',
+      duplicate.status === 409 && (duplicate.body.error?.message ?? '').includes('уже есть'),
+      `статус ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+    )
+    const duplicateCase = await call('POST', '/api/products', {
+      name: name.toUpperCase(),
+      category: 'Другая',
+    })
+    check('дубль в другом регистре — тоже 409', duplicateCase.status === 409, `статус ${duplicateCase.status}`)
+
+    const scriptUrl = await call('POST', '/api/products', {
+      name: `Пробный продукт со ссылкой ${sfx}`,
+      category: 'Пробная категория',
+      documentationUrl: 'javascript:alert(1)',
+    })
+    check('ссылка javascript: отклоняется — 422', scriptUrl.status === 422, `статус ${scriptUrl.status}`)
+
+    if (productId) {
+      const edited = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+        status: 'DEPRECATED',
+        description: 'Правка пробника',
+      })
+      check(
+        'правка сохраняет только переданные поля',
+        edited.status === 200 &&
+          edited.body.data?.status === 'DEPRECATED' &&
+          edited.body.data?.description === 'Правка пробника' &&
+          edited.body.data?.version === '1.0' &&
+          edited.body.data?.documentationUrl === 'https://docs.example.invalid/probe',
+        `статус ${edited.status}`,
+      )
+
+      const empty = await call('PATCH', `/api/products/${productId}`, {})
+      check('пустая правка — 422', empty.status === 422, `статус ${empty.status}`)
+
+      const ownNameOtherCase = await call('PATCH', `/api/products/${productId}`, {
+        name: name.toLowerCase(),
+      })
+      check(
+        'своё название в другом регистре — не дубль',
+        ownNameOtherCase.status === 200,
+        `статус ${ownNameOtherCase.status}`,
+      )
+
+      const others = await call<Array<{ id: string; name: string }>>('GET', '/api/products?pageSize=5')
+      const other = (others.body.data ?? []).find((row) => row.id !== productId)
+      if (other) {
+        const renamed = await call('PATCH', `/api/products/${productId}`, { name: other.name })
+        check('переименование в чужое название — 409', renamed.status === 409, `статус ${renamed.status}`)
+      }
+
+      const freeVersion = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+        version: '1.1',
+      })
+      check(
+        'версию продукта без связок можно исправить',
+        freeVersion.body.data?.version === '1.1',
+        `статус ${freeVersion.status}`,
+      )
+
+      const skills = await call<Array<{ id: string }>>('GET', '/api/skills?pageSize=2')
+      const skillIds = (skills.body.data ?? []).map((skill) => skill.id)
+      const withSkills = await call<ProductCard>('PUT', `/api/products/${productId}/skills`, {
+        skills: skillIds.map((skillId, index) => ({
+          skillId,
+          relevance: index === 0 ? 'CORE' : 'RELATED',
+        })),
+      })
+      check(
+        'навыки продукта заменяются набором',
+        withSkills.status === 200 && withSkills.body.data?.skills.length === skillIds.length,
+        `статус ${withSkills.status}`,
+      )
+      const repeated = await call('PUT', `/api/products/${productId}/skills`, {
+        skills: [{ skillId: skillIds[0] }, { skillId: skillIds[0] }],
+      })
+      check('повтор навыка — 422', repeated.status === 422, `статус ${repeated.status}`)
+      const unknownSkill = await call('PUT', `/api/products/${productId}/skills`, {
+        skills: [{ skillId: 'no-such-skill' }],
+      })
+      check('несуществующий навык — 422', unknownSkill.status === 422, `статус ${unknownSkill.status}`)
+
+      // Новый продукт выбирается в связке — ради этого его и заводят.
+      if (managerId) {
+        const uni = await call<{ id: string }>('POST', '/api/universities', {
+          name: `Пробный вуз для продукта ${sfx}`,
+          city: 'Тверь',
+          region: 'Тверская область',
+        })
+        const program = await call<{ id: string }>('POST', '/api/programs', {
+          universityId: uni.body.data?.id,
+          name: `Пробная программа для продукта ${sfx}`,
+          level: 'BACHELOR',
+        })
+        const cooperation = await call<{ productId: string | null }>('POST', '/api/cooperations', {
+          universityId: uni.body.data?.id,
+          programId: program.body.data?.id,
+          productId,
+          responsibleId: managerId,
+          goal: 'Связка пробника с новым продуктом',
+        })
+        check(
+          'новый продукт выбирается в связке',
+          cooperation.status === 201 && cooperation.body.data?.productId === productId,
+          `статус ${cooperation.status}`,
+        )
+
+        const lockedVersion = await call('PATCH', `/api/products/${productId}`, { version: '2.0' })
+        check(
+          'версию продукта с открытой связкой меняет выпуск версии, а не правка — 409',
+          lockedVersion.status === 409,
+          `статус ${lockedVersion.status}`,
+        )
+      }
+
+      // Права — как у остальных справочников с записью.
+      for (const role of ['UNIVERSITY_REP', 'VIEWER', 'ANALYST']) {
+        const users = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}`)
+        const roleUserId = users.body.data?.[0]?.id
+        if (!roleUserId) {
+          check(`${role}: демо-пользователь есть`, false, 'запустите npm run db:seed')
+          continue
+        }
+        actAs(roleUserId)
+        const denied = [
+          await call('POST', '/api/products', { name: `Чужой продукт ${sfx}`, category: 'Проба' }),
+          await call('PATCH', `/api/products/${productId}`, { description: 'Не должно сохраниться' }),
+          await call('PUT', `/api/products/${productId}/skills`, { skills: [] }),
+        ]
+        check(
+          `${role}: заведение, правка и навыки продукта — 403`,
+          denied.every((result) => result.status === 403),
+          denied.map((result) => result.status).join(', '),
+        )
+        actAs(null)
+      }
+
+      if (adminId) {
+        actAs(adminId)
+        const journal = await call<Array<{ action: string }>>(
+          'GET',
+          `/api/audit?objectType=ITProduct&objectId=${productId}&pageSize=50`,
+        )
+        const actions = new Set((journal.body.data ?? []).map((row) => row.action))
+        check(
+          'заведение, правка и навыки продукта — в журнале',
+          ['product.create', 'product.update', 'product.skills.replace'].every((action) =>
+            actions.has(action),
+          ),
+          [...actions].join(', '),
+        )
+        actAs(null)
+      }
+    }
+  }
+
   // ── Импорт программ не стирает то, чего нет в файле ────────────────────────
   step('Импорт программ: отсутствующие колонки не стираются, повторы — ошибка строки')
 
@@ -1157,7 +1607,9 @@ async function main(): Promise<void> {
     const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
       (row) => row.outcome,
     )
-    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'update,error', `исходы ${outcomes?.join()}`)
+    // Первая строка совпадает с программой (тот же уровень, других колонок нет) —
+    // «без изменений»; вторая — повтор первой.
+    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'unchanged,error', `исходы ${outcomes?.join()}`)
     const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
       'GET',
       `/api/programs/${program.body.data?.id}`,
@@ -2080,7 +2532,11 @@ async function main(): Promise<void> {
     check('поиск по одной букве отклоняется', tooShort.status === 422)
 
     type Feed = {
-      items: Array<{ kind: string; target: { type: string; id: string } }>
+      items: Array<{
+        kind: string
+        title: string
+        target: { type: string; id: string; cooperationId: string | null }
+      }>
       unreadCount: number
     }
     const targetPath: Record<string, string> = {
@@ -2096,11 +2552,26 @@ async function main(): Promise<void> {
       const feed = await call<Feed>('GET', '/api/notifications?limit=50')
       const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
       const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
+      // Этапы, которые не начать из-за незавершённой контрольной точки, лента не торопит,
+      // а личная статистика считает (её счётчик — решение продукта). Разница — ровно они.
+      const locked = await countLockedOverdueOf(managerId)
       check(
-        'просроченных в ленте столько же, сколько в личной статистике',
-        feed.status === 200 && overdue === stats.body.data?.overdueStages,
-        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}`,
+        'просроченных в ленте столько же, сколько в личной статистике, без запертых точкой',
+        feed.status === 200 && overdue === (stats.body.data?.overdueStages ?? -1) - locked,
+        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}, заперто точкой ${locked}`,
       )
+      // Одна просрочка — одно уведомление: рекомендация «Просрочен этап N» не повторяет срок этапа.
+      const overdueEvent = (item: Feed['items'][number]) => {
+        const stage = /^Просрочен этап (\d+)/.exec(item.title)?.[1]
+        return stage ? `${item.target.cooperationId}:${stage}` : null
+      }
+      const fromStages = new Set(
+        (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').map(overdueEvent),
+      )
+      const duplicates = (feed.body.data?.items ?? []).filter(
+        (item) => item.kind === 'recommendation' && fromStages.has(overdueEvent(item)),
+      )
+      check('просрочка в ленте не повторяется рекомендацией', duplicates.length === 0, `повторов ${duplicates.length}`)
       let broken = 0
       for (const item of feed.body.data?.items ?? []) {
         const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
@@ -2131,6 +2602,81 @@ async function main(): Promise<void> {
       }
       check('каждое уведомление представителя вуза открывается у него', broken === 0)
     }
+  }
+
+  // ── Поиск связки по краткому имени вуза и по словам ───────────────────────
+  step('Связку находят по краткому имени вуза, по словам и по ответственному')
+
+  if (managerId) {
+    // Свой вуз с уникальным кратким именем: демо-данные не трогаются, и совпадение
+    // не может прийти от соседней записи.
+    const actorBefore = actingUserId
+    actAs(adminId)
+    const sfx = Date.now().toString().slice(-6)
+    const shortName = `ПРБ${sfx}`
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный университет поиска ${sfx}`,
+      shortName,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Программная инженерия поиска ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const created = await call<{ id: string; responsible: { fullName: string } }>(
+      'POST',
+      '/api/cooperations',
+      { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+    )
+    const cooperationId = created.body.data?.id
+    const surname = created.body.data?.responsible.fullName.split(' ')[0] ?? ''
+
+    const byShortName = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(shortName.toLowerCase())}`,
+    )
+    check(
+      'реестр связок находит связку по краткому имени вуза',
+      (byShortName.body.data ?? []).some((row) => row.id === cooperationId),
+      `найдено ${byShortName.body.data?.length ?? 0}`,
+    )
+
+    type Search = { groups: Array<{ type: string; items: Array<{ id: string; title: string }> }> }
+    const twoWords = await call<Search>(
+      'GET',
+      `/api/search?q=${encodeURIComponent(`${shortName.toLowerCase()} программная`)}`,
+    )
+    const found = (twoWords.body.data?.groups ?? [])
+      .find((group) => group.type === 'cooperation')
+      ?.items.find((item) => item.id === cooperationId)
+    check(
+      'глобальный поиск по двум словам находит связку',
+      found !== undefined,
+      `запрос «${shortName.toLowerCase()} программная»`,
+    )
+    check(
+      'связка в поиске подписана кратким именем вуза',
+      found?.title === `${shortName} — Программная инженерия поиска ${sfx}`,
+      `заголовок: ${found?.title ?? '—'}`,
+    )
+
+    const byResponsible = await call<Array<{ id: string }>>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(`${surname} ${shortName}`)}`,
+    )
+    check(
+      'связку находят по фамилии ответственного',
+      (byResponsible.body.data ?? []).some((row) => row.id === cooperationId),
+      `запрос «${surname} ${shortName}»`,
+    )
+    const wrongWord = await call<unknown[]>(
+      'GET',
+      `/api/cooperations?q=${encodeURIComponent(`${shortName} несуществующееслово`)}`,
+    )
+    check('каждое слово запроса обязательно', (wrongWord.body.data?.length ?? -1) === 0)
+    actAs(actorBefore)
   }
 
   // ── Главная не выдаёт показанное за всё ───────────────────────────────────

@@ -36,6 +36,7 @@ import {
   useDebounced,
   useResource,
   useStoredValue,
+  useUiMode,
   usePageInRange,
   type Column,
   ListTitle,
@@ -86,22 +87,26 @@ export default function UniversitiesPage() {
   const [page, setPage] = useState(1)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
-  const storedView = useStoredValue('skilllink.universities.view', 'cards')
-  const view = storedView.value === 'list' ? 'list' : 'cards'
+  // Пока человек сам не выбирал, вид — по режиму интерфейса (решение 80):
+  // в рабочем список, в презентационном бирки.
+  const { isWork } = useUiMode()
+  const storedView = useStoredValue('skilllink.universities.view')
+  const view =
+    storedView.value === 'list' || storedView.value === 'cards' ? storedView.value : isWork ? 'list' : 'cards'
   // Щелчок по центральной бирке раскрывает граф связей вуза (решение 79).
   const [graph, setGraph] = useState<GraphOrigin | null>(null)
 
   const query = useDebounced(search.trim(), 300)
 
-  const path = `/api/universities${buildQuery({
+  /** Фильтры экрана — общие для реестра и его выгрузки. */
+  const listFilters = {
     q: query.length >= 2 ? query : undefined,
     status: status || undefined,
     region: region || undefined,
     minRating: minRating || undefined,
     sort,
-    page,
-    pageSize: PAGE_SIZE,
-  })}`
+  }
+  const path = `/api/universities${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`
   const universities = useResource<UniversityListItemDto[]>(path, { keepPreviousData: true })
   usePageInRange(page, setPage, universities.meta)
 
@@ -245,17 +250,13 @@ export default function UniversitiesPage() {
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
           <>
-            {/*
-              Выгрузка отдаёт весь реестр, а не то, что осталось после фильтров:
-              эндпоинт принимает только ограничение по вузу. Об этом сказано
-              в подсказке — иначе человек решит, что фильтр не сработал.
-            */}
+            {/* Выгрузка берёт фильтры и порядок экрана: в файле те же вузы, что в реестре. */}
             <Button
               variant="secondary"
               icon="download"
-              href="/api/export?dataset=universities"
+              href={`/api/export${buildQuery({ dataset: 'universities', ...listFilters })}`}
               external
-              title="Весь реестр в CSV, до 1000 строк. Фильтры на экране не применяются."
+              title="Вузы с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
             </Button>

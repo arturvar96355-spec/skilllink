@@ -504,20 +504,41 @@ export async function ratingOfProgram(
   user: CurrentUser,
   program: RatingInput & { isActive: boolean },
 ): Promise<ProgramRatingDto | null> {
+  const ratings = await ratingsOfPrograms(user, [program])
+  return ratings?.get(program.programId) ?? null
+}
+
+/**
+ * Рейтинги набора программ — для карточки и для выгрузки реестра.
+ *
+ * Один расчёт на оба места: балл в файле обязан совпадать с баллом на экране,
+ * а шкала — агрегат по всем действующим программам, как в `ratingOfProgram`.
+ * null — рейтинг роли недоступен (представитель вуза).
+ */
+export async function ratingsOfPrograms(
+  user: CurrentUser,
+  programs: ReadonlyArray<RatingInput & { isActive: boolean }>,
+): Promise<Map<string, ProgramRatingDto> | null> {
   if (!can(user, 'ANALYTICS')) return null
 
-  if (!program.isActive) {
-    return {
+  const result = new Map<string, ProgramRatingDto>()
+  for (const program of programs) {
+    if (program.isActive) continue
+    result.set(program.programId, {
       programId: program.programId,
       score: null,
       basis: 'none',
       explanation: 'Программа не действует и в рейтинге не участвует',
       factors: [],
-    }
+    })
   }
 
+  const active = programs.filter((program) => program.isActive)
+  if (active.length === 0) return result
+
   const bounds = await ratingBoundsFromDatabase(universityScope(user))
-  return calculateRatings([program], bounds).get(program.programId) ?? null
+  for (const [programId, rating] of calculateRatings(active, bounds)) result.set(programId, rating)
+  return result
 }
 
 /**

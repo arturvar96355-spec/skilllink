@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
-import { DOCUMENT_TEMPLATES, MISSING_PLACEHOLDER } from '@/shared/config/document-templates.config'
+import {
+  DOCUMENT_TEMPLATES,
+  MISSING_PLACEHOLDER,
+  TEMPLATE_BY_KEY,
+  TEMPLATE_PLACEHOLDERS,
+  TEMPLATE_PLACEHOLDER_LABELS,
+  placeholderLabel,
+} from '@/shared/config/document-templates.config'
 import {
   ALLOWED_DOCUMENT_TRANSITIONS,
   assertDocumentEditable,
   assertDocumentHasContent,
   assertDocumentTransition,
   assertHasLink,
+  findExistingForTemplate,
   nextVersion,
+  packageSkipReason,
+  positionInText,
   renderTemplate,
+  SKIP_REASON_NO_PRODUCT,
+  type ExistingPackageDocument,
 } from './documents.rules'
 import {
   createDocumentSchema,
@@ -272,9 +284,142 @@ describe('набор шаблонов', () => {
     ).toBe(true)
   })
 
-  it('каждый шаблон честно помечен как болванка', () => {
-    // Юридически выверенных форм у нас нет, и документ не должен притворяться готовым.
-    expect(DOCUMENT_TEMPLATES.every((template) => template.body.includes('TEMP'))).toBe(true)
+  it('служебные пометки не попадают в текст документа', () => {
+    // Неутверждённость текстов отмечена комментарием у конфига. В самом документе
+    // строка «TEMP: болванка для демонстрации» уходила вузу на согласование.
+    for (const template of DOCUMENT_TEMPLATES) {
+      expect(`${template.title}\n${template.body}`).not.toMatch(/TEMP|болванк/i)
+    }
+  })
+
+  it('название школы везде одно — «ИТ-Школа РТК»', () => {
+    for (const template of DOCUMENT_TEMPLATES) {
+      // Любое упоминание школы — ровно «ИТ-Школа/Школы РТК», без «IT Школа» и вариантов.
+      expect(template.body).not.toMatch(/(?<!ИТ-)Школ[а-я]* РТК/)
+    }
+  })
+
+  it('тексты не требуют склонять ФИО и должность', () => {
+    // «в лице {{contact.fullName}}» давало «в лице Ветрова Ирина Павловна»:
+    // родительного падежа из карточки не получить.
+    for (const template of DOCUMENT_TEMPLATES) {
+      expect(template.body).not.toMatch(/в лице/i)
+    }
+  })
+
+  it('у каждого шаблона есть название по-русски', () => {
+    for (const template of DOCUMENT_TEMPLATES) {
+      expect(template.name).toMatch(/[а-яА-Я]/)
+      expect(template.name).not.toContain('{{')
+    }
+  })
+
+  it('лицензия без продукта не собирается, остальные — собираются', () => {
+    expect(TEMPLATE_BY_KEY.get('license')?.requiresProduct).toBe(true)
+    expect(TEMPLATE_BY_KEY.get('agreement')?.requiresProduct).toBeFalsy()
+  })
+})
+
+describe('подписи реквизитов', () => {
+  it('у каждого реквизита есть подпись по-русски', () => {
+    for (const key of TEMPLATE_PLACEHOLDERS) {
+      expect(TEMPLATE_PLACEHOLDER_LABELS[key]).toMatch(/[а-яА-Я]/)
+    }
+  })
+
+  it('каждая подстановка в шаблонах — из списка реквизитов с подписью', () => {
+    const known = new Set<string>(TEMPLATE_PLACEHOLDERS)
+    for (const template of DOCUMENT_TEMPLATES) {
+      for (const match of `${template.title}${template.body}`.matchAll(/\{\{\s*([a-zA-Z.]+)\s*\}\}/g)) {
+        expect(known.has(match[1]!), `${template.key}: ${match[1]}`).toBe(true)
+      }
+    }
+  })
+
+  it('вместо ключа — название', () => {
+    expect(['product.name', 'product.version'].map(placeholderLabel)).toEqual([
+      'название IT-продукта',
+      'версия IT-продукта',
+    ])
+  })
+
+  it('неизвестный ключ показывается как есть, а не пропадает', () => {
+    expect(placeholderLabel('unknown.field')).toBe('unknown.field')
+  })
+})
+
+describe('должность в тексте документа', () => {
+  it('внутри фразы пишется со строчной', () => {
+    expect(positionInText('Заместитель декана')).toBe('заместитель декана')
+  })
+
+  it('аббревиатура не портится', () => {
+    expect(positionInText('ИТ-директор')).toBe('ИТ-директор')
+    expect(positionInText('CIO')).toBe('CIO')
+  })
+
+  it('нет должности — нет значения, и в тексте будет прочерк', () => {
+    expect(positionInText(null)).toBeNull()
+    expect(positionInText('   ')).toBeNull()
+  })
+})
+
+describe('что пакет документов не пересобирает', () => {
+  const agreement = TEMPLATE_BY_KEY.get('agreement')!
+  const license = TEMPLATE_BY_KEY.get('license')!
+  const existing = (overrides: Partial<ExistingPackageDocument>): ExistingPackageDocument => ({
+    title: 'Договор о сотрудничестве — СПбГУТ',
+    type: 'AGREEMENT',
+    status: 'DRAFT',
+    templateKey: 'agreement',
+    ...overrides,
+  })
+
+  it('собранный из шаблона документ закрывает шаблон', () => {
+    const reason = packageSkipReason(agreement, { documents: [existing({})], hasProduct: true })
+    expect(reason).toBe('уже есть: «Договор о сотрудничестве — СПбГУТ», черновик')
+  })
+
+  it('договор, заведённый вручную, тоже закрывает шаблон', () => {
+    // Раньше сверка шла только по ключу шаблона, и пакет добавлял второй договор.
+    const manual = existing({ title: 'Договор сквозного сценария', templateKey: null, status: 'SIGNED' })
+    expect(packageSkipReason(agreement, { documents: [manual], hasProduct: true })).toBe(
+      'уже есть: «Договор сквозного сценария», подписан',
+    )
+  })
+
+  it('архивный документ шаблон не закрывает', () => {
+    const archived = existing({ status: 'ARCHIVED' })
+    expect(packageSkipReason(agreement, { documents: [archived], hasProduct: true })).toBeNull()
+  })
+
+  it('документ другого типа шаблон не закрывает', () => {
+    const nda = existing({ type: 'NDA', templateKey: 'nda', title: 'Соглашение' })
+    expect(packageSkipReason(agreement, { documents: [nda], hasProduct: true })).toBeNull()
+  })
+
+  it('совпадение по ключу шаблона важнее совпадения по типу', () => {
+    const manual = existing({ title: 'Ручной', templateKey: null })
+    const generated = existing({ title: 'Из шаблона' })
+    expect(findExistingForTemplate(agreement, [manual, generated])?.title).toBe('Из шаблона')
+  })
+
+  it('force пересобирает существующий', () => {
+    expect(
+      packageSkipReason(agreement, { documents: [existing({})], hasProduct: true, force: true }),
+    ).toBeNull()
+  })
+
+  it('лицензия без продукта не собирается даже с force', () => {
+    expect(packageSkipReason(license, { documents: [], hasProduct: false })).toBe(SKIP_REASON_NO_PRODUCT)
+    expect(packageSkipReason(license, { documents: [], hasProduct: false, force: true })).toBe(
+      SKIP_REASON_NO_PRODUCT,
+    )
+    expect(SKIP_REASON_NO_PRODUCT).toBe('не выбран IT-продукт — выберите его в связке')
+  })
+
+  it('договор без продукта собирается — продукт в нём упомянут попутно', () => {
+    expect(packageSkipReason(agreement, { documents: [], hasProduct: false })).toBeNull()
   })
 })
 

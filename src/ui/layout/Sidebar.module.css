@@ -267,6 +267,15 @@
   }
 }
 
+/* Рабочий режим (решение 80): подпись пункта стоит на месте. */
+:global(html[data-mode='work']) .rollChar {
+  transition: none;
+}
+
+:global(html[data-mode='work']) .item:hover .rollChar {
+  transform: none;
+}
+
 /* Мини-сводка раздела справа от пункта. */
 .preview {
   position: fixed;

@@ -18,6 +18,7 @@ import type {
 } from '@/shared/contracts/workflow'
 import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
+import { syncCooperation as syncRecommendations } from '@/modules/recommendations/recommendations.service'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import { assertStaffResponsible } from '@/shared/links/entity-links'
 import {
@@ -27,6 +28,7 @@ import {
   assertStageFieldsComplete,
   assertTasksEditable,
   findBlockingStages,
+  historyComment,
   type PriorStageState,
   assertTransition,
   isAutoManaged,
@@ -267,7 +269,7 @@ export async function updateStage(
           stageId,
           fromStatus: stage.status,
           toStatus: next,
-          comment: input.comment ?? null,
+          comment: historyComment(next, resulting, input.comment),
           changedById: user.id,
         },
       })
@@ -302,6 +304,11 @@ export async function updateStage(
       },
     })
   }
+
+  // Рекомендации связки о просрочке и застое сверяются с новым состоянием этапа:
+  // завершённый или перенесённый этап не должен висеть «Просроченным» до пересборки.
+  // После транзакции этапа и без исключений — сбой сверки смену статуса не отменяет.
+  await syncRecommendations(stage.cooperationId)
 
   const fresh = await repo.findStageById(stageId)
   if (!fresh) throw notFound('Этап не найден')
@@ -399,13 +406,17 @@ export async function toggleTask(
     user.id,
   )
 
-  if (changed) await writeAudit({
-    userId: user.id,
-    action: 'task.toggle',
-    objectType: 'Task',
-    objectId: taskId,
-    payload: { isDone: input.isDone, stageId: task.stageId },
-  })
+  if (changed) {
+    await writeAudit({
+      userId: user.id,
+      action: 'task.toggle',
+      objectType: 'Task',
+      objectId: taskId,
+      payload: { isDone: input.isDone, stageId: task.stageId },
+    })
+    // Отметка в чек-листе — движение по связке: «без движения» больше неправда.
+    await syncRecommendations(task.stage.cooperationId)
+  }
 
   const stage = await repo.findStageById(task.stageId)
   if (!stage) throw notFound('Этап не найден')

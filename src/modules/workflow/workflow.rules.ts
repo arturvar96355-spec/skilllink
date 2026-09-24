@@ -78,6 +78,24 @@ export function findBlockingStages(
 }
 
 /**
+ * Этап не начат и стоит за незавершённой контрольной точкой: взять его в работу
+ * сейчас нельзя (`findBlockingStages`).
+ *
+ * О сроке такого этапа не напоминают ни уведомления, ни рекомендации: «просрочен
+ * этап 7» при неподписанном договоре предлагает сделать то, что система сама
+ * запрещает. Действие здесь — закрыть точку, и о ней напоминает её собственный срок.
+ * Счётчики просрочек на главной и в реестре этим правилом не пользуются: что
+ * в них считать — решение продукта.
+ */
+export function isLockedByControlPoint(
+  stage: { stageNumber: number; status: StageStatus },
+  stages: readonly PriorStageState[],
+): boolean {
+  if (stage.status !== 'NOT_STARTED') return false
+  return findBlockingStages(stage.stageNumber, stages).length > 0
+}
+
+/**
  * Проверка контрольных точек для любого этапа.
  *
  * Применяется к началу работы и к завершению — это два утверждения о процессе,
@@ -312,6 +330,36 @@ export function resolveStageFields(
         : stage.blockingReason
 
   return { status, result, blockingReason }
+}
+
+/**
+ * Текст записи истории при смене статуса.
+ *
+ * В историю шёл только комментарий запроса, а причина блокировки и результат
+ * приходят своими полями — и записи «Заблокирован» и «Завершён» оставались
+ * пустыми. Хуже того, причина блокировки на этапе стирается при снятии
+ * блокировки (`resolveStageFields`), и после этого узнать, почему этап стоял,
+ * было негде. Теперь запись несёт то, ради чего переход делался:
+ * у блокировки — причину, у завершения — результат, у остальных — комментарий
+ * (при снятии блокировки это «что изменилось», оно необязательное).
+ * Комментарий, присланный вместе с причиной или результатом, не теряется.
+ */
+export function historyComment(
+  toStatus: StageStatus,
+  resulting: StageStatusFields,
+  comment: string | null | undefined,
+): string | null {
+  const main =
+    toStatus === 'BLOCKED'
+      ? resulting.blockingReason
+      : toStatus === 'COMPLETED'
+        ? resulting.result
+        : null
+  const parts = [main, comment]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter((part) => part.length > 0)
+  const unique = parts.filter((part, index) => parts.indexOf(part) === index)
+  return unique.length > 0 ? unique.join('\n') : null
 }
 
 /** Итоговое состояние этапа само удовлетворяет правилам своего статуса. */
