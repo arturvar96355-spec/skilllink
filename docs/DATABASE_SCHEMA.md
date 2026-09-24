@@ -26,6 +26,24 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 Приложение проверяет те же правила раньше базы: ограничение — вторая линия,
 на случай записи в обход сервиса.
 
+Действующие (миграция `20260924150000_check_constraints`):
+
+| Ограничение | Правило |
+| --- | --- |
+| `workflow_stages_stage_number_check` | номер этапа 1–14 |
+| `workflow_stages_completed_result_check` | завершённый этап — с непустым результатом; этап 14 закрывает система, ему не нужен |
+| `workflow_stages_blocked_reason_check` | заблокированный этап — с непустой причиной |
+| `educational_programs_{application,student,group}_count_check` | NULL или ≥ 0 |
+| `educational_programs_duration_months_check` | NULL или 1–120 |
+| `universities_{student,direction}_count_check` | NULL или ≥ 0 |
+| `applications_quantity_check` | 1–10000 |
+| `market_demand_value_check` | ≥ 0 |
+| `tasks_sort_order_check` | ≥ 0 |
+
+В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
+в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
+проверяется запросом на свежем сиде и на данных стенда: ноль нарушений.
+
 ## Таблицы
 
 ### users — пользователи и роли

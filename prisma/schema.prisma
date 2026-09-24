@@ -224,6 +224,7 @@ model User {
 
 /// Вуз-партнёр. Не удаляется никогда, только архивируется: сотрудничество длится годами,
 /// и история отношений — основная ценность системы.
+/// CHECK в базе (миграция check_constraints): student_count, direction_count — NULL или ≥ 0.
 model University {
   id        String           @id @default(cuid())
   name      String
@@ -288,6 +289,7 @@ model Contact {
 
 /// Образовательная программа вуза. Три показателя рейтинга (заявки, обучающиеся, группы)
 /// допускают null: незаполненный показатель — это «нет данных», а не ноль (решение 8).
+/// CHECK в базе: три показателя — NULL или ≥ 0; duration_months — NULL или 1–120.
 model EducationalProgram {
   id           String        @id @default(cuid())
   universityId String        @map("university_id")
@@ -367,6 +369,7 @@ model ProgramSkill {
 
 /// Агрегированный показатель востребованности навыка (решение 11).
 /// Происхождение обязательно: source, period, confidence, isMock.
+/// CHECK в базе: value ≥ 0.
 model MarketDemand {
   id           String          @id @default(cuid())
   skillId      String          @map("skill_id")
@@ -488,6 +491,8 @@ model Cooperation {
 
 /// Один из 14 этапов конвейера. Создаются все сразу при заведении связки (решение 2).
 /// title хранится копией: история не должна меняться задним числом при правке настроек.
+/// CHECK в базе: stage_number 1–14; COMPLETED — с результатом (кроме этапа 14);
+/// BLOCKED — с причиной.
 model WorkflowStage {
   id            String      @id @default(cuid())
   cooperationId String      @map("cooperation_id")
@@ -523,6 +528,7 @@ model WorkflowStage {
 }
 
 /// Пункт чек-листа этапа (решение 6).
+/// CHECK в базе: sort_order ≥ 0.
 model Task {
   id         String    @id @default(cuid())
   stageId    String    @map("stage_id")
@@ -750,6 +756,7 @@ model AuditLog {
 }
 
 /// Заявка на обучение (решение 9). Персональных данных обучающихся не содержит.
+/// CHECK в базе: quantity 1–10000.
 model Application {
   id           String            @id @default(cuid())
   programId    String            @map("program_id")
