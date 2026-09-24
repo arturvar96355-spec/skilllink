@@ -284,7 +284,8 @@
 
   .arrival main {
     transform-origin: 50% 0;
-    animation: arriveDepth 900ms cubic-bezier(0.16, 1, 0.3, 1) 380ms both;
+    /* Страница приходит под вспышкой — выплывать начинает сразу, пока свет гаснет. */
+    animation: arriveDepth 900ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
   }
 }
 

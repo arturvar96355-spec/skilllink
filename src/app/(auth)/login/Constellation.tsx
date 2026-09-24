@@ -34,6 +34,13 @@ const LIGHT = 0xf3f1ed
 
 /** Прыжок целиком: слияние, нырок, вспышка, угасание над сайтом. */
 const WARP_MS = 1500
+/** Пик вспышки — доля прыжка, когда свет почти закрывает экран. */
+const FLASH_PEAK = 0.6
+/**
+ * Когда экран входа меняется на сайт: чуть раньше пика вспышки. Сборка главной
+ * на мгновение занимает браузер, и рывок звёзд в этот момент закрыт светом.
+ */
+export const WARP_NAVIGATE_MS = Math.round(WARP_MS * (FLASH_PEAK - 0.05))
 /** Доли прыжка: к этому моменту скопления слились… */
 const MERGE_END = 0.42
 /** …с этого камера ныряет… */
@@ -81,6 +88,8 @@ export function Constellation() {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
       renderer.setSize(window.innerWidth, window.innerHeight)
       host.appendChild(renderer.domElement)
+      // Метка для формы входа: прыжок будет — переход на сайт ждёт пика вспышки.
+      if (!reduced) document.body.dataset.warp = 'ready'
 
       const scene = new THREE.Scene()
       const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100)
@@ -280,6 +289,7 @@ export function Constellation() {
         renderer.dispose()
         renderer.domElement.remove()
         flash?.remove()
+        delete document.body.dataset.warp
       }
 
       if (reduced) {
@@ -299,6 +309,10 @@ export function Constellation() {
       /** Холст — поверх всего, в body: экран входа уйдёт, а прыжок доиграет над сайтом. */
       const handOff = () => {
         handedOff = true
+        // В прыжке звёзды летят — плотность пикселей 1 незаметна глазу, а заливки
+        // крупных светящихся точек на видеокарте становится втрое меньше.
+        renderer.setPixelRatio(1)
+        renderer.setSize(window.innerWidth, window.innerHeight)
         renderer.domElement.className = styles.warpCanvas ?? ''
         document.body.appendChild(renderer.domElement)
         flash = document.createElement('div')
@@ -332,7 +346,7 @@ export function Constellation() {
         const dive = easeIn(clamp01((warp - DIVE_START) / (1 - DIVE_START)))
         camera.position.z = 26 - 12 * intro - 17 * dive
         field.position.z = 16 * dive
-        const stretch = 1 + 5 * dive
+        const stretch = 1 + 3 * dive
         clusterMaterial.size = 0.11 * stretch
         fieldMaterial.size = 0.11 * stretch
         // Покачивание гасится к прыжку: в центр смотрим прямо.
@@ -347,8 +361,9 @@ export function Constellation() {
         if (warpSince !== null) renderer.domElement.style.opacity = String(1 - fade)
         if (flash) {
           // Вспышка — пик в момент прохода сквозь ядро.
-          const peak = Math.max(0, 1 - Math.abs(warp - 0.62) / 0.2)
-          flash.style.opacity = String(peak * 0.85)
+          // Шире и плотнее, чем нужно для красоты: под ней меняется страница.
+          const peak = Math.max(0, 1 - Math.abs(warp - FLASH_PEAK) / 0.24)
+          flash.style.opacity = String(Math.min(1, peak * 1.15) * 0.94)
         }
 
         updateLinks(time)
