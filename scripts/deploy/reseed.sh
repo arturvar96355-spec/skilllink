@@ -73,6 +73,10 @@ else
   echo "── Заливаю демонстрационные данные"
   \$COMPOSE --profile migrate run --rm migrate npm run db:seed
 fi
+
+# Только чтение: правила данных, которые держит приложение (scripts/db-verify.ts).
+echo "── Проверяю целостность данных"
+\$COMPOSE --profile migrate run --rm migrate npm run -s db:verify -- --demo || exit 1
 REMOTE
 
 echo "── Сверяю стенд со сценарием показа"

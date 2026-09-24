@@ -71,6 +71,7 @@ jobs:
         run: |
           npm run db:deploy
           npm run db:seed
+          npm run db:verify -- --demo
 
       - name: Запуск приложения
         run: |
@@ -85,3 +86,8 @@ jobs:
 
       - name: Пробник
         run: npm run probe
+
+      # Правила данных после записей сквозного сценария и пробника:
+      # приложение само не оставляет противоречивых записей (scripts/db-verify.ts).
+      - name: Целостность данных
+        run: npm run db:verify
