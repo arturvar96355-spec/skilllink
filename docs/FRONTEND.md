@@ -216,7 +216,7 @@ if (!result.ok) toast.error(result.error.message)
 ## Роли
 
 Текущий пользователь — `useCurrentUser()`. Права приходят с сервера
-(`permissions.canWrite`, `canSeeAnalytics`, `canUsePortal`, `isAdmin`):
+(`permissions.canWrite`, `canSeeAnalytics`, `canUsePortal`, `canWritePortal`, `isAdmin`):
 матрица доступа не дублируется на фронте.
 
 Представитель вуза (`UNIVERSITY_REP`) видит только свой кабинет `/portal`.
