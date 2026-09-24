@@ -10,6 +10,8 @@
 import 'dotenv/config'
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
+import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
+import type { StageStatus } from '@/shared/contracts/enums'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -136,6 +138,40 @@ async function warmUp(): Promise<void> {
         .catch(() => undefined),
     ),
   )
+}
+
+/**
+ * Сколько просроченных этапов пользователя не начать из-за незавершённой
+ * контрольной точки. Сроки берутся из общего списка просрочек, этапы связки —
+ * из её карточки: правило то же, что у ленты (`isLockedByControlPoint`).
+ */
+async function countLockedOverdueOf(userId: string): Promise<number> {
+  type Overdue = {
+    cooperationId: string
+    stageNumber: number
+    status: StageStatus
+    responsible: { id: string } | null
+  }
+  const rows: Overdue[] = []
+  for (let page = 1; page <= 50; page += 1) {
+    const chunk = await call<Overdue[]>('GET', `/api/workflow/overdue?page=${page}&pageSize=100`)
+    rows.push(...(chunk.body.data ?? []))
+    if ((chunk.body.data ?? []).length < 100) break
+  }
+  const stagesOf = new Map<string, Array<{ stageNumber: number; title: string; status: StageStatus }>>()
+  let locked = 0
+  for (const row of rows) {
+    if (row.responsible?.id !== userId || row.status !== 'NOT_STARTED') continue
+    if (!stagesOf.has(row.cooperationId)) {
+      const card = await call<{ stages: Array<{ stageNumber: number; title: string; status: StageStatus }> }>(
+        'GET',
+        `/api/cooperations/${row.cooperationId}`,
+      )
+      stagesOf.set(row.cooperationId, card.body.data?.stages ?? [])
+    }
+    if (isLockedByControlPoint(row, stagesOf.get(row.cooperationId) ?? [])) locked += 1
+  }
+  return locked
 }
 
 async function main(): Promise<void> {
@@ -891,6 +927,103 @@ async function main(): Promise<void> {
       )
     } else {
       check('связка для проверки возврата создана', false)
+    }
+  }
+
+  // ── Рекомендация о просрочке честна о просрочке ───────────────────────────
+  step('Рекомендацию о просрочке не закрыть, пока просрочка есть; переходы проверяет сервер')
+
+  if (managerId) {
+    // Свои записи: демонстрационные рекомендации не трогаются.
+    const sfx = Date.now().toString().slice(-6)
+    const uni = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз честной просрочки ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    type Rec = { id: string; ruleKey: string; status: string }
+    const makeOverdue = async (label: string) => {
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа ${label} ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
+        'POST',
+        '/api/cooperations',
+        { universityId: uni.body.data?.id, programId: program.body.data?.id, responsibleId: managerId },
+      )
+      const cooperationId = created.body.data?.id
+      const stage1 = created.body.data?.stages.find((stage) => stage.stageNumber === 1)
+      if (!cooperationId || !stage1) return null
+      await call('PATCH', `/api/workflow/stages/${stage1.id}`, {
+        status: 'IN_PROGRESS',
+        deadline: new Date(Date.now() - 5 * 86_400_000).toISOString(),
+      })
+      await call('POST', '/api/recommendations/generate')
+      const list = await call<Rec[]>('GET', `/api/recommendations?cooperationId=${cooperationId}&pageSize=50`)
+      const rec = (list.body.data ?? []).find((row) => row.ruleKey === 'stage.overdue')
+      return rec ? { cooperationId, stageId: stage1.id, rec } : null
+    }
+    const statusOf = async (id: string) =>
+      (await call<Rec>('GET', `/api/recommendations/${id}`)).body.data?.status ?? 'нет'
+
+    const first = await makeOverdue('закрытия')
+    if (first) {
+      const skip = await call<Rec>('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'DONE' })
+      check(
+        'недопустимый переход «Новая → Закрыта» — 409 INVALID_TRANSITION',
+        skip.status === 409 && skip.body.error?.code === 'INVALID_TRANSITION',
+        `код ${skip.status} ${skip.body.error?.code ?? ''}`,
+      )
+
+      await call('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'IN_PROGRESS' })
+      const close = await call<Rec>('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'DONE' })
+      check(
+        'закрыть просроченную рекомендацию, пока этап просрочен, — 409',
+        close.status === 409 && close.body.error?.code === 'CONFLICT',
+        `код ${close.status} ${close.body.error?.code ?? ''}`,
+      )
+      check(
+        'отказ говорит, сколько дней просрочки и что делать',
+        /просрочен на 5 дн\..*отклонить с основанием/.test(close.body.error?.message ?? ''),
+        close.body.error?.message ?? '',
+      )
+      check('рекомендация осталась в работе', (await statusOf(first.rec.id)) === 'IN_PROGRESS')
+
+      // Этап отменили — просрочки нет: рекомендация закрывается сразу, без пересборки.
+      await call('PATCH', `/api/workflow/stages/${first.stageId}`, {
+        status: 'CANCELLED',
+        comment: 'Не требуется для этой связки',
+      })
+      check(
+        'этап отменён — рекомендация о его просрочке закрыта системой',
+        (await statusOf(first.rec.id)) === 'DONE',
+        `статус ${await statusOf(first.rec.id)}`,
+      )
+      const reopenByHand = await call('PATCH', `/api/recommendations/${first.rec.id}`, { status: 'NEW' })
+      check(
+        'закрытую руками в новые не вернуть — 409 INVALID_TRANSITION',
+        reopenByHand.status === 409 && reopenByHand.body.error?.code === 'INVALID_TRANSITION',
+      )
+    } else {
+      check('рекомендация о просрочке для проверки закрытия создана', false)
+    }
+
+    const dismissed = await makeOverdue('отклонения')
+    if (dismissed) {
+      await call('PATCH', `/api/recommendations/${dismissed.rec.id}`, {
+        status: 'DISMISSED',
+        comment: 'Срок согласован с вузом устно',
+      })
+      await call('POST', '/api/recommendations/generate')
+      check(
+        'отклонённую с основанием пересборка не трогает',
+        (await statusOf(dismissed.rec.id)) === 'DISMISSED',
+        `статус ${await statusOf(dismissed.rec.id)}`,
+      )
+    } else {
+      check('рекомендация о просрочке для проверки отклонения создана', false)
     }
   }
 
@@ -2319,7 +2452,11 @@ async function main(): Promise<void> {
     check('поиск по одной букве отклоняется', tooShort.status === 422)
 
     type Feed = {
-      items: Array<{ kind: string; target: { type: string; id: string } }>
+      items: Array<{
+        kind: string
+        title: string
+        target: { type: string; id: string; cooperationId: string | null }
+      }>
       unreadCount: number
     }
     const targetPath: Record<string, string> = {
@@ -2335,11 +2472,26 @@ async function main(): Promise<void> {
       const feed = await call<Feed>('GET', '/api/notifications?limit=50')
       const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
       const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
+      // Этапы, которые не начать из-за незавершённой контрольной точки, лента не торопит,
+      // а личная статистика считает (её счётчик — решение продукта). Разница — ровно они.
+      const locked = await countLockedOverdueOf(managerId)
       check(
-        'просроченных в ленте столько же, сколько в личной статистике',
-        feed.status === 200 && overdue === stats.body.data?.overdueStages,
-        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}`,
+        'просроченных в ленте столько же, сколько в личной статистике, без запертых точкой',
+        feed.status === 200 && overdue === (stats.body.data?.overdueStages ?? -1) - locked,
+        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}, заперто точкой ${locked}`,
       )
+      // Одна просрочка — одно уведомление: рекомендация «Просрочен этап N» не повторяет срок этапа.
+      const overdueEvent = (item: Feed['items'][number]) => {
+        const stage = /^Просрочен этап (\d+)/.exec(item.title)?.[1]
+        return stage ? `${item.target.cooperationId}:${stage}` : null
+      }
+      const fromStages = new Set(
+        (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').map(overdueEvent),
+      )
+      const duplicates = (feed.body.data?.items ?? []).filter(
+        (item) => item.kind === 'recommendation' && fromStages.has(overdueEvent(item)),
+      )
+      check('просрочка в ленте не повторяется рекомендацией', duplicates.length === 0, `повторов ${duplicates.length}`)
       let broken = 0
       for (const item of feed.body.data?.items ?? []) {
         const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)

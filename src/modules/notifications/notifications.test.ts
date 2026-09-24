@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
-import { buildFeed, type FeedSources, type StageDeadlineSource } from './notifications.rules'
+import {
+  buildFeed,
+  type FeedSources,
+  type RecommendationSource,
+  type StageDeadlineSource,
+} from './notifications.rules'
 
 const DAY = 24 * 60 * 60 * 1000
 const now = new Date('2026-09-22T12:00:00Z')
@@ -16,6 +21,21 @@ function stage(overrides: Partial<StageDeadlineSource>): StageDeadlineSource {
     cooperationId: 'coop-1',
     universityName: 'СПбГУТ',
     programName: 'Программная инженерия',
+    lockedByControlPoint: false,
+    ...overrides,
+  }
+}
+
+function recommendation(overrides: Partial<RecommendationSource>): RecommendationSource {
+  return {
+    id: 'r1',
+    ruleKey: 'stage.overdue',
+    stageNumber: 6,
+    title: 'Просрочен этап 6: Подписание документов',
+    label: 'СПбГУТ — Программная инженерия',
+    priority: 'CRITICAL',
+    createdAt: now,
+    cooperationId: 'coop-1',
     ...overrides,
   }
 }
@@ -154,6 +174,8 @@ describe('лента уведомлений', () => {
         recommendations: [
           {
             id: 'r1',
+            ruleKey: 'stage.overdue',
+            stageNumber: 7,
             title: 'Просрочен этап 7',
             label: 'СПбГУТ — Программная инженерия',
             priority: 'CRITICAL',
@@ -162,6 +184,8 @@ describe('лента уведомлений', () => {
           },
           {
             id: 'r2',
+            ruleKey: 'skill.critical-gap-with-product',
+            stageNumber: null,
             title: 'Дефицит навыка',
             label: 'Навык «Kubernetes»',
             priority: 'HIGH',
@@ -217,5 +241,71 @@ describe('лента уведомлений', () => {
       limit: 20,
     })
     expect(first.items[0]?.id).toBe(second.items[0]?.id)
+  })
+
+  it('одна просрочка — одно уведомление: остаётся срок этапа, рекомендация о нём не дублирует', () => {
+    const deadline = new Date(now.getTime() - 5 * DAY)
+    const feed = buildFeed(
+      sources({
+        deadlines: [stage({ deadline, stageNumber: 5, stageId: 'stage-5' })],
+        recommendations: [recommendation({ id: 'r5', stageNumber: 5, title: 'Просрочен этап 5: Доработка' })],
+      }),
+      { now, since: null, limit: 20 },
+    )
+    expect(feed.items.map((item) => item.id)).toEqual(['stage-overdue:stage-5'])
+    expect(feed.items[0]?.target.stageId).toBe('stage-5')
+  })
+
+  it('пересборка не выдаёт известную просрочку за новую', () => {
+    // Сотрудник видел ленту вчера; сегодня пересборка создала рекомендацию
+    // о той же просрочке — непрочитанного не прибавилось.
+    const deadline = new Date(now.getTime() - 5 * DAY)
+    const since = new Date(now.getTime() - DAY)
+    const before = buildFeed(sources({ deadlines: [stage({ deadline })] }), { now, since, limit: 20 })
+    const after = buildFeed(
+      sources({ deadlines: [stage({ deadline })], recommendations: [recommendation({ createdAt: now })] }),
+      { now, since, limit: 20 },
+    )
+    expect(before.unreadCount).toBe(0)
+    expect(after.unreadCount).toBe(0)
+  })
+
+  it('рекомендация о просрочке остаётся, если о сроке этапа лента не знает', () => {
+    // Этап ведёт другой сотрудник, а связка — моя: пункта срока у меня нет.
+    const feed = buildFeed(sources({ recommendations: [recommendation({})] }), { now, since: null, limit: 20 })
+    expect(feed.items.map((item) => item.kind)).toEqual(['recommendation'])
+  })
+
+  it('рекомендация о другом этапе или другой связке не склеивается', () => {
+    const feed = buildFeed(
+      sources({
+        deadlines: [stage({ stageNumber: 6 })],
+        recommendations: [
+          recommendation({ id: 'other-stage', stageNumber: 3 }),
+          recommendation({ id: 'other-coop', cooperationId: 'coop-2' }),
+        ],
+      }),
+      { now, since: null, limit: 20 },
+    )
+    expect(feed.items).toHaveLength(3)
+  })
+
+  it('этап за незавершённой контрольной точкой не даёт ни просрочки, ни «скоро срок»', () => {
+    const feed = buildFeed(
+      sources({
+        deadlines: [
+          stage({ stageId: 'late', status: 'NOT_STARTED', lockedByControlPoint: true }),
+          stage({
+            stageId: 'soon',
+            status: 'NOT_STARTED',
+            deadline: new Date(now.getTime() + DAY),
+            lockedByControlPoint: true,
+          }),
+        ],
+      }),
+      { now, since: null, limit: 20 },
+    )
+    expect(feed.items).toEqual([])
+    expect(feed.unreadCount).toBe(0)
   })
 })

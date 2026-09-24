@@ -11,7 +11,10 @@ export const GET = handle<Context>(async (_request, context) => {
   return ok(await service.getById(user, id))
 })
 
-/** Сотрудник принимает, берёт в работу или отклоняет рекомендацию. */
+/**
+ * Сотрудник принимает, берёт в работу, закрывает или отклоняет рекомендацию.
+ * Переходы — по `RECOMMENDATION_TRANSITIONS`, закрытие — только когда условие ушло.
+ */
 export const PATCH = handle<Context>(async (request, context) => {
   const user = await getCurrentUser()
   const { id } = await context.params

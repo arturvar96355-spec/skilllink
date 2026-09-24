@@ -1,10 +1,21 @@
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
-import { PROGRAM_METRIC_LABELS } from '@/shared/contracts'
-import { STATUS_LABELS as STAGE_STATUS_LABELS } from '@/modules/workflow/workflow.rules'
+import {
+  PROGRAM_METRIC_LABELS,
+  RECOMMENDATION_STATUS_LABELS,
+  RECOMMENDATION_TRANSITIONS,
+} from '@/shared/contracts'
+import { invalidTransition } from '@/shared/http/errors'
+import {
+  STATUS_LABELS as STAGE_STATUS_LABELS,
+  findCurrentStage,
+  isLockedByControlPoint,
+  isOverdue,
+} from '@/modules/workflow/workflow.rules'
 import type {
   ConfidenceLevel,
   RecommendationPriority,
+  RecommendationStatus,
   RecommendationType,
   StageStatus,
 } from '@/shared/contracts/enums'
@@ -406,4 +417,276 @@ export function ruleCooperationWithoutProduct(
     confidence: 'HIGH',
     cooperationId: input.cooperationId,
   }
+}
+
+// ─────────────────────────── Правила по одной связке ─────────────────────────
+
+/** Связка со всем, что нужно правилам просрочки, застоя и выбора продукта. */
+export interface CooperationRuleInput {
+  id: string
+  productId: string | null
+  updatedAt: Date
+  university: { name: string }
+  program: { name: string }
+  stages: ReadonlyArray<{
+    stageNumber: number
+    title: string
+    status: StageStatus
+    deadline: Date | null
+    responsible: { fullName: string } | null
+    history: ReadonlyArray<{ changedAt: Date }>
+    tasks: ReadonlyArray<{ doneAt: Date | null }>
+  }>
+}
+
+/** Правила, которые смотрят на одну связку. Их рекомендации привязаны к ней. */
+export const COOPERATION_RULE_KEYS = [
+  'stage.overdue',
+  'cooperation.stalled',
+  'cooperation.no-product',
+] as const
+
+/**
+ * Все рекомендации по одной связке — для пересборки, для проверки «условие
+ * ещё выполняется?» при закрытии и для сверки после смены статуса этапа.
+ * Одна функция на все три случая: иначе закрытие и пересборка разошлись бы
+ * в том, что считать просрочкой.
+ */
+export function draftsForCooperation(
+  cooperation: CooperationRuleInput,
+  now: Date,
+): RecommendationDraft[] {
+  const drafts: RecommendationDraft[] = []
+  let hasOverdueDraft = false
+
+  for (const stage of cooperation.stages) {
+    if (!stage.deadline) continue
+    if (!isOverdue(stage.deadline, stage.status, now)) continue
+    // Этап за незавершённой контрольной точкой начать нельзя — просить «закройте
+    // этап 7», пока не подписан договор, значит советить запрещённое.
+    if (isLockedByControlPoint(stage, cooperation.stages)) continue
+
+    const draft = ruleOverdueStage(
+      {
+        cooperationId: cooperation.id,
+        universityName: cooperation.university.name,
+        programName: cooperation.program.name,
+        stageNumber: stage.stageNumber,
+        stageTitle: stage.title,
+        status: stage.status,
+        deadline: stage.deadline,
+        responsibleName: stage.responsible?.fullName ?? null,
+      },
+      now,
+    )
+    // Достаточно одной рекомендации о просрочке на связку: самый ранний просроченный этап.
+    if (draft) {
+      drafts.push(draft)
+      hasOverdueDraft = true
+      break
+    }
+  }
+
+  const current = findCurrentStage(cooperation.stages)
+  if (!current) return drafts
+
+  // Просрочка уже говорит «займитесь этой связкой». Добавлять поверх неё «связка
+  // без движения» — шум: сотрудник получит два пункта об одной и той же проблеме.
+  if (!hasOverdueDraft) {
+    const stalled = ruleStalledCooperation(
+      {
+        cooperationId: cooperation.id,
+        universityName: cooperation.university.name,
+        programName: cooperation.program.name,
+        stageNumber: current.stageNumber,
+        stageTitle: current.title,
+        stageStatus: current.status,
+        lastActivityAt: lastCooperationActivity(cooperation),
+      },
+      now,
+    )
+    if (stalled) drafts.push(stalled)
+  }
+
+  const withoutProduct = ruleCooperationWithoutProduct({
+    cooperationId: cooperation.id,
+    universityName: cooperation.university.name,
+    programName: cooperation.program.name,
+    currentStageNumber: current.stageNumber,
+    hasProduct: cooperation.productId !== null,
+  })
+  if (withoutProduct) drafts.push(withoutProduct)
+
+  return drafts
+}
+
+// ─────────────────── Закрытие и переоткрытие по условию ──────────────────────
+
+/**
+ * Переход статуса рекомендации — по таблице `RECOMMENDATION_TRANSITIONS`,
+ * общей с интерфейсом. Всё, чего в ней нет, — INVALID_TRANSITION, как у этапов
+ * и документов.
+ */
+export function assertRecommendationTransition(
+  from: RecommendationStatus,
+  to: RecommendationStatus,
+): void {
+  if (from === to) {
+    throw invalidTransition(
+      `Рекомендация уже в статусе «${RECOMMENDATION_STATUS_LABELS[to]}»`,
+      { from, to },
+    )
+  }
+  const allowed = RECOMMENDATION_TRANSITIONS[from]
+  if (allowed.includes(to)) return
+  throw invalidTransition(
+    `Недопустимый переход рекомендации: «${RECOMMENDATION_STATUS_LABELS[from]}» → ` +
+      `«${RECOMMENDATION_STATUS_LABELS[to]}»` +
+      (from === 'DONE' ? '. Если проблема вернулась, рекомендацию снова откроет пересборка.' : ''),
+    { from, to, allowed },
+  )
+}
+
+/**
+ * Правила, чьё условие проверяется по данным прямо сейчас. Рекомендацию по ним
+ * нельзя закрыть, пока условие выполняется: «Закрыть» убирала просрочку
+ * с главной, а этап оставался просроченным. И наоборот — закрытую пересборка
+ * открывает снова, если условие вернулось, кто бы её ни закрыл.
+ *
+ * Дефицит навыка сюда не входит: его действие — предложить продукт вузам,
+ * а сам дефицит после этого остаётся, пока вузы не обновят программы.
+ * Закрытие человеком здесь — «сделал, что предлагали», и пересборка его не трогает.
+ */
+export const CONDITION_CHECKED_RULES: readonly string[] = [
+  ...COOPERATION_RULE_KEYS,
+  'program.missing-metrics',
+]
+
+export function isConditionChecked(ruleKey: string): boolean {
+  return CONDITION_CHECKED_RULES.includes(ruleKey)
+}
+
+/**
+ * Закрытую рекомендацию пересборка открывает снова, если правило опять её выдаёт.
+ *
+ * Закрытие системой означает «проблема ушла», и её возвращение — снова новая
+ * проблема. Закрытие человеком по правилу с проверяемым условием значит то же:
+ * пока условие выполняется, закрыть такую сервер не даёт. Если условие снова
+ * выполняется, закрытая запись — неправда о состоянии дел, кто бы её ни закрыл.
+ *
+ * Закрытие человеком по дефициту навыка — «предложил продукт, как советовали»,
+ * сам дефицит после этого остаётся, и такое решение не переписывается.
+ * Отклонённые с основанием и принятые пересборка не трогает никогда.
+ */
+export function shouldReopen(row: {
+  status: string
+  resolvedById: string | null
+  ruleKey: string
+}): boolean {
+  if (row.status !== 'DONE') return false
+  return row.resolvedById === null || isConditionChecked(row.ruleKey)
+}
+
+/**
+ * Тот же ли это случай проблемы (`occurrenceOf`). Для правил, где случаи
+ * не различимы, — нет: вернувшаяся проблема считается новой.
+ */
+export function isSameOccurrence(
+  existing: { ruleKey: string; relatedData: unknown },
+  draft: RecommendationDraft,
+): boolean {
+  const previous = occurrenceOf(existing.ruleKey, existing.relatedData)
+  return previous !== null && previous === occurrenceOf(draft.ruleKey, draft.relatedData)
+}
+
+/**
+ * Открытые рекомендации: их условие ещё ждёт действия. Принятая — тоже открыта:
+ * «принято» при ушедшей проблеме оставляло бы в работе то, что уже неправда.
+ * Отклонённая с основанием сюда не входит — это решение человека, и система
+ * его не закрывает и не открывает.
+ */
+export const OPEN_RECOMMENDATION_STATUSES = ['NEW', 'IN_PROGRESS', 'ACCEPTED'] as const
+
+/** Ключ рекомендации: правило и объект. По нему пересборка узнаёт свою запись. */
+export function recommendationKey(row: { ruleKey: string; objectType: string; objectId: string }): string {
+  return `${row.ruleKey}::${row.objectType}::${row.objectId}`
+}
+
+/** Открытые записи, которых правила больше не выдают, — их закрывает система. */
+export function findObsolete(
+  open: ReadonlyArray<{ id: string; ruleKey: string; objectType: string; objectId: string }>,
+  actualKeys: readonly string[],
+): string[] {
+  const actual = new Set(actualKeys)
+  return open.filter((row) => !actual.has(recommendationKey(row))).map((row) => row.id)
+}
+
+/**
+ * Сверка открытых рекомендаций связки с тем, что правила выдают сейчас:
+ * всё ещё правда — обновить текст, неправда — закрыть.
+ */
+export function planCooperationSync(
+  open: ReadonlyArray<{ id: string; ruleKey: string }>,
+  drafts: readonly RecommendationDraft[],
+): { update: Array<{ id: string; draft: RecommendationDraft }>; close: string[] } {
+  const update: Array<{ id: string; draft: RecommendationDraft }> = []
+  const close: string[] = []
+  for (const row of open) {
+    const draft = drafts.find((item) => item.ruleKey === row.ruleKey)
+    if (draft) update.push({ id: row.id, draft })
+    else close.push(row.id)
+  }
+  return { update, close }
+}
+
+const CAN_DISMISS = 'рекомендацию можно отклонить с основанием.'
+
+/**
+ * Почему закрыть нельзя и что сделать вместо этого. `draft` — то, что правило
+ * выдаёт сейчас: числа в отказе — сегодняшние, а не с момента пересборки.
+ */
+export function stillActualMessage(draft: RecommendationDraft): string {
+  const data = draft.relatedData
+  switch (draft.ruleKey) {
+    case 'stage.overdue': {
+      const days = Number(data.daysOverdue ?? 0)
+      const late =
+        days === 0
+          ? `Срок этапа ${String(data.stageNumber)} истёк сегодня, этап не закрыт`
+          : `Этап ${String(data.stageNumber)} всё ещё просрочен на ${days} дн.`
+      return `${late} — закройте или перенесите этап; ${CAN_DISMISS}`
+    }
+    case 'cooperation.stalled':
+      return (
+        `Связка всё ещё без движения ${String(data.idleDays)} дн. — продвиньте этап ` +
+        `${String(data.stageNumber)} или зафиксируйте, что мешает; ${CAN_DISMISS}`
+      )
+    case 'cooperation.no-product':
+      return `IT-продукт для связки всё ещё не выбран — выберите продукт; ${CAN_DISMISS}`
+    case 'program.missing-metrics': {
+      const missing = Array.isArray(data.missing) ? (data.missing as Array<keyof typeof PROGRAM_METRIC_LABELS>) : []
+      const labels = missing.map((key) => PROGRAM_METRIC_LABELS[key]?.toLowerCase() ?? key).join(', ')
+      return `По программе всё ещё нет данных: ${labels} — внесите показатели; ${CAN_DISMISS}`
+    }
+    default:
+      return `Условие рекомендации всё ещё выполняется; ${CAN_DISMISS}`
+  }
+}
+
+/**
+ * Какой именно случай проблемы описывает рекомендация: просрочка — этап и его
+ * срок, застой — момент последнего движения. Для остальных правил случай
+ * не различим — null.
+ *
+ * Нужен при переоткрытии. Если вернулся тот же случай (например, закрытую
+ * до этого правила руками просрочку открыла пересборка), время создания
+ * не сдвигается и лента уведомлений не показывает её новой: сотрудник о ней
+ * уже знает. Другой этап или другой срок — новая проблема, новое уведомление.
+ */
+export function occurrenceOf(ruleKey: string, relatedData: unknown): string | null {
+  if (typeof relatedData !== 'object' || relatedData === null) return null
+  const data = relatedData as Record<string, unknown>
+  if (ruleKey === 'stage.overdue') return `${String(data.stageNumber)}@${String(data.deadline)}`
+  if (ruleKey === 'cooperation.stalled') return String(data.lastActivityAt)
+  return null
 }

@@ -78,6 +78,24 @@ export function findBlockingStages(
 }
 
 /**
+ * Этап не начат и стоит за незавершённой контрольной точкой: взять его в работу
+ * сейчас нельзя (`findBlockingStages`).
+ *
+ * О сроке такого этапа не напоминают ни уведомления, ни рекомендации: «просрочен
+ * этап 7» при неподписанном договоре предлагает сделать то, что система сама
+ * запрещает. Действие здесь — закрыть точку, и о ней напоминает её собственный срок.
+ * Счётчики просрочек на главной и в реестре этим правилом не пользуются: что
+ * в них считать — решение продукта.
+ */
+export function isLockedByControlPoint(
+  stage: { stageNumber: number; status: StageStatus },
+  stages: readonly PriorStageState[],
+): boolean {
+  if (stage.status !== 'NOT_STARTED') return false
+  return findBlockingStages(stage.stageNumber, stages).length > 0
+}
+
+/**
  * Проверка контрольных точек для любого этапа.
  *
  * Применяется к началу работы и к завершению — это два утверждения о процессе,

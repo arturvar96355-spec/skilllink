@@ -1,4 +1,5 @@
-import { notFound } from '@/shared/http/errors'
+import { conflict, notFound } from '@/shared/http/errors'
+import { describeForLog } from '@/shared/db/log'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
@@ -13,16 +14,16 @@ import type {
 import type { SkillLevel } from '@/shared/contracts/enums'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
-import { findCurrentStage, isOverdue } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import {
+  assertRecommendationTransition,
   compareDraftsByImportance,
-  ruleCooperationWithoutProduct,
+  draftsForCooperation,
+  isConditionChecked,
+  recommendationKey,
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
-  ruleOverdueStage,
-  lastCooperationActivity,
-  ruleStalledCooperation,
+  stillActualMessage,
   type RecommendationDraft,
 } from './recommendations.rules'
 import type {
@@ -101,13 +102,35 @@ export async function getById(user: CurrentUser, id: string): Promise<Recommenda
   return (await toRecommendationDtos([row]))[0]!
 }
 
+function missingMetricsDraft(program: {
+  id: string
+  name: string
+  applicationCount: number | null
+  studentCount: number | null
+  groupCount: number | null
+  university: { name: string }
+  _count: { cooperations: number }
+}): RecommendationDraft | null {
+  return ruleMissingProgramMetrics({
+    programId: program.id,
+    programName: program.name,
+    universityName: program.university.name,
+    applicationCount: program.applicationCount,
+    studentCount: program.studentCount,
+    groupCount: program.groupCount,
+    hasCooperation: program._count.cooperations > 0,
+  })
+}
+
 const LEVEL_ORDER: Record<SkillLevel, number> = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3 }
 
 /**
  * Прогоняет все правила и сохраняет результат.
  *
- * Рекомендации пересобираются целиком: те, что правила больше не выдают, закрываются.
- * Решения сотрудника (принято, отклонено) при этом не переписываются.
+ * Рекомендации пересобираются целиком: открытые (в том числе принятые), которые
+ * правила больше не выдают, закрываются системой — висеть «Новой» неправде незачем.
+ * Закрытые, чья проблема снова есть, открываются (`shouldReopen`). Отклонённые
+ * с основанием не переписываются никогда.
  */
 export async function generate(user: CurrentUser): Promise<RecommendationGenerationResultDto> {
   assertCan(user, 'WRITE')
@@ -118,76 +141,12 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
 
   // ── Правила по связкам ─────────────────────────────────────────────────────
   for (const cooperation of input.cooperations) {
-    let hasOverdueDraft = false
-
-    for (const stage of cooperation.stages) {
-      if (!stage.deadline) continue
-      if (!isOverdue(stage.deadline, stage.status, now)) continue
-
-      const draft = ruleOverdueStage(
-        {
-          cooperationId: cooperation.id,
-          universityName: cooperation.university.name,
-          programName: cooperation.program.name,
-          stageNumber: stage.stageNumber,
-          stageTitle: stage.title,
-          status: stage.status,
-          deadline: stage.deadline,
-          responsibleName: stage.responsible?.fullName ?? null,
-        },
-        now,
-      )
-      // Достаточно одной рекомендации о просрочке на связку: самый ранний просроченный этап.
-      if (draft) {
-        drafts.push(draft)
-        hasOverdueDraft = true
-        break
-      }
-    }
-
-    const current = findCurrentStage(cooperation.stages)
-    if (!current) continue
-
-    // Просрочка уже говорит «займитесь этой связкой». Добавлять поверх неё «связка
-    // без движения» — шум: сотрудник получит два пункта об одной и той же проблеме.
-    if (!hasOverdueDraft) {
-      const lastActivityAt = lastCooperationActivity(cooperation)
-      const stalled = ruleStalledCooperation(
-        {
-          cooperationId: cooperation.id,
-          universityName: cooperation.university.name,
-          programName: cooperation.program.name,
-          stageNumber: current.stageNumber,
-          stageTitle: current.title,
-          stageStatus: current.status,
-          lastActivityAt,
-        },
-        now,
-      )
-      if (stalled) drafts.push(stalled)
-    }
-
-    const withoutProduct = ruleCooperationWithoutProduct({
-      cooperationId: cooperation.id,
-      universityName: cooperation.university.name,
-      programName: cooperation.program.name,
-      currentStageNumber: current.stageNumber,
-      hasProduct: cooperation.productId !== null,
-    })
-    if (withoutProduct) drafts.push(withoutProduct)
+    drafts.push(...draftsForCooperation(cooperation, now))
   }
 
   // ── Правило по недостающим показателям программ ────────────────────────────
   for (const program of input.programs) {
-    const draft = ruleMissingProgramMetrics({
-      programId: program.id,
-      programName: program.name,
-      universityName: program.university.name,
-      applicationCount: program.applicationCount,
-      studentCount: program.studentCount,
-      groupCount: program.groupCount,
-      hasCooperation: program._count.cooperations > 0,
-    })
+    const draft = missingMetricsDraft(program)
     if (draft) drafts.push(draft)
   }
 
@@ -261,7 +220,7 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   const { created, updated, keys } = await repo.upsertDrafts(drafts, now)
   const stillActualKeys = [
     ...keys,
-    ...deferredGaps.map((draft) => `${draft.ruleKey}::${draft.objectType}::${draft.objectId}`),
+    ...deferredGaps.map(recommendationKey),
   ]
   const closed = await repo.closeObsolete(stillActualKeys)
 
@@ -282,6 +241,36 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   }
 }
 
+/**
+ * Что правило рекомендации выдаёт по её объекту прямо сейчас.
+ * null — условие больше не выполняется: проблема ушла.
+ */
+async function currentDraft(
+  row: { ruleKey: string; objectType: string; objectId: string },
+  now: Date,
+): Promise<RecommendationDraft | null> {
+  if (row.objectType === 'Cooperation') {
+    const cooperation = await repo.loadCooperationForRules(row.objectId)
+    if (!cooperation) return null
+    return draftsForCooperation(cooperation, now).find((draft) => draft.ruleKey === row.ruleKey) ?? null
+  }
+  if (row.objectType === 'EducationalProgram') {
+    const program = await repo.loadProgramForRules(row.objectId)
+    return program ? missingMetricsDraft(program) : null
+  }
+  return null
+}
+
+/**
+ * Сотрудник меняет статус рекомендации.
+ *
+ * Переход проверяется по общей с интерфейсом таблице: `DONE → NEW` руками
+ * не делается — закрытую, если проблема вернулась, открывает пересборка.
+ *
+ * Закрыть (`DONE`) рекомендацию с проверяемым условием можно, только когда
+ * условие ушло. Иначе «Закрыть» убирает просроченный этап с главной, а он
+ * по-прежнему просрочен. Не согласен с рекомендацией — отклонить с основанием.
+ */
 export async function updateStatus(
   user: CurrentUser,
   id: string,
@@ -292,7 +281,25 @@ export async function updateStatus(
   const existing = await repo.findById(id)
   if (!existing) throw notFound('Рекомендация не найдена')
 
-  const row = await repo.updateStatus(id, input.status, user.id, input.comment ?? null)
+  assertRecommendationTransition(existing.status, input.status)
+
+  if (input.status === 'DONE' && isConditionChecked(existing.ruleKey)) {
+    const draft = await currentDraft(existing, new Date())
+    if (draft) {
+      throw conflict(stillActualMessage(draft), {
+        ruleKey: existing.ruleKey,
+        reason: 'CONDITION_STILL_HOLDS',
+        relatedData: draft.relatedData,
+      })
+    }
+  }
+
+  const row = await repo.updateStatus(id, existing.status, input.status, user.id, input.comment ?? null)
+  if (!row) {
+    throw conflict('Рекомендацию уже изменили. Обновите страницу и повторите действие.', {
+      expectedStatus: existing.status,
+    })
+  }
 
   await writeAudit({
     userId: user.id,
@@ -303,4 +310,23 @@ export async function updateStatus(
   })
 
   return (await toRecommendationDtos([row]))[0]!
+}
+
+/**
+ * Сверяет открытые рекомендации связки с её этапами — после смены статуса
+ * или срока этапа. Завершили просроченный этап — «Просрочен этап 6» закрывается
+ * сразу, а не висит «Новой» до пересборки; просрочка перешла на следующий этап —
+ * рекомендация говорит о нём.
+ *
+ * Вызывается после транзакции этапа и не бросает: сбой сверки не должен
+ * отменять уже записанную смену статуса. Недосверенное доделает пересборка.
+ */
+export async function syncCooperation(cooperationId: string): Promise<void> {
+  try {
+    const cooperation = await repo.loadCooperationForRules(cooperationId)
+    const drafts = cooperation ? draftsForCooperation(cooperation, new Date()) : []
+    await repo.syncCooperation(cooperationId, drafts)
+  } catch (error) {
+    console.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', describeForLog(error))
+  }
 }

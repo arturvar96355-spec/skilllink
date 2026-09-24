@@ -15,6 +15,26 @@ import type {
  */
 export const RECOMMENDATION_SORT_MOST_IMPORTANT = '-priority'
 
+/**
+ * Куда можно перевести рекомендацию из текущего статуса. Одна таблица на сервер
+ * и интерфейс: сервер отвечает INVALID_TRANSITION на всё, чего здесь нет,
+ * интерфейс показывает только эти кнопки.
+ *
+ * Закрытая (`DONE`) руками не переоткрывается: если проблема вернулась,
+ * её снова откроет пересборка. Отклонённую можно вернуть в новые.
+ *
+ * Закрыть рекомендацию, чьё условие проверяется по данным (просрочка, застой,
+ * продукт не выбран, нет показателей), можно только когда условие ушло, —
+ * это проверяет сервер отдельно от таблицы (CONFLICT).
+ */
+export const RECOMMENDATION_TRANSITIONS: Record<RecommendationStatus, readonly RecommendationStatus[]> = {
+  NEW: ['IN_PROGRESS', 'ACCEPTED', 'DISMISSED'],
+  IN_PROGRESS: ['DONE', 'ACCEPTED', 'DISMISSED'],
+  ACCEPTED: ['DONE', 'DISMISSED'],
+  DISMISSED: ['NEW'],
+  DONE: [],
+}
+
 /** Ссылка на объект, к которому относится рекомендация. */
 export interface RecommendationTargetDto {
   objectType: 'Cooperation' | 'EducationalProgram' | 'University' | 'Skill'

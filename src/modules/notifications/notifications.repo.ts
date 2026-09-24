@@ -3,6 +3,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { resolveTargetLabels, targetKey } from '@/modules/recommendations/recommendations.repo'
+import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
 import type {
   DocumentChangeSource,
   FeedSources,
@@ -10,6 +11,13 @@ import type {
   StageChangeSource,
   StageDeadlineSource,
 } from './notifications.rules'
+
+/** Номер этапа из данных рекомендации — у просрочки он там всегда есть. */
+function stageNumberOf(relatedData: unknown): number | null {
+  if (typeof relatedData !== 'object' || relatedData === null) return null
+  const value = (relatedData as Record<string, unknown>).stageNumber
+  return typeof value === 'number' ? value : null
+}
 
 /** Больше этого из одного источника ленте не нужно: она всё равно короче. */
 const PER_SOURCE = 50
@@ -124,7 +132,12 @@ export async function loadForStaff(
         deadline: true,
         cooperationId: true,
         cooperation: {
-          select: { university: { select: { name: true, shortName: true } }, program: { select: { name: true } } },
+          select: {
+            university: { select: { name: true, shortName: true } },
+            program: { select: { name: true } },
+            // Этапы связки — чтобы узнать, не заперт ли этап контрольной точкой.
+            stages: { select: { stageNumber: true, title: true, status: true } },
+          },
         },
       },
     }),
@@ -161,6 +174,8 @@ export async function loadForStaff(
       take: PER_SOURCE,
       select: {
         id: true,
+        ruleKey: true,
+        relatedData: true,
         title: true,
         objectType: true,
         objectId: true,
@@ -186,6 +201,7 @@ export async function loadForStaff(
               cooperationId: row.cooperationId,
               universityName: row.cooperation.university.shortName ?? row.cooperation.university.name,
               programName: row.cooperation.program.name,
+              lockedByControlPoint: isLockedByControlPoint(row, row.cooperation.stages),
             },
           ]
         : [],
@@ -195,6 +211,8 @@ export async function loadForStaff(
     recommendations: recommendations.map(
       (row): RecommendationSource => ({
         id: row.id,
+        ruleKey: row.ruleKey,
+        stageNumber: stageNumberOf(row.relatedData),
         title: row.title,
         label: labels.get(targetKey(row.objectType, row.objectId)) ?? row.title,
         priority: row.priority,
