@@ -5,6 +5,7 @@
  * Запуск: npm run dev, затем в другом окне npm run smoke
  */
 import 'dotenv/config'
+import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -1469,18 +1470,51 @@ async function main(): Promise<void> {
   // ── 21. Групповая операция по IT-продукту ──────────────────────────────────
   step('21. Выпуск новой версии продукта: групповая операция')
 
-  // Сценарий сам готовит предусловие: закрывает этап 12 в собственной связке.
-  // Иначе проверка переоткрытия зависела бы от того, запускался ли сценарий раньше.
-  const ownStages = await call<
-    Array<{
-      id: string
-      stageNumber: number
-      status: string
-      tasks: Array<{ id: string; isRequired: boolean; isDone: boolean }>
-    }>
-  >('GET', `/api/cooperations/${cooperationId}/stages`)
-  const stage12 = (ownStages.body.data ?? []).find((stage) => stage.stageNumber === 12)
-  check('этап 12 найден в собственной связке', Boolean(stage12))
+  // Сценарий сам готовит предусловие — в отдельной связке, чтобы не менять ту,
+  // на которой держатся шаги выше, и не зависеть от прошлых запусков. Связка
+  // проводится до этапа 12 по правилам: обычные этапы отменяются с основанием,
+  // контрольные точки 6, 7 и 11 завершаются с чек-листом и результатом — иначе
+  // шлагбаум (решение 78) не пустит к этапу 12.
+  type ReleaseStage = {
+    id: string
+    stageNumber: number
+    status: string
+    tasks: Array<{ id: string; isRequired: boolean; isDone: boolean }>
+  }
+  const releaseCooperation = await call<{ id: string; stages: ReleaseStage[] }>(
+    'POST',
+    '/api/cooperations',
+    {
+      universityId,
+      programId,
+      productId,
+      responsibleId: managerId,
+      goal: 'Связка сквозного сценария для выпуска версии продукта',
+    },
+  )
+  const releaseCooperationId = releaseCooperation.body.data?.id
+  const releaseStages = [...(releaseCooperation.body.data?.stages ?? [])].sort(
+    (left, right) => left.stageNumber - right.stageNumber,
+  )
+  for (const stage of releaseStages.filter((item) => item.stageNumber < 12)) {
+    if (CONTROL_POINT_STAGES.includes(stage.stageNumber)) {
+      await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'IN_PROGRESS' })
+      for (const task of stage.tasks.filter((item) => item.isRequired && !item.isDone)) {
+        await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+      }
+      await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+        status: 'COMPLETED',
+        result: 'Пройдено сквозным сценарием',
+      })
+    } else {
+      await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+        status: 'CANCELLED',
+        comment: 'Не требуется для проверки выпуска версии',
+      })
+    }
+  }
+  const stage12 = releaseStages.find((stage) => stage.stageNumber === 12)
+  check('этап 12 найден в связке для выпуска версии', Boolean(stage12))
 
   if (stage12 && productId) {
     await call('PATCH', `/api/workflow/stages/${stage12.id}`, { status: 'IN_PROGRESS' })
@@ -1524,7 +1558,8 @@ async function main(): Promise<void> {
     check(
       'собственная связка попала в план с переоткрытием',
       (preview.body.data?.targets ?? []).some(
-        (target) => target.cooperationId === cooperationId && target.effect === 'stage-reopened',
+        (target) =>
+          target.cooperationId === releaseCooperationId && target.effect === 'stage-reopened',
       ),
     )
 
@@ -1561,7 +1596,7 @@ async function main(): Promise<void> {
         status: string
         tasks: Array<{ title: string; isRequired: boolean; isDone: boolean }>
       }>
-    }>('GET', `/api/cooperations/${cooperationId}`)
+    }>('GET', `/api/cooperations/${releaseCooperationId}`)
     const stage12After = reopened.body.data?.stages.find((stage) => stage.stageNumber === 12)
     check('закрытый этап переоткрыт', stage12After?.status === 'IN_PROGRESS', `статус ${stage12After?.status}`)
 

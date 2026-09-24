@@ -326,7 +326,7 @@ describe('контрольные точки (гибридный порядок �
       status,
     }))
 
-  it('обычный этап проверку не проходит вовсе', () => {
+  it('этап до первой контрольной точки ничего не ждёт', () => {
     expect(isControlPoint(3)).toBe(false)
     expect(() =>
       assertControlPointReady(3, 'IN_PROGRESS', prior([[1, 'NOT_STARTED']])),
@@ -418,6 +418,7 @@ describe('контрольные точки (гибридный порядок �
 
   it('мешающие этапы перечислены по возрастанию номера', () => {
     const blocking = findBlockingStages(
+      11,
       prior([
         [9, 'NOT_STARTED'],
         [7, 'BLOCKED'],
@@ -455,9 +456,89 @@ describe('контрольные точки (гибридный порядок �
     expect(() => assertChecklistReady(7, false, prior([[6, 'IN_PROGRESS']]))).not.toThrow()
   })
 
-  it('пункты обычного этапа и открытой контрольной точки отмечаются', () => {
-    expect(() => assertChecklistReady(8, true, prior([[6, 'IN_PROGRESS']]))).not.toThrow()
+  it('пункты этапа до точки и открытой контрольной точки отмечаются', () => {
+    expect(() => assertChecklistReady(3, true, prior([[1, 'NOT_STARTED']]))).not.toThrow()
     expect(() => assertChecklistReady(7, true, prior([[6, 'COMPLETED']]))).not.toThrow()
+    expect(() =>
+      assertChecklistReady(8, true, prior([[6, 'COMPLETED'], [7, 'COMPLETED']])),
+    ).not.toThrow()
+  })
+
+  it('пункты этапа за незавершённой точкой не отмечаются', () => {
+    // «Продукт развёрнут у вуза» до подписанного договора — та же неправда.
+    expect(() => assertChecklistReady(8, true, prior([[6, 'IN_PROGRESS'], [7, 'NOT_STARTED']]))).toThrow(
+      /Этап 8 идёт после контрольной точки: его пункты нельзя отмечать/,
+    )
+  })
+})
+
+describe('контрольная точка — шлагбаум для всех следующих этапов', () => {
+  const prior = (
+    entries: Array<[number, StageStatus]>,
+  ): Array<{ stageNumber: number; title: string; status: StageStatus }> =>
+    entries.map(([stageNumber, status]) => ({ stageNumber, title: `Этап ${stageNumber}`, status }))
+
+  it('этап 8 не начать и не завершить, пока не завершён этап 7', () => {
+    const before = prior([
+      [6, 'IN_PROGRESS'],
+      [7, 'NOT_STARTED'],
+    ])
+    expect(() => assertControlPointReady(8, 'IN_PROGRESS', before)).toThrow(
+      /Этап 8 идёт после контрольной точки: его нельзя начать.*6 «Этап 6», 7 «Этап 7»/,
+    )
+    expect(() => assertControlPointReady(8, 'COMPLETED', before)).toThrow(AppError)
+  })
+
+  it('отменённая контрольная точка дальше не пускает', () => {
+    // «Договор не понадобился» не значит «договор подписан»: отмена этапа 6
+    // комментарием «.» открывала передачу лицензии.
+    expect(() =>
+      assertControlPointReady(
+        7,
+        'IN_PROGRESS',
+        prior([
+          [1, 'COMPLETED'],
+          [2, 'COMPLETED'],
+          [3, 'COMPLETED'],
+          [4, 'COMPLETED'],
+          [5, 'CANCELLED'],
+          [6, 'CANCELLED'],
+        ]),
+      ),
+    ).toThrow(/Не закрыты: 6 «Этап 6»/)
+    expect(() =>
+      assertControlPointReady(9, 'IN_PROGRESS', prior([[6, 'COMPLETED'], [7, 'CANCELLED']])),
+    ).toThrow(/Не завершены: 7 «Этап 7»/)
+  })
+
+  it('этапы 8–10 после завершённой точки 7 идут в любом порядке', () => {
+    const passed = prior([
+      [6, 'COMPLETED'],
+      [7, 'COMPLETED'],
+      [8, 'NOT_STARTED'],
+    ])
+    expect(() => assertControlPointReady(9, 'IN_PROGRESS', passed)).not.toThrow()
+    expect(() => assertControlPointReady(10, 'COMPLETED', passed)).not.toThrow()
+  })
+
+  it('этапы 12 и 13 ждут завершения этапа 11', () => {
+    expect(() =>
+      assertControlPointReady(
+        12,
+        'IN_PROGRESS',
+        prior([
+          [6, 'COMPLETED'],
+          [7, 'COMPLETED'],
+          [11, 'IN_PROGRESS'],
+        ]),
+      ),
+    ).toThrow(/Не завершены: 11 «Этап 11»/)
+  })
+
+  it('блокировать и отменять этап за точкой можно: это не утверждение о работе', () => {
+    const closed = prior([[6, 'IN_PROGRESS']])
+    expect(() => assertControlPointReady(8, 'BLOCKED', closed)).not.toThrow()
+    expect(() => assertControlPointReady(8, 'CANCELLED', closed)).not.toThrow()
   })
 })
 
