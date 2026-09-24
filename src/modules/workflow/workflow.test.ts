@@ -7,6 +7,7 @@ import {
   isControlPoint,
   findBlockingStages,
   assertChecklistReady,
+  assertControlPointCancellable,
   assertControlPointReady,
   ALLOWED_TRANSITIONS,
   assertTasksEditable,
@@ -643,3 +644,24 @@ describe('дни — по московскому календарю', () => {
   })
 })
 
+
+describe('отмена контрольной точки', () => {
+  const later = (entries: Array<[number, StageStatus]>) =>
+    entries.map(([stageNumber, status]) => ({ stageNumber, title: `Этап ${stageNumber}`, status }))
+
+  it('нельзя, если за ней уже идёт работа', () => {
+    expect(() =>
+      assertControlPointCancellable(6, later([[7, 'IN_PROGRESS'], [8, 'NOT_STARTED']])),
+    ).toThrow(/Этап 6 — контрольная точка: его нельзя отменить.*Уже начаты: 7 «Этап 7»/)
+  })
+
+  it('можно, пока следующие этапы не начаты или отменены', () => {
+    expect(() =>
+      assertControlPointCancellable(6, later([[7, 'NOT_STARTED'], [8, 'CANCELLED'], [14, 'IN_PROGRESS']])),
+    ).not.toThrow()
+  })
+
+  it('обычный этап отменяется без этой проверки', () => {
+    expect(() => assertControlPointCancellable(5, later([[7, 'IN_PROGRESS']]))).not.toThrow()
+  })
+})

@@ -100,6 +100,39 @@ export function assertControlPointReady(
 }
 
 /**
+ * Контрольную точку нельзя отменить, если за ней уже идёт работа.
+ *
+ * Иначе этап 7 продолжал жить «в работе» после отмены подписания, а кабинет вуза
+ * при этом писал «не закрыт этап 6»: система противоречила сама себе. Переоткрыть
+ * точку можно (договор бывает нужно переподписать) — тогда этапы за ней не завершатся,
+ * пока точка не завершена снова.
+ */
+export function assertControlPointCancellable(
+  stageNumber: number,
+  laterStages: readonly PriorStageState[],
+): void {
+  if (!isControlPoint(stageNumber)) return
+  const started = laterStages
+    .filter((stage) => stage.stageNumber > stageNumber && !isAutoManaged(stage.stageNumber))
+    .filter((stage) => stage.status !== 'NOT_STARTED' && stage.status !== 'CANCELLED')
+    .sort((left, right) => left.stageNumber - right.stageNumber)
+  if (started.length === 0) return
+  throw invalidTransition(
+    `Этап ${stageNumber} — контрольная точка: его нельзя отменить, пока за ним идёт работа. ` +
+      `Уже начаты: ${describeBlockingStages(started)}.`,
+    {
+      stageNumber,
+      isControlPoint: true,
+      blockingStages: started.map((stage) => ({
+        stageNumber: stage.stageNumber,
+        title: stage.title,
+        status: stage.status,
+      })),
+    },
+  )
+}
+
+/**
  * Пункт чек-листа не отмечается там, куда контрольная точка ещё не пускает.
  *
  * Начать этап 7 до подписания договора было нельзя, а отметить в его чек-листе
