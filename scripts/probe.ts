@@ -31,7 +31,11 @@ function actAs(userId: string | null): void {
 
 interface Result<T> {
   status: number
-  body: { data?: T; meta?: Record<string, unknown>; error?: { code: string; message: string } }
+  body: {
+    data?: T
+    meta?: Record<string, unknown>
+    error?: { code: string; message: string; details?: unknown }
+  }
   raw: string
 }
 
@@ -739,17 +743,19 @@ async function main(): Promise<void> {
       city: 'Тверь',
       region: 'Тверская область',
     })
-    const program = await call<{ id: string }>('POST', '/api/programs', {
-      universityId: uni.body.data?.id,
-      name: `Пробная программа очереди ${sfx}`,
-      level: 'BACHELOR',
-    })
 
     // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
     // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
     // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    // У каждого раунда своя программа: вторая незакрытая связка на ту же
+    // «вуз + программа + продукт» запрещена (решение 80).
     const finals: string[] = []
     for (let round = 0; round < 3; round += 1) {
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа очереди ${sfx}-${round + 1}`,
+        level: 'BACHELOR',
+      })
       const created = await call<{ id: string; stages: Array<{ id: string; stageNumber: number }> }>(
         'POST',
         '/api/cooperations',
@@ -1053,6 +1059,35 @@ async function main(): Promise<void> {
       `документов по шаблонам ${keys.length}, разных ${new Set(keys).size}`,
     )
 
+    // Ещё одно нажатие — ни одного нового документа. Договор здесь заведён вручную
+    // (и выпущен новой версией), продукт у связки не выбран: пакет не должен ни
+    // добавить второй договор, ни собрать «Лицензию на IT-продукт «______»».
+    const again = await call<{
+      created: unknown[]
+      skipped: Array<{ templateKey: string; templateName: string; reason: string }>
+    }>('POST', `/api/cooperations/${cooperationId}/documents/generate`)
+    const skippedReason = (key: string) =>
+      again.body.data?.skipped.find((item) => item.templateKey === key)?.reason ?? ''
+    check(
+      'повторный «Собрать пакет» не создаёт документов',
+      again.status === 200 && (again.body.data?.created.length ?? -1) === 0,
+      `создано ${again.body.data?.created.length ?? '—'}, код ${again.status}`,
+    )
+    check(
+      'договор, заведённый вручную, пакет не дублирует',
+      !keys.includes('agreement') && skippedReason('agreement').startsWith('уже есть:'),
+      skippedReason('agreement'),
+    )
+    check(
+      'лицензия без выбранного продукта не собирается',
+      !keys.includes('license') && skippedReason('license').includes('не выбран IT-продукт'),
+      skippedReason('license'),
+    )
+    check(
+      'пропущенные шаблоны названы по-русски, не ключами',
+      (again.body.data?.skipped ?? []).every((item) => /[а-яА-Я]/.test(item.templateName)),
+    )
+
     // Утверждённый документ без текста: ссылку не стереть, пустой не подписать.
     const approved = await call<{ id: string }>('POST', '/api/documents', {
       type: 'AGREEMENT',
@@ -1079,6 +1114,56 @@ async function main(): Promise<void> {
       'несуществующий продукт — ошибка поля, а не «связка не найдена»',
       badProduct.status === 422,
       `код ${badProduct.status}`,
+    )
+
+    // Вторая незакрытая связка на те же «вуз + программа + продукт» (продукт не выбран —
+    // тоже значение) — 409 со ссылкой на существующую.
+    const duplicate = await call('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check(
+      'дубль незакрытой связки — 409 со ссылкой на существующую',
+      duplicate.status === 409 &&
+        (duplicate.body.error?.details as { cooperationId?: string } | undefined)?.cooperationId ===
+          cooperationId,
+      `код ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+    )
+
+    // Закрытая связка новой не мешает: сотрудничество можно начать заново.
+    await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'CANCELLED' })
+    const afterClosed = await call<{ id: string }>('POST', '/api/cooperations', {
+      universityId: uni.body.data?.id,
+      programId: program.body.data?.id,
+      responsibleId: managerId,
+    })
+    check('после закрытия прежней связка заводится заново', afterClosed.status === 201, `код ${afterClosed.status}`)
+
+    // И переоткрыть прежнюю, пока открыта новая такая же, нельзя.
+    const reopenDuplicate = await call('PATCH', `/api/cooperations/${cooperationId}`, { status: 'ACTIVE' })
+    check('переоткрытие в дубль — 409', reopenDuplicate.status === 409, `код ${reopenDuplicate.status}`)
+
+    // Двойное «Создать связку» — одна связка, второй запрос получает 409.
+    const raceProgram = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа двойного создания ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const doubleCreate = await Promise.all(
+      [0, 1].map(() =>
+        call('POST', '/api/cooperations', {
+          universityId: uni.body.data?.id,
+          programId: raceProgram.body.data?.id,
+          responsibleId: managerId,
+        }),
+      ),
+    )
+    const createStatuses = doubleCreate.map((result) => result.status).sort()
+    check(
+      'двойное «Создать связку» — одна связка',
+      createStatuses.join(',') === '201,409',
+      `коды ${createStatuses.join(', ')}`,
     )
   }
 

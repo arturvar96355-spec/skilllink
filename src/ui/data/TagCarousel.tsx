@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'motion/react'
 import { IconButton } from '../primitives/IconButton'
 import { Icon } from '../primitives/Icon'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import { expandInto } from '../lib/expand'
 import styles from './TagCarousel.module.css'
 
@@ -104,7 +104,7 @@ export function TagCarousel<T>({
   getIndexMeta,
 }: TagCarouselProps<T>) {
   const router = useRouter()
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   /** Идёт уход на страницу объекта: `stack` — бирки складываются, `go` — бирка перетекает в страницу. */
   const [leaving, setLeaving] = useState<'stack' | 'go' | null>(null)
   const [index, setIndex] = useState(0)

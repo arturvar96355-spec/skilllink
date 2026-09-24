@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useCalmMotion } from '../hooks/ui-mode'
 
 /** Насколько кнопка тянется за курсором: доля расстояния и потолок в пикселях. */
 const PULL = 0.18
@@ -14,16 +15,14 @@ const REACH_PX = 36
  * возвращается. Двигается свойство `translate` — у `transform` кнопки своё
  * движение при наведении и нажатии, одно другого не сбивает. Смещение не больше
  * 4 px: кнопка не уходит из-под курсора. Один обработчик на весь документ;
- * при «уменьшить движение» и на сенсорных экранах выключено.
+ * при «уменьшить движение», в рабочем режиме (решение 80) и на сенсорных
+ * экранах выключено.
  */
 export function useMagneticButtons(): void {
+  const calm = useCalmMotion()
+
   useEffect(() => {
-    if (
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      !window.matchMedia('(pointer: fine)').matches
-    ) {
-      return
-    }
+    if (calm || !window.matchMedia('(pointer: fine)').matches) return
 
     let active: HTMLElement | null = null
     let frame = 0
@@ -71,5 +70,5 @@ export function useMagneticButtons(): void {
       cancelAnimationFrame(frame)
       release()
     }
-  }, [])
+  }, [calm])
 }

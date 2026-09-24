@@ -87,6 +87,20 @@
   gap: var(--space-2);
 }
 
+/* Переключатель режима интерфейса (UiModeSwitch, решение 80). */
+.modeSwitch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* В шапке — только на широком экране: на узком места нет, режим — в настройках и кабинете. */
+@media (max-width: 1080px) {
+  .modeSwitchHeader {
+    display: none;
+  }
+}
+
 .profile {
   display: inline-flex;
   align-items: center;
@@ -479,6 +493,11 @@
   .haze {
     animation: none;
   }
+}
+
+/* Рабочий режим (решение 80): фон неподвижен — дымка не дышит, свечение не ходит за курсором. */
+:global(html[data-mode='work']) .haze {
+  animation: none;
 }
 
 /* ── Нижняя панель разделов на телефоне (решение 79) ─────────────────────── */

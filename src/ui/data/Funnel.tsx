@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import { formatNumber } from '../lib/format'
 import styles from './Funnel.module.css'
 
@@ -67,7 +67,7 @@ function bandPath(values: number[], max: number, scale: number, clampTo: number)
 }
 
 export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [hovered, setHovered] = useState<number | null>(null)
   const max = steps[0]?.value ?? 0
   const values = steps.map((step) => step.value)

@@ -8594,7 +8594,7 @@
           "Сотрудничество"
         ],
         "summary": "Создать связку",
-        "description": "Сразу создаются все 14 этапов с чек-листами и нормативными сроками.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Сразу создаются все 14 этапов с чек-листами и нормативными сроками. Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT с details.cooperationId существующей.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
         "operationId": "post_api_cooperations",
         "responses": {
           "201": {
@@ -8705,6 +8705,50 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
             "content": {
               "application/json": {
                 "schema": {
@@ -9783,7 +9827,7 @@
           "Документы"
         ],
         "summary": "Собрать пакет документов из шаблонов",
-        "description": "Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком и перечисляются в ответе.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
         "operationId": "post_api_cooperations__id__documents_generate",
         "parameters": [
           {
@@ -9905,6 +9949,50 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
             "content": {
               "application/json": {
                 "schema": {

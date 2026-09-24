@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'motion/react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import { RUSSIA_PATH, RUSSIA_VIEWBOX, projectRussia } from './russia-map'
 import styles from './RussiaMap.module.css'
 
@@ -27,7 +27,7 @@ export interface MapPoint {
 }
 
 export function RussiaMap({ points, label }: { points: MapPoint[]; label: string }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [hovered, setHovered] = useState<string | null>(null)
   const max = Math.max(1, ...points.map((point) => point.value))
   const placed = points.map((point) => ({ ...point, ...projectRussia(point.lat, point.lon) }))

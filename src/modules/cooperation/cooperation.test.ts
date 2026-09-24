@@ -7,6 +7,7 @@ import {
 } from './cooperation.schema'
 import {
   assertCooperationEditable,
+  assertNoDuplicateCooperation,
   assertProgramBelongsToUniversity,
   buildStages,
 } from './cooperation.rules'
@@ -107,5 +108,33 @@ describe('валидация связки', () => {
     const parsed = updateCooperationSchema.safeParse({ goal: 'Новая цель' })
     expect(parsed.success).toBe(true)
     expect(parsed.success && 'status' in parsed.data).toBe(false)
+  })
+})
+
+describe('одна незакрытая связка на «вуз + программа + продукт»', () => {
+  it('без дубля — проходит', () => {
+    expect(() => assertNoDuplicateCooperation(null)).not.toThrow()
+  })
+
+  it('дубль — 409 с названием, статусом и ссылкой на существующую связку', () => {
+    try {
+      assertNoDuplicateCooperation({
+        id: 'coop-1',
+        status: 'ACTIVE',
+        universityName: 'СПбГУТ',
+        programName: 'Информационная безопасность',
+      })
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError)
+      const appError = error as AppError
+      expect(appError.code).toBe('CONFLICT')
+      expect(appError.status).toBe(409)
+      expect(appError.message).toBe(
+        'Такая связка уже есть: СПбГУТ — Информационная безопасность, статус «В работе»',
+      )
+      expect(appError.details).toEqual({ cooperationId: 'coop-1' })
+      return
+    }
+    throw new Error('Ожидался отказ CONFLICT')
   })
 })
