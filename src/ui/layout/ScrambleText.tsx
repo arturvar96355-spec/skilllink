@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 
 /**
  * Текст, который проявляется из «рассыпки» (решение 79, по образцу смены слова
@@ -13,7 +13,7 @@ const GLYPHS = 'АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ01234567
 const DURATION = 700
 
 export function ScrambleText({ text }: { text: string }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [shown, setShown] = useState(text)
 
   useEffect(() => {

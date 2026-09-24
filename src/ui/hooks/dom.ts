@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pushEscapeLayer } from './escape-stack'
+import { useCalmMotion } from './ui-mode'
 
 /** Закрытие всплывающих окон щелчком вне их области. */
 export function useOutsideClick<T extends HTMLElement>(
@@ -60,20 +61,8 @@ export function useDebounced<T>(value: T, delay = 300): T {
   return debounced
 }
 
-/** Пользователь просил систему убрать анимации. */
-export function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false)
-
-  useEffect(() => {
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)')
-    setReduced(query.matches)
-    const handle = (event: MediaQueryListEvent) => setReduced(event.matches)
-    query.addEventListener('change', handle)
-    return () => query.removeEventListener('change', handle)
-  }, [])
-
-  return reduced
-}
+/** Пользователь просил систему убрать анимации. Живёт рядом с режимом интерфейса. */
+export { usePrefersReducedMotion } from './ui-mode'
 
 /** Ширина окна меньше указанной — сайдбар и таблицы перестраиваются. */
 export function useMediaQuery(query: string): boolean {
@@ -131,7 +120,8 @@ export function useStoredValue(key: string, initial: string | null = null) {
  * права показать значение, которого нет в данных.
  */
 export function useCountUp(target: number | null, duration = 800): number | null {
-  const reduced = usePrefersReducedMotion()
+  // В рабочем режиме число стоит сразу — аналитик читает его, а не ждёт.
+  const reduced = useCalmMotion()
   const [value, setValue] = useState<number | null>(target)
 
   useEffect(() => {

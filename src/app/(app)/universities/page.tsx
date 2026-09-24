@@ -36,6 +36,7 @@ import {
   useDebounced,
   useResource,
   useStoredValue,
+  useUiMode,
   usePageInRange,
   type Column,
   ListTitle,
@@ -86,8 +87,12 @@ export default function UniversitiesPage() {
   const [page, setPage] = useState(1)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
-  const storedView = useStoredValue('skilllink.universities.view', 'cards')
-  const view = storedView.value === 'list' ? 'list' : 'cards'
+  // Пока человек сам не выбирал, вид — по режиму интерфейса (решение 80):
+  // в рабочем список, в презентационном бирки.
+  const { isWork } = useUiMode()
+  const storedView = useStoredValue('skilllink.universities.view')
+  const view =
+    storedView.value === 'list' || storedView.value === 'cards' ? storedView.value : isWork ? 'list' : 'cards'
   // Щелчок по центральной бирке раскрывает граф связей вуза (решение 79).
   const [graph, setGraph] = useState<GraphOrigin | null>(null)
 

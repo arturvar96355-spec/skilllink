@@ -43,6 +43,7 @@ import {
   useDebounced,
   useResource,
   useStoredValue,
+  useUiMode,
   usePageInRange,
   type Column,
   ListTitle,
@@ -94,8 +95,12 @@ export default function ProgramsPage() {
   const user = useCurrentUser()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
-  const storedView = useStoredValue('skilllink.programs.view', 'cards')
-  const view = storedView.value === 'list' ? 'list' : 'cards'
+  // Пока человек сам не выбирал, вид — по режиму интерфейса (решение 80):
+  // в рабочем список, в презентационном бирки.
+  const { isWork } = useUiMode()
+  const storedView = useStoredValue('skilllink.programs.view')
+  const view =
+    storedView.value === 'list' || storedView.value === 'cards' ? storedView.value : isWork ? 'list' : 'cards'
 
   const query = useDebounced(search)
 

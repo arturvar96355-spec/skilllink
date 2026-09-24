@@ -18,7 +18,7 @@ import {
   formatNumber,
   productHref,
   programHref,
-  usePrefersReducedMotion,
+  useCalmMotion,
   useResource,
 } from '@/ui'
 import styles from './UniversityGraph.module.css'
@@ -82,7 +82,7 @@ export function UniversityGraph({
   /** Короткое имя для узла вуза. */
   universityCode: string
 }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [filter, setFilter] = useState<Filter>('ALL')
   const [hovered, setHovered] = useState<string | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)

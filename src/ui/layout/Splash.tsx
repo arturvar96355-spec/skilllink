@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { UI_MODE_ATTRIBUTE } from '../lib/ui-mode'
 import styles from './Splash.module.css'
 
 /** Отметка в sessionStorage: заставку в этой вкладке уже показали. */
@@ -14,11 +15,13 @@ const WORD = 'SkillLink'
 const STAGES = 14
 
 /**
- * Скрипт до первой отрисовки: заставку уже видели в этой вкладке или просили
- * «уменьшить движение» — она не показывается вовсе, даже на кадр. Работает
- * до загрузки JavaScript приложения, поэтому встроенный.
+ * Скрипт до первой отрисовки: заставку уже видели в этой вкладке, просили
+ * «уменьшить движение» или выбран рабочий режим интерфейса (решение 80) —
+ * она не показывается вовсе, даже на кадр. Работает до загрузки JavaScript
+ * приложения, поэтому встроенный. Идёт после `UI_MODE_BOOT_SCRIPT`: режим
+ * к этому моменту уже стоит атрибутом на `<html>`.
  */
-export const SPLASH_BOOT_SCRIPT = `window.__splashStart=performance.now();try{if(sessionStorage.getItem('${SEEN_KEY}')||matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.setAttribute('data-splash','skip')}}catch(e){}`
+export const SPLASH_BOOT_SCRIPT = `window.__splashStart=performance.now();try{if(document.documentElement.getAttribute('${UI_MODE_ATTRIBUTE}')!=='showcase'||sessionStorage.getItem('${SEEN_KEY}')||matchMedia('(prefers-reduced-motion: reduce)').matches){document.documentElement.setAttribute('data-splash','skip')}}catch(e){}`
 
 /**
  * Заставка при входе на сайт.
@@ -29,7 +32,7 @@ export const SPLASH_BOOT_SCRIPT = `window.__splashStart=performance.now();try{if
  * буквы поднимаются по одной, под ними маршрут из 14 этапов зажигается
  * засечками. Потом заставка раскрывается кругом из центра.
  *
- * Один раз за вкладку; при «уменьшить движение» не показывается.
+ * Один раз за вкладку; при «уменьшить движение» и в рабочем режиме не показывается.
  */
 export function Splash() {
   const [phase, setPhase] = useState<'show' | 'exit' | 'gone'>('show')

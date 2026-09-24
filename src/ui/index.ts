@@ -63,6 +63,7 @@ export {
 } from './layout/Page'
 export { Logo } from './layout/Logo'
 export { ScrollRuler } from './layout/ScrollRuler'
+export { UiModeSwitch } from './layout/UiModeSwitch'
 export { NextObject } from './layout/NextObject'
 
 export { useResource, type Resource } from './hooks/useResource'
@@ -77,6 +78,8 @@ export {
   usePrefersReducedMotion,
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
+export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
+export { UI_MODE_LABELS, type UiMode } from './lib/ui-mode'
 
 export { apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
 export {

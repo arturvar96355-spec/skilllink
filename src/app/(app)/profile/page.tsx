@@ -15,6 +15,7 @@ import {
   NO_DATA,
   PageHeader,
   Section,
+  UiModeSwitch,
   formatCount,
   formatDateTime,
   useCurrentUser,
@@ -157,6 +158,16 @@ export default function ProfilePage() {
             привязку к вузу заводит он, изменить их из интерфейса нельзя — такого действия в
             API нет. Показывать переключатели, за которыми ничего не происходит, мы не стали.
           </p>
+          {/* Режим интерфейса (решение 80) — здесь тоже: на узком экране его нет в шапке. */}
+          <div className={styles.exit}>
+            <div className={styles.exitText}>
+              <p className={styles.exitTitle}>Режим интерфейса</p>
+              <p className={styles.note}>
+                Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.
+              </p>
+            </div>
+            <UiModeSwitch />
+          </div>
           <div className={styles.exit}>
             <div className={styles.exitText}>
               <p className={styles.exitTitle}>Выход из системы</p>

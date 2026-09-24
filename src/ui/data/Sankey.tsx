@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import { formatNumber } from '../lib/format'
 import styles from './Sankey.module.css'
 
@@ -43,7 +43,7 @@ export function Sankey({
   label: string
   height?: number
 }) {
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   const [hovered, setHovered] = useState<string | null>(null)
 
   const layout = useMemo(() => {

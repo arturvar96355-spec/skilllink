@@ -1,20 +1,23 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useCalmMotion } from '../hooks/ui-mode'
 import styles from './ScrollRuler.module.css'
 
 /**
  * Линейка прокрутки (решение 79, по образцу Altitude 101): тонкая шкала
  * у правого края и счётчик процентов, который едет вместе с отметкой.
  * Только на длинных страницах объекта и только с мышью: на телефоне и при
- * «уменьшить движение» не показывается. Обновляется без перерисовки React —
- * напрямую стилем, раз за кадр.
+ * «уменьшить движение» не показывается, в рабочем режиме (решение 80) — тоже.
+ * Обновляется без перерисовки React — напрямую стилем, раз за кадр.
  */
 export function ScrollRuler() {
+  const calm = useCalmMotion()
   const markRef = useRef<HTMLSpanElement>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    if (calm) return
     let frame = 0
     const update = () => {
       frame = 0
@@ -37,7 +40,9 @@ export function ScrollRuler() {
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', schedule)
     }
-  }, [])
+  }, [calm])
+
+  if (calm) return null
 
   return (
     <div ref={rootRef} className={styles.root} aria-hidden>

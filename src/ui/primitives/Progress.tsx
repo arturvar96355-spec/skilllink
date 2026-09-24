@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePrefersReducedMotion } from '../hooks/dom'
+import { useCalmMotion } from '../hooks/ui-mode'
 import styles from './Progress.module.css'
 
 export interface ProgressProps {
@@ -15,7 +15,7 @@ export interface ProgressProps {
 
 export function Progress({ value, tone = 'default', withValue = false, label }: ProgressProps) {
   const percent = value === null ? 0 : Math.max(0, Math.min(100, value))
-  const reduced = usePrefersReducedMotion()
+  const reduced = useCalmMotion()
   // Полоса начинается с нуля и добегает до настоящего значения (раздел 26
   // документа о движении). Ширина задаётся вторым кадром: если поставить её
   // сразу, браузеру нечего анимировать и полоса появляется уже заполненной.

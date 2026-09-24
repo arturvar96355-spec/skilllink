@@ -20,6 +20,7 @@ import {
   Section,
   TableSkeleton,
   DataTable,
+  UiModeSwitch,
   apiPost,
   buildQuery,
   formatDateTime,
@@ -147,6 +148,19 @@ export default function SettingsPage() {
         title="Настройки"
         description="Откуда система берёт данные, что из этого подключено и где посмотреть её состояние."
       />
+
+      {/* Режим интерфейса (решение 80): выбор каждого человека, хранится в его браузере. */}
+      <Section title="Режим интерфейса">
+        <Card>
+          <div className={styles.modeRow}>
+            <p className={styles.note}>
+              Рабочий — для ежедневной работы: реестры списком и сразу видно, что требует внимания;
+              презентационный — весь визуал для показа. Выбор запоминается в этом браузере.
+            </p>
+            <UiModeSwitch />
+          </div>
+        </Card>
+      </Section>
 
       <Section
         title="Источники данных"

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useCalmMotion } from '../hooks/ui-mode'
 import styles from './Shell.module.css'
 
 /** Насколько быстро свечение догоняет курсор: ближнее — живее, дальнее — тянется следом. */
@@ -14,10 +15,12 @@ const FOLLOW_FAR = 0.035
  *
  * Двигается только положение слоёв (transform) — видеокарта, без перерисовки.
  * Кадры считаются, только пока свечение догоняет курсор: неподвижный экран
- * ничего не стоит. При «уменьшить движение» и на сенсорных экранах свечение стоит
- * на месте — курсора там нет или движение просили убрать.
+ * ничего не стоит. При «уменьшить движение», в рабочем режиме (решение 80)
+ * и на сенсорных экранах свечение стоит на месте — курсора там нет или
+ * движение просили убрать.
  */
 export function LiveBackground() {
+  const calm = useCalmMotion()
   const nearRef = useRef<HTMLDivElement | null>(null)
   const farRef = useRef<HTMLDivElement | null>(null)
 
@@ -39,9 +42,7 @@ export function LiveBackground() {
     place(near, nearX, nearY)
     place(far, farX, farY)
 
-    const still =
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      !window.matchMedia('(pointer: fine)').matches
+    const still = calm || !window.matchMedia('(pointer: fine)').matches
     if (still) return
 
     let frame = 0
@@ -67,7 +68,7 @@ export function LiveBackground() {
       window.removeEventListener('pointermove', onMove)
       cancelAnimationFrame(frame)
     }
-  }, [])
+  }, [calm])
 
   return (
     <div className={styles.liveBackground} aria-hidden="true">
