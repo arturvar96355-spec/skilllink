@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { webUrlSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import { DOCUMENT_STATUSES, DOCUMENT_TYPES } from '@/shared/contracts/enums'
 
@@ -27,7 +27,7 @@ const documentFields = {
   title: z.string().trim().min(3, 'Название должно содержать не менее 3 символов').max(300),
   version: z.string().trim().min(1).max(50),
   /** Ссылка на внешний документ. Загрузка файлов — P2. */
-  fileReference: z.url('Некорректная ссылка на документ').nullish(),
+  fileReference: webUrlSchema('Некорректная ссылка на документ: нужна ссылка http или https').nullish(),
   responsibleId: z.string().trim().min(1).nullish(),
   issuedAt: isoDate.nullish(),
 }

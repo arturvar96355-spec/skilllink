@@ -5,6 +5,7 @@ import {
   MEETING_FORMATS,
   MEETING_FORMAT_LABELS,
   USER_ROLE_LABELS,
+  canBeResponsible,
   type MeetingDto,
   type MeetingFormat,
   type UserDto,
@@ -165,7 +166,8 @@ export function CreateMeetingModal({
         onValueChange={setResponsibleId}
         placeholder={users.isLoading ? 'Загрузка…' : 'Выберите сотрудника'}
         options={(users.data ?? [])
-          .filter((row) => row.role !== 'UNIVERSITY_REP')
+          // Сервер примет только менеджера или администратора (RESPONSIBLE_ROLES).
+          .filter((row) => canBeResponsible(row.role))
           .map((row) => ({
             value: row.id,
             label: `${row.fullName} — ${USER_ROLE_LABELS[row.role]}`,

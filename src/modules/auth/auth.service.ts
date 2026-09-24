@@ -7,6 +7,29 @@ import * as repo from './auth.repo'
 import type { UserListQuery } from './auth.schema'
 
 /**
+ * Почту в справочнике видят только те, кто назначает ответственных и ведёт
+ * переписку, — ADMIN и MANAGER (право WRITE). Аналитику и наблюдателю справочник
+ * нужен, чтобы видеть, кто за что отвечает, а список рабочих адресов всех
+ * сотрудников и представителей вузов — это персональные данные сверх нужного.
+ */
+export function canSeeUserEmails(user: CurrentUser): boolean {
+  return can(user, 'WRITE')
+}
+
+export function toUserDto(row: repo.UserRow, showEmail: boolean): UserDto {
+  return {
+    id: row.id,
+    email: showEmail ? row.email : null,
+    fullName: row.fullName,
+    position: row.position,
+    role: row.role,
+    universityId: row.universityId,
+    universityName: row.university?.name ?? null,
+    isActive: row.isActive,
+  }
+}
+
+/**
  * Справочник пользователей: нужен для выбора ответственного и участников встреч.
  * Представителю вуза он недоступен — состав сотрудников ИТ-Школы его не касается.
  */
@@ -16,18 +39,12 @@ export async function listUsers(
 ): Promise<{ data: UserDto[]; meta: PageMeta }> {
   assertCan(user, 'ANALYTICS')
 
-  const { rows, total } = await repo.findMany(query)
+  const showEmail = canSeeUserEmails(user)
+  // Поиск по почте — тоже только тем, кому её показывают: иначе адрес
+  // восстанавливался бы подбором строки поиска по одной букве.
+  const { rows, total } = await repo.findMany(query, { searchEmail: showEmail })
   return {
-    data: rows.map((row) => ({
-      id: row.id,
-      email: row.email,
-      fullName: row.fullName,
-      position: row.position,
-      role: row.role,
-      universityId: row.universityId,
-      universityName: row.university?.name ?? null,
-      isActive: row.isActive,
-    })),
+    data: rows.map((row) => toUserDto(row, showEmail)),
     meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
   }
 }
@@ -59,6 +76,7 @@ export function describeCurrentUser(
       canWrite: can(user, 'WRITE'),
       canSeeAnalytics: can(user, 'ANALYTICS'),
       canUsePortal: can(user, 'UNIVERSITY_PORTAL'),
+      canWritePortal: can(user, 'UNIVERSITY_PORTAL_WRITE'),
       isAdmin: can(user, 'ADMIN'),
     },
   }

@@ -1,4 +1,5 @@
 import { forbidden, notFound } from '@/shared/http/errors'
+import { can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 
 /**
@@ -34,5 +35,18 @@ export function resolvePortalUniversityId(
 export function assertMaterialsTask(stageNumber: number): void {
   if (stageNumber !== MATERIALS_STAGE_NUMBER) {
     throw notFound('Задача не относится к передаче материалов')
+  }
+}
+
+/**
+ * Записывать в кабинете вуза может только сам вуз (UNIVERSITY_PORTAL_WRITE).
+ *
+ * Сотрудник ИТ-Школы кабинет любого вуза открывает, но только смотрит. Раньше он
+ * мог подтвердить получение материалов, внести показатели и подать заявку от имени
+ * вуза — и в системе выглядело бы, что это сделал вуз.
+ */
+export function assertPortalWritable(user: CurrentUser): void {
+  if (!can(user, 'UNIVERSITY_PORTAL_WRITE')) {
+    throw forbidden('В кабинете вуза сотрудник только просматривает; подтверждает сам вуз')
   }
 }

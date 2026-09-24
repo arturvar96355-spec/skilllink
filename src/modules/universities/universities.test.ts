@@ -34,6 +34,27 @@ describe('валидация вуза', () => {
     expect(parsed.success).toBe(false)
   })
 
+  it('сайт — только http или https', () => {
+    // z.url() без ограничения схемы пропускал javascript: и data: — они
+    // становились ссылкой «Сайт» на карточке вуза.
+    const base = { name: 'Тестовый университет связи', city: 'Москва', region: 'Москва' }
+    for (const website of [
+      'javascript:alert(1)',
+      'JavaScript:alert(document.cookie)',
+      'data:text/html,<script>alert(1)</script>',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      'ftp://example.invalid/',
+    ]) {
+      expect(createUniversitySchema.safeParse({ ...base, website }).success, website).toBe(false)
+      expect(updateUniversitySchema.safeParse({ website }).success, website).toBe(false)
+    }
+    for (const website of ['https://example.invalid/spbgu', 'http://исп.рф/', 'https://10.0.0.5/']) {
+      expect(createUniversitySchema.safeParse({ ...base, website }).success, website).toBe(true)
+      expect(updateUniversitySchema.safeParse({ website }).success, website).toBe(true)
+    }
+  })
+
   it('не принимает пустое тело изменения', () => {
     expect(updateUniversitySchema.safeParse({}).success).toBe(false)
   })

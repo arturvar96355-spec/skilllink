@@ -133,10 +133,21 @@ fi
 
 echo "── Проверяю стенд снаружи"
 PASSWORD=$(ssh_run "$TARGET" "grep '^SEED_DEMO_PASSWORD=' $REMOTE_DIR/.env.cloud | cut -d= -f2")
+# В GitHub Actions журнал выкладки видят все, у кого есть доступ к репозиторию.
+# Маска прячет пароль, если он всё же попадёт в вывод какой-нибудь команды.
+if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -n "$PASSWORD" ]; then
+  echo "::add-mask::$PASSWORD"
+fi
 DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"
 
 echo
 echo "━━ Готово: $PUBLIC_URL"
-echo "   Пароль демо-пользователей: $PASSWORD"
+# Пароль печатается только при запуске с машины владельца: на неё опираются его
+# скрипты, формат строки не менять. В CI журнал общий — там только где его взять.
+if [ -z "${CI:-}" ]; then
+  echo "   Пароль демо-пользователей: $PASSWORD"
+else
+  echo "   Пароль демо-пользователей: в .env.cloud на сервере"
+fi
 echo "   Вход: $PUBLIC_URL/login (admin@skilllink.demo и другие — docs/HANDOFF.md)"
 echo "   Журнал: ssh $TARGET \"cd $REMOTE_DIR/app && docker compose -p skilllink logs -f app\""

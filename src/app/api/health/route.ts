@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { diagnoseDatabaseError } from './database-error'
+import { publicHealth, type HealthReport } from './report'
 import { handle, ok } from '@/shared/http'
 
 /**
@@ -12,19 +13,27 @@ import { handle, ok } from '@/shared/http'
  * Схема проверяется отдельно от соединения: пустая база отвечает на `SELECT 1`
  * как ни в чём не бывало, и контейнер рапортовал бы «здоров», пока приложение
  * на деле неработоспособно.
+ *
+ * В продакшене совет наружу не уходит, только в журнал (report.ts): по нему
+ * прохожий узнал бы, что именно сломано в настройке стенда.
  */
 export const GET = handle(async () => {
+  const production = process.env.NODE_ENV === 'production'
   const now = () => new Date().toISOString()
+
+  const respond = (report: HealthReport, status: number) => {
+    if (report.hint && production) console.error('Проверка живости:', report.hint)
+    return ok(publicHealth(report, production), status)
+  }
 
   // Приложение без секрета подписи стартует, но каждый запрос падает на проверке
   // прав: сессию не прочитать. Проверка живости обязана это видеть — иначе
   // контейнер считается здоровым, оркестратор пускает на него трафик,
   // а пользователь получает 500 на всём, кроме самой проверки живости.
-  const secretMissing =
-    process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET?.trim()
+  const secretMissing = production && !process.env.AUTH_SECRET?.trim()
 
   if (secretMissing) {
-    return ok(
+    return respond(
       {
         status: 'misconfigured',
         database: 'unknown',
@@ -39,7 +48,7 @@ export const GET = handle(async () => {
   }
 
   if (!process.env.DATABASE_URL) {
-    return ok(
+    return respond(
       {
         status: 'misconfigured',
         database: 'not-configured',
@@ -58,7 +67,7 @@ export const GET = handle(async () => {
     // в неожиданном сбое всё равно придётся по настоящей ошибке.
     console.error('Проверка живости: база не ответила', error)
     const { database, hint } = diagnoseDatabaseError(error)
-    return ok({ status: 'degraded', database, schema: 'unknown', hint, time: now() }, 503)
+    return respond({ status: 'degraded', database, schema: 'unknown', hint, time: now() }, 503)
   }
 
   let schemaReady = true
@@ -69,7 +78,7 @@ export const GET = handle(async () => {
     schemaReady = false
   }
 
-  return ok(
+  return respond(
     {
       status: schemaReady ? 'ok' : 'degraded',
       database: 'connected',

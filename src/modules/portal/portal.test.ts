@@ -5,6 +5,7 @@ import type { UserRole } from '@/shared/contracts/enums'
 import {
   MATERIALS_STAGE_NUMBER,
   assertMaterialsTask,
+  assertPortalWritable,
   resolvePortalUniversityId,
 } from './portal.rules'
 import {
@@ -47,6 +48,27 @@ describe('определение вуза кабинета', () => {
 
   it('сотрудник открывает кабинет указанного вуза', () => {
     expect(resolvePortalUniversityId(user('MANAGER'), 'uni-7')).toBe('uni-7')
+  })
+})
+
+describe('запись в кабинете вуза', () => {
+  it('представитель вуза подтверждает, вносит показатели и подаёт заявки', () => {
+    expect(() => assertPortalWritable(user('UNIVERSITY_REP', 'uni-1'))).not.toThrow()
+  })
+
+  it('сотрудник ИТ-Школы в кабинете вуза только просматривает', () => {
+    // Раньше менеджер подтверждал получение материалов от имени вуза —
+    // и подтверждение второй стороны в системе было его собственным.
+    for (const role of ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER'] as const) {
+      expectError(() => assertPortalWritable(user(role)), 'FORBIDDEN')
+    }
+    try {
+      assertPortalWritable(user('MANAGER'))
+    } catch (error) {
+      expect((error as AppError).message).toBe(
+        'В кабинете вуза сотрудник только просматривает; подтверждает сам вуз',
+      )
+    }
   })
 })
 

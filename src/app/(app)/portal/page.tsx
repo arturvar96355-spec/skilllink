@@ -76,7 +76,8 @@ function RepHint() {
       <p className={styles.hint}>
         <Icon name="info" size={16} />
         Раздел предназначен представителям вузов. Сотрудник ИТ-Школы открывает кабинет
-        конкретного вуза, добавив к адресу параметр <code>?universityId=…</code>.
+        конкретного вуза, добавив к адресу параметр <code>?universityId=…</code>, и только
+        просматривает его: подтверждает материалы, вносит показатели и подаёт заявки сам вуз.
       </p>
     </Card>
   )
@@ -143,7 +144,9 @@ function PortalScreen() {
   )
 
   const data = overview.data
-  const canAct = user.permissions.canUsePortal
+  // Записывает в кабинете только сам вуз: сотруднику ИТ-Школы сервер ответит 403,
+  // поэтому кнопок записи у него нет — вместо них подписи «Только просмотр».
+  const canAct = user.permissions.canWritePortal
 
   async function onConfirm(taskId: string) {
     setConfirmingId(taskId)

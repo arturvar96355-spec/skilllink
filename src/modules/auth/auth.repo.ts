@@ -25,7 +25,10 @@ export async function findProfile(id: string) {
   })
 }
 
-export async function findMany(query: UserListQuery): Promise<{ rows: UserRow[]; total: number }> {
+export async function findMany(
+  query: UserListQuery,
+  options: { searchEmail: boolean },
+): Promise<{ rows: UserRow[]; total: number }> {
   const where: Prisma.UserWhereInput = {}
 
   if (query.role?.length) where.role = { in: query.role }
@@ -33,7 +36,11 @@ export async function findMany(query: UserListQuery): Promise<{ rows: UserRow[];
   if (!query.includeInactive) where.isActive = true
   if (query.q) {
     const contains = textContains(query.q)
-    where.OR = [{ fullName: contains }, { email: contains }, { position: contains }]
+    where.OR = [
+      { fullName: contains },
+      ...(options.searchEmail ? [{ email: contains }] : []),
+      { position: contains },
+    ]
   }
 
   const [rows, total] = await Promise.all([

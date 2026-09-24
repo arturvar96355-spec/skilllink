@@ -618,8 +618,10 @@ async function main(): Promise<void> {
       blockingReason: 'Вуз не подтвердил получение лицензии: ожидаем ответ юридической службы',
     },
     {
+      // Ответственный — только менеджер или администратор (RESPONSIBLE_ROLES):
+      // аналитик в этой роли числился бы за этапами, которые не может изменить.
       university: 'mtuci', program: 'mtuci-data', productId: products.dataLab.id,
-      responsibleId: analyst.id, status: 'ACTIVE',
+      responsibleId: manager2.id, status: 'ACTIVE',
       goal: 'Аналитическая платформа в программе анализа данных',
       startedDaysAgo: 60, firstContactDaysAgo: 60, classesStartInDays: 140,
       completedUpTo: 4, cancelledStages: [5],

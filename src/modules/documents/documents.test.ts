@@ -194,6 +194,17 @@ describe('валидация документа', () => {
     ).toBe(false)
   })
 
+  it('ссылка на документ — только http или https', () => {
+    for (const fileReference of ['javascript:alert(1)', 'data:text/html;base64,PHNjcmlwdD4=', 'file:///C:/doc.pdf']) {
+      expect(createDocumentSchema.safeParse({ ...valid, fileReference }).success, fileReference).toBe(false)
+      expect(updateDocumentSchema.safeParse({ fileReference }).success, fileReference).toBe(false)
+    }
+    expect(
+      createDocumentSchema.safeParse({ ...valid, fileReference: 'https://example.invalid/doc.pdf' }).success,
+    ).toBe(true)
+    expect(updateDocumentSchema.safeParse({ fileReference: 'https://example.invalid/doc.pdf' }).success).toBe(true)
+  })
+
   it('отклоняет неизвестный тип документа', () => {
     expect(createDocumentSchema.safeParse({ ...valid, type: 'INVOICE' }).success).toBe(false)
   })

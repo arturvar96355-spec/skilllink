@@ -211,7 +211,10 @@ async function main(): Promise<void> {
     (item) => item.universityId !== rep?.universityId,
   )
   const anyCooperation = cooperations.body.data?.[0]
-  const managerId = anyCooperation?.responsible.id ?? null
+  // Ответственным назначается только менеджер или администратор — берём менеджера
+  // из справочника, а не ответственного первой попавшейся связки.
+  const managers = await call<Array<{ id: string }>>('GET', '/api/users?role=MANAGER&pageSize=1')
+  const managerId = managers.body.data?.[0]?.id ?? null
 
   // ── 1. Изоляция представителя вуза ─────────────────────────────────────────
   step('1. Представитель вуза не должен видеть и трогать чужое')
@@ -1114,6 +1117,23 @@ async function main(): Promise<void> {
       responsibleId: rep.id,
     })
     check('ответственный — только сотрудник ИТ-Школы', repResponsible.status === 422, `код ${repResponsible.status}`)
+
+    // Аналитик — сотрудник, но изменять записи не может, и ответственным его не назначить.
+    const analysts = await call<Array<{ id: string }>>('GET', '/api/users?role=ANALYST&pageSize=1')
+    const analystId = analysts.body.data?.[0]?.id
+    const analystResponsible = analystId
+      ? await call('POST', '/api/meetings', {
+          universityId: rep.universityId,
+          date: new Date().toISOString(),
+          topic: 'Пробник: аналитик ответственным',
+          responsibleId: analystId,
+        })
+      : null
+    check(
+      'ответственный — менеджер или администратор, не аналитик',
+      analystResponsible?.status === 422,
+      analystId ? `код ${analystResponsible?.status}` : 'нет аналитика: нужен npm run db:seed',
+    )
 
     const mixedDocument = await call('POST', '/api/documents', {
       type: 'AGREEMENT',
@@ -2067,7 +2087,31 @@ async function main(): Promise<void> {
         `${target}: Permissions-Policy задан`,
         (response.headers.get('permissions-policy') ?? '').includes('camera=()'),
       )
+      check(
+        `${target}: CSP запрещает встраивание в чужие страницы`,
+        (response.headers.get('content-security-policy') ?? '').includes("frame-ancestors 'none'"),
+        `получено ${response.headers.get('content-security-policy') ?? 'ничего'}`,
+      )
+      check(
+        `${target}: X-Powered-By не выдаёт платформу`,
+        response.headers.get('x-powered-by') === null,
+        `получено ${response.headers.get('x-powered-by')}`,
+      )
     }
+
+    // Изменяющий запрос со страницы чужого сайта: браузер подписывает его
+    // заголовком Origin, и сервер обязан отказать до всякой записи.
+    const crossSite = await fetch(`${BASE_URL}/api/universities`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: 'https://evil.example',
+        ...(actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {}),
+      },
+      body: JSON.stringify({ name: 'Пробник: запрос с чужого сайта', city: 'Тверь', region: 'Тверская область' }),
+    })
+    await crossSite.arrayBuffer()
+    check('изменяющий запрос с чужого сайта отклонён', crossSite.status === 403, `код ${crossSite.status}`)
   }
 
   // ── Быстрый расчёт рейтинга не расходится с полным ─────────────────────────

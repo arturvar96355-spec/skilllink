@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { isUniversityVisible } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { validationError } from '@/shared/http/errors'
+import { canBeResponsible } from '@/shared/contracts/enums'
 
 /**
  * Привязки документа и встречи: связка, вуз, программа — и люди в них.
@@ -89,20 +90,30 @@ export async function resolveEntityLinks(
 }
 
 /**
- * Ответственный — сотрудник ИТ-Школы, действующий.
+ * Ответственный — действующий администратор или менеджер ИТ-Школы (RESPONSIBLE_ROLES).
  *
  * Сервер принимал любого пользователя, включая представителя другого вуза:
- * фильтровал только интерфейс. А несуществующий id превращался в «Запись не
+ * фильтровал только интерфейс. Потом — любого сотрудника, и ответственным
+ * становились аналитик и наблюдатель, которые запись изменить не могут.
+ * Несуществующий id отклоняется здесь же: иначе он превращался в «Запись не
  * найдена» — будто не найден сам документ.
  */
 export async function assertStaffResponsible(responsibleId: string): Promise<void> {
   const responsible = await prisma.user.findFirst({
-    where: { id: responsibleId, isActive: true, role: { not: 'UNIVERSITY_REP' } },
-    select: { id: true },
+    where: { id: responsibleId, isActive: true },
+    select: { role: true },
   })
   if (!responsible) {
     throw validationError('Указан несуществующий ответственный', [
-      { field: 'responsibleId', message: 'Ответственным может быть только сотрудник ИТ-Школы' },
+      { field: 'responsibleId', message: 'Сотрудник не найден' },
+    ])
+  }
+  if (!canBeResponsible(responsible.role)) {
+    throw validationError('Этого пользователя нельзя назначить ответственным', [
+      {
+        field: 'responsibleId',
+        message: 'Ответственным может быть только менеджер или администратор ИТ-Школы',
+      },
     ])
   }
 }
