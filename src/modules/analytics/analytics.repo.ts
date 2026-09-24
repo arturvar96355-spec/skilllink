@@ -13,6 +13,25 @@ export async function countActiveCooperations(scope: { universityId?: string }):
   })
 }
 
+/**
+ * Связки, которые были в работе на момент `at`: заведены к нему и ещё не закрыты.
+ * Паузу история не хранит, поэтому связки, стоящие на паузе сейчас, не считаются
+ * и в прошлом — иначе сравнение показывало бы рост, которого не было.
+ */
+export async function countCooperationsOpenAt(
+  scope: { universityId?: string },
+  at: Date,
+): Promise<number> {
+  return prisma.cooperation.count({
+    where: {
+      ...scope,
+      createdAt: { lte: at },
+      status: { not: 'PAUSED' },
+      OR: [{ closedAt: null }, { closedAt: { gt: at } }],
+    },
+  })
+}
+
 export async function countUniversitiesInWork(scope: { universityId?: string }): Promise<number> {
   return prisma.university.count({
     where: {
