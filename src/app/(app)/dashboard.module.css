@@ -479,3 +479,10 @@
     animation: none;
   }
 }
+
+/* Воронка посчитана не по всем связкам — об этом говорится прямо (решение 74). */
+.funnelNote {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

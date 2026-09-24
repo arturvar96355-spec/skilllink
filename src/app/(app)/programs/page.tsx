@@ -30,6 +30,7 @@ import {
   RemoteSelect,
   Select,
   TableSkeleton,
+  TagCarousel,
   Toolbar,
   ToolbarItem,
   ToolbarSearch,
@@ -41,11 +42,13 @@ import {
   universityShortOption,
   useDebounced,
   useResource,
+  useStoredValue,
   usePageInRange,
   type Column,
   ListTitle,
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
+import { ProgramTag } from './ProgramTag'
 import styles from './programs.module.css'
 
 /**
@@ -89,6 +92,9 @@ export default function ProgramsPage() {
   const [page, setPage] = useState(1)
   const user = useCurrentUser()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
+  const storedView = useStoredValue('skilllink.programs.view', 'cards')
+  const view = storedView.value === 'list' ? 'list' : 'cards'
 
   const query = useDebounced(search)
 
@@ -254,6 +260,26 @@ export default function ProgramsPage() {
       />
 
       <Toolbar>
+        <ToolbarItem>
+          <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
+            <Button
+              size="sm"
+              variant={view === 'cards' ? 'primary' : 'secondary'}
+              aria-pressed={view === 'cards'}
+              onClick={() => storedView.store('cards')}
+            >
+              Бирки
+            </Button>
+            <Button
+              size="sm"
+              variant={view === 'list' ? 'primary' : 'secondary'}
+              aria-pressed={view === 'list'}
+              onClick={() => storedView.store('list')}
+            >
+              Список
+            </Button>
+          </div>
+        </ToolbarItem>
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -336,20 +362,33 @@ export default function ProgramsPage() {
         </Card>
       ) : (
         <Card padding="none" className={styles.registry}>
-          <DataTable
-            rows={rows}
-            columns={columns}
-            getRowKey={(row) => row.id}
-            getRowHref={(row) => programHref(row.id)}
-            appearance="list"
-            sort={sort}
-            onSortChange={(next) => {
-              setSort(next)
-              setPage(1)
-            }}
-            isRefreshing={programs.isRefreshing}
-            caption="Образовательные программы"
-          />
+          {view === 'cards' ? (
+            <TagCarousel
+              items={rows}
+              getKey={(row) => row.id}
+              getHref={(row) => programHref(row.id)}
+              getLabel={(row) => row.name}
+              renderTag={(row) => <ProgramTag row={row} />}
+              label="Программы"
+              noun={{ previous: 'Предыдущая программа', next: 'Следующая программа' }}
+              tint="var(--accent-pink)"
+            />
+          ) : (
+            <DataTable
+              rows={rows}
+              columns={columns}
+              getRowKey={(row) => row.id}
+              getRowHref={(row) => programHref(row.id)}
+              appearance="list"
+              sort={sort}
+              onSortChange={(next) => {
+                setSort(next)
+                setPage(1)
+              }}
+              isRefreshing={programs.isRefreshing}
+              caption="Образовательные программы"
+            />
+          )}
           <Pagination
             page={meta?.page ?? page}
             pageSize={meta?.pageSize ?? PAGE_SIZE}

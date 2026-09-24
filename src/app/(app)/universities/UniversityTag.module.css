@@ -1,0 +1,243 @@
+/* Бирка вуза в 3D-карусели (решение 73). */
+
+/* ── Бирка ───────────────────────────────────────────────────────────────── */
+
+.tag {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  padding: 14px 16px 16px;
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 30%),
+    var(--text-primary);
+  color: var(--text-on-light);
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.55),
+    0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  overflow: hidden;
+}
+
+/* Отверстие под петлю, как у багажной бирки. */
+.hole {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  width: 26px;
+  height: 8px;
+  margin-left: -13px;
+  border-radius: var(--radius-pill);
+  background: var(--canvas);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--text-on-light);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brandBox {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: var(--text-on-light);
+  color: var(--text-primary);
+  font-size: var(--text-caption-size);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.brandName {
+  font-size: var(--text-label-size);
+  font-weight: 700;
+}
+
+.status {
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+  color: var(--text-primary);
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Штамп «Демо» — наискось, как «WINNER» на бирках референса. */
+.stamp {
+  position: absolute;
+  top: 232px;
+  right: 16px;
+  padding: 1px 6px;
+  border: 2px solid var(--accent-orange);
+  border-radius: 4px;
+  color: var(--accent-orange);
+  font-size: var(--text-caption-size);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-8deg);
+  opacity: 0.85;
+}
+
+.label {
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+/* Крупная строка «ВУЗ → Город», как «CHC → IST». */
+.route {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(17, 17, 22, 0.25);
+}
+
+.route > .label:first-child {
+  grid-column: 1 / 3;
+}
+
+.code {
+  font-size: var(--text-h1-size);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 130px;
+}
+
+.arrow {
+  font-size: var(--text-kpi-md-size);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.city {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: var(--text-card-title-size);
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.value {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bottom {
+  display: flex;
+  gap: 12px;
+  margin-top: auto;
+}
+
+/* Вместо фотографии — крупное сокращение на фирменном градиенте. */
+.photo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 104px;
+  height: 118px;
+  border-radius: 6px;
+  background: var(--gradient-brand);
+  color: var(--text-primary);
+  font-size: var(--text-h2-size);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.25);
+}
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.statValue {
+  font-size: var(--text-body-size);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.noData {
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.barcode {
+  display: flex;
+  height: 26px;
+  margin-top: auto;
+  overflow: hidden;
+}
+
+.bar {
+  flex: none;
+  background: var(--text-on-light);
+}
+
+.gap {
+  flex: none;
+}
+
+.number {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}

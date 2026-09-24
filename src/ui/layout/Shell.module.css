@@ -258,55 +258,121 @@
 }
 
 /*
- * Продолжение сцены входа (07, раздел 18): меню проявляется от левого края,
- * шапка — сверху. Один раз, сразу после входа; дальше каркас неподвижен.
- * Только на широком экране: на узком меню спрятано за край, и сдвиг
- * показал бы его на мгновение.
+ * Продолжение сцены входа (07, раздел 18; решение 75): сайт собирается по частям
+ * в 3D, пока над ним гаснут звёзды прыжка. Меню разворачивается от левого края,
+ * шапка откидывается сверху, блоки страницы по очереди подлетают из глубины
+ * с наклоном; колонки главной — каждая со своей стороны (`data-assemble`).
+ * Один раз, сразу после входа: метку `.arrival` каркас снимает через несколько
+ * секунд, и дальше страницы приходят обычным появлением. Только на широком
+ * экране: на узком меню спрятано за край, и разворот показал бы его на мгновение.
  */
 @media (min-width: 1081px) and (prefers-reduced-motion: no-preference) {
   .arrival aside {
-    animation: arriveLeft 420ms var(--ease-out) both;
+    transform-origin: 0 50%;
+    animation: assembleSide 900ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
   }
 
   .arrival header {
-    animation: arriveTop 360ms var(--ease-out) 80ms both;
-  }
-
-  /*
-   * Сайт проступает из прыжка (экран входа, решение 72): рабочая область
-   * выплывает из глубины и выпрямляется из наклона — в тот момент, когда над
-   * ней гаснет созвездие. Задержка — чтобы движение шло под угасающей вспышкой.
-   */
-  .arrival .shell {
-    perspective: 1400px;
-    perspective-origin: 50% 20%;
-  }
-
-  .arrival main {
     transform-origin: 50% 0;
-    /* Страница приходит под вспышкой — выплывать начинает сразу, пока свет гаснет. */
-    animation: arriveDepth 900ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both;
+    animation: assembleTop 800ms cubic-bezier(0.16, 1, 0.3, 1) 260ms both;
+  }
+
+  /* Блок страницы, внутри которого нет своих собираемых частей, — целиком. */
+  .arrival .page > :not(:has([data-assemble])) {
+    animation: assembleBlock 950ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(360ms + var(--assemble-step, 4) * 120ms);
+  }
+
+  .arrival .page > :nth-child(1) {
+    --assemble-step: 0;
+  }
+  .arrival .page > :nth-child(2) {
+    --assemble-step: 1;
+  }
+  .arrival .page > :nth-child(3) {
+    --assemble-step: 2;
+  }
+  .arrival .page > :nth-child(4) {
+    --assemble-step: 3;
+  }
+
+  /* Части главной: своя задержка (--delay) и своя сторона. */
+  .arrival [data-assemble] {
+    animation: assembleBlock 950ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(240ms + var(--delay, 0ms));
+  }
+
+  .arrival [data-assemble='left'] {
+    animation-name: assembleLeft;
+  }
+
+  .arrival [data-assemble='right'] {
+    animation-name: assembleRight;
   }
 }
 
-@keyframes arriveDepth {
+/*
+ * Сборка звёздами (решение 76, login/Constellation.tsx): пока звёзды кружат
+ * в ядре и ждут страницу, её части скрыты; собранные звёздами блоки ведёт
+ * анимация из кода, и своя сборка каркаса им не нужна (`data-star-claimed`).
+ */
+/* Скрытие частей, пока звёзды ждут страницу, — в globals.css: правило без своего класса. */
+
+.arrival [data-star-claimed] {
+  animation: none;
+}
+
+/*
+ * Размытие под шапкой на время сборки выключено: под ней летят блоки, и
+ * размытие пересчитывалось каждый кадр — конец входа от этого подтормаживал.
+ */
+.arrival .header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: var(--canvas);
+}
+
+@keyframes assembleSide {
   from {
     opacity: 0;
-    transform: translate3d(0, 40px, -320px) rotateX(14deg);
+    transform: perspective(1100px) translateX(-60px) rotateY(38deg);
   }
 }
 
-@keyframes arriveLeft {
+@keyframes assembleTop {
   from {
     opacity: 0;
-    transform: translateX(-16px);
+    transform: perspective(900px) translateY(-24px) rotateX(-55deg);
   }
 }
 
-@keyframes arriveTop {
+@keyframes assembleBlock {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: perspective(1200px) translate3d(0, 70px, -260px) rotateX(24deg);
+  }
+  55% {
+    opacity: 1;
+  }
+}
+
+@keyframes assembleLeft {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) translate3d(-90px, 50px, -240px) rotateY(22deg) rotateX(12deg);
+  }
+  55% {
+    opacity: 1;
+  }
+}
+
+@keyframes assembleRight {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) translate3d(90px, 50px, -240px) rotateY(-22deg) rotateX(12deg);
+  }
+  55% {
+    opacity: 1;
   }
 }
 

@@ -316,31 +316,27 @@
 }
 
 /*
- * Прыжок в систему после входа (Constellation.tsx, решение 72). Холст на время
- * прыжка переносится в body — поверх сайта, который уже открывается под ним;
- * вспышка — в момент прохода сквозь ядро созвездия. Оба слоя убираются сами.
+ * Прыжок в систему после входа (Constellation.tsx, решения 72, 76). Холст на время
+ * прыжка переносится в body — поверх сайта; звёзды собирают его по блокам и гаснут,
+ * затем холст убирается сам. Вспышки больше нет: страница под звёздами скрыта.
  */
 .warpCanvas {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  /*
+   * Под содержимым сайта, над его живым фоном (тот же слой −1, но позже в
+   * документе): звёзды прилетают на пустое место, и проявившийся блок закрывает
+   * их собой. Поверх сайта их угасающий след висел на готовых блоках.
+   */
+  z-index: -1;
   pointer-events: none;
-  /* Свой слой: угасание холста не перерисовывает сайт под ним. */
-  will-change: opacity;
+  /* Звёзды гаснут сами, долетев до блоков сайта (решение 76); холст снимается после. */
+  will-change: transform;
 }
 
-.warpFlash {
-  position: fixed;
-  inset: 0;
-  z-index: 1201;
-  pointer-events: none;
-  opacity: 0;
-  will-change: opacity;
-  background: radial-gradient(
-    circle at 50% 50%,
-    color-mix(in srgb, var(--text-primary) 70%, transparent) 0%,
-    color-mix(in srgb, var(--accent-violet) 55%, transparent) 22%,
-    color-mix(in srgb, var(--accent-violet) 12%, transparent) 55%,
-    transparent 80%
-  );
+/* Холст сцены — во весь слой; размер буфера задаёт сцена. */
+.sceneCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

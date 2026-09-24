@@ -32,7 +32,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Первое открытие после входа: меню и шапка дописывают сцену входа (07, раздел 18).
   const [arrived, setArrived] = useState(false)
   useEffect(() => {
-    if (takeArrival()) setArrived(true)
+    if (!takeArrival()) return
+    setArrived(true)
+    // Сборка сайта — один раз после входа: дальше страницы приходят обычным
+    // появлением, а не собираются заново на каждом переходе по меню.
+    const timer = window.setTimeout(() => setArrived(false), 6000)
+    return () => window.clearTimeout(timer)
   }, [])
   const pathname = usePathname()
   const motion = useNavigationMotion(pathname)
@@ -43,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   if (me.isLoading || (!me.data && !me.error)) {
     return (
-      <div className={styles.shell}>
+      <div className={styles.shell} data-shell-loading>
         <div className={styles.header}>
           <Skeleton width="160px" height="24px" />
         </div>

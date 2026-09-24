@@ -21,6 +21,7 @@ import {
   Section,
   Select,
   TableSkeleton,
+  TagCarousel,
   Toolbar,
   ToolbarItem,
   ToolbarSearch,
@@ -34,12 +35,14 @@ import {
   useCurrentUser,
   useDebounced,
   useResource,
+  useStoredValue,
   usePageInRange,
   type Column,
   ListTitle,
   formatPlace,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
+import { UniversityTag } from './UniversityTag'
 import styles from './universities.module.css'
 
 /**
@@ -80,6 +83,9 @@ export default function UniversitiesPage() {
   const [sort, setSort] = useState('name')
   const [page, setPage] = useState(1)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  // Вид реестра: 3D-бирки (решение 73) или прежняя лента. Выбор запоминается.
+  const storedView = useStoredValue('skilllink.universities.view', 'cards')
+  const view = storedView.value === 'list' ? 'list' : 'cards'
 
   const query = useDebounced(search.trim(), 300)
 
@@ -259,6 +265,26 @@ export default function UniversitiesPage() {
       />
 
       <Toolbar>
+        <ToolbarItem>
+          <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
+            <Button
+              size="sm"
+              variant={view === 'cards' ? 'primary' : 'secondary'}
+              aria-pressed={view === 'cards'}
+              onClick={() => storedView.store('cards')}
+            >
+              Бирки
+            </Button>
+            <Button
+              size="sm"
+              variant={view === 'list' ? 'primary' : 'secondary'}
+              aria-pressed={view === 'list'}
+              onClick={() => storedView.store('list')}
+            >
+              Список
+            </Button>
+          </div>
+        </ToolbarItem>
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -325,17 +351,31 @@ export default function UniversitiesPage() {
             />
           ) : (
             <>
-              <DataTable
-                rows={rows}
-                columns={columns}
-                getRowKey={(row) => row.id}
-                getRowHref={(row) => universityHref(row.id)}
-                appearance="list"
-                sort={sort}
-                onSortChange={(next) => changeFilter(() => setSort(next))}
-                isRefreshing={universities.isRefreshing}
-                caption="Реестр университетов"
-              />
+              {view === 'cards' ? (
+                <TagCarousel
+                  items={rows}
+                  getKey={(row) => row.id}
+                  getHref={(row) => universityHref(row.id)}
+                  getLabel={(row) => row.name}
+                  renderTag={(row) => (
+                    <UniversityTag row={row} canSeeAnalytics={user.permissions.canSeeAnalytics} />
+                  )}
+                  label="Вузы"
+                  noun={{ previous: 'Предыдущий вуз', next: 'Следующий вуз' }}
+                />
+              ) : (
+                <DataTable
+                  rows={rows}
+                  columns={columns}
+                  getRowKey={(row) => row.id}
+                  getRowHref={(row) => universityHref(row.id)}
+                  appearance="list"
+                  sort={sort}
+                  onSortChange={(next) => changeFilter(() => setSort(next))}
+                  isRefreshing={universities.isRefreshing}
+                  caption="Реестр университетов"
+                />
+              )}
               <Pagination
                 page={universities.meta?.page ?? page}
                 pageSize={universities.meta?.pageSize ?? PAGE_SIZE}

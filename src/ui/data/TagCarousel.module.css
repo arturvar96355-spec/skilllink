@@ -1,0 +1,110 @@
+/* 3D-карусель бирок для реестров (решение 73). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* Сцена: перспектива даёт глубину, бирки лежат в одном 3D-пространстве. */
+.stage {
+  position: relative;
+  width: 100%;
+  height: 470px;
+  perspective: 1500px;
+  perspective-origin: 50% 45%;
+  transform-style: preserve-3d;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  outline: none;
+  /* Края уходят в темноту — веер без обрыва. */
+  mask-image: linear-gradient(90deg, transparent 0, var(--canvas) 9%, var(--canvas) 91%, transparent 100%);
+}
+
+.stage:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--border-active);
+  border-radius: var(--radius-panel);
+}
+
+.dragging {
+  cursor: grabbing;
+}
+
+.slot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 290px;
+  height: 410px;
+  margin: -205px 0 0 -145px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: inherit;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.slot:focus-visible {
+  outline: none;
+}
+
+.slot:focus-visible > * {
+  box-shadow:
+    0 0 0 3px var(--accent-violet),
+    0 30px 60px rgba(0, 0, 0, 0.55);
+}
+
+/* Боковые бирки — чуть в тени: свет падает на центральную. */
+.slot > * {
+  filter: brightness(0.78);
+  transition: filter var(--motion-panel) var(--ease-out);
+}
+
+.current > * {
+  filter: none;
+}
+
+.slot:hover > * {
+  filter: brightness(0.92);
+}
+
+.current:hover > * {
+  filter: brightness(1.04);
+}
+
+/* ── Управление ──────────────────────────────────────────────────────────── */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.counter {
+  min-width: 64px;
+  text-align: center;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 600px) {
+  .stage {
+    height: 430px;
+  }
+
+  .slot {
+    transform-origin: 50% 50%;
+    width: 260px;
+    height: 380px;
+    margin: -190px 0 0 -130px;
+  }
+}

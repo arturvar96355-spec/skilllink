@@ -35,6 +35,7 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcryptjs": "^3.0.3",
+    "motion": "^13.4.2",
     "next": "^15.5.25",
     "next-auth": "5.0.0-beta.32",
     "pg": "^8.23.0",

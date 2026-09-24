@@ -487,3 +487,13 @@ textarea {
     filter: drop-shadow(0 0 16px color-mix(in srgb, var(--accent-violet) 60%, transparent));
   }
 }
+
+/*
+ * Сборка сайта звёздами после входа (решение 76, login/Constellation.tsx):
+ * пока звёзды кружат в ядре и ждут страницу, её части и загрузочная заготовка
+ * каркаса скрыты — иначе они проступали бы под звёздами до сборки.
+ */
+body[data-star-assembly='pending'] :is(aside, header, [data-page] > *, [data-assemble], [data-shell-loading]) {
+  opacity: 0;
+}
+

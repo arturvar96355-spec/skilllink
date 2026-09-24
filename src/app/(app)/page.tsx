@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import type {
@@ -10,10 +10,12 @@ import type {
   RecommendationGenerationResultDto,
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
+import { phaseFunnel } from './phase-funnel'
 import {
   Badge,
   Button,
   CardsSkeleton,
+  Funnel,
   EmptyState,
   ErrorState,
   MockBadge,
@@ -97,6 +99,15 @@ function greeting(now = new Date()): string {
 }
 
 /** Связки в работе — для маршрута и строк «вуз — программа — продукт». */
+/**
+ * Связки для воронки: все, кроме отменённых. Больше сотни API за раз не отдаёт —
+ * тогда под воронкой честно написано, по скольким она посчитана.
+ */
+const FUNNEL_PATH = `/api/cooperations${buildQuery({
+  status: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
+  pageSize: 100,
+})}`
+
 const ACTIVE_COOPERATIONS_PATH = `/api/cooperations${buildQuery({
   status: ['DRAFT', 'ACTIVE'],
   sort: '-updatedAt',
@@ -149,6 +160,12 @@ export default function DashboardPage() {
   const active = useResource<CooperationListItemDto[]>(
     user.role === 'UNIVERSITY_REP' ? null : ACTIVE_COOPERATIONS_PATH,
   )
+  const funnelSource = useResource<CooperationListItemDto[]>(
+    user.role === 'UNIVERSITY_REP' ? null : FUNNEL_PATH,
+  )
+  const funnelSteps = useMemo(() => phaseFunnel(funnelSource.data ?? []), [funnelSource.data])
+  const funnelTotal = funnelSource.meta?.total ?? null
+  const funnelCounted = funnelSource.data?.length ?? 0
 
   const regenerate = useMutation(async () => {
     const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')
@@ -231,7 +248,7 @@ export default function DashboardPage() {
           />
 
           <div className={styles.focus}>
-            <div id="attention" className={styles.reveal} style={{ '--delay': '410ms' } as CSSProperties}>
+            <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': '410ms' } as CSSProperties}>
               <Section
                 title="Требует внимания"
                 description={problemSummary(data.problemStageTotal, data.problemCooperations.length)}
@@ -291,7 +308,7 @@ export default function DashboardPage() {
               </Section>
             </div>
 
-            <div className={styles.reveal} style={{ '--delay': '480ms' } as CSSProperties}>
+            <div className={styles.reveal} data-assemble="right" style={{ '--delay': '480ms' } as CSSProperties}>
               <Section
                 title="Приоритетные действия"
                 description="Открытые рекомендации с наибольшим приоритетом."
@@ -335,8 +352,37 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <div className={styles.reveal} data-assemble="center" style={{ '--delay': '540ms' } as CSSProperties}>
+            <Section
+              title="Воронка связок"
+              description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы. Отменённые не входят."
+              action={
+                <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                  Все связки
+                </Button>
+              }
+            >
+              {funnelSource.isLoading ? (
+                <CardsSkeleton count={1} />
+              ) : funnelSource.error ? (
+                <ErrorState error={funnelSource.error} onRetry={funnelSource.reload} />
+              ) : funnelCounted === 0 ? (
+                <EmptyState title="Связок пока нет" description="Воронка появится, когда будет заведена первая связка." />
+              ) : (
+                <>
+                  <Funnel steps={funnelSteps} label="Воронка связок по фазам работы" />
+                  {funnelTotal !== null && funnelTotal > funnelCounted && (
+                    <p className={styles.funnelNote}>
+                      Посчитано по {formatNumber(funnelCounted)} связкам из {formatNumber(funnelTotal)}.
+                    </p>
+                  )}
+                </>
+              )}
+            </Section>
+          </div>
+
           <div className={styles.columns}>
-            <div className={styles.reveal} style={{ '--delay': '540ms' } as CSSProperties}>
+            <div className={styles.reveal} data-assemble="left" style={{ '--delay': '620ms' } as CSSProperties}>
               <Section
                 title="Связки в работе"
                 description="Вуз — программа — IT-продукт и этап, на котором связка сейчас."
@@ -387,7 +433,7 @@ export default function DashboardPage() {
               </Section>
             </div>
 
-            <div className={styles.reveal} style={{ '--delay': '600ms' } as CSSProperties}>
+            <div className={styles.reveal} data-assemble="right" style={{ '--delay': '700ms' } as CSSProperties}>
               <Section
                 title="Ключевые программы"
                 description="Верх рейтинга. Балл относительный — программы сравниваются между собой."
