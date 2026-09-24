@@ -84,7 +84,7 @@
 }
 
 .ratingValue {
-  font-size: var(--text-value-size);
+  font-size: var(--text-body-size);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text-accent-pale);
@@ -120,7 +120,7 @@
 }
 
 .countsValue {
-  font-size: var(--text-value-size);
+  font-size: var(--text-body-size);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
@@ -137,8 +137,4 @@
   line-height: 1.45;
 }
 
-/* Таблица — в виде плашек (DataTable appearance="cards"): карточка под ней
-   прозрачна, иначе плашки строк сливаются с её фоном. */
-div.registry {
-  background: transparent;
-}
+/* Таблица — на обычной панели карточки: скруглённая поверхность держит реестр одним блоком. */
