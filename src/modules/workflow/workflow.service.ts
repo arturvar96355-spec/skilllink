@@ -21,6 +21,7 @@ import * as repo from './workflow.repo'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import {
   assertChecklistReady,
+  assertControlPointCancellable,
   assertControlPointReady,
   assertStageFieldsComplete,
   assertTasksEditable,
@@ -202,6 +203,12 @@ export async function updateStage(
         stage.stageNumber,
         next,
         await repo.findPriorStages(stage.cooperationId, stage.stageNumber, tx),
+      )
+    }
+    if (statusChanged && next === 'CANCELLED') {
+      assertControlPointCancellable(
+        stage.stageNumber,
+        await repo.findLaterStages(stage.cooperationId, stage.stageNumber, tx),
       )
     }
     if (statusChanged && next === 'COMPLETED') {
