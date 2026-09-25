@@ -9,6 +9,8 @@
 --   * журнал действий (audit_log) — только читать и дописывать: изменить или удалить
 --     запись приложение не может. Срок хранения журнала применяет владелец
 --     (npm run db:retention через сервис migrate);
+--   * история оснований обработки ПД контактов (contact_basis_history, решение 111) —
+--     так же: только читать и дописывать;
 --   * таблица миграций — только чтение;
 --   * без TRUNCATE, без создания объектов, без суперпользователя, CREATEDB,
 --     CREATEROLE, REPLICATION, BYPASSRLS.
@@ -81,6 +83,14 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO :"app_role";
 -- 5. Журнал действий: только читать и дописывать.
 REVOKE UPDATE, DELETE ON TABLE public.audit_log FROM :"app_role";
 
+-- 5а. История оснований обработки ПД — как журнал: только читать и дописывать.
+-- Таблица появляется миграцией 20260925230200: на базе до неё шаг пропускается,
+-- а после выкладки скрипт запускается повторно (DEPLOY.md).
+SELECT to_regclass('public.contact_basis_history') IS NOT NULL AS has_basis_history \gset
+\if :has_basis_history
+REVOKE UPDATE, DELETE ON TABLE public.contact_basis_history FROM :"app_role";
+\endif
+
 -- 6. Таблица миграций Prisma: только чтение.
 REVOKE INSERT, UPDATE, DELETE ON TABLE public._prisma_migrations FROM :"app_role";
 
@@ -97,5 +107,5 @@ SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassr
   FROM pg_roles WHERE rolname = :'app_role';
 SELECT table_name, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
   FROM information_schema.role_table_grants
- WHERE grantee = :'app_role' AND table_name IN ('audit_log', '_prisma_migrations', 'users')
+ WHERE grantee = :'app_role' AND table_name IN ('audit_log', 'contact_basis_history', '_prisma_migrations', 'users')
  GROUP BY table_name ORDER BY table_name;

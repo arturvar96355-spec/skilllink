@@ -30,6 +30,13 @@ export const AUDIT_ACTIONS = [
   'university.archive',
   'university.restore',
   'contact.anonymize',
+  /**
+   * Основание обработки ПД контакта и согласие (решение 111). В журнале — коды
+   * основания и статуса «было → стало», без текста документа-основания.
+   */
+  'contact.basis.set',
+  /** Отзыв согласия: следом пишется `contact.anonymize`, если контакт обезличен. */
+  'contact.consent.withdraw',
   'program.create',
   'program.update',
   'program.skills.replace',

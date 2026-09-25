@@ -5804,7 +5804,7 @@
           }
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Успех",
             "content": {
               "application/json": {
@@ -5816,6 +5816,986 @@
                   "properties": {
                     "data": {
                       "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/universities/{id}/contacts/{contactId}/legal-basis": {
+      "put": {
+        "tags": [
+          "Университеты"
+        ],
+        "summary": "Зафиксировать правовое основание обработки ПД контакта",
+        "description": "Решение 111: основание по ч. 1 ст. 6 152-ФЗ и документ-основание; при согласии — дата получения (не в будущем) и форма. Повтор той же формы ничего не меняет. Обезличенный контакт и отозванное согласие — 409. В журнал — коды «было → стало» без текста документа.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "operationId": "put_api_universities__id__contacts__contactId__legal-basis",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          },
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "LEGITIMATE_INTEREST",
+                      "CONTRACT",
+                      "CONSENT",
+                      "OTHER"
+                    ]
+                  },
+                  "documentReference": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 200
+                  },
+                  "consentObtainedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "consentForm": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "WRITTEN",
+                          "ELECTRONIC",
+                          "ORAL_CONFIRMED_BY_EMAIL"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "basis",
+                  "documentReference"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/universities/{id}/contacts/{contactId}/consent/withdraw": {
+      "post": {
+        "tags": [
+          "Университеты"
+        ],
+        "summary": "Отозвать согласие контакта — контакт обезличивается",
+        "description": "Ч. 5 ст. 21 152-ФЗ. Только когда основание — действующее согласие; иначе 409. Согласие — единственное основание, поэтому контакт сразу обезличивается тем же набором полей, что и `anonymize`. Документ отзыва обязателен. Необратимо; повтор возвращает тот же результат.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "operationId": "post_api_universities__id__contacts__contactId__consent_withdraw",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          },
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "withdrawnAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                  },
+                  "withdrawalReference": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "withdrawalReference"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/universities/{id}/contacts/{contactId}/legal-basis/history": {
+      "get": {
+        "tags": [
+          "Университеты"
+        ],
+        "summary": "История основания обработки ПД и согласия контакта",
+        "description": "Кто, когда, что было → что стало. Без комментариев и текста документов. Новые сверху.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "operationId": "get_api_universities__id__contacts__contactId__legal-basis_history",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          },
+          {
+            "name": "contactId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {}
+                    },
+                    "meta": {
+                      "type": "object",
+                      "required": [
+                        "page",
+                        "pageSize",
+                        "total"
+                      ],
+                      "properties": {
+                        "page": {
+                          "type": "integer"
+                        },
+                        "pageSize": {
+                          "type": "integer"
+                        },
+                        "total": {
+                          "type": "integer"
+                        }
+                      },
+                      "description": "Отдельные списки добавляют сюда свои поля"
                     }
                   }
                 }

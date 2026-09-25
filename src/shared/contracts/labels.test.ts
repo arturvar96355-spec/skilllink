@@ -31,6 +31,9 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['RecommendationStatus (действия)', enums.RECOMMENDATION_STATUSES, labels.RECOMMENDATION_STATUS_ACTIONS],
   ['DataSourceType', enums.DATA_SOURCE_TYPES, labels.DATA_SOURCE_TYPE_LABELS],
   ['ApplicationStatus', enums.APPLICATION_STATUSES, labels.APPLICATION_STATUS_LABELS],
+  ['ContactLegalBasis', enums.CONTACT_LEGAL_BASES, labels.CONTACT_LEGAL_BASIS_LABELS],
+  ['ConsentStatus', enums.CONSENT_STATUSES, labels.CONSENT_STATUS_LABELS],
+  ['ConsentForm', enums.CONSENT_FORMS, labels.CONSENT_FORM_LABELS],
   ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
   ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
 ]

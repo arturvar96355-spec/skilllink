@@ -1,9 +1,25 @@
 import { prisma } from '@/shared/db/prisma'
 import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 import { textContains } from '@/shared/db/text-search'
-import { buildOrderBy, toSkipTake, parseSort, type Pagination } from '@/shared/http/pagination'
+import { buildOrderBy, toSkipTake, parseSort, TIE_BREAKER, type Pagination } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { UNIVERSITY_SORT_FIELDS, type UniversityListQuery } from './universities.schema'
+import type { ContactBasisPlan, ContactForBasis } from './universities.rules'
+
+/**
+ * Поля учёта основания обработки ПД (решение 111). Выбираются везде, где контакт
+ * уходит наружу: без них карточка показала бы «не зафиксировано» там, где оно есть.
+ */
+const contactBasisSelect = {
+  legalBasis: true,
+  consentStatus: true,
+  consentObtainedAt: true,
+  consentForm: true,
+  consentWithdrawnAt: true,
+  basisReference: true,
+  withdrawalReference: true,
+  basisUpdatedAt: true,
+} satisfies Prisma.ContactSelect
 
 /** Поля, которые нужны и списку, и карточке. Считаем программы и связи одним запросом. */
 const listSelect = {
@@ -36,6 +52,7 @@ const detailSelect = {
       email: true,
       phone: true,
       isPrimary: true,
+      ...contactBasisSelect,
     },
   },
 } satisfies Prisma.UniversitySelect
@@ -186,6 +203,7 @@ const contactSelect = {
   email: true,
   phone: true,
   isPrimary: true,
+  ...contactBasisSelect,
 } satisfies Prisma.ContactSelect
 
 export type ContactRow = Prisma.ContactGetPayload<{ select: typeof contactSelect }>
@@ -200,4 +218,79 @@ export async function updateContact(
   data: Prisma.ContactUpdateInput,
 ): Promise<ContactRow> {
   return prisma.contact.update({ where: { id: contactId }, data, select: contactSelect })
+}
+
+/**
+ * Изменить основание или согласие контакта одной транзакцией: строка контакта
+ * блокируется (`FOR UPDATE`), состояние перечитывается под блокировкой, план
+ * строится правилом по нему. Два одновременных отзыва или «зафиксировать» и
+ * «отозвать» наперегонки не запишут две истории от одного и того же «было».
+ *
+ * null — контакта у этого вуза нет. `changed: false` — правило сказало «ничего
+ * не меняется» (повтор).
+ */
+export async function changeContactBasis(
+  universityId: string,
+  contactId: string,
+  changedById: string,
+  plan: (current: ContactForBasis) => ContactBasisPlan | null,
+): Promise<{ before: ContactRow; after: ContactRow; changed: boolean } | null> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM contacts WHERE id = ${contactId} AND university_id = ${universityId} FOR UPDATE`
+    const before = await tx.contact.findFirst({
+      where: { id: contactId, universityId },
+      select: contactSelect,
+    })
+    if (!before) return null
+
+    const next = plan(before)
+    if (!next) return { before, after: before, changed: false }
+
+    const after = await tx.contact.update({
+      where: { id: contactId },
+      data: next.data,
+      select: contactSelect,
+    })
+    await tx.contactBasisHistory.create({
+      data: { ...next.history, contactId, changedById, changedAt: next.data.basisUpdatedAt },
+    })
+    return { before, after, changed: true }
+  })
+}
+
+const basisHistorySelect = {
+  id: true,
+  fromBasis: true,
+  toBasis: true,
+  fromConsentStatus: true,
+  toConsentStatus: true,
+  consentObtainedAt: true,
+  consentForm: true,
+  consentWithdrawnAt: true,
+  referenceChanged: true,
+  anonymized: true,
+  changedAt: true,
+  changedBy: { select: { id: true, fullName: true, role: true } },
+} satisfies Prisma.ContactBasisHistorySelect
+
+export type ContactBasisHistoryRow = Prisma.ContactBasisHistoryGetPayload<{
+  select: typeof basisHistorySelect
+}>
+
+/** История основания контакта, новые записи сверху. */
+export async function findBasisHistory(
+  contactId: string,
+  pagination: Pagination,
+): Promise<{ rows: ContactBasisHistoryRow[]; total: number }> {
+  const where = { contactId }
+  const [rows, total] = await Promise.all([
+    prisma.contactBasisHistory.findMany({
+      where,
+      select: basisHistorySelect,
+      orderBy: [{ changedAt: 'desc' }, TIE_BREAKER],
+      ...toSkipTake(pagination),
+    }),
+    prisma.contactBasisHistory.count({ where }),
+  ])
+  return { rows, total }
 }

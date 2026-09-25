@@ -1,15 +1,18 @@
 import { prisma } from '@/shared/db/prisma'
 import { writeAudit } from '@/shared/audit/audit'
 import { notFound } from '@/shared/http/errors'
-import { pageMeta } from '@/shared/http/pagination'
+import { pageMeta, type Pagination } from '@/shared/http/pagination'
 import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
+  ContactBasisHistoryEntryDto,
   ContactDto,
+  ContactLegalBasisDto,
   UniversityDto,
   UniversityListItemDto,
 } from '@/shared/contracts/university'
+import type { ConsentForm, ConsentStatus, ContactLegalBasis } from '@/shared/contracts/enums'
 import type { UniversityRatingDto } from '@/shared/contracts/rating'
 import * as analyticsService from '@/modules/analytics/analytics.service'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
@@ -18,21 +21,55 @@ import {
   ANONYMIZED_CONTACT_FIELDS,
   assertCanArchive,
   assertNotArchived,
+  basisHistoryKind,
   isAnonymizedContact,
+  planBasisChange,
+  planConsentWithdrawal,
 } from './universities.rules'
 import {
   needsRating,
   ratingRequestedExplicitly,
   UNIVERSITY_RATING_SORT,
   type CreateUniversityInput,
+  type SetContactBasisBody,
   type UniversityListQuery,
   type UpdateUniversityInput,
+  type WithdrawConsentBody,
 } from './universities.schema'
+
+/** Поля учёта основания обработки ПД в строке контакта (решение 111). */
+export interface ContactBasisColumns {
+  legalBasis: ContactLegalBasis | null
+  consentStatus: ConsentStatus
+  consentObtainedAt: Date | null
+  consentForm: ConsentForm | null
+  consentWithdrawnAt: Date | null
+  basisReference: string | null
+  withdrawalReference: string | null
+  basisUpdatedAt: Date | null
+}
+
+function toLegalBasisDto(row: ContactBasisColumns): ContactLegalBasisDto | null {
+  if (row.legalBasis === null || row.basisUpdatedAt === null) return null
+  return {
+    basis: row.legalBasis,
+    consentStatus: row.consentStatus,
+    consentObtainedAt: toIso(row.consentObtainedAt),
+    consentForm: row.consentForm,
+    consentWithdrawnAt: toIso(row.consentWithdrawnAt),
+    documentReference: row.basisReference ?? '',
+    withdrawalReference: row.withdrawalReference,
+    updatedAt: toIsoRequired(row.basisUpdatedAt),
+  }
+}
 
 /**
  * Контакт наружу. `showDetails` — вправе ли роль видеть почту и телефон
  * (canSeeContactDetails, решение 106). Без права они заменяются на null здесь,
  * в сервисе, а не во фронте: в ответ API значения не попадают вовсе.
+ *
+ * `showBasis` — вправе ли роль видеть основание обработки и согласие (право
+ * CONTACT_BASIS, решение 111). Без права — только признак `basisRecorded`.
  */
 export function toContactDto(
   row: {
@@ -42,8 +79,9 @@ export function toContactDto(
     email: string | null
     phone: string | null
     isPrimary: boolean
-  },
+  } & ContactBasisColumns,
   showDetails: boolean,
+  showBasis: boolean,
 ): ContactDto {
   // Признак обезличивания — по исходной строке: у скрытого контакта почта тоже null,
   // но он не обезличен.
@@ -58,6 +96,8 @@ export function toContactDto(
     isAnonymized,
     // У обезличенного скрывать нечего — там «нет данных», а не «скрыто».
     contactDetailsHidden: !showDetails && !isAnonymized,
+    basisRecorded: row.legalBasis !== null,
+    legalBasis: showBasis ? toLegalBasisDto(row) : null,
   }
 }
 
@@ -112,7 +152,8 @@ export function toDetail(
   rating: UniversityRatingDto | null = null,
 ): UniversityDto {
   const showDetails = canSeeContactDetails(user, row.id)
-  const contacts = row.contacts.map((contact) => toContactDto(contact, showDetails))
+  const showBasis = can(user, 'CONTACT_BASIS')
+  const contacts = row.contacts.map((contact) => toContactDto(contact, showDetails, showBasis))
   return {
     ...toListItem(row, activeCooperations, rating),
     address: row.address,
@@ -361,7 +402,9 @@ export async function anonymizeContact(
   const existing = await repo.findContact(universityId, contactId)
   if (!existing) throw notFound('Контакт не найден')
   // Повтор — не ошибка и не новая запись в журнале: результат тот же.
-  if (isAnonymizedContact(existing)) return toContactDto(existing, canSeeContactDetails(user, universityId))
+  if (isAnonymizedContact(existing)) {
+    return toContactDto(existing, canSeeContactDetails(user, universityId), can(user, 'CONTACT_BASIS'))
+  }
 
   const row = await repo.updateContact(contactId, { ...ANONYMIZED_CONTACT_FIELDS })
   await writeAudit({
@@ -371,5 +414,121 @@ export async function anonymizeContact(
     objectId: contactId,
     payload: { universityId, wasPrimary: existing.isPrimary },
   })
-  return toContactDto(row, canSeeContactDetails(user, universityId))
+  return toContactDto(row, canSeeContactDetails(user, universityId), can(user, 'CONTACT_BASIS'))
+}
+
+/**
+ * Зафиксировать правовое основание обработки ПД контакта (решение 111):
+ * законный интерес по договору с вузом, договор с самим контактом, согласие
+ * (с датой и формой) или иное — с документом-основанием. ADMIN и MANAGER.
+ *
+ * Повтор той же формы ничего не меняет и журнал не засоряет. В журнал — коды
+ * «было → стало» и признак смены документа; текст документа — только в карточке.
+ */
+export async function setContactBasis(
+  user: CurrentUser,
+  universityId: string,
+  contactId: string,
+  input: SetContactBasisBody,
+  now: Date = new Date(),
+): Promise<ContactDto> {
+  assertCan(user, 'CONTACT_BASIS')
+  const result = await repo.changeContactBasis(universityId, contactId, user.id, (current) =>
+    planBasisChange(current, input, now),
+  )
+  if (!result) throw notFound('Контакт не найден')
+
+  if (result.changed) {
+    await writeAudit({
+      userId: user.id,
+      action: 'contact.basis.set',
+      objectType: 'Contact',
+      objectId: contactId,
+      payload: {
+        universityId,
+        fromBasis: result.before.legalBasis,
+        toBasis: result.after.legalBasis,
+        fromConsentStatus: result.before.consentStatus,
+        toConsentStatus: result.after.consentStatus,
+        referenceChanged: result.before.basisReference !== result.after.basisReference,
+      },
+    })
+  }
+  return toContactDto(result.after, canSeeContactDetails(user, universityId), true)
+}
+
+/**
+ * Отозвать согласие контакта (ст. 9, ч. 5 ст. 21 152-ФЗ). ADMIN и MANAGER.
+ *
+ * Согласие было единственным основанием — контакт обезличивается сразу, в той же
+ * транзакции и тем же набором полей, что и по запросу субъекта (anonymizeContact).
+ * В журнал — два действия: отзыв и обезличивание, чтобы выгрузка для акта
+ * уничтожения по `contact.anonymize` оставалась полной. Повтор — тот же результат
+ * без новых записей.
+ */
+export async function withdrawContactConsent(
+  user: CurrentUser,
+  universityId: string,
+  contactId: string,
+  input: WithdrawConsentBody,
+  now: Date = new Date(),
+): Promise<ContactDto> {
+  assertCan(user, 'CONTACT_BASIS')
+  const result = await repo.changeContactBasis(universityId, contactId, user.id, (current) =>
+    planConsentWithdrawal(current, input, now),
+  )
+  if (!result) throw notFound('Контакт не найден')
+
+  if (result.changed) {
+    const anonymized = !isAnonymizedContact(result.before) && isAnonymizedContact(result.after)
+    await writeAudit({
+      userId: user.id,
+      action: 'contact.consent.withdraw',
+      objectType: 'Contact',
+      objectId: contactId,
+      payload: { universityId, anonymized },
+    })
+    if (anonymized) {
+      await writeAudit({
+        userId: user.id,
+        action: 'contact.anonymize',
+        objectType: 'Contact',
+        objectId: contactId,
+        payload: { universityId, wasPrimary: result.before.isPrimary, reason: 'consent.withdraw' },
+      })
+    }
+  }
+  return toContactDto(result.after, canSeeContactDetails(user, universityId), true)
+}
+
+function toBasisHistoryEntry(row: repo.ContactBasisHistoryRow): ContactBasisHistoryEntryDto {
+  return {
+    id: row.id,
+    kind: basisHistoryKind(row),
+    fromBasis: row.fromBasis,
+    toBasis: row.toBasis,
+    fromConsentStatus: row.fromConsentStatus,
+    toConsentStatus: row.toConsentStatus,
+    consentObtainedAt: toIso(row.consentObtainedAt),
+    consentForm: row.consentForm,
+    consentWithdrawnAt: toIso(row.consentWithdrawnAt),
+    referenceChanged: row.referenceChanged,
+    anonymized: row.anonymized,
+    changedBy: row.changedBy,
+    changedAt: toIsoRequired(row.changedAt),
+  }
+}
+
+/** История основания и согласия контакта (решение 111). ADMIN и MANAGER. */
+export async function contactBasisHistory(
+  user: CurrentUser,
+  universityId: string,
+  contactId: string,
+  pagination: Pagination,
+): Promise<{ data: ContactBasisHistoryEntryDto[]; meta: PageMeta }> {
+  assertCan(user, 'CONTACT_BASIS')
+  const contact = await repo.findContact(universityId, contactId)
+  if (!contact) throw notFound('Контакт не найден')
+  const { rows, total } = await repo.findBasisHistory(contactId, pagination)
+  return { data: rows.map(toBasisHistoryEntry), meta: pageMeta(pagination, total) }
 }
