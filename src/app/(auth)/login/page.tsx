@@ -104,6 +104,8 @@ function LoginForm() {
 
   return (
     <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
+      {/* Светящаяся линия, бегущая по кромке панели (решение 85). */}
+      <span className={styles.edge} aria-hidden="true" />
       <div className={styles.panelHead}>
         <h1 className={styles.title}>Вход</h1>
         <p className={styles.subtitle}>
@@ -151,7 +153,7 @@ function LoginForm() {
 
         <Button
           type="submit"
-          variant="primary"
+          variant="accent"
           size="lg"
           fullWidth
           isLoading={isPending || isLeaving}

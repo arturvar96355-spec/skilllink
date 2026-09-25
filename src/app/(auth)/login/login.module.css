@@ -149,18 +149,117 @@
 }
 
 .panel {
+  position: relative;
   width: min(420px, 100%);
   padding: var(--space-8);
-  border-radius: var(--radius-floating);
-  background: var(--surface-floating);
+  border-radius: var(--radius-panel);
+  /* Стеклянная плита (AuthKit, решение 85): лёгкий морозный оттенок поверх почти
+     непрозрачной тёмной основы — созвездие за ней только угадывается. */
+  background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--glass-plate);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.096);
-  box-shadow: var(--shadow-floating);
+  box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  animation: panelIn 520ms var(--ease-out) 180ms both;
+  animation: panelIn 760ms var(--ease-out) 180ms both;
+}
+
+/* Морозная кромка — отдельным слоем, как у AuthKit: не сдвигает содержимое. */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-edge);
+  pointer-events: none;
+}
+
+/* Четыре светящиеся точки по углам — «стекло в раме». */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: var(--space-4);
+  pointer-events: none;
+  background-image:
+    radial-gradient(var(--glass-line) 50%, transparent 50%),
+    radial-gradient(var(--glass-line) 50%, transparent 50%),
+    radial-gradient(var(--glass-line) 50%, transparent 50%),
+    radial-gradient(var(--glass-line) 50%, transparent 50%);
+  background-size: 4px 4px;
+  background-position:
+    0 0,
+    100% 0,
+    0 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 6px var(--glass-line));
+  opacity: 0.7;
+  animation: fadeIn 600ms var(--ease-out) 700ms both;
+}
+
+/*
+ * Бегущая по кромке линия (AuthKit, card-animated-loop): конический градиент
+ * с узким светлым сектором, вырезанный маской до рамки толщиной 1 px; угол
+ * крутится через @property, яркость дышит. Где @property нет (Safari до 16.4),
+ * линия просто стоит на месте — ничего не ломается.
+ */
+@property --edge-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.edge {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  filter: drop-shadow(0 0 10px var(--glass-line));
+  animation: fadeIn 900ms var(--ease-out) 900ms both;
+}
+
+.edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--edge-angle),
+    transparent 0%,
+    var(--glass-line) 20%,
+    transparent 25%
+  );
+  -webkit-mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(black 0 0) content-box exclude,
+    linear-gradient(black 0 0);
+  opacity: 0.75;
+  animation:
+    edgeSpin 12s linear infinite,
+    edgeBreath 3s linear infinite;
+}
+
+@keyframes edgeSpin {
+  to {
+    --edge-angle: 360deg;
+  }
+}
+
+@keyframes edgeBreath {
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
 }
 
 .panelHead {
@@ -186,6 +285,37 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* Поля в стиле AuthKit: морозная заливка и кромка, при фокусе кромка ярче
+   и мягкое свечение фирменного цвета. Только на экране входа. */
+.form input {
+  height: 42px;
+  background: var(--glass-field);
+  border-color: var(--glass-edge);
+}
+
+.form input:hover:not(:disabled) {
+  border-color: var(--glass-edge-strong);
+}
+
+.form input:focus {
+  background: var(--glass-field);
+  border-color: var(--glass-edge-strong);
+  box-shadow: var(--glass-focus-ring);
+}
+
+/* Кнопка входа — единственная цветная, со свечением при наведении. */
+.form button[type='submit'] {
+  box-shadow: 0 0 0 0 transparent;
+  transition:
+    box-shadow var(--motion-surface) var(--ease-out),
+    background var(--motion-micro) var(--ease-out),
+    transform var(--motion-micro) var(--ease-out);
+}
+
+.form button[type='submit']:hover:not(:disabled) {
+  box-shadow: var(--glass-glow);
 }
 
 /* Поля — одно за другим, с шагом около 50 мс, сразу за панелью: поле почты
@@ -289,11 +419,23 @@
   }
 }
 
-/* Панель выходит справа (раздел 17). */
+/* Панель проявляется из расфокуса, чуть снизу — как карточки AuthKit (решение 85). */
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateX(28px);
+    transform: translateY(16px) scale(0.97);
+    filter: blur(8px);
+  }
+}
+
+/* «Уменьшить движение»: линия по кромке стоит, панель просто появляется. */
+@media (prefers-reduced-motion: reduce) {
+  .edge::before {
+    animation: none;
+  }
+
+  .panel {
+    animation: fadeIn 200ms var(--ease-out) both;
   }
 }
 
