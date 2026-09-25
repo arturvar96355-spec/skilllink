@@ -257,6 +257,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
           <span className={styles.stageBadges}>
             <DeadlineBadge
               isOverdue={stage.isOverdue}
+              isPlanShifted={stage.isPlanShifted}
               isDueSoon={stage.isDueSoon}
               daysToDeadline={stage.daysToDeadline}
             />

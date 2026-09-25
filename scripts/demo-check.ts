@@ -166,8 +166,10 @@ async function main(): Promise<void> {
   check('вузы в работе', metric('universitiesInWork'), 4)
   check('этапы в срок, %', metric('stagesOnTimePercent'), 89.1)
   check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 204)
-  check('проблемных этапов всего', overview.problemStageTotal, 12)
-  check('из них показано на главной', overview.problemCooperations.length, 10)
+  // По одному этапу на связку: не начатые этапы с вышедшим сроком — «план
+  // сдвинут», а не просрочка, и в счётчик не идут (решение 84).
+  check('проблемных этапов всего', overview.problemStageTotal, 5)
+  check('из них показано на главной', overview.problemCooperations.length, 5)
   check('приоритетных действий', overview.priorityActions.length, 5)
   check(
     'верхнее действие',
@@ -203,7 +205,8 @@ async function main(): Promise<void> {
   } else {
     check('текущий этап', row.currentStage?.stageNumber ?? null, 6)
     check('пройдено этапов', row.progress.completedStages, 5)
-    check('просрочено этапов', row.progress.overdueStages, 5)
+    // Просрочен сам шестой; 7–10 за контрольной точкой — «план сдвинут».
+    check('просрочено этапов', row.progress.overdueStages, 1)
 
     const card = (await manager.get<CooperationCard>(`/api/cooperations/${row.id}`)).data
     const stage = (number: number) => card.stages.find((item) => item.stageNumber === number)

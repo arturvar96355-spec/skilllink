@@ -7,7 +7,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
-import { computeControlStatus } from './workflow.rules'
+import { OVERDUE_STAGE_STATUSES, computeControlStatus } from './workflow.rules'
 import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -77,7 +77,7 @@ export async function findStagesByCooperation(cooperationId: string): Promise<St
   })
 }
 
-/** Просроченные этапы: срок прошёл, а этап не закрыт и не отменён. */
+/** Просроченные этапы: срок прошёл, а этап в работе или заблокирован (`isOverdue`). */
 export async function findOverdue(
   query: StageListQuery,
   scope: { universityId?: string },
@@ -99,7 +99,7 @@ export async function findOverdue(
 
   const where: Prisma.WorkflowStageWhereInput = {
     deadline: { lt: deadlineBefore },
-    status: { notIn: ['COMPLETED', 'CANCELLED'] },
+    status: { in: [...OVERDUE_STAGE_STATUSES] },
     ...cooperationFilter,
   }
 

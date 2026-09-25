@@ -84,8 +84,8 @@ export function findBlockingStages(
  * О сроке такого этапа не напоминают ни уведомления, ни рекомендации: «просрочен
  * этап 7» при неподписанном договоре предлагает сделать то, что система сама
  * запрещает. Действие здесь — закрыть точку, и о ней напоминает её собственный срок.
- * Счётчики просрочек на главной и в реестре этим правилом не пользуются: что
- * в них считать — решение продукта.
+ * Счётчикам просрочек это правило не нужно: не начатый этап и так не просрочен,
+ * а сдвинут (`isPlanShifted`, решение 84).
  */
 export function isLockedByControlPoint(
   stage: { stageNumber: number; status: StageStatus },
@@ -439,14 +439,42 @@ export function computeProgressPercent(statuses: readonly StageStatus[]): number
   return Math.round((closed / statuses.length) * 100)
 }
 
-/** Этап просрочен, если срок прошёл, а этап не закрыт и не отменён. */
+/**
+ * Статусы, в которых этап может быть просрочен: работа по нему идёт или встала.
+ *
+ * Не начатый этап с вышедшим сроком не просрочен, а сдвинут: его срок
+ * поставлен при создании связки и не двигается, когда впереди задерживается
+ * другой этап или держит контрольная точка. Считать его просроченным значило
+ * показывать одну задержку несколько раз — на главной одна связка занимала
+ * четыре строки из десяти (решение 84). Одно множество на правило и на запросы.
+ */
+export const OVERDUE_STAGE_STATUSES = ['IN_PROGRESS', 'BLOCKED'] as const satisfies readonly StageStatus[]
+
+/** Этап просрочен, если срок прошёл, а этап в работе или заблокирован. */
 export function isOverdue(
   deadline: Date | null,
   status: StageStatus,
   now: Date = new Date(),
 ): boolean {
   if (!deadline) return false
-  if (status === 'COMPLETED' || status === 'CANCELLED') return false
+  if (!(OVERDUE_STAGE_STATUSES as readonly StageStatus[]).includes(status)) return false
+  return deadline.getTime() < now.getTime()
+}
+
+/**
+ * План сдвинут: срок этапа прошёл, а этап ещё не начат.
+ *
+ * Это не просрочка (см. `OVERDUE_STAGE_STATUSES`): в счётчики проблем
+ * и в «Требует внимания» такой этап не идёт. Пометка нужна, чтобы дата
+ * в прошлом на не начатом этапе не выглядела ошибкой.
+ */
+export function isPlanShifted(
+  deadline: Date | null,
+  status: StageStatus,
+  now: Date = new Date(),
+): boolean {
+  if (!deadline) return false
+  if (status !== 'NOT_STARTED') return false
   return deadline.getTime() < now.getTime()
 }
 
