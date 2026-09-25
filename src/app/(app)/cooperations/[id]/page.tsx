@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
+import { CONTROL_POINT_STAGES, SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
@@ -88,6 +88,12 @@ function CooperationContent() {
   const documents = useResource<DocumentListItemDto[]>(
     tab === 'documents'
       ? `/api/documents${buildQuery({ cooperationId: params.id, pageSize: 50 })}`
+      : null,
+  )
+  // Подписанные договор и лицензия — рядом с чек-листом этапа 6 (решение 87).
+  const signedDocuments = useResource<DocumentListItemDto[]>(
+    tab === 'stages'
+      ? `/api/documents${buildQuery({ cooperationId: params.id, status: ['SIGNED'], type: ['AGREEMENT', 'LICENSE'], pageSize: 20 })}`
       : null,
   )
   const meetings = useResource<MeetingDto[]>(
@@ -339,6 +345,7 @@ function CooperationContent() {
               stage={stage}
               canWrite={user.permissions.canWrite}
               isHighlighted={stage.id === focusStageId}
+              signedDocuments={stage.stageNumber === SIGNING_STAGE_NUMBER ? (signedDocuments.data ?? []) : undefined}
               onStageChanged={(updated) => {
                 setPatchedStages((current) => ({ ...current, [updated.id]: updated }))
                 cooperation.reload()

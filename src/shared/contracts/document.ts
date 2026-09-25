@@ -47,6 +47,28 @@ export interface DocumentDto extends DocumentListItemDto {
   history: DocumentHistoryEntryDto[]
 }
 
+/**
+ * Что подпись документа сделала с чек-листом этапа «Подписание документов» (решение 87).
+ *
+ * - `marked` — пункты отмечены сейчас (`marked` — сколько);
+ * - `nothing-to-mark` — они уже были отмечены;
+ * - `pending-documents` — договор по связке не подписан или другой договор
+ *   ещё ждёт подписи (лицензию этап 6 не ждёт — она для этапа 7);
+ * - `locked` — этап за контрольной точкой: не закрыты этапы до него;
+ * - `stage-closed` — этап завершён или отменён, его чек-лист не меняется;
+ * - `cooperation-closed` — связка закрыта.
+ */
+export interface SigningChecklistEffectDto {
+  stageNumber: number
+  marked: number
+  outcome: 'marked' | 'nothing-to-mark' | 'pending-documents' | 'locked' | 'stage-closed' | 'cooperation-closed'
+}
+
+/** Ответ на смену статуса документа. `stageChecklist` — только когда документ подписан. */
+export interface DocumentStatusChangeDto extends DocumentDto {
+  stageChecklist?: SigningChecklistEffectDto
+}
+
 export interface DocumentTemplateDto {
   key: string
   type: DocumentType

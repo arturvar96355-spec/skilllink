@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   STAGE_PHASE_LABELS,
   STAGE_STATUS_LABELS,
+  type DocumentListItemDto,
   type StageHistoryEntryDto,
   type StageStatus,
   type WorkflowStageDto,
@@ -103,6 +104,11 @@ export interface StageCardProps {
   /** Этап, на который вела ссылка из уведомления: раскрыт и подсвечен. */
   isHighlighted: boolean
   onStageChanged: (stage: WorkflowStageDto) => void
+  /**
+   * Подписанные документы связки — у этапа «Подписание документов» (решение 87):
+   * подпись видна рядом с чек-листом, даже если пункты ещё не отмечены.
+   */
+  signedDocuments?: DocumentListItemDto[]
 }
 
 /**
@@ -113,7 +119,7 @@ export interface StageCardProps {
  * обязательным пунктом чек-листа. Его объяснение выводится в карточке целиком —
  * подменять его своим текстом нельзя, иначе пользователь не поймёт, что делать.
  */
-export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: StageCardProps) {
+export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, signedDocuments }: StageCardProps) {
   const toast = useToast()
   const [isOpen, setIsOpen] = useState(isHighlighted)
   const [action, setAction] = useState<ActionKind | null>(null)
@@ -340,6 +346,16 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged }: St
                     </div>
                   ))}
                 </div>
+                {signedDocuments && signedDocuments.length > 0 && (
+                  <span className={styles.taskMeta}>
+                    Подписано по документам:{' '}
+                    {signedDocuments
+                      .map((document) =>
+                        `«${document.title}»${document.signedAt ? `, ${formatDate(document.signedAt)}` : ''}`,
+                      )
+                      .join('; ')}
+                  </span>
+                )}
               </div>
             )}
 

@@ -16,6 +16,8 @@ import type {
   DocumentLinksDto,
   DocumentListItemDto,
   DocumentPackageResultDto,
+  DocumentStatusChangeDto,
+  SigningChecklistEffectDto,
   DocumentTemplateDto,
   GeneratedDocumentDto,
   SkippedTemplateDto,
@@ -31,6 +33,9 @@ import { PROGRAM_LEVEL_FULL_LABELS } from '@/shared/contracts/labels'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './documents.repo'
 import { lockCooperation } from '@/modules/workflow/workflow.repo'
+import { markTasksBySignedDocuments } from '@/modules/workflow/workflow.service'
+import { SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { describeForLog } from '@/shared/db/log'
 import {
   assertDocumentEditable,
   assertDocumentHasContent,
@@ -38,6 +43,8 @@ import {
   assertHasLink,
   nextVersion,
   packageSkipReason,
+  SIGNING_DOCUMENT_TYPES,
+  areSigningDocumentsSigned,
   positionInText,
   renderTemplate,
   type ExistingPackageDocument,
@@ -203,7 +210,7 @@ export async function changeStatus(
   user: CurrentUser,
   id: string,
   input: ChangeDocumentStatusInput,
-): Promise<DocumentDto> {
+): Promise<DocumentStatusChangeDto> {
   assertCan(user, 'WRITE')
 
   const existing = await repo.findById(id, universityScope(user))
@@ -234,7 +241,36 @@ export async function changeStatus(
     payload: { from: existing.status, to: input.status },
   })
 
-  return toDetail(row, user)
+  const stageChecklist =
+    input.status === 'SIGNED' && existing.cooperationId && SIGNING_DOCUMENT_TYPES.includes(existing.type)
+      ? await markSigningStage(existing.cooperationId, user.id, id)
+      : null
+
+  return { ...toDetail(row, user), ...(stageChecklist ? { stageChecklist } : {}) }
+}
+
+/**
+ * Подписан договор или лицензия — отметить пункты этапа «Подписание документов»,
+ * если договор по связке подписан и другие договоры подписи не ждут (решение 87).
+ *
+ * Статус документа к этому моменту уже сменён и записан: сбой здесь его не отменяет
+ * и наружу не выходит — пункты тогда отмечаются руками, как раньше.
+ */
+async function markSigningStage(
+  cooperationId: string,
+  userId: string,
+  documentId: string,
+): Promise<SigningChecklistEffectDto | null> {
+  try {
+    const documents = await repo.findPackageDocuments(cooperationId)
+    if (!areSigningDocumentsSigned(documents)) {
+      return { stageNumber: SIGNING_STAGE_NUMBER, marked: 0, outcome: 'pending-documents' }
+    }
+    return await markTasksBySignedDocuments(cooperationId, userId, documentId)
+  } catch (error) {
+    console.error('[DOCUMENTS] не удалось отметить пункты этапа подписания', describeForLog(error))
+    return null
+  }
 }
 
 /**

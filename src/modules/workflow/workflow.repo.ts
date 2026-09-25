@@ -69,6 +69,26 @@ export async function findStageWithCooperation(
   return prisma.workflowStage.findUnique({ where: { id }, select: stageWithCooperationSelect })
 }
 
+/** Этап связки по номеру — с чек-листом, как у карточки этапа. */
+export async function findStageByNumber(
+  cooperationId: string,
+  stageNumber: number,
+): Promise<StageRow | null> {
+  return prisma.workflowStage.findUnique({
+    where: { cooperationId_stageNumber: { cooperationId, stageNumber } },
+    select: stageSelect,
+  })
+}
+
+/** Статус связки — для отметок, которые делает система, а не пользователь в своей области. */
+export async function findCooperationStatus(cooperationId: string) {
+  const row = await prisma.cooperation.findUnique({
+    where: { id: cooperationId },
+    select: { status: true },
+  })
+  return row?.status ?? null
+}
+
 export async function findStagesByCooperation(cooperationId: string): Promise<StageRow[]> {
   return prisma.workflowStage.findMany({
     where: { cooperationId },
