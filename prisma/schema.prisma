@@ -343,6 +343,15 @@ model Skill {
   demand   MarketDemand[]
 
   @@index([category])
+  /**
+   * Уникальность названия без учёта регистра и пробелов держит индекс по выражению
+   * `skills_name_key_ci` (миграция 20260925230100, решение 110): «ML Ops» и «MLOps»,
+   * «Python» и «python» — один навык. Выражение повторяет `skillNameKey`
+   * (src/modules/skills/skills.rules.ts): NFKC, нижний регистр по ICU, без пробельных
+   * знаков. Индексы по выражению Prisma не описывает — он создан в миграции вручную;
+   * `prisma migrate diff` его не видит и удалить не предлагает. Меняешь `skillNameKey` —
+   * меняй индекс новой миграцией (`db:verify` сверяет их на примерах).
+   */
   @@map("skills")
 }
 

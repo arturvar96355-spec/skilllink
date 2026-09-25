@@ -23,6 +23,8 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
+import { skillNameKey } from '@/modules/skills/skills.rules'
+import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
 
 /**
  * Пункты вуза из конфига (решение 103): пары «номер этапа — заголовок пункта».
@@ -177,14 +179,6 @@ const RULES: Rule[] = [
     sql: `SELECT id FROM recommendations WHERE status = 'ACCEPTED'`,
   },
   {
-    // Решение 107: справочник держит это правило в коде (skillNameKey), база — только
-    // точное совпадение. lower() на колонке с ICU-сортировкой работает и для кириллицы.
-    name: 'Названия навыков не повторяются без учёта регистра и пробелов',
-    sql: `SELECT min(id) AS id FROM skills
-          GROUP BY lower(regexp_replace(normalize(name, NFKC), '\\s+', '', 'g'))
-          HAVING count(*) > 1`,
-  },
-  {
     name: 'Рекомендация ссылается на существующий объект',
     sql: `SELECT r.id FROM recommendations r
           WHERE NOT CASE r.object_type
@@ -264,6 +258,12 @@ async function main(): Promise<void> {
           wrongControl,
           failures,
         )
+
+        // Решение 110: дубли названий навыков база больше не пропустит — их держит
+        // индекс по выражению. Проверяется другое: что это выражение и skillNameKey
+        // считают ключ одинаково — на трудных примерах и на всех названиях справочника.
+        total += 1
+        report('Ключ названия навыка в базе совпадает с кодом (skillNameKey)', await skillKeyMismatches(tx), failures)
       },
       { timeout: 120_000 },
     )
@@ -278,6 +278,28 @@ async function main(): Promise<void> {
   }
   console.log(`\x1b[31mНарушено правил: ${failures.length} из ${total}\x1b[0m`)
   process.exit(1)
+}
+
+type ReadTx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]
+
+/** Названия, на которых индекс `skills_name_key_ci` и `skillNameKey` дают разный ключ. */
+async function skillKeyMismatches(tx: ReadTx): Promise<string[]> {
+  const [index] = await tx.$queryRawUnsafe<Array<{ expr: string }>>(
+    `SELECT pg_get_expr(indexprs, indrelid) AS expr FROM pg_index
+      WHERE indexrelid = to_regclass('skills_name_key_ci')`,
+  )
+  if (!index) return ['нет индекса skills_name_key_ci — миграция 20260925230100 не применена']
+
+  const names = [
+    ...SKILL_NAME_KEY_SAMPLES.map(([name]) => name),
+    ...(await tx.skill.findMany({ select: { name: true } })).map((row) => row.name),
+  ]
+  // Выражение — из каталога базы, а не копия: сверяется ровно то, что держит уникальность.
+  const rows = await tx.$queryRawUnsafe<Array<{ name: string; key: string }>>(
+    `SELECT name, ${index.expr} AS key FROM unnest($1::text[]) AS input(name)`,
+    names,
+  )
+  return rows.filter((row) => row.key !== skillNameKey(row.name)).map((row) => JSON.stringify(row.name))
 }
 
 function report(name: string, ids: string[], failures: Array<{ name: string; ids: string[] }>) {
