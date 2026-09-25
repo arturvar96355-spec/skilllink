@@ -69,46 +69,29 @@
   stroke-dasharray: 4 4;
 }
 
-.center {
-  position: absolute;
-  left: 50%;
+.readout {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  /* Не шире отверстия кольца и на тёмной плашке: сквозь отверстие видны цветные
-     стенки, и без подложки текст сливался с ними. */
-  max-width: 40%;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-control);
-  background: var(--glass-plate);
-  box-shadow:
-    0 0 0 1px var(--glass-edge),
-    0 6px 18px rgba(0, 0, 0, 0.45);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  min-height: 2.2em;
+  margin-top: calc(var(--space-2) * -1);
   text-align: center;
 }
 
-.centerValue {
-  font-size: var(--text-kpi-sm-size);
+.readoutValue {
+  font-size: var(--text-kpi-md-size);
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
-  white-space: nowrap;
   transition: color var(--motion-micro) var(--ease-out);
 }
 
-.centerLabel {
-  max-width: 100%;
-  font-size: var(--text-caption-size);
-  line-height: 1.25;
+.readoutLabel {
+  font-size: var(--text-body-sm-size);
   color: var(--text-secondary);
-  /* Одна строка: длинное название сектора обрезается, полное — в легенде. */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .legend {

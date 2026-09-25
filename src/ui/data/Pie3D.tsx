@@ -302,13 +302,22 @@ export function Pie3D({
         )}
       </svg>
 
-      {/* Центр: сумма или выбранный сектор. Над отверстием, не над гранью. */}
-      <div className={styles.center} style={{ top: `${((g.cy + g.depth / 2) / height) * 100}%` }} aria-hidden>
-        <span className={styles.centerValue} style={shown ? { color: TONE_VAR[shown.tone] } : undefined}>
+      </div>
+
+      {/*
+        Показание — под кольцом, а не в отверстии: в наклоне отверстие — узкий
+        эллипс, и любая надпись там ложилась на грани. Высота строки постоянная —
+        при наведении ничего не сдвигается.
+      */}
+      <div className={styles.readout} aria-live="polite">
+        {/* Серый сектор («дефицит») своим цветом не читался бы — у него светлый текст. */}
+        <span
+          className={styles.readoutValue}
+          style={shown && shown.tone !== 'muted' ? { color: TONE_VAR[shown.tone] } : undefined}
+        >
           {total === 0 ? 'Нет данных' : shown ? `${formatNumber(shown.value)}${valueSuffix}` : (centerValue ?? formatNumber(total))}
         </span>
-        <span className={styles.centerLabel}>{shown ? shown.label : centerLabel}</span>
-      </div>
+        <span className={styles.readoutLabel}>{shown ? shown.label : centerLabel}</span>
       </div>
 
       <ul className={styles.legend}>
