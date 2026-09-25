@@ -48,7 +48,7 @@ export interface AiAssistStatusDto {
 export interface IntegrationsStatusDto {
   marketDataProvider: string
   integrations: IntegrationStatusDto[]
-  /** ИИ-помощник (с 25.09.2026). */
+  /** ИИ-помощник: провайдер, модель, готовность. */
   aiAssist: AiAssistStatusDto
   checkedAt: string
 }
