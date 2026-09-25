@@ -38,9 +38,11 @@ export type UpdateTaskInput = z.infer<typeof updateTaskSchema>
 export const stageListQuerySchema = paginationSchema.extend({
   universityId: z.string().trim().min(1).optional(),
   responsibleId: z.string().trim().min(1).optional(),
-  /** Сколько дней просрочки минимум. Для блока проблемных связей на дашборде. */
-  // Сверху — сто лет: без границы огромное число давало несуществующую дату
-  // и внутреннюю ошибку вместо отказа.
+  /**
+   * Сколько дней просрочки минимум. Для блока проблемных связей на дашборде.
+   * Сверху — сто лет: без границы огромное число дало бы несуществующую дату
+   * и внутреннюю ошибку вместо отказа.
+   */
   minDaysOverdue: z.coerce.number().int().min(0).max(36_500).optional(),
 })
 

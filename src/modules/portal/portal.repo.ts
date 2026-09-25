@@ -142,7 +142,7 @@ export async function createApplication(
 }
 
 /**
- * Пересчитывает applicationCount программы по сумме заявок (решение 9).
+ * Пересчитывает applicationCount программы по сумме заявок: вручную показатель не вводится.
  * Отменённые и отклонённые заявки не учитываются.
  */
 export async function recalcApplicationCount(programId: string): Promise<number> {
