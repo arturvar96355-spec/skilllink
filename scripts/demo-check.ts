@@ -1,6 +1,6 @@
 /**
  * Сверка стенда со сценарием показа: те ли числа увидит жюри, что записаны
- * в docs/DEMO.md и docs/DEMO_CARD.md.
+ * в сценарии показа и шпаргалке докладчика (у команды, вне репозитория).
  *
  *   SEED_DEMO_PASSWORD=... npm run demo:check -- https://skilllink.site
  *   npm run demo:check -- http://localhost:3100          # запасной ноутбук
@@ -284,7 +284,7 @@ async function main(): Promise<void> {
     console.log(`  ${RED}Расхождений со сценарием: ${failed}${RESET} (совпало ${passed})`)
     console.log(
       '  Числа уехали со временем или после прогона — перезалейте демо-данные:\n' +
-        '  scripts/deploy/reseed.sh (стенд) или npm run db:seed с базой skilllink_demo (ноутбук), docs/DEMO.md.\n' +
+        '  scripts/deploy/reseed.sh (стенд) или npm run db:seed с базой skilllink_demo (ноутбук), docs/DEPLOY.md.\n' +
         '  Если и после перезаливки расходится — изменился код или сценарий, их надо свести.',
     )
     process.exit(1)

@@ -149,5 +149,5 @@ if [ -z "${CI:-}" ]; then
 else
   echo "   Пароль демо-пользователей: в .env.cloud на сервере"
 fi
-echo "   Вход: $PUBLIC_URL/login (admin@skilllink.demo и другие — docs/HANDOFF.md)"
+echo "   Вход: $PUBLIC_URL/login (admin@skilllink.demo и другие — README.md)"
 echo "   Журнал: ssh $TARGET \"cd $REMOTE_DIR/app && docker compose -p skilllink logs -f app\""
