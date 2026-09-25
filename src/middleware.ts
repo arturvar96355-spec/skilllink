@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
+import { NONCE_HEADER, buildContentSecurityPolicy, createNonce } from '@/shared/http/csp'
 
 /**
  * Неавторизованного посетителя страницы отправляют на вход.
@@ -36,10 +37,35 @@ function matches(paths: readonly string[], pathname: string): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 }
 
+/**
+ * Пропустить запрос дальше с Content-Security-Policy на свой nonce (решение 112).
+ *
+ * Политика уходит дважды: в ответ — браузеру, и в заголовки запроса — Next,
+ * который берёт из неё nonce для своих скриптов. `x-nonce` читает корневой
+ * макет для встроенных скриптов. Пришедшие от клиента одноимённые заголовки
+ * перезаписываются: nonce задаёт только сервер.
+ */
+function pass(request: NextRequest): NextResponse {
+  const nonce = createNonce()
+  const policy = buildContentSecurityPolicy({
+    nonce,
+    dev: process.env.NODE_ENV !== 'production',
+    // За Caddy приложение слушает http, протокол посетителя — в X-Forwarded-Proto
+    // (Caddy выставляет его сам, присланный клиентом не пропускает).
+    https: request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https',
+  })
+  const headers = new Headers(request.headers)
+  headers.set(NONCE_HEADER, nonce)
+  headers.set('content-security-policy', policy)
+  const response = NextResponse.next({ request: { headers } })
+  response.headers.set('content-security-policy', policy)
+  return response
+}
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
 
-  if (matches(OPEN_PATHS, pathname)) return NextResponse.next()
+  if (matches(OPEN_PATHS, pathname)) return pass(request)
 
   const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name))
   const isPublic = matches(PUBLIC_PATHS, pathname)
@@ -63,7 +89,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  return NextResponse.next()
+  return pass(request)
 }
 
 export const config = {

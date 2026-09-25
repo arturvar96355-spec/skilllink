@@ -2334,6 +2334,31 @@ async function checkSecurityHeaders(): Promise<void> {
     )
   }
 
+  // Страницы — под полной политикой: скрипты только с nonce запроса (решение 112).
+  // Без сессии `/` уводит на вход — проверяется то, что браузер получит в итоге.
+  const scriptSrcNonce = /script-src 'nonce-([A-Za-z0-9+/_-]+={0,2})' 'strict-dynamic'/
+  const pageNonces: string[] = []
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(`${BASE_URL}/`, {
+      headers: actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {},
+    })
+    const html = await response.text()
+    const policy = response.headers.get('content-security-policy') ?? ''
+    const nonce = policy.match(scriptSrcNonce)?.[1]
+    check('страница: CSP со script-src по nonce и strict-dynamic', nonce !== undefined, `получено ${policy || 'ничего'}`)
+    if (nonce === undefined) continue
+    pageNonces.push(nonce)
+    // Скрипты страницы несут тот же nonce, что в заголовке: иначе браузер их не исполнит.
+    const scripts = html.match(/<script\b[^>]*>/g) ?? []
+    const withoutNonce = scripts.filter((tag) => !tag.includes(`nonce="${nonce}"`))
+    check(
+      'страница: все <script> с nonce из заголовка',
+      scripts.length > 0 && withoutNonce.length === 0,
+      `без nonce ${withoutNonce.length} из ${scripts.length}`,
+    )
+  }
+  check('страница: nonce у каждого ответа свой', pageNonces.length === 2 && pageNonces[0] !== pageNonces[1])
+
   // Изменяющий запрос со страницы чужого сайта: браузер подписывает его
   // заголовком Origin, и сервер обязан отказать до всякой записи.
   const crossSite = await fetch(`${BASE_URL}/api/universities`, {
