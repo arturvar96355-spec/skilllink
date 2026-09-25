@@ -1,4 +1,5 @@
 import { getCurrentUser } from '@/shared/auth/current-user'
+import { clientAddress } from '@/shared/auth/throttle'
 import { handle } from '@/shared/http'
 import * as service from '@/modules/export/export.service'
 import { parseExportRequest } from '@/modules/export/export.schema'
@@ -10,7 +11,9 @@ import { parseExportRequest } from '@/modules/export/export.schema'
  */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()
-  const result = await service.exportDataset(user, parseExportRequest(request))
+  const result = await service.exportDataset(user, parseExportRequest(request), {
+    address: clientAddress(request.headers),
+  })
 
   return new Response(result.csv, {
     status: 200,

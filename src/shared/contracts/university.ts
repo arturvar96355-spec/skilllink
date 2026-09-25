@@ -8,6 +8,11 @@ export interface ContactDto {
   email: string | null
   phone: string | null
   isPrimary: boolean
+  /**
+   * Контакт обезличен администратором по запросу субъекта (152-ФЗ, docs/PRIVACY.md):
+   * вместо ФИО — «Контакт удалён», почты, телефона и должности нет.
+   */
+  isAnonymized: boolean
 }
 
 /** Строка реестра вузов (раздел 7.2 ТЗ). */
