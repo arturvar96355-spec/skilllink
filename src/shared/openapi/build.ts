@@ -125,6 +125,7 @@ const PERMISSION_NOTES: Record<string, string> = {
   UNIVERSITY_PORTAL_WRITE: 'Роль: UNIVERSITY_REP. Сотрудник ИТ-Школы в кабинете вуза только просматривает',
   CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
   CONTACT_DETAILS: 'Роли: ADMIN, MANAGER; UNIVERSITY_REP — контакты своего вуза',
+  CONTACT_BASIS: 'Роли: ADMIN, MANAGER',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {

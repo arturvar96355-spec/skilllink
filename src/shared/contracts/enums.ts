@@ -160,3 +160,19 @@ export const APPLICATION_STATUSES = [
   'CANCELLED',
 ] as const
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
+
+/**
+ * Правовое основание обработки ПД контактного лица вуза (ч. 1 ст. 6 152-ФЗ, решение 111).
+ * Основное для контактов — законный интерес оператора по договору с вузом (п. 7):
+ * стороной договора является вуз, а не контакт, поэтому это не `CONTRACT` (п. 5).
+ */
+export const CONTACT_LEGAL_BASES = ['LEGITIMATE_INTEREST', 'CONTRACT', 'CONSENT', 'OTHER'] as const
+export type ContactLegalBasis = (typeof CONTACT_LEGAL_BASES)[number]
+
+/** Статус согласия: `NONE` — основание не согласие; остальные — только при `CONSENT`. */
+export const CONSENT_STATUSES = ['NONE', 'OBTAINED', 'WITHDRAWN'] as const
+export type ConsentStatus = (typeof CONSENT_STATUSES)[number]
+
+/** Форма согласия (ч. 1 ст. 9: в любой форме, позволяющей подтвердить факт получения). */
+export const CONSENT_FORMS = ['WRITTEN', 'ELECTRONIC', 'ORAL_CONFIRMED_BY_EMAIL'] as const
+export type ConsentForm = (typeof CONSENT_FORMS)[number]

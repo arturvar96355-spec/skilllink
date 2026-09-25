@@ -3398,6 +3398,184 @@ async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+async function checkContactLegalBasis(ctx: ProbeContext): Promise<void> {
+  step('Основание обработки ПД контактов и согласие: права, отзыв → обезличивание, история (решение 111)')
+  const { rep, adminId, managerId, universities } = ctx
+
+  type LegalBasis = {
+    basis: string
+    consentStatus: string
+    consentObtainedAt: string | null
+    consentForm: string | null
+    documentReference: string
+    withdrawalReference: string | null
+  }
+  type Contact = {
+    id: string
+    fullName: string
+    email: string | null
+    isAnonymized: boolean
+    isPrimary: boolean
+    basisRecorded: boolean
+    legalBasis: LegalBasis | null
+  }
+  type Card = { id: string; contacts: Contact[] }
+  type HistoryEntry = { kind: string; toConsentStatus: string; anonymized: boolean; referenceChanged: boolean }
+  const firstId = async (role: string): Promise<string | null> =>
+    (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
+
+  actAs(adminId)
+  const analystId = await firstId('ANALYST')
+  const viewerId = await firstId('VIEWER')
+
+  // Демо-вуз представителя: основание зафиксировано по соглашению с вузом (сид).
+  const demoUniversityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
+  actAs(managerId)
+  const managerDemo = demoUniversityId ? await call<Card>('GET', `/api/universities/${demoUniversityId}`) : null
+  const demoContact = managerDemo?.body.data?.contacts.find((contact) => contact.basisRecorded)
+  check(
+    'MANAGER: в карточке демо-вуза основание контакта видно целиком',
+    Boolean(demoContact?.legalBasis?.basis && demoContact.legalBasis.documentReference),
+    demoContact?.legalBasis?.basis ?? 'нет',
+  )
+  const demoReference = demoContact?.legalBasis?.documentReference ?? '—'
+
+  for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId], ['UNIVERSITY_REP', rep?.id ?? null]] as const) {
+    actAs(id)
+    const card = demoUniversityId ? await call<Card>('GET', `/api/universities/${demoUniversityId}`) : null
+    const contact = card?.body.data?.contacts.find((item) => item.id === demoContact?.id)
+    check(
+      `${role}: только признак «основание зафиксировано», без основания и документа`,
+      card?.status === 200 &&
+        contact?.basisRecorded === true &&
+        contact.legalBasis === null &&
+        !card.raw.includes(demoReference),
+    )
+  }
+
+  // Свой контакт в своём вузе: демо-контакты пробник не обезличивает.
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const probeName = `Пробная Персона Согласия ${sfx}`
+  const probeEmail = `probe-consent-${sfx}@example.invalid`
+  const created = await call<Card>('POST', '/api/universities', {
+    name: `Пробный вуз учёта согласий ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+    contacts: [{ fullName: probeName, position: 'Методист', email: probeEmail, phone: '+7 900 000-00-01', isPrimary: true }],
+  })
+  const universityId = created.body.data?.id
+  const contactId = created.body.data?.contacts[0]?.id
+  check('заведён пробный вуз с контактом без основания', created.status === 201 && created.body.data?.contacts[0]?.basisRecorded === false)
+  if (!universityId || !contactId) {
+    actAs(null)
+    return
+  }
+  const base = `/api/universities/${universityId}/contacts/${contactId}`
+  const consentBody = {
+    basis: 'CONSENT',
+    documentReference: `Согласие вх. № ${sfx} (проба)`,
+    consentObtainedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    consentForm: 'WRITTEN',
+  }
+
+  for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId], ['UNIVERSITY_REP', rep?.id ?? null]] as const) {
+    actAs(id)
+    const set = await call('PUT', `${base}/legal-basis`, consentBody)
+    const withdraw = await call('POST', `${base}/consent/withdraw`, { withdrawalReference: 'Отзыв (проба)' })
+    const history = await call('GET', `${base}/legal-basis/history`)
+    // Представителю чужой вуз и так закрыт, но отказ по праву наступает раньше поиска.
+    check(
+      `${role}: зафиксировать, отозвать, история — 403`,
+      set.status === 403 && withdraw.status === 403 && history.status === 403,
+      `${set.status}/${withdraw.status}/${history.status}`,
+    )
+  }
+
+  actAs(managerId)
+  const noDate = await call('PUT', `${base}/legal-basis`, { basis: 'CONSENT', documentReference: 'Согласие (проба)' })
+  check('согласие без даты и формы — 422', noDate.status === 422)
+  const future = await call('PUT', `${base}/legal-basis`, {
+    ...consentBody,
+    consentObtainedAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  })
+  check('дата согласия в будущем — 422', future.status === 422)
+  const formWithoutConsent = await call('PUT', `${base}/legal-basis`, {
+    basis: 'LEGITIMATE_INTEREST',
+    documentReference: 'Соглашение (проба)',
+    consentForm: 'WRITTEN',
+  })
+  check('форма согласия при другом основании — 422', formWithoutConsent.status === 422)
+  const noReference = await call('PUT', `${base}/legal-basis`, { basis: 'LEGITIMATE_INTEREST', documentReference: ' ' })
+  check('без документа-основания — 422', noReference.status === 422)
+  const withdrawNothing = await call('POST', `${base}/consent/withdraw`, { withdrawalReference: 'Отзыв (проба)' })
+  check('отзыв без согласия — 409', withdrawNothing.status === 409, `статус ${withdrawNothing.status}`)
+
+  const set = await call<Contact>('PUT', `${base}/legal-basis`, consentBody)
+  check(
+    'MANAGER фиксирует согласие: OBTAINED, дата и форма',
+    set.status === 200 &&
+      set.body.data?.legalBasis?.consentStatus === 'OBTAINED' &&
+      set.body.data.legalBasis.consentForm === 'WRITTEN' &&
+      set.body.data.basisRecorded === true,
+    `статус ${set.status}`,
+  )
+  const again = await call<Contact>('PUT', `${base}/legal-basis`, consentBody)
+  const afterRepeat = await call<HistoryEntry[]>('GET', `${base}/legal-basis/history`)
+  check('повтор той же формы — 200 и без новой записи истории', again.status === 200 && afterRepeat.body.meta?.total === 1)
+
+  const foreignUniversityId = demoUniversityId !== universityId ? demoUniversityId : null
+  if (foreignUniversityId) {
+    const foreign = await call('PUT', `/api/universities/${foreignUniversityId}/contacts/${contactId}/legal-basis`, consentBody)
+    check('контакт под адресом чужого вуза — 404', foreign.status === 404, `статус ${foreign.status}`)
+  }
+
+  const noWithdrawalDoc = await call('POST', `${base}/consent/withdraw`, {})
+  check('отзыв без документа отзыва — 422', noWithdrawalDoc.status === 422)
+  const withdrawn = await call<Contact>('POST', `${base}/consent/withdraw`, { withdrawalReference: `Отзыв вх. № ${sfx} (проба)` })
+  check(
+    'отзыв согласия → контакт обезличен сразу',
+    withdrawn.status === 200 &&
+      withdrawn.body.data?.isAnonymized === true &&
+      withdrawn.body.data.email === null &&
+      withdrawn.body.data.isPrimary === false &&
+      withdrawn.body.data.legalBasis?.consentStatus === 'WITHDRAWN',
+    `статус ${withdrawn.status}`,
+  )
+  const card = await call<Card>('GET', `/api/universities/${universityId}`)
+  check('в карточке вуза нет ни ФИО, ни почты отозвавшего', !card.raw.includes(probeName) && !card.raw.includes(probeEmail))
+  const repeat = await call<Contact>('POST', `${base}/consent/withdraw`, { withdrawalReference: `Отзыв вх. № ${sfx} (проба)` })
+  check('повторный отзыв — тот же результат', repeat.status === 200 && repeat.body.data?.isAnonymized === true)
+  const reset = await call('PUT', `${base}/legal-basis`, { basis: 'LEGITIMATE_INTEREST', documentReference: 'Соглашение (проба)' })
+  check('основание после отзыва не меняется — 409', reset.status === 409, `статус ${reset.status}`)
+
+  const history = await call<HistoryEntry[]>('GET', `${base}/legal-basis/history`)
+  const [last, first] = history.body.data ?? []
+  check(
+    'история: отзыв с обезличиванием сверху, под ним фиксация согласия',
+    history.body.meta?.total === 2 &&
+      last?.kind === 'consent.withdraw' && last.anonymized === true && last.toConsentStatus === 'WITHDRAWN' &&
+      first?.kind === 'basis.set' && first.toConsentStatus === 'OBTAINED',
+  )
+  check('в истории нет ни ФИО, ни почты, ни текста документов', !history.raw.includes(probeName) && !history.raw.includes(probeEmail) && !history.raw.includes('(проба)'))
+
+  actAs(adminId)
+  const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=Contact&objectId=${contactId}&pageSize=20`)
+  const actions = (journal.body.data ?? []).map((entry) => entry.action).sort()
+  check(
+    'журнал: основание, отзыв и обезличивание — по одному разу',
+    JSON.stringify(actions) === JSON.stringify(['contact.anonymize', 'contact.basis.set', 'contact.consent.withdraw']),
+    actions.join(', '),
+  )
+  check('в журнале нет ни ФИО, ни почты, ни текста документов', !journal.raw.includes(probeName) && !journal.raw.includes(probeEmail) && !journal.raw.includes('(проба)'))
+
+  const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
+  check('выгрузка вузов: колонка «Основание обработки ПД зафиксировано»', exported.raw.includes('Основание обработки ПД зафиксировано'))
+
+  await call('POST', `/api/universities/${universityId}/archive`)
+  actAs(null)
+}
+
 async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
   const { rep, adminId, managerId } = ctx
@@ -3914,6 +4092,7 @@ async function main(): Promise<void> {
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
   await checkContactPrivacy(ctx)
+  await checkContactLegalBasis(ctx)
   await checkUserManagement(ctx)
   await checkStaleSession()
   await checkLoginAttempts()

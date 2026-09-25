@@ -152,6 +152,7 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
 | `CALENDAR` | ADMIN, MANAGER, ANALYST, VIEWER — личная подписка на календарь сроков и встреч (решение 105) |
 | `CONTACT_DETAILS` | ADMIN, MANAGER — почта и телефон контактных лиц вузов (решение 106); UNIVERSITY_REP — только контактов своего вуза |
+| `CONTACT_BASIS` | ADMIN, MANAGER — правовое основание обработки ПД контактов и согласия: видеть, фиксировать, отзывать согласие, история (решение 111). UNIVERSITY_REP — нет, даже по своему вузу |
 
 **Почта и телефон контактных лиц вузов** (с 25.09.2026, решение владельца, решение 106):
 
@@ -164,6 +165,8 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | Встречи (участник-контакт), документы (подстановка контакта) | только ФИО и должность | то же | то же |
 | ИИ-помощник | почта и телефон вырезаются из текста до отправки модели | то же | — |
 | `GET /api/me` → `permissions.canSeeContactDetails` | `true` | `false` | `false` (признак «скрыто» — в самом контакте) |
+| Основание обработки ПД контакта (решение 111): карточка — `legalBasis` | основание, согласие, документы | `legalBasis: null`, только `basisRecorded` | то же, что ANALYST |
+| Выгрузка вузов — «Основание обработки ПД зафиксировано» | «да»/«нет» | то же | то же |
 
 **Ответственным** за связку, этап, встречу и документ назначается только действующий
 ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
@@ -367,7 +370,14 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
     "id": "…", "fullName": "Ветрова Ирина Павловна",
     "position": "Заместитель декана",
     "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true,
-    "isAnonymized": false, "contactDetailsHidden": false
+    "isAnonymized": false, "contactDetailsHidden": false,
+    "basisRecorded": true,
+    "legalBasis": {
+      "basis": "LEGITIMATE_INTEREST", "consentStatus": "NONE",
+      "consentObtainedAt": null, "consentForm": null, "consentWithdrawnAt": null,
+      "documentReference": "Соглашение о сотрудничестве № 14/2026 (демо), архив договоров",
+      "withdrawalReference": null, "updatedAt": "2026-01-28T19:06:23.449Z"
+    }
   },
   "contacts": [ "…" ],
   "createdAt": "2026-09-21T07:23:11.101Z"
@@ -383,8 +393,26 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
 ```json
 { "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
   "email": null, "phone": null, "isPrimary": true,
-  "isAnonymized": false, "contactDetailsHidden": true }
+  "isAnonymized": false, "contactDetailsHidden": true,
+  "basisRecorded": true, "legalBasis": null }
 ```
+
+**Правовое основание обработки ПД контакта** (решение 111). `basisRecorded` приходит всем,
+кто видит контакт: основание зафиксировано или нет. `legalBasis` целиком
+(`ContactLegalBasisDto`) — только ADMIN и MANAGER (право `CONTACT_BASIS`); остальным `null`.
+Для фронта: `basisRecorded: true` и `legalBasis: null` — «скрыто», `basisRecorded: false` —
+«основание не зафиксировано».
+
+| Поле `legalBasis` | Тип | Смысл |
+| --- | --- | --- |
+| `basis` | `LEGITIMATE_INTEREST` \| `CONTRACT` \| `CONSENT` \| `OTHER` | основание по ч. 1 ст. 6 152-ФЗ, подписи — `CONTACT_LEGAL_BASIS_LABELS` |
+| `consentStatus` | `NONE` \| `OBTAINED` \| `WITHDRAWN` | `NONE` — основание не согласие; подписи — `CONSENT_STATUS_LABELS` |
+| `consentObtainedAt` | ISO \| null | дата получения согласия — при `OBTAINED` и `WITHDRAWN` |
+| `consentForm` | `WRITTEN` \| `ELECTRONIC` \| `ORAL_CONFIRMED_BY_EMAIL` \| null | форма согласия, подписи — `CONSENT_FORM_LABELS` |
+| `consentWithdrawnAt` | ISO \| null | дата получения отзыва — только при `WITHDRAWN` |
+| `documentReference` | string | где лежит документ-основание: номер, дата, место хранения |
+| `withdrawalReference` | string \| null | где лежит отзыв — только при `WITHDRAWN` |
+| `updatedAt` | ISO | когда основание фиксировали в последний раз |
 
 ### POST /api/universities
 
@@ -431,7 +459,85 @@ curl -s -X POST http://localhost:3000/api/universities \
 должность, почта, телефон и заметки стираются, признак основного снимается. Запись остаётся:
 на неё ссылаются участники встреч. Необратимо; повтор ничего не меняет и отвечает тем же.
 Чужой вуз или чужой контакт — `NOT_FOUND`. В журнал — `contact.anonymize` без ФИО
-и прежних значений. Ответ — контакт с `isAnonymized: true`.
+и прежних значений. Ответ `200` — контакт с `isAnonymized: true`. Основание и согласие
+обезличивание не меняет: удаление по требованию субъекта — не отзыв согласия.
+
+### PUT /api/universities/:id/contacts/:contactId/legal-basis
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). Зафиксировать правовое основание обработки ПД
+контакта (решение 111, docs/PRIVACY.md, раздел 3). Ответ `200` — `ContactDto` с `legalBasis`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `basis` | enum | да | `LEGITIMATE_INTEREST`, `CONTRACT`, `CONSENT`, `OTHER` |
+| `documentReference` | string | да | 3..200: номер, дата и место хранения документа-основания. Не файл; ФИО сюда не писать |
+| `consentObtainedAt` | ISO \| null | при `CONSENT` — да | не в будущем; при другом основании — нельзя |
+| `consentForm` | enum \| null | при `CONSENT` — да | `WRITTEN`, `ELECTRONIC`, `ORAL_CONFIRMED_BY_EMAIL`; при другом основании — нельзя |
+
+- При `CONSENT` статус становится `OBTAINED`, при остальных — `NONE`. Смена согласия на
+  другое основание разрешена (ч. 2 ст. 9 152-ФЗ): дата и форма согласия в карточке
+  очищаются, в истории остаются.
+- Повтор той же формы — `200` без новой записи истории и журнала.
+- `VALIDATION_ERROR` 422: нет документа; согласие без даты или формы; дата в будущем;
+  дата или форма при основании не «согласие».
+- `CONFLICT` 409: контакт обезличен; согласие уже отозвано.
+- `NOT_FOUND` 404: чужой вуз или контакт. ANALYST, VIEWER, UNIVERSITY_REP — `FORBIDDEN` 403.
+- Журнал: `contact.basis.set` с `{ universityId, fromBasis, toBasis, fromConsentStatus,
+  toConsentStatus, referenceChanged }` — без текста документа и ПД.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/universities/<id>/contacts/<contactId>/legal-basis \
+  -H 'content-type: application/json' -b 'skilllink_user=<id менеджера>' \
+  -d '{"basis":"CONSENT","documentReference":"Согласие вх. № 12/2026 от 01.09.2026, папка «Согласия ПД»","consentObtainedAt":"2026-09-01T00:00:00.000Z","consentForm":"WRITTEN"}'
+```
+
+### POST /api/universities/:id/contacts/:contactId/consent/withdraw
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). Отзыв согласия (ст. 9, ч. 5 ст. 21 152-ФЗ).
+Ответ `200` — `ContactDto`: `isAnonymized: true`, `legalBasis.consentStatus: "WITHDRAWN"`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `withdrawalReference` | string | да | 3..200: входящий номер, дата, где хранится отзыв |
+| `withdrawnAt` | ISO | нет | когда получен отзыв; по умолчанию — сейчас. Не в будущем и не раньше получения согласия |
+
+- Только когда основание — действующее согласие (`CONSENT` + `OBTAINED`). Иначе `CONFLICT` 409:
+  «основание не зафиксировано» или «основание — не согласие» (требование прекратить обработку
+  при другом основании исполняется обезличиванием, `…/anonymize`).
+- **Контакт обезличивается сразу**, в той же транзакции, тем же набором полей, что и
+  `…/anonymize`: согласие — единственное основание, продолжать обработку не на чем.
+  **Необратимо** — фронту нужно подтверждение перед отправкой.
+- Повтор — `200` с тем же результатом, без новых записей.
+- Журнал: `contact.consent.withdraw` `{ universityId, anonymized }` и следом `contact.anonymize`
+  `{ universityId, wasPrimary, reason: "consent.withdraw" }`.
+
+```bash
+curl -s -X POST http://localhost:3000/api/universities/<id>/contacts/<contactId>/consent/withdraw \
+  -H 'content-type: application/json' -b 'skilllink_user=<id менеджера>' \
+  -d '{"withdrawalReference":"Письмо вх. № 45/2026 от 20.09.2026","withdrawnAt":"2026-09-20T00:00:00.000Z"}'
+```
+
+### GET /api/universities/:id/contacts/:contactId/legal-basis/history
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). История основания и согласия контакта, новые сверху,
+`page`/`pageSize` (по умолчанию 20, до 100). Без комментариев и без текста документов.
+
+```json
+{ "data": [{
+    "id": "…", "kind": "consent.withdraw",
+    "fromBasis": "CONSENT", "toBasis": "CONSENT",
+    "fromConsentStatus": "OBTAINED", "toConsentStatus": "WITHDRAWN",
+    "consentObtainedAt": "2026-03-09T19:06:23.449Z", "consentForm": "ORAL_CONFIRMED_BY_EMAIL",
+    "consentWithdrawnAt": "2026-09-05T19:06:23.449Z",
+    "referenceChanged": true, "anonymized": true,
+    "changedBy": { "id": "…", "fullName": "Кириллов Пётр Андреевич", "role": "MANAGER" },
+    "changedAt": "2026-09-05T19:06:23.449Z" }],
+  "meta": { "page": 1, "pageSize": 20, "total": 2 } }
+```
+
+`kind`: `basis.set` — основание зафиксировано или изменено, `consent.withdraw` — отзыв.
+`referenceChanged` — документ-основание сменился или появился документ отзыва (сам текст
+в истории не хранится). Чужой вуз или контакт — `NOT_FOUND`.
 
 ---
 
@@ -2691,6 +2797,10 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 считается тем же кодом, что в интерфейсе (реестр вузов, карточка программы), и совпадает
 с экраном. «Нет данных» — пустой балл, а не ноль. Представителю вуза рейтинг недоступен,
 и этих колонок в его файле нет.
+
+**Основной контакт** — колонки «Контактное лицо», «Должность», «Почта» (только ADMIN
+и MANAGER) и «Основание обработки ПД зафиксировано» («да»/«нет», всем ролям; решение 111).
+Само основание, согласие и документы в файл не уходят. Импорт эту колонку не читает.
 Формат совпадает с тем, что принимает `POST /api/import`: цикл «выгрузил → поправил
 в Excel → загрузил обратно» работает без переименований.
 

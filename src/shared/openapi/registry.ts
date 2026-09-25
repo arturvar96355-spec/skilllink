@@ -67,9 +67,12 @@ import {
   updateSkillSchema,
 } from '@/modules/skills/skills.schema'
 import {
+  contactBasisHistoryQuerySchema,
   createUniversitySchema,
+  setContactBasisSchema,
   universityListQuerySchema,
   updateUniversitySchema,
+  withdrawConsentSchema,
 } from '@/modules/universities/universities.schema'
 import {
   stageListQuerySchema,
@@ -387,6 +390,46 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Право субъекта на удаление ПД (docs/PRIVACY.md): ФИО, должность, почта, телефон и заметки стираются, ' +
       'запись остаётся ради связей. Необратимо; повтор возвращает тот же результат.',
     permission: 'ADMIN',
+    returnsOk: true,
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'put',
+    path: '/api/universities/{id}/contacts/{contactId}/legal-basis',
+    tag: 'Университеты',
+    summary: 'Зафиксировать правовое основание обработки ПД контакта',
+    description:
+      'Решение 111: основание по ч. 1 ст. 6 152-ФЗ и документ-основание; при согласии — дата получения ' +
+      '(не в будущем) и форма. Повтор той же формы ничего не меняет. Обезличенный контакт и отозванное ' +
+      'согласие — 409. В журнал — коды «было → стало» без текста документа.',
+    permission: 'CONTACT_BASIS',
+    body: setContactBasisSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/universities/{id}/contacts/{contactId}/consent/withdraw',
+    tag: 'Университеты',
+    summary: 'Отозвать согласие контакта — контакт обезличивается',
+    description:
+      'Ч. 5 ст. 21 152-ФЗ. Только когда основание — действующее согласие; иначе 409. Согласие — ' +
+      'единственное основание, поэтому контакт сразу обезличивается тем же набором полей, что и ' +
+      '`anonymize`. Документ отзыва обязателен. Необратимо; повтор возвращает тот же результат.',
+    permission: 'CONTACT_BASIS',
+    body: withdrawConsentSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/contacts/{contactId}/legal-basis/history',
+    tag: 'Университеты',
+    summary: 'История основания обработки ПД и согласия контакта',
+    description: 'Кто, когда, что было → что стало. Без комментариев и текста документов. Новые сверху.',
+    permission: 'CONTACT_BASIS',
+    query: contactBasisHistoryQuerySchema,
+    list: true,
     errors: READ_ERRORS,
   },
   {

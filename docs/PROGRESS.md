@@ -37,6 +37,15 @@
 правка, объединение дубля в другой навык одной транзакцией (остаётся более сильная связь)
 и удаление только неиспользуемого. Схема базы не менялась. Вкладки «Настроек» — задача фронта.
 
+**Учёт оснований обработки ПД контактов и согласий (25.09.2026, решение 111, ветка
+`feat/consent-tracking`, только API).** У контакта вуза — правовое основание (законный
+интерес по договору с вузом, договор с самим контактом, согласие, иное) с документом;
+у согласия — дата и форма. Отзыв согласия сразу обезличивает контакт; история «было → стало»
+без ПД и комментариев; журнал `contact.basis.set`, `contact.consent.withdraw`. Основание
+видят и меняют ADMIN и MANAGER, остальные — признак «зафиксировано». P1 «фиксация согласия»
+закрыт частично: нет экрана, основания у существующих контактов не проставлены. Миграция
+`20260925230200_contact_legal_basis` — на согласование Тиграну.
+
 **Подписка на календарь сроков (25.09.2026, решение 105, ветка `feat/calendar-ics`, только API).**
 Личная ссылка `GET /api/calendar/<токен>.ics` без входа: сроки незавершённых этапов, где
 сотрудник ответственный за этап или связку (весь день, пометка «[Просрочен]»), и его встречи.
@@ -53,11 +62,11 @@
 
 ```
 npm run typecheck   без ошибок
-npm test            1455 тестов проходят
+npm test            1498 тестов проходят
 npm run build       собирается, 57 страниц и маршрутов
 npm run smoke       349 проверок проходят
-npm run probe       376 проверок, проблем не найдено
-npm run db:verify   24 правила целостности, с демо-набором 30 (CI и каждая перезаливка стенда)
+npm run probe       402 проверки, проблем не найдено
+npm run db:verify   27 правил целостности, с демо-набором 33 (CI и каждая перезаливка стенда)
 npm run bench       самая медленная страница 26 мс на 1000 вузов (23.09, с русской сортировкой)
 npm run demo:check  стенд и запасной ноутбук совпадают со сценарием показа
 ```
@@ -156,13 +165,13 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 70 маршрутов, 90 операций
+### Модули и эндпоинты — 73 маршрута, 93 операции
 
 | Модуль | Эндпоинты |
 | --- | --- |
 | health | `GET /api/health` |
 | auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
-| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore` |
+| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111) |
 | programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
 | skills | `GET`, `POST /api/skills`; `PATCH`, `DELETE /api/skills/:id`; `POST …/merge`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
@@ -335,7 +344,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 69 путей, 90 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 72 пути, 93 операции. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

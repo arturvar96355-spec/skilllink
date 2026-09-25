@@ -182,6 +182,33 @@ enum ApplicationStatus {
   CANCELLED
 }
 
+/// Правовое основание обработки ПД контактного лица вуза (ч. 1 ст. 6 152-ФЗ, решение 111).
+/// Основное для контактов — законный интерес по договору с вузом (docs/PRIVACY.md, раздел 3).
+enum ContactLegalBasis {
+  /// п. 7: законный интерес оператора — исполнение договора (соглашения) с вузом.
+  LEGITIMATE_INTEREST
+  /// п. 5: договор, стороной которого является сам субъект (не вуз).
+  CONTRACT
+  /// п. 1: согласие субъекта.
+  CONSENT
+  /// Иное основание ст. 6 — какое, видно по документу-основанию.
+  OTHER
+}
+
+/// Статус согласия. NONE — основание не согласие; OBTAINED и WITHDRAWN — только при CONSENT.
+enum ConsentStatus {
+  NONE
+  OBTAINED
+  WITHDRAWN
+}
+
+/// Форма согласия (ч. 1 ст. 9: в любой форме, позволяющей подтвердить факт получения).
+enum ConsentForm {
+  WRITTEN
+  ELECTRONIC
+  ORAL_CONFIRMED_BY_EMAIL
+}
+
 // ──────────────────────────── Пользователи и доступ ─────────────────────────
 
 /// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
@@ -215,6 +242,7 @@ model User {
   auditLogs              AuditLog[]           @relation("AuditLogUser")
   applicationsCreated    Application[]        @relation("ApplicationAuthor")
   calendarFeed           CalendarFeed?
+  contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
 
   @@index([role])
   @@index([universityId])
@@ -273,8 +301,24 @@ model Contact {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  /// Правовое основание обработки (решение 111). null — ещё не зафиксировано.
+  legalBasis          ContactLegalBasis? @map("legal_basis")
+  consentStatus       ConsentStatus      @default(NONE) @map("consent_status")
+  /// Дата и форма согласия — ровно при consentStatus OBTAINED или WITHDRAWN.
+  consentObtainedAt   DateTime?          @map("consent_obtained_at")
+  consentForm         ConsentForm?       @map("consent_form")
+  /// Дата получения отзыва — ровно при WITHDRAWN. От неё идут 30 дней ч. 5 ст. 21.
+  consentWithdrawnAt  DateTime?          @map("consent_withdrawn_at")
+  /// Где лежит документ-основание: номер, дата, место хранения. Не файл и не ПД.
+  basisReference      String?            @map("basis_reference")
+  /// Где лежит отзыв согласия (входящий номер письма). Ровно при WITHDRAWN.
+  withdrawalReference String?            @map("withdrawal_reference")
+  /// Когда основание фиксировалось в последний раз; кто — в истории.
+  basisUpdatedAt      DateTime?          @map("basis_updated_at")
+
   university   University           @relation(fields: [universityId], references: [id], onDelete: Cascade)
   participations MeetingParticipant[] @relation("MeetingParticipantContact")
+  basisHistory   ContactBasisHistory[]
 
   @@index([universityId])
   /**
@@ -284,8 +328,42 @@ model Contact {
    *
    * Без него при двух основных контактах карточка вуза показывала бы произвольный:
    * она берёт первый найденный.
+   *
+   * CHECK в базе (миграция contact_legal_basis): статус согласия не NONE ровно
+   * при основании CONSENT; дата и форма — ровно при OBTAINED/WITHDRAWN; дата
+   * и документ отзыва — ровно при WITHDRAWN, отзыв не раньше получения;
+   * документ-основание и дата фиксации — ровно при заданном основании.
    */
   @@map("contacts")
+}
+
+/// История основания обработки и согласия контакта (решение 111): кто, когда, что было → что стало.
+/// Только коды, даты и признаки — ни комментария, ни текста документа-основания: история
+/// переживает обезличивание контакта и служит выгрузкой для акта, ПД в ней быть не должно.
+/// CHECK в базе: статус согласия не NONE ровно при to_basis = CONSENT.
+model ContactBasisHistory {
+  id                 String             @id @default(cuid())
+  contactId          String             @map("contact_id")
+  fromBasis          ContactLegalBasis? @map("from_basis")
+  toBasis            ContactLegalBasis  @map("to_basis")
+  fromConsentStatus  ConsentStatus      @map("from_consent_status")
+  toConsentStatus    ConsentStatus      @map("to_consent_status")
+  consentObtainedAt  DateTime?          @map("consent_obtained_at")
+  consentForm        ConsentForm?       @map("consent_form")
+  consentWithdrawnAt DateTime?          @map("consent_withdrawn_at")
+  /// Изменился ли документ-основание или появился документ отзыва. Сам текст не копируется.
+  referenceChanged   Boolean            @default(false) @map("reference_changed")
+  /// Изменение повлекло обезличивание контакта (отзыв единственного основания).
+  anonymized         Boolean            @default(false)
+  changedById        String             @map("changed_by_id")
+  changedAt          DateTime           @default(now()) @map("changed_at")
+
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  changedBy User    @relation("ContactBasisHistoryAuthor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([contactId, changedAt])
+  @@index([changedById])
+  @@map("contact_basis_history")
 }
 
 /// Образовательная программа вуза. Три показателя рейтинга (заявки, обучающиеся, группы)
