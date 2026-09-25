@@ -82,7 +82,7 @@ export async function upsertDemand(
   const existing = await prisma.marketDemand.findUnique({
     where: {
       // Регион — часть ключа: без него второй регион того же навыка
-      // за тот же период не записывался вовсе (правка Тиграна).
+      // за тот же период не записался бы вовсе.
       skillId_period_source_region: {
         skillId: record.skillId,
         period: record.period,
