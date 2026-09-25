@@ -30,6 +30,13 @@ export const AUDIT_ACTIONS = [
   'university.archive',
   'university.restore',
   'contact.anonymize',
+  /**
+   * Основание обработки ПД контакта и согласие (решение 111). В журнале — коды
+   * основания и статуса «было → стало», без текста документа-основания.
+   */
+  'contact.basis.set',
+  /** Отзыв согласия: следом пишется `contact.anonymize`, если контакт обезличен. */
+  'contact.consent.withdraw',
   'program.create',
   'program.update',
   'program.skills.replace',
@@ -51,6 +58,10 @@ export const AUDIT_ACTIONS = [
   'recommendation.status.change',
   /** Черновик ИИ-помощника: вид, объект, провайдер, модель или шаблон. Без текста. */
   'ai.draft',
+  /** Пользователь подключил личный чат Telegram (решение 102). Без идентификатора чата и ника. */
+  'telegram.link',
+  /** Чат отвязан: из личного кабинета или командой /stop. */
+  'telegram.unlink',
   'document.create',
   'document.update',
   'document.status.change',

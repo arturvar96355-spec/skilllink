@@ -43,6 +43,8 @@ const nextConfig: NextConfig = {
   // Prisma и драйвер Postgres не бандлятся: работают как обычные node-модули на сервере.
   serverExternalPackages: ['@prisma/client', '@prisma/adapter-pg', 'pg'],
   typescript: { ignoreBuildErrors: false },
+  // Линтер — отдельный шаг CI (`npm run lint`, eslint.config.mjs), а не часть сборки:
+  // образ на сервере собирается без повторного прогона, и сборка не зависит от линтера.
   eslint: { ignoreDuringBuilds: true },
 
   async headers() {

@@ -23,6 +23,7 @@ import {
   type SkillLinks,
 } from './skills.rules'
 import { createSkillSchema, updateSkillSchema } from './skills.schema'
+import { SKILL_NAME_KEY_SAMPLES } from './skill-name-key.samples'
 
 describe('покрытие навыка программой', () => {
   it('без навыка покрытие равно нулю', () => {
@@ -195,6 +196,12 @@ describe('справочник навыков: уникальность назв
     expect(skillNameKey('Machine\u00a0Learning')).toBe(skillNameKey('machine learning'))
     expect(findNameClash('  PYTHON ', existing)?.id).toBe('py')
     expect(findNameClash('информационная  БЕЗОПАСНОСТЬ', existing)?.id).toBe('is')
+  })
+
+  it('трудные примеры: ключ тот же, что у индекса базы (db:verify сверяет базу с этим набором)', () => {
+    for (const [input, key] of SKILL_NAME_KEY_SAMPLES) expect(skillNameKey(input), input).toBe(key)
+    // «ML Ops» и «MLOps» — один навык и в справочнике, и при загрузке рыночных данных.
+    expect(skillNameKey('ML Ops')).toBe(skillNameKey('MLOps'))
   })
 
   it('разные навыки не путаются', () => {

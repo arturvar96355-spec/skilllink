@@ -1,5 +1,27 @@
-import type { UniversityStatus } from './enums'
+import type { ConsentForm, ConsentStatus, ContactLegalBasis, UniversityStatus } from './enums'
 import type { UniversityRatingDto } from './rating'
+import type { UserRefDto } from './workflow'
+
+/**
+ * Правовое основание обработки ПД контакта и согласие (решение 111).
+ * Отдаётся только ADMIN и MANAGER — тем, кто его фиксирует.
+ */
+export interface ContactLegalBasisDto {
+  basis: ContactLegalBasis
+  /** `NONE`, если основание не согласие. */
+  consentStatus: ConsentStatus
+  /** Дата получения согласия — при `OBTAINED` и `WITHDRAWN`, иначе null. */
+  consentObtainedAt: string | null
+  consentForm: ConsentForm | null
+  /** Дата получения отзыва — только при `WITHDRAWN`. */
+  consentWithdrawnAt: string | null
+  /** Где лежит документ-основание: номер, дата, место хранения. */
+  documentReference: string
+  /** Где лежит отзыв согласия — только при `WITHDRAWN`. */
+  withdrawalReference: string | null
+  /** Когда основание фиксировали в последний раз; кто — в истории. */
+  updatedAt: string
+}
 
 export interface ContactDto {
   id: string
@@ -20,6 +42,39 @@ export interface ContactDto {
    * менеджеру», а не «не указано».
    */
   contactDetailsHidden: boolean
+  /**
+   * Правовое основание обработки ПД зафиксировано (решение 111). Приходит всем,
+   * кто видит контакт: это признак, а не сведения о человеке.
+   */
+  basisRecorded: boolean
+  /**
+   * Основание и согласие целиком — только ADMIN и MANAGER. Остальным `null`:
+   * при `basisRecorded: true` это «скрыто», при `false` — «не зафиксировано».
+   */
+  legalBasis: ContactLegalBasisDto | null
+}
+
+/**
+ * Запись истории основания и согласия контакта (решение 111): что было → что стало.
+ * Без комментария и без текста документа — только коды, даты и признаки.
+ */
+export interface ContactBasisHistoryEntryDto {
+  id: string
+  /** `basis.set` — основание зафиксировано или изменено; `consent.withdraw` — отзыв согласия. */
+  kind: 'basis.set' | 'consent.withdraw'
+  fromBasis: ContactLegalBasis | null
+  toBasis: ContactLegalBasis
+  fromConsentStatus: ConsentStatus
+  toConsentStatus: ConsentStatus
+  consentObtainedAt: string | null
+  consentForm: ConsentForm | null
+  consentWithdrawnAt: string | null
+  /** Документ-основание изменился или появился документ отзыва (сам текст не хранится). */
+  referenceChanged: boolean
+  /** Изменение повлекло обезличивание контакта. */
+  anonymized: boolean
+  changedBy: UserRefDto
+  changedAt: string
 }
 
 /** Строка реестра вузов (раздел 7.2 ТЗ). */

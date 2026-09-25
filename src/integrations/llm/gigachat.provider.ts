@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { z } from '@/shared/zod'
 import type { AiAssistConfig } from '../config'
-import { createHttpsTransport, type HttpsTransport } from './https-transport'
+import { createHttpsTransport, type HttpsTransport } from '../https-transport'
 import {
   LlmError,
   type LlmCompletion,

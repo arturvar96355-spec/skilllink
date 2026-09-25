@@ -133,6 +133,7 @@ async function warmUp(): Promise<void> {
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
     '/api/data-sources',
+    '/api/data-sources/sync',
     '/api/integrations/status',
     '/api/document-templates',
     '/api/export?dataset=universities&limit=1',
@@ -3215,6 +3216,43 @@ async function checkSkillDirectory(ctx: ProbeContext): Promise<void> {
     await call('PATCH', `/api/skills/${idA}`, { name: nameA })
     check('своё название в другом регистре — не дубль: 200', ownCase.status === 200, `статус ${ownCase.status}`)
 
+    // Решение 110: гонку держит база (индекс skills_name_key_ci), а не блокировка в коде.
+    // Одновременные запросы проходят проверку в коде оба — второй останавливает индекс.
+    type Created = Result<Skill>
+    const raceName = `Пробная гонка ${sfx}`
+    const raced: Created[] = await Promise.all(
+      [raceName, `пробная ГОНКА ${sfx}`, `ПробнаяГонка${sfx}`, `  пробная   гонка ${sfx} `].map((name) =>
+        call<Skill>('POST', '/api/skills', { name, category: 'Пробная' }),
+      ),
+    )
+    const raceWinners = raced.filter((result) => result.status === 201)
+    const raceLosers = raced.filter((result) => result.status === 409)
+    const winnerName = raceWinners[0]?.body.data?.name ?? ''
+    check(
+      'четыре одновременных создания одного навыка в разном написании: ровно одно 201, остальные 409 с его названием',
+      raceWinners.length === 1 &&
+        raceLosers.length === 3 &&
+        raceLosers.every(
+          (result) => result.body.error?.code === 'CONFLICT' && (result.body.error.message ?? '').includes(`«${winnerName}»`),
+        ),
+      raced.map((result) => result.status).join(', '),
+    )
+    const raceId = raceWinners[0]?.body.data?.id
+    if (raceId) await call('DELETE', `/api/skills/${raceId}`)
+
+    const sharedName = `Пробный общий ${sfx}`
+    const renames = await Promise.all([
+      call<Skill>('PATCH', `/api/skills/${idA}`, { name: sharedName }),
+      call<Skill>('PATCH', `/api/skills/${idB}`, { name: sharedName.toUpperCase().replaceAll(' ', '') }),
+    ])
+    check(
+      'два одновременных переименования в одно название: одно 200, другое 409',
+      renames.map((result) => result.status).sort().join() === '200,409',
+      renames.map((result) => result.status).join(', '),
+    )
+    await call('PATCH', `/api/skills/${idA}`, { name: nameA })
+    await call('PATCH', `/api/skills/${idB}`, { name: nameB })
+
     // Навыки — в программе-черновике и запланированном продукте: в аналитику они не входят,
     // и цифры сценария показа не сдвигаются.
     const drafts = await call<Array<{ id: string }>>('GET', '/api/programs?status=DRAFT&pageSize=1')
@@ -3339,6 +3377,121 @@ async function checkSkillDirectory(ctx: ProbeContext): Promise<void> {
   }
 }
 
+/**
+ * Решение 110: один ключ названия навыка везде — в справочнике, при загрузке рыночных
+ * данных и в тексте рекомендаций после объединения. Демо-навыки трогаются временно
+ * и возвращаются как были (название, категория, описание, связи, текст рекомендации);
+ * меняется только id навыка из сценария объединения — сид его не фиксирует.
+ */
+async function checkSkillNameConsistency(ctx: ProbeContext): Promise<void> {
+  step('Навык по ключу названия: загрузка рыночных данных и текст рекомендаций после объединения')
+  const { adminId } = ctx
+  if (!adminId) {
+    check('демо-данные готовы (администратор)', false, 'запустите npm run db:seed')
+    return
+  }
+  actAs(adminId)
+  type Skill = { id: string; name: string; category: string; description: string | null }
+  const findSkill = async (name: string) =>
+    (await call<Skill[]>('GET', `/api/skills?q=${encodeURIComponent(name)}&pageSize=50`)).body.data?.find(
+      (row) => row.name === name,
+    )
+
+  // ── Загрузка: источник пишет «Сетевые технологии», в справочнике — другим регистром и слитно.
+  const importName = 'Сетевые технологии'
+  const imported = await findSkill(importName)
+  if (!imported) {
+    check(`в демо-справочнике есть навык «${importName}»`, false, 'запустите npm run db:seed')
+  } else {
+    const renamed = await call<Skill>('PATCH', `/api/skills/${imported.id}`, { name: 'СЕТЕВЫЕТехнологии' })
+    try {
+      type Sync = { imported: number; updated: number; unknownSkills: string[] }
+      // Демонстрационный источник за 2026-Q1 отдаёт ровно значения сида: данные не меняются.
+      const sync = await call<Sync>('POST', '/api/data-sources/sync', {})
+      check(
+        'своё название другим регистром и без пробела — 200 (тот же навык)',
+        renamed.status === 200,
+        `статус ${renamed.status}`,
+      )
+      check(
+        'загрузка сопоставляет «Сетевые технологии» с «СЕТЕВЫЕТехнологии»: неизвестных нет, новых строк нет',
+        sync.status === 200 &&
+          (sync.body.data?.unknownSkills ?? ['?']).length === 0 &&
+          sync.body.data?.imported === 0 &&
+          (sync.body.data?.updated ?? 0) > 0,
+        `статус ${sync.status}: ${JSON.stringify(sync.body.data ?? sync.body.error)}`,
+      )
+    } finally {
+      await call('PATCH', `/api/skills/${imported.id}`, { name: imported.name })
+    }
+  }
+
+  // ── Объединение: рекомендация дубля переходит к целевому навыку и называет его.
+  type Rec = {
+    id: string
+    ruleKey: string
+    title: string
+    description: string
+    relatedData: { skillId?: string } | null
+    target: { objectType: string; objectId: string }
+  }
+  const recs = await call<Rec[]>('GET', '/api/recommendations?pageSize=100')
+  const rec = (recs.body.data ?? []).find((row) => row.ruleKey === 'skill.critical-gap-with-product')
+  const source = rec ? (await call<Skill[]>('GET', `/api/skills?pageSize=100`)).body.data?.find((row) => row.id === rec.target.objectId) : undefined
+  if (!rec || !source) {
+    check('в демо-наборе есть рекомендация по дефициту навыка', false, 'запустите npm run db:seed')
+    actAs(null)
+    return
+  }
+
+  const targetName = `Пробная цель ${Date.now().toString().slice(-6)}`
+  const target = await call<Skill>('POST', '/api/skills', { name: targetName, category: source.category })
+  const targetId = target.body.data?.id
+  if (!targetId) {
+    check('пробный целевой навык заведён', false, `статус ${target.status}`)
+    actAs(null)
+    return
+  }
+  let merged = false
+  try {
+    type Merge = { recommendations: { moved: number; dropped: number } }
+    const merge = await call<Merge>('POST', `/api/skills/${source.id}/merge`, { targetId })
+    merged = merge.status === 200
+    const after = await call<Rec>('GET', `/api/recommendations/${rec.id}`)
+    const text = `${after.body.data?.title ?? ''} ${after.body.data?.description ?? ''}`
+    check(
+      'после объединения рекомендация называет целевой навык и ссылается на него',
+      merged &&
+        merge.body.data?.recommendations.moved === 1 &&
+        after.body.data?.title === `Дефицит навыка «${targetName}» закрывается нашим продуктом` &&
+        text.includes(`навык «${targetName}»`) &&
+        !text.includes(`«${source.name}»`) &&
+        after.body.data?.target.objectId === targetId &&
+        after.body.data?.relatedData?.skillId === targetId,
+      `статус ${merge.status}: ${after.body.data?.title ?? JSON.stringify(merge.body.error)}`,
+    )
+  } finally {
+    // Целевой навык становится прежним демо-навыком: название, категория, описание.
+    // Переименование переписывает текст рекомендации обратно в той же транзакции.
+    if (merged) {
+      await call('PATCH', `/api/skills/${targetId}`, {
+        name: source.name,
+        category: source.category,
+        description: source.description,
+      })
+    } else {
+      await call('DELETE', `/api/skills/${targetId}`)
+    }
+  }
+  const restored = await call<Rec>('GET', `/api/recommendations/${rec.id}`)
+  check(
+    'переименование навыка возвращает прежний текст рекомендации',
+    restored.body.data?.title === rec.title && restored.body.data?.description === rec.description,
+    restored.body.data?.title ?? `статус ${restored.status}`,
+  )
+  actAs(null)
+}
+
 async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
   step('Почта и телефон контактов вузов: аналитику и наблюдателю — «скрыто», поиском не достать')
   const { rep, adminId, universities, managerId } = ctx
@@ -3423,6 +3576,235 @@ async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+async function checkContactLegalBasis(ctx: ProbeContext): Promise<void> {
+  step('Основание обработки ПД контактов и согласие: права, отзыв → обезличивание, история (решение 111)')
+  const { rep, adminId, managerId, universities } = ctx
+
+  type LegalBasis = {
+    basis: string
+    consentStatus: string
+    consentObtainedAt: string | null
+    consentForm: string | null
+    documentReference: string
+    withdrawalReference: string | null
+  }
+  type Contact = {
+    id: string
+    fullName: string
+    email: string | null
+    isAnonymized: boolean
+    isPrimary: boolean
+    basisRecorded: boolean
+    legalBasis: LegalBasis | null
+  }
+  type Card = { id: string; contacts: Contact[] }
+  type HistoryEntry = { kind: string; toConsentStatus: string; anonymized: boolean; referenceChanged: boolean }
+  const firstId = async (role: string): Promise<string | null> =>
+    (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
+
+  actAs(adminId)
+  const analystId = await firstId('ANALYST')
+  const viewerId = await firstId('VIEWER')
+
+  // Демо-вуз представителя: основание зафиксировано по соглашению с вузом (сид).
+  const demoUniversityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
+  actAs(managerId)
+  const managerDemo = demoUniversityId ? await call<Card>('GET', `/api/universities/${demoUniversityId}`) : null
+  const demoContact = managerDemo?.body.data?.contacts.find((contact) => contact.basisRecorded)
+  check(
+    'MANAGER: в карточке демо-вуза основание контакта видно целиком',
+    Boolean(demoContact?.legalBasis?.basis && demoContact.legalBasis.documentReference),
+    demoContact?.legalBasis?.basis ?? 'нет',
+  )
+  const demoReference = demoContact?.legalBasis?.documentReference ?? '—'
+
+  for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId], ['UNIVERSITY_REP', rep?.id ?? null]] as const) {
+    actAs(id)
+    const card = demoUniversityId ? await call<Card>('GET', `/api/universities/${demoUniversityId}`) : null
+    const contact = card?.body.data?.contacts.find((item) => item.id === demoContact?.id)
+    check(
+      `${role}: только признак «основание зафиксировано», без основания и документа`,
+      card?.status === 200 &&
+        contact?.basisRecorded === true &&
+        contact.legalBasis === null &&
+        !card.raw.includes(demoReference),
+    )
+  }
+
+  // Свой контакт в своём вузе: демо-контакты пробник не обезличивает.
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const probeName = `Пробная Персона Согласия ${sfx}`
+  const probeEmail = `probe-consent-${sfx}@example.invalid`
+  const created = await call<Card>('POST', '/api/universities', {
+    name: `Пробный вуз учёта согласий ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+    contacts: [{ fullName: probeName, position: 'Методист', email: probeEmail, phone: '+7 900 000-00-01', isPrimary: true }],
+  })
+  const universityId = created.body.data?.id
+  const contactId = created.body.data?.contacts[0]?.id
+  check('заведён пробный вуз с контактом без основания', created.status === 201 && created.body.data?.contacts[0]?.basisRecorded === false)
+  if (!universityId || !contactId) {
+    actAs(null)
+    return
+  }
+  const base = `/api/universities/${universityId}/contacts/${contactId}`
+  const consentBody = {
+    basis: 'CONSENT',
+    documentReference: `Согласие вх. № ${sfx} (проба)`,
+    consentObtainedAt: new Date(Date.now() - 86_400_000).toISOString(),
+    consentForm: 'WRITTEN',
+  }
+
+  for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId], ['UNIVERSITY_REP', rep?.id ?? null]] as const) {
+    actAs(id)
+    const set = await call('PUT', `${base}/legal-basis`, consentBody)
+    const withdraw = await call('POST', `${base}/consent/withdraw`, { withdrawalReference: 'Отзыв (проба)' })
+    const history = await call('GET', `${base}/legal-basis/history`)
+    // Представителю чужой вуз и так закрыт, но отказ по праву наступает раньше поиска.
+    check(
+      `${role}: зафиксировать, отозвать, история — 403`,
+      set.status === 403 && withdraw.status === 403 && history.status === 403,
+      `${set.status}/${withdraw.status}/${history.status}`,
+    )
+  }
+
+  actAs(managerId)
+  const noDate = await call('PUT', `${base}/legal-basis`, { basis: 'CONSENT', documentReference: 'Согласие (проба)' })
+  check('согласие без даты и формы — 422', noDate.status === 422)
+  const future = await call('PUT', `${base}/legal-basis`, {
+    ...consentBody,
+    consentObtainedAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  })
+  check('дата согласия в будущем — 422', future.status === 422)
+  const formWithoutConsent = await call('PUT', `${base}/legal-basis`, {
+    basis: 'LEGITIMATE_INTEREST',
+    documentReference: 'Соглашение (проба)',
+    consentForm: 'WRITTEN',
+  })
+  check('форма согласия при другом основании — 422', formWithoutConsent.status === 422)
+  const noReference = await call('PUT', `${base}/legal-basis`, { basis: 'LEGITIMATE_INTEREST', documentReference: ' ' })
+  check('без документа-основания — 422', noReference.status === 422)
+  const withdrawNothing = await call('POST', `${base}/consent/withdraw`, { withdrawalReference: 'Отзыв (проба)' })
+  check('отзыв без согласия — 409', withdrawNothing.status === 409, `статус ${withdrawNothing.status}`)
+
+  const set = await call<Contact>('PUT', `${base}/legal-basis`, consentBody)
+  check(
+    'MANAGER фиксирует согласие: OBTAINED, дата и форма',
+    set.status === 200 &&
+      set.body.data?.legalBasis?.consentStatus === 'OBTAINED' &&
+      set.body.data.legalBasis.consentForm === 'WRITTEN' &&
+      set.body.data.basisRecorded === true,
+    `статус ${set.status}`,
+  )
+  const again = await call<Contact>('PUT', `${base}/legal-basis`, consentBody)
+  const afterRepeat = await call<HistoryEntry[]>('GET', `${base}/legal-basis/history`)
+  check('повтор той же формы — 200 и без новой записи истории', again.status === 200 && afterRepeat.body.meta?.total === 1)
+
+  const foreignUniversityId = demoUniversityId !== universityId ? demoUniversityId : null
+  if (foreignUniversityId) {
+    const foreign = await call('PUT', `/api/universities/${foreignUniversityId}/contacts/${contactId}/legal-basis`, consentBody)
+    check('контакт под адресом чужого вуза — 404', foreign.status === 404, `статус ${foreign.status}`)
+  }
+
+  const noWithdrawalDoc = await call('POST', `${base}/consent/withdraw`, {})
+  check('отзыв без документа отзыва — 422', noWithdrawalDoc.status === 422)
+  const withdrawn = await call<Contact>('POST', `${base}/consent/withdraw`, { withdrawalReference: `Отзыв вх. № ${sfx} (проба)` })
+  check(
+    'отзыв согласия → контакт обезличен сразу',
+    withdrawn.status === 200 &&
+      withdrawn.body.data?.isAnonymized === true &&
+      withdrawn.body.data.email === null &&
+      withdrawn.body.data.isPrimary === false &&
+      withdrawn.body.data.legalBasis?.consentStatus === 'WITHDRAWN',
+    `статус ${withdrawn.status}`,
+  )
+  const card = await call<Card>('GET', `/api/universities/${universityId}`)
+  check('в карточке вуза нет ни ФИО, ни почты отозвавшего', !card.raw.includes(probeName) && !card.raw.includes(probeEmail))
+  const repeat = await call<Contact>('POST', `${base}/consent/withdraw`, { withdrawalReference: `Отзыв вх. № ${sfx} (проба)` })
+  check('повторный отзыв — тот же результат', repeat.status === 200 && repeat.body.data?.isAnonymized === true)
+  const reset = await call('PUT', `${base}/legal-basis`, { basis: 'LEGITIMATE_INTEREST', documentReference: 'Соглашение (проба)' })
+  check('основание после отзыва не меняется — 409', reset.status === 409, `статус ${reset.status}`)
+
+  const history = await call<HistoryEntry[]>('GET', `${base}/legal-basis/history`)
+  const [last, first] = history.body.data ?? []
+  check(
+    'история: отзыв с обезличиванием сверху, под ним фиксация согласия',
+    history.body.meta?.total === 2 &&
+      last?.kind === 'consent.withdraw' && last.anonymized === true && last.toConsentStatus === 'WITHDRAWN' &&
+      first?.kind === 'basis.set' && first.toConsentStatus === 'OBTAINED',
+  )
+  check('в истории нет ни ФИО, ни почты, ни текста документов', !history.raw.includes(probeName) && !history.raw.includes(probeEmail) && !history.raw.includes('(проба)'))
+
+  actAs(adminId)
+  const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=Contact&objectId=${contactId}&pageSize=20`)
+  const actions = (journal.body.data ?? []).map((entry) => entry.action).sort()
+  check(
+    'журнал: основание, отзыв и обезличивание — по одному разу',
+    JSON.stringify(actions) === JSON.stringify(['contact.anonymize', 'contact.basis.set', 'contact.consent.withdraw']),
+    actions.join(', '),
+  )
+  check('в журнале нет ни ФИО, ни почты, ни текста документов', !journal.raw.includes(probeName) && !journal.raw.includes(probeEmail) && !journal.raw.includes('(проба)'))
+
+  const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
+  check('выгрузка вузов: колонка «Основание обработки ПД зафиксировано»', exported.raw.includes('Основание обработки ПД зафиксировано'))
+
+  await call('POST', `/api/universities/${universityId}/archive`)
+  actAs(null)
+}
+
+/**
+ * Вход по паролю тем же путём, что у smoke.ts и у экрана входа: csrf-токен
+ * и форма в NextAuth. Возвращает cookie сессии или null, если вход не принят.
+ * Своё хранилище cookie на каждую попытку: демо-cookie пробника сюда не идёт.
+ */
+async function passwordLogin(email: string, password: string): Promise<string | null> {
+  const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+  const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
+  const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+  const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: csrfCookie },
+    body: new URLSearchParams({ csrfToken, email, password }).toString(),
+  })
+  return sessionCookieFrom(response)
+}
+
+/** Новая cookie сессии из ответа (вход, переоформление) — или null, если сервер её не выдал. */
+function sessionCookieFrom(response: Response): string | null {
+  const session = (response.headers.getSetCookie?.() ?? [])
+    .map((line) => line.split(';')[0]!)
+    .find((pair) => /session-token=./.test(pair))
+  return session ?? null
+}
+
+/**
+ * Запрос под настоящей сессией, без демо-cookie. `session` — cookie, которую сервер
+ * выдал взамен (смена своего пароля переоформляет сессию, решение 109).
+ */
+async function asSession<T>(
+  cookie: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Result<T> & { session: string | null }> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  const raw = await response.text()
+  let parsed: Result<T>['body'] = {}
+  try {
+    parsed = raw ? JSON.parse(raw) : {}
+  } catch {
+    parsed = {}
+  }
+  return { status: response.status, body: parsed, raw, session: sessionCookieFrom(response) }
+}
+
 async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
   const { rep, adminId, managerId } = ctx
@@ -3430,44 +3812,6 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   if (!adminId || !managerId || !rep) {
     check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
   } else {
-    /**
-     * Вход по паролю тем же путём, что у smoke.ts и у экрана входа: csrf-токен
-     * и форма в NextAuth. Возвращает cookie сессии или null, если вход не принят.
-     * Своё хранилище cookie на каждую попытку: демо-cookie пробника сюда не идёт.
-     */
-    const passwordLogin = async (email: string, password: string): Promise<string | null> => {
-      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
-      const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
-      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
-      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: csrfCookie },
-        body: new URLSearchParams({ csrfToken, email, password }).toString(),
-      })
-      const session = (response.headers.getSetCookie?.() ?? [])
-        .map((line) => line.split(';')[0]!)
-        .find((pair) => /session-token=./.test(pair))
-      return session ?? null
-    }
-
-    /** Запрос под настоящей сессией, без демо-cookie. */
-    const asSession = async <T>(cookie: string, method: string, path: string, body?: unknown): Promise<Result<T>> => {
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method,
-        headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      })
-      const raw = await response.text()
-      let parsed: Result<T>['body'] = {}
-      try {
-        parsed = raw ? JSON.parse(raw) : {}
-      } catch {
-        parsed = {}
-      }
-      return { status: response.status, body: parsed, raw }
-    }
-
     // Отказ всем, кроме администратора, — на каждом новом маршруте администратора.
     const adminOnly: Array<[string, string, unknown]> = [
       ['POST', '/api/users', { email: 'x@example.invalid', fullName: 'Проба Прав', role: 'VIEWER' }],
@@ -3579,7 +3923,8 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
           newPassword: OWN,
         })
         check('пароль сменён — 200', changed.status === 200, `статус ${changed.status}`)
-        const afterChange = await asSession<{ passwordTemporary: boolean }>(firstSession, 'GET', '/api/me')
+        // Смена пароля закрывает прежние сессии; текущую сервер переоформил новой cookie.
+        const afterChange = await asSession<{ passwordTemporary: boolean }>(changed.session ?? firstSession, 'GET', '/api/me')
         check('после смены пароль больше не временный', afterChange.body.data?.passwordTemporary === false)
         check('журнал без пароля', !(await call('GET', `/api/audit?objectId=${newUser.id}`)).raw.includes(OWN))
 
@@ -3673,6 +4018,241 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
       typeof integrations.body.data?.aiAssist?.provider === 'string' &&
         typeof integrations.body.data?.aiAssist?.ready === 'boolean',
     )
+    actAs(null)
+  }
+}
+
+/**
+ * Отзыв выданных сессий (решение 109): сессия, полученная до смены пароля, сброса,
+ * смены роли или блокировки, больше не действует — 401 на /api/me, и в демо-режиме
+ * не превращается в демо-пользователя. Всё — на заведённом пользователе: общие
+ * демо-учётки этими действиями не меняются.
+ */
+async function checkSessionRevocation(ctx: ProbeContext): Promise<void> {
+  step('Отзыв сессий: смена и сброс пароля, смена роли, блокировка')
+  const { adminId } = ctx
+  if (!adminId) {
+    check('демо-данные готовы (администратор)', false, 'запустите npm run db:seed')
+    return
+  }
+
+  actAs(adminId)
+  const email = `probe-session-${Date.now()}@example.invalid`
+  const created = await call<{ user: { id: string }; temporaryPassword: string }>('POST', '/api/users', {
+    email,
+    fullName: 'Пробный Сеанс Пробникович',
+    role: 'VIEWER',
+  })
+  const userId = created.body.data?.user.id
+  const temporary = created.body.data?.temporaryPassword ?? ''
+  if (!userId) {
+    check('пробный пользователь заведён', false, `статус ${created.status}`)
+    actAs(null)
+    return
+  }
+
+  const me = (cookie: string | null) =>
+    asSession<{ id: string; role: string }>(cookie ?? 'authjs.session-token=нет', 'GET', '/api/me')
+  const alive = async (cookie: string | null) => {
+    const result = await me(cookie)
+    return result.status === 200 && result.body.data?.id === userId
+  }
+
+  // 1. Смена своего пароля: другие сессии выходят, текущая переоформляется.
+  const earlier = await passwordLogin(email, temporary)
+  const current = await passwordLogin(email, temporary)
+  check('две сессии до смены пароля действуют', (await alive(earlier)) && (await alive(current)))
+  const OWN = 'сеансовый-пароль-2026'
+  const changed = current
+    ? await asSession<{ sessionRenewed: boolean }>(current, 'POST', '/api/me/password', {
+        currentPassword: temporary,
+        newPassword: OWN,
+      })
+    : null
+  check(
+    'пароль сменён — 200, текущая сессия переоформлена новой cookie',
+    changed?.status === 200 && changed.body.data?.sessionRenewed === true && changed.session !== null,
+    `статус ${changed?.status}`,
+  )
+  const earlierAfter = await me(earlier)
+  check('сессия, полученная до смены пароля, — 401 на /api/me', earlierAfter.status === 401, `статус ${earlierAfter.status}`)
+  check(
+    '401 — единым форматом с понятным текстом',
+    earlierAfter.body.error?.code === 'UNAUTHORIZED' && earlierAfter.raw.includes('Войдите заново'),
+    earlierAfter.body.error?.message ?? '',
+  )
+  check('сменивший пароль остаётся в системе с новой cookie', await alive(changed?.session ?? null))
+  check('его прежняя cookie (до переоформления) — 401', (await me(current)).status === 401)
+
+  // Клиент сам версию не поднимет: обновление сессии без подписи сервера ничего не меняет.
+  if (earlier) {
+    const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+    const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
+    const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+    const forged = await fetch(`${BASE_URL}/api/auth/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `${csrfCookie}; ${earlier}` },
+      body: JSON.stringify({
+        csrfToken,
+        data: { sessionVersion: 1, user: { sessionVersion: 1 }, sessionRenewal: 'поддельное.разрешение' },
+      }),
+    })
+    const forgedCookie = sessionCookieFrom(forged)
+    check(
+      'отозванная сессия не продлевает себя сама через /api/auth/session',
+      (await me(forgedCookie ?? earlier)).status === 401,
+      `обновление: ${forged.status}`,
+    )
+  }
+
+  // 2. Сброс пароля администратором.
+  const beforeReset = await passwordLogin(email, OWN)
+  check('вход с новым паролем', await alive(beforeReset))
+  actAs(adminId)
+  const reset = await call<{ temporaryPassword: string }>('POST', `/api/users/${userId}/password-reset`)
+  const resetPassword = reset.body.data?.temporaryPassword ?? ''
+  const beforeResetAfter = await me(beforeReset)
+  check(
+    'сброс пароля администратором: выданная сессия — 401',
+    reset.status === 200 && beforeResetAfter.status === 401,
+    `${reset.status}, ${beforeResetAfter.status}`,
+  )
+  check('и переоформленная после смены пароля — тоже 401', (await me(changed?.session ?? null)).status === 401)
+
+  // 3. Смена роли.
+  const beforeRole = await passwordLogin(email, resetPassword)
+  check('вход с временным паролем после сброса', await alive(beforeRole))
+  const roleChange = await call<{ role: string }>('PATCH', `/api/users/${userId}`, { role: 'ANALYST' })
+  const beforeRoleAfter = await me(beforeRole)
+  check(
+    'смена роли: выданная сессия — 401',
+    roleChange.status === 200 && roleChange.body.data?.role === 'ANALYST' && beforeRoleAfter.status === 401,
+    `${roleChange.status}, ${beforeRoleAfter.status}`,
+  )
+  const afterRole = await passwordLogin(email, resetPassword)
+  const afterRoleMe = await me(afterRole)
+  check('новый вход после смены роли — уже с новой ролью', afterRoleMe.body.data?.role === 'ANALYST', afterRoleMe.body.data?.role ?? `статус ${afterRoleMe.status}`)
+
+  // 4. Блокировка: сессия и подписка на календарь.
+  actAs(userId)
+  const issued = await call<{ url: string }>('POST', '/api/me/calendar')
+  const feedPath = issued.body.data?.url ? new URL(issued.body.data.url).pathname : '/api/calendar/нет.ics'
+  const feedBefore = await fetch(`${BASE_URL}${feedPath}`)
+  check('до блокировки: подписка выпущена, лента — 200', issued.status === 201 && feedBefore.status === 200, `${issued.status}, ${feedBefore.status}`)
+
+  actAs(adminId)
+  const block = await call('PATCH', `/api/users/${userId}`, { isActive: false })
+  const afterBlockMe = await me(afterRole)
+  check('блокировка: выданная сессия — 401', block.status === 200 && afterBlockMe.status === 401, `${block.status}, ${afterBlockMe.status}`)
+  const feedBlocked = await fetch(`${BASE_URL}${feedPath}`)
+  check('лента заблокированного — 404', feedBlocked.status === 404, `статус ${feedBlocked.status}`)
+  const journal = await call<Array<{ action: string; user: { id: string } | null; payload: { reason?: string } | null }>>(
+    'GET',
+    `/api/audit?objectType=User&objectId=${userId}&pageSize=50`,
+  )
+  const revokeEntry = (journal.body.data ?? []).find((entry) => entry.action === 'calendar.revoke')
+  check(
+    'в журнале — отзыв подписки при блокировке, от имени администратора',
+    revokeEntry?.payload?.reason === 'user.block' && revokeEntry.user?.id === adminId,
+    JSON.stringify(revokeEntry?.payload ?? null),
+  )
+
+  // Разблокировка: запись подписки удалена (ссылка не оживает), старая сессия тоже.
+  const unblock = await call('PATCH', `/api/users/${userId}`, { isActive: true })
+  const feedUnblocked = await fetch(`${BASE_URL}${feedPath}`)
+  actAs(userId)
+  const feedStatus = await call<{ active: boolean }>('GET', '/api/me/calendar')
+  check(
+    'после разблокировки подписки нет: ссылка — 404, статус active=false',
+    unblock.status === 200 && feedUnblocked.status === 404 && feedStatus.body.data?.active === false,
+    `${unblock.status}, ${feedUnblocked.status}, ${JSON.stringify(feedStatus.body.data)}`,
+  )
+  check('после разблокировки сессия, выданная до блокировки, не оживает', (await me(afterRole)).status === 401)
+  check('новый вход после разблокировки работает', await alive(await passwordLogin(email, resetPassword)))
+
+  // Итог в журнале: всё, что отзывало сессии, записано.
+  actAs(adminId)
+  const actions = new Set(
+    (
+      await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${userId}&pageSize=50`)
+    ).body.data?.map((entry) => entry.action) ?? [],
+  )
+  check(
+    'журнал: смена пароля, сброс, смена роли, блокировка',
+    ['user.password.change', 'user.password.reset', 'user.role.change', 'user.block'].every((action) => actions.has(action)),
+    [...actions].join(', '),
+  )
+  actAs(null)
+}
+
+async function checkTelegram(ctx: ProbeContext): Promise<void> {
+  step('Уведомления в Telegram: вебхук без секрета закрыт, кабинет честно говорит о настройке')
+  const { rep, managerId } = ctx
+
+  {
+    /*
+     * Настоящий бот пробнику не нужен и не используется (решение 102). Вебхук без
+     * заголовка секрета или с чужим — 403 при любой настройке: без TELEGRAM_WEBHOOK_SECRET
+     * он закрыт для всех. Запрос Telegram идёт без Origin — как этот.
+     */
+    const update = JSON.stringify({ update_id: 1, message: { chat: { id: 42, type: 'private' }, text: '/today' } })
+    const webhook = async (headers: Record<string, string>) => {
+      const response = await fetch(`${BASE_URL}/api/telegram/webhook`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: update,
+      })
+      const body = (await response.json().catch(() => ({}))) as { error?: { code?: string } }
+      return { status: response.status, code: body.error?.code ?? null }
+    }
+    const noSecret = await webhook({})
+    const wrongSecret = await webhook({ 'x-telegram-bot-api-secret-token': `probe-${Date.now()}` })
+    check(
+      'вебхук без секрета и с чужим секретом — 403 по контракту',
+      noSecret.status === 403 && noSecret.code === 'FORBIDDEN' && wrongSecret.status === 403,
+      `без секрета ${noSecret.status}, с чужим ${wrongSecret.status}`,
+    )
+
+    actAs(managerId)
+    type Status = { configured: boolean; available: boolean; linked: boolean; username: string | null }
+    const status = await call<Status>('GET', '/api/me/telegram')
+    const data = status.body.data
+    check(
+      'менеджеру: состояние блока с признаком настройки, сводка доступна',
+      status.status === 200 && typeof data?.configured === 'boolean' && data.available === true,
+      `статус ${status.status}, ${JSON.stringify(data)}`,
+    )
+    const connect = await call<{ url: string; expiresAt: string }>('POST', '/api/me/telegram')
+    if (data?.configured) {
+      const token = /[?&]start=([^&]+)$/.exec(connect.body.data?.url ?? '')?.[1] ?? ''
+      check(
+        'бот настроен: ссылка на t.me с токеном не длиннее 64 символов из алфавита Telegram',
+        connect.status === 200 && /^https:\/\/t\.me\//.test(connect.body.data?.url ?? '') && /^[A-Za-z0-9_-]{1,64}$/.test(token),
+        `статус ${connect.status}`,
+      )
+    } else {
+      check(
+        'бот не настроен: ссылки нет — 502 «не настроены администратором»',
+        connect.status === 502 && connect.body.error?.code === 'INTEGRATION_ERROR',
+        `статус ${connect.status}`,
+      )
+    }
+    // Отключение без привязки — не ошибка. Настоящую привязку пробник не трогает.
+    if (data && !data.linked) {
+      const off = await call<Status>('DELETE', '/api/me/telegram')
+      check('отключение без привязки — 200, linked=false', off.status === 200 && off.body.data?.linked === false, `статус ${off.status}`)
+    }
+
+    if (rep) {
+      actAs(rep.id)
+      const repStatus = await call<Status>('GET', '/api/me/telegram')
+      const repConnect = await call('POST', '/api/me/telegram')
+      check(
+        'представителю вуза сводка недоступна: available=false, ссылка — 403',
+        repStatus.status === 200 && repStatus.body.data?.available === false && repConnect.status === 403,
+        `состояние ${repStatus.status}, ссылка ${repConnect.status}`,
+      )
+    }
     actAs(null)
   }
 }
@@ -3938,8 +4518,12 @@ async function main(): Promise<void> {
   await checkRecommendationFeedOrder(ctx)
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
+  await checkSkillNameConsistency(ctx)
   await checkContactPrivacy(ctx)
+  await checkContactLegalBasis(ctx)
   await checkUserManagement(ctx)
+  await checkSessionRevocation(ctx)
+  await checkTelegram(ctx)
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)

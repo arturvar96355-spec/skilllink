@@ -125,6 +125,8 @@ export async function updateWithGuard(
     otherActiveAdmins: number
     openWork: { cooperations: number; stages: number }
   }) => Prisma.UserUpdateInput,
+  /** Что сделать в той же транзакции после записи: например, отозвать подписку заблокированного. */
+  alongside?: (tx: Prisma.TransactionClient, change: { before: UserRow; after: UserRow }) => Promise<void>,
 ): Promise<{ before: UserRow; after: UserRow } | null> {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM users WHERE id = ${id} OR (role = 'ADMIN' AND is_active) FOR UPDATE`
@@ -139,6 +141,7 @@ export async function updateWithGuard(
 
     const data = guard({ target, otherActiveAdmins, openWork })
     const after = await tx.user.update({ where: { id }, data, select: userSelect })
+    await alongside?.(tx, { before: target, after })
     return { before: target, after }
   })
 }
@@ -149,10 +152,23 @@ export async function findPasswordHash(id: string): Promise<string | null> {
   return row?.passwordHash ?? null
 }
 
-export async function setPasswordHash(id: string, passwordHash: string): Promise<UserRow | null> {
+/**
+ * Новый хеш пароля. Вместе с ним растёт версия сессий (решение 109): все сессии,
+ * выданные со старым паролем, перестают действовать. Прибавка — в самом UPDATE,
+ * а не «прочитать и записать», поэтому одновременные смены не теряют друг друга;
+ * возвращается записанная версия.
+ */
+export async function setPasswordHash(
+  id: string,
+  passwordHash: string,
+): Promise<(UserRow & { sessionVersion: number }) | null> {
   const exists = await prisma.user.findUnique({ where: { id }, select: { id: true } })
   if (!exists) return null
-  return prisma.user.update({ where: { id }, data: { passwordHash }, select: userSelect })
+  return prisma.user.update({
+    where: { id },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+    select: { ...userSelect, sessionVersion: true },
+  })
 }
 
 /** События пароля в журнале: по последнему из них видно, временный ли пароль сейчас. */
