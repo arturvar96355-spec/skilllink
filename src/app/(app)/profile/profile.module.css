@@ -112,110 +112,6 @@ a.chip:hover {
   color: var(--text-primary);
 }
 
-/* ——— Сфера-аватар с орбитой ——— */
-
-.orbStage {
-  width: 200px;
-  height: 200px;
-  perspective: 700px;
-}
-
-.orbScene {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transform-style: preserve-3d;
-}
-
-.orb {
-  position: absolute;
-  inset: 40px;
-  border-radius: 50%;
-}
-
-/* Кольцо вокруг сферы: градиент бренда крутится по кругу. */
-.orbRing {
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, var(--accent-violet), var(--accent-pink), var(--accent-orange), var(--accent-violet));
-  filter: drop-shadow(0 0 14px var(--glass-line));
-  animation: spin 8s linear infinite;
-}
-
-.orbCore {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 35% 30%, var(--surface-3), var(--canvas) 70%);
-  box-shadow:
-    inset 0 2px 10px var(--glass-edge-strong),
-    inset 0 -12px 24px var(--canvas);
-  font-size: var(--text-kpi-lg-size);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--text-primary);
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/*
- * Орбита — кольцо, наклонённое к зрителю. Связки-«планеты» стоят на нём
- * и облетают сферу: передняя половина орбиты проходит перед сферой.
- */
-.orbit {
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  border: 1px solid var(--glass-edge-strong);
-  box-shadow:
-    0 0 12px var(--glass-edge),
-    inset 0 0 12px var(--glass-edge);
-  transform-style: preserve-3d;
-  transform: rotateX(70deg) rotateZ(0deg);
-  animation: orbit 26s linear infinite;
-}
-
-@keyframes orbit {
-  to {
-    transform: rotateX(70deg) rotateZ(360deg);
-  }
-}
-
-.arm {
-  position: absolute;
-  inset: 0;
-  transform-style: preserve-3d;
-  transform: rotateZ(var(--a, 0deg));
-}
-
-/* Планета смотрит на зрителя: наклон орбиты снят обратным поворотом. */
-.planet {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  width: 16px;
-  height: 16px;
-  margin-left: -8px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, var(--text-accent-pale), var(--accent-violet) 60%);
-  box-shadow: 0 0 14px var(--accent-violet);
-  transform: rotateX(-70deg);
-}
-
-.planetHot {
-  background: radial-gradient(circle at 35% 30%, var(--text-danger-soft), var(--status-danger) 60%);
-  box-shadow: 0 0 16px var(--status-danger);
-}
-
 /* ——— Разделы ——— */
 
 .block {
@@ -646,16 +542,12 @@ a.chip:hover {
 
 /* ——— Спокойно: рабочий режим и «уменьшить движение» ——— */
 
-:global(html[data-mode='work']) .aurora,
-:global(html[data-mode='work']) .orbRing,
-:global(html[data-mode='work']) .orbit {
+:global(html[data-mode='work']) .aurora {
   animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aurora,
-  .orbRing,
-  .orbit {
+  .aurora {
     animation: none;
   }
 }
@@ -684,15 +576,6 @@ a.chip:hover {
 
   .chips {
     justify-content: center;
-  }
-
-  .orbStage {
-    width: 160px;
-    height: 160px;
-  }
-
-  .orb {
-    inset: 32px;
   }
 
   .statsGrid {

@@ -35,6 +35,7 @@ import {
   useResource,
   type IconName,
 } from '@/ui'
+import { Orb } from './Orb'
 import styles from './profile.module.css'
 
 /**
@@ -65,10 +66,6 @@ function initials(fullName: string): string {
     .slice(0, 2)
     .map((part) => part[0]!.toUpperCase())
     .join('')
-}
-
-function isStuck(item: CooperationListItemDto): boolean {
-  return item.progress.overdueStages > 0 || item.progress.blockedStages > 0
 }
 
 export default function ProfilePage() {
@@ -120,7 +117,7 @@ export default function ProfilePage() {
       {/* Шапка: сфера-аватар с орбитой связок и сводка. */}
       <section className={styles.hero} aria-label="Профиль">
         <span className={styles.aurora} aria-hidden />
-        <Orb name={user.fullName} planets={cooperations.slice(0, 8)} />
+        <Orb initials={initials(user.fullName)} cooperations={cooperations} />
 
         <div className={styles.heroText}>
           <span className={styles.kicker}>Здравствуйте, {firstName}</span>
@@ -372,37 +369,6 @@ export default function ProfilePage() {
 
       {data && <p className={styles.generated}>Показатели посчитаны: {formatDateTime(data.generatedAt)}</p>}
     </>
-  )
-}
-
-/**
- * Аватар-сфера: инициалы в градиентном шаре, вокруг — вращающееся кольцо, а по
- * наклонной орбите летают связки человека (красные — где просрочка или блок).
- * Орбита в 3D: передняя половина проходит перед сферой, задняя — за ней.
- */
-function Orb({ name, planets }: { name: string; planets: CooperationListItemDto[] }) {
-  return (
-    <div className={styles.orbStage} aria-hidden>
-      <div className={styles.orbScene}>
-        <div className={styles.orb}>
-          <span className={styles.orbRing} />
-          <span className={styles.orbCore}>{initials(name)}</span>
-        </div>
-        {planets.length > 0 && (
-          <div className={styles.orbit}>
-            {planets.map((item, index) => (
-              <span
-                key={item.id}
-                className={styles.arm}
-                style={{ '--a': `${(360 / planets.length) * index}deg` } as CSSProperties}
-              >
-                <span className={[styles.planet, isStuck(item) ? styles.planetHot : ''].filter(Boolean).join(' ')} />
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
   )
 }
 

@@ -1,0 +1,72 @@
+/* Аватар-сфера с орбитой связок (решение 89). */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 260px;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Задняя половина орбиты — тусклее, передняя — ярче: так читается глубина. */
+.orbitBack {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+
+.orbitFront {
+  fill: none;
+  stroke: var(--glass-edge-strong);
+  stroke-width: 1.4;
+}
+
+.rim {
+  filter: drop-shadow(0 0 6px var(--glass-line));
+}
+
+.plasma {
+  mix-blend-mode: screen;
+}
+
+.initials {
+  fill: var(--text-primary);
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  pointer-events: none;
+}
+
+.planet {
+  cursor: pointer;
+  transition: opacity var(--motion-micro) var(--ease-out);
+}
+
+.planet:hover {
+  filter: brightness(1.3);
+}
+
+.caption {
+  min-height: 1.4em;
+  max-width: 260px;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .stage {
+    width: 220px;
+  }
+}
