@@ -110,7 +110,10 @@ describe('шрифты дизайн-системы', () => {
 
   it.each(files)('%s не заводит свою гарнитуру', (file) => {
     const css = readFileSync(join(ROOT, file), 'utf8')
-    const families = (css.match(/font-family:\s*[^;]+;/g) ?? []).filter((rule) => !rule.includes('var(--'))
+    // inherit — это основная гарнитура от родителя, а не своя.
+    const families = (css.match(/font-family:\s*[^;]+;/g) ?? []).filter(
+      (rule) => !rule.includes('var(--') && !/font-family:\s*inherit;/.test(rule),
+    )
     expect(families, `гарнитура — только --font-family или --font-mono: ${families.join(' ')}`).toEqual([])
   })
 })

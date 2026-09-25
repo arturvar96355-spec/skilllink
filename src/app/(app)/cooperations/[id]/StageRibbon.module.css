@@ -111,7 +111,7 @@
   right: 0;
   top: 25px;
   height: 2px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(var(--ink) / 0.08);
   border-radius: var(--radius-pill);
   z-index: 0;
 }
@@ -225,7 +225,7 @@
 }
 
 .current .dot {
-  background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)), var(--surface-1);
+  background: linear-gradient(rgb(var(--ink) / 0.08), rgb(var(--ink) / 0.08)), var(--surface-1);
   border-color: var(--border-hover);
   color: var(--text-accent);
   box-shadow: none;
@@ -351,7 +351,7 @@
 }
 
 .legendCurrent {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--ink) / 0.1);
   border-color: var(--border-hover);
 }
 

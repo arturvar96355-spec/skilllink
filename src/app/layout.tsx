@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { Providers } from './providers'
 import { SPLASH_BOOT_SCRIPT, Splash } from '@/ui/layout/Splash'
 import { UI_MODE_BOOT_SCRIPT } from '@/ui/lib/ui-mode'
+import { THEME_BOOT_SCRIPT } from '@/ui/lib/theme'
 import './globals.css'
 
 /**
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <body>
         {/* Режим — первым: от него зависят заставка и стили рабочего режима (решение 80). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: UI_MODE_BOOT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
         <Splash />

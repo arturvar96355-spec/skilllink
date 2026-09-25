@@ -1,0 +1,58 @@
+/* Знак SkillLink (решение 103): цвета токенами, живая реакция в ссылке. */
+
+.mark {
+  overflow: visible;
+  flex: none;
+}
+
+.link {
+  stroke: var(--text-secondary);
+}
+
+.from {
+  fill: var(--text-primary);
+}
+
+.to {
+  fill: var(--accent-violet);
+}
+
+.interactive,
+.interactive .link,
+.interactive .from,
+.interactive .to {
+  transition:
+    transform var(--motion-surface) var(--ease-out),
+    stroke var(--motion-fast) var(--ease-out),
+    filter var(--motion-surface) var(--ease-out);
+}
+
+/* Наведение на ссылку со знаком: чуть крупнее, точки расходятся, связь вспыхивает. */
+a:hover > .interactive,
+a:focus-visible > .interactive {
+  transform: scale(1.06);
+}
+
+a:hover > .interactive .from,
+a:focus-visible > .interactive .from {
+  transform: translate(-1.2px, 1.2px);
+}
+
+a:hover > .interactive .to,
+a:focus-visible > .interactive .to {
+  transform: translate(1.2px, -1.2px);
+  filter: drop-shadow(0 0 4px var(--accent-violet));
+}
+
+a:hover > .interactive .link,
+a:focus-visible > .interactive .link {
+  stroke: var(--accent-violet);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  a:hover > .interactive,
+  a:hover > .interactive .from,
+  a:hover > .interactive .to {
+    transform: none;
+  }
+}

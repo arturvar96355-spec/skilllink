@@ -4,7 +4,7 @@
   width: 100%;
   height: 6px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgb(var(--ink) / 0.06);
   overflow: hidden;
 }
 

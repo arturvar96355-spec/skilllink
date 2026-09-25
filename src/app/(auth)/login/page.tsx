@@ -219,7 +219,8 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <DepthScene>
-      <div className={styles.screen}>
+      {/* Экран входа со звёздным 3D-фоном — всегда тёмный, при любой теме (решение 103). */}
+      <div className={styles.screen} data-force-dark>
         {/* 3D-созвездие за экраном; без WebGL или при «уменьшить движение» — фон как был. */}
         <Constellation />
         <section className={styles.brandSide}>
