@@ -4,7 +4,10 @@ import {
   PROGRAM_RATING_WEIGHTS,
   RATING_MIN_FILLED_FACTORS,
   RATING_SCALE,
+  RECOMMENDATION_DISABLED_RULES,
+  RECOMMENDATION_LEARNING,
   RECOMMENDATION_RULES,
+  RECOMMENDATION_VALUE_ANCHORS,
   SKILL_GAP,
   SKILL_PROFILE,
   UNIVERSITY_RATING,
@@ -239,6 +242,70 @@ function recommendations(): CalculationParameterGroupDto {
   }
 }
 
+/** Решение 119: как рекомендации учатся на решениях сотрудников. */
+function recommendationLearning(): CalculationParameterGroupDto {
+  const L = RECOMMENDATION_LEARNING
+  const A = RECOMMENDATION_VALUE_ANCHORS
+  return {
+    id: 'recommendationLearning',
+    title: 'Обучение рекомендаций',
+    description:
+      'Балл рекомендации = вес правила по решениям сотрудников (выполнено / показано, с затуханием) ' +
+      '+ ценность случая + приоритет. Правило, которое часто отклоняют, опускается в ленте, но не исчезает.',
+    methodology: { document: METHODOLOGY, section: '7а. Обучение рекомендаций' },
+    parameters: [
+      param('RECOMMENDATION_LEARNING.halfLifeDays', 'Память: событие весит вдвое меньше через', L.halfLifeDays, 'days', true),
+      param(
+        'RECOMMENDATION_LEARNING.poolingStrength',
+        'Сила общей оценки для вуза и менеджера, показов',
+        L.poolingStrength,
+        'count',
+        true,
+        'Своих решений у вуза или менеджера мало — их вес правила ближе к общему',
+      ),
+      param('RECOMMENDATION_LEARNING.localDataTrials', 'Своя оценка — с показов', L.localDataTrials, 'count', true),
+      param('RECOMMENDATION_LEARNING.scoreWeightRule', 'Вес в балле: польза правила', L.scoreWeightRule, 'weight', true),
+      param('RECOMMENDATION_LEARNING.scoreWeightValue', 'Вес в балле: ценность случая', L.scoreWeightValue, 'weight', true),
+      param('RECOMMENDATION_LEARNING.scoreWeightPriority', 'Вес в балле: приоритет', L.scoreWeightPriority, 'weight', true),
+      param('RECOMMENDATION_LEARNING.lowRuleWeight', 'Низкий вес правила — ниже', L.lowRuleWeight, 'share', true),
+      param('RECOMMENDATION_LEARNING.dismissPauseDays', 'Пауза после отклонения', L.dismissPauseDays, 'days', true),
+      param(
+        'RECOMMENDATION_LEARNING.progressCreditDays',
+        'Связка сдвинулась после рекомендации — засчитать в течение',
+        L.progressCreditDays,
+        'days',
+        true,
+      ),
+      param('RECOMMENDATION_LEARNING.overloadWindowDays', 'Нагрузка менеджера: окно', L.overloadWindowDays, 'days', true),
+      param('RECOMMENDATION_LEARNING.overloadMinShown', 'Нагрузка: показов за окно не меньше', L.overloadMinShown, 'count', true),
+      param('RECOMMENDATION_LEARNING.overloadMaxDoneShare', 'Нагрузка: выполнено меньше доли', L.overloadMaxDoneShare, 'share', true),
+      param(
+        'RECOMMENDATION_LEARNING.overloadScoreThreshold',
+        'Перегруженному — только балл не ниже',
+        L.overloadScoreThreshold,
+        'share',
+        true,
+        'Остальные помечаются «отложено» и уходят в конец ленты, не удаляются',
+      ),
+      param(
+        'RECOMMENDATION_LEARNING.sampling',
+        'Вес правила в балле',
+        L.sampling,
+        'choice',
+        false,
+        null,
+        L.sampling === 'mean' ? 'среднее (лента детерминирована)' : 'случайная выборка (исследование)',
+      ),
+      param('RECOMMENDATION_VALUE_ANCHORS.overdueDays', 'Ценность 0,5: просрочка, дней', A.overdueDays, 'days', true),
+      param('RECOMMENDATION_VALUE_ANCHORS.stalledIdleDays', 'Ценность 0,5: без движения, дней', A.stalledIdleDays, 'days', true),
+      param('RECOMMENDATION_VALUE_ANCHORS.gapDemand', 'Ценность 0,5: спрос на навык из 100', A.gapDemand, 'points', true),
+      param('RECOMMENDATION_VALUE_ANCHORS.missingMetrics', 'Ценность 0,5: пустых показателей', A.missingMetrics, 'count', true),
+      param('RECOMMENDATION_VALUE_ANCHORS.noProductStages', 'Ценность 0,5: этапов без продукта', A.noProductStages, 'count', true),
+      param('RECOMMENDATION_DISABLED_RULES', 'Выключенные правила', RECOMMENDATION_DISABLED_RULES, 'list', true),
+    ],
+  }
+}
+
 function login(): CalculationParameterGroupDto {
   return {
     id: 'login',
@@ -386,6 +453,7 @@ export function buildCalculationParameters(): CalculationParametersDto {
     skillProfile(),
     workflow(),
     recommendations(),
+    recommendationLearning(),
     login(),
     retention(),
   ]

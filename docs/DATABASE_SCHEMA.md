@@ -47,6 +47,8 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `contacts_basis_reference_check` | документ-основание и дата фиксации — ровно при заданном основании |
 | `contact_basis_history_consent_status_check` | в истории: статус согласия не `NONE` ровно при `to_basis = CONSENT` |
 | `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
+| `recommendation_rule_stats_scope_type_check` | уровень статистики — `global`, `university` или `manager` (миграция `20260926120000_recommendation_learning`, решение 119) |
+| `recommendation_rule_stats_counts_check` | счётчики ≥ 0, успехов не больше показов: `successes ≤ trials`, `successes_eff ≤ trials_eff` |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
 в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
@@ -66,7 +68,9 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 `skills_name_key_ci` считает ключ названия навыка так же, как `skillNameKey` в коде
 (решение 110); у полученного согласия есть дата и форма, отозванное согласие — у
 обезличенного контакта с датой и документом отзыва, основание контакта совпадает
-с последней записью его истории (решение 111). С `--demo` — ещё пометка `is_mock`
+с последней записью его истории (решение 111); в статистике правил рекомендаций
+`successes_eff ≤ trials_eff` и успехов не больше показов, успех засчитан только показанной
+рекомендации, балл — в [0..1] (решение 119). С `--demo` — ещё пометка `is_mock`
 у всего демо-набора.
 
 Каждое правило — запрос, который ищет нарушения; всё в транзакции READ ONLY.
@@ -359,6 +363,24 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 второе — решение человека. Писать комментарий сотрудника поверх обоснования значило бы
 потерять причину, по которой рекомендация вообще появилась.
 
+**Решение 119** (миграция `20260926120000_recommendation_learning`): `score?` (double, 0..1),
+`score_breakdown?` (jsonb — разбор балла), `reasons?` (jsonb — `[{code, pass, label, detail, facts}]`),
+`is_deferred` (bool, по умолчанию false), `shown_at?` — последний показ (создана или открыта снова),
+`success_at?` — когда показ засчитан полезным. Индекс по `score` — лента `sort=-score`.
+Записи, созданные до миграции, остаются без показа и балла до первой пересборки.
+
+### recommendation_rule_stats — статистика правил рекомендаций (решение 119)
+
+`rule_type`, `scope_type` (`global` | `university` | `manager`), `scope_id` (`all` для общего
+уровня, иначе id вуза или пользователя — без внешнего ключа: строка статистики переживает
+архив вуза и увольнение), `trials`, `successes` (int, полные), `trials_eff`, `successes_eff`
+(double, с затуханием, не округляются), `eff_updated_at` (timestamptz).
+
+PK: (`rule_type`, `scope_type`, `scope_id`). Пишется только одним
+`INSERT … ON CONFLICT DO UPDATE` с затуханием в SQL (`recommendations.stats.repo.ts`) —
+параллельные события не теряются. Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
+Персональных данных нет: id менеджера — ссылка, не ФИО.
+
 ### data_sources
 
 `name` UNIQUE, `type` (MANUAL, CSV, EXTERNAL_API, LMS, SITE, MOCK), `url?`, `collection_date?`,
@@ -439,6 +461,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | `skills_name_key_ci` — уникальный индекс по выражению | Уникальность названия навыка без учёта регистра и пробелов держит база, а не блокировка в коде (решение 110). Если в базе уже есть дубли, миграция падает с их списком и ничего не меняет | `20260925230100_skill_name_key_unique` |
 | `users.session_version` | Отзыв выданных JWT-сессий при смене и сбросе пароля, блокировке и смене роли (решение 109). Существующим строкам — 0, токен без версии тоже считается 0: выкладка никого не разлогинивает. Добавление колонки с константным DEFAULT таблицу не переписывает. Откат — в комментарии миграции | `20260925230000_user_session_version` |
 | Основание обработки ПД у `contacts` (8 колонок, 3 перечисления, 4 CHECK), таблица `contact_basis_history` | Учёт оснований и согласий контактов вузов (152-ФЗ, решение 111). **Ждёт согласования с Тиграном** | `20260925230200_contact_legal_basis` |
+| 6 колонок `recommendations`, таблица `recommendation_rule_stats` (2 CHECK) | Рекомендации учатся на решениях сотрудников и объясняют себя (решение 119). **Ждёт согласования с Тиграном.** Откат: `DROP TABLE "recommendation_rule_stats"; ALTER TABLE "recommendations" DROP COLUMN "score", DROP COLUMN "score_breakdown", DROP COLUMN "reasons", DROP COLUMN "is_deferred", DROP COLUMN "shown_at", DROP COLUMN "success_at";` | `20260926120000_recommendation_learning` |
 
 ## Что обсудить с Тиграном
 

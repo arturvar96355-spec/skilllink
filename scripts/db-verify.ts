@@ -220,6 +220,20 @@ const RULES: Rule[] = [
             ELSE false
           END`,
   },
+  {
+    // Решение 119: успехов не больше показов — и в эффективных (дробных, с затуханием),
+    // и в полных счётчиках. Держит запись (GREATEST в upsert) и CHECK таблицы.
+    name: 'Статистика правил рекомендаций: successes_eff ≤ trials_eff, успехов не больше показов',
+    sql: `SELECT rule_type || '|' || scope_type || '|' || scope_id AS id FROM recommendation_rule_stats
+          WHERE successes_eff > trials_eff OR successes > trials
+             OR trials_eff < 0 OR successes_eff < 0 OR successes < 0`,
+  },
+  {
+    name: 'Рекомендация засчитана полезной только после показа, балл — в [0..1]',
+    sql: `SELECT id FROM recommendations
+          WHERE (success_at IS NOT NULL AND shown_at IS NULL)
+             OR score < 0 OR score > 1`,
+  },
 ]
 
 /** Демо-набор помечен целиком: требование ТЗ, а не оформление (FRONTEND.md, правило 4). */
