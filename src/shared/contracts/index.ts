@@ -1,3 +1,4 @@
+export * from './ai-assist'
 export * from './analytics'
 export * from './audit'
 export * from './common'

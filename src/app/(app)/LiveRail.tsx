@@ -81,7 +81,7 @@ export function LiveRail({
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
-  /** Презентационный режим (решение 87): под числами — сравнение за 30 дней. */
+  /** Презентационный режим (решение 94): под числами — сравнение за 30 дней. */
   showcase?: boolean
 }) {
   const onRail = cooperations.filter((item) => item.currentStage !== null)

@@ -95,9 +95,8 @@ scripts/deploy/reseed.sh skilllink@<адрес> <домен>
 со сценарием показа (`npm run demo:check`, см. ниже).
 
 **Зачем.** Даты демо-набора отсчитываются от момента заливки. Через двое суток
-у первого этапа выходит срок, и на главной вместо двенадцати проблемных этапов
-становится тринадцать, через четверо — пятнадцать. Докладчик говорит «двенадцать»,
-а на экране другое число. Поэтому перезаливка — накануне вечером или утром
+у первого этапа УрФУ выходит срок, и на главной вместо четырёх проблемных этапов
+становится пять. Докладчик говорит «четыре», а на экране другое число. Поэтому перезаливка — накануне вечером или утром
 в день показа, и ещё раз после генерального прогона, чтобы убрать всё,
 что на нём нажимали.
 
@@ -120,7 +119,7 @@ npm run demo:check -- http://localhost:3100      # запасной ноутбу
 
 Только чтение, запускать против живого стенда можно. Входит менеджером
 и представителем вуза и сверяет с `docs/DEMO.md` каждое число, которое
-докладчик произносит вслух: показатели главной, двенадцать проблемных этапов,
+докладчик произносит вслух: показатели главной, четыре проблемных этапа,
 баллы вузов по порядку, состояние этапов 6 и 7 у СПбГУТ (на них держатся
 оба отказа), верх ленты рекомендаций, кабинет представителя и его запреты.
 
@@ -196,6 +195,50 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 
 **Кончилось место.** `docker system prune -af` удаляет неиспользуемые образы
 и кеш сборки. Тома с данными эта команда не трогает.
+
+### Роль базы для приложения (решение 89)
+
+Приложение ходит в базу отдельной ролью `skilllink_app` без прав суперпользователя:
+только данные таблиц, журнал действий — только читать и дописывать. Миграции,
+перезаливка и сроки хранения идут ролью-владельцем через сервис `migrate`.
+
+Включение (один раз; пароль — только `[0-9a-f]`, он встаёт в строку подключения):
+
+```bash
+ssh skilllink@<адрес>
+cd ~/skilllink/app
+C="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud"
+pw=$(openssl rand -hex 24)
+$C exec -T -e APP_DB_PASSWORD="$pw" postgres psql -U skilllink -d skilllink < deploy/yandex-cloud/create-app-role.sql
+echo "APP_DATABASE_URL=postgresql://skilllink_app:$pw@postgres:5432/skilllink?schema=public" >> ~/skilllink/.env.cloud
+$C up -d app
+```
+
+Проверка: `$C exec -T postgres psql -U skilllink -d skilllink -c "select usename, count(*) from pg_stat_activity where datname='skilllink' group by 1"` —
+у приложения `skilllink_app`; `npm run demo:check -- https://<домен>` — всё как в сценарии.
+
+Откат: удалить строку `APP_DATABASE_URL` из `.env.cloud` и `$C up -d app` — приложение
+вернётся к роли-владельцу. Сама роль ничему не мешает.
+
+Скрипт можно запускать повторно: после новой миграции он не нужен (права на новые
+таблицы выдаются автоматически), но и не повредит.
+
+### Сроки хранения журнала (docs/PRIVACY.md, решение 88)
+
+Журнал действий хранится год, адрес клиента в нём — 90 дней. Применяет скрипт:
+
+```bash
+ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud \
+  --profile migrate run --rm migrate npm run db:retention'
+```
+
+Образ `migrate` — тот же, что у перезаливки (`reseed.sh`): в нём есть `scripts/` и `tsx`.
+
+Без флага он только показывает, что удалит и где сотрёт адрес. Применить — добавить
+`-- --apply`. **На демо-стенде до защиты не применять:** демо-набор начинается 400 дней
+назад, и журнал завершённой связки уйдёт — изменится «Операций на связку».
+Расписание (cron владельца сервера) пока не включено.
 
 ## 6. Чего в этом развёртывании нет
 
@@ -277,3 +320,97 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 на сервере помечен `github-actions-frontend-deploy`), `DEPLOY_KNOWN_HOSTS`,
 `SEED_DEMO_PASSWORD`. Отозвать доступ — удалить строку ключа из
 `~/.ssh/authorized_keys` на сервере.
+
+## 8. Как подключить YandexGPT (ИИ-помощник)
+
+ИИ-помощник пишет черновики: сводку по связке, письмо вузу, дела на сегодня
+(TECHNICAL_DECISIONS.md, решение 90). По умолчанию он выключен — черновики собирает
+шаблон, и стенд работает как раньше. Модель ничего не решает, только формулирует
+факты правил; персональные данные в неё не уходят. Включать ли помощник на показе —
+решение Артура (`TODO: PM DECISION`).
+
+### 1. В консоли Yandex Cloud
+
+В том же облаке и каталоге, где стоит машина стенда (console.yandex.cloud):
+
+1. **Сервисный аккаунт.** «Сервисные аккаунты» → «Создать»: имя `skilllink-ai`,
+   роль **`ai.languageModels.user`** на каталог. Других ролей не нужно.
+2. **API-ключ.** Открыть аккаунт → «Создать новый ключ» → «API-ключ». Если консоль
+   спрашивает область действия — `yc.ai.languageModels.execute`. Секрет показывается
+   **один раз** — сразу скопируйте его, в чат и в git не вставляйте.
+3. **ID каталога.** На странице каталога, строка вида `b1g…`.
+
+Модель по умолчанию — `yandexgpt-lite`: дешевле и быстрее, для пересказа фактов её хватает.
+Тарификация — по токенам, по договору того же облака.
+
+### 2. На сервере
+
+Дописать в `~/skilllink/.env.cloud` (файл уже с правами 600, развёртывание эти строки
+не трогает):
+
+```bash
+ssh skilllink@<адрес>
+cat >> ~/skilllink/.env.cloud <<'LINES'
+AI_ASSIST_PROVIDER=yandexgpt
+YANDEX_GPT_API_KEY=<секрет API-ключа>
+YANDEX_FOLDER_ID=<ID каталога>
+# YANDEX_GPT_MODEL=yandexgpt-lite
+# AI_ASSIST_TIMEOUT_MS=15000
+LINES
+```
+
+Перезапустить только приложение — без пересборки, данные не трогаются:
+
+```bash
+cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ../.env.cloud --profile app up -d app
+```
+
+Переменные попадают в контейнер через `docker-compose.yml` (сервис `app`), так что
+и следующее `deploy.sh` их сохранит.
+
+### 3. Как проверить
+
+1. Войти менеджером → любая связка → вкладка «Рекомендации» → «Составить сводку».
+   Над текстом должно быть **«Черновик ИИ (YandexGPT) — проверьте перед отправкой»**.
+   «Шаблон без ИИ: помощник не настроен» — не задан ключ или каталог;
+   «модель ответила ошибкой» — ключ неверный или у аккаунта нет роли.
+2. Журнал приложения: сбой модели пишется строкой `[AI] yandexgpt: модель не дала черновик
+   (error|timeout|empty)` — без текста запроса.
+
+   ```bash
+   ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink logs --tail 100 app | grep -E '\[AI\]|yandexgpt'"
+   ```
+3. Журнал действий (администратор, `GET /api/audit`): записи `ai.draft` с `outcome: "model"`.
+
+Выключить — `AI_ASSIST_PROVIDER=off` в `.env.cloud` и тот же перезапуск.
+
+### Запасной вариант: GigaChat
+
+Если YandexGPT недоступен, переключение — одна переменная, код не меняется.
+
+1. developers.sber.ru → Studio → проект GigaChat API → **ключ авторизации**
+   (строка Base64). Область: `GIGACHAT_API_PERS` — физлица, `GIGACHAT_API_CORP` —
+   юрлица по договору.
+2. **Сертификат НУЦ Минцифры** — корневой `russian_trusted_root_ca.pem` с Госуслуг
+   (gosuslugi.ru/crt). Без него TLS до GigaChat не проходит. На сервере:
+   `~/skilllink/certs/russian_trusted_root_ca.pem`.
+3. Контейнеру файл нужно показать: в `deploy/yandex-cloud/compose.cloud.yml` у сервиса
+   `app` добавить том (изменение — через репозиторий, иначе следующее развёртывание
+   его сотрёт):
+
+   ```yaml
+   app:
+     volumes:
+       - ../certs/russian_trusted_root_ca.pem:/certs/russian_trusted_root_ca.pem:ro
+   ```
+4. В `~/skilllink/.env.cloud`:
+
+   ```bash
+   AI_ASSIST_PROVIDER=gigachat
+   GIGACHAT_AUTH_KEY=<ключ авторизации>
+   GIGACHAT_CA_CERT_PATH=/certs/russian_trusted_root_ca.pem
+   # GIGACHAT_SCOPE=GIGACHAT_API_PERS
+   # GIGACHAT_MODEL=GigaChat
+   ```
+5. Перезапуск и проверка — как выше; пометка будет «Черновик ИИ (GigaChat)».

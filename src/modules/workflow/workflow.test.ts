@@ -18,6 +18,7 @@ import {
   isAutoManaged,
   isLockedByControlPoint,
   isOverdue,
+  isPlanShifted,
   resolveStageFields,
   assertStageFieldsComplete,
   historyComment,
@@ -317,6 +318,19 @@ describe('просрочка', () => {
   it('не считает просроченным этап без срока', () => {
     expect(isOverdue(null, 'IN_PROGRESS', today)).toBe(false)
   })
+
+  it('не начатый этап с прошедшим сроком не просрочен, а сдвинут (решение 84)', () => {
+    expect(isOverdue(past, 'NOT_STARTED', today)).toBe(false)
+    expect(isPlanShifted(past, 'NOT_STARTED', today)).toBe(true)
+  })
+
+  it('«план сдвинут» — только у не начатого этапа с прошедшим сроком', () => {
+    expect(isPlanShifted(today, 'NOT_STARTED', past)).toBe(false)
+    expect(isPlanShifted(null, 'NOT_STARTED', today)).toBe(false)
+    for (const status of ['IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED'] as const) {
+      expect(isPlanShifted(past, status, today)).toBe(false)
+    }
+  })
 })
 
 describe('контрольные точки (гибридный порядок этапов)', () => {
@@ -612,11 +626,16 @@ describe('срок вот-вот выйдет', () => {
     expect(isDueSoon(inDays(-1), 'IN_PROGRESS', now)).toBe(false)
   })
 
-  it('два признака никогда не верны одновременно', () => {
+  it('признаки срока никогда не верны одновременно', () => {
     for (const days of [-30, -3, -0.5, 0, 0.5, 3, 4, 30]) {
       const deadline = inDays(days)
       for (const status of ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED'] as const) {
-        expect(isOverdue(deadline, status, now) && isDueSoon(deadline, status, now)).toBe(false)
+        const flags = [
+          isOverdue(deadline, status, now),
+          isPlanShifted(deadline, status, now),
+          isDueSoon(deadline, status, now),
+        ]
+        expect(flags.filter(Boolean).length).toBeLessThanOrEqual(1)
       }
     }
   })

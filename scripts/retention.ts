@@ -1,0 +1,166 @@
+/**
+ * Сроки хранения журнала действий — docs/PRIVACY.md, раздел «Сроки хранения».
+ *
+ *   npm run db:retention                 показать, что будет сделано (ничего не меняет)
+ *   npm run db:retention -- --dry-run    то же самое, явно
+ *   npm run db:retention -- --apply      сделать
+ *
+ * Что делает:
+ *   1. удаляет записи журнала действий старше RETENTION.auditLogDays (365 дней);
+ *   2. в записях старше RETENTION.clientAddressDays (90 дней) стирает адрес
+ *      клиента (IP) — сама запись о действии остаётся до п. 1.
+ *
+ * Сроки — src/shared/config/retention.config.ts, правила отбора —
+ * src/modules/audit/retention.rules.ts (с тестом).
+ *
+ * На стенде запускается ролью-владельцем базы через сервис migrate: у роли
+ * приложения права удалять журнал нет (create-app-role.sql, решение 89).
+ * Расписание — cron владельца сервера, docs/DEPLOY.md; пока не включено.
+ *
+ * Факт применения пишется в сам журнал (`audit.retention`) — только числа.
+ */
+
+import 'dotenv/config'
+import { PrismaClient } from '@/generated/prisma/client'
+import type { Prisma } from '@/generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { RETENTION } from '@/shared/config/retention.config'
+import { writeAudit } from '@/shared/audit/audit'
+import {
+  planRetention,
+  retentionCutoffs,
+  stripClientAddress,
+  type RetentionCutoffs,
+} from '@/modules/audit/retention.rules'
+
+function parseMode(argv: readonly string[]): 'apply' | 'dry-run' {
+  const apply = argv.includes('--apply')
+  if (apply && argv.includes('--dry-run')) {
+    console.error('Укажите что-то одно: --apply или --dry-run')
+    process.exit(2)
+  }
+  const unknown = argv.filter((arg) => arg.startsWith('--') && arg !== '--apply' && arg !== '--dry-run')
+  if (unknown.length > 0) {
+    console.error(`Неизвестные параметры: ${unknown.join(' ')}. Есть только --dry-run и --apply.`)
+    process.exit(2)
+  }
+  return apply ? 'apply' : 'dry-run'
+}
+
+const day = (date: Date) => date.toISOString().slice(0, 10)
+
+/** Записи к удалению по видам действий — чтобы было видно, что уходит. */
+async function describeDeletion(prisma: PrismaClient, cutoffs: RetentionCutoffs): Promise<number> {
+  const groups = await prisma.auditLog.groupBy({
+    by: ['action'],
+    where: { createdAt: { lt: cutoffs.deleteBefore } },
+    _count: { _all: true },
+    orderBy: { action: 'asc' },
+  })
+  const total = groups.reduce((sum, group) => sum + group._count._all, 0)
+  console.log(`Удалить записи журнала старше ${day(cutoffs.deleteBefore)}: ${total}`)
+  for (const group of groups) console.log(`   ${group.action}: ${group._count._all}`)
+  return total
+}
+
+/**
+ * Стирает адрес клиента пачками. В пачку попадают только записи между границами:
+ * более старые будут удалены целиком, и тратить на них запись незачем.
+ */
+async function stripAddresses(
+  prisma: PrismaClient,
+  cutoffs: RetentionCutoffs,
+  apply: boolean,
+): Promise<number> {
+  let cursor: string | undefined
+  let stripped = 0
+
+  for (;;) {
+    const rows = await prisma.auditLog.findMany({
+      where: { createdAt: { gte: cutoffs.deleteBefore, lt: cutoffs.stripAddressBefore } },
+      select: { id: true, createdAt: true, payload: true },
+      orderBy: { id: 'asc' },
+      take: RETENTION.batchSize,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+    })
+    if (rows.length === 0) break
+    cursor = rows.at(-1)!.id
+
+    const { stripIds } = planRetention(rows, cutoffs)
+    if (apply && stripIds.length > 0) {
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      await prisma.$transaction(
+        stripIds.map((id) =>
+          prisma.auditLog.update({
+            where: { id },
+            data: {
+              payload: stripClientAddress(byId.get(id)!.payload as Record<string, unknown>) as Prisma.InputJsonValue,
+            },
+          }),
+        ),
+      )
+    }
+    stripped += stripIds.length
+  }
+
+  return stripped
+}
+
+async function main(): Promise<void> {
+  const mode = parseMode(process.argv.slice(2))
+  const url = process.env.DATABASE_URL
+  if (!url) {
+    console.error('Не задан DATABASE_URL')
+    process.exit(1)
+  }
+
+  const cutoffs = retentionCutoffs(new Date(), RETENTION)
+  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+
+  try {
+    console.log(
+      mode === 'apply'
+        ? '── Сроки хранения журнала: применяю'
+        : '── Сроки хранения журнала: только показ (для применения — --apply)',
+    )
+    console.log(
+      `   журнал — ${RETENTION.auditLogDays} дн., адрес клиента — ${RETENTION.clientAddressDays} дн.`,
+    )
+
+    const toDelete = await describeDeletion(prisma, cutoffs)
+    const stripped = await stripAddresses(prisma, cutoffs, mode === 'apply')
+    console.log(`Стереть адрес клиента в записях старше ${day(cutoffs.stripAddressBefore)}: ${stripped}`)
+
+    if (mode === 'dry-run') {
+      console.log('Ничего не изменено.')
+      return
+    }
+
+    const deleted = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoffs.deleteBefore } } })
+    console.log(`Удалено записей: ${deleted.count} (ожидалось ${toDelete}). Адрес стёрт в записях: ${stripped}.`)
+
+    // Факт применения — в сам журнал, только числа и границы.
+    await writeAudit(
+      {
+        userId: null,
+        action: 'audit.retention',
+        objectType: 'AuditLog',
+        objectId: 'retention',
+        payload: {
+          deleted: deleted.count,
+          addressesStripped: stripped,
+          deleteBefore: cutoffs.deleteBefore.toISOString(),
+          stripAddressBefore: cutoffs.stripAddressBefore.toISOString(),
+        },
+      },
+      prisma,
+    )
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error('Сроки хранения не применены:', error instanceof Error ? error.message : error)
+  process.exit(1)
+})

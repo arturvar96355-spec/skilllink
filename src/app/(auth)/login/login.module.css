@@ -153,7 +153,7 @@
   width: min(420px, 100%);
   padding: var(--space-8);
   border-radius: var(--radius-panel);
-  /* Стеклянная плита (AuthKit, решение 85): лёгкий морозный оттенок поверх почти
+  /* Стеклянная плита (AuthKit, решение 92): лёгкий морозный оттенок поверх почти
      непрозрачной тёмной основы — созвездие за ней только угадывается. */
   background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--glass-plate);
   backdrop-filter: blur(24px);
@@ -166,7 +166,7 @@
 }
 
 /*
- * Объём (решение 86): карточку наклоняет обёртка `.tilt` (Depth.tsx), а не сама
+ * Объём (решение 93): карточку наклоняет обёртка `.tilt` (Depth.tsx), а не сама
  * панель — у панели свои анимации появления и ухода по transform. Блик лежит
  * поверх стекла и не ловит щелчки.
  */
@@ -442,6 +442,16 @@
   line-height: 1.45;
 }
 
+.privacyLink {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.privacyLink:hover {
+  color: var(--text-primary);
+}
+
 @keyframes riseIn {
   from {
     opacity: 0;
@@ -449,7 +459,7 @@
   }
 }
 
-/* Панель проявляется из расфокуса, чуть снизу — как карточки AuthKit (решение 85). */
+/* Панель проявляется из расфокуса, чуть снизу — как карточки AuthKit (решение 92). */
 @keyframes panelIn {
   from {
     opacity: 0;

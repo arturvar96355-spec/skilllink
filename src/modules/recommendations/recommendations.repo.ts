@@ -17,7 +17,7 @@ import {
   type RecommendationDraft,
 } from './recommendations.rules'
 
-const recommendationSelect = {
+export const recommendationSelect = {
   id: true,
   type: true,
   ruleKey: true,

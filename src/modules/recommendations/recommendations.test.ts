@@ -522,9 +522,18 @@ describe('рекомендации по одной связке', () => {
     expect(drafts.some((draft) => draft.ruleKey === 'stage.overdue')).toBe(false)
   })
 
-  it('точка завершена — не начатый просроченный этап за ней снова «просрочен»', () => {
+  it('точка завершена, этап за ней не начат и срок вышел — план сдвинут, не просрочка', () => {
+    // Решение 84: просрочен только этап в работе или заблокированный.
     const drafts = draftsForCooperation(
       cooperation({ ...closedUpTo(6), 7: { status: 'NOT_STARTED', deadline: daysAgo(10) } }),
+      NOW,
+    )
+    expect(drafts.some((draft) => draft.ruleKey === 'stage.overdue')).toBe(false)
+  })
+
+  it('точка завершена, этап за ней начат и срок вышел — просрочка', () => {
+    const drafts = draftsForCooperation(
+      cooperation({ ...closedUpTo(6), 7: { status: 'IN_PROGRESS', deadline: daysAgo(10) } }),
       NOW,
     )
     expect(drafts.find((draft) => draft.ruleKey === 'stage.overdue')?.relatedData.stageNumber).toBe(7)

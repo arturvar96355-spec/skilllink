@@ -1,0 +1,113 @@
+/*
+ * ИИ-помощник (решение 90): блок с кнопкой и черновик под ним.
+ * Только токены из globals.css — своих цветов и кеглей здесь нет.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.title svg {
+  color: var(--text-accent);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.draft {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Письмо и список дел приходят с переносами строк — они сохраняются. */
+.text {
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  color: var(--text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.meta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.facts summary {
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.facts summary:hover {
+  color: var(--text-secondary);
+}
+
+.facts ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}

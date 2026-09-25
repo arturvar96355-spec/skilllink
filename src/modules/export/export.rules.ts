@@ -96,3 +96,46 @@ export function universityRatingCells(rating: UniversityRatingDto | null): CsvVa
   if (!rating) return [null, METRIC_BASIS_LABELS.none, 0]
   return [rating.score, METRIC_BASIS_LABELS[rating.basis], rating.ratedProgramCount]
 }
+
+/** Колонки основного контакта в выгрузке вузов. Состав одинаков для всех ролей. */
+export const CONTACT_HEADERS = ['Контактное лицо', 'Должность', 'Почта']
+
+/**
+ * Ячейки основного контакта. Почта — только ролям, которым она нужна для работы
+ * (canSeeContactDetails): остальным колонка остаётся, но пустая — так файл
+ * у всех ролей одного вида и цикл «выгрузил → загрузил» не ломается.
+ * Телефон в выгрузку не попадает ни у кого: он есть в карточке вуза.
+ */
+export function contactCells(
+  contact: { fullName: string; position: string | null; email: string | null } | undefined,
+  showDetails: boolean,
+): CsvValue[] {
+  if (!contact) return [null, null, null]
+  return [contact.fullName, contact.position, showDetails ? contact.email : null]
+}
+
+/** Фильтры со свободным текстом: в поиске может оказаться фамилия. */
+const FREE_TEXT_FILTERS = new Set(['q'])
+/** Служебные параметры списка — к набору выгруженных данных отношения не имеют. */
+const PAGING_FILTERS = new Set(['page', 'pageSize'])
+
+/**
+ * Фильтры выгрузки для журнала действий: что именно выгрузили, без персональных
+ * данных. Значения перечислений, флагов и идентификаторов пишутся как есть —
+ * по ним видно, какой срез базы ушёл в файл. Свободный текст поиска заменяется
+ * признаком `true`: был отбор по строке, но какой — в журнал не попадает.
+ */
+type AuditScalar = string | number | boolean | null
+export type AuditFilterValue = AuditScalar | AuditScalar[]
+
+export function auditFilters(
+  filters: Readonly<Record<string, unknown>>,
+): Record<string, AuditFilterValue> {
+  const result: Record<string, AuditFilterValue> = {}
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || PAGING_FILTERS.has(key)) continue
+    // Значения фильтров — уже проверенные схемой списка скаляры и их массивы.
+    result[key] = FREE_TEXT_FILTERS.has(key) ? true : (value as AuditFilterValue)
+  }
+  return result
+}

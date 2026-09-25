@@ -9,6 +9,7 @@ import { COOPERATION_SORT_FIELDS, type CooperationListQuery } from './cooperatio
 const NULLABLE_SORT_FIELDS = ['targetDate', 'classesStartAt'] as const
 import type { DuplicateCooperation, NewStageData } from './cooperation.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { OVERDUE_STAGE_STATUSES } from '@/modules/workflow/workflow.rules'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
 
@@ -71,7 +72,7 @@ export function buildWhere(
 
   if (query.onlyOverdue) {
     where.stages = {
-      some: { deadline: { lt: now }, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      some: { deadline: { lt: now }, status: { in: [...OVERDUE_STAGE_STATUSES] } },
     }
   }
   if (query.onlyBlocked) {

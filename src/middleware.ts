@@ -25,9 +25,11 @@ const PUBLIC_PATHS = ['/login']
 
 /**
  * Открыты всем — и с сессией, и без: презентация проекта для защиты и её файлы
- * в `public/presentation/`. Данных системы не содержат, в API не ходят.
+ * в `public/presentation/`, политика обработки персональных данных (её оператор
+ * обязан опубликовать — ч. 2 ст. 18.1 152-ФЗ, и прочитать её должен и тот, кто
+ * ещё не вошёл). Данных системы не содержат, в API не ходят.
  */
-const OPEN_PATHS = ['/presentation']
+const OPEN_PATHS = ['/presentation', '/privacy']
 
 function matches(paths: readonly string[], pathname: string): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`))

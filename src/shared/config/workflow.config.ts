@@ -4,6 +4,11 @@ export interface TaskDefinition {
   title: string
   /** Обязательный пункт: пока не закрыт, этап нельзя перевести в COMPLETED. */
   isRequired: boolean
+  /**
+   * Пункт отмечается сам, когда подписаны документы связки (решение 87):
+   * подпись уже зафиксирована в документе, вводить её второй раз не нужно.
+   */
+  closedBySignedDocuments?: boolean
 }
 
 export interface StageDefinition {
@@ -23,6 +28,9 @@ export interface StageDefinition {
 
 /** Номер последнего этапа. Он вычисляется автоматически и вручную не меняется. */
 export const CONTROL_STAGE_NUMBER = 14
+
+/** Этап «Подписание документов»: его пункты отмечает подпись документов (решение 87). */
+export const SIGNING_STAGE_NUMBER = 6
 
 /**
  * Контрольные точки — этапы, которые нельзя начать и нельзя завершить, пока
@@ -126,9 +134,9 @@ export const WORKFLOW_STAGES: readonly StageDefinition[] = [
     normativeDays: 63,
     optional: false,
     tasks: [
-      { title: 'Документы подписаны со стороны вуза', isRequired: true }, // TEMP
-      { title: 'Документы подписаны со стороны ИТ-Школы', isRequired: true }, // TEMP
-      { title: 'Зафиксированы факт и дата подписания', isRequired: true }, // TEMP
+      { title: 'Документы подписаны со стороны вуза', isRequired: true, closedBySignedDocuments: true }, // TEMP
+      { title: 'Документы подписаны со стороны ИТ-Школы', isRequired: true, closedBySignedDocuments: true }, // TEMP
+      { title: 'Зафиксированы факт и дата подписания', isRequired: true, closedBySignedDocuments: true }, // TEMP
     ],
   },
   {

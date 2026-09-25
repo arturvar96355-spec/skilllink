@@ -81,6 +81,8 @@ export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
   if (user.role !== 'UNIVERSITY_REP') {
     links.push({ href: `${ROUTES.settings}#integrations`, label: 'Источники данных' })
   }
+  // Политика обработки ПД — всем ролям: её обязан видеть каждый, чьи данные в системе.
+  links.push({ href: ROUTES.privacy, label: 'Персональные данные' })
   return links
 }
 

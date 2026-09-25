@@ -151,9 +151,11 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
           const isControlPoint = controlPoints.includes(stage.stageNumber)
           const deadline = stage.isOverdue
             ? 'просрочен'
-            : stage.isDueSoon
-              ? 'скоро срок'
-              : null
+            : stage.isPlanShifted
+              ? 'план сдвинут'
+              : stage.isDueSoon
+                ? 'скоро срок'
+                : null
           const depth = depthOf(stage, focus)
           return (
             <button
