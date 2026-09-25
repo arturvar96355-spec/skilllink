@@ -6,6 +6,10 @@ import {
   demandNormalizer,
   demandPerSkill,
   latestOfPeriods,
+  directionGroup,
+  isInProfile,
+  outOfProfileNote,
+  type DirectionProfile,
 } from './skills.rules'
 
 describe('покрытие навыка программой', () => {
@@ -129,5 +133,39 @@ describe('обоснование дефицита — целыми пункта�
     for (const text of [critical.explanation, partial.explanation]) {
       expect(text).not.toMatch(/\d\.\d/)
     }
+  })
+})
+
+describe('дефициты вне профиля программы (решение 98)', () => {
+  const profile: DirectionProfile = {
+    group: '02',
+    skillIds: new Set(['python', 'ml']),
+    categories: new Set(['Языки программирования', 'Данные']),
+  }
+
+  it('группа направлений — первые две цифры кода', () => {
+    expect(directionGroup('09.03.04')).toBe('09')
+    expect(directionGroup(' 02.04.02 ')).toBe('02')
+    expect(directionGroup(null)).toBeNull()
+    expect(directionGroup('без кода')).toBeNull()
+  })
+
+  it('навык, который преподаёт группа, — в профиле', () => {
+    expect(isInProfile({ id: 'python', category: 'Языки программирования' }, profile)).toBe(true)
+  })
+
+  it('навык той же области — в профиле', () => {
+    expect(isInProfile({ id: 'analytics', category: 'Данные' }, profile)).toBe(true)
+  })
+
+  it('языки сравниваются поимённо: Python не делает «своей» Java', () => {
+    expect(isInProfile({ id: 'java', category: 'Языки программирования' }, profile)).toBe(false)
+  })
+
+  it('чужая область — вне профиля, пояснение называет группу и область', () => {
+    expect(isInProfile({ id: 'k8s', category: 'DevOps' }, profile)).toBe(false)
+    expect(outOfProfileNote('DevOps', '02')).toContain('группы направлений 02')
+    expect(outOfProfileNote('DevOps', '02')).toContain('«DevOps»')
+    expect(outOfProfileNote('Языки программирования', '02')).toContain('этот язык')
   })
 })

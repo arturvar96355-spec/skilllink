@@ -469,6 +469,17 @@ describe('переходы статусов рекомендации', () => {
     }
   })
 
+  it('четыре статуса: в «Принята» не попасть ни из одного (решение 98)', () => {
+    for (const from of RECOMMENDATION_STATUSES) {
+      expect(RECOMMENDATION_TRANSITIONS[from]).not.toContain('ACCEPTED')
+      if (from !== 'ACCEPTED') {
+        expectCode(() => assertRecommendationTransition(from, 'ACCEPTED'), 'INVALID_TRANSITION')
+      }
+    }
+    expect(RECOMMENDATION_TRANSITIONS.NEW).toEqual(['IN_PROGRESS', 'DISMISSED'])
+    expect(RECOMMENDATION_TRANSITIONS.IN_PROGRESS).toEqual(['DONE', 'DISMISSED'])
+  })
+
   it('закрытую руками не вернуть в новые — её открывает пересборка', () => {
     expectCode(() => assertRecommendationTransition('DONE', 'NEW'), 'INVALID_TRANSITION')
     expect(() => assertRecommendationTransition('DONE', 'NEW')).toThrow(/пересборка/)

@@ -133,7 +133,7 @@ const LEVEL_ORDER: Record<SkillLevel, number> = { BASIC: 1, INTERMEDIATE: 2, ADV
  * с основанием не переписываются никогда.
  */
 export async function generate(user: CurrentUser): Promise<RecommendationGenerationResultDto> {
-  assertCan(user, 'WRITE')
+  assertCan(user, 'ANALYTICS_WORK')
 
   const now = new Date()
   const input = await repo.loadGenerationInput()
@@ -276,7 +276,7 @@ export async function updateStatus(
   id: string,
   input: UpdateRecommendationInput,
 ): Promise<RecommendationDto> {
-  assertCan(user, 'WRITE')
+  assertCan(user, 'ANALYTICS_WORK')
 
   const existing = await repo.findById(id)
   if (!existing) throw notFound('Рекомендация не найдена')
