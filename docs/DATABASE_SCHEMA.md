@@ -41,6 +41,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `tasks_sort_order_check` | ≥ 0 |
 | `calendar_feeds_token_hash_check` | 64 шестнадцатеричных знака — хеш, а не сам токен (миграция `20260925210200_calendar_feeds`) |
 | `tasks_confirmation_note_check` | пометка — только у отмеченного пункта вуза, 3–500 символов без краевых пробелов (миграция `20260925210000_task_university_item`) |
+| `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
 в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
@@ -106,8 +107,10 @@ WHERE c.contype = 'f'
 | university_id | text? FK → universities | заполнен только у UNIVERSITY_REP |
 | password_hash | text? | **не используется на P0**; заложено под NextAuth.js + bcrypt на P1 |
 | is_active | boolean | |
+| session_version | integer, по умолчанию 0 | версия сессий (решение 109): кладётся в JWT при входе и сверяется на каждый запрос. +1 при смене и сбросе пароля, блокировке и смене роли — выданные раньше сессии перестают действовать. CHECK ≥ 0 |
 
-Индексы: `role`, `university_id`.
+Индексы: `role`, `university_id`. Под `session_version` индекса нет: она читается вместе
+с пользователем по первичному ключу.
 
 ### universities — образовательные организации
 
@@ -375,6 +378,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | `recommendations.resolution_comment` | Комментарий сотрудника при закрытии рекомендации. Раньше он затирал бы `justification` — обоснование системы | `20260921074512_recommendation_resolution_comment` |
 | `documents.content`, `documents.template_key` | Текст, собранный из шаблона, и ключ шаблона. Без хранения текста «генерация документов из шаблонов» не оставляет после себя ничего. Это **текст, а не файл**: загрузка файлов остаётся P2 | `20260921082617_document_template_content` |
 | `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
+| `users.session_version` | Отзыв выданных JWT-сессий при смене и сбросе пароля, блокировке и смене роли (решение 109). Существующим строкам — 0, токен без версии тоже считается 0: выкладка никого не разлогинивает. Добавление колонки с константным DEFAULT таблицу не переписывает. Откат — в комментарии миграции | `20260925230000_user_session_version` |
 
 ## Что обсудить с Тиграном
 

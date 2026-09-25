@@ -32,8 +32,15 @@ export async function replace(
   })
 }
 
-export async function remove(userId: string): Promise<boolean> {
-  const { count } = await prisma.calendarFeed.deleteMany({ where: { userId } })
+/**
+ * Отзыв подписки. `client` — транзакция вызывающего: блокировка пользователя
+ * отзывает его ссылку в той же транзакции, что и снимает доступ (решение 109).
+ */
+export async function remove(
+  userId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<boolean> {
+  const { count } = await client.calendarFeed.deleteMany({ where: { userId } })
   return count > 0
 }
 

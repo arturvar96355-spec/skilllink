@@ -23,7 +23,7 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ get: () => undefined }),
 }))
 
-const { describeAuthError, getCurrentUser } = await import('./current-user')
+const { SESSION_REVOKED_MESSAGE, describeAuthError, getCurrentUser } = await import('./current-user')
 
 const demoManager = {
   id: 'demo-manager',
@@ -68,6 +68,63 @@ describe('ошибка чтения сессии', () => {
     mocks.auth.mockResolvedValue(null)
     const failure = await getCurrentUser().catch((error: unknown) => error)
     expect((failure as AppError).code).toBe('UNAUTHORIZED')
+  })
+})
+
+describe('отзыв выданной сессии (решение 109)', () => {
+  const sessionOf = (sessionVersion?: number) => ({
+    user: { id: 'u1', ...(sessionVersion === undefined ? {} : { sessionVersion }) },
+  })
+  const stored = (sessionVersion: number) => ({ ...demoManager, id: 'u1', sessionVersion })
+
+  beforeEach(() => {
+    vi.stubEnv('DEMO_AUTH_ENABLED', 'true')
+    mocks.findMany.mockResolvedValue([demoManager])
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.clearAllMocks()
+  })
+
+  it('версия совпала — пользователь из сессии, без поля версии в ответе', async () => {
+    mocks.auth.mockResolvedValue(sessionOf(2))
+    mocks.findFirst.mockResolvedValue(stored(2))
+    const user = await getCurrentUser()
+    expect(user.id).toBe('u1')
+    expect(user).not.toHaveProperty('sessionVersion')
+  })
+
+  it('токен без версии, в базе 0 — действует: выкладка не разлогинивает', async () => {
+    mocks.auth.mockResolvedValue(sessionOf())
+    mocks.findFirst.mockResolvedValue(stored(0))
+    await expect(getCurrentUser()).resolves.toMatchObject({ id: 'u1' })
+  })
+
+  it('версия в базе ушла вперёд — 401, и в демо-режиме не становится демо-пользователем', async () => {
+    mocks.auth.mockResolvedValue(sessionOf(0))
+    mocks.findFirst.mockResolvedValue(stored(1))
+    const failure = await getCurrentUser().catch((error: unknown) => error)
+    expect((failure as AppError).code).toBe('UNAUTHORIZED')
+    expect((failure as AppError).message).toBe(SESSION_REVOKED_MESSAGE)
+    expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+
+  it('заблокированный или удалённый за сессией — 401, а не демо-менеджер', async () => {
+    mocks.auth.mockResolvedValue(sessionOf(0))
+    mocks.findFirst.mockResolvedValue(null)
+    const failure = await getCurrentUser().catch((error: unknown) => error)
+    expect((failure as AppError).code).toBe('UNAUTHORIZED')
+    expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+
+  it('сверка идёт с действующим пользователем и читает версию из базы', async () => {
+    mocks.auth.mockResolvedValue(sessionOf(0))
+    mocks.findFirst.mockResolvedValue(stored(0))
+    await getCurrentUser()
+    const query = mocks.findFirst.mock.calls[0]?.[0]
+    expect(query.where).toEqual({ id: 'u1', isActive: true })
+    expect(query.select.sessionVersion).toBe(true)
   })
 })
 

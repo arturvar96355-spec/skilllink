@@ -19,12 +19,15 @@ import type {
   UserDto,
 } from '@/shared/contracts/user'
 import { toIsoRequired } from '@/shared/utils/date'
+import * as calendarRepo from '@/modules/calendar/calendar.repo'
+import * as telegramRepo from '@/modules/telegram/telegram.repo'
 import * as repo from './auth.repo'
 import {
   assertUserChangeAllowed,
   generateTemporaryPassword,
   newPasswordProblem,
   resolveRoleAssignment,
+  revokesSessions,
   userChangeAuditActions,
 } from './auth.rules'
 import type {
@@ -220,6 +223,11 @@ export async function createUser(user: CurrentUser, input: CreateUserInput): Pro
  * запросами. Блокировка действует сразу: `getCurrentUser()` читает пользователя
  * из базы с `isActive: true` на каждый запрос, поэтому уже выданная сессия
  * заблокированного перестаёт работать со следующего запроса.
+ *
+ * Блокировка и смена роли увеличивают версию сессий (решение 109): выданные раньше
+ * сессии не оживают и после разблокировки — войти придётся заново. Блокировка
+ * в той же транзакции отзывает подписку на календарь: ссылка — тоже доступ,
+ * и после разблокировки её надо выпустить заново.
  */
 export async function updateUser(user: CurrentUser, id: string, input: UpdateUserInput): Promise<UserDto> {
   assertCan(user, 'ADMIN')
@@ -246,6 +254,25 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
         ? { connect: { id: assignment.universityId } }
         : { disconnect: true },
       isActive: nextIsActive,
+      ...(revokesSessions(target, { role: assignment.role, isActive: nextIsActive })
+        ? { sessionVersion: { increment: 1 } }
+        : {}),
+    }
+  }, async (tx, { before, after }) => {
+    if (!(before.isActive && !after.isActive)) return
+    // Всё, что работает без сессии, закрывается при блокировке: лента календаря
+    // и сводки в Telegram (решения 105 и 102).
+    if (await telegramRepo.unlinkUser(id, tx)) {
+      await writeAudit(
+        { userId: user.id, action: 'telegram.unlink', objectType: 'User', objectId: id, payload: { source: 'user.block' } },
+        tx,
+      )
+    }
+    if (await calendarRepo.remove(id, tx)) {
+      await writeAudit(
+        { userId: user.id, action: 'calendar.revoke', objectType: 'User', objectId: id, payload: { reason: 'user.block' } },
+        tx,
+      )
     }
   })
   if (!result) throw notFound('Пользователь не найден')
@@ -264,7 +291,8 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
 }
 
 /**
- * Новый временный пароль для пользователя. Старый перестаёт подходить сразу.
+ * Новый временный пароль для пользователя. Старый перестаёт подходить сразу,
+ * а выданные сессии пользователя закрываются (версия сессий растёт в `setPasswordHash`).
  *
  * Свой пароль так не меняется: для этого есть смена в личном кабинете, где нужен
  * текущий пароль. Иначе чужой, севший за оставленный открытым ноутбук
@@ -305,11 +333,16 @@ export async function resetPassword(user: CurrentUser, id: string): Promise<Issu
  * Текущий пароль проверяется под тем же ограничением перебора, что и вход
  * (throttle.ts, счётчик «учётная запись + адрес»): иначе форма смены пароля
  * стала бы обходом этого ограничения для того, кто завладел открытой сессией.
+ *
+ * Все сессии пользователя закрываются (решение 109). Текущую `renewSession`
+ * переоформляет на новую версию — человек, сменивший пароль, остаётся в системе;
+ * не вышло — он выйдет на следующем запросе, как и остальные его сессии.
  */
 export async function changeOwnPassword(
   user: CurrentUser,
   input: ChangePasswordInput,
   address: string,
+  renewSession: (sessionVersion: number) => Promise<boolean> = async () => false,
 ): Promise<PasswordChangedDto> {
   if (isSharedDemoAccount(user.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
   const problem = newPasswordProblem(input.newPassword, {
@@ -349,5 +382,5 @@ export async function changeOwnPassword(
     objectId: user.id,
   })
 
-  return { changedAt: new Date().toISOString() }
+  return { changedAt: new Date().toISOString(), sessionRenewed: await renewSession(row.sessionVersion) }
 }

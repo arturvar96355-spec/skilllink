@@ -1,4 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
+import type { Prisma } from '@/generated/prisma/client'
 import { TIE_BREAKER } from '@/shared/http/pagination'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
@@ -60,9 +61,12 @@ export async function linkChat(userId: string, chatId: string, username: string 
   ])
 }
 
-/** Отвязать учётную запись. true — привязка была. */
-export async function unlinkUser(userId: string): Promise<boolean> {
-  const { count } = await prisma.telegramLink.deleteMany({ where: { userId } })
+/** Отвязать учётную запись. true — привязка была. `client` — транзакция блокировки. */
+export async function unlinkUser(
+  userId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<boolean> {
+  const { count } = await client.telegramLink.deleteMany({ where: { userId } })
   return count > 0
 }
 

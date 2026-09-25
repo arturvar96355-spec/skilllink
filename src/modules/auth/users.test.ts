@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   cooperation: { count: vi.fn() },
   workflowStage: { count: vi.fn() },
   auditLog: { findFirst: vi.fn() },
+  calendarFeed: { deleteMany: vi.fn() },
+  telegramLink: { deleteMany: vi.fn() },
   queryRaw: vi.fn(),
   writeAudit: vi.fn(),
 }))
@@ -32,6 +34,8 @@ vi.mock('@/shared/db/prisma', () => {
     cooperation: mocks.cooperation,
     workflowStage: mocks.workflowStage,
     auditLog: mocks.auditLog,
+    calendarFeed: mocks.calendarFeed,
+    telegramLink: mocks.telegramLink,
     $queryRaw: mocks.queryRaw,
   }
   return { prisma: { ...client, $transaction: (fn: (tx: typeof client) => unknown) => fn(client) } }
@@ -74,6 +78,8 @@ beforeEach(() => {
   mocks.workflowStage.count.mockResolvedValue(0)
   mocks.user.count.mockResolvedValue(1)
   mocks.queryRaw.mockResolvedValue([])
+  mocks.calendarFeed.deleteMany.mockResolvedValue({ count: 0 })
+  mocks.telegramLink.deleteMany.mockResolvedValue({ count: 0 })
 })
 
 describe('права: управление пользователями — только администратор', () => {
@@ -358,5 +364,122 @@ describe('карточка пользователя для администра�
   it('нет такого — 404', async () => {
     mocks.user.findUnique.mockResolvedValue(null)
     await expect(service.getManagedUser(as('ADMIN'), 'nope')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+})
+
+describe('отзыв сессий (решение 109): версия растёт в четырёх случаях', () => {
+  const INCREMENT = { increment: 1 }
+  const lastUpdate = () => mocks.user.update.mock.calls.at(-1)![0]
+
+  it('смена своего пароля: версия +1, текущая сессия переоформляется на записанную версию', async () => {
+    const hashed = await hash('текущий-пароль-1', 4)
+    mocks.user.findUnique.mockImplementation(async ({ select }) =>
+      select?.passwordHash ? { passwordHash: hashed } : { id: 'me' },
+    )
+    mocks.user.update.mockResolvedValue({ ...row({ id: 'me' }), sessionVersion: 4 })
+    const renew = vi.fn().mockResolvedValue(true)
+
+    const result = await service.changeOwnPassword(
+      as('VIEWER'),
+      { currentPassword: 'текущий-пароль-1', newPassword: 'новый-пароль-2026' },
+      's1',
+      renew,
+    )
+
+    expect(lastUpdate().data.sessionVersion).toEqual(INCREMENT)
+    expect(lastUpdate().select.sessionVersion).toBe(true)
+    expect(renew).toHaveBeenCalledWith(4)
+    expect(result.sessionRenewed).toBe(true)
+  })
+
+  it('смена своего пароля без продления (демо-cookie, сбой) — пароль сменён, sessionRenewed=false', async () => {
+    const hashed = await hash('текущий-пароль-1', 4)
+    mocks.user.findUnique.mockImplementation(async ({ select }) =>
+      select?.passwordHash ? { passwordHash: hashed } : { id: 'me' },
+    )
+    mocks.user.update.mockResolvedValue({ ...row({ id: 'me' }), sessionVersion: 1 })
+    const result = await service.changeOwnPassword(
+      as('VIEWER'),
+      { currentPassword: 'текущий-пароль-1', newPassword: 'новый-пароль-2026' },
+      's2',
+    )
+    expect(lastUpdate().data.sessionVersion).toEqual(INCREMENT)
+    expect(result.sessionRenewed).toBe(false)
+  })
+
+  it('сброс пароля администратором: версия +1', async () => {
+    mocks.user.findUnique.mockResolvedValue({ id: 'target' })
+    mocks.user.update.mockResolvedValue({ ...row(), sessionVersion: 1 })
+    await service.resetPassword(as('ADMIN'), 'target')
+    expect(lastUpdate().data.sessionVersion).toEqual(INCREMENT)
+  })
+
+  it('блокировка: версия +1, подписка на календарь удалена в той же транзакции, запись в журнале', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    mocks.calendarFeed.deleteMany.mockResolvedValue({ count: 1 })
+
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+
+    expect(lastUpdate().data.sessionVersion).toEqual(INCREMENT)
+    expect(mocks.calendarFeed.deleteMany).toHaveBeenCalledWith({ where: { userId: 'target' } })
+    // Журнал отзыва пишется тем же клиентом транзакции (второй аргумент).
+    const revokeCall = mocks.writeAudit.mock.calls.find(([entry]) => entry.action === 'calendar.revoke')
+    expect(revokeCall?.[0]).toMatchObject({
+      userId: 'me',
+      objectType: 'User',
+      objectId: 'target',
+      payload: { reason: 'user.block' },
+    })
+    expect(revokeCall?.[1]).toBeDefined()
+  })
+
+  it('блокировка: привязка к Telegram снята в той же транзакции, запись в журнале', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    mocks.telegramLink.deleteMany.mockResolvedValue({ count: 1 })
+
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+
+    expect(mocks.telegramLink.deleteMany).toHaveBeenCalledWith({ where: { userId: 'target' } })
+    const unlinkCall = mocks.writeAudit.mock.calls.find(([entry]) => entry.action === 'telegram.unlink')
+    expect(unlinkCall?.[0]).toMatchObject({ objectType: 'User', objectId: 'target', payload: { source: 'user.block' } })
+    expect(unlinkCall?.[1]).toBeDefined()
+  })
+
+  it('смена роли привязку к Telegram не трогает', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ role: 'ANALYST' }))
+    await service.updateUser(as('ADMIN'), 'target', { role: 'ANALYST' }).catch(() => undefined)
+    expect(mocks.telegramLink.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('блокировка без подписки — удалять нечего, записи об отзыве нет', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+    expect(mocks.calendarFeed.deleteMany).toHaveBeenCalled()
+    expect(mocks.writeAudit.mock.calls.some(([entry]) => entry.action === 'calendar.revoke')).toBe(false)
+  })
+
+  it('смена роли: версия +1, подписку не трогает', async () => {
+    mocks.user.findUnique.mockResolvedValue(row({ role: 'VIEWER' }))
+    mocks.user.update.mockResolvedValue(row({ role: 'ANALYST' }))
+    await service.updateUser(as('ADMIN'), 'target', { role: 'ANALYST' })
+    expect(lastUpdate().data.sessionVersion).toEqual(INCREMENT)
+    expect(mocks.calendarFeed.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('ФИО, должность и разблокировка сессии не отзывают', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue({ ...row(), position: 'Руководитель' })
+    await service.updateUser(as('ADMIN'), 'target', { fullName: 'Другое Имя', position: 'Руководитель' })
+    expect(lastUpdate().data).not.toHaveProperty('sessionVersion')
+
+    mocks.user.findUnique.mockResolvedValue(row({ isActive: false }))
+    mocks.user.update.mockResolvedValue(row({ isActive: true }))
+    await service.updateUser(as('ADMIN'), 'target', { isActive: true })
+    expect(lastUpdate().data).not.toHaveProperty('sessionVersion')
+    expect(mocks.calendarFeed.deleteMany).not.toHaveBeenCalled()
   })
 })

@@ -3398,6 +3398,57 @@ async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+/**
+ * Вход по паролю тем же путём, что у smoke.ts и у экрана входа: csrf-токен
+ * и форма в NextAuth. Возвращает cookie сессии или null, если вход не принят.
+ * Своё хранилище cookie на каждую попытку: демо-cookie пробника сюда не идёт.
+ */
+async function passwordLogin(email: string, password: string): Promise<string | null> {
+  const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+  const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
+  const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+  const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: csrfCookie },
+    body: new URLSearchParams({ csrfToken, email, password }).toString(),
+  })
+  return sessionCookieFrom(response)
+}
+
+/** Новая cookie сессии из ответа (вход, переоформление) — или null, если сервер её не выдал. */
+function sessionCookieFrom(response: Response): string | null {
+  const session = (response.headers.getSetCookie?.() ?? [])
+    .map((line) => line.split(';')[0]!)
+    .find((pair) => /session-token=./.test(pair))
+  return session ?? null
+}
+
+/**
+ * Запрос под настоящей сессией, без демо-cookie. `session` — cookie, которую сервер
+ * выдал взамен (смена своего пароля переоформляет сессию, решение 109).
+ */
+async function asSession<T>(
+  cookie: string,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<Result<T> & { session: string | null }> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  })
+  const raw = await response.text()
+  let parsed: Result<T>['body'] = {}
+  try {
+    parsed = raw ? JSON.parse(raw) : {}
+  } catch {
+    parsed = {}
+  }
+  return { status: response.status, body: parsed, raw, session: sessionCookieFrom(response) }
+}
+
 async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
   const { rep, adminId, managerId } = ctx
@@ -3405,44 +3456,6 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   if (!adminId || !managerId || !rep) {
     check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
   } else {
-    /**
-     * Вход по паролю тем же путём, что у smoke.ts и у экрана входа: csrf-токен
-     * и форма в NextAuth. Возвращает cookie сессии или null, если вход не принят.
-     * Своё хранилище cookie на каждую попытку: демо-cookie пробника сюда не идёт.
-     */
-    const passwordLogin = async (email: string, password: string): Promise<string | null> => {
-      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
-      const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
-      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
-      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: csrfCookie },
-        body: new URLSearchParams({ csrfToken, email, password }).toString(),
-      })
-      const session = (response.headers.getSetCookie?.() ?? [])
-        .map((line) => line.split(';')[0]!)
-        .find((pair) => /session-token=./.test(pair))
-      return session ?? null
-    }
-
-    /** Запрос под настоящей сессией, без демо-cookie. */
-    const asSession = async <T>(cookie: string, method: string, path: string, body?: unknown): Promise<Result<T>> => {
-      const response = await fetch(`${BASE_URL}${path}`, {
-        method,
-        headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      })
-      const raw = await response.text()
-      let parsed: Result<T>['body'] = {}
-      try {
-        parsed = raw ? JSON.parse(raw) : {}
-      } catch {
-        parsed = {}
-      }
-      return { status: response.status, body: parsed, raw }
-    }
-
     // Отказ всем, кроме администратора, — на каждом новом маршруте администратора.
     const adminOnly: Array<[string, string, unknown]> = [
       ['POST', '/api/users', { email: 'x@example.invalid', fullName: 'Проба Прав', role: 'VIEWER' }],
@@ -3554,7 +3567,8 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
           newPassword: OWN,
         })
         check('пароль сменён — 200', changed.status === 200, `статус ${changed.status}`)
-        const afterChange = await asSession<{ passwordTemporary: boolean }>(firstSession, 'GET', '/api/me')
+        // Смена пароля закрывает прежние сессии; текущую сервер переоформил новой cookie.
+        const afterChange = await asSession<{ passwordTemporary: boolean }>(changed.session ?? firstSession, 'GET', '/api/me')
         check('после смены пароль больше не временный', afterChange.body.data?.passwordTemporary === false)
         check('журнал без пароля', !(await call('GET', `/api/audit?objectId=${newUser.id}`)).raw.includes(OWN))
 
@@ -3650,6 +3664,169 @@ async function checkUserManagement(ctx: ProbeContext): Promise<void> {
     )
     actAs(null)
   }
+}
+
+/**
+ * Отзыв выданных сессий (решение 109): сессия, полученная до смены пароля, сброса,
+ * смены роли или блокировки, больше не действует — 401 на /api/me, и в демо-режиме
+ * не превращается в демо-пользователя. Всё — на заведённом пользователе: общие
+ * демо-учётки этими действиями не меняются.
+ */
+async function checkSessionRevocation(ctx: ProbeContext): Promise<void> {
+  step('Отзыв сессий: смена и сброс пароля, смена роли, блокировка')
+  const { adminId } = ctx
+  if (!adminId) {
+    check('демо-данные готовы (администратор)', false, 'запустите npm run db:seed')
+    return
+  }
+
+  actAs(adminId)
+  const email = `probe-session-${Date.now()}@example.invalid`
+  const created = await call<{ user: { id: string }; temporaryPassword: string }>('POST', '/api/users', {
+    email,
+    fullName: 'Пробный Сеанс Пробникович',
+    role: 'VIEWER',
+  })
+  const userId = created.body.data?.user.id
+  const temporary = created.body.data?.temporaryPassword ?? ''
+  if (!userId) {
+    check('пробный пользователь заведён', false, `статус ${created.status}`)
+    actAs(null)
+    return
+  }
+
+  const me = (cookie: string | null) =>
+    asSession<{ id: string; role: string }>(cookie ?? 'authjs.session-token=нет', 'GET', '/api/me')
+  const alive = async (cookie: string | null) => {
+    const result = await me(cookie)
+    return result.status === 200 && result.body.data?.id === userId
+  }
+
+  // 1. Смена своего пароля: другие сессии выходят, текущая переоформляется.
+  const earlier = await passwordLogin(email, temporary)
+  const current = await passwordLogin(email, temporary)
+  check('две сессии до смены пароля действуют', (await alive(earlier)) && (await alive(current)))
+  const OWN = 'сеансовый-пароль-2026'
+  const changed = current
+    ? await asSession<{ sessionRenewed: boolean }>(current, 'POST', '/api/me/password', {
+        currentPassword: temporary,
+        newPassword: OWN,
+      })
+    : null
+  check(
+    'пароль сменён — 200, текущая сессия переоформлена новой cookie',
+    changed?.status === 200 && changed.body.data?.sessionRenewed === true && changed.session !== null,
+    `статус ${changed?.status}`,
+  )
+  const earlierAfter = await me(earlier)
+  check('сессия, полученная до смены пароля, — 401 на /api/me', earlierAfter.status === 401, `статус ${earlierAfter.status}`)
+  check(
+    '401 — единым форматом с понятным текстом',
+    earlierAfter.body.error?.code === 'UNAUTHORIZED' && earlierAfter.raw.includes('Войдите заново'),
+    earlierAfter.body.error?.message ?? '',
+  )
+  check('сменивший пароль остаётся в системе с новой cookie', await alive(changed?.session ?? null))
+  check('его прежняя cookie (до переоформления) — 401', (await me(current)).status === 401)
+
+  // Клиент сам версию не поднимет: обновление сессии без подписи сервера ничего не меняет.
+  if (earlier) {
+    const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+    const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
+    const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+    const forged = await fetch(`${BASE_URL}/api/auth/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `${csrfCookie}; ${earlier}` },
+      body: JSON.stringify({
+        csrfToken,
+        data: { sessionVersion: 1, user: { sessionVersion: 1 }, sessionRenewal: 'поддельное.разрешение' },
+      }),
+    })
+    const forgedCookie = sessionCookieFrom(forged)
+    check(
+      'отозванная сессия не продлевает себя сама через /api/auth/session',
+      (await me(forgedCookie ?? earlier)).status === 401,
+      `обновление: ${forged.status}`,
+    )
+  }
+
+  // 2. Сброс пароля администратором.
+  const beforeReset = await passwordLogin(email, OWN)
+  check('вход с новым паролем', await alive(beforeReset))
+  actAs(adminId)
+  const reset = await call<{ temporaryPassword: string }>('POST', `/api/users/${userId}/password-reset`)
+  const resetPassword = reset.body.data?.temporaryPassword ?? ''
+  const beforeResetAfter = await me(beforeReset)
+  check(
+    'сброс пароля администратором: выданная сессия — 401',
+    reset.status === 200 && beforeResetAfter.status === 401,
+    `${reset.status}, ${beforeResetAfter.status}`,
+  )
+  check('и переоформленная после смены пароля — тоже 401', (await me(changed?.session ?? null)).status === 401)
+
+  // 3. Смена роли.
+  const beforeRole = await passwordLogin(email, resetPassword)
+  check('вход с временным паролем после сброса', await alive(beforeRole))
+  const roleChange = await call<{ role: string }>('PATCH', `/api/users/${userId}`, { role: 'ANALYST' })
+  const beforeRoleAfter = await me(beforeRole)
+  check(
+    'смена роли: выданная сессия — 401',
+    roleChange.status === 200 && roleChange.body.data?.role === 'ANALYST' && beforeRoleAfter.status === 401,
+    `${roleChange.status}, ${beforeRoleAfter.status}`,
+  )
+  const afterRole = await passwordLogin(email, resetPassword)
+  const afterRoleMe = await me(afterRole)
+  check('новый вход после смены роли — уже с новой ролью', afterRoleMe.body.data?.role === 'ANALYST', afterRoleMe.body.data?.role ?? `статус ${afterRoleMe.status}`)
+
+  // 4. Блокировка: сессия и подписка на календарь.
+  actAs(userId)
+  const issued = await call<{ url: string }>('POST', '/api/me/calendar')
+  const feedPath = issued.body.data?.url ? new URL(issued.body.data.url).pathname : '/api/calendar/нет.ics'
+  const feedBefore = await fetch(`${BASE_URL}${feedPath}`)
+  check('до блокировки: подписка выпущена, лента — 200', issued.status === 201 && feedBefore.status === 200, `${issued.status}, ${feedBefore.status}`)
+
+  actAs(adminId)
+  const block = await call('PATCH', `/api/users/${userId}`, { isActive: false })
+  const afterBlockMe = await me(afterRole)
+  check('блокировка: выданная сессия — 401', block.status === 200 && afterBlockMe.status === 401, `${block.status}, ${afterBlockMe.status}`)
+  const feedBlocked = await fetch(`${BASE_URL}${feedPath}`)
+  check('лента заблокированного — 404', feedBlocked.status === 404, `статус ${feedBlocked.status}`)
+  const journal = await call<Array<{ action: string; user: { id: string } | null; payload: { reason?: string } | null }>>(
+    'GET',
+    `/api/audit?objectType=User&objectId=${userId}&pageSize=50`,
+  )
+  const revokeEntry = (journal.body.data ?? []).find((entry) => entry.action === 'calendar.revoke')
+  check(
+    'в журнале — отзыв подписки при блокировке, от имени администратора',
+    revokeEntry?.payload?.reason === 'user.block' && revokeEntry.user?.id === adminId,
+    JSON.stringify(revokeEntry?.payload ?? null),
+  )
+
+  // Разблокировка: запись подписки удалена (ссылка не оживает), старая сессия тоже.
+  const unblock = await call('PATCH', `/api/users/${userId}`, { isActive: true })
+  const feedUnblocked = await fetch(`${BASE_URL}${feedPath}`)
+  actAs(userId)
+  const feedStatus = await call<{ active: boolean }>('GET', '/api/me/calendar')
+  check(
+    'после разблокировки подписки нет: ссылка — 404, статус active=false',
+    unblock.status === 200 && feedUnblocked.status === 404 && feedStatus.body.data?.active === false,
+    `${unblock.status}, ${feedUnblocked.status}, ${JSON.stringify(feedStatus.body.data)}`,
+  )
+  check('после разблокировки сессия, выданная до блокировки, не оживает', (await me(afterRole)).status === 401)
+  check('новый вход после разблокировки работает', await alive(await passwordLogin(email, resetPassword)))
+
+  // Итог в журнале: всё, что отзывало сессии, записано.
+  actAs(adminId)
+  const actions = new Set(
+    (
+      await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${userId}&pageSize=50`)
+    ).body.data?.map((entry) => entry.action) ?? [],
+  )
+  check(
+    'журнал: смена пароля, сброс, смена роли, блокировка',
+    ['user.password.change', 'user.password.reset', 'user.role.change', 'user.block'].every((action) => actions.has(action)),
+    [...actions].join(', '),
+  )
+  actAs(null)
 }
 
 async function checkTelegram(ctx: ProbeContext): Promise<void> {
@@ -3987,6 +4164,7 @@ async function main(): Promise<void> {
   await checkSkillDirectory(ctx)
   await checkContactPrivacy(ctx)
   await checkUserManagement(ctx)
+  await checkSessionRevocation(ctx)
   await checkTelegram(ctx)
   await checkStaleSession()
   await checkLoginAttempts()

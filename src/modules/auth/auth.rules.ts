@@ -229,3 +229,22 @@ export function userChangeAuditActions(
   if (fields.length > 0) entries.push({ action: 'user.update', payload: { fields } })
   return entries
 }
+
+// ── Отзыв сессий ────────────────────────────────────────────────────────────
+
+/**
+ * Отзывает ли изменение уже выданные сессии пользователя (решение 109).
+ *
+ * Да — при блокировке и смене роли: человек, которого сняли с роли или закрыли,
+ * не должен продолжать работу во вкладке, открытой до этого. Права и так
+ * перечитываются из базы на каждом запросе, но сессия, выданная под прежнюю роль,
+ * — это уже другой доступ, и его честнее закрыть и дать войти заново.
+ * Смена и сброс пароля отзывают сессии в `setPasswordHash` (auth.repo.ts).
+ * ФИО, должность, разблокировка сессий не трогают.
+ */
+export function revokesSessions(
+  before: { role: UserRole; isActive: boolean },
+  after: { role: UserRole; isActive: boolean },
+): boolean {
+  return before.role !== after.role || (before.isActive && !after.isActive)
+}
