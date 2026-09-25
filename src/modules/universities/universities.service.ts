@@ -2,7 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { writeAudit } from '@/shared/audit/audit'
 import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan, can, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -29,22 +29,35 @@ import {
   type UpdateUniversityInput,
 } from './universities.schema'
 
-function toContactDto(row: {
-  id: string
-  fullName: string
-  position: string | null
-  email: string | null
-  phone: string | null
-  isPrimary: boolean
-}): ContactDto {
+/**
+ * Контакт наружу. `showDetails` — вправе ли роль видеть почту и телефон
+ * (canSeeContactDetails, решение 106). Без права они заменяются на null здесь,
+ * в сервисе, а не во фронте: в ответ API значения не попадают вовсе.
+ */
+export function toContactDto(
+  row: {
+    id: string
+    fullName: string
+    position: string | null
+    email: string | null
+    phone: string | null
+    isPrimary: boolean
+  },
+  showDetails: boolean,
+): ContactDto {
+  // Признак обезличивания — по исходной строке: у скрытого контакта почта тоже null,
+  // но он не обезличен.
+  const isAnonymized = isAnonymizedContact(row)
   return {
     id: row.id,
     fullName: row.fullName,
     position: row.position,
-    email: row.email,
-    phone: row.phone,
+    email: showDetails ? row.email : null,
+    phone: showDetails ? row.phone : null,
     isPrimary: row.isPrimary,
-    isAnonymized: isAnonymizedContact(row),
+    isAnonymized,
+    // У обезличенного скрывать нечего — там «нет данных», а не «скрыто».
+    contactDetailsHidden: !showDetails && !isAnonymized,
   }
 }
 
@@ -92,12 +105,14 @@ function toListItem(
   }
 }
 
-function toDetail(
+export function toDetail(
+  user: CurrentUser,
   row: repo.UniversityDetailRow,
   activeCooperations: number,
   rating: UniversityRatingDto | null = null,
 ): UniversityDto {
-  const contacts = row.contacts.map(toContactDto)
+  const showDetails = canSeeContactDetails(user, row.id)
+  const contacts = row.contacts.map((contact) => toContactDto(contact, showDetails))
   return {
     ...toListItem(row, activeCooperations, rating),
     address: row.address,
@@ -225,7 +240,7 @@ export async function getById(user: CurrentUser, id: string): Promise<University
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
 
 export async function create(
@@ -248,7 +263,7 @@ export async function create(
     objectId: row.id,
     payload: { fields: Object.keys(fields), contacts: contacts?.length ?? 0 },
   })
-  return toDetail(row, 0)
+  return toDetail(user, row, 0)
 }
 
 export async function update(
@@ -278,7 +293,7 @@ export async function update(
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
 
 /** Архивирование вместо удаления: история сотрудничества должна сохраняться. */
@@ -286,7 +301,7 @@ export async function archive(user: CurrentUser, id: string): Promise<University
   assertCan(user, 'WRITE')
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Вуз не найден')
-  if (existing.archivedAt) return toDetail(existing, 0)
+  if (existing.archivedAt) return toDetail(user, existing, 0)
 
   const openCooperations = await prisma.cooperation.count({
     where: { universityId: id, status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
@@ -300,7 +315,7 @@ export async function archive(user: CurrentUser, id: string): Promise<University
     objectType: 'University',
     objectId: id,
   })
-  return toDetail(row, 0)
+  return toDetail(user, row, 0)
 }
 
 export async function restore(user: CurrentUser, id: string): Promise<UniversityDto> {
@@ -323,7 +338,7 @@ export async function restore(user: CurrentUser, id: string): Promise<University
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
 }
 
 /**
@@ -346,7 +361,7 @@ export async function anonymizeContact(
   const existing = await repo.findContact(universityId, contactId)
   if (!existing) throw notFound('Контакт не найден')
   // Повтор — не ошибка и не новая запись в журнале: результат тот же.
-  if (isAnonymizedContact(existing)) return toContactDto(existing)
+  if (isAnonymizedContact(existing)) return toContactDto(existing, canSeeContactDetails(user, universityId))
 
   const row = await repo.updateContact(contactId, { ...ANONYMIZED_CONTACT_FIELDS })
   await writeAudit({
@@ -356,5 +371,5 @@ export async function anonymizeContact(
     objectId: contactId,
     payload: { universityId, wasPrimary: existing.isPrimary },
   })
-  return toContactDto(row)
+  return toContactDto(row, canSeeContactDetails(user, universityId))
 }
