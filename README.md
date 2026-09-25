@@ -118,6 +118,7 @@ npm run demo:check -- <адрес>        # сверка стенда со сц�
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Персональные данные и 152-ФЗ |
 | [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md) | Безопасность: что сделано, чего нет |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Интерфейс и дизайн-система |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Словарь терминов: как называть вещи в интерфейсе |
 | [docs/TECHNICAL_DECISIONS.md](docs/TECHNICAL_DECISIONS.md) | Журнал технических решений |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Состояние, риски, что дальше |
 

@@ -5,6 +5,11 @@ import type { Permission } from '@/shared/auth/permissions'
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
+import {
+  createDsarRequestSchema,
+  dsarRequestListQuerySchema,
+  eraseSubjectSchema,
+} from '@/modules/dsar/dsar.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
@@ -375,6 +380,100 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ADMIN',
     returnsOk: true,
     errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+
+  // ── Права субъекта ПД (решение 116) ──────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/me/data-export',
+    tag: 'Права субъекта ПД',
+    summary: 'Мои данные: выгрузить всё, что система знает обо мне',
+    description:
+      'Ст. 14 152-ФЗ. Любая роль, только о себе. JSON вложением (Content-Disposition: attachment, ' +
+      'Cache-Control: no-store): сведения ч. 7 ст. 14, данные по разделам реестра DSAR и журнал — ' +
+      'мои действия и действия надо мной. Не чаще раза в 10 минут — иначе 409 с details.retryAfterSeconds. ' +
+      'Регистрируется в реестре запросов исполненным (канал SELF_SERVICE), в журнал — dsar.exported.',
+    permission: 'ANY',
+    fileContentType: 'application/json',
+    errors: ['UNAUTHORIZED', 'CONFLICT', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/users/{id}/export',
+    tag: 'Права субъекта ПД',
+    summary: 'Всё о субъекте: выгрузка по пользователю системы',
+    description:
+      'Ст. 14 152-ФЗ. JSON вложением, без сохранения в браузере: subject, operator, purposes, legalBasis, categories, sources, ' +
+      'recipients, retention, data (по разделам с total и пределом 500), auditTrail.byActor и aboutSubject, counts. ' +
+      'Паролей, хешей и токенов нет. Закрывает открытый запрос на сведения, иначе регистрирует исполненный.',
+    permission: 'DSAR_MANAGE',
+    fileContentType: 'application/json',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/contacts/{id}/export',
+    tag: 'Права субъекта ПД',
+    summary: 'Всё о субъекте: выгрузка по контактному лицу вуза',
+    description:
+      'Как выгрузка по пользователю: карточка контакта с основанием обработки и согласием, история основания, ' +
+      'встречи, документы с упоминанием ФИО, журнал действий над контактом.',
+    permission: 'DSAR_MANAGE',
+    fileContentType: 'application/json',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/users/{id}/erase',
+    tag: 'Права субъекта ПД',
+    summary: 'Обезличить пользователя по запросу субъекта',
+    description:
+      'Ст. 20, 21 152-ФЗ. Тело { confirm: почта для входа }. В одной транзакции по реестру: ФИО, почта, должность — заглушка, ' +
+      'пароль стёрт, блокировка, версия сессий +1, ссылка календаря и привязка Telegram удалены; ссылки и журнал ' +
+      'остаются. Себя, последнего администратора, общую демо-учётку и сотрудника с открытой работой — 409. ' +
+      'Необратимо; повтор — 200 с alreadyErased.',
+    permission: 'DSAR_MANAGE',
+    body: eraseSubjectSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/contacts/{id}/erase',
+    tag: 'Права субъекта ПД',
+    summary: 'Обезличить контактное лицо вуза по запросу субъекта',
+    description:
+      'Тот же набор полей, что у обезличивания в карточке вуза, и закрытие запроса в реестре. ' +
+      'Тело { confirm: ФИО контакта }. Необратимо; повтор — 200 с alreadyErased.',
+    permission: 'DSAR_MANAGE',
+    body: eraseSubjectSchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/requests',
+    tag: 'Права субъекта ПД',
+    summary: 'Реестр запросов субъектов ПД',
+    description:
+      'Новые сверху; фильтры status, kind, subjectType, subjectId, overdue=true (открытые с прошедшим сроком). ' +
+      'Срок: 10 рабочих дней на сведения (ч. 3 ст. 14), 7 — на уничтожение (ч. 3 ст. 20).',
+    permission: 'DSAR_MANAGE',
+    query: dsarRequestListQuerySchema,
+    list: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/requests',
+    tag: 'Права субъекта ПД',
+    summary: 'Зарегистрировать запрос субъекта, пришедший письмом',
+    description:
+      'Срок ответа — от receivedAt (не в будущем, не старше 30 дней). Открытый запрос того же вида о том же ' +
+      'субъекте — 409 с details.requestId. Текст письма и ФИО не хранятся. В журнал — dsar.requested.',
+    permission: 'DSAR_MANAGE',
+    body: createDsarRequestSchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR', 'CONFLICT'],
   },
 
   // ── Университеты ──────────────────────────────────────────────────────────

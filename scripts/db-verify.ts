@@ -25,6 +25,7 @@ import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.
 import type { StageStatus } from '@/shared/contracts/enums'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
+import { ERASED_USER_NAME } from '@/modules/dsar/dsar.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
 import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
 import { verifyChain } from '@/modules/audit/chain.service'
@@ -198,6 +199,26 @@ const RULES: Rule[] = [
             AND NOT (full_name = '${ANONYMIZED_CONTACT_NAME.replaceAll("'", "''")}'
                      AND position IS NULL AND email IS NULL AND phone IS NULL
                      AND consent_withdrawn_at IS NOT NULL AND withdrawal_reference IS NOT NULL)`,
+  },
+  {
+    // Обезличивание по запросу субъекта (решение 116): доступа без сессии не остаётся.
+    name: 'Обезличенный пользователь заблокирован, без пароля, календаря и Telegram',
+    sql: `SELECT u.id FROM users u
+          WHERE u.full_name = '${ERASED_USER_NAME.replaceAll("'", "''")}'
+            AND (u.is_active OR u.password_hash IS NOT NULL
+                 OR u.email <> 'erased-' || u.id || '@erased.invalid'
+                 OR EXISTS (SELECT 1 FROM calendar_feeds f WHERE f.user_id = u.id)
+                 OR EXISTS (SELECT 1 FROM telegram_links t WHERE t.user_id = u.id))`,
+  },
+  {
+    // Реестр запросов субъектов: исполненный запрос не раньше запроса (CHECK держит порядок
+    // дат); здесь — что субъект запроса существует (внешнего ключа у subject_id нет).
+    name: 'Запрос субъекта ПД ссылается на существующего пользователя или контакт',
+    sql: `SELECT d.id FROM dsar_requests d
+          WHERE NOT CASE d.subject_type
+            WHEN 'USER' THEN EXISTS (SELECT 1 FROM users u WHERE u.id = d.subject_id)
+            WHEN 'CONTACT' THEN EXISTS (SELECT 1 FROM contacts c WHERE c.id = d.subject_id)
+          END`,
   },
   {
     name: 'Основание контакта совпадает с последней записью его истории',

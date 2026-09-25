@@ -11,6 +11,11 @@ export const AUDIT_ACTIONS = [
   'auth.login.success',
   'auth.login.failure',
   'auth.login.blocked',
+  /**
+   * Превышен предел частоты запросов к API (решение 117): одна запись на ключ
+   * в минуту. В payload — группа, предел и вид субъекта; адреса и пути нет.
+   */
+  'api.rate-limit.exceeded',
   'user.create',
   /** ФИО, должность или вуз представителя. В журнале — только имена полей. */
   'user.update',
@@ -83,6 +88,13 @@ export const AUDIT_ACTIONS = [
   'skill.merge',
   'skill.delete',
   'export.download',
+  /**
+   * Запросы субъектов ПД (решение 116). objectType — User или Contact, objectId — субъект;
+   * в payload — номер запроса, вид, канал и счётчики, без самих ПД.
+   */
+  'dsar.requested',
+  'dsar.exported',
+  'dsar.erased',
   'audit.retention',
   /**
    * Проверка целостности журнала (решение 115): итог, число строк, номер головы,

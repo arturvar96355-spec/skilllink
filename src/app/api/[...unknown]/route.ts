@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withRateLimit } from '@/shared/http/rate-limit-guard'
 
 /**
  * Ответ на несуществующий адрес API.
@@ -10,8 +11,10 @@ import { NextResponse } from 'next/server'
  *
  * Перехватывающий сегмент имеет наименьший приоритет: все настоящие маршруты,
  * включая `/api/auth/[...nextauth]`, сопоставляются раньше.
+ *
+ * Перебор адресов тоже расходует предел частоты запросов (решение 117).
  */
-function notFound(): NextResponse {
+const notFound = withRateLimit(async (): Promise<Response> => {
   return NextResponse.json(
     {
       error: {
@@ -21,7 +24,7 @@ function notFound(): NextResponse {
     },
     { status: 404 },
   )
-}
+})
 
 export const GET = notFound
 export const POST = notFound
