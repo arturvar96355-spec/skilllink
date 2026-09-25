@@ -68,7 +68,7 @@ async function exportUniversities(
   const ids = list.data.map((row) => row.id)
   const extras = await repo.findUniversityExtras(ids)
   const extraById = new Map(extras.map((row) => [row.id, row]))
-  // Почта контакта — только ADMIN и MANAGER (аудит S-17, docs/PRIVACY.md).
+  // Почта контакта — только ADMIN и MANAGER (решение 88, docs/PRIVACY.md).
   const withContactDetails = canSeeContactDetails(user)
   // Рейтинг — аналитика: роли без доступа к ней колонки не показываются вовсе.
   const withRating = can(user, 'ANALYTICS')
@@ -246,6 +246,12 @@ async function exportSkillGaps(
   }
 }
 
+/** Откуда пришёл запрос на выгрузку. */
+export interface ExportClient {
+  /** Адрес клиента (clientAddress) — для журнала: откуда выгрузили. */
+  address: string
+}
+
 /**
  * Выгрузка реестра в CSV.
  *
@@ -253,11 +259,6 @@ async function exportSkillGaps(
  * к данным, которые роль не видит в интерфейсе. Для представителя вуза выборка сужается
  * тем же хелпером, что и везде.
  */
-export interface ExportClient {
-  /** Адрес клиента (clientAddress) — для журнала: откуда выгрузили. */
-  address: string
-}
-
 export async function exportDataset(
   user: CurrentUser,
   request: ExportRequest,
