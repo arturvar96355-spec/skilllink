@@ -1,4 +1,3 @@
-import { prisma } from '@/shared/db/prisma'
 import { validationError } from '@/shared/http/errors'
 import { toAppError } from '@/shared/http/handle'
 import { describeForLog } from '@/shared/db/log'
@@ -23,6 +22,7 @@ import {
 import { PROGRAM_COLUMNS, UNIVERSITY_COLUMNS, type ImportQuery } from './import.schema'
 import { createUniversitySchema, updateUniversitySchema } from '@/modules/universities/universities.schema'
 import { createProgramSchema, updateProgramSchema } from '@/modules/programs/programs.schema'
+import * as repo from './import.repo'
 
 /** Необязательные колонки вузов — по полям. */
 const UNIVERSITY_OPTIONAL_COLUMNS = {
@@ -124,9 +124,9 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
 
     // Повтор названия внутри одного файла — ошибка строки, а не второй вуз.
     //
-    // Существование проверяется до записи, поэтому две одинаковые строки
-    // проходили как два создания и давали двойника. Дальше ломалось всё
-    // опознание «по названию»: повторная загрузка обновляла произвольного
+    // Существование проверяется до записи, поэтому без этой проверки две одинаковые
+    // строки прошли бы как два создания и дали двойника. Дальше ломалось бы всё
+    // опознание «по названию»: повторная загрузка обновляла бы произвольного
     // из двойников, а программы привязывались то к одному, то к другому.
     if (seenNames.has(name.toLowerCase())) {
       plans.push({
@@ -142,19 +142,7 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
     seenNames.set(name.toLowerCase(), line)
 
     // Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
-    const existing = await prisma.university.findFirst({
-      where: { name },
-      select: {
-        id: true,
-        city: true,
-        region: true,
-        shortName: true,
-        website: true,
-        directionCount: true,
-        studentCount: true,
-        archivedAt: true,
-      },
-    })
+    const existing = await repo.findUniversityByName(name)
 
     // Архивный вуз через файл не меняется — как и через карточку (assertNotArchived).
     if (existing?.archivedAt) {
@@ -201,7 +189,7 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
           detail: `Обновятся: ${changed.join(', ')}`,
         },
         apply: async () => {
-          await prisma.university.update({ where: { id: existing.id }, data })
+          await repo.updateUniversity(existing.id, data)
         },
       })
       continue
@@ -211,7 +199,7 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
       result: { line, label: name, outcome: 'create', detail: `Будет создан вуз в городе ${city}` },
       apply: async () => {
         // Импортированные записи демонстрационными не считаются: их завёл человек.
-        await prisma.university.create({ data: { name, ...data, isMock: false } })
+        await repo.createUniversity({ name, ...data, isMock: false })
       },
     })
   }
@@ -255,10 +243,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
       continue
     }
 
-    const university = await prisma.university.findFirst({
-      where: { name: universityName },
-      select: { id: true, archivedAt: true },
-    })
+    const university = await repo.findUniversityRefByName(universityName)
     if (!university) {
       plans.push({
         result: {
@@ -277,7 +262,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
     }
 
     // Повтор программы внутри одного файла — ошибка строки, а не вторая программа:
-    // проверка существования идёт до записи, и две одинаковые строки давали двойника.
+    // проверка существования идёт до записи, и две одинаковые строки дали бы двойника.
     const key = `${universityName.toLowerCase()}::${name.toLowerCase()}`
     if (seen.has(key)) {
       plans.push({
@@ -318,20 +303,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
 
     const fields = { level, ...optional }
 
-    const existing = await prisma.educationalProgram.findFirst({
-      where: { universityId: university.id, name },
-      select: {
-        id: true,
-        level: true,
-        code: true,
-        direction: true,
-        durationMonths: true,
-        applicationCount: true,
-        studentCount: true,
-        groupCount: true,
-        archivedAt: true,
-      },
-    })
+    const existing = await repo.findProgramByName(university.id, name)
 
     if (existing?.archivedAt) {
       plans.push({
@@ -370,7 +342,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
       plans.push({
         result: { line, label, outcome: 'update', detail: `Обновятся: ${changed.join(', ')}` },
         apply: async () => {
-          await prisma.educationalProgram.update({ where: { id: existing.id }, data })
+          await repo.updateProgram(existing.id, data)
         },
       })
       continue
@@ -379,9 +351,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
     plans.push({
       result: { line, label, outcome: 'create', detail: 'Будет создана программа' },
       apply: async () => {
-        await prisma.educationalProgram.create({
-          data: { universityId: university.id, name, ...data, isMock: false },
-        })
+        await repo.createProgram({ universityId: university.id, name, ...data, isMock: false })
       },
     })
   }
@@ -435,7 +405,7 @@ export async function importDataset(
         await plan.apply()
       } catch (error) {
         // Наружу — только то, что можно показать: сообщение Prisma повторяет весь
-        // вызов с данными строки и уходило в ответ целиком.
+        // вызов с данными строки, и в ответ ушли бы данные целиком.
         const known = toAppError(error)
         if (!known) console.error('[IMPORT] строка', plan.result.line, describeForLog(error))
         plan.result.outcome = 'error'
