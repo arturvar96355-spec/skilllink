@@ -79,6 +79,13 @@ services:
       GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
       GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
       GIGACHAT_CA_CERT_PATH: ${GIGACHAT_CA_CERT_PATH:-}
+      # Уведомления в Telegram (решение 102). По умолчанию выключены. Токен и секрет —
+      # только в .env.cloud на сервере: docs/SETUP.md, «Бот уведомлений в Telegram».
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
+      TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.
@@ -101,6 +108,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD:-skilllink}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public
+      # Для рассылки сводки в Telegram по расписанию (npm run telegram:digest,
+      # docs/DEPLOY.md): тот же бот и публичный адрес стенда для ссылок.
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
+      TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      AUTH_URL: ${DOCKER_AUTH_URL:-}
     command: ['npx', 'prisma', 'migrate', 'deploy']
     restart: 'no'
 
