@@ -8,6 +8,7 @@ import { writeAudit } from '@/shared/audit/audit'
 import { checkLogin, clientAddress, needsCaptcha, throttledAttempt } from './throttle'
 import { parseSolution, verifySolution } from './captcha'
 import { loginAuditEntries, type LoginOutcome } from './login-audit'
+import { renewedSessionVersion, tokenSessionVersion } from './session-version'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -48,6 +49,11 @@ export interface SessionUser {
   fullName: string
   role: UserRole
   universityId: string | null
+  /**
+   * Версия сессий пользователя на момент входа (решение 109). `getCurrentUser()`
+   * сверяет её с базой на каждом запросе: не совпала — сессия отозвана.
+   */
+  sessionVersion: number
 }
 
 declare module 'next-auth' {
@@ -90,7 +96,7 @@ export function resolveSecret(): string {
   return DEV_SECRET
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   secret: resolveSecret(),
   /**
    * Сессия живёт восемь часов — рабочий день, а не тридцать дней по умолчанию:
@@ -155,6 +161,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   role: true,
                   universityId: true,
                   passwordHash: true,
+                  sessionVersion: true,
                 },
               })
 
@@ -194,18 +201,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           fullName: user.fullName,
           role: user.role,
           universityId: user.universityId,
+          sessionVersion: user.sessionVersion,
         }
       },
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         const authorized = user as unknown as SessionUser
         token.id = authorized.id
         token.fullName = authorized.fullName
         token.role = authorized.role
         token.universityId = authorized.universityId
+        token.sessionVersion = authorized.sessionVersion
+      }
+      // Обновление сессии вызывает и сервер (продление после смены своего пароля),
+      // и клиент (`POST /api/auth/session` с любыми данными). Версия меняется только
+      // по подписанному сервером разрешению — иначе украденная cookie сама
+      // переоформила бы себя на новую версию (session-version.ts).
+      if (trigger === 'update') {
+        const renewed = renewedSessionVersion(token, session, resolveSecret())
+        if (renewed !== null) token.sessionVersion = renewed
       }
       return token
     },
@@ -217,6 +234,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         fullName: String(token.fullName ?? ''),
         role: token.role as UserRole,
         universityId: (token.universityId as string | null) ?? null,
+        // Токен без версии выдан до её появления — версия 0 (session-version.ts).
+        sessionVersion: tokenSessionVersion(token.sessionVersion),
       }
       return session
     },
