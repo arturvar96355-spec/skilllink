@@ -252,8 +252,20 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 
 Сказано честно, чтобы не выглядело промышленным контуром:
 
-- **Резервные копии по расписанию не делаются.** База живёт в томе Docker
-  на одной машине. Снимок вручную:
+- **Резервные копии — на той же машине.** С 25.09.2026 cron владельца сервера
+  каждую ночь в 03:15 МСК кладёт копию в `~/backups` и удаляет копии старше 14 суток:
+
+  ```bash
+  15 3 * * * cd ~/skilllink/app && docker compose -p skilllink exec -T postgres pg_dump -Fc -U skilllink skilllink > ~/backups/skilllink-$(date +\%F).dump 2>>~/backups/errors.log && find ~/backups -name "skilllink-*.dump" -mtime +14 -delete
+  ```
+
+  От ошибки и порчи данных копии спасают, от потери всей машины — нет: копирования
+  вне сервера (Object Storage) пока нет. Там же на сервере с 25.09.2026 включены
+  файрвол ufw (22, 80, 443) и fail2ban для SSH; пакеты Docker придержаны
+  (`apt-mark hold`) до конца проверки экспертами, чтобы автообновление не перезапустило
+  стенд. После 14.10: `sudo apt-mark unhold docker.io containerd runc docker-compose-v2`.
+
+  Снимок вручную:
 
   ```bash
   ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink exec -T postgres \
