@@ -136,17 +136,9 @@ export async function create(
   assertCan(user, 'WRITE')
 
   const [university, program, product] = await Promise.all([
-    prisma.university.findUnique({
-      where: { id: input.universityId },
-      select: { id: true, archivedAt: true },
-    }),
-    prisma.educationalProgram.findUnique({
-      where: { id: input.programId },
-      select: { id: true, universityId: true, archivedAt: true },
-    }),
-    input.productId
-      ? prisma.iTProduct.findUnique({ where: { id: input.productId }, select: { id: true } })
-      : Promise.resolve(null),
+    repo.findUniversityRef(input.universityId),
+    repo.findProgramRef(input.programId),
+    input.productId ? repo.findProductRef(input.productId) : Promise.resolve(null),
   ])
 
   if (!university) {
@@ -156,8 +148,8 @@ export async function create(
   }
   // Вуз в архиве проверяется наравне с программой. Иначе ломается обещание
   // архива: архивировать вуз с открытыми связками нельзя, но сразу после
-  // архивации новую связку можно было завести — и «в архиве нет открытой
-  // работы» переставало быть правдой.
+  // архивации новую связку можно было бы завести — и «в архиве нет открытой
+  // работы» перестало бы быть правдой.
   if (university.archivedAt) {
     throw validationError('Вуз в архиве', [
       { field: 'universityId', message: 'Восстановите вуз из архива, чтобы заводить связки' },
@@ -187,7 +179,7 @@ export async function create(
 
   const startedAt = new Date()
   // Проверка дубля и создание — одной транзакцией в очереди программы: иначе
-  // двойное «Создать» проходило проверку дважды и заводило две одинаковые связки.
+  // двойное «Создать» прошло бы проверку дважды и завело две одинаковые связки.
   const id = await prisma.$transaction(async (tx) => {
     await repo.lockProgram(tx, input.programId)
     assertNoDuplicateCooperation(
@@ -240,12 +232,9 @@ export async function update(
 
   if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
   // Продукт проверяется так же, как при создании: иначе несуществующий id
-  // уходил в connect и возвращался как «Связка не найдена».
+  // ушёл бы в connect и вернулся как «Связка не найдена».
   if (input.productId) {
-    const product = await prisma.iTProduct.findUnique({
-      where: { id: input.productId },
-      select: { id: true },
-    })
+    const product = await repo.findProductRef(input.productId)
     if (!product) {
       throw validationError('Указан несуществующий IT-продукт', [
         { field: 'productId', message: 'Продукт не найден' },

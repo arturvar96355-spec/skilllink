@@ -42,6 +42,7 @@ function user(role: UserRole): CurrentUserDto {
       canWorkAnalytics: role === 'ADMIN' || role === 'MANAGER' || role === 'ANALYST',
       canUsePortal: role === 'UNIVERSITY_REP',
       canWritePortal: role === 'UNIVERSITY_REP',
+      canSeeContactDetails: role === 'ADMIN' || role === 'MANAGER',
       isAdmin: role === 'ADMIN',
     },
     passwordTemporary: false,
