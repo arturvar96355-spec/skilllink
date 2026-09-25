@@ -169,8 +169,8 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
         },
   )
 
-  /** Лучший достигнутый уровень по навыку среди рассматриваемых программ. */
   const LEVEL_ORDER: Record<SkillLevel, number> = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3 }
+  // Лучший достигнутый уровень по навыку среди рассматриваемых программ.
   const bestLevel = new Map<string, SkillLevel>()
   const importanceBySkill = new Map<string, (typeof programSkills)[number]['importance']>()
   for (const row of programSkills) {
@@ -208,9 +208,9 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     }
   })
 
-  // Сводка — по всем навыкам периода, до отбора и обрезания: главная считала
-  // покрытие по первым двумстам строкам, отсортированным по дефициту, и чем больше
-  // навыков, тем больше покрытых выпадало из счёта.
+  // Сводка — по всем навыкам периода, до отбора и обрезания: в первых строках,
+  // отсортированных по дефициту, покрытых навыков мало, и чем больше навыков,
+  // тем больше покрытых выпало бы из счёта.
   const summary = {
     demanded: result.length,
     covered: result.filter((row) => row.coverage > 0).length,
