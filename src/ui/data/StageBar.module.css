@@ -1,0 +1,60 @@
+/* Полоска маршрута связки из 14 делений (решение 87). */
+
+.bar {
+  display: grid;
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cell {
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--line-subtle);
+  transform-origin: left center;
+}
+
+.done {
+  background: var(--status-success);
+  opacity: 0.8;
+}
+
+.current {
+  background: var(--accent-violet);
+}
+
+.overdue {
+  background: var(--status-danger);
+}
+
+.blocked {
+  background: var(--status-warning);
+}
+
+/* Волна: деления заливаются слева направо, текущее — последним и с импульсом. */
+.bar[data-inview] .cell {
+  animation: fill 420ms var(--ease-out) calc(var(--delay, 0ms) + var(--c, 0) * 40ms) backwards;
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+.bar[data-inview] .current,
+.bar[data-inview] .overdue,
+.bar[data-inview] .blocked {
+  animation:
+    fill 420ms var(--ease-out) calc(var(--delay, 0ms) + var(--c, 0) * 40ms) backwards,
+    pulse 1400ms var(--ease-out) calc(var(--delay, 0ms) + var(--c, 0) * 40ms + 420ms) 1;
+}
+
+/* Один импульс яркости на текущем делении — «вот где связка сейчас». */
+@keyframes pulse {
+  40% {
+    filter: brightness(1.7);
+  }
+}

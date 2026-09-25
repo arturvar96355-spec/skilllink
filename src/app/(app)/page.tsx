@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import type {
@@ -9,6 +9,7 @@ import type {
   DashboardOverviewDto,
   NotificationFeedDto,
   RecommendationGenerationResultDto,
+  SkillGapDto,
   UniversityListItemDto,
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
@@ -18,8 +19,13 @@ import {
   Badge,
   Button,
   CardsSkeleton,
+  DeadlineStrip,
   Funnel,
+  GapBars,
   Ring,
+  ScoreBar,
+  ScoreLegend,
+  StageBar,
   RussiaMap,
   Ticker,
   notificationHref,
@@ -227,6 +233,34 @@ export default function DashboardPage() {
     return Math.round((list.filter((item) => item.progress.overdueStages === 0).length / list.length) * 1000) / 10
   }, [active.data])
 
+  // Презентационный режим (решение 87): графики вместо части списков и одна
+  // подсветка вуза на всю главную — наведение на вуз в любом блоке приглушает
+  // остальные. В рабочем режиме главная прежняя.
+  const showcase = !isWork
+  const [focus, setFocus] = useState<string | null>(null)
+  const onFocus = showcase ? setFocus : undefined
+
+  // У проблемного этапа нет id вуза — берём его из связок, которые главная уже
+  // загрузила; не нашлась — группируем по названию вуза.
+  const universityOf = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const item of [...(funnelSource.data ?? []), ...(active.data ?? [])]) map.set(item.id, item.universityId)
+    return (cooperationId: string, universityName: string) => map.get(cooperationId) ?? `name:${universityName}`
+  }, [funnelSource.data, active.data])
+
+  // Самые большие дефициты навыков — только для показа, рядом с покрытием.
+  const gaps = useResource<SkillGapDto[]>(
+    showcase && user.permissions.canSeeAnalytics ? '/api/skills/gaps?limit=5' : null,
+  )
+
+  /** Класс приглушения для строки чужого вуза, пока другой вуз подсвечен. */
+  const dimFor = (universityId: string) => (focus && focus !== universityId ? styles.dimmed : '')
+  /** Наведение на строку подсвечивает её вуз — только в презентационном режиме. */
+  const hoverProps = (universityId: string) =>
+    showcase
+      ? { onPointerEnter: () => setFocus(universityId), onPointerLeave: () => setFocus(null) }
+      : {}
+
   const regenerate = useMutation(async () => {
     const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')
     return result.data
@@ -266,6 +300,8 @@ export default function DashboardPage() {
     explanation: metric.explanation,
     secondary: metric.key === 'operationsPerCooperation',
     motion: RAIL_MOTION[metric.key],
+    trend: metric.trend ?? null,
+    isShare: metric.unit === '%',
   }))
 
   const activeTotal = data?.metrics.find((metric) => metric.key === 'activeCooperations')?.value ?? null
@@ -308,6 +344,9 @@ export default function DashboardPage() {
             cooperations={cooperations}
             problemTotal={data.problemStageTotal}
             generatedAt={data.generatedAt}
+            showcase={showcase}
+            focus={focus}
+            onFocus={onFocus}
           />
 
           {/* Бенто: здоровье портфеля кольцами и вузы на карте (решение 79). Только в презентационном режиме. */}
@@ -387,11 +426,29 @@ export default function DashboardPage() {
                     description="Ни одна связка не просрочена и не заблокирована."
                   />
                 ) : (
-                  // Лента событий, а не таблица в рамке (07, раздел 10.E): точка
-                  // на линии времени, связка, этап в записи маршрута, срок.
+                  <>
+                  {showcase && (
+                    <DeadlineStrip
+                      items={data.problemCooperations.map((row) => ({
+                        key: `${row.cooperationId}:${row.stageId ?? row.reason}`,
+                        label: `${row.universityShortName ?? row.universityName} — ${row.programName}`,
+                        daysOverdue: row.daysOverdue,
+                        href: cooperationHref(row.cooperationId, row.stageId),
+                        group: universityOf(row.cooperationId, row.universityName),
+                      }))}
+                      focus={focus}
+                      onFocus={setFocus}
+                    />
+                  )}
+                  {/* Лента событий, а не таблица в рамке (07, раздел 10.E): точка
+                      на линии времени, связка, этап в записи маршрута, срок. */}
                   <ol className={styles.queue}>
                     {data.problemCooperations.map((row) => (
-                      <li key={`${row.cooperationId}:${row.stageId ?? row.reason}`} className={styles.event}>
+                      <li
+                        key={`${row.cooperationId}:${row.stageId ?? row.reason}`}
+                        className={[styles.event, dimFor(universityOf(row.cooperationId, row.universityName))].filter(Boolean).join(' ')}
+                        {...hoverProps(universityOf(row.cooperationId, row.universityName))}
+                      >
                         <span
                           className={[styles.eventMark, row.daysOverdue === null ? styles.blocked : ''].filter(Boolean).join(' ')}
                           aria-hidden
@@ -427,6 +484,7 @@ export default function DashboardPage() {
                       </li>
                     ))}
                   </ol>
+                  </>
                 )}
               </Section>
             </div>
@@ -519,8 +577,8 @@ export default function DashboardPage() {
                   <EmptyState title="Связок в работе нет" description="Черновиков и связок в работе пока нет." />
                 ) : (
                   <ul className={styles.routes}>
-                    {cooperations.slice(0, ROUTE_ROWS).map((item) => (
-                      <li key={item.id}>
+                    {cooperations.slice(0, ROUTE_ROWS).map((item, index) => (
+                      <li key={item.id} className={dimFor(item.universityId) || undefined} {...hoverProps(item.universityId)}>
                         <Link
                           className={styles.route}
                           href={cooperationHref(item.id)}
@@ -544,6 +602,23 @@ export default function DashboardPage() {
                               </span>
                               {item.productName ?? 'продукт не выбран'}
                             </span>
+                            {showcase && (
+                              <span className={styles.chartLine}>
+                              <StageBar
+                                done={item.progress.completedStages + item.progress.cancelledStages}
+                                current={item.currentStage?.stageNumber ?? null}
+                                total={item.progress.totalStages}
+                                state={
+                                  item.progress.overdueStages > 0
+                                    ? 'overdue'
+                                    : item.progress.blockedStages > 0
+                                      ? 'blocked'
+                                      : 'ok'
+                                }
+                                delay={index * 90}
+                              />
+                              </span>
+                            )}
                           </span>
                           <span className={styles.notation}>
                             {item.currentStage ? stageNotation(item.currentStage.stageNumber) : '—'}
@@ -577,7 +652,7 @@ export default function DashboardPage() {
                           .map((factor) => `${FACTOR_SHORT[factor.key] ?? factor.title} ${formatNumber(factor.value)}`)
                           .join(' · ') || 'показатели не заполнены'
                       return (
-                        <li key={row.programId}>
+                        <li key={row.programId} className={dimFor(row.universityId) || undefined} {...hoverProps(row.universityId)}>
                           <Link
                             className={styles.rank}
                             href={programHref(row.programId)}
@@ -592,6 +667,19 @@ export default function DashboardPage() {
                                 {row.programName}
                               </span>
                               <span className={styles.rankReason}>{reason}</span>
+                              {showcase && row.score !== null && (
+                                <span className={styles.chartLine}>
+                                <ScoreBar
+                                  parts={row.factors.map((factor) => ({
+                                    key: factor.key,
+                                    title: factor.title,
+                                    contribution: factor.contribution,
+                                    value: factor.value,
+                                  }))}
+                                  delay={index * 120}
+                                />
+                                </span>
+                              )}
                             </span>
                             <span className={styles.rankLine} aria-hidden />
                             <span className={row.score === null ? styles.scoreEmpty : styles.score}>
@@ -602,6 +690,14 @@ export default function DashboardPage() {
                       )
                     })}
                   </ol>
+                )}
+                {showcase && data.topPrograms.length > 0 && (
+                  <ScoreLegend
+                    items={(data.topPrograms[0]?.factors ?? []).map((factor) => ({
+                      key: factor.key,
+                      title: FACTOR_SHORT[factor.key] ?? factor.title,
+                    }))}
+                  />
                 )}
 
                 <div className={styles.coverage}>
@@ -621,6 +717,22 @@ export default function DashboardPage() {
                         : 'default'
                     }
                   />
+                  {/* Кольцо покрытия уже есть в бенто выше — здесь то, из чего складывается дефицит. */}
+                  {showcase && gaps.data && gaps.data.length > 0 && (
+                    <div className={styles.gapsBlock}>
+                      <span className={styles.gapsTitle}>Самые большие дефициты · спрос рынка из 100, бирюзой — покрыто</span>
+                      <GapBars
+                        rows={gaps.data.map((gap) => ({
+                          key: gap.skillId,
+                          name: gap.name,
+                          demand: gap.demandNormalized ?? 0,
+                          coverage: gap.coverage,
+                          isCritical: gap.isCritical,
+                          explanation: gap.explanation,
+                        }))}
+                      />
+                    </div>
+                  )}
                   <div className={styles.coverageFacts}>
                     <span className={styles.fact}>
                       <span className={styles.factValue}>{formatNumber(data.skillMatch.coveredSkills)}</span>

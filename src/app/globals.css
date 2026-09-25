@@ -56,6 +56,7 @@
   --danger-surface: rgba(240, 97, 111, 0.1);
   --danger-border: rgba(240, 97, 111, 0.32);
   --success-border: rgba(85, 200, 194, 0.3);
+  --success-surface: rgba(85, 200, 194, 0.1);
 
   /* Графитовая шкала (прежние имена «purple-*» — для совместимости страниц). */
   --purple-900: #0d0b16;

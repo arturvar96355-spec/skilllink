@@ -67,7 +67,9 @@
 
 .note {
   display: inline-flex;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
@@ -371,3 +373,65 @@
 }
 
 
+
+/* Сравнение с прошлым периодом (решение 87, ТЗ фронту — задача 1). */
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  animation: rise var(--motion-panel) var(--ease-out) both;
+  animation-delay: calc(900ms + var(--order, 0) * 60ms);
+}
+
+.up {
+  color: var(--status-success);
+  background: var(--success-surface);
+}
+
+.down {
+  color: var(--text-danger-strong);
+  background: var(--danger-surface);
+}
+
+.flat {
+  color: var(--text-tertiary);
+  background: var(--line-faint);
+}
+
+.trendArrow {
+  display: inline-block;
+  animation: nudge 1200ms var(--ease-out) 1400ms 1;
+}
+
+@keyframes nudge {
+  30% {
+    transform: translateY(-3px);
+  }
+}
+
+.down .trendArrow {
+  animation-name: nudgeDown;
+}
+
+@keyframes nudgeDown {
+  30% {
+    transform: translateY(3px);
+  }
+}
+
+/* Подсветка вуза: чужие точки маршрута — в тень. */
+.dim {
+  opacity: 0.2;
+}
+
+.dot {
+  transition:
+    opacity var(--motion-surface) var(--ease-out),
+    transform var(--motion-micro) var(--ease-out);
+}

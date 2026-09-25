@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import type { CSSProperties } from 'react'
-import { STAGE_PHASE_LABELS, type CooperationListItemDto } from '@/shared/contracts'
+import { STAGE_PHASE_LABELS, type CooperationListItemDto, type MetricTrendDto } from '@/shared/contracts'
 import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { cooperationHref, formatNumber, formatRelative, pluralize, useCountUp } from '@/ui'
 import styles from './LiveRail.module.css'
@@ -33,6 +33,10 @@ export interface RailNumber {
    * «still» — без счёта: движение берёт на себя маршрут под числами.
    */
   motion?: 'count' | 'segments' | 'timeline' | 'still'
+  /** Сравнение с прошлым периодом — только у «Активных связей» и «Этапов в срок». */
+  trend?: MetricTrendDto | null
+  /** Доля в процентах: изменение — в процентных пунктах, а не в штуках. */
+  isShare?: boolean
 }
 
 /** Длина шкалы метки «времени до занятий»: год. */
@@ -71,11 +75,22 @@ export function LiveRail({
   cooperations,
   problemTotal,
   generatedAt,
+  showcase = false,
+  focus = null,
+  onFocus,
 }: {
   numbers: RailNumber[]
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
+  /**
+   * Презентационный режим (решение 87): под числами — сравнение за 30 дней,
+   * точки маршрута подсвечивают свой вуз во всей главной.
+   */
+  showcase?: boolean
+  /** Подсвеченный вуз (`universityId`); остальные точки уходят в тень. */
+  focus?: string | null
+  onFocus?: (universityId: string | null) => void
 }) {
   const onRail = cooperations.filter((item) => item.currentStage !== null)
   const shown = onRail.slice(0, MAX_DOTS)
@@ -100,7 +115,7 @@ export function LiveRail({
 
       <div className={styles.numbers}>
         {numbers.map((number, index) => (
-          <RailValue key={number.key} number={number} order={index} />
+          <RailValue key={number.key} number={number} order={index} showTrend={showcase} />
         ))}
       </div>
 
@@ -148,7 +163,15 @@ export function LiveRail({
               >
                 <Link
                   href={cooperationHref(item.id)}
-                  className={[styles.dot, stuck ? styles.stuck : ''].filter(Boolean).join(' ')}
+                  className={[
+                    styles.dot,
+                    stuck ? styles.stuck : '',
+                    focus && focus !== item.universityId ? styles.dim : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  onPointerEnter={onFocus ? () => onFocus(item.universityId) : undefined}
+                  onPointerLeave={onFocus ? () => onFocus(null) : undefined}
                   aria-label={`${name}, ${item.programName}: этап ${stage} из ${TOTAL_STAGES}${stuck ? ', требует внимания' : ''}`}
                   title={`${name} — ${item.programName}\nЭтап ${stage}: ${item.currentStage!.title}`}
                 />
@@ -183,7 +206,7 @@ export function LiveRail({
   )
 }
 
-function RailValue({ number, order }: { number: RailNumber; order: number }) {
+function RailValue({ number, order, showTrend }: { number: RailNumber; order: number; showTrend: boolean }) {
   const motion = number.motion ?? 'count'
   const counted = useCountUp(number.value, 900)
   const animated = motion === 'count' ? counted : number.value
@@ -214,8 +237,11 @@ function RailValue({ number, order }: { number: RailNumber; order: number }) {
         {number.value !== null && <RailMotion motion={motion} value={number.value} />}
       </span>
       <span className={styles.label}>{number.label}</span>
-      {(number.note || number.isMock) && (
+      {/* Сравнение — в строке пометок, а не отдельной строкой: ряд чисел выровнен
+          по нижнему краю, и лишняя строка поднимала бы свою колонку над соседними. */}
+      {(number.note || number.isMock || (showTrend && number.trend)) && (
         <span className={styles.note}>
+          {showTrend && number.trend && <RailTrend trend={number.trend} isShare={number.isShare ?? false} />}
           {number.note}
           {number.isMock && <span className={styles.mock}>демо</span>}
         </span>
@@ -249,4 +275,27 @@ function RailMotion({ motion, value }: { motion: NonNullable<RailNumber['motion'
     )
   }
   return null
+}
+
+/**
+ * Сравнение с прошлым периодом (ТЗ фронту, задача 1): «+1 за 30 дней» — рост
+ * зелёным, падение красным, без изменений — нейтрально и без стрелки.
+ * `trend: null` — строки нет совсем, без заглушки.
+ */
+function RailTrend({ trend, isShare }: { trend: MetricTrendDto; isShare: boolean }) {
+  const size = Math.abs(trend.delta)
+  const amount = isShare ? `${formatNumber(Number(size.toFixed(1)))} п.п.` : formatNumber(size)
+  const sign = trend.direction === 'up' ? '+' : trend.direction === 'down' ? '−' : ''
+  return (
+    <span className={[styles.trend, styles[trend.direction]].join(' ')} title={`Было ${formatNumber(trend.previous)}`}>
+      {trend.direction !== 'flat' && (
+        <span className={styles.trendArrow} aria-hidden>
+          {trend.direction === 'up' ? '↑' : '↓'}
+        </span>
+      )}
+      {/* «Без изменений» словами не пишется (ТЗ фронту, задача 1) — ноль и нейтральный цвет. */}
+      {sign}
+      {trend.direction === 'flat' ? (isShare ? '0 п.п.' : '0') : amount} {trend.periodLabel}
+    </span>
+  )
 }

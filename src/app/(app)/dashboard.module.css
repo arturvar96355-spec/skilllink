@@ -523,3 +523,39 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/*
+ * Презентационный режим (решение 87): графики внутри строк и общая подсветка вуза.
+ * Наведение на вуз в любом блоке приглушает строки других вузов — плавно.
+ */
+.dimmed {
+  opacity: 0.32;
+  filter: saturate(0.4);
+}
+
+.queue > li,
+.routes > li,
+.ranking > li {
+  transition:
+    opacity var(--motion-surface) var(--ease-out),
+    filter var(--motion-surface) var(--ease-out);
+}
+
+/* Полоска этапов под связкой и разложенный балл под программой. */
+.chartLine {
+  display: block;
+  margin-top: var(--space-2);
+  max-width: 320px;
+}
+
+.gapsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.gapsTitle {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
