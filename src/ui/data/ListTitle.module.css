@@ -19,11 +19,18 @@
     filter var(--motion-surface) var(--ease-out);
 }
 
-tr:hover .leading,
-a:hover .leading,
 tr:focus-within .leading {
   transform: scale(1.08) translate(1px, -1px);
   filter: drop-shadow(0 0 10px rgba(142, 108, 255, 0.35));
+}
+
+/* Наведение — только с мышью: на тач-экране реакция оставалась после касания. */
+@media (hover: hover) {
+  tr:hover .leading,
+  a:hover .leading {
+    transform: scale(1.08) translate(1px, -1px);
+    filter: drop-shadow(0 0 10px rgba(142, 108, 255, 0.35));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

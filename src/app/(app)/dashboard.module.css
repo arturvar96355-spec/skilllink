@@ -116,10 +116,17 @@
 .eventLink:hover {
   background: var(--surface-2);
   border-color: var(--line-strong);
-  box-shadow:
-    inset 3px 0 0 var(--status-danger),
-    var(--glow-hover-danger);
-  transform: translateY(var(--hover-lift));
+  box-shadow: inset 3px 0 0 var(--status-danger);
+}
+
+/* Подъём — только с мышью: на тач-экране он «залипал» после касания. */
+@media (hover: hover) {
+  .eventLink:hover {
+    box-shadow:
+      inset 3px 0 0 var(--status-danger),
+      var(--glow-hover-danger);
+    transform: translateY(var(--hover-lift));
+  }
 }
 
 .eventLink:focus-visible {

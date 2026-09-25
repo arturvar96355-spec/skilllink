@@ -536,14 +536,20 @@
     transform var(--motion-surface) var(--ease-out);
 }
 
-/* Единое наведение (бриф v2, 4): карточка поднимается и мягко светится — текст стоит. */
+/* Единое наведение (бриф v2, 4): карточка поднимается и мягко светится — текст стоит.
+   Только там, где есть наведение: на тач-экране подъём «залипал» после касания. */
 .list .clickable:hover {
   background: var(--surface-2);
   border-color: var(--line-strong);
-  box-shadow:
-    inset 3px 0 0 var(--accent-violet),
-    var(--glow-hover);
-  transform: translateY(var(--hover-lift));
+}
+
+@media (hover: hover) {
+  .list .clickable:hover {
+    box-shadow:
+      inset 3px 0 0 var(--accent-violet),
+      var(--glow-hover);
+    transform: translateY(var(--hover-lift));
+  }
 }
 
 .list .selected {

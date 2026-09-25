@@ -156,7 +156,7 @@
 
 a.node:hover {
   border-color: var(--border-active);
-  transform: translateY(-2px);
+  transform: translateY(var(--hover-lift));
 }
 
 a.node:focus-visible {
