@@ -196,6 +196,33 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 **Кончилось место.** `docker system prune -af` удаляет неиспользуемые образы
 и кеш сборки. Тома с данными эта команда не трогает.
 
+### Роль базы для приложения (решение 89)
+
+Приложение ходит в базу отдельной ролью `skilllink_app` без прав суперпользователя:
+только данные таблиц, журнал действий — только читать и дописывать. Миграции,
+перезаливка и сроки хранения идут ролью-владельцем через сервис `migrate`.
+
+Включение (один раз; пароль — только `[0-9a-f]`, он встаёт в строку подключения):
+
+```bash
+ssh skilllink@<адрес>
+cd ~/skilllink/app
+C="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud"
+pw=$(openssl rand -hex 24)
+$C exec -T -e APP_DB_PASSWORD="$pw" postgres psql -U skilllink -d skilllink < deploy/yandex-cloud/create-app-role.sql
+echo "APP_DATABASE_URL=postgresql://skilllink_app:$pw@postgres:5432/skilllink?schema=public" >> ~/skilllink/.env.cloud
+$C up -d app
+```
+
+Проверка: `$C exec -T postgres psql -U skilllink -d skilllink -c "select usename, count(*) from pg_stat_activity where datname='skilllink' group by 1"` —
+у приложения `skilllink_app`; `npm run demo:check -- https://<домен>` — всё как в сценарии.
+
+Откат: удалить строку `APP_DATABASE_URL` из `.env.cloud` и `$C up -d app` — приложение
+вернётся к роли-владельцу. Сама роль ничему не мешает.
+
+Скрипт можно запускать повторно: после новой миграции он не нужен (права на новые
+таблицы выдаются автоматически), но и не повредит.
+
 ### Сроки хранения журнала (docs/PRIVACY.md, решение 88)
 
 Журнал действий хранится год, адрес клиента в нём — 90 дней. Применяет скрипт:
