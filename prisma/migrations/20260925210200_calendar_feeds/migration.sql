@@ -26,10 +26,8 @@ CREATE UNIQUE INDEX "calendar_feeds_token_hash_key" ON "calendar_feeds"("token_h
 
 -- Лента календаря выбирает встречи, где сотрудник ответственный или участник.
 -- CreateIndex
-CREATE INDEX "meeting_participants_user_id_idx" ON "meeting_participants"("user_id");
 
 -- CreateIndex
-CREATE INDEX "meetings_responsible_id_idx" ON "meetings"("responsible_id");
 
 -- AddForeignKey
 ALTER TABLE "calendar_feeds" ADD CONSTRAINT "calendar_feeds_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

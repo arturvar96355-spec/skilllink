@@ -651,8 +651,6 @@ model Meeting {
   @@index([cooperationId])
   @@index([universityId])
   @@index([date])
-  /// Встречи ответственного — лента календаря (решение 105).
-  @@index([responsibleId])
   @@map("meetings")
 }
 
@@ -672,8 +670,6 @@ model MeetingParticipant {
   contact Contact? @relation("MeetingParticipantContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([meetingId])
-  /// Встречи, где сотрудник — участник: лента календаря (решение 105).
-  @@index([userId])
   @@map("meeting_participants")
 }
 

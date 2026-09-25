@@ -309,7 +309,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | --- | --- | --- |
 | `recommendations.resolution_comment` | Комментарий сотрудника при закрытии рекомендации. Раньше он затирал бы `justification` — обоснование системы | `20260921074512_recommendation_resolution_comment` |
 | `documents.content`, `documents.template_key` | Текст, собранный из шаблона, и ключ шаблона. Без хранения текста «генерация документов из шаблонов» не оставляет после себя ничего. Это **текст, а не файл**: загрузка файлов остаётся P2 | `20260921082617_document_template_content` |
-| `calendar_feeds`; индексы `meetings.responsible_id`, `meeting_participants.user_id` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). **Ждёт согласования с Тиграном** | `20260925210200_calendar_feeds` |
+| `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
 
 ## Что обсудить с Тиграном
 
