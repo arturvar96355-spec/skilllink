@@ -159,16 +159,23 @@ export async function replaceSkills(
   ])
 }
 
-/** Пересчитывает applicationCount по заявкам (решение 9). */
-export async function recalcApplicationCount(programId: string): Promise<number> {
-  const aggregate = await prisma.application.aggregate({
-    where: { programId, status: { in: ['NEW', 'CONFIRMED', 'ENROLLED'] } },
-    _sum: { quantity: true },
+/** Вуз, в который добавляют программу: существует ли и не в архиве ли. */
+export async function findUniversityRef(id: string) {
+  return prisma.university.findUnique({
+    where: { id },
+    select: { id: true, archivedAt: true },
   })
-  const total = aggregate._sum.quantity ?? 0
-  await prisma.educationalProgram.update({
-    where: { id: programId },
-    data: { applicationCount: total, metricsSource: 'MANUAL', metricsUpdatedAt: new Date() },
+}
+
+/** Признак архива у вуза программы: из архивного вуза программу не возвращают. */
+export async function findUniversityArchivedAt(id: string) {
+  return prisma.university.findUnique({
+    where: { id },
+    select: { archivedAt: true },
   })
-  return total
+}
+
+/** Какие из переданных навыков существуют. */
+export async function findExistingSkillIds(ids: string[]) {
+  return prisma.skill.findMany({ where: { id: { in: ids } }, select: { id: true } })
 }

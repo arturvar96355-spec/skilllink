@@ -254,7 +254,7 @@ export async function changeStatus(
  * если договор по связке подписан и другие договоры подписи не ждут (решение 87).
  *
  * Статус документа к этому моменту уже сменён и записан: сбой здесь его не отменяет
- * и наружу не выходит — пункты тогда отмечаются руками, как раньше.
+ * и наружу не выходит — пункты тогда отмечаются вручную.
  */
 async function markSigningStage(
   cooperationId: string,
@@ -284,7 +284,7 @@ export async function createNewVersion(user: CurrentUser, id: string): Promise<D
 
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Документ не найден')
-  // Версия — от действующего документа. От архивного получалась ещё одна «версия 2»
+  // Версия — от действующего документа. От архивного получилась бы ещё одна «версия 2»
   // рядом с уже существующей: номер считается от исходной, а не от последней.
   if (existing.status === 'ARCHIVED') {
     throw conflict('Документ в архиве: новую версию создают от действующей', {
@@ -410,8 +410,8 @@ export async function generatePackage(
   const missingFields = new Set<string>()
 
   // Проверка «что уже есть» и создание — одной транзакцией в очереди связки
-  // (lockCooperation). Иначе двойное нажатие «Собрать пакет» проходило проверку
-  // дважды и собирало два одинаковых пакета — ровно то, от чего проверка защищает.
+  // (lockCooperation). Иначе двойное нажатие «Собрать пакет» прошло бы проверку
+  // дважды и собрало два одинаковых пакета — ровно то, от чего проверка защищает.
   await prisma.$transaction(async (tx) => {
     await lockCooperation(tx, cooperationId)
     const documents: ExistingPackageDocument[] = input.force
