@@ -105,8 +105,6 @@ function step(title: string): void {
  * падает не из-за приложения, а из-за того, что оно ещё собирается.
  *
  * В CI этого не видно: там промышленная сборка, где всё собрано заранее.
- * А человек, запустивший npm run dev и сразу npm run smoke, упирался бы
- * в непонятный отказ.
  */
 async function warmUp(): Promise<void> {
   const routes = [
@@ -132,8 +130,6 @@ async function warmUp(): Promise<void> {
     '/api/workflow/blocked',
     '/api/audit?pageSize=1',
     '/api/me/password',
-    '/api/me/telegram',
-    '/api/telegram/webhook',
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
     '/api/data-sources',
@@ -191,20 +187,25 @@ async function countLockedOverdueOf(userId: string): Promise<number> {
   return locked
 }
 
-async function main(): Promise<void> {
-  console.log(`${BOLD}Пробник SkillLink${RESET}`)
-  console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+/** Связка из списка связок, как её отдаёт реестр. */
+type ProbeCooperation = { id: string; universityId: string; responsible: { id: string } }
 
-  await warmUp()
+/**
+ * Общий контекст проверок: демо-данные, на которых они стоят. Берутся из справочников
+ * через API до первого шага.
+ */
+interface ProbeContext {
+  rep: { id: string; universityId: string | null } | undefined
+  adminId: string | null
+  managerId: string | null
+  universities: Result<Array<{ id: string; name: string }>>
+  foreignUniversity: { id: string; name: string } | undefined
+  cooperations: Result<ProbeCooperation[]>
+  foreignCooperation: ProbeCooperation | undefined
+  anyCooperation: ProbeCooperation | undefined
+}
 
-  const health = await call('GET', '/api/health')
-  if (health.status !== 200) {
-    console.log(`\n${RED}Сервер не отвечает. Запустите npm run dev.${RESET}`)
-    process.exitCode = 1
-    return
-  }
-
-  // ── Подготовка ─────────────────────────────────────────────────────────────
+async function prepare(): Promise<ProbeContext> {
   const reps = await call<Array<{ id: string; universityId: string | null }>>(
     'GET',
     '/api/users?role=UNIVERSITY_REP',
@@ -233,8 +234,12 @@ async function main(): Promise<void> {
   const managers = await call<Array<{ id: string }>>('GET', '/api/users?role=MANAGER&pageSize=1')
   const managerId = managers.body.data?.[0]?.id ?? null
 
-  // ── 1. Изоляция представителя вуза ─────────────────────────────────────────
+  return { rep, adminId, managerId, universities, foreignUniversity, cooperations, foreignCooperation, anyCooperation }
+}
+
+async function checkRepIsolation(ctx: ProbeContext): Promise<void> {
   step('1. Представитель вуза не должен видеть и трогать чужое')
+  const { rep, foreignUniversity, foreignCooperation } = ctx
 
   if (!rep || !foreignUniversity || !foreignCooperation) {
     check('демо-данные готовы (представитель вуза и чужой вуз)', false, 'запустите npm run db:seed')
@@ -322,9 +327,11 @@ async function main(): Promise<void> {
 
     actAs(null)
   }
+}
 
-  // ── 2. Целостность состояний ───────────────────────────────────────────────
+async function checkNoContradictoryStates(ctx: ProbeContext): Promise<void> {
   step('2. Система не должна оставлять противоречивые состояния')
+  const { anyCooperation, managerId } = ctx
 
   if (!managerId || !anyCooperation) {
     check('есть связка для проверок', false)
@@ -428,9 +435,11 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ── 2а. Закрытая связка ────────────────────────────────────────────────────
+async function checkClosedCooperationFrozen(ctx: ProbeContext): Promise<void> {
   step('2а. У закрытой связки процесс заморожен')
+  const { managerId } = ctx
 
   if (managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -511,8 +520,11 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
+async function checkPortalMaterialConfirmation(ctx: ProbeContext): Promise<void> {
   step('2б. Кабинет вуза подтверждает материалы по тем же правилам, что сотрудник')
+  const { rep, managerId } = ctx
 
   if (rep?.universityId && managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -599,8 +611,11 @@ async function main(): Promise<void> {
       check('пункт отменённого этапа остался неотмеченным', after?.isDone === false, `isDone ${after?.isDone}`)
     }
   }
+}
 
+async function checkUniversityItemMarking(ctx: ProbeContext): Promise<void> {
   step('2в. Пункт вуза: при представителе отмечает вуз, без него — сотрудник с пометкой (решение 103)')
+  const { rep, adminId, managerId } = ctx
 
   if (rep?.universityId && managerId) {
     type ProbeTask = {
@@ -779,8 +794,9 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ── 3. Кривой ввод ─────────────────────────────────────────────────────────
+async function checkMalformedInput(): Promise<void> {
   step('3. Кривой ввод не должен ронять систему')
 
   const malformed = await callRaw('POST', '/api/universities', '{не json', 'application/json')
@@ -862,9 +878,11 @@ async function main(): Promise<void> {
       `статус ${result.status}`,
     )
   }
+}
 
-  // ── 3а. Одновременные запросы ──────────────────────────────────────────────
+async function checkDoubleClick(ctx: ProbeContext): Promise<void> {
   step('3а. Двойной клик не должен ломать данные')
+  const { managerId } = ctx
 
   const generations = await Promise.all([
     call('POST', '/api/recommendations/generate'),
@@ -933,8 +951,9 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ── 4. Формат ошибок ───────────────────────────────────────────────────────
+async function checkErrorContract(): Promise<void> {
   step('4. Любая ошибка соответствует контракту')
 
   const errorSamples = [
@@ -955,9 +974,11 @@ async function main(): Promise<void> {
     (sample) => !sample.raw.includes('prisma') && !sample.raw.includes('at Object'),
   )
   check('во внешних ошибках нет внутренних подробностей', internalLeak)
+}
 
-  // ── 5. Журнал и права ──────────────────────────────────────────────────────
+async function checkAuditAdminOnly(ctx: ProbeContext): Promise<void> {
   step('5. Журнал действий закрыт от всех, кроме администратора')
+  const { adminId } = ctx
 
   const auditAsManager = await call('GET', '/api/audit')
   check('менеджеру журнал закрыт', auditAsManager.status === 403, `статус ${auditAsManager.status}`)
@@ -968,9 +989,11 @@ async function main(): Promise<void> {
     check('администратору журнал открыт', auditAsAdmin.status === 200)
     actAs(null)
   }
+}
 
-  // ── Этапы одной связки меняются по очереди ────────────────────────────────
+async function checkConcurrentStageChanges(ctx: ProbeContext): Promise<void> {
   step('Одновременные изменения этапов одной связки не ломают этап 14')
+  const { managerId } = ctx
 
   if (managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -981,8 +1004,8 @@ async function main(): Promise<void> {
     })
 
     // Этапы 1–13 закрываются одновременно — как если бы их закрывали несколько
-    // человек разом. Без очереди каждая транзакция видела чужие этапы ещё
-    // открытыми, и этап 14 оставался «в работе» при закрытых 1–13.
+    // человек разом. Без очереди каждая транзакция видит чужие этапы ещё
+    // открытыми, и этап 14 остался бы «в работе» при закрытых 1–13.
     // У каждого раунда своя программа: вторая незакрытая связка на ту же
     // «вуз + программа + продукт» запрещена (решение 80).
     const finals: string[] = []
@@ -1019,9 +1042,11 @@ async function main(): Promise<void> {
       `этап 14: ${finals.join(', ')}`,
     )
   }
+}
 
-  // ── Итог этапа после записи ────────────────────────────────────────────────
+async function checkStageKeepsResultAndReason(ctx: ProbeContext): Promise<void> {
   step('Завершённый этап не теряет результат, заблокированный — причину')
+  const { managerId } = ctx
 
   if (managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -1108,9 +1133,11 @@ async function main(): Promise<void> {
       check('связка для проверки итога создана', false)
     }
   }
+}
 
-  // ── Вернувшаяся проблема — снова открытая рекомендация ─────────────────────
+async function checkRecommendationReopens(ctx: ProbeContext): Promise<void> {
   step('Рекомендация, закрытая системой, открывается, когда проблема вернулась')
+  const { managerId } = ctx
 
   if (managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -1163,9 +1190,11 @@ async function main(): Promise<void> {
       check('связка для проверки возврата создана', false)
     }
   }
+}
 
-  // ── Рекомендация о просрочке честна о просрочке ───────────────────────────
+async function checkOverdueRecommendationTransitions(ctx: ProbeContext): Promise<void> {
   step('Рекомендацию о просрочке не закрыть, пока просрочка есть; переходы проверяет сервер')
+  const { managerId } = ctx
 
   if (managerId) {
     // Свои записи: демонстрационные рекомендации не трогаются.
@@ -1260,9 +1289,11 @@ async function main(): Promise<void> {
       check('рекомендация о просрочке для проверки отклонения создана', false)
     }
   }
+}
 
-  // ── Привязки записи ведут в один вуз ───────────────────────────────────────
+async function checkCrossUniversityLinks(ctx: ProbeContext): Promise<void> {
   step('Встреча и документ не связывают разные вузы, счётчики представителю — свои')
+  const { rep, adminId, foreignUniversity, managerId } = ctx
 
   if (managerId && rep && foreignUniversity) {
     const sfx = Date.now().toString().slice(-6)
@@ -1283,8 +1314,8 @@ async function main(): Promise<void> {
     )
     const foreignContactId = foreignContactUniversity.body.data?.contacts?.[0]?.id
 
-    // Раньше каждая привязка проверялась сама по себе, и такая встреча показывала
-    // представителю вуза чужую программу и ФИО чужого контакта.
+    // Привязки проверяются вместе, а не каждая сама по себе: иначе такая встреча
+    // показала бы представителю вуза чужую программу и ФИО чужого контакта.
     const mixedMeeting = await call('POST', '/api/meetings', {
       universityId: rep.universityId,
       programId: foreignProgram.body.data?.id,
@@ -1377,9 +1408,11 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ── Документы: версии и пакеты без дублей, содержимое не стирается ─────────
+async function checkDocumentDoubleSubmit(ctx: ProbeContext): Promise<void> {
   step('Документы: двойное нажатие не плодит версий и пакетов, подписывают не пустое')
+  const { managerId } = ctx
 
   if (managerId) {
     const sfx = Date.now().toString().slice(-6)
@@ -1550,282 +1583,281 @@ async function main(): Promise<void> {
       `коды ${createStatuses.join(', ')}`,
     )
   }
+}
 
-  // ── Архивный вуз не участвует в аналитике ─────────────────────────────────
+async function checkArchivedUniversityNotRated(): Promise<void> {
   step('Программы архивного вуза не попадают в рейтинг')
 
-  {
-    const sfx = Date.now().toString().slice(-6)
-    const uni = await call<{ id: string }>('POST', '/api/universities', {
-      name: `Пробный архивный вуз ${sfx}`,
-      city: 'Тверь',
-      region: 'Тверская область',
-    })
-    const program = await call<{ id: string }>('POST', '/api/programs', {
-      universityId: uni.body.data?.id,
-      name: `Пробная программа архивного вуза ${sfx}`,
-      level: 'BACHELOR',
-      applicationCount: 999_999,
-      studentCount: 999_999,
-      groupCount: 999,
-    })
-    const inRating = async () => {
-      const rating = await call<Array<{ programId: string }>>('GET', '/api/analytics/programs?limit=100')
-      return (rating.body.data ?? []).some((row) => row.programId === program.body.data?.id)
-    }
-    check('программа действующего вуза в рейтинге', await inRating())
-    await call('POST', `/api/universities/${uni.body.data?.id}/archive`)
-    // Раньше программа оставалась «действующей» и продолжала сдвигать шкалу рейтинга.
-    check('после архивации вуза — нет', !(await inRating()))
+  const sfx = Date.now().toString().slice(-6)
+  const uni = await call<{ id: string }>('POST', '/api/universities', {
+    name: `Пробный архивный вуз ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+  })
+  const program = await call<{ id: string }>('POST', '/api/programs', {
+    universityId: uni.body.data?.id,
+    name: `Пробная программа архивного вуза ${sfx}`,
+    level: 'BACHELOR',
+    applicationCount: 999_999,
+    studentCount: 999_999,
+    groupCount: 999,
+  })
+  const inRating = async () => {
+    const rating = await call<Array<{ programId: string }>>('GET', '/api/analytics/programs?limit=100')
+    return (rating.body.data ?? []).some((row) => row.programId === program.body.data?.id)
   }
+  check('программа действующего вуза в рейтинге', await inRating())
+  await call('POST', `/api/universities/${uni.body.data?.id}/archive`)
+  // Программа архивного вуза не должна оставаться «действующей» и сдвигать шкалу рейтинга.
+  check('после архивации вуза — нет', !(await inRating()))
+}
 
-  // ── IT-продукт заводится и правится ──────────────────────────────────────
+async function checkProductCrud(ctx: ProbeContext): Promise<void> {
   step('IT-продукт: создание, дубль 409, правка, права')
+  const { adminId, managerId } = ctx
 
-  {
-    type ProductCard = {
-      id: string
-      name: string
-      category: string
-      status: string
-      version: string | null
-      description: string | null
-      documentationUrl: string | null
-      isMock: boolean
-      skills: Array<{ skillId: string; relevance: string }>
+  type ProductCard = {
+    id: string
+    name: string
+    category: string
+    status: string
+    version: string | null
+    description: string | null
+    documentationUrl: string | null
+    isMock: boolean
+    skills: Array<{ skillId: string; relevance: string }>
+  }
+  const sfx = Date.now().toString().slice(-6)
+  const name = `Пробный продукт ${sfx}`
+
+  const created = await call<ProductCard>('POST', '/api/products', {
+    name,
+    category: 'Пробная категория',
+    version: '1.0',
+    documentationUrl: 'https://docs.example.invalid/probe',
+  })
+  const productId = created.body.data?.id
+  check('продукт заводится: 201', created.status === 201, `статус ${created.status}`)
+  check(
+    'заведённый вручную продукт не демо, статус по умолчанию — действующий',
+    created.body.data?.isMock === false && created.body.data?.status === 'ACTIVE',
+  )
+
+  const found = await call<Array<{ id: string }>>(
+    'GET',
+    `/api/products?q=${encodeURIComponent(name)}`,
+  )
+  check(
+    'новый продукт виден в реестре',
+    (found.body.data ?? []).some((row) => row.id === productId),
+  )
+
+  const duplicate = await call('POST', '/api/products', { name, category: 'Другая' })
+  check(
+    'дубль названия — 409 с понятным текстом',
+    duplicate.status === 409 && (duplicate.body.error?.message ?? '').includes('уже есть'),
+    `статус ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
+  )
+  const duplicateCase = await call('POST', '/api/products', {
+    name: name.toUpperCase(),
+    category: 'Другая',
+  })
+  check('дубль в другом регистре — тоже 409', duplicateCase.status === 409, `статус ${duplicateCase.status}`)
+
+  const scriptUrl = await call('POST', '/api/products', {
+    name: `Пробный продукт со ссылкой ${sfx}`,
+    category: 'Пробная категория',
+    documentationUrl: 'javascript:alert(1)',
+  })
+  check('ссылка javascript: отклоняется — 422', scriptUrl.status === 422, `статус ${scriptUrl.status}`)
+
+  if (productId) {
+    const edited = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+      status: 'DEPRECATED',
+      description: 'Правка пробника',
+    })
+    check(
+      'правка сохраняет только переданные поля',
+      edited.status === 200 &&
+        edited.body.data?.status === 'DEPRECATED' &&
+        edited.body.data?.description === 'Правка пробника' &&
+        edited.body.data?.version === '1.0' &&
+        edited.body.data?.documentationUrl === 'https://docs.example.invalid/probe',
+      `статус ${edited.status}`,
+    )
+
+    const empty = await call('PATCH', `/api/products/${productId}`, {})
+    check('пустая правка — 422', empty.status === 422, `статус ${empty.status}`)
+
+    const ownNameOtherCase = await call('PATCH', `/api/products/${productId}`, {
+      name: name.toLowerCase(),
+    })
+    check(
+      'своё название в другом регистре — не дубль',
+      ownNameOtherCase.status === 200,
+      `статус ${ownNameOtherCase.status}`,
+    )
+
+    const others = await call<Array<{ id: string; name: string }>>('GET', '/api/products?pageSize=5')
+    const other = (others.body.data ?? []).find((row) => row.id !== productId)
+    if (other) {
+      const renamed = await call('PATCH', `/api/products/${productId}`, { name: other.name })
+      check('переименование в чужое название — 409', renamed.status === 409, `статус ${renamed.status}`)
     }
-    const sfx = Date.now().toString().slice(-6)
-    const name = `Пробный продукт ${sfx}`
 
-    const created = await call<ProductCard>('POST', '/api/products', {
-      name,
-      category: 'Пробная категория',
-      version: '1.0',
-      documentationUrl: 'https://docs.example.invalid/probe',
+    const freeVersion = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
+      version: '1.1',
     })
-    const productId = created.body.data?.id
-    check('продукт заводится: 201', created.status === 201, `статус ${created.status}`)
     check(
-      'заведённый вручную продукт не демо, статус по умолчанию — действующий',
-      created.body.data?.isMock === false && created.body.data?.status === 'ACTIVE',
+      'версию продукта без связок можно исправить',
+      freeVersion.body.data?.version === '1.1',
+      `статус ${freeVersion.status}`,
     )
 
-    const found = await call<Array<{ id: string }>>(
-      'GET',
-      `/api/products?q=${encodeURIComponent(name)}`,
-    )
-    check(
-      'новый продукт виден в реестре',
-      (found.body.data ?? []).some((row) => row.id === productId),
-    )
-
-    const duplicate = await call('POST', '/api/products', { name, category: 'Другая' })
-    check(
-      'дубль названия — 409 с понятным текстом',
-      duplicate.status === 409 && (duplicate.body.error?.message ?? '').includes('уже есть'),
-      `статус ${duplicate.status}: ${duplicate.body.error?.message ?? ''}`,
-    )
-    const duplicateCase = await call('POST', '/api/products', {
-      name: name.toUpperCase(),
-      category: 'Другая',
+    const skills = await call<Array<{ id: string }>>('GET', '/api/skills?pageSize=2')
+    const skillIds = (skills.body.data ?? []).map((skill) => skill.id)
+    const withSkills = await call<ProductCard>('PUT', `/api/products/${productId}/skills`, {
+      skills: skillIds.map((skillId, index) => ({
+        skillId,
+        relevance: index === 0 ? 'CORE' : 'RELATED',
+      })),
     })
-    check('дубль в другом регистре — тоже 409', duplicateCase.status === 409, `статус ${duplicateCase.status}`)
-
-    const scriptUrl = await call('POST', '/api/products', {
-      name: `Пробный продукт со ссылкой ${sfx}`,
-      category: 'Пробная категория',
-      documentationUrl: 'javascript:alert(1)',
+    check(
+      'навыки продукта заменяются набором',
+      withSkills.status === 200 && withSkills.body.data?.skills.length === skillIds.length,
+      `статус ${withSkills.status}`,
+    )
+    const repeated = await call('PUT', `/api/products/${productId}/skills`, {
+      skills: [{ skillId: skillIds[0] }, { skillId: skillIds[0] }],
     })
-    check('ссылка javascript: отклоняется — 422', scriptUrl.status === 422, `статус ${scriptUrl.status}`)
+    check('повтор навыка — 422', repeated.status === 422, `статус ${repeated.status}`)
+    const unknownSkill = await call('PUT', `/api/products/${productId}/skills`, {
+      skills: [{ skillId: 'no-such-skill' }],
+    })
+    check('несуществующий навык — 422', unknownSkill.status === 422, `статус ${unknownSkill.status}`)
 
-    if (productId) {
-      const edited = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
-        status: 'DEPRECATED',
-        description: 'Правка пробника',
+    // Новый продукт выбирается в связке — ради этого его и заводят.
+    if (managerId) {
+      const uni = await call<{ id: string }>('POST', '/api/universities', {
+        name: `Пробный вуз для продукта ${sfx}`,
+        city: 'Тверь',
+        region: 'Тверская область',
+      })
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId: uni.body.data?.id,
+        name: `Пробная программа для продукта ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const cooperation = await call<{ productId: string | null }>('POST', '/api/cooperations', {
+        universityId: uni.body.data?.id,
+        programId: program.body.data?.id,
+        productId,
+        responsibleId: managerId,
+        goal: 'Связка пробника с новым продуктом',
       })
       check(
-        'правка сохраняет только переданные поля',
-        edited.status === 200 &&
-          edited.body.data?.status === 'DEPRECATED' &&
-          edited.body.data?.description === 'Правка пробника' &&
-          edited.body.data?.version === '1.0' &&
-          edited.body.data?.documentationUrl === 'https://docs.example.invalid/probe',
-        `статус ${edited.status}`,
+        'новый продукт выбирается в связке',
+        cooperation.status === 201 && cooperation.body.data?.productId === productId,
+        `статус ${cooperation.status}`,
       )
 
-      const empty = await call('PATCH', `/api/products/${productId}`, {})
-      check('пустая правка — 422', empty.status === 422, `статус ${empty.status}`)
-
-      const ownNameOtherCase = await call('PATCH', `/api/products/${productId}`, {
-        name: name.toLowerCase(),
-      })
+      const lockedVersion = await call('PATCH', `/api/products/${productId}`, { version: '2.0' })
       check(
-        'своё название в другом регистре — не дубль',
-        ownNameOtherCase.status === 200,
-        `статус ${ownNameOtherCase.status}`,
+        'версию продукта с открытой связкой меняет выпуск версии, а не правка — 409',
+        lockedVersion.status === 409,
+        `статус ${lockedVersion.status}`,
       )
+    }
 
-      const others = await call<Array<{ id: string; name: string }>>('GET', '/api/products?pageSize=5')
-      const other = (others.body.data ?? []).find((row) => row.id !== productId)
-      if (other) {
-        const renamed = await call('PATCH', `/api/products/${productId}`, { name: other.name })
-        check('переименование в чужое название — 409', renamed.status === 409, `статус ${renamed.status}`)
+    // Права — как у остальных справочников с записью.
+    for (const role of ['UNIVERSITY_REP', 'VIEWER', 'ANALYST']) {
+      const users = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}`)
+      const roleUserId = users.body.data?.[0]?.id
+      if (!roleUserId) {
+        check(`${role}: демо-пользователь есть`, false, 'запустите npm run db:seed')
+        continue
       }
-
-      const freeVersion = await call<ProductCard>('PATCH', `/api/products/${productId}`, {
-        version: '1.1',
-      })
+      actAs(roleUserId)
+      const denied = [
+        await call('POST', '/api/products', { name: `Чужой продукт ${sfx}`, category: 'Проба' }),
+        await call('PATCH', `/api/products/${productId}`, { description: 'Не должно сохраниться' }),
+        await call('PUT', `/api/products/${productId}/skills`, { skills: [] }),
+      ]
       check(
-        'версию продукта без связок можно исправить',
-        freeVersion.body.data?.version === '1.1',
-        `статус ${freeVersion.status}`,
+        `${role}: заведение, правка и навыки продукта — 403`,
+        denied.every((result) => result.status === 403),
+        denied.map((result) => result.status).join(', '),
       )
+      actAs(null)
+    }
 
-      const skills = await call<Array<{ id: string }>>('GET', '/api/skills?pageSize=2')
-      const skillIds = (skills.body.data ?? []).map((skill) => skill.id)
-      const withSkills = await call<ProductCard>('PUT', `/api/products/${productId}/skills`, {
-        skills: skillIds.map((skillId, index) => ({
-          skillId,
-          relevance: index === 0 ? 'CORE' : 'RELATED',
-        })),
-      })
+    if (adminId) {
+      actAs(adminId)
+      const journal = await call<Array<{ action: string }>>(
+        'GET',
+        `/api/audit?objectType=ITProduct&objectId=${productId}&pageSize=50`,
+      )
+      const actions = new Set((journal.body.data ?? []).map((row) => row.action))
       check(
-        'навыки продукта заменяются набором',
-        withSkills.status === 200 && withSkills.body.data?.skills.length === skillIds.length,
-        `статус ${withSkills.status}`,
+        'заведение, правка и навыки продукта — в журнале',
+        ['product.create', 'product.update', 'product.skills.replace'].every((action) =>
+          actions.has(action),
+        ),
+        [...actions].join(', '),
       )
-      const repeated = await call('PUT', `/api/products/${productId}/skills`, {
-        skills: [{ skillId: skillIds[0] }, { skillId: skillIds[0] }],
-      })
-      check('повтор навыка — 422', repeated.status === 422, `статус ${repeated.status}`)
-      const unknownSkill = await call('PUT', `/api/products/${productId}/skills`, {
-        skills: [{ skillId: 'no-such-skill' }],
-      })
-      check('несуществующий навык — 422', unknownSkill.status === 422, `статус ${unknownSkill.status}`)
-
-      // Новый продукт выбирается в связке — ради этого его и заводят.
-      if (managerId) {
-        const uni = await call<{ id: string }>('POST', '/api/universities', {
-          name: `Пробный вуз для продукта ${sfx}`,
-          city: 'Тверь',
-          region: 'Тверская область',
-        })
-        const program = await call<{ id: string }>('POST', '/api/programs', {
-          universityId: uni.body.data?.id,
-          name: `Пробная программа для продукта ${sfx}`,
-          level: 'BACHELOR',
-        })
-        const cooperation = await call<{ productId: string | null }>('POST', '/api/cooperations', {
-          universityId: uni.body.data?.id,
-          programId: program.body.data?.id,
-          productId,
-          responsibleId: managerId,
-          goal: 'Связка пробника с новым продуктом',
-        })
-        check(
-          'новый продукт выбирается в связке',
-          cooperation.status === 201 && cooperation.body.data?.productId === productId,
-          `статус ${cooperation.status}`,
-        )
-
-        const lockedVersion = await call('PATCH', `/api/products/${productId}`, { version: '2.0' })
-        check(
-          'версию продукта с открытой связкой меняет выпуск версии, а не правка — 409',
-          lockedVersion.status === 409,
-          `статус ${lockedVersion.status}`,
-        )
-      }
-
-      // Права — как у остальных справочников с записью.
-      for (const role of ['UNIVERSITY_REP', 'VIEWER', 'ANALYST']) {
-        const users = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}`)
-        const roleUserId = users.body.data?.[0]?.id
-        if (!roleUserId) {
-          check(`${role}: демо-пользователь есть`, false, 'запустите npm run db:seed')
-          continue
-        }
-        actAs(roleUserId)
-        const denied = [
-          await call('POST', '/api/products', { name: `Чужой продукт ${sfx}`, category: 'Проба' }),
-          await call('PATCH', `/api/products/${productId}`, { description: 'Не должно сохраниться' }),
-          await call('PUT', `/api/products/${productId}/skills`, { skills: [] }),
-        ]
-        check(
-          `${role}: заведение, правка и навыки продукта — 403`,
-          denied.every((result) => result.status === 403),
-          denied.map((result) => result.status).join(', '),
-        )
-        actAs(null)
-      }
-
-      if (adminId) {
-        actAs(adminId)
-        const journal = await call<Array<{ action: string }>>(
-          'GET',
-          `/api/audit?objectType=ITProduct&objectId=${productId}&pageSize=50`,
-        )
-        const actions = new Set((journal.body.data ?? []).map((row) => row.action))
-        check(
-          'заведение, правка и навыки продукта — в журнале',
-          ['product.create', 'product.update', 'product.skills.replace'].every((action) =>
-            actions.has(action),
-          ),
-          [...actions].join(', '),
-        )
-        actAs(null)
-      }
+      actAs(null)
     }
   }
+}
 
-  // ── Импорт программ не стирает то, чего нет в файле ────────────────────────
+async function checkProgramImport(): Promise<void> {
   step('Импорт программ: отсутствующие колонки не стираются, повторы — ошибка строки')
 
-  {
-    const sfx = Date.now().toString().slice(-6)
-    const uniName = `Пробный вуз импорта ${sfx}`
-    const programName = `Пробная программа импорта ${sfx}`
-    const uni = await call<{ id: string }>('POST', '/api/universities', {
-      name: uniName,
-      city: 'Тверь',
-      region: 'Тверская область',
-    })
-    const program = await call<{ id: string }>('POST', '/api/programs', {
-      universityId: uni.body.data?.id,
-      name: programName,
-      level: 'BACHELOR',
-      code: '09.03.04',
-      applicationCount: 120,
-      studentCount: 60,
-      groupCount: 3,
-    })
-    // Файл только с обязательными колонками: раньше он стирал код и все показатели.
-    const csv = `Вуз;Программа;Уровень\r\n${uniName};${programName};BACHELOR\r\n${uniName};${programName};BACHELOR\r\n`
-    const applied = await callRaw('POST', '/api/import?dataset=programs&mode=apply', csv, 'text/csv')
-    const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
-      (row) => row.outcome,
-    )
-    // Первая строка совпадает с программой (тот же уровень, других колонок нет) —
-    // «без изменений»; вторая — повтор первой.
-    check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'unchanged,error', `исходы ${outcomes?.join()}`)
-    const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
-      'GET',
-      `/api/programs/${program.body.data?.id}`,
-    )
-    const raw = JSON.stringify(after.body.data ?? {})
-    check(
-      'код и показатели программы на месте',
-      raw.includes('09.03.04') && raw.includes('120'),
-      after.status === 200 ? 'сверено по карточке программы' : `код ${after.status}`,
-    )
-  }
+  const sfx = Date.now().toString().slice(-6)
+  const uniName = `Пробный вуз импорта ${sfx}`
+  const programName = `Пробная программа импорта ${sfx}`
+  const uni = await call<{ id: string }>('POST', '/api/universities', {
+    name: uniName,
+    city: 'Тверь',
+    region: 'Тверская область',
+  })
+  const program = await call<{ id: string }>('POST', '/api/programs', {
+    universityId: uni.body.data?.id,
+    name: programName,
+    level: 'BACHELOR',
+    code: '09.03.04',
+    applicationCount: 120,
+    studentCount: 60,
+    groupCount: 3,
+  })
+  // Файл только с обязательными колонками не должен стирать код и показатели.
+  const csv = `Вуз;Программа;Уровень\r\n${uniName};${programName};BACHELOR\r\n${uniName};${programName};BACHELOR\r\n`
+  const applied = await callRaw('POST', '/api/import?dataset=programs&mode=apply', csv, 'text/csv')
+  const outcomes = (JSON.parse(applied.text) as { data?: { rows: Array<{ outcome: string }> } }).data?.rows.map(
+    (row) => row.outcome,
+  )
+  // Первая строка совпадает с программой (тот же уровень, других колонок нет) —
+  // «без изменений»; вторая — повтор первой.
+  check('повтор строки в файле — ошибка, а не вторая программа', outcomes?.join() === 'unchanged,error', `исходы ${outcomes?.join()}`)
+  const after = await call<{ code: string | null; applicationCount: { value: number | null } | number | null }>(
+    'GET',
+    `/api/programs/${program.body.data?.id}`,
+  )
+  const raw = JSON.stringify(after.body.data ?? {})
+  check(
+    'код и показатели программы на месте',
+    raw.includes('09.03.04') && raw.includes('120'),
+    after.status === 200 ? 'сверено по карточке программы' : `код ${after.status}`,
+  )
+}
 
-  // ── История документа: внутренние комментарии — только сотрудникам ────────
+async function checkRepDocumentHistory(ctx: ProbeContext): Promise<void> {
   step('Представитель не видит внутренних комментариев в истории документа')
+  const { rep } = ctx
 
   if (rep) {
-    // Причина отклонения — заметка сотрудников друг другу (решение 9). В истории
-    // этапов и в ленте событий она представителю не отдавалась, а в истории
-    // документа — отдавалась.
+    // Причина отклонения — заметка сотрудников друг другу (решение 9): представителю
+    // она не отдаётся ни в истории этапов и ленте событий, ни в истории документа.
     const note = `Пробник: внутренняя заметка ${Date.now()}`
     const created = await call<{ id: string }>('POST', '/api/documents', {
       type: 'AGREEMENT',
@@ -1866,9 +1898,11 @@ async function main(): Promise<void> {
       check('документ для проверки создан', false)
     }
   }
+}
 
-  // ── Рейтинг вуза: не должен становиться каналом утечки ─────────────────────
+async function checkUniversityRatingPrivacy(ctx: ProbeContext): Promise<void> {
   step('Рейтинг вуза не раскрывает чужие данные')
+  const { rep } = ctx
 
   if (rep) {
     actAs(rep.id)
@@ -1991,16 +2025,17 @@ async function main(): Promise<void> {
       ),
     )
   }
+}
 
-  // ── Контрольные точки: порядок этапов гибридный, но не фиктивный ───────────
+async function checkControlPoints(ctx: ProbeContext): Promise<void> {
   step('Контрольные точки нельзя обойти')
+  const { rep, universities, managerId } = ctx
 
   {
     // Своя свежая связка: этапы до шестого не закрыты, контрольные точки не тронуты.
-    // Раньше бралась первая «ранняя» связка из демо-данных — раздел отменял у неё
-    // этап 7 и вернуть не мог (отменённую контрольную точку не пускают обратно
-    // незакрытые этапы), а у связки, созданной другим разделом, этап 7 мог быть
-    // уже отменён, и проверка падала из-за соседа, а не из-за системы.
+    // Чужую связку брать нельзя: раздел отменяет у неё этап 7 и вернуть не может
+    // (отменённую контрольную точку не пускают обратно незакрытые этапы), а другой
+    // раздел мог уже отменить его сам — проверка зависела бы от соседей.
     type ProbeStage = {
       id: string
       stageNumber: number
@@ -2079,9 +2114,9 @@ async function main(): Promise<void> {
         }
       }
 
-      // Шлагбаум: этапы за контрольной точкой ждут её завершения. Раньше точка
-      // защищала только саму себя — этап 8 начинался при неподписанном договоре,
-      // а отмена этапа 6 с любым комментарием открывала передачу лицензии.
+      // Шлагбаум: этапы за контрольной точкой ждут её завершения. Точка защищает
+      // не только себя: этап 8 не начинается при неподписанном договоре, а отмена
+      // этапа 6 с произвольным комментарием не открывает передачу лицензии.
       const support = find(8)
       if (support && signing) {
         type Refusal = {
@@ -2197,8 +2232,9 @@ async function main(): Promise<void> {
     }
     actAs(null)
   }
+}
 
-  // ── Сводки не выдают обрезанную выборку за полную ──────────────────────────
+async function checkCountersNotTruncated(): Promise<void> {
   step('Счётчик не занижается обрезанием')
 
   for (const path of ['/api/skills/gaps', '/api/skills/demand', '/api/analytics/programs']) {
@@ -2228,8 +2264,9 @@ async function main(): Promise<void> {
       (short.body.data?.length ?? 0) === 1,
     )
   }
+}
 
-  // ── Опечатка в адресе не ломает разбор ответа ──────────────────────────────
+async function checkUnknownRoute(): Promise<void> {
   step('Несуществующий адрес отвечает по контракту')
 
   for (const path of ['/api/universitie', '/api/portal/programs', '/api/nope/deep/path']) {
@@ -2252,557 +2289,552 @@ async function main(): Promise<void> {
     }
     check(`${path}: код ошибки NOT_FOUND`, code === 'NOT_FOUND', `получено ${code ?? 'не JSON'}`)
   }
+}
 
-  // ── Защитные заголовки ─────────────────────────────────────────────────────
+async function checkSecurityHeaders(): Promise<void> {
   step('Ответы несут защитные заголовки')
 
-  {
-    const expected: Array<[string, string]> = [
-      ['x-content-type-options', 'nosniff'],
-      ['x-frame-options', 'DENY'],
-      ['referrer-policy', 'strict-origin-when-cross-origin'],
-      ['cross-origin-opener-policy', 'same-origin'],
-    ]
+  const expected: Array<[string, string]> = [
+    ['x-content-type-options', 'nosniff'],
+    ['x-frame-options', 'DENY'],
+    ['referrer-policy', 'strict-origin-when-cross-origin'],
+    ['cross-origin-opener-policy', 'same-origin'],
+  ]
 
-    // Заголовки не видны ни одному тесту функциональности: приложение работает
-    // и без них. Поэтому проверяются отдельно — иначе пропажа пройдёт незамеченной.
-    for (const target of ['/api/health', '/api/universities', '/']) {
-      const response = await fetch(`${BASE_URL}${target}`, {
-        headers: actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {},
-      })
-      await response.arrayBuffer()
+  // Заголовки не видны ни одному тесту функциональности: приложение работает
+  // и без них. Поэтому проверяются отдельно — иначе пропажа пройдёт незамеченной.
+  for (const target of ['/api/health', '/api/universities', '/']) {
+    const response = await fetch(`${BASE_URL}${target}`, {
+      headers: actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {},
+    })
+    await response.arrayBuffer()
 
-      for (const [header, value] of expected) {
-        check(
-          `${target}: ${header}`,
-          response.headers.get(header) === value,
-          `получено ${response.headers.get(header) ?? 'ничего'}`,
-        )
-      }
-
+    for (const [header, value] of expected) {
       check(
-        `${target}: Permissions-Policy задан`,
-        (response.headers.get('permissions-policy') ?? '').includes('camera=()'),
-      )
-      check(
-        `${target}: CSP запрещает встраивание в чужие страницы`,
-        (response.headers.get('content-security-policy') ?? '').includes("frame-ancestors 'none'"),
-        `получено ${response.headers.get('content-security-policy') ?? 'ничего'}`,
-      )
-      check(
-        `${target}: X-Powered-By не выдаёт платформу`,
-        response.headers.get('x-powered-by') === null,
-        `получено ${response.headers.get('x-powered-by')}`,
+        `${target}: ${header}`,
+        response.headers.get(header) === value,
+        `получено ${response.headers.get(header) ?? 'ничего'}`,
       )
     }
 
-    // Изменяющий запрос со страницы чужого сайта: браузер подписывает его
-    // заголовком Origin, и сервер обязан отказать до всякой записи.
-    const crossSite = await fetch(`${BASE_URL}/api/universities`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        origin: 'https://evil.example',
-        ...(actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {}),
-      },
-      body: JSON.stringify({ name: 'Пробник: запрос с чужого сайта', city: 'Тверь', region: 'Тверская область' }),
-    })
-    await crossSite.arrayBuffer()
-    check('изменяющий запрос с чужого сайта отклонён', crossSite.status === 403, `код ${crossSite.status}`)
+    check(
+      `${target}: Permissions-Policy задан`,
+      (response.headers.get('permissions-policy') ?? '').includes('camera=()'),
+    )
+    check(
+      `${target}: CSP запрещает встраивание в чужие страницы`,
+      (response.headers.get('content-security-policy') ?? '').includes("frame-ancestors 'none'"),
+      `получено ${response.headers.get('content-security-policy') ?? 'ничего'}`,
+    )
+    check(
+      `${target}: X-Powered-By не выдаёт платформу`,
+      response.headers.get('x-powered-by') === null,
+      `получено ${response.headers.get('x-powered-by')}`,
+    )
   }
 
-  // ── Быстрый расчёт рейтинга не расходится с полным ─────────────────────────
+  // Изменяющий запрос со страницы чужого сайта: браузер подписывает его
+  // заголовком Origin, и сервер обязан отказать до всякой записи.
+  const crossSite = await fetch(`${BASE_URL}/api/universities`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://evil.example',
+      ...(actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {}),
+    },
+    body: JSON.stringify({ name: 'Пробник: запрос с чужого сайта', city: 'Тверь', region: 'Тверская область' }),
+  })
+  await crossSite.arrayBuffer()
+  check('изменяющий запрос с чужого сайта отклонён', crossSite.status === 403, `код ${crossSite.status}`)
+}
+
+async function checkRatingMethodsAgree(): Promise<void> {
   step('Два способа расчёта рейтинга дают один результат')
 
-  {
-    // Реестр считает рейтинг по программам одной страницы, сортировка — по всем
-    // сразу. Если пути разойдутся, вуз получит разный балл в зависимости от того,
-    // как открыли список, — и заметить это без сравнения невозможно.
-    type Rated = {
-      id: string
-      rating: { score: number | null; basis: string; ratedProgramCount: number } | null
-    }
+  // Реестр считает рейтинг по программам одной страницы, сортировка — по всем
+  // сразу. Если пути разойдутся, вуз получит разный балл в зависимости от того,
+  // как открыли список, — и заметить это без сравнения невозможно.
+  type Rated = {
+    id: string
+    rating: { score: number | null; basis: string; ratedProgramCount: number } | null
+  }
 
-    const byPage = await call<Rated[]>('GET', '/api/universities?pageSize=100')
-    const bySort = await call<Rated[]>('GET', '/api/universities?pageSize=100&sort=-rating')
+  const byPage = await call<Rated[]>('GET', '/api/universities?pageSize=100')
+  const bySort = await call<Rated[]>('GET', '/api/universities?pageSize=100&sort=-rating')
 
-    const fast = new Map((byPage.body.data ?? []).map((row) => [row.id, row.rating]))
-    const full = new Map((bySort.body.data ?? []).map((row) => [row.id, row.rating]))
+  const fast = new Map((byPage.body.data ?? []).map((row) => [row.id, row.rating]))
+  const full = new Map((bySort.body.data ?? []).map((row) => [row.id, row.rating]))
 
-    let compared = 0
-    let mismatched = 0
-    for (const [id, rating] of fast) {
-      const other = full.get(id)
-      if (!other || !rating) continue
-      compared += 1
-      if (
-        rating.score !== other.score ||
-        rating.basis !== other.basis ||
-        rating.ratedProgramCount !== other.ratedProgramCount
-      ) {
-        mismatched += 1
-      }
-    }
-
-    check('есть что сравнивать', compared > 0, `сравнено ${compared}`)
-    check(
-      'быстрый расчёт по странице совпадает с полным',
-      mismatched === 0,
-      `расхождений ${mismatched} из ${compared}`,
-    )
-
-    // Карточка вуза считает рейтинг третьим способом — по одному вузу.
-    const first = (byPage.body.data ?? []).find((row) => row.rating?.score !== null)
-    if (first) {
-      const card = await call<Rated>('GET', `/api/universities/${first.id}`)
-      check(
-        'рейтинг в карточке совпадает с рейтингом в списке',
-        card.body.data?.rating?.score === first.rating?.score,
-        `карточка ${card.body.data?.rating?.score}, список ${first.rating?.score}`,
-      )
+  let compared = 0
+  let mismatched = 0
+  for (const [id, rating] of fast) {
+    const other = full.get(id)
+    if (!other || !rating) continue
+    compared += 1
+    if (
+      rating.score !== other.score ||
+      rating.basis !== other.basis ||
+      rating.ratedProgramCount !== other.ratedProgramCount
+    ) {
+      mismatched += 1
     }
   }
 
-  // ── Целостность данных ─────────────────────────────────────────────────────
+  check('есть что сравнивать', compared > 0, `сравнено ${compared}`)
+  check(
+    'быстрый расчёт по странице совпадает с полным',
+    mismatched === 0,
+    `расхождений ${mismatched} из ${compared}`,
+  )
+
+  // Карточка вуза считает рейтинг третьим способом — по одному вузу.
+  const first = (byPage.body.data ?? []).find((row) => row.rating?.score !== null)
+  if (first) {
+    const card = await call<Rated>('GET', `/api/universities/${first.id}`)
+    check(
+      'рейтинг в карточке совпадает с рейтингом в списке',
+      card.body.data?.rating?.score === first.rating?.score,
+      `карточка ${card.body.data?.rating?.score}, список ${first.rating?.score}`,
+    )
+  }
+}
+
+async function checkNoContradictionsInDb(): Promise<void> {
   step('В базе нет противоречивых состояний')
 
-  {
-    // Половинчатая запись не видна ни одному функциональному тесту: страницы
-    // открываются, ошибок нет. Заметна она только сплошной проверкой.
-    type StageRow = {
-      stageNumber: number
-      status: string
-      result: string | null
-      blockingReason: string | null
-      completedAt: string | null
-    }
-
-    const list = await call<Array<{ id: string }>>('GET', '/api/cooperations?pageSize=100')
-    const cooperations = list.body.data ?? []
-    check('связки для проверки есть', cooperations.length > 0)
-
-    let wrongStageCount = 0
-    let completedWithoutResult = 0
-    let blockedWithoutReason = 0
-    let completedWithoutDate = 0
-    let openWithDate = 0
-
-    for (const row of cooperations) {
-      const card = await call<{ stages: StageRow[] }>('GET', `/api/cooperations/${row.id}`)
-      const stages = card.body.data?.stages ?? []
-
-      if (stages.length !== 14) wrongStageCount += 1
-
-      for (const stage of stages) {
-        const isControlStage = stage.stageNumber === 14
-        if (stage.status === 'COMPLETED' && !isControlStage) {
-          if (!stage.result || stage.result.trim() === '') completedWithoutResult += 1
-          if (!stage.completedAt) completedWithoutDate += 1
-        }
-        if (stage.status === 'BLOCKED' && !stage.blockingReason) blockedWithoutReason += 1
-        if (stage.status !== 'COMPLETED' && stage.completedAt) openWithDate += 1
-      }
-    }
-
-    check('у каждой связки ровно 14 этапов', wrongStageCount === 0, `нарушений ${wrongStageCount}`)
-    check(
-      'завершённый этап всегда имеет результат',
-      completedWithoutResult === 0,
-      `без результата ${completedWithoutResult}`,
-    )
-    check(
-      'завершённый этап всегда имеет дату завершения',
-      completedWithoutDate === 0,
-      `без даты ${completedWithoutDate}`,
-    )
-    check(
-      'незавершённый этап не хранит дату завершения',
-      openWithDate === 0,
-      `с лишней датой ${openWithDate}`,
-    )
-    check(
-      'заблокированный этап всегда имеет причину',
-      blockedWithoutReason === 0,
-      `без причины ${blockedWithoutReason}`,
-    )
-
-    const recs = await call<Array<{ justification: string }>>(
-      'GET',
-      '/api/recommendations?pageSize=100',
-    )
-    check(
-      'у каждой рекомендации есть обоснование',
-      (recs.body.data ?? []).every((rec) => rec.justification && rec.justification.length > 0),
-    )
+  // Половинчатая запись не видна ни одному функциональному тесту: страницы
+  // открываются, ошибок нет. Заметна она только сплошной проверкой.
+  type StageRow = {
+    stageNumber: number
+    status: string
+    result: string | null
+    blockingReason: string | null
+    completedAt: string | null
   }
 
-  // ── Просрочка и предупреждение не пересекаются ─────────────────────────────
+  const list = await call<Array<{ id: string }>>('GET', '/api/cooperations?pageSize=100')
+  const cooperations = list.body.data ?? []
+  check('связки для проверки есть', cooperations.length > 0)
+
+  let wrongStageCount = 0
+  let completedWithoutResult = 0
+  let blockedWithoutReason = 0
+  let completedWithoutDate = 0
+  let openWithDate = 0
+
+  for (const row of cooperations) {
+    const card = await call<{ stages: StageRow[] }>('GET', `/api/cooperations/${row.id}`)
+    const stages = card.body.data?.stages ?? []
+
+    if (stages.length !== 14) wrongStageCount += 1
+
+    for (const stage of stages) {
+      const isControlStage = stage.stageNumber === 14
+      if (stage.status === 'COMPLETED' && !isControlStage) {
+        if (!stage.result || stage.result.trim() === '') completedWithoutResult += 1
+        if (!stage.completedAt) completedWithoutDate += 1
+      }
+      if (stage.status === 'BLOCKED' && !stage.blockingReason) blockedWithoutReason += 1
+      if (stage.status !== 'COMPLETED' && stage.completedAt) openWithDate += 1
+    }
+  }
+
+  check('у каждой связки ровно 14 этапов', wrongStageCount === 0, `нарушений ${wrongStageCount}`)
+  check(
+    'завершённый этап всегда имеет результат',
+    completedWithoutResult === 0,
+    `без результата ${completedWithoutResult}`,
+  )
+  check(
+    'завершённый этап всегда имеет дату завершения',
+    completedWithoutDate === 0,
+    `без даты ${completedWithoutDate}`,
+  )
+  check(
+    'незавершённый этап не хранит дату завершения',
+    openWithDate === 0,
+    `с лишней датой ${openWithDate}`,
+  )
+  check(
+    'заблокированный этап всегда имеет причину',
+    blockedWithoutReason === 0,
+    `без причины ${blockedWithoutReason}`,
+  )
+
+  const recs = await call<Array<{ justification: string }>>(
+    'GET',
+    '/api/recommendations?pageSize=100',
+  )
+  check(
+    'у каждой рекомендации есть обоснование',
+    (recs.body.data ?? []).every((rec) => rec.justification && rec.justification.length > 0),
+  )
+}
+
+async function checkStageNotCountedTwice(): Promise<void> {
   step('Этап не считается проблемным дважды')
 
-  {
-    type Coop = {
-      currentStage: { isOverdue: boolean; isDueSoon: boolean } | null
-      progress: { overdueStages: number; dueSoonStages: number; totalStages: number }
-    }
-
-    const list = await call<Coop[]>('GET', '/api/cooperations?pageSize=100')
-    const rows = list.body.data ?? []
-
-    const bothAtOnce = rows.filter(
-      (row) => row.currentStage?.isOverdue && row.currentStage?.isDueSoon,
-    ).length
-    check(
-      'этап не бывает одновременно просроченным и предстоящим',
-      bothAtOnce === 0,
-      `таких ${bothAtOnce}`,
-    )
-
-    const overCount = rows.filter((row) => row.currentStage?.isOverdue).length
-    const soonCount = rows.filter((row) => row.currentStage?.isDueSoon).length
-    check('признаки вообще встречаются', overCount + soonCount > 0, `просрочено ${overCount}, скоро ${soonCount}`)
-
-    const impossible = rows.filter(
-      (row) => row.progress.overdueStages + row.progress.dueSoonStages > row.progress.totalStages,
-    ).length
-    check(
-      'счётчики не превышают числа этапов',
-      impossible === 0,
-      `нарушений ${impossible}`,
-    )
+  type Coop = {
+    currentStage: { isOverdue: boolean; isDueSoon: boolean } | null
+    progress: { overdueStages: number; dueSoonStages: number; totalStages: number }
   }
 
-  // ── Проверка живости говорит правду ────────────────────────────────────────
+  const list = await call<Coop[]>('GET', '/api/cooperations?pageSize=100')
+  const rows = list.body.data ?? []
+
+  const bothAtOnce = rows.filter(
+    (row) => row.currentStage?.isOverdue && row.currentStage?.isDueSoon,
+  ).length
+  check(
+    'этап не бывает одновременно просроченным и предстоящим',
+    bothAtOnce === 0,
+    `таких ${bothAtOnce}`,
+  )
+
+  const overCount = rows.filter((row) => row.currentStage?.isOverdue).length
+  const soonCount = rows.filter((row) => row.currentStage?.isDueSoon).length
+  check('признаки вообще встречаются', overCount + soonCount > 0, `просрочено ${overCount}, скоро ${soonCount}`)
+
+  const impossible = rows.filter(
+    (row) => row.progress.overdueStages + row.progress.dueSoonStages > row.progress.totalStages,
+  ).length
+  check(
+    'счётчики не превышают числа этапов',
+    impossible === 0,
+    `нарушений ${impossible}`,
+  )
+}
+
+async function checkHealth(): Promise<void> {
   step('Здоровье приложения отвечает по делу')
 
-  {
-    const response = await fetch(`${BASE_URL}/api/health`)
-    const body = (await response.json()) as {
-      data?: { status?: string; database?: string; schema?: string; hint?: string }
-    }
-    const health = body.data ?? {}
-
-    check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
-    check('соединение с базой подтверждено', health.database === 'connected')
-    check('схема отмечена применённой', health.schema === 'ready')
-    check(
-      'на здоровом приложении подсказки нет',
-      health.hint === undefined,
-      'подсказка появляется только при проблеме',
-    )
+  const response = await fetch(`${BASE_URL}/api/health`)
+  const body = (await response.json()) as {
+    data?: { status?: string; database?: string; schema?: string; hint?: string }
   }
+  const health = body.data ?? {}
 
-  // ── Закрытая связка не создаёт проблем ─────────────────────────────────────
+  check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
+  check('соединение с базой подтверждено', health.database === 'connected')
+  check('схема отмечена применённой', health.schema === 'ready')
+  check(
+    'на здоровом приложении подсказки нет',
+    health.hint === undefined,
+    'подсказка появляется только при проблеме',
+  )
+}
+
+async function checkClosedCooperationQuiet(): Promise<void> {
   step('Закрытая связка не требует внимания')
 
-  {
-    // Этапы закрытой связки заморожены: изменить их нельзя. Показывать их как
-    // просроченные значит просить сделать то, что система же и запрещает —
-    // и заполнять дашборд тем, на что никто не может повлиять.
-    type CoopRow = { id: string; status: string }
-    type StageRow = { cooperation?: { id?: string }; cooperationId?: string }
+  // Этапы закрытой связки заморожены: изменить их нельзя. Показывать их как
+  // просроченные значит просить сделать то, что система же и запрещает —
+  // и заполнять дашборд тем, на что никто не может повлиять.
+  type CoopRow = { id: string; status: string }
+  type StageRow = { cooperation?: { id?: string }; cooperationId?: string }
 
-    // Закрытые — отбором по статусу, а не с первой страницы реестра: на рабочей
-    // базе новые связки вытесняли закрытые за первую сотню, и проверка падала
-    // без ошибки в приложении.
-    const coops = await call<CoopRow[]>(
-      'GET',
-      '/api/cooperations?status=COMPLETED&status=CANCELLED&pageSize=100',
-    )
-    const closedIds = new Set((coops.body.data ?? []).map((row) => row.id))
-    const isClosed = (id?: string) => id !== undefined && closedIds.has(id)
+  // Закрытые — отбором по статусу, а не с первой страницы реестра: на рабочей
+  // базе новые связки вытесняют закрытые за первую сотню.
+  const coops = await call<CoopRow[]>(
+    'GET',
+    '/api/cooperations?status=COMPLETED&status=CANCELLED&pageSize=100',
+  )
+  const closedIds = new Set((coops.body.data ?? []).map((row) => row.id))
+  const isClosed = (id?: string) => id !== undefined && closedIds.has(id)
 
-    const coopId = (row: StageRow) => row.cooperation?.id ?? row.cooperationId
+  const coopId = (row: StageRow) => row.cooperation?.id ?? row.cooperationId
 
-    const closedCount = closedIds.size
-    check('в данных есть закрытые связки', closedCount > 0, `закрытых ${closedCount}`)
+  const closedCount = closedIds.size
+  check('в данных есть закрытые связки', closedCount > 0, `закрытых ${closedCount}`)
 
-    for (const [path, title] of [
-      ['/api/workflow/overdue?pageSize=100', 'просроченных'],
-      ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
-    ] as const) {
-      const rows = (await call<StageRow[]>('GET', path)).body.data ?? []
-      const leaked = rows.filter((row) => isClosed(coopId(row)))
-      check(
-        `среди ${title} нет этапов закрытых связок`,
-        leaked.length === 0,
-        `просочилось ${leaked.length} из ${rows.length}`,
-      )
-    }
-
-    // Контрольный этап вычисляется автоматически и руками не меняется.
-    // Предлагать по нему действие — значит просить невозможного, а его просрочка
-    // и так объясняется незакрытыми этапами 1–13, которые в списке уже есть.
-    for (const [path, title] of [
-      ['/api/workflow/overdue?pageSize=100', 'просроченных'],
-      ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
-    ] as const) {
-      const rows = (await call<Array<{ stageNumber: number }>>('GET', path)).body.data ?? []
-      check(
-        `среди ${title} нет контрольного этапа`,
-        rows.every((row) => row.stageNumber !== 14),
-        `нашлось ${rows.filter((row) => row.stageNumber === 14).length}`,
-      )
-    }
-
-    const dashboard = await call<{
-      problemCooperations: Array<{ cooperationId: string; stageNumber: number }>
-    }>('GET', '/api/analytics/overview')
-    const problems = dashboard.body.data?.problemCooperations ?? []
-    const leakedOnDashboard = problems.filter((row) => isClosed(row.cooperationId))
+  for (const [path, title] of [
+    ['/api/workflow/overdue?pageSize=100', 'просроченных'],
+    ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
+  ] as const) {
+    const rows = (await call<StageRow[]>('GET', path)).body.data ?? []
+    const leaked = rows.filter((row) => isClosed(coopId(row)))
     check(
-      'на дашборде нет проблем по закрытым связкам',
-      leakedOnDashboard.length === 0,
-      `просочилось ${leakedOnDashboard.length} из ${problems.length}`,
-    )
-    check(
-      'на дашборде нет контрольного этапа',
-      problems.every((row) => row.stageNumber !== 14),
+      `среди ${title} нет этапов закрытых связок`,
+      leaked.length === 0,
+      `просочилось ${leaked.length} из ${rows.length}`,
     )
   }
 
-  // ── Списки идут в русском алфавитном порядке ───────────────────────────────
+  // Контрольный этап вычисляется автоматически и руками не меняется.
+  // Предлагать по нему действие — значит просить невозможного, а его просрочка
+  // и так объясняется незакрытыми этапами 1–13, которые в списке уже есть.
+  for (const [path, title] of [
+    ['/api/workflow/overdue?pageSize=100', 'просроченных'],
+    ['/api/workflow/blocked?pageSize=100', 'заблокированных'],
+  ] as const) {
+    const rows = (await call<Array<{ stageNumber: number }>>('GET', path)).body.data ?? []
+    check(
+      `среди ${title} нет контрольного этапа`,
+      rows.every((row) => row.stageNumber !== 14),
+      `нашлось ${rows.filter((row) => row.stageNumber === 14).length}`,
+    )
+  }
+
+  const dashboard = await call<{
+    problemCooperations: Array<{ cooperationId: string; stageNumber: number }>
+  }>('GET', '/api/analytics/overview')
+  const problems = dashboard.body.data?.problemCooperations ?? []
+  const leakedOnDashboard = problems.filter((row) => isClosed(row.cooperationId))
+  check(
+    'на дашборде нет проблем по закрытым связкам',
+    leakedOnDashboard.length === 0,
+    `просочилось ${leakedOnDashboard.length} из ${problems.length}`,
+  )
+  check(
+    'на дашборде нет контрольного этапа',
+    problems.every((row) => row.stageNumber !== 14),
+  )
+}
+
+async function checkRussianSorting(ctx: ProbeContext): Promise<void> {
   step('Списки отсортированы по-русски')
+  const { adminId } = ctx
 
-  {
-    // Порядок строк по умолчанию зависит от локали кластера PostgreSQL и на
-    // разных машинах разный: на macOS кириллица сортируется почти случайно,
-    // в postgres:16-alpine — по кодам символов («Ёлкин» раньше «Абв»).
-    // Поэтому у колонок сортировки задана ICU-сортировка "ru-x-icu"
-    // (миграция 20260922073000_russian_collation). Здесь проверяется, что
-    // она действительно применена к той базе, против которой работает сервер.
-    actAs(adminId)
-    const collator = new Intl.Collator('ru')
+  // Порядок строк по умолчанию зависит от локали кластера PostgreSQL и на
+  // разных машинах разный: на macOS кириллица сортируется почти случайно,
+  // в postgres:16-alpine — по кодам символов («Ёлкин» раньше «Абв»).
+  // Поэтому у колонок сортировки задана ICU-сортировка "ru-x-icu"
+  // (миграция 20260922073000_russian_collation). Здесь проверяется, что
+  // она действительно применена к той базе, против которой работает сервер.
+  actAs(adminId)
+  const collator = new Intl.Collator('ru')
 
-    const listChecks: Array<[string, string]> = [
-      ['реестр вузов', '/api/universities?pageSize=100'],
-      ['справочник навыков', '/api/skills?pageSize=100'],
-      ['каталог продуктов', '/api/products?pageSize=100'],
-    ]
+  const listChecks: Array<[string, string]> = [
+    ['реестр вузов', '/api/universities?pageSize=100'],
+    ['справочник навыков', '/api/skills?pageSize=100'],
+    ['каталог продуктов', '/api/products?pageSize=100'],
+  ]
 
-    for (const [title, path] of listChecks) {
-      const list = await call<Array<{ name: string }>>('GET', path)
-      const names = (list.body.data ?? []).map((item) => item.name)
-      const expected = [...names].sort(collator.compare)
-      const misplaced = names.filter((name, index) => name !== expected[index]).length
-      check(
-        `${title}: русский алфавитный порядок`,
-        names.length > 0 && misplaced === 0,
-        names.length === 0 ? 'список пуст' : `не на своём месте ${misplaced} из ${names.length}`,
-      )
-    }
-
-    // Отдельно — буква Ё: по кодам символов она раньше всех русских букв,
-    // по-русски стоит после Е. Самый частый способ незаметно потерять порядок.
-    const sorted = await call<Array<{ name: string }>>('GET', '/api/skills?pageSize=100')
-    const skillNames = (sorted.body.data ?? []).map((item) => item.name)
-    const probeNames = [...skillNames, 'Ёмкость хранилища', 'Единицы измерения', 'Журналирование']
-    const byCollator = [...probeNames].sort(collator.compare)
+  for (const [title, path] of listChecks) {
+    const list = await call<Array<{ name: string }>>('GET', path)
+    const names = (list.body.data ?? []).map((item) => item.name)
+    const expected = [...names].sort(collator.compare)
+    const misplaced = names.filter((name, index) => name !== expected[index]).length
     check(
-      'проверка порядка вообще различает Ё и Е',
-      byCollator.indexOf('Ёмкость хранилища') > byCollator.indexOf('Единицы измерения') &&
-        byCollator.indexOf('Ёмкость хранилища') < byCollator.indexOf('Журналирование'),
+      `${title}: русский алфавитный порядок`,
+      names.length > 0 && misplaced === 0,
+      names.length === 0 ? 'список пуст' : `не на своём месте ${misplaced} из ${names.length}`,
     )
   }
 
-  // ── Карточка программы и личный кабинет ───────────────────────────────────
+  // Отдельно — буква Ё: по кодам символов она раньше всех русских букв,
+  // по-русски стоит после Е. Самый частый способ незаметно потерять порядок.
+  const sorted = await call<Array<{ name: string }>>('GET', '/api/skills?pageSize=100')
+  const skillNames = (sorted.body.data ?? []).map((item) => item.name)
+  const probeNames = [...skillNames, 'Ёмкость хранилища', 'Единицы измерения', 'Журналирование']
+  const byCollator = [...probeNames].sort(collator.compare)
+  check(
+    'проверка порядка вообще различает Ё и Е',
+    byCollator.indexOf('Ёмкость хранилища') > byCollator.indexOf('Единицы измерения') &&
+      byCollator.indexOf('Ёмкость хранилища') < byCollator.indexOf('Журналирование'),
+  )
+}
+
+async function checkProgramCardMatchesAnalytics(ctx: ProbeContext): Promise<void> {
   step('Карточка программы и личный кабинет не расходятся с аналитикой')
+  const { rep, adminId } = ctx
 
-  {
-    actAs(adminId)
-    const ranked = await call<Array<{ programId: string; score: number | null }>>(
+  actAs(adminId)
+  const ranked = await call<Array<{ programId: string; score: number | null }>>(
+    'GET',
+    '/api/analytics/programs?limit=100',
+  )
+  const scoreInRanking = new Map((ranked.body.data ?? []).map((row) => [row.programId, row.score]))
+  const programs = await call<Array<{ id: string; status: string }>>(
+    'GET',
+    '/api/programs?pageSize=100',
+  )
+
+  // Балл в заголовке карточки считается отдельно от рейтинга — и обязан с ним
+  // совпадать: иначе одна программа покажет два разных числа.
+  let compared = 0
+  let differs = 0
+  // Сравниваем только программы, попавшие в обе выдачи: рейтинг отдаёт первые
+  // сто по баллу, список — первые сто по алфавиту, и на базе больше сотни
+  // программ часть списка в рейтинг не попадает вовсе.
+  const comparable = (programs.body.data ?? []).filter(
+    (item) => item.status === 'ACTIVE' && scoreInRanking.has(item.id),
+  )
+  for (const program of comparable) {
+    const card = await call<{ rating: { score: number | null } | null }>(
       'GET',
-      '/api/analytics/programs?limit=100',
+      `/api/programs/${program.id}`,
     )
-    const scoreInRanking = new Map((ranked.body.data ?? []).map((row) => [row.programId, row.score]))
-    const programs = await call<Array<{ id: string; status: string }>>(
-      'GET',
-      '/api/programs?pageSize=100',
-    )
-
-    // Балл в заголовке карточки считается отдельно от рейтинга — и обязан с ним
-    // совпадать: иначе одна программа покажет два разных числа.
-    let compared = 0
-    let differs = 0
-    // Сравниваем только программы, попавшие в обе выдачи: рейтинг отдаёт первые
-    // сто по баллу, список — первые сто по алфавиту, и на базе больше сотни
-    // программ часть списка в рейтинг не попадает вовсе.
-    const comparable = (programs.body.data ?? []).filter(
-      (item) => item.status === 'ACTIVE' && scoreInRanking.has(item.id),
-    )
-    for (const program of comparable) {
-      const card = await call<{ rating: { score: number | null } | null }>(
-        'GET',
-        `/api/programs/${program.id}`,
-      )
-      compared += 1
-      if (card.body.data?.rating?.score !== scoreInRanking.get(program.id)) differs += 1
-    }
-    check(
-      'балл в карточке программы совпадает с рейтингом программ',
-      compared > 0 && differs === 0,
-      `расхождений ${differs} из ${compared}`,
-    )
-
-    const stats = await call<{
-      activeCooperations: number
-      universitiesInWork: number
-      programsManaged: number
-      stagesOnTimePercent: number | null
-      overdueStages: number
-    }>('GET', '/api/me/stats')
-    const s = stats.body.data
-    check(
-      'личная статистика отвечает и согласована сама с собой',
-      stats.status === 200 &&
-        s !== undefined &&
-        s.universitiesInWork <= s.activeCooperations &&
-        s.programsManaged <= s.activeCooperations &&
-        s.overdueStages >= 0 &&
-        (s.stagesOnTimePercent === null || (s.stagesOnTimePercent >= 0 && s.stagesOnTimePercent <= 100)),
-      s ? `связок ${s.activeCooperations}, вузов ${s.universitiesInWork}, программ ${s.programsManaged}` : `код ${stats.status}`,
-    )
-
-    if (rep) {
-      actAs(rep.id)
-      const own = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=1')
-      const ownId = own.body.data?.[0]?.id
-      if (ownId) {
-        const card = await call<{ rating: unknown }>('GET', `/api/programs/${ownId}`)
-        check(
-          'представитель вуза видит карточку своей программы, но не рейтинг',
-          card.status === 200 && card.body.data?.rating === null,
-          `код ${card.status}`,
-        )
-      }
-      const me = await call<{ universityName: string | null }>('GET', '/api/me')
-      check('у представителя вуза в /api/me есть название вуза', Boolean(me.body.data?.universityName))
-    }
+    compared += 1
+    if (card.body.data?.rating?.score !== scoreInRanking.get(program.id)) differs += 1
   }
+  check(
+    'балл в карточке программы совпадает с рейтингом программ',
+    compared > 0 && differs === 0,
+    `расхождений ${differs} из ${compared}`,
+  )
 
-  // ── Поиск и уведомления ────────────────────────────────────────────────────
+  const stats = await call<{
+    activeCooperations: number
+    universitiesInWork: number
+    programsManaged: number
+    stagesOnTimePercent: number | null
+    overdueStages: number
+  }>('GET', '/api/me/stats')
+  const s = stats.body.data
+  check(
+    'личная статистика отвечает и согласована сама с собой',
+    stats.status === 200 &&
+      s !== undefined &&
+      s.universitiesInWork <= s.activeCooperations &&
+      s.programsManaged <= s.activeCooperations &&
+      s.overdueStages >= 0 &&
+      (s.stagesOnTimePercent === null || (s.stagesOnTimePercent >= 0 && s.stagesOnTimePercent <= 100)),
+    s ? `связок ${s.activeCooperations}, вузов ${s.universitiesInWork}, программ ${s.programsManaged}` : `код ${stats.status}`,
+  )
+
+  if (rep) {
+    actAs(rep.id)
+    const own = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=1')
+    const ownId = own.body.data?.[0]?.id
+    if (ownId) {
+      const card = await call<{ rating: unknown }>('GET', `/api/programs/${ownId}`)
+      check(
+        'представитель вуза видит карточку своей программы, но не рейтинг',
+        card.status === 200 && card.body.data?.rating === null,
+        `код ${card.status}`,
+      )
+    }
+    const me = await call<{ universityName: string | null }>('GET', '/api/me')
+    check('у представителя вуза в /api/me есть название вуза', Boolean(me.body.data?.universityName))
+  }
+}
+
+async function checkSearchAndNotifications(ctx: ProbeContext): Promise<void> {
   step('Поиск и уведомления не раскрывают чужого и не врут')
+  const { rep, adminId, foreignUniversity, managerId } = ctx
 
-  {
-    // Поиск: представитель вуза не находит чужой вуз, который находит администратор.
-    if (rep && foreignUniversity) {
-      const word = foreignUniversity.name.split(' ')[0] ?? foreignUniversity.name
-      actAs(adminId)
-      const forAdmin = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
-        'GET',
-        `/api/search?q=${encodeURIComponent(word)}`,
-      )
-      const adminFinds = (forAdmin.body.data?.groups ?? []).some(
-        (group) => group.type === 'university' && group.items.some((item) => item.id === foreignUniversity.id),
-      )
-      actAs(rep.id)
-      const forRep = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
-        'GET',
-        `/api/search?q=${encodeURIComponent(word)}`,
-      )
-      const repFinds = (forRep.body.data?.groups ?? []).some((group) =>
-        group.items.some((item) => item.id === foreignUniversity.id),
-      )
-      check('поиск находит вуз администратору', adminFinds, `по слову «${word}»`)
-      check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
-    }
-
-    // Знаки LIKE в запросе — обычные символы, а не «что угодно»: поиск «_»
-    // находил все вузы базы. От имени администратора: представитель вуза
-    // видит один вуз, и сравнение с ним ничего не доказало бы.
-    const actorBefore = actingUserId
+  // Поиск: представитель вуза не находит чужой вуз, который находит администратор.
+  if (rep && foreignUniversity) {
+    const word = foreignUniversity.name.split(' ')[0] ?? foreignUniversity.name
     actAs(adminId)
-    const all = await call<unknown[]>('GET', '/api/universities?withRating=false&pageSize=1')
-    for (const wildcard of ['_', '%']) {
-      const found = await call<unknown[]>(
-        'GET',
-        `/api/universities?withRating=false&pageSize=1&q=${encodeURIComponent(wildcard)}`,
-      )
-      check(
-        `поиск «${wildcard}» не находит всё подряд`,
-        Number(found.body.meta?.total ?? -1) < Number(all.body.meta?.total ?? 0),
-        `найдено ${String(found.body.meta?.total)} из ${String(all.body.meta?.total)}`,
-      )
-    }
-    actAs(actorBefore)
-
-    const tooShort = await call('GET', '/api/search?q=a')
-    check('поиск по одной букве отклоняется', tooShort.status === 422)
-
-    type Feed = {
-      items: Array<{
-        kind: string
-        title: string
-        target: { type: string; id: string; cooperationId: string | null }
-      }>
-      unreadCount: number
-    }
-    const targetPath: Record<string, string> = {
-      cooperation: '/api/cooperations/',
-      document: '/api/documents/',
-      recommendation: '/api/recommendations/',
-    }
-
-    // Уведомления сотрудника: просрочки считаются так же, как в личной статистике,
-    // и каждая ссылка открывается тем, кому пришло уведомление.
-    if (managerId) {
-      actAs(managerId)
-      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
-      const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
-      const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
-      // Этапы, которые не начать из-за незавершённой контрольной точки, лента не торопит,
-      // а личная статистика считает (её счётчик — решение продукта). Разница — ровно они.
-      const locked = await countLockedOverdueOf(managerId)
-      check(
-        'просроченных в ленте столько же, сколько в личной статистике, без запертых точкой',
-        feed.status === 200 && overdue === (stats.body.data?.overdueStages ?? -1) - locked,
-        `лента ${overdue}, статистика ${stats.body.data?.overdueStages}, заперто точкой ${locked}`,
-      )
-      // Одна просрочка — одно уведомление: рекомендация «Просрочен этап N» не повторяет срок этапа.
-      const overdueEvent = (item: Feed['items'][number]) => {
-        const stage = /^Просрочен этап (\d+)/.exec(item.title)?.[1]
-        return stage ? `${item.target.cooperationId}:${stage}` : null
-      }
-      const fromStages = new Set(
-        (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').map(overdueEvent),
-      )
-      const duplicates = (feed.body.data?.items ?? []).filter(
-        (item) => item.kind === 'recommendation' && fromStages.has(overdueEvent(item)),
-      )
-      check('просрочка в ленте не повторяется рекомендацией', duplicates.length === 0, `повторов ${duplicates.length}`)
-      let broken = 0
-      for (const item of feed.body.data?.items ?? []) {
-        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
-        if (opened.status !== 200) broken += 1
-      }
-      check(
-        'каждое уведомление сотрудника открывается',
-        broken === 0,
-        `не открылось ${broken} из ${feed.body.data?.items.length ?? 0}`,
-      )
-      const later = new Date(Date.now() + 1000).toISOString()
-      const read = await call<Feed>('GET', `/api/notifications?since=${encodeURIComponent(later)}`)
-      check('после отметки «прочитано» непрочитанных нет', read.body.data?.unreadCount === 0)
-    }
-
-    // Уведомления представителя вуза: ни сроков, ни рекомендаций — это внутреннее.
-    if (rep) {
-      actAs(rep.id)
-      const feed = await call<Feed>('GET', '/api/notifications?limit=50')
-      const internal = (feed.body.data?.items ?? []).filter((item) =>
-        ['stage.overdue', 'stage.due-soon', 'recommendation'].includes(item.kind),
-      ).length
-      check('в ленте представителя вуза нет внутреннего', feed.status === 200 && internal === 0)
-      let broken = 0
-      for (const item of feed.body.data?.items ?? []) {
-        const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
-        if (opened.status !== 200) broken += 1
-      }
-      check('каждое уведомление представителя вуза открывается у него', broken === 0)
-    }
+    const forAdmin = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+      'GET',
+      `/api/search?q=${encodeURIComponent(word)}`,
+    )
+    const adminFinds = (forAdmin.body.data?.groups ?? []).some(
+      (group) => group.type === 'university' && group.items.some((item) => item.id === foreignUniversity.id),
+    )
+    actAs(rep.id)
+    const forRep = await call<{ groups: Array<{ type: string; items: Array<{ id: string }> }> }>(
+      'GET',
+      `/api/search?q=${encodeURIComponent(word)}`,
+    )
+    const repFinds = (forRep.body.data?.groups ?? []).some((group) =>
+      group.items.some((item) => item.id === foreignUniversity.id),
+    )
+    check('поиск находит вуз администратору', adminFinds, `по слову «${word}»`)
+    check('поиск не находит чужой вуз представителю', forRep.status === 200 && !repFinds)
   }
 
-  // ── Поиск связки по краткому имени вуза и по словам ───────────────────────
+  // Знаки LIKE в запросе — обычные символы, а не «что угодно»: иначе поиск «_»
+  // нашёл бы все вузы базы. От имени администратора: представитель вуза
+  // видит один вуз, и сравнение с ним ничего не доказало бы.
+  const actorBefore = actingUserId
+  actAs(adminId)
+  const all = await call<unknown[]>('GET', '/api/universities?withRating=false&pageSize=1')
+  for (const wildcard of ['_', '%']) {
+    const found = await call<unknown[]>(
+      'GET',
+      `/api/universities?withRating=false&pageSize=1&q=${encodeURIComponent(wildcard)}`,
+    )
+    check(
+      `поиск «${wildcard}» не находит всё подряд`,
+      Number(found.body.meta?.total ?? -1) < Number(all.body.meta?.total ?? 0),
+      `найдено ${String(found.body.meta?.total)} из ${String(all.body.meta?.total)}`,
+    )
+  }
+  actAs(actorBefore)
+
+  const tooShort = await call('GET', '/api/search?q=a')
+  check('поиск по одной букве отклоняется', tooShort.status === 422)
+
+  type Feed = {
+    items: Array<{
+      kind: string
+      title: string
+      target: { type: string; id: string; cooperationId: string | null }
+    }>
+    unreadCount: number
+  }
+  const targetPath: Record<string, string> = {
+    cooperation: '/api/cooperations/',
+    document: '/api/documents/',
+    recommendation: '/api/recommendations/',
+  }
+
+  // Уведомления сотрудника: просрочки считаются так же, как в личной статистике,
+  // и каждая ссылка открывается тем, кому пришло уведомление.
+  if (managerId) {
+    actAs(managerId)
+    const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+    const stats = await call<{ overdueStages: number }>('GET', '/api/me/stats')
+    const overdue = (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').length
+    // Этапы, которые не начать из-за незавершённой контрольной точки, лента не торопит,
+    // а личная статистика считает (её счётчик — решение продукта). Разница — ровно они.
+    const locked = await countLockedOverdueOf(managerId)
+    check(
+      'просроченных в ленте столько же, сколько в личной статистике, без запертых точкой',
+      feed.status === 200 && overdue === (stats.body.data?.overdueStages ?? -1) - locked,
+      `лента ${overdue}, статистика ${stats.body.data?.overdueStages}, заперто точкой ${locked}`,
+    )
+    // Одна просрочка — одно уведомление: рекомендация «Просрочен этап N» не повторяет срок этапа.
+    const overdueEvent = (item: Feed['items'][number]) => {
+      const stage = /^Просрочен этап (\d+)/.exec(item.title)?.[1]
+      return stage ? `${item.target.cooperationId}:${stage}` : null
+    }
+    const fromStages = new Set(
+      (feed.body.data?.items ?? []).filter((item) => item.kind === 'stage.overdue').map(overdueEvent),
+    )
+    const duplicates = (feed.body.data?.items ?? []).filter(
+      (item) => item.kind === 'recommendation' && fromStages.has(overdueEvent(item)),
+    )
+    check('просрочка в ленте не повторяется рекомендацией', duplicates.length === 0, `повторов ${duplicates.length}`)
+    let broken = 0
+    for (const item of feed.body.data?.items ?? []) {
+      const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+      if (opened.status !== 200) broken += 1
+    }
+    check(
+      'каждое уведомление сотрудника открывается',
+      broken === 0,
+      `не открылось ${broken} из ${feed.body.data?.items.length ?? 0}`,
+    )
+    const later = new Date(Date.now() + 1000).toISOString()
+    const read = await call<Feed>('GET', `/api/notifications?since=${encodeURIComponent(later)}`)
+    check('после отметки «прочитано» непрочитанных нет', read.body.data?.unreadCount === 0)
+  }
+
+  // Уведомления представителя вуза: ни сроков, ни рекомендаций — это внутреннее.
+  if (rep) {
+    actAs(rep.id)
+    const feed = await call<Feed>('GET', '/api/notifications?limit=50')
+    const internal = (feed.body.data?.items ?? []).filter((item) =>
+      ['stage.overdue', 'stage.due-soon', 'recommendation'].includes(item.kind),
+    ).length
+    check('в ленте представителя вуза нет внутреннего', feed.status === 200 && internal === 0)
+    let broken = 0
+    for (const item of feed.body.data?.items ?? []) {
+      const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
+      if (opened.status !== 200) broken += 1
+    }
+    check('каждое уведомление представителя вуза открывается у него', broken === 0)
+  }
+}
+
+async function checkCooperationSearch(ctx: ProbeContext): Promise<void> {
   step('Связку находят по краткому имени вуза, по словам и по ответственному')
+  const { adminId, managerId } = ctx
 
   if (managerId) {
     // Свой вуз с уникальным кратким именем: демо-данные не трогаются, и совпадение
@@ -2875,232 +2907,235 @@ async function main(): Promise<void> {
     check('каждое слово запроса обязательно', (wrongWord.body.data?.length ?? -1) === 0)
     actAs(actorBefore)
   }
+}
 
-  // ── Главная не выдаёт показанное за всё ───────────────────────────────────
+async function checkProblemCounter(ctx: ProbeContext): Promise<void> {
   step('Счётчик проблем на главной совпадает со списками этапов')
+  const { adminId } = ctx
 
-  {
-    /*
-     * Главная показывает самые давние проблемные этапы и отдельным числом —
-     * сколько их всего. Число обязано совпасть с тем, что отдают списки
-     * просроченных и заблокированных этапов: иначе на первом экране показа
-     * будет одно, а в реестре — другое. Этап, который и просрочен,
-     * и заблокирован, — одна проблема, а не две.
-     */
-    actAs(adminId)
-    const overview = await call<{
-      problemStageTotal: number
-      problemCooperations: Array<{ stageId: string | null }>
-    }>('GET', '/api/analytics/overview')
-    const overdue = await call<Array<{ id: string; stageNumber: number }>>(
-      'GET',
-      '/api/workflow/overdue?pageSize=100',
-    )
-    const blocked = await call<Array<{ id: string; stageNumber: number }>>(
-      'GET',
-      '/api/workflow/blocked?pageSize=100',
-    )
-    const listed = new Set(
-      [...(overdue.body.data ?? []), ...(blocked.body.data ?? [])]
-        // Контрольный этап вычисляется системой — в проблемы главной он не входит.
-        .filter((stage) => stage.stageNumber !== 14)
-        .map((stage) => stage.id),
-    )
-    const total = overview.body.data?.problemStageTotal ?? -1
-    const shown = overview.body.data?.problemCooperations ?? []
-    check(
-      'счётчик проблем совпадает со списками просроченных и заблокированных',
-      total === listed.size,
-      `на главной ${total}, в списках ${listed.size}`,
-    )
-    check(
-      'показано не больше, чем есть',
-      shown.length <= total,
-      `показано ${shown.length} из ${total}`,
-    )
-    check(
-      'каждая показанная проблема есть в списках',
-      shown.every((item) => item.stageId !== null && listed.has(item.stageId)),
-    )
-    actAs(null)
-  }
+  /*
+   * Главная показывает самые давние проблемные этапы и отдельным числом —
+   * сколько их всего. Число обязано совпасть с тем, что отдают списки
+   * просроченных и заблокированных этапов: иначе на первом экране показа
+   * будет одно, а в реестре — другое. Этап, который и просрочен,
+   * и заблокирован, — одна проблема, а не две.
+   */
+  actAs(adminId)
+  const overview = await call<{
+    problemStageTotal: number
+    problemCooperations: Array<{ stageId: string | null }>
+  }>('GET', '/api/analytics/overview')
+  const overdue = await call<Array<{ id: string; stageNumber: number }>>(
+    'GET',
+    '/api/workflow/overdue?pageSize=100',
+  )
+  const blocked = await call<Array<{ id: string; stageNumber: number }>>(
+    'GET',
+    '/api/workflow/blocked?pageSize=100',
+  )
+  const listed = new Set(
+    [...(overdue.body.data ?? []), ...(blocked.body.data ?? [])]
+      // Контрольный этап вычисляется системой — в проблемы главной он не входит.
+      .filter((stage) => stage.stageNumber !== 14)
+      .map((stage) => stage.id),
+  )
+  const total = overview.body.data?.problemStageTotal ?? -1
+  const shown = overview.body.data?.problemCooperations ?? []
+  check(
+    'счётчик проблем совпадает со списками просроченных и заблокированных',
+    total === listed.size,
+    `на главной ${total}, в списках ${listed.size}`,
+  )
+  check(
+    'показано не больше, чем есть',
+    shown.length <= total,
+    `показано ${shown.length} из ${total}`,
+  )
+  check(
+    'каждая показанная проблема есть в списках',
+    shown.every((item) => item.stageId !== null && listed.has(item.stageId)),
+  )
+  actAs(null)
+}
 
-  // ── Одно число связок ─────────────────────────────────────────────────────
+async function checkCooperationCount(ctx: ProbeContext): Promise<void> {
   step('Число связок на главной сходится с разбивкой и реестром')
+  const { adminId } = ctx
 
-  {
-    /*
-     * Раньше меню говорило 8, шапка главной 7, фильтр 6, а блок «Связки
-     * в работе» молча обрезал список до шести (решение 86). Теперь разбивка
-     * одна: активные = в работе + черновики, воронка = активные + пауза +
-     * завершённые. Сверяем её с показателем и с реестром теми же фильтрами.
-     */
-    actAs(adminId)
-    const overview = await call<{
-      metrics: Array<{ key: string; value: number | null }>
-      cooperationCounts: {
-        active: number
-        inWork: number
-        drafts: number
-        paused: number
-        completed: number
-        total: number
-      }
-    }>('GET', '/api/analytics/overview')
-    const counts = overview.body.data?.cooperationCounts
-    const metricValue = overview.body.data?.metrics.find((item) => item.key === 'activeCooperations')?.value
-    const listed = async (query: string) =>
-      (await call<unknown[]>('GET', `/api/cooperations?${query}&pageSize=1`)).body.meta?.total ?? -1
-    const activeListed = await listed('status=DRAFT&status=ACTIVE')
-    const funnelListed = await listed('status=DRAFT&status=ACTIVE&status=PAUSED&status=COMPLETED')
-    check('разбивка связок есть в сводке главной', counts !== undefined)
-    if (counts) {
-      check(
-        'показатель «Активные связи» равен разбивке',
-        metricValue === counts.active,
-        `показатель ${metricValue}, разбивка ${counts.active}`,
-      )
-      check(
-        'активные = в работе + черновики',
-        counts.active === counts.inWork + counts.drafts,
-        `активных ${counts.active}, в работе ${counts.inWork}, черновиков ${counts.drafts}`,
-      )
-      check(
-        'в воронке = активные + на паузе + завершённые',
-        counts.total === counts.active + counts.paused + counts.completed,
-      )
-      check('активных столько же, сколько в реестре', counts.active === activeListed, `главная ${counts.active}, реестр ${activeListed}`)
-      check('в воронке столько же, сколько в реестре', counts.total === funnelListed, `главная ${counts.total}, реестр ${funnelListed}`)
+  /*
+   * Разбивка одна для меню, главной и фильтров (решение 86): активные = в работе
+   * + черновики, воронка = активные + пауза + завершённые, блок «Связки в работе»
+   * список не обрезает. Сверяем её с показателем и с реестром теми же фильтрами.
+   */
+  actAs(adminId)
+  const overview = await call<{
+    metrics: Array<{ key: string; value: number | null }>
+    cooperationCounts: {
+      active: number
+      inWork: number
+      drafts: number
+      paused: number
+      completed: number
+      total: number
     }
-    actAs(null)
+  }>('GET', '/api/analytics/overview')
+  const counts = overview.body.data?.cooperationCounts
+  const metricValue = overview.body.data?.metrics.find((item) => item.key === 'activeCooperations')?.value
+  const listed = async (query: string) =>
+    (await call<unknown[]>('GET', `/api/cooperations?${query}&pageSize=1`)).body.meta?.total ?? -1
+  const activeListed = await listed('status=DRAFT&status=ACTIVE')
+  const funnelListed = await listed('status=DRAFT&status=ACTIVE&status=PAUSED&status=COMPLETED')
+  check('разбивка связок есть в сводке главной', counts !== undefined)
+  if (counts) {
+    check(
+      'показатель «Активные связи» равен разбивке',
+      metricValue === counts.active,
+      `показатель ${metricValue}, разбивка ${counts.active}`,
+    )
+    check(
+      'активные = в работе + черновики',
+      counts.active === counts.inWork + counts.drafts,
+      `активных ${counts.active}, в работе ${counts.inWork}, черновиков ${counts.drafts}`,
+    )
+    check(
+      'в воронке = активные + на паузе + завершённые',
+      counts.total === counts.active + counts.paused + counts.completed,
+    )
+    check('активных столько же, сколько в реестре', counts.active === activeListed, `главная ${counts.active}, реестр ${activeListed}`)
+    check('в воронке столько же, сколько в реестре', counts.total === funnelListed, `главная ${counts.total}, реестр ${funnelListed}`)
   }
+  actAs(null)
+}
 
-  // ── Лента рекомендаций — по важности ──────────────────────────────────────
+async function checkRecommendationFeedOrder(ctx: ProbeContext): Promise<void> {
   step('Лента рекомендаций — по важности, страницы устойчивы')
+  const { adminId } = ctx
 
-  {
-    /*
-     * Приоритет — перечисление LOW < MEDIUM < HIGH < CRITICAL, и сортировка
-     * «по приоритету» по возрастанию ставит сверху наименее важное. Так и было:
-     * лента открывалась рекомендацией средней важности, а критичные
-     * просрочки стояли в самом низу. Проверяем тем же запросом, что делает
-     * интерфейс, и заодно — что при равной важности страницы не теряют
-     * и не повторяют строки.
-     */
-    actAs(adminId)
-    const rank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
-    const sortParam = `sort=${RECOMMENDATION_SORT_MOST_IMPORTANT}`
-    const all = await call<Array<{ id: string; priority: string }>>(
+  /*
+   * Приоритет — перечисление LOW < MEDIUM < HIGH < CRITICAL, и сортировка
+   * «по приоритету» по возрастанию ставит сверху наименее важное: критичные
+   * просрочки оказались бы в самом низу ленты. Проверяем тем же запросом, что делает
+   * интерфейс, и заодно — что при равной важности страницы не теряют
+   * и не повторяют строки.
+   */
+  actAs(adminId)
+  const rank: Record<string, number> = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 }
+  const sortParam = `sort=${RECOMMENDATION_SORT_MOST_IMPORTANT}`
+  const all = await call<Array<{ id: string; priority: string }>>(
+    'GET',
+    `/api/recommendations?${sortParam}&pageSize=100`,
+  )
+  const rows = all.body.data ?? []
+  const firstOutOfOrder = rows.findIndex(
+    (row, index) => index > 0 && (rank[row.priority] ?? -1) > (rank[rows[index - 1]?.priority ?? ''] ?? -1),
+  )
+  check(
+    'важность в ленте не растёт сверху вниз',
+    rows.length > 1 && firstOutOfOrder === -1,
+    firstOutOfOrder === -1
+      ? `${rows.length} рекомендаций, сверху ${rows[0]?.priority ?? '—'}`
+      : `строка ${firstOutOfOrder + 1} важнее предыдущей`,
+  )
+
+  const paged: string[] = []
+  const total = Number(all.body.meta?.total ?? 0)
+  for (let page = 1; page <= Math.ceil(total / 3) && page <= 40; page += 1) {
+    const chunk = await call<Array<{ id: string }>>(
       'GET',
-      `/api/recommendations?${sortParam}&pageSize=100`,
+      `/api/recommendations?${sortParam}&page=${page}&pageSize=3`,
     )
-    const rows = all.body.data ?? []
-    const firstOutOfOrder = rows.findIndex(
-      (row, index) => index > 0 && (rank[row.priority] ?? -1) > (rank[rows[index - 1]?.priority ?? ''] ?? -1),
-    )
-    check(
-      'важность в ленте не растёт сверху вниз',
-      rows.length > 1 && firstOutOfOrder === -1,
-      firstOutOfOrder === -1
-        ? `${rows.length} рекомендаций, сверху ${rows[0]?.priority ?? '—'}`
-        : `строка ${firstOutOfOrder + 1} важнее предыдущей`,
-    )
-
-    const paged: string[] = []
-    const total = Number(all.body.meta?.total ?? 0)
-    for (let page = 1; page <= Math.ceil(total / 3) && page <= 40; page += 1) {
-      const chunk = await call<Array<{ id: string }>>(
-        'GET',
-        `/api/recommendations?${sortParam}&page=${page}&pageSize=3`,
-      )
-      paged.push(...(chunk.body.data ?? []).map((row) => row.id))
-    }
-    // Один запрос отдаёт не больше сотни — сверяются первые строки обхода,
-    // а обход целиком — на повторы и потери.
-    check(
-      'постраничный обход даёт тот же порядок, что и один запрос',
-      paged.slice(0, rows.length).join() === rows.map((row) => row.id).join() &&
-        new Set(paged).size === paged.length &&
-        paged.length === Math.min(total, 120),
-      `${paged.length} строк по страницам, ${new Set(paged).size} разных, всего ${total}`,
-    )
-
-    /*
-     * То же для реестров, где равные значения — норма: десятки программ
-     * одного уровня, связки одного статуса. Сортировка по такому полю без
-     * последнего ключа отдаёт равные строки в произвольном порядке.
-     */
-    for (const list of [
-      '/api/programs?sort=level',
-      '/api/cooperations?sort=status',
-      '/api/universities?sort=status&withRating=false',
-      '/api/documents?sort=status',
-    ]) {
-      const whole = await call<Array<{ id: string }>>('GET', `${list}&pageSize=100`)
-      const expected = (whole.body.data ?? []).map((row) => row.id)
-      const listTotal = Number(whole.body.meta?.total ?? 0)
-      const walked: string[] = []
-      for (let page = 1; page <= Math.ceil(Math.min(listTotal, 100) / 7); page += 1) {
-        const chunk = await call<Array<{ id: string }>>('GET', `${list}&page=${page}&pageSize=7`)
-        walked.push(...(chunk.body.data ?? []).map((row) => row.id))
-      }
-      const comparable = walked.slice(0, expected.length)
-      check(
-        `${list.split('?')[0]}: страницы не повторяют и не теряют строки`,
-        expected.length > 0 && comparable.join() === expected.join(),
-        `${new Set(comparable).size} разных из ${expected.length}`,
-      )
-    }
-    actAs(null)
+    paged.push(...(chunk.body.data ?? []).map((row) => row.id))
   }
+  // Один запрос отдаёт не больше сотни — сверяются первые строки обхода,
+  // а обход целиком — на повторы и потери.
+  check(
+    'постраничный обход даёт тот же порядок, что и один запрос',
+    paged.slice(0, rows.length).join() === rows.map((row) => row.id).join() &&
+      new Set(paged).size === paged.length &&
+      paged.length === Math.min(total, 120),
+    `${paged.length} строк по страницам, ${new Set(paged).size} разных, всего ${total}`,
+  )
 
-  // ── Параметры расчётов и справочник навыков (решение 107) ─────────────────
+  /*
+   * То же для реестров, где равные значения — норма: десятки программ
+   * одного уровня, связки одного статуса. Сортировка по такому полю без
+   * последнего ключа отдаёт равные строки в произвольном порядке.
+   */
+  for (const list of [
+    '/api/programs?sort=level',
+    '/api/cooperations?sort=status',
+    '/api/universities?sort=status&withRating=false',
+    '/api/documents?sort=status',
+  ]) {
+    const whole = await call<Array<{ id: string }>>('GET', `${list}&pageSize=100`)
+    const expected = (whole.body.data ?? []).map((row) => row.id)
+    const listTotal = Number(whole.body.meta?.total ?? 0)
+    const walked: string[] = []
+    for (let page = 1; page <= Math.ceil(Math.min(listTotal, 100) / 7); page += 1) {
+      const chunk = await call<Array<{ id: string }>>('GET', `${list}&page=${page}&pageSize=7`)
+      walked.push(...(chunk.body.data ?? []).map((row) => row.id))
+    }
+    const comparable = walked.slice(0, expected.length)
+    check(
+      `${list.split('?')[0]}: страницы не повторяют и не теряют строки`,
+      expected.length > 0 && comparable.join() === expected.join(),
+      `${new Set(comparable).size} разных из ${expected.length}`,
+    )
+  }
+  actAs(null)
+}
+
+async function checkCalculationParameters(ctx: ProbeContext): Promise<void> {
   step('Параметры расчётов: значения из кода, права ролей')
+  const { rep } = ctx
 
-  {
-    const byRole = async (role: string) => {
-      const found = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)
-      return found.body.data?.[0]?.id ?? null
-    }
-    const analystId = await byRole('ANALYST')
-    const viewerId = await byRole('VIEWER')
-
-    type Parameters = {
-      groups: Array<{ id: string; parameters: Array<{ configKey: string; value: unknown; isTemporary: boolean }> }>
-      stages: Array<{ number: number; normativeDays: number; isControlPoint: boolean }>
-    }
-    actAs(analystId)
-    const asAnalyst = await call<Parameters>('GET', '/api/settings/parameters')
-    const values = new Map(
-      (asAnalyst.body.data?.groups ?? []).flatMap((group) => group.parameters.map((item) => [item.configKey, item])),
-    )
-    check('аналитик получает параметры: 200', asAnalyst.status === 200, `статус ${asAnalyst.status}`)
-    check(
-      'значения — те же константы, по которым считает код',
-      values.get('SKILL_GAP.demandThreshold')?.value === SKILL_GAP.demandThreshold &&
-        values.get('PROGRAM_RATING_WEIGHTS.applicationCount')?.value === PROGRAM_RATING_WEIGHTS.applicationCount &&
-        values.get('RECOMMENDATION_RULES.stalledDays')?.value === RECOMMENDATION_RULES.stalledDays &&
-        values.get('SKILL_GAP.demandThreshold')?.isTemporary === true,
-    )
-    const stages = asAnalyst.body.data?.stages ?? []
-    check(
-      '14 этапов с нормативами из workflow.config, контрольные точки отмечены',
-      stages.length === WORKFLOW_STAGES.length &&
-        stages.every((stage, index) => stage.normativeDays === WORKFLOW_STAGES[index]!.normativeDays) &&
-        stages.filter((stage) => stage.isControlPoint).map((stage) => stage.number).join() ===
-          CONTROL_POINT_STAGES.join(),
-      `этапов ${stages.length}`,
-    )
-    actAs(viewerId)
-    const asViewer = await call('GET', '/api/settings/parameters')
-    check('наблюдатель тоже видит (объяснение чисел аналитики): 200', asViewer.status === 200, `статус ${asViewer.status}`)
-    actAs(rep?.id ?? null)
-    const asRep = await call('GET', '/api/settings/parameters')
-    check('представителю вуза закрыто, как и аналитика: 403', asRep.status === 403, `статус ${asRep.status}`)
-    actAs(null)
+  const byRole = async (role: string) => {
+    const found = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)
+    return found.body.data?.[0]?.id ?? null
   }
+  const analystId = await byRole('ANALYST')
+  const viewerId = await byRole('VIEWER')
 
+  type Parameters = {
+    groups: Array<{ id: string; parameters: Array<{ configKey: string; value: unknown; isTemporary: boolean }> }>
+    stages: Array<{ number: number; normativeDays: number; isControlPoint: boolean }>
+  }
+  actAs(analystId)
+  const asAnalyst = await call<Parameters>('GET', '/api/settings/parameters')
+  const values = new Map(
+    (asAnalyst.body.data?.groups ?? []).flatMap((group) => group.parameters.map((item) => [item.configKey, item])),
+  )
+  check('аналитик получает параметры: 200', asAnalyst.status === 200, `статус ${asAnalyst.status}`)
+  check(
+    'значения — те же константы, по которым считает код',
+    values.get('SKILL_GAP.demandThreshold')?.value === SKILL_GAP.demandThreshold &&
+      values.get('PROGRAM_RATING_WEIGHTS.applicationCount')?.value === PROGRAM_RATING_WEIGHTS.applicationCount &&
+      values.get('RECOMMENDATION_RULES.stalledDays')?.value === RECOMMENDATION_RULES.stalledDays &&
+      // Порог дефицита утверждён заказчиком, порог застоя — рабочее значение.
+      values.get('SKILL_GAP.demandThreshold')?.isTemporary === false &&
+      values.get('RECOMMENDATION_RULES.stalledDays')?.isTemporary === true,
+  )
+  const stages = asAnalyst.body.data?.stages ?? []
+  check(
+    '14 этапов с нормативами из workflow.config, контрольные точки отмечены',
+    stages.length === WORKFLOW_STAGES.length &&
+      stages.every((stage, index) => stage.normativeDays === WORKFLOW_STAGES[index]!.normativeDays) &&
+      stages.filter((stage) => stage.isControlPoint).map((stage) => stage.number).join() ===
+        CONTROL_POINT_STAGES.join(),
+    `этапов ${stages.length}`,
+  )
+  actAs(viewerId)
+  const asViewer = await call('GET', '/api/settings/parameters')
+  check('наблюдатель тоже видит (объяснение чисел аналитики): 200', asViewer.status === 200, `статус ${asViewer.status}`)
+  actAs(rep?.id ?? null)
+  const asRep = await call('GET', '/api/settings/parameters')
+  check('представителю вуза закрыто, как и аналитика: 403', asRep.status === 403, `статус ${asRep.status}`)
+  actAs(null)
+}
+
+async function checkSkillDirectory(ctx: ProbeContext): Promise<void> {
   step('Справочник навыков: права, дубли, объединение, удаление используемого')
+  const { adminId, managerId } = ctx
 
   if (!adminId || !managerId) {
     check('демо-данные готовы (администратор и менеджер)', false, 'запустите npm run db:seed')
@@ -3277,93 +3312,95 @@ async function main(): Promise<void> {
     }
     actAs(null)
   }
+}
 
-  // ── Почта и телефон контактов вузов — только ADMIN и MANAGER (решение 106) ──
+async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
   step('Почта и телефон контактов вузов: аналитику и наблюдателю — «скрыто», поиском не достать')
+  const { rep, adminId, universities, managerId } = ctx
 
-  {
-    type Contact = {
-      fullName: string
-      position: string | null
-      email: string | null
-      phone: string | null
-      contactDetailsHidden: boolean
-    }
-    type Card = { id: string; contacts: Contact[] }
-    type SearchBody = { groups: Array<{ type: string; items: Array<{ id: string }> }> }
-    const firstId = async (role: string): Promise<string | null> =>
-      (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
-
-    actAs(adminId)
-    const analystId = await firstId('ANALYST')
-    const viewerId = await firstId('VIEWER')
-    // Вуз представителя: на нём заодно видно, что свой вуз представитель видит как раньше.
-    const universityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
-    const adminCard = universityId ? await call<Card>('GET', `/api/universities/${universityId}`) : null
-    const withDetails = adminCard?.body.data?.contacts.find((contact) => contact.email && contact.phone)
-    check('у вуза есть контакт с почтой и телефоном (демо-данные)', Boolean(withDetails))
-
-    if (universityId && withDetails?.email && withDetails.phone) {
-      const email = withDetails.email
-      const phone = withDetails.phone
-
-      for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId]] as const) {
-        actAs(id)
-        const card = await call<Card>('GET', `/api/universities/${universityId}`)
-        const contact = card.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
-        check(
-          `${role}: карточка открывается, ФИО и должность на месте`,
-          card.status === 200 && contact?.position === withDetails.position,
-        )
-        check(
-          `${role}: почта и телефон — null, признак «скрыто»`,
-          contact?.email === null && contact.phone === null && contact.contactDetailsHidden === true,
-        )
-        check(`${role}: ни почты, ни телефона нигде в ответе`, !card.raw.includes(email) && !card.raw.includes(phone))
-
-        const found = await call<SearchBody>('GET', `/api/search?q=${encodeURIComponent(email)}`)
-        const hits = (found.body.data?.groups ?? []).reduce((sum, group) => sum + group.items.length, 0)
-        check(`${role}: поиск по почте контакта ничего не находит`, found.status === 200 && hits === 0, `находок ${hits}`)
-        const registry = await call<unknown[]>(
-          'GET',
-          `/api/universities?withRating=false&q=${encodeURIComponent(email)}`,
-        )
-        check(`${role}: реестр по почте контакта пуст`, registry.status === 200 && registry.body.meta?.total === 0)
-
-        const me = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
-        check(`${role}: /api/me — canSeeContactDetails: false`, me.body.data?.permissions.canSeeContactDetails === false)
-      }
-
-      actAs(managerId)
-      const managerCard = await call<Card>('GET', `/api/universities/${universityId}`)
-      const managerContact = managerCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
-      check(
-        'MANAGER: почта и телефон видны, признака нет',
-        managerContact?.email === email && managerContact.phone === phone && managerContact.contactDetailsHidden === false,
-      )
-      const managerMe = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
-      check('MANAGER: /api/me — canSeeContactDetails: true', managerMe.body.data?.permissions.canSeeContactDetails === true)
-
-      if (rep?.universityId === universityId) {
-        actAs(rep.id)
-        const repCard = await call<Card>('GET', `/api/universities/${universityId}`)
-        const repContact = repCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
-        check(
-          'UNIVERSITY_REP: контакты своего вуза видны как раньше',
-          repContact?.email === email && repContact.phone === phone && repContact.contactDetailsHidden === false,
-        )
-      }
-
-      // Выгрузка: почта контакта — только ADMIN и MANAGER, как и была (аудит S-17).
-      actAs(viewerId)
-      const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
-      check('VIEWER: в выгрузке вузов почты контакта нет', exported.status === 200 && !exported.raw.includes(email))
-    }
-    actAs(null)
+  type Contact = {
+    fullName: string
+    position: string | null
+    email: string | null
+    phone: string | null
+    contactDetailsHidden: boolean
   }
+  type Card = { id: string; contacts: Contact[] }
+  type SearchBody = { groups: Array<{ type: string; items: Array<{ id: string }> }> }
+  const firstId = async (role: string): Promise<string | null> =>
+    (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
 
-  // ── Управление пользователями и смена пароля ──────────────────────────────
+  actAs(adminId)
+  const analystId = await firstId('ANALYST')
+  const viewerId = await firstId('VIEWER')
+  // Вуз представителя: на нём заодно видно, что свой вуз представитель видит как раньше.
+  const universityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
+  const adminCard = universityId ? await call<Card>('GET', `/api/universities/${universityId}`) : null
+  const withDetails = adminCard?.body.data?.contacts.find((contact) => contact.email && contact.phone)
+  check('у вуза есть контакт с почтой и телефоном (демо-данные)', Boolean(withDetails))
+
+  if (universityId && withDetails?.email && withDetails.phone) {
+    const email = withDetails.email
+    const phone = withDetails.phone
+
+    for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId]] as const) {
+      actAs(id)
+      const card = await call<Card>('GET', `/api/universities/${universityId}`)
+      const contact = card.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+      check(
+        `${role}: карточка открывается, ФИО и должность на месте`,
+        card.status === 200 && contact?.position === withDetails.position,
+      )
+      check(
+        `${role}: почта и телефон — null, признак «скрыто»`,
+        contact?.email === null && contact.phone === null && contact.contactDetailsHidden === true,
+      )
+      check(`${role}: ни почты, ни телефона нигде в ответе`, !card.raw.includes(email) && !card.raw.includes(phone))
+
+      const found = await call<SearchBody>('GET', `/api/search?q=${encodeURIComponent(email)}`)
+      const hits = (found.body.data?.groups ?? []).reduce((sum, group) => sum + group.items.length, 0)
+      check(`${role}: поиск по почте контакта ничего не находит`, found.status === 200 && hits === 0, `находок ${hits}`)
+      const registry = await call<unknown[]>(
+        'GET',
+        `/api/universities?withRating=false&q=${encodeURIComponent(email)}`,
+      )
+      check(`${role}: реестр по почте контакта пуст`, registry.status === 200 && registry.body.meta?.total === 0)
+
+      const me = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+      check(`${role}: /api/me — canSeeContactDetails: false`, me.body.data?.permissions.canSeeContactDetails === false)
+    }
+
+    actAs(managerId)
+    const managerCard = await call<Card>('GET', `/api/universities/${universityId}`)
+    const managerContact = managerCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+    check(
+      'MANAGER: почта и телефон видны, признака нет',
+      managerContact?.email === email && managerContact.phone === phone && managerContact.contactDetailsHidden === false,
+    )
+    const managerMe = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+    check('MANAGER: /api/me — canSeeContactDetails: true', managerMe.body.data?.permissions.canSeeContactDetails === true)
+
+    if (rep?.universityId === universityId) {
+      actAs(rep.id)
+      const repCard = await call<Card>('GET', `/api/universities/${universityId}`)
+      const repContact = repCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+      check(
+        'UNIVERSITY_REP: контакты своего вуза видны как раньше',
+        repContact?.email === email && repContact.phone === phone && repContact.contactDetailsHidden === false,
+      )
+    }
+
+    // Выгрузка: почта контакта — только ADMIN и MANAGER, как и была (аудит S-17).
+    actAs(viewerId)
+    const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
+    check('VIEWER: в выгрузке вузов почты контакта нет', exported.status === 200 && !exported.raw.includes(email))
+  }
+  actAs(null)
+}
+
+async function checkUserManagement(ctx: ProbeContext): Promise<void> {
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
+  const { rep, adminId, managerId } = ctx
 
   if (!adminId || !managerId || !rep) {
     check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
@@ -3613,9 +3650,11 @@ async function main(): Promise<void> {
     )
     actAs(null)
   }
+}
 
-  // ── Уведомления в Telegram ─────────────────────────────────────────────────
+async function checkTelegram(ctx: ProbeContext): Promise<void> {
   step('Уведомления в Telegram: вебхук без секрета закрыт, кабинет честно говорит о настройке')
+  const { rep, managerId } = ctx
 
   {
     /*
@@ -3683,102 +3722,102 @@ async function main(): Promise<void> {
     }
     actAs(null)
   }
+}
 
-  // ── Устаревшая сессия не запирает вход ────────────────────────────────────
+async function checkStaleSession(): Promise<void> {
   step('Устаревшая сессия не запирает вход')
 
-  {
-    /*
-     * Cookie сессии остался, а пользователя за ним нет — так бывает после
-     * перезаливки демо-данных. Приложение получает 401 и ведёт на вход
-     * с `reauth=1`; middleware обязан эту страницу пропустить. Раньше вход
-     * возвращал на главную, главная — на вход, и экран оставался пустым.
-     */
-    const stale = { cookie: 'authjs.session-token=stale-session-from-yesterday' }
-    const withReauth = await fetch(`${BASE_URL}/login?${REAUTH_PARAM}=1`, { headers: stale, redirect: 'manual' })
-    check('со старым cookie вход с reauth открывается', withReauth.status === 200, `код ${withReauth.status}`)
+  /*
+   * Cookie сессии остался, а пользователя за ним нет — так бывает после
+   * перезаливки демо-данных. Приложение получает 401 и ведёт на вход
+   * с `reauth=1`; middleware обязан эту страницу пропустить, иначе вход
+   * и главная перенаправляют друг на друга, и экран остаётся пустым.
+   */
+  const stale = { cookie: 'authjs.session-token=stale-session-from-yesterday' }
+  const withReauth = await fetch(`${BASE_URL}/login?${REAUTH_PARAM}=1`, { headers: stale, redirect: 'manual' })
+  check('со старым cookie вход с reauth открывается', withReauth.status === 200, `код ${withReauth.status}`)
 
-    // Обычный заход на вход с живой сессией по-прежнему ведёт на главную.
-    const plain = await fetch(`${BASE_URL}/login`, { headers: stale, redirect: 'manual' })
-    check('без reauth вошедший уходит со входа на главную', plain.status === 307, `код ${plain.status}`)
-  }
+  // Обычный заход на вход с живой сессией по-прежнему ведёт на главную.
+  const plain = await fetch(`${BASE_URL}/login`, { headers: stale, redirect: 'manual' })
+  check('без reauth вошедший уходит со входа на главную', plain.status === 307, `код ${plain.status}`)
+}
 
-  // ── Блокировка входа называет себя, перед ней — проверка «не робот» ─────────
+async function checkLoginAttempts(): Promise<void> {
   step('Исчерпанные попытки входа отличимы от неверного пароля; перед блокировкой — «не робот»')
 
-  {
-    // Несуществующий адрес: так проверка не закрывает вход демо-учётной записи
-    // и заодно доказывает, что код не выдаёт существование адреса.
-    const email = `probe-${Date.now()}@example.invalid`
-    const attempt = async (captcha?: string): Promise<string | null> => {
-      // Своя пара запросов без общего состояния пробника: cookie csrf-токена
-      // нужна только этой попытке.
-      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
-      const cookie = (csrf.headers.getSetCookie?.() ?? [])
-        .map((line) => line.split(';')[0])
-        .join('; ')
-      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
-      const form = new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' })
-      if (captcha !== undefined) form.set('captcha', captcha)
-      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-        body: form.toString(),
-      })
-      const location = response.headers.get('location') ?? ''
-      return /[?&]code=([a-z_]+)/.exec(location)?.[1] ?? null
+  // Несуществующий адрес: так проверка не закрывает вход демо-учётной записи
+  // и заодно доказывает, что код не выдаёт существование адреса.
+  const email = `probe-${Date.now()}@example.invalid`
+  const attempt = async (captcha?: string): Promise<string | null> => {
+    // Своя пара запросов без общего состояния пробника: cookie csrf-токена
+    // нужна только этой попытке.
+    const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+    const cookie = (csrf.headers.getSetCookie?.() ?? [])
+      .map((line) => line.split(';')[0])
+      .join('; ')
+    const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+    const form = new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' })
+    if (captcha !== undefined) form.set('captcha', captcha)
+    const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
+      body: form.toString(),
+    })
+    const location = response.headers.get('location') ?? ''
+    return /[?&]code=([a-z_]+)/.exec(location)?.[1] ?? null
+  }
+  // Задача решается так же, как в браузере (captcha-search.ts), только здесь.
+  interface Challenge { algorithm: string; challenge: string; salt: string; maxNumber: number; signature: string }
+  const challengeResponse = async () => fetch(`${BASE_URL}/api/login-challenge`)
+  const solved = async (): Promise<string> => {
+    const { data } = (await (await challengeResponse()).json()) as { data: Challenge }
+    let number = 0
+    while (number <= data.maxNumber && createHash('sha256').update(data.salt + number).digest('hex') !== data.challenge) {
+      number += 1
     }
-    // Задача решается так же, как в браузере (captcha-search.ts), только здесь.
-    interface Challenge { algorithm: string; challenge: string; salt: string; maxNumber: number; signature: string }
-    const challengeResponse = async () => fetch(`${BASE_URL}/api/login-challenge`)
-    const solved = async (): Promise<string> => {
-      const { data } = (await (await challengeResponse()).json()) as { data: Challenge }
-      let number = 0
-      while (number <= data.maxNumber && createHash('sha256').update(data.salt + number).digest('hex') !== data.challenge) {
-        number += 1
-      }
-      const { algorithm, challenge, salt, signature } = data
-      return JSON.stringify({ algorithm, challenge, salt, number, signature })
-    }
-
-    const challenge = await challengeResponse()
-    check(
-      'задача «не робот» выдаётся без входа и не кэшируется',
-      challenge.status === 200 && (challenge.headers.get('cache-control') ?? '').includes('no-store'),
-      `статус ${challenge.status}, cache-control ${challenge.headers.get('cache-control')}`,
-    )
-
-    const codes: Array<string | null> = []
-    for (let index = 0; index < 3; index += 1) codes.push(await attempt())
-    const withoutCaptcha = await attempt()
-    const reused = await solved()
-    const firstSolved = await attempt(reused)
-    const replayed = await attempt(reused)
-    const forged = JSON.stringify({ ...JSON.parse(await solved()), number: -1 })
-    const forgedCode = await attempt(forged)
-    const secondSolved = await attempt(await solved())
-    const blocked = await attempt()
-
-    check(
-      'три неудачи — «неверные данные», дальше без решённой задачи — «нужна проверка»',
-      codes.every((code) => code === 'credentials') && withoutCaptcha === 'captcha_required',
-      [...codes, withoutCaptcha].join(', '),
-    )
-    check(
-      'с решённой задачей пароль проверяется; повтор того же решения и подделка — снова «нужна проверка»',
-      firstSolved === 'credentials' && replayed === 'captcha_required' && forgedCode === 'captcha_required',
-      [firstSolved, replayed, forgedCode].join(', '),
-    )
-    check(
-      'пятая неудача закрывает вход, дальше — «слишком много попыток» без всякой задачи',
-      secondSolved === 'credentials' && blocked === 'too_many_attempts',
-      [secondSolved, blocked].join(', '),
-    )
+    const { algorithm, challenge, salt, signature } = data
+    return JSON.stringify({ algorithm, challenge, salt, number, signature })
   }
 
-  // ── Календарь (.ics, решение 105) ─────────────────────────────────────────
+  const challenge = await challengeResponse()
+  check(
+    'задача «не робот» выдаётся без входа и не кэшируется',
+    challenge.status === 200 && (challenge.headers.get('cache-control') ?? '').includes('no-store'),
+    `статус ${challenge.status}, cache-control ${challenge.headers.get('cache-control')}`,
+  )
+
+  const codes: Array<string | null> = []
+  for (let index = 0; index < 3; index += 1) codes.push(await attempt())
+  const withoutCaptcha = await attempt()
+  const reused = await solved()
+  const firstSolved = await attempt(reused)
+  const replayed = await attempt(reused)
+  const forged = JSON.stringify({ ...JSON.parse(await solved()), number: -1 })
+  const forgedCode = await attempt(forged)
+  const secondSolved = await attempt(await solved())
+  const blocked = await attempt()
+
+  check(
+    'три неудачи — «неверные данные», дальше без решённой задачи — «нужна проверка»',
+    codes.every((code) => code === 'credentials') && withoutCaptcha === 'captcha_required',
+    [...codes, withoutCaptcha].join(', '),
+  )
+  check(
+    'с решённой задачей пароль проверяется; повтор того же решения и подделка — снова «нужна проверка»',
+    firstSolved === 'credentials' && replayed === 'captcha_required' && forgedCode === 'captcha_required',
+    [firstSolved, replayed, forgedCode].join(', '),
+  )
+  check(
+    'пятая неудача закрывает вход, дальше — «слишком много попыток» без всякой задачи',
+    secondSolved === 'credentials' && blocked === 'too_many_attempts',
+    [secondSolved, blocked].join(', '),
+  )
+}
+
+async function checkCalendarFeed(ctx: ProbeContext): Promise<void> {
   step('Календарь: ссылка — единственный доступ, отзыв закрывает её сразу')
+  const { rep, adminId, cooperations, managerId } = ctx
 
   if (!adminId || !managerId || !rep) {
     check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
@@ -3878,8 +3917,10 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ── Итог ───────────────────────────────────────────────────────────────────
+/** Итог прогона: число проверок и список провалившихся. */
+function printSummary(): void {
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
   if (failed > 0) {
@@ -3889,6 +3930,69 @@ async function main(): Promise<void> {
   } else {
     console.log(`  ${GREEN}Проблем не найдено.${RESET}`)
   }
+}
+
+async function main(): Promise<void> {
+  console.log(`${BOLD}Пробник SkillLink${RESET}`)
+  console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+
+  await warmUp()
+
+  const health = await call('GET', '/api/health')
+  if (health.status !== 200) {
+    console.log(`\n${RED}Сервер не отвечает. Запустите npm run dev.${RESET}`)
+    process.exitCode = 1
+    return
+  }
+
+  const ctx = await prepare()
+
+  await checkRepIsolation(ctx)
+  await checkNoContradictoryStates(ctx)
+  await checkClosedCooperationFrozen(ctx)
+  await checkPortalMaterialConfirmation(ctx)
+  await checkUniversityItemMarking(ctx)
+  await checkMalformedInput()
+  await checkDoubleClick(ctx)
+  await checkErrorContract()
+  await checkAuditAdminOnly(ctx)
+  await checkConcurrentStageChanges(ctx)
+  await checkStageKeepsResultAndReason(ctx)
+  await checkRecommendationReopens(ctx)
+  await checkOverdueRecommendationTransitions(ctx)
+  await checkCrossUniversityLinks(ctx)
+  await checkDocumentDoubleSubmit(ctx)
+  await checkArchivedUniversityNotRated()
+  await checkProductCrud(ctx)
+  await checkProgramImport()
+  await checkRepDocumentHistory(ctx)
+  await checkUniversityRatingPrivacy(ctx)
+  await checkControlPoints(ctx)
+  await checkCountersNotTruncated()
+  await checkUnknownRoute()
+  await checkSecurityHeaders()
+  await checkRatingMethodsAgree()
+  await checkNoContradictionsInDb()
+  await checkStageNotCountedTwice()
+  await checkHealth()
+  await checkClosedCooperationQuiet()
+  await checkRussianSorting(ctx)
+  await checkProgramCardMatchesAnalytics(ctx)
+  await checkSearchAndNotifications(ctx)
+  await checkCooperationSearch(ctx)
+  await checkProblemCounter(ctx)
+  await checkCooperationCount(ctx)
+  await checkRecommendationFeedOrder(ctx)
+  await checkCalculationParameters(ctx)
+  await checkSkillDirectory(ctx)
+  await checkContactPrivacy(ctx)
+  await checkUserManagement(ctx)
+  await checkTelegram(ctx)
+  await checkStaleSession()
+  await checkLoginAttempts()
+  await checkCalendarFeed(ctx)
+
+  printSummary()
 }
 
 main().catch((error) => {

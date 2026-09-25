@@ -23,6 +23,9 @@ export function assertNotArchived(archivedAt: Date | null): void {
   }
 }
 
+/** Имя, которое остаётся у обезличенного контакта вместо ФИО. */
+export const ANONYMIZED_CONTACT_NAME = 'Контакт удалён'
+
 /**
  * Обезличивание контактного лица вуза — исполнение права субъекта на удаление
  * персональных данных (ст. 14 и 21 152-ФЗ, docs/PRIVACY.md).
@@ -32,8 +35,6 @@ export function assertNotArchived(archivedAt: Date | null): void {
  * (вместе с вузом она указывает на человека), почта, телефон и заметки.
  * Признак основного снимается: «Контакт удалён» не может быть основным контактом вуза.
  */
-export const ANONYMIZED_CONTACT_NAME = 'Контакт удалён'
-
 export const ANONYMIZED_CONTACT_FIELDS = {
   fullName: ANONYMIZED_CONTACT_NAME,
   position: null,

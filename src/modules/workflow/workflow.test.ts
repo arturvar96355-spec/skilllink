@@ -1,6 +1,7 @@
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
+import { catchError, expectCode } from '@/shared/testing/expect-code'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { updateTaskSchema } from './workflow.schema'
@@ -40,18 +41,6 @@ const stage = (overrides: Partial<StageState> = {}): StageState => ({
   ...overrides,
 })
 
-/** Проверяет, что вызов бросил AppError с ожидаемым кодом. */
-function expectError(fn: () => void, code: string): void {
-  try {
-    fn()
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
-
 describe('таблица переходов', () => {
   it('разрешает переходы из решения 3', () => {
     expect(ALLOWED_TRANSITIONS.NOT_STARTED).toEqual(['IN_PROGRESS', 'CANCELLED'])
@@ -68,7 +57,7 @@ describe('таблица переходов', () => {
   })
 
   it('запрещает переход из NOT_STARTED сразу в COMPLETED', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ status: 'NOT_STARTED' }),
@@ -80,7 +69,7 @@ describe('таблица переходов', () => {
   })
 
   it('запрещает переход из BLOCKED сразу в COMPLETED', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ status: 'BLOCKED' }),
@@ -92,7 +81,7 @@ describe('таблица переходов', () => {
   })
 
   it('запрещает переход в тот же статус', () => {
-    expectError(
+    expectCode(
       () => assertTransition(stage({ status: 'IN_PROGRESS' }), { toStatus: 'IN_PROGRESS' }, 'ADMIN'),
       'INVALID_TRANSITION',
     )
@@ -101,7 +90,7 @@ describe('таблица переходов', () => {
 
 describe('условия завершения этапа', () => {
   it('не завершает этап без результата', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ status: 'IN_PROGRESS', result: null }),
@@ -123,7 +112,7 @@ describe('условия завершения этапа', () => {
   })
 
   it('не завершает этап с незакрытыми обязательными пунктами', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ status: 'IN_PROGRESS', requiredTasksTotal: 3, requiredTasksDone: 1 }),
@@ -147,7 +136,7 @@ describe('условия завершения этапа', () => {
 
 describe('блокировка и отмена', () => {
   it('требует причину блокировки', () => {
-    expectError(
+    expectCode(
       () => assertTransition(stage({ status: 'IN_PROGRESS' }), { toStatus: 'BLOCKED' }, 'MANAGER'),
       'VALIDATION_ERROR',
     )
@@ -164,7 +153,7 @@ describe('блокировка и отмена', () => {
   })
 
   it('требует основание при отмене', () => {
-    expectError(
+    expectCode(
       () => assertTransition(stage({ status: 'NOT_STARTED' }), { toStatus: 'CANCELLED' }, 'MANAGER'),
       'VALIDATION_ERROR',
     )
@@ -183,7 +172,7 @@ describe('блокировка и отмена', () => {
 
 describe('переоткрытие', () => {
   it('переоткрывает завершённый этап только с комментарием', () => {
-    expectError(
+    expectCode(
       () => assertTransition(stage({ status: 'COMPLETED' }), { toStatus: 'IN_PROGRESS' }, 'MANAGER'),
       'VALIDATION_ERROR',
     )
@@ -197,7 +186,7 @@ describe('переоткрытие', () => {
   })
 
   it('не даёт менеджеру переоткрыть отменённый этап', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ status: 'CANCELLED' }),
@@ -226,7 +215,7 @@ describe('контрольный этап 14', () => {
   })
 
   it('не изменяется вручную даже администратором', () => {
-    expectError(
+    expectCode(
       () =>
         assertTransition(
           stage({ stageNumber: 14, status: 'IN_PROGRESS' }),
@@ -294,15 +283,15 @@ describe('чек-лист закрытого этапа', () => {
 
   it('пункты завершённого этапа не меняются', () => {
     // Иначе завершённый этап останется завершённым с незакрытым обязательным пунктом.
-    expectError(() => assertTasksEditable('COMPLETED', 3), 'CONFLICT')
+    expectCode(() => assertTasksEditable('COMPLETED', 3), 'CONFLICT')
   })
 
   it('пункты отменённого этапа не меняются', () => {
-    expectError(() => assertTasksEditable('CANCELLED', 3), 'CONFLICT')
+    expectCode(() => assertTasksEditable('CANCELLED', 3), 'CONFLICT')
   })
 
   it('у контрольного этапа своего чек-листа нет', () => {
-    expectError(() => assertTasksEditable('IN_PROGRESS', 14), 'CONFLICT')
+    expectCode(() => assertTasksEditable('IN_PROGRESS', 14), 'CONFLICT')
   })
 })
 
@@ -362,26 +351,29 @@ describe('контрольные точки (гибридный порядок �
   })
 
   it('нельзя начать, пока предыдущий этап не закрыт', () => {
-    expect(() =>
-      assertControlPointReady(
-        6,
-        'IN_PROGRESS',
-        prior([
-          [1, 'COMPLETED'],
-          [2, 'COMPLETED'],
-          [3, 'COMPLETED'],
-          [4, 'IN_PROGRESS'],
-          [5, 'NOT_STARTED'],
-        ]),
-      ),
-    ).toThrow(AppError)
+    expectCode(
+      () =>
+        assertControlPointReady(
+          6,
+          'IN_PROGRESS',
+          prior([
+            [1, 'COMPLETED'],
+            [2, 'COMPLETED'],
+            [3, 'COMPLETED'],
+            [4, 'IN_PROGRESS'],
+            [5, 'NOT_STARTED'],
+          ]),
+        ),
+      'INVALID_TRANSITION',
+    )
   })
 
   it('нельзя и завершить: это утверждение о процессе не слабее начала', () => {
     // Этап уже шёл, а предыдущий переоткрыли — завершать контрольную точку нельзя.
-    expect(() =>
-      assertControlPointReady(7, 'COMPLETED', prior([[6, 'IN_PROGRESS']])),
-    ).toThrow(AppError)
+    expectCode(
+      () => assertControlPointReady(7, 'COMPLETED', prior([[6, 'IN_PROGRESS']])),
+      'INVALID_TRANSITION',
+    )
   })
 
   it('отменённый предыдущий этап считается закрытым', () => {
@@ -416,7 +408,7 @@ describe('контрольные точки (гибридный порядок �
   })
 
   it('в ошибке перечислены конкретные мешающие этапы', () => {
-    try {
+    const error = catchError(() =>
       assertControlPointReady(
         11,
         'IN_PROGRESS',
@@ -426,16 +418,14 @@ describe('контрольные точки (гибридный порядок �
           [9, 'NOT_STARTED'],
           [10, 'COMPLETED'],
         ]),
-      )
-      throw new Error('ожидалась ошибка')
-    } catch (error) {
-      expect(error).toBeInstanceOf(AppError)
-      const details = (error as AppError).details as {
-        blockingStages: Array<{ stageNumber: number }>
-      }
-      // Фронт должен показать, что именно закрыть, а не «переход недопустим».
-      expect(details.blockingStages.map((stage) => stage.stageNumber)).toEqual([8, 9])
+      ),
+    )
+    expect(error).toBeInstanceOf(AppError)
+    const details = (error as AppError).details as {
+      blockingStages: Array<{ stageNumber: number }>
     }
+    // Фронт должен показать, что именно закрыть, а не «переход недопустим».
+    expect(details.blockingStages.map((stage) => stage.stageNumber)).toEqual([8, 9])
   })
 
   it('мешающие этапы перечислены по возрастанию номера', () => {
@@ -508,7 +498,7 @@ describe('контрольная точка — шлагбаум для всех
     expect(() => assertControlPointReady(8, 'IN_PROGRESS', before)).toThrow(
       /Этап 8 идёт после контрольной точки: его нельзя начать.*6 «Этап 6», 7 «Этап 7»/,
     )
-    expect(() => assertControlPointReady(8, 'COMPLETED', before)).toThrow(AppError)
+    expectCode(() => assertControlPointReady(8, 'COMPLETED', before), 'INVALID_TRANSITION')
   })
 
   it('отменённая контрольная точка дальше не пускает', () => {
@@ -674,8 +664,8 @@ describe('этап после записи удовлетворяет прави
 
   it('результат завершённого этапа не стирается правкой полей', () => {
     // Раньше правка без смены статуса правил не касалась, и {"result": null} проходило.
-    expectError(afterWrite(completed, { result: null }), 'VALIDATION_ERROR')
-    expectError(afterWrite(completed, { result: '' }), 'VALIDATION_ERROR')
+    expectCode(afterWrite(completed, { result: null }), 'VALIDATION_ERROR')
+    expectCode(afterWrite(completed, { result: '' }), 'VALIDATION_ERROR')
   })
 
   it('завершение с пустым результатом в теле берёт сохранённый, а не пишет пустой', () => {
@@ -688,8 +678,8 @@ describe('этап после записи удовлетворяет прави
   })
 
   it('причину у заблокированного этапа не стереть', () => {
-    expectError(afterWrite(blocked, { blockingReason: '' }), 'VALIDATION_ERROR')
-    expectError(afterWrite(blocked, { blockingReason: null }), 'VALIDATION_ERROR')
+    expectCode(afterWrite(blocked, { blockingReason: '' }), 'VALIDATION_ERROR')
+    expectCode(afterWrite(blocked, { blockingReason: null }), 'VALIDATION_ERROR')
   })
 
   it('правка результата на другой непустой — можно', () => {
@@ -821,37 +811,33 @@ describe('пункт вуза в чек-листе (решение 103)', () => 
   it('при представителе сотрудник не отмечает и не снимает — 403 с понятным текстом', () => {
     for (const role of ['ADMIN', 'MANAGER'] as const) {
       for (const isDone of [true, false]) {
-        expectError(
+        expectCode(
           () => assertStaffTaskMark('UNIVERSITY_ONLY', { isDone, confirmationNote: 'письмо от 12.09' }, role),
           'FORBIDDEN',
         )
       }
     }
-    try {
-      assertStaffTaskMark('UNIVERSITY_ONLY', { isDone: true }, 'MANAGER')
-    } catch (error) {
-      expect((error as AppError).message).toBe(UNIVERSITY_ITEM_FORBIDDEN_MESSAGE)
-    }
+    // Без catchError проверка текста молча проходила, если ошибки не было вовсе.
+    const error = catchError(() => assertStaffTaskMark('UNIVERSITY_ONLY', { isDone: true }, 'MANAGER'))
+    expect((error as AppError).message).toBe(UNIVERSITY_ITEM_FORBIDDEN_MESSAGE)
   })
 
   it('без представителя отметка без пометки — 422 по полю confirmationNote', () => {
     for (const note of [undefined, null, '', '   ']) {
-      try {
-        assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: note }, 'MANAGER')
-        throw new Error('ожидалась ошибка')
-      } catch (error) {
-        expect(error).toBeInstanceOf(AppError)
-        expect((error as AppError).code).toBe('VALIDATION_ERROR')
-        expect((error as AppError).details).toEqual([
-          expect.objectContaining({ field: 'confirmationNote' }),
-        ])
-      }
+      const error = catchError(() =>
+        assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: note }, 'MANAGER'),
+      )
+      expect(error).toBeInstanceOf(AppError)
+      expect((error as AppError).code).toBe('VALIDATION_ERROR')
+      expect((error as AppError).details).toEqual([
+        expect.objectContaining({ field: 'confirmationNote' }),
+      ])
     }
-    expectError(
+    expectCode(
       () => assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: 'ок' }, 'MANAGER'),
       'VALIDATION_ERROR',
     )
-    expectError(
+    expectCode(
       () =>
         assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: 'я'.repeat(501) }, 'MANAGER'),
       'VALIDATION_ERROR',
