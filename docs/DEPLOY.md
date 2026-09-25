@@ -248,6 +248,35 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 назад, и журнал завершённой связки уйдёт — изменится «Операций на связку».
 Расписание (cron владельца сервера) пока не включено.
 
+### Сводка в Telegram по расписанию (решение 102)
+
+Бот личных уведомлений подключается по docs/SETUP.md, «Бот уведомлений в Telegram»
+(токен, `setWebhook`, `TELEGRAM_API_IP=149.154.167.220` — из Yandex Cloud
+`api.telegram.org` по имени не отвечает). Сводку «что горит у меня» по расписанию шлёт
+скрипт — через тот же сервис `migrate`, что и перезаливка: в рабочем образе `scripts/`
+и `tsx` нет.
+
+Проверить, что уйдёт, ничего не отправляя:
+
+```bash
+ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud \
+  --profile migrate run --rm migrate npm run telegram:digest -- --dry-run'
+```
+
+Строка для cron владельца сервера (`crontab -e` под `skilllink`) — по будням в 09:00 МСК
+(на машине UTC, поэтому 6:00); `flock` не даёт двум запускам наложиться, в журнал
+пишется только итог, без текста сводок:
+
+```cron
+0 6 * * 1-5 cd ~/skilllink/app && flock -n /tmp/skilllink-digest.lock docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud --profile migrate run --rm -T migrate npm run telegram:digest >> ~/skilllink/telegram-digest.log 2>&1
+```
+
+**Сам cron пока не поставлен** — решение владельца сервера. Без токена бота скрипт
+пишет «Бот не настроен — рассылки нет» и выходит с кодом 0, так что строка безвредна
+и до подключения. Код 1 — ни одно сообщение не ушло (Telegram недоступен): смотреть
+`telegram-digest.log` и `TELEGRAM_API_IP`. Пустые сводки («ничего не горит») не шлются.
+
 ## 6. Чего в этом развёртывании нет
 
 Сказано честно, чтобы не выглядело промышленным контуром:
