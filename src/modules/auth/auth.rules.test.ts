@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { PASSWORD_POLICY } from '@/shared/config/auth.config'
 import type { UserRole } from '@/shared/contracts/enums'
 import {
@@ -290,5 +291,19 @@ describe('подписи и журнал', () => {
 
   it('без изменений — без записей', () => {
     expect(userChangeAuditActions(base, { ...base })).toEqual([])
+  })
+})
+
+describe('общие демо-учётные записи стенда (решение 99)', () => {
+  it('засеянные демо-учётки — общие, проверка без учёта регистра и пробелов', () => {
+    expect(isSharedDemoAccount('manager@skilllink.demo')).toBe(true)
+    expect(isSharedDemoAccount(' Admin@SkillLink.demo ')).toBe(true)
+    expect(isSharedDemoAccount('rep@spbgu.example.invalid')).toBe(true)
+  })
+
+  it('заведённые пользователи — не общие, даже на тех же доменах', () => {
+    expect(isSharedDemoAccount('probe-user-1@example.invalid')).toBe(false)
+    expect(isSharedDemoAccount('ivanova@skilllink.demo.ru')).toBe(false)
+    expect(isSharedDemoAccount('new@skilllink.demo')).toBe(false)
   })
 })

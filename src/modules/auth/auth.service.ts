@@ -4,7 +4,11 @@ import { conflict, forbidden, notFound, validationError } from '@/shared/http/er
 import { can, assertCan } from '@/shared/auth/permissions'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
-import { PASSWORD_POLICY } from '@/shared/config/auth.config'
+import {
+  PASSWORD_POLICY,
+  SHARED_DEMO_ACCOUNT_REFUSAL,
+  isSharedDemoAccount,
+} from '@/shared/config/auth.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -223,6 +227,7 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
   if (input.universityId) await assertUniversityForRep(input.universityId)
 
   const result = await repo.updateWithGuard(id, ({ target, otherActiveAdmins, openWork }) => {
+    if (isSharedDemoAccount(target.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
     const assignment = resolveRoleAssignment(target, input)
     const nextIsActive = input.isActive ?? target.isActive
     assertUserChangeAllowed({
@@ -269,6 +274,8 @@ export async function resetPassword(user: CurrentUser, id: string): Promise<Issu
   if (id === user.id) {
     throw conflict('Свой пароль меняйте в личном кабинете: там нужен текущий пароль')
   }
+  const target = await repo.findById(id)
+  if (target?.email && isSharedDemoAccount(target.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
 
   const temporaryPassword = generateTemporaryPassword()
   const row = await repo.setPasswordHash(id, await hashPassword(temporaryPassword))
@@ -303,6 +310,7 @@ export async function changeOwnPassword(
   input: ChangePasswordInput,
   address: string,
 ): Promise<PasswordChangedDto> {
+  if (isSharedDemoAccount(user.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
   const problem = newPasswordProblem(input.newPassword, {
     currentPassword: input.currentPassword,
     email: user.email,

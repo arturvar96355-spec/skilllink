@@ -2923,13 +2923,33 @@ async function main(): Promise<void> {
       }
     }
 
-    // Представитель вуза меняет свой пароль сам — маршрут ему открыт (неверный текущий — 422, не 403).
+    // Маршрут смены пароля представителю открыт (не 403), но демо-представитель — общая
+    // учётка стенда: её пароль не меняется (409), чтобы один проверяющий не закрыл вход другим.
     actAs(rep.id)
-    const repChange = await call('POST', '/api/me/password', {
+    const repChange = await call<unknown>('POST', '/api/me/password', {
       currentPassword: 'заведомо-неверный-текущий',
       newPassword: 'новый-пароль-представителя',
     })
-    check('представителю вуза смена своего пароля доступна (422 на неверный текущий)', repChange.status === 422, `статус ${repChange.status}`)
+    check(
+      'демо-представитель: пароль общей учётки не меняется — 409, а не 403',
+      repChange.status === 409 && repChange.raw.includes('общая демо-учётная запись'),
+      `статус ${repChange.status}`,
+    )
+
+    // Общие демо-учётки не меняет и администратор: ни пароль, ни доступ, ни данные.
+    actAs(adminId)
+    for (const [method, path, body] of [
+      ['POST', `/api/users/${managerId}/password-reset`, undefined],
+      ['PATCH', `/api/users/${managerId}`, { isActive: false }],
+      ['PATCH', `/api/users/${managerId}`, { position: 'Проба' }],
+    ] as Array<[string, string, unknown]>) {
+      const result = await call(method, path, body)
+      check(
+        `администратор: ${method} общей демо-учётки менеджера — 409`,
+        result.status === 409,
+        `статус ${result.status}`,
+      )
+    }
 
     // Администратор заводит пользователя: пароль в ответе один раз, кэш запрещён.
     actAs(adminId)
@@ -3046,17 +3066,33 @@ async function main(): Promise<void> {
     check('администратор не блокирует себя — 409', selfBlock.status === 409, `статус ${selfBlock.status}`)
     const selfDemote = await call('PATCH', `/api/users/${adminId}`, { role: 'MANAGER' })
     check('администратор не снимает с себя роль — 409', selfDemote.status === 409, `статус ${selfDemote.status}`)
-    const managerCard = await call<{ openCooperations: number; openStages: number }>('GET', `/api/users/${managerId}`)
-    if ((managerCard.body.data?.openCooperations ?? 0) + (managerCard.body.data?.openStages ?? 0) > 0) {
-      const demote = await call<unknown>('PATCH', `/api/users/${managerId}`, { role: 'ANALYST' })
+    // Правила смены роли — на заведённом менеджере: общие демо-учётки не меняются (409).
+    const handover = await call<{ user: { id: string } }>('POST', '/api/users', {
+      email: `probe-manager-${Date.now()}@example.invalid`,
+      fullName: 'Пробный Менеджер Передачи',
+      role: 'MANAGER',
+    })
+    const handoverId = handover.body.data?.user.id
+    const openCooperation = (
+      await call<Array<{ id: string }>>('GET', '/api/cooperations?status=ACTIVE&pageSize=1')
+    ).body.data?.[0]?.id
+    if (handoverId && openCooperation) {
+      const before = (
+        await call<{ responsible?: { id: string } | null }>('GET', `/api/cooperations/${openCooperation}`)
+      ).body.data?.responsible?.id
+      await call('PATCH', `/api/cooperations/${openCooperation}`, { responsibleId: handoverId })
+      const demote = await call<unknown>('PATCH', `/api/users/${handoverId}`, { role: 'ANALYST' })
       check(
         'менеджера с открытыми связками не перевести в аналитика — 409 «сначала передайте связки»',
         demote.status === 409 && demote.raw.includes('Сначала передайте связки'),
         `статус ${demote.status}`,
       )
+      if (before) await call('PATCH', `/api/cooperations/${openCooperation}`, { responsibleId: before })
+      const repWithoutUniversity = await call('PATCH', `/api/users/${handoverId}`, { role: 'UNIVERSITY_REP' })
+      check('представитель без вуза — 422', repWithoutUniversity.status === 422, `статус ${repWithoutUniversity.status}`)
+    } else {
+      check('для проверки передачи связок есть менеджер и открытая связка', false, 'нужен npm run db:seed')
     }
-    const repWithoutUniversity = await call('PATCH', `/api/users/${managerId}`, { role: 'UNIVERSITY_REP' })
-    check('представитель без вуза — 422', repWithoutUniversity.status === 422, `статус ${repWithoutUniversity.status}`)
 
     // Журнал: этап ведёт на свою связку; статус ИИ — без ключей.
     const stageAudit = await call<Array<{ cooperationId: string | null }>>(

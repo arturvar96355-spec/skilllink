@@ -36,6 +36,7 @@ import {
   type IconName,
 } from '@/ui'
 import { ChangePasswordModal } from './ChangePasswordModal'
+import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { Orb } from './Orb'
 import styles from './profile.module.css'
 
@@ -383,11 +384,20 @@ export default function ProfilePage() {
           <Row title="Режим интерфейса" caption="Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.">
             <UiModeSwitch />
           </Row>
-          <Row title="Пароль" caption="Не короче 10 символов, не совпадает с текущим и с адресом почты.">
-            <Button variant="secondary" icon="lock" onClick={() => setIsChangingPassword(true)}>
-              Сменить пароль
-            </Button>
-          </Row>
+          {isSharedDemoAccount(user.email) ? (
+            <Row
+              title="Пароль"
+              caption="Общая демо-учётная запись: под ней входят все проверяющие, поэтому пароль не меняется. Смену пароля можно проверить на своей учётной записи — её заводит администратор."
+            >
+              {null}
+            </Row>
+          ) : (
+            <Row title="Пароль" caption="Не короче 10 символов, не совпадает с текущим и с адресом почты.">
+              <Button variant="secondary" icon="lock" onClick={() => setIsChangingPassword(true)}>
+                Сменить пароль
+              </Button>
+            </Row>
+          )}
           <Row title="Выход из системы" caption="Сессия закроется на этом устройстве, вход понадобится заново.">
             <Button variant="danger" icon="logout" onClick={onSignOut} isLoading={isLeaving} disabled={isLeaving}>
               Выйти

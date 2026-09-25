@@ -55,3 +55,27 @@ export const PASSWORD_POLICY = {
   /** Раунды bcrypt — как у демо-пользователей в prisma/seed.ts. */
   hashRounds: 10,
 } as const
+
+/**
+ * Общие демо-учётные записи стенда: под ними входят все проверяющие — с 30.09 по 14.10
+ * эксперты смотрят стенд сами и одновременно. Их нельзя заблокировать, сменить им роль,
+ * данные или пароль: один проверяющий закрыл бы вход остальным. Управление
+ * пользователями и смена пароля проверяются на своей учётной записи — её заводит
+ * администратор во вкладке «Пользователи». Список — ровно демо-набор (prisma/seed.ts).
+ */
+export const SHARED_DEMO_ACCOUNTS: readonly string[] = [
+  'admin@skilllink.demo',
+  'manager@skilllink.demo',
+  'manager2@skilllink.demo',
+  'analyst@skilllink.demo',
+  'viewer@skilllink.demo',
+  'rep@spbgu.example.invalid',
+]
+
+export function isSharedDemoAccount(email: string): boolean {
+  return SHARED_DEMO_ACCOUNTS.includes(email.trim().toLowerCase())
+}
+
+export const SHARED_DEMO_ACCOUNT_REFUSAL =
+  'Это общая демо-учётная запись: под ней входят все проверяющие, поэтому её пароль, роль ' +
+  'и доступ не меняются. Заведите своего пользователя во вкладке «Пользователи» и проверьте на нём.'

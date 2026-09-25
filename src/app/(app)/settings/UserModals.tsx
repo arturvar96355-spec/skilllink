@@ -29,6 +29,7 @@ import {
   universityFullOption,
 } from '@/ui'
 import styles from './admin.module.css'
+import { SHARED_DEMO_ACCOUNT_REFUSAL, isSharedDemoAccount } from '@/shared/config/auth.config'
 
 /**
  * Окна вкладки «Пользователи»: заведение, изменение с блокировкой и выдачей
@@ -275,6 +276,8 @@ export function UserModal({
   const me = useCurrentUser()
   const toast = useToast()
   const isSelf = me.id === user.id
+  // Общая демо-учётка: под ней входят все проверяющие — её не меняют (auth.config).
+  const isSharedDemo = user.email ? isSharedDemoAccount(user.email) : false
 
   const details = useResource<ManagedUserDto>(`/api/users/${user.id}`)
   const [fullName, setFullName] = useState(user.fullName)
@@ -356,22 +359,30 @@ export function UserModal({
             variant="primary"
             onClick={submit}
             isLoading={save.isPending && confirm === null}
-            disabled={!hasChanges || handOverFirst}
+            disabled={!hasChanges || handOverFirst || isSharedDemo}
           >
             Сохранить
           </Button>
         </>
       }
     >
+      {isSharedDemo && (
+        <div className={styles.warning}>
+          <Icon name="info" size={16} />
+          <p>{SHARED_DEMO_ACCOUNT_REFUSAL}</p>
+        </div>
+      )}
       <Input
         label="ФИО"
         required
+        disabled={isSharedDemo}
         value={fullName}
         onChange={(event) => setFullName(event.target.value)}
         error={detailFor(error, 'fullName')}
       />
       <Input
         label="Должность"
+        disabled={isSharedDemo}
         value={position}
         onChange={(event) => setPosition(event.target.value)}
         error={detailFor(error, 'position')}
@@ -382,7 +393,7 @@ export function UserModal({
         value={role}
         onValueChange={(value) => setRole(value as UserRole)}
         options={ROLE_OPTIONS}
-        disabled={isSelf}
+        disabled={isSelf || isSharedDemo}
         hint={isSelf ? 'Свою роль меняет другой администратор' : undefined}
         error={detailFor(error, 'role')}
       />
@@ -429,7 +440,7 @@ export function UserModal({
             variant="secondary"
             icon="refresh"
             size="sm"
-            disabled={isSelf || confirm !== null}
+            disabled={isSelf || isSharedDemo || confirm !== null}
             onClick={() => setConfirm('reset')}
           >
             Выдать новый
@@ -468,7 +479,7 @@ export function UserModal({
               variant="danger"
               icon="block"
               size="sm"
-              disabled={isSelf || confirm !== null}
+              disabled={isSelf || isSharedDemo || confirm !== null}
               onClick={() => setConfirm('block')}
             >
               Заблокировать

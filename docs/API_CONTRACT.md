@@ -1840,6 +1840,11 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 ### POST /api/me/password
 
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
+
 Авторизация: любая роль, включая `UNIVERSITY_REP`. **Только свой пароль**: пользователь
 берётся из сессии, идентификатора в запросе нет. С 25.09.2026, решение 99.
 
@@ -2063,6 +2068,11 @@ curl -X POST http://localhost:3000/api/users -H 'content-type: application/json'
 
 #### PATCH /api/users/:id
 
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
+
 Любое подмножество полей: `fullName`, `position`, `role`, `universityId`, `isActive`.
 Почта не меняется (это логин), пароль — отдельным маршрутом. Пустое тело — 422. Ответ — `UserDto`.
 
@@ -2094,6 +2104,11 @@ curl -X PATCH http://localhost:3000/api/users/<id> -H 'content-type: application
 с `{ fields: [...] }` — только имена полей (ФИО, должность, вуз), без значений.
 
 #### POST /api/users/:id/password-reset
+
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
 
 Новый временный пароль. Тела нет. Ответ `200` — как у `POST /api/users`:
 `{ "data": { "user": { … }, "temporaryPassword": "…" } }`. Старый пароль перестаёт подходить
