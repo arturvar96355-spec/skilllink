@@ -24,7 +24,7 @@ import type {
   UniversityStatus,
   UserRole,
 } from './enums'
-import type { AuditActionCode, AuditObjectType } from './audit'
+import type { AuditActionCode, AuditChainBreakCode, AuditObjectType } from './audit'
 
 /**
  * Русские подписи к значениям перечислений.
@@ -324,6 +324,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'skill.delete': 'Удалён навык',
   'export.download': 'Выгрузка в CSV',
   'audit.retention': 'Очистка журнала по сроку хранения',
+  'audit.verify': 'Проверка целостности журнала',
   'import.apply': 'Загрузка реестра из CSV',
 }
 
@@ -346,4 +347,19 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+}
+
+/**
+ * Нарушение цепочки журнала — коротко, для значка рядом с кнопкой проверки
+ * (решение 115). Подробность с номерами строк — в `reason` ответа.
+ */
+export const AUDIT_CHAIN_BREAK_LABELS: Record<AuditChainBreakCode, string> = {
+  rows_missing: 'Удалены записи',
+  row_before_cut: 'Запись из вычищенной части',
+  link_broken: 'Разрыв цепочки',
+  row_modified: 'Запись изменена',
+  row_unnumbered: 'Запись в обход цепочки',
+  tail_removed: 'Удалены последние записи',
+  history_rewritten: 'История переписана',
+  engines_disagree: 'Проверки разошлись',
 }

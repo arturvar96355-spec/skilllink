@@ -36,6 +36,7 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['ConsentForm', enums.CONSENT_FORMS, labels.CONSENT_FORM_LABELS],
   ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
   ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
+  ['AuditChainBreakCode', audit.AUDIT_CHAIN_BREAK_CODES, labels.AUDIT_CHAIN_BREAK_LABELS],
 ]
 
 describe('подписи к перечислениям', () => {

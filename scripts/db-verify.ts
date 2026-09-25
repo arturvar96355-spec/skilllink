@@ -5,6 +5,7 @@
  * выражается только через несколько строк или таблиц: у связки 14 этапов,
  * у завершённого этапа закрыты обязательные пункты, документ связки относится
  * к её вузу. Каждое правило — запрос, который ищет нарушения; норма — ноль строк.
+ * Последним — цепочка хешей журнала действий (решение 115).
  *
  * Только чтение: всё идёт в одной транзакции READ ONLY.
  *
@@ -26,6 +27,7 @@ import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
 import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
+import { verifyChain } from '@/modules/audit/chain.service'
 
 /**
  * Пункты вуза из конфига (решение 103): пары «номер этапа — заголовок пункта».
@@ -297,6 +299,16 @@ async function main(): Promise<void> {
         report('Ключ названия навыка в базе совпадает с кодом (skillNameKey)', await skillKeyMismatches(tx), failures)
       },
       { timeout: 120_000 },
+    )
+
+    // Решение 115: цепочка хешей журнала действий — двумя независимыми проверками
+    // (функция в базе и код приложения) в своей транзакции REPEATABLE READ READ ONLY.
+    total += 1
+    const chain = await verifyChain(prisma)
+    report(
+      `Цепочка журнала действий цела (строк ${chain.checked}, печатей ${chain.sealsChecked})`,
+      chain.ok ? [] : [`${chain.code} на № ${chain.brokenSeq ?? '—'}: ${chain.reason}`],
+      failures,
     )
   } finally {
     await prisma.$disconnect()

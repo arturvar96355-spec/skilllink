@@ -129,6 +129,8 @@ async function warmUp(): Promise<void> {
     '/api/workflow/overdue',
     '/api/workflow/blocked',
     '/api/audit?pageSize=1',
+    '/api/audit/verify',
+    '/api/audit/seals?pageSize=1',
     '/api/me/password',
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
@@ -990,6 +992,56 @@ async function checkAuditAdminOnly(ctx: ProbeContext): Promise<void> {
     check('администратору журнал открыт', auditAsAdmin.status === 200)
     actAs(null)
   }
+}
+
+/**
+ * Журнал с защитой от подмены (решение 115): проверка цепочки и печати — только
+ * администратору; сама проверка пишется в журнал и продлевает цепочку.
+ * Подмену строк, удаление и гонку вставок проверяет chain.db.test.ts на временной схеме:
+ * пробник ходит только через API и настоящий журнал не портит.
+ */
+async function checkAuditChain(ctx: ProbeContext): Promise<void> {
+  step('5а. Журнал действий: цепочка хешей и печати')
+  const { adminId } = ctx
+
+  const verifyAsManager = await call('GET', '/api/audit/verify')
+  const sealsAsManager = await call('GET', '/api/audit/seals')
+  check(
+    'менеджеру проверка журнала и печати закрыты',
+    verifyAsManager.status === 403 && sealsAsManager.status === 403,
+    `статусы ${verifyAsManager.status}, ${sealsAsManager.status}`,
+  )
+  if (!adminId) return
+
+  type Verify = { ok: boolean; checked: number; headSeq: number; headHash: string | null; reason: string | null }
+  actAs(adminId)
+  const logged = async () =>
+    Number((await call<unknown[]>('GET', '/api/audit?action=audit.verify&pageSize=1')).body.meta?.total ?? -1)
+  const before = await logged()
+  const first = await call<Verify>('GET', '/api/audit/verify')
+  const data = first.body.data
+  check(
+    'администратору: цепочка журнала цела',
+    first.status === 200 && data?.ok === true && (data?.checked ?? 0) > 0,
+    `статус ${first.status}, ${data?.reason ?? `строк ${data?.checked}`}`,
+  )
+  check(
+    'голова цепочки — номер и SHA-256',
+    (data?.headSeq ?? 0) > 0 && /^[0-9a-f]{64}$/.test(data?.headHash ?? ''),
+    `№ ${data?.headSeq}`,
+  )
+  check('проверка записана в журнал', (await logged()) === before + 1)
+
+  const second = await call<Verify>('GET', '/api/audit/verify')
+  check(
+    'запись о проверке продлила цепочку, и она снова цела',
+    second.body.data?.ok === true && (second.body.data?.headSeq ?? 0) > (data?.headSeq ?? 0),
+    `№ ${data?.headSeq} → № ${second.body.data?.headSeq}`,
+  )
+
+  const seals = await call<unknown[]>('GET', '/api/audit/seals?pageSize=5')
+  check('печати открываются списком', seals.status === 200 && Array.isArray(seals.body.data), `статус ${seals.status}`)
+  actAs(null)
 }
 
 async function checkConcurrentStageChanges(ctx: ProbeContext): Promise<void> {
@@ -4489,6 +4541,7 @@ async function main(): Promise<void> {
   await checkDoubleClick(ctx)
   await checkErrorContract()
   await checkAuditAdminOnly(ctx)
+  await checkAuditChain(ctx)
   await checkConcurrentStageChanges(ctx)
   await checkStageKeepsResultAndReason(ctx)
   await checkRecommendationReopens(ctx)
