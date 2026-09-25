@@ -22,6 +22,8 @@ export const ROUTES = {
   profile: '/profile',
   portal: '/portal',
   login: '/login',
+  /** Политика обработки персональных данных — открыта без входа. */
+  privacy: '/privacy',
 } as const
 
 export function universityHref(id: string): string {

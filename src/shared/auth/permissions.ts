@@ -38,6 +38,16 @@ export function assertCan(user: CurrentUser, permission: Permission): void {
 }
 
 /**
+ * Почта и телефон контактных лиц вузов в выгрузках — только тем, кто ведёт с ними
+ * переписку: ADMIN и MANAGER (право WRITE), как и почта в справочнике пользователей
+ * (auth.service.ts). Аналитику и наблюдателю файл с адресами всех контактов не нужен —
+ * это персональные данные сверх цели (ст. 5 152-ФЗ, docs/PRIVACY.md).
+ */
+export function canSeeContactDetails(user: CurrentUser): boolean {
+  return can(user, 'WRITE')
+}
+
+/**
  * Внутренние заметки сотрудников ИТ-Школы: комментарии к этапам, причины блокировок,
  * заметки по связке, комментарии в истории.
  *

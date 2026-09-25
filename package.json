@@ -26,6 +26,7 @@
     "probe": "tsx scripts/probe.ts",
     "volume": "tsx scripts/volume.ts",
     "db:verify": "tsx scripts/db-verify.ts",
+    "db:retention": "tsx scripts/retention.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts"
   },

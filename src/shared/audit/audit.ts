@@ -11,6 +11,7 @@ export type AuditAction =
   | 'university.update'
   | 'university.archive'
   | 'university.restore'
+  | 'contact.anonymize'
   | 'program.create'
   | 'program.update'
   | 'program.skills.replace'
@@ -40,6 +41,7 @@ export type AuditAction =
   | 'product.skills.replace'
   | 'product.version.release'
   | 'export.download'
+  | 'audit.retention'
   | 'import.apply'
 
 export interface AuditEntry {

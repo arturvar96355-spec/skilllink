@@ -3,6 +3,7 @@
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
 import type {
+  ContactDto,
   CooperationListItemDto,
   DocumentListItemDto,
   MeetingDto,
@@ -28,6 +29,7 @@ import {
   EmptyState,
   ErrorState,
   Icon,
+  Modal,
   MockBadge,
   mockMarks,
   PageHeader,
@@ -37,6 +39,9 @@ import {
   Skeleton,
   TableSkeleton,
   Tabs,
+  apiPost,
+  useMutation,
+  useToast,
   Tooltip,
   UniversityStatusBadge,
   buildQuery,
@@ -90,6 +95,31 @@ export default function UniversityPage() {
   const [tab, setTab] = useState<TabKey>('overview')
 
   const university = useResource<UniversityDto>(`/api/universities/${id}`)
+  const toast = useToast()
+
+  /**
+   * Обезличивание контакта по запросу субъекта ПД (docs/PRIVACY.md) — только
+   * администратор, с подтверждением: действие необратимо.
+   */
+  const [anonymizing, setAnonymizing] = useState<ContactDto | null>(null)
+  const anonymize = useMutation(async (contactId: string) => {
+    const result = await apiPost<ContactDto>(
+      `/api/universities/${id}/contacts/${contactId}/anonymize`,
+    )
+    return result.data
+  })
+
+  async function confirmAnonymize() {
+    if (!anonymizing) return
+    const result = await anonymize.run(anonymizing.id)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Персональные данные контакта удалены')
+    setAnonymizing(null)
+    university.reload()
+  }
   // Соседи по реестру — для «Следующего вуза» внизу (решение 79).
   const programs = useResource<ProgramListItemDto[]>(
     tab === 'programs' ? `/api/programs${buildQuery({ universityId: id, pageSize: 50 })}` : null,
@@ -445,6 +475,13 @@ export default function UniversityPage() {
                           )}
                           {contact.phone && <span className={styles.rowMeta}>{contact.phone}</span>}
                         </span>
+                        {user.permissions.isAdmin && !contact.isAnonymized && (
+                          <span>
+                            <Button variant="ghost" size="sm" onClick={() => setAnonymizing(contact)}>
+                              Удалить персональные данные
+                            </Button>
+                          </span>
+                        )}
                       </span>
                     </span>
                   ))}
@@ -687,6 +724,32 @@ export default function UniversityPage() {
         </p>
       )}
       <ScrollRuler />
+
+      {anonymizing && (
+        <Modal
+          isOpen
+          onClose={() => setAnonymizing(null)}
+          title="Удалить персональные данные контакта"
+          description="Необратимо. ФИО, должность, почта, телефон и заметки будут стёрты, запись останется как «Контакт удалён» — ради встреч и истории работы с вузом."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setAnonymizing(null)}>
+                Отмена
+              </Button>
+              <Button variant="danger" onClick={confirmAnonymize} isLoading={anonymize.isPending}>
+                Удалить данные
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.rowMeta}>
+            Контакт: {anonymizing.fullName}
+            {anonymizing.position ? `, ${anonymizing.position}` : ''}. Делайте это по запросу
+            самого человека или когда сотрудничество с вузом прекращено и срок хранения истёк.
+          </p>
+        </Modal>
+      )}
     </>
   )
 }

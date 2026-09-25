@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { assertCan, can, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import {
@@ -26,8 +26,11 @@ import * as programsRepo from '@/modules/programs/programs.repo'
 import * as skillsService from '@/modules/skills/skills.service'
 import * as universitiesService from '@/modules/universities/universities.service'
 import {
+  CONTACT_HEADERS,
   PROGRAM_RATING_HEADERS,
+  auditFilters,
   UNIVERSITY_RATING_HEADERS,
+  contactCells,
   csvDate,
   csvLabel,
   exportFileName,
@@ -78,6 +81,8 @@ async function exportUniversities(
     },
   })
   const extraById = new Map(extras.map((row) => [row.id, row]))
+  // Почта контакта — только ADMIN и MANAGER (аудит S-17, docs/PRIVACY.md).
+  const withContactDetails = canSeeContactDetails(user)
   // Рейтинг — аналитика: роли без доступа к ней колонки не показываются вовсе.
   const withRating = can(user, 'ANALYTICS')
 
@@ -93,9 +98,7 @@ async function exportUniversities(
       'Студентов',
       'Программ',
       'Связок',
-      'Контактное лицо',
-      'Должность',
-      'Почта',
+      ...CONTACT_HEADERS,
       'Сайт',
       'Демо-данные',
       'В архиве',
@@ -115,9 +118,7 @@ async function exportUniversities(
         extra?.studentCount ?? null,
         row.programCount,
         row.cooperationCount,
-        contact?.fullName ?? null,
-        contact?.position ?? null,
-        contact?.email ?? null,
+        ...contactCells(contact, withContactDetails),
         extra?.website ?? null,
         row.isMock,
         row.archivedAt !== null,
@@ -285,9 +286,15 @@ async function exportSkillGaps(
  * к данным, которые роль не видит в интерфейсе. Для представителя вуза выборка сужается
  * тем же хелпером, что и везде.
  */
+export interface ExportClient {
+  /** Адрес клиента (clientAddress) — для журнала: откуда выгрузили. */
+  address: string
+}
+
 export async function exportDataset(
   user: CurrentUser,
   request: ExportRequest,
+  client: ExportClient,
 ): Promise<ExportResult> {
   // Аналитика по навыкам закрыта для представителя вуза — значит, и её выгрузка тоже.
   assertCan(user, request.dataset === 'skill-gaps' ? 'ANALYTICS' : 'READ')
@@ -306,13 +313,20 @@ export async function exportDataset(
     action: 'export.download',
     objectType: 'Export',
     objectId: request.dataset,
+    // Что ушло в файл и откуда — без самих данных: набор, число строк, фильтры
+    // (строка поиска — только признаком) и адрес клиента. Адрес стирается
+    // по сроку хранения (npm run db:retention, docs/PRIVACY.md).
     payload: {
+      dataset: request.dataset,
       rows: data.rows.length,
       limit: request.limit,
-      // Какие фильтры стояли — без значений: в поиске может оказаться фамилия.
-      filters: 'filters' in request
-        ? Object.keys(request.filters).filter((key) => key !== 'page' && key !== 'pageSize')
-        : [],
+      filters:
+        'filters' in request
+          ? auditFilters(request.filters)
+          : request.universityId
+            ? { universityId: request.universityId }
+            : {},
+      address: client.address,
     },
   })
 

@@ -14,12 +14,17 @@ import { navigationFor, serviceLinksFor } from './navigation'
  */
 const ROOT = process.cwd()
 const APP_DIR = join(ROOT, 'src', 'app', '(app)')
+/** Страницы вне каркаса — открытые без входа, как политика обработки ПД. */
+const PUBLIC_DIR = join(ROOT, 'src', 'app')
 
 function pageExists(href: string): boolean {
   // Путь вида `/universities` лежит в `src/app/(app)/universities/page.tsx`,
-  // а главная — прямо в корне группы маршрутов.
+  // а главная — прямо в корне группы маршрутов. Открытые страницы — в `src/app/<путь>`.
   const relative = href === '/' ? '' : href.replace(/^\//, '')
-  return existsSync(join(APP_DIR, relative, 'page.tsx'))
+  return (
+    existsSync(join(APP_DIR, relative, 'page.tsx')) ||
+    (relative !== '' && existsSync(join(PUBLIC_DIR, relative, 'page.tsx')))
+  )
 }
 
 function user(role: UserRole): CurrentUserDto {
@@ -92,6 +97,10 @@ describe('подвал', () => {
   it('представителю вуза не ведёт в настройки', () => {
     const hrefs = serviceLinksFor(user('UNIVERSITY_REP')).map((link) => link.href)
     expect(hrefs.some((href) => href.startsWith(ROUTES.settings))).toBe(false)
+  })
+
+  it.each(ROLES)('у роли %s в подвале есть политика обработки персональных данных', (role) => {
+    expect(serviceLinksFor(user(role)).map((link) => link.href)).toContain(ROUTES.privacy)
   })
 
   it.each(ROLES)('у роли %s внутренние ссылки ведут на существующие страницы', (role) => {

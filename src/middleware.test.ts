@@ -26,6 +26,18 @@ describe('middleware', () => {
     expect(redirectTarget(middleware(request('/presentation', true)))).toBeNull()
   })
 
+  it('политика обработки персональных данных открыта без сессии', () => {
+    expect(redirectTarget(middleware(request('/privacy', false)))).toBeNull()
+  })
+
+  it('политика открыта и с сессией: на главную не уводит', () => {
+    expect(redirectTarget(middleware(request('/privacy', true)))).toBeNull()
+  })
+
+  it('похожий на политику адрес не открывается', () => {
+    expect(redirectTarget(middleware(request('/privacy-admin', false)))).toContain('/login')
+  })
+
   it('похожий адрес не открывается', () => {
     expect(redirectTarget(middleware(request('/presentations-secret', false)))).toContain('/login')
   })
