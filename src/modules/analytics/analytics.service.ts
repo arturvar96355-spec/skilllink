@@ -104,7 +104,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
   const trendStart = new Date(now.getTime() - TREND_PERIOD_DAYS * 24 * 60 * 60 * 1000)
 
   const [
-    activeCooperations,
+    cooperationCounts,
     activeCooperationsBefore,
     universitiesInWork,
     completedStages,
@@ -118,7 +118,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     cooperationsAreMock,
     universitiesAreMock,
   ] = await Promise.all([
-    repo.countActiveCooperations(scope),
+    repo.countCooperationsByStatus(scope),
     repo.countCooperationsOpenAt(scope, trendStart),
     repo.countUniversitiesInWork(scope),
     repo.findCompletedStagesWithDeadline(scope),
@@ -132,6 +132,9 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     repo.hasMockCooperations(scope),
     repo.hasMockUniversities(scope),
   ])
+
+  // Одно число активных на показатель и на разбивку — они не могут разойтись.
+  const activeCooperations = cooperationCounts.active
 
   const metrics: DashboardMetricDto[] = [
     metric(
@@ -314,6 +317,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
 
   return {
     metrics,
+    cooperationCounts,
     topPrograms,
     problemCooperations,
     problemStageTotal,

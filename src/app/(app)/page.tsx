@@ -6,6 +6,7 @@ import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { STAGE_PHASES, STAGE_PHASE_LABELS } from '@/shared/contracts'
 import type {
+  CooperationCountsDto,
   CooperationListItemDto,
   DashboardOverviewDto,
   NotificationFeedDto,
@@ -159,6 +160,27 @@ const FACTOR_SHORT: Record<string, string> = {
 const ROUTE_ROWS = 6
 
 /**
+ * «7 активных связей (6 в работе, 1 черновик)». Шапка, блок «Связки в работе»
+ * и воронка говорят одной разбивкой с сервера (решение 86): раньше меню
+ * показывало 8, шапка 7, фильтр 6, и ни одно число не объясняло другое.
+ */
+function activeBreakdown(counts: CooperationCountsDto): string {
+  const head = `${formatNumber(counts.active)} ${pluralize(counts.active, ['активная связь', 'активные связи', 'активных связей'])}`
+  if (counts.drafts === 0) return head
+  return `${head} (${formatNumber(counts.inWork)} в работе, ${formatNumber(counts.drafts)} ${pluralize(counts.drafts, ['черновик', 'черновика', 'черновиков'])})`
+}
+
+/** Из кого сложилась воронка: «8 связок в воронке: 7 активных, 1 завершённая». */
+function funnelComposition(counts: CooperationCountsDto): string {
+  const parts = [`${formatNumber(counts.active)} ${pluralize(counts.active, ['активная', 'активные', 'активных'])}`]
+  if (counts.paused > 0) parts.push(`${formatNumber(counts.paused)} на паузе`)
+  if (counts.completed > 0) {
+    parts.push(`${formatNumber(counts.completed)} ${pluralize(counts.completed, ['завершённая', 'завершённые', 'завершённых'])}`)
+  }
+  return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${parts.join(', ')}.`
+}
+
+/**
  * Главная страница.
  *
  * Отвечает на четыре вопроса раздела 25 шаблона: что происходит, где проблема,
@@ -241,7 +263,7 @@ function Dashboard() {
     return Math.round((list.filter((item) => item.progress.overdueStages === 0).length / list.length) * 1000) / 10
   }, [active.data])
 
-  // Презентационный режим (решения 87, 88): графики и 3D вместо части списков,
+  // Презентационный режим (решения 94, 95): графики и 3D вместо части списков,
   // при наведении на связку — всплывающая карточка. В рабочем режиме главная прежняя.
   const showcase = !isWork
   const peek = usePeek()
@@ -376,7 +398,6 @@ function Dashboard() {
     isShare: metric.unit === '%',
   }))
 
-  const activeTotal = data?.metrics.find((metric) => metric.key === 'activeCooperations')?.value ?? null
 
   return (
     <>
@@ -385,7 +406,7 @@ function Dashboard() {
         title={`${greeting()}, ${firstName}`}
         description={
           data
-            ? `Сегодня ${formatNumber(activeTotal)} ${pluralize(activeTotal ?? 0, ['активная связь', 'активные связи', 'активных связей'])} · ${formatNumber(data.problemStageTotal)} ${pluralize(data.problemStageTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`
+            ? `Сегодня ${activeBreakdown(data.cooperationCounts)} · ${formatNumber(data.problemStageTotal)} ${pluralize(data.problemStageTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`
             : 'Что требует внимания прямо сейчас и что система предлагает сделать.'
         }
         meta={data?.containsMockData ? <MockBadge /> : undefined}
@@ -420,7 +441,7 @@ function Dashboard() {
           />
 
           {/*
-            Презентационный режим (решения 79, 88): здоровье портфеля — объёмными
+            Презентационный режим (решения 79, 95): здоровье портфеля — объёмными
             кольцами, где сейчас связки — большим кольцом рядом с картой вузов.
           */}
           {showcase && (
@@ -683,6 +704,7 @@ function Dashboard() {
               ) : (
                 <>
                   <Funnel steps={funnelSteps} label="Воронка связок по фазам работы" />
+                  <p className={styles.funnelNote}>{funnelComposition(data.cooperationCounts)}</p>
                   {funnelTotal !== null && funnelTotal > funnelCounted && (
                     <p className={styles.funnelNote}>
                       Посчитано по {formatNumber(funnelCounted)} связкам из {formatNumber(funnelTotal)}.
@@ -770,6 +792,13 @@ function Dashboard() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {/* Список обрезан — сказать, сколько всего, а не выдавать шесть за все. */}
+                {data.cooperationCounts.active > Math.min(ROUTE_ROWS, cooperations.length) && (
+                  <p className={styles.funnelNote}>
+                    Показаны {formatNumber(Math.min(ROUTE_ROWS, cooperations.length))} из{' '}
+                    {formatNumber(data.cooperationCounts.active)}, остальные — в реестре связок.
+                  </p>
                 )}
               </Section>
             </div>
@@ -905,7 +934,7 @@ function Dashboard() {
 
 /**
  * Главная. В презентационном режиме всплывающие карточки при наведении
- * (решение 88) живут в своём слое — он подключается здесь, над содержимым.
+ * (решение 95) живут в своём слое — он подключается здесь, над содержимым.
  */
 export default function DashboardPage() {
   const { isWork } = useUiMode()

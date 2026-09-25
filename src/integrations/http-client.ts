@@ -37,6 +37,11 @@ export interface RequestOptions {
   url: string
   method?: string
   token?: string | null
+  /**
+   * Дополнительные заголовки. Нужны сервисам со своей схемой авторизации:
+   * YandexGPT ждёт `Authorization: Api-Key …` и `x-folder-id`, а не Bearer.
+   */
+  headers?: Record<string, string>
   body?: unknown
   config: IntegrationCommonConfig
 }
@@ -47,7 +52,7 @@ function isRetryable(status: number): boolean {
 }
 
 export async function requestJson<T>(options: RequestOptions): Promise<T> {
-  const { service, url, method = 'GET', token, body, config } = options
+  const { service, url, method = 'GET', token, headers, body, config } = options
   const attempts = config.retries + 1
 
   let lastError = ''
@@ -64,6 +69,7 @@ export async function requestJson<T>(options: RequestOptions): Promise<T> {
         headers: {
           ...(token ? { authorization: `Bearer ${token}` } : {}),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...headers,
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: controller.signal,

@@ -4,13 +4,35 @@ import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { OVERDUE_STAGE_STATUSES } from '@/modules/workflow/workflow.rules'
 import { TIE_BREAKER } from '@/shared/http/pagination'
+import type { CooperationCountsDto } from '@/shared/contracts/analytics'
 
-/** Связки, которые сейчас в работе. */
-export async function countActiveCooperations(scope: { universityId?: string }): Promise<number> {
-  return prisma.cooperation.count({
-    where: { status: { in: [...ACTIVE_COOPERATION_STATUSES] }, ...scope },
+/**
+ * Связки по статусам — один запрос на все числа главной.
+ *
+ * Раньше «активные» считались отдельным запросом, воронка — по списку, блок
+ * «Связки в работе» — по своему: меню говорило 8, шапка 7, фильтр 6, и ни одно
+ * число не объясняло другое (решение 86).
+ */
+export async function countCooperationsByStatus(scope: {
+  universityId?: string
+}): Promise<CooperationCountsDto> {
+  const rows = await prisma.cooperation.groupBy({
+    by: ['status'],
+    where: { ...scope },
+    _count: { _all: true },
   })
+  const count = (status: string) => rows.find((row) => row.status === status)?._count._all ?? 0
+  const active = ACTIVE_COOPERATION_STATUSES.reduce((sum, status) => sum + count(status), 0)
+  return {
+    active,
+    inWork: count('ACTIVE'),
+    drafts: count('DRAFT'),
+    paused: count('PAUSED'),
+    completed: count('COMPLETED'),
+    total: active + count('PAUSED') + count('COMPLETED'),
+  }
 }
 
 /**
@@ -144,10 +166,10 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
  * Одно на выборку и на счётчик: если они разойдутся, главная скажет
  * «10 из 13», а в списке окажется другое множество.
  */
-function problemStageWhere(scope: { universityId?: string }, now: Date) {
+export function problemStageWhere(scope: { universityId?: string }, now: Date) {
   return {
     OR: [
-      { deadline: { lt: now }, status: { notIn: ['COMPLETED' as const, 'CANCELLED' as const] } },
+      { deadline: { lt: now }, status: { in: [...OVERDUE_STAGE_STATUSES] } },
       { status: 'BLOCKED' as const },
     ],
     // Контрольный этап руками не меняется: он просрочен из-за незакрытых
@@ -327,7 +349,7 @@ export async function countOverdueStagesOf(userId: string, now: Date): Promise<n
     where: {
       responsibleId: userId,
       deadline: { lt: now },
-      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      status: { in: [...OVERDUE_STAGE_STATUSES] },
       stageNumber: { not: CONTROL_STAGE_NUMBER },
       cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
     },

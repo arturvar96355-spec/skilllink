@@ -25,6 +25,13 @@ const now = new Date()
 const daysAgo = (days: number) => new Date(now.getTime() - days * DAY)
 const daysAhead = (days: number) => new Date(now.getTime() + days * DAY)
 
+/**
+ * Сроки этапов после начала занятий, дней от него: 11 «Проведение занятий»,
+ * 12 «Обновление документации», 13 «Повышение квалификации», 14 «Контроль».
+ * Только для демо-набора, в самой системе сроки считаются по нормативам (TEMP).
+ */
+const DAYS_AFTER_CLASSES_START: Partial<Record<number, number>> = { 11: 30, 12: 60, 13: 90, 14: 120 }
+
 /** Порядок важен: сначала зависимые таблицы. */
 async function clean(): Promise<void> {
   await prisma.auditLog.deleteMany()
@@ -107,7 +114,7 @@ async function main(): Promise<void> {
     data: {
       email: 'viewer@skilllink.demo',
       passwordHash: demoPasswordHash,
-      fullName: 'Наблюдатель Демонстрационный',
+      fullName: 'Лебедева Анна Сергеевна',
       position: 'Руководитель направления',
       role: 'VIEWER',
     },
@@ -201,6 +208,8 @@ async function main(): Promise<void> {
   }
 
   // ─── IT-продукты ───────────────────────────────────────────────────────────
+  // Даты — по сюжету: продукты ИТ-Школы заведены задолго до первой связки,
+  // «обновлён» — выпуск текущей версии.
   console.log('IT-продукты...')
   const products = {
     cloud: await prisma.iTProduct.create({
@@ -212,6 +221,8 @@ async function main(): Promise<void> {
         version: '3.2',
         status: 'ACTIVE',
         isMock: true,
+        createdAt: daysAgo(540),
+        updatedAt: daysAgo(60),
         skills: {
           create: [
             { skillId: skillId('Облачные платформы'), relevance: 'CORE' },
@@ -231,6 +242,8 @@ async function main(): Promise<void> {
         version: '2.0',
         status: 'ACTIVE',
         isMock: true,
+        createdAt: daysAgo(540),
+        updatedAt: daysAgo(150),
         skills: {
           create: [
             { skillId: skillId('Информационная безопасность'), relevance: 'CORE' },
@@ -249,6 +262,8 @@ async function main(): Promise<void> {
         version: '1.7',
         status: 'ACTIVE',
         isMock: true,
+        createdAt: daysAgo(540),
+        updatedAt: daysAgo(90),
         skills: {
           create: [
             { skillId: skillId('Аналитика данных'), relevance: 'CORE' },
@@ -268,6 +283,8 @@ async function main(): Promise<void> {
         version: '4.1',
         status: 'ACTIVE',
         isMock: true,
+        createdAt: daysAgo(540),
+        updatedAt: daysAgo(30),
         skills: {
           create: [
             { skillId: skillId('CI/CD'), relevance: 'CORE' },
@@ -283,6 +300,7 @@ async function main(): Promise<void> {
   const universitySeed = [
     {
       key: 'spbgu',
+      createdDaysAgo: 240, updatedDaysAgo: 14,
       name: 'Санкт-Петербургский государственный университет телекоммуникаций',
       shortName: 'СПбГУТ',
       city: 'Санкт-Петербург',
@@ -294,6 +312,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'mtuci',
+      createdDaysAgo: 120, updatedDaysAgo: 40,
       name: 'Московский технический университет связи и информатики',
       shortName: 'МТУСИ',
       city: 'Москва',
@@ -305,6 +324,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'kazan',
+      createdDaysAgo: 430, updatedDaysAgo: 45,
       name: 'Казанский национальный исследовательский технический университет',
       shortName: 'КНИТУ-КАИ',
       city: 'Казань',
@@ -316,6 +336,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'nsu',
+      createdDaysAgo: 90, updatedDaysAgo: 70,
       name: 'Новосибирский государственный технический университет',
       shortName: 'НГТУ',
       city: 'Новосибирск',
@@ -327,6 +348,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'urfu',
+      createdDaysAgo: 12, updatedDaysAgo: 5,
       name: 'Уральский федеральный университет',
       shortName: 'УрФУ',
       city: 'Екатеринбург',
@@ -338,6 +360,7 @@ async function main(): Promise<void> {
     },
     {
       key: 'rostov',
+      createdDaysAgo: 300, updatedDaysAgo: 180,
       name: 'Донской государственный технический университет',
       shortName: 'ДГТУ',
       city: 'Ростов-на-Дону',
@@ -349,10 +372,17 @@ async function main(): Promise<void> {
     },
   ]
 
+  // Даты записи — по сюжету, а не момент заливки: вуз заведён до первой связки
+  // с ним. Иначе у всех вузов «Заведён 25.09, 00:25», а первый контакт — в мае.
   const universities = new Map<string, string>()
+  const universityCreatedAt = new Map<string, Date>()
   for (const item of universitySeed) {
+    const createdAt = daysAgo(item.createdDaysAgo)
+    universityCreatedAt.set(item.key, createdAt)
     const created = await prisma.university.create({
       data: {
+        createdAt,
+        updatedAt: daysAgo(item.updatedDaysAgo),
         name: item.name,
         shortName: item.shortName,
         city: item.city,
@@ -372,6 +402,8 @@ async function main(): Promise<void> {
               email: `contact@${item.key}.example.invalid`,
               phone: '+7 900 000-00-00',
               isPrimary: true,
+              createdAt,
+              updatedAt: createdAt,
             },
           ],
         },
@@ -514,8 +546,17 @@ async function main(): Promise<void> {
   for (const item of programSeed) {
     const hasMetrics =
       item.applicationCount !== null || item.studentCount !== null || item.groupCount !== null
+    // У СПбГУТ есть представитель в кабинете вуза (ниже): показатели набора внёс
+    // и подтвердил сам вуз — это данные вуза, а не оценка. Иначе одна и та же цифра
+    // «420 заявок» в карточке программы шла с пометкой «оценка», а в кабинете —
+    // «подтверждена вузом» (ТЗ Артура, п. 2). У остальных вузов кабинета нет.
+    const reportedByUniversity = item.university === 'spbgu'
+    const metricsUpdatedAt = hasMetrics ? daysAgo(14) : null
+    const createdAt = new Date(universityCreatedAt.get(item.university)!.getTime() + 2 * DAY)
     const created = await prisma.educationalProgram.create({
       data: {
+        createdAt,
+        updatedAt: metricsUpdatedAt ?? createdAt,
         universityId: universityId(item.university),
         name: item.name,
         code: item.code,
@@ -526,8 +567,8 @@ async function main(): Promise<void> {
         applicationCount: item.applicationCount,
         studentCount: item.studentCount,
         groupCount: item.groupCount,
-        metricsSource: hasMetrics ? 'MOCK' : null,
-        metricsUpdatedAt: hasMetrics ? daysAgo(14) : null,
+        metricsSource: hasMetrics ? (reportedByUniversity ? 'MANUAL' : 'MOCK') : null,
+        metricsUpdatedAt,
         isMock: true,
         skills: {
           create: item.skills.map(([name, level, importance]) => ({
@@ -599,7 +640,10 @@ async function main(): Promise<void> {
       university: 'spbgu', program: 'spbgu-infosec', productId: products.security.id,
       responsibleId: manager.id, status: 'ACTIVE',
       goal: 'Внедрение системы мониторинга безопасности в учебный процесс',
-      startedDaysAgo: 210, firstContactDaysAgo: 210, classesStartInDays: 30,
+      // Занятия идут два месяца: этапы 11 «Проведение занятий» и 12 закрыты,
+      // значит, занятия начались. Раньше начало стояло через 30 дней — «Проведение
+      // занятий» было завершено до начала занятий.
+      startedDaysAgo: 210, firstContactDaysAgo: 210, classesStartInDays: -60,
       completedUpTo: 12, lateStages: [6, 9],
     },
     {
@@ -713,17 +757,71 @@ async function main(): Promise<void> {
       ),
     )
 
+    // Сроки этапов. Нормативные — от начала связки, но этапы 11–14 (занятия
+    // и то, что идёт после них) привязаны к началу занятий: «Проведение занятий»
+    // со сроком раньше начала занятий — неправда на экране (ТЗ Артура, п. 2).
+    const classesStartAt =
+      item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays)
+    const deadlineOf = new Map<number, Date>()
+    for (const definition of WORKFLOW_STAGES) {
+      const number = definition.number
+      let deadline = item.overdueStages?.includes(number)
+        ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
+        : new Date(startedAt.getTime() + definition.normativeDays * DAY)
+      const afterClasses = DAYS_AFTER_CLASSES_START[number]
+      if (classesStartAt && afterClasses !== undefined) {
+        const fromClasses = new Date(classesStartAt.getTime() + afterClasses * DAY)
+        if (fromClasses > deadline) deadline = fromClasses
+      }
+      deadlineOf.set(number, deadline)
+    }
+
+    // Хронология: этап начинается, когда закрыт предыдущий, и закрывается
+    // незадолго до своего срока, а опоздавший — через несколько дней после.
+    // Раньше все этапы закрывались в первые две недели связки: «Проведение
+    // занятий» оказывалось завершённым за полгода до начала занятий, а за
+    // последний месяц не закрывалось ничего и тренд главной был пуст.
+    // Кто закрыт в срок, а кто с опозданием — как раньше, доля «в срок» та же.
+    const timeline = new Map<number, { startedAt: Date | null; completedAt: Date | null }>()
+    let previousDoneAt = startedAt
+    for (const definition of WORKFLOW_STAGES) {
+      const number = definition.number
+      if (number === 14) continue
+      const status = seedStatus(number)
+      if (status === 'NOT_STARTED') {
+        timeline.set(number, { startedAt: null, completedAt: null })
+        continue
+      }
+      const stageStartedAt = previousDoneAt
+      if (status !== 'COMPLETED') {
+        timeline.set(number, { startedAt: stageStartedAt, completedAt: null })
+        continue
+      }
+      const deadline = deadlineOf.get(number)!
+      let completedAt = item.lateStages?.includes(number)
+        ? new Date(deadline.getTime() + (3 + (number % 5)) * DAY)
+        : new Date(deadline.getTime() - (1 + (number % 3)) * DAY)
+      const earliest = new Date(stageStartedAt.getTime() + DAY / 2)
+      if (completedAt < earliest) completedAt = earliest
+      const latest = daysAgo(1)
+      if (completedAt > latest) completedAt = latest
+      timeline.set(number, { startedAt: stageStartedAt, completedAt })
+      previousDoneAt = completedAt
+    }
+    // Контрольный этап открывается с началом работы и закрывается вместе с последним.
+    timeline.set(14, {
+      startedAt: controlStatus === 'NOT_STARTED' ? null : startedAt,
+      completedAt: controlStatus === 'COMPLETED' ? previousDoneAt : null,
+    })
+
     let lastCompletedAt: Date | null = null
 
     for (const definition of WORKFLOW_STAGES) {
       const number = definition.number
       const isControl = number === 14
       const status = seedStatus(number)
-
-      const isOverdue = item.overdueStages?.includes(number) ?? false
-      const deadline = isOverdue
-        ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
-        : new Date(startedAt.getTime() + definition.normativeDays * DAY)
+      const deadline = deadlineOf.get(number)!
+      const dates = timeline.get(number)!
 
       const finalStatus = isControl ? controlStatus : status
 
@@ -736,14 +834,8 @@ async function main(): Promise<void> {
           status: finalStatus,
           responsibleId: item.responsibleId,
           deadline,
-          startedAt: finalStatus === 'NOT_STARTED' ? null : daysAgo(item.startedDaysAgo - number),
-          completedAt:
-            finalStatus === 'COMPLETED'
-              ? item.lateStages?.includes(number)
-                // Закрыт с опозданием: на несколько дней позже собственного срока.
-                ? new Date(deadline.getTime() + (3 + (number % 5)) * DAY)
-                : daysAgo(item.startedDaysAgo - number - 1)
-              : null,
+          startedAt: dates.startedAt,
+          completedAt: dates.completedAt,
           completedById: finalStatus === 'COMPLETED' && !isControl ? item.responsibleId : null,
           result:
             finalStatus === 'COMPLETED' && !isControl
@@ -761,7 +853,7 @@ async function main(): Promise<void> {
                       isRequired: task.isRequired,
                       sortOrder: index,
                       isDone: finalStatus === 'COMPLETED',
-                      doneAt: finalStatus === 'COMPLETED' ? daysAgo(item.startedDaysAgo - number) : null,
+                      doneAt: dates.completedAt,
                       doneById: finalStatus === 'COMPLETED' ? item.responsibleId : null,
                     })),
                   },
@@ -776,7 +868,7 @@ async function main(): Promise<void> {
       }
 
       if (finalStatus !== 'NOT_STARTED') {
-        const changedAt = daysAgo(Math.max(1, item.startedDaysAgo - number))
+        const changedAt = dates.completedAt ?? dates.startedAt ?? startedAt
 
         await prisma.stageHistory.create({
           data: {
@@ -859,7 +951,8 @@ async function main(): Promise<void> {
     // Связка на этапе 13: всё давно подписано.
     { coopKey: 'spbgu-spbgu-infosec', type: 'NDA', title: 'Соглашение о неразглашении', status: 'SIGNED', version: '1', daysAgoIssued: 190 },
     { coopKey: 'spbgu-spbgu-infosec', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '2', daysAgoIssued: 170 },
-    { coopKey: 'spbgu-spbgu-infosec', type: 'LICENSE', title: 'Лицензия на IT-продукт', status: 'SIGNED', version: '1', daysAgoIssued: 120 },
+    // Лицензия подписана до закрытия этапа 7 «Передача материалов и лицензии».
+    { coopKey: 'spbgu-spbgu-infosec', type: 'LICENSE', title: 'Лицензия на IT-продукт', status: 'SIGNED', version: '1', daysAgoIssued: 145 },
     // Подписание идёт (этап 6), договор на согласовании: не подписан, пока
     // обе подписи не отмечены в чек-листе — ровно то, что показывается жюри.
     { coopKey: 'spbgu-spbgu-soft', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'REVIEW', version: '1', daysAgoIssued: 20 },
@@ -874,6 +967,19 @@ async function main(): Promise<void> {
   for (const plan of docPlan) {
     const coop = cooperationByKey(plan.coopKey)
 
+    // История статусов: путь от черновика до текущего состояния, шаг — два дня.
+    const path: Array<'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED'> =
+      plan.status === 'SIGNED'
+        ? ['REVIEW', 'APPROVED', 'SIGNED']
+        : plan.status === 'APPROVED'
+          ? ['REVIEW', 'APPROVED']
+          : plan.status === 'REJECTED'
+            ? ['REVIEW', 'REJECTED']
+            : plan.status === 'REVIEW'
+              ? ['REVIEW']
+              : []
+    const lastChangedAt = daysAgo(Math.max(1, plan.daysAgoIssued - 2 * path.length))
+
     const document = await prisma.document.create({
       data: {
         cooperationId: coop.id,
@@ -886,21 +992,14 @@ async function main(): Promise<void> {
         authorId: manager.id,
         responsibleId: manager.id,
         issuedAt: daysAgo(plan.daysAgoIssued),
-        signedAt: plan.status === 'SIGNED' ? daysAgo(plan.daysAgoIssued - 5) : null,
+        // День подписания — тот же, что у перехода «Подписан» в истории ниже.
+        signedAt: plan.status === 'SIGNED' ? lastChangedAt : null,
+        // Даты записи — по сюжету: заведён в день выпуска, обновлён последней
+        // сменой статуса. Иначе у всех документов «Обновлён 25.09, 00:25».
+        createdAt: daysAgo(plan.daysAgoIssued),
+        updatedAt: lastChangedAt,
       },
     })
-
-    // История статусов: путь от черновика до текущего состояния.
-    const path: Array<'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED'> =
-      plan.status === 'SIGNED'
-        ? ['REVIEW', 'APPROVED', 'SIGNED']
-        : plan.status === 'APPROVED'
-          ? ['REVIEW', 'APPROVED']
-          : plan.status === 'REJECTED'
-            ? ['REVIEW', 'REJECTED']
-            : plan.status === 'REVIEW'
-              ? ['REVIEW']
-              : []
 
     let previous: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' = 'DRAFT'
     let offset = plan.daysAgoIssued
@@ -936,7 +1035,8 @@ async function main(): Promise<void> {
       nextAction: 'Направить пакет документов', nextActionInDays: -188,
     },
     {
-      coopKey: 'spbgu-spbgu-infosec', daysAgoDate: 120, topic: 'Передача учебных материалов', format: 'OFFLINE',
+      // Накануне закрытия этапа 7: на встрече материалы и переданы.
+      coopKey: 'spbgu-spbgu-infosec', daysAgoDate: 136, topic: 'Передача учебных материалов', format: 'OFFLINE',
       result: 'Материалы переданы, лицензия активирована',
       nextAction: null, nextActionInDays: null,
     },
@@ -965,6 +1065,9 @@ async function main(): Promise<void> {
         cooperationId: coop.id,
         universityId: universityId(coop.universityKey),
         date: daysAgo(plan.daysAgoDate),
+        // Запись о встрече заведена в день встречи, а не в момент заливки.
+        createdAt: daysAgo(plan.daysAgoDate),
+        updatedAt: daysAgo(plan.daysAgoDate),
         topic: plan.topic,
         format: plan.format,
         result: plan.result,

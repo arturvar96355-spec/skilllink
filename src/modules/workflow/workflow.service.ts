@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { conflict, invalidTransition, notFound } from '@/shared/http/errors'
+import { AppError, conflict, invalidTransition, notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import {
   assertCan,
@@ -19,9 +19,12 @@ import type {
 import { daysToDeadline, toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './workflow.repo'
 import { syncCooperation as syncRecommendations } from '@/modules/recommendations/recommendations.service'
-import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
+import { assertCooperationOpen, isClosedStatus } from '@/modules/cooperation/cooperation.rules'
+import { SIGNING_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
+import type { SigningChecklistEffectDto } from '@/shared/contracts/document'
 import { assertStaffResponsible } from '@/shared/links/entity-links'
 import {
+  areTasksEditable,
   assertChecklistReady,
   assertControlPointCancellable,
   assertControlPointReady,
@@ -34,6 +37,7 @@ import {
   isAutoManaged,
   isDueSoon,
   isOverdue,
+  isPlanShifted,
   resolveStageFields,
 } from './workflow.rules'
 import type { StageListQuery, UpdateStageInput, UpdateTaskInput } from './workflow.schema'
@@ -60,6 +64,7 @@ export function toStageDto(
     responsible: row.responsible,
     deadline: toIso(row.deadline),
     isOverdue: isOverdue(row.deadline, row.status, now),
+    isPlanShifted: isPlanShifted(row.deadline, row.status, now),
     isDueSoon: isDueSoon(row.deadline, row.status, now),
     daysToDeadline: daysToDeadline(row.deadline, now),
     // Результат этапа вуз видит: это итог работы. Комментарии и причины блокировок — нет.
@@ -384,6 +389,84 @@ export async function checklistBlockers(stage: {
     stage.stageNumber,
     await repo.findPriorStages(stage.cooperationId, stage.stageNumber),
   )
+}
+
+/** Пункты этапа «Подписание документов», которые закрывает подпись документов (конфиг, TEMP). */
+const SIGNING_TASK_TITLES: ReadonlySet<string> = new Set(
+  WORKFLOW_STAGES.find((definition) => definition.number === SIGNING_STAGE_NUMBER)
+    ?.tasks.filter((task) => task.closedBySignedDocuments)
+    .map((task) => task.title) ?? [],
+)
+
+/**
+ * Документы связки подписаны — пункты этапа 6 «Подписание документов» отмечаются
+ * сами (решение 87, ТЗ Артура). Раньше подпись вводилась дважды: статусом
+ * документа и галочками в чек-листе.
+ *
+ * Правила те же, что у отметки руками (`setTaskDone`): закрытая связка, завершённый
+ * или отменённый этап и шлагбаум контрольной точки отметку не пускают — тогда
+ * пункты не ставятся, а ответ говорит почему. Автор отметки — тот, кто перевёл
+ * документ в «Подписан»: у отметки всегда есть автор (правило целостности данных),
+ * в журнале — что она пришла от документа.
+ *
+ * Вызывается после смены статуса документа; отказ шлагбаума здесь — не ошибка.
+ */
+export async function markTasksBySignedDocuments(
+  cooperationId: string,
+  userId: string,
+  documentId: string,
+): Promise<SigningChecklistEffectDto> {
+  const effect = (
+    outcome: SigningChecklistEffectDto['outcome'],
+    marked = 0,
+  ): SigningChecklistEffectDto => ({ stageNumber: SIGNING_STAGE_NUMBER, marked, outcome })
+
+  const cooperationStatus = await repo.findCooperationStatus(cooperationId)
+  if (!cooperationStatus || isClosedStatus(cooperationStatus)) return effect('cooperation-closed')
+
+  const stage = await repo.findStageByNumber(cooperationId, SIGNING_STAGE_NUMBER)
+  if (!stage || !areTasksEditable(stage.status, stage.stageNumber)) return effect('stage-closed')
+
+  const blocking = findBlockingStages(
+    stage.stageNumber,
+    await repo.findPriorStages(cooperationId, stage.stageNumber),
+  )
+  if (blocking.length > 0) return effect('locked')
+
+  const targets = stage.tasks.filter((task) => SIGNING_TASK_TITLES.has(task.title) && !task.isDone)
+  if (targets.length === 0) return effect('nothing-to-mark')
+
+  let marked = 0
+  let refused = false
+  for (const task of targets) {
+    try {
+      const changed = await setTaskDone(
+        { taskId: task.id, stageId: stage.id, cooperationId },
+        true,
+        userId,
+      )
+      if (!changed) continue
+      marked += 1
+      await writeAudit({
+        userId,
+        action: 'task.toggle',
+        objectType: 'Task',
+        objectId: task.id,
+        payload: { isDone: true, stageId: stage.id, source: 'document.signed', documentId },
+      })
+    } catch (error) {
+      // Этап успели закрыть или переоткрыть предыдущий — правило отметки сработало
+      // под блокировкой связки. Остальные пункты не трогаем.
+      if (!(error instanceof AppError)) throw error
+      refused = true
+      break
+    }
+  }
+
+  // Отметка в чек-листе — движение по связке, как у отметки руками.
+  if (marked > 0) await syncRecommendations(cooperationId)
+  if (marked > 0) return effect('marked', marked)
+  return effect(refused ? 'locked' : 'nothing-to-mark')
 }
 
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */

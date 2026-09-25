@@ -15,10 +15,12 @@ import styles from './Sidebar.module.css'
 const SOURCES: Record<string, { api: string; nouns: [string, string, string]; hint: string }> = {
   '/universities': { api: '/api/universities?withRating=false', nouns: ['вуз', 'вуза', 'вузов'], hint: 'в реестре' },
   '/programs': { api: '/api/programs', nouns: ['программа', 'программы', 'программ'], hint: 'во всех вузах' },
+  // Активные — то же число, что в шапке главной (решение 86): раньше здесь были
+  // все связки вместе с завершёнными, и меню говорило 8 там, где главная — 7.
   '/cooperations': {
-    api: '/api/cooperations',
+    api: '/api/cooperations?status=DRAFT&status=ACTIVE',
     nouns: ['связка', 'связки', 'связок'],
-    hint: 'вуз — программа — продукт',
+    hint: 'активные: в работе и черновики',
   },
   '/recommendations': {
     api: '/api/recommendations',

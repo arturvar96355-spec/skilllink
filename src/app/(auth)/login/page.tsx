@@ -1,6 +1,7 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
@@ -9,7 +10,7 @@ import { Constellation, WARP_NAVIGATE_MS } from './Constellation'
 import { DepthLayer, DepthScene, TiltCard } from './Depth'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
-import { Button, Icon, Input, Logo } from '@/ui'
+import { Button, Icon, Input, Logo, ROUTES } from '@/ui'
 import styles from './login.module.css'
 
 /**
@@ -106,7 +107,7 @@ function LoginForm() {
   return (
     <TiltCard resting={isLeaving}>
       <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
-        {/* Светящаяся линия, бегущая по кромке панели (решение 85). */}
+        {/* Светящаяся линия, бегущая по кромке панели (решение 92). */}
         <span className={styles.edge} aria-hidden="true" />
         <div className={styles.panelHead}>
           <h1 className={styles.title}>Вход</h1>
@@ -168,6 +169,12 @@ function LoginForm() {
           После {LOGIN_THROTTLE.maxFailures} неудачных попыток подряд вход в учётную запись
           закрывается на {BLOCK_MINUTES} минут — это защита от подбора пароля.
         </p>
+
+        <p className={styles.note}>
+          <Link href={ROUTES.privacy} className={styles.privacyLink}>
+            Политика обработки персональных данных
+          </Link>
+        </p>
       </div>
     </TiltCard>
   )
@@ -180,7 +187,7 @@ export default function LoginPage() {
         {/* 3D-созвездие за экраном; без WebGL или при «уменьшить движение» — фон как был. */}
         <Constellation />
         <section className={styles.brandSide}>
-          {/* Слои левой колонки сдвигаются за курсором на разную глубину (решение 86). */}
+          {/* Слои левой колонки сдвигаются за курсором на разную глубину (решение 93). */}
           <DepthLayer depth={6}>
             <div className={styles.brandRow}>
               <Logo size={34} />

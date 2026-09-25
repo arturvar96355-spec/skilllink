@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
-import { CONTROL_POINT_STAGES } from '@/shared/config/workflow.config'
+import { CONTROL_POINT_STAGES, SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import {
   MEETING_FORMAT_LABELS,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
@@ -48,6 +48,7 @@ import {
   type Column,
   type TabItem,
 } from '@/ui'
+import { AiAssistCard } from '../../AiDraft'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
@@ -88,6 +89,12 @@ function CooperationContent() {
   const documents = useResource<DocumentListItemDto[]>(
     tab === 'documents'
       ? `/api/documents${buildQuery({ cooperationId: params.id, pageSize: 50 })}`
+      : null,
+  )
+  // Подписанные договор и лицензия — рядом с чек-листом этапа 6 (решение 87).
+  const signedDocuments = useResource<DocumentListItemDto[]>(
+    tab === 'stages'
+      ? `/api/documents${buildQuery({ cooperationId: params.id, status: ['SIGNED'], type: ['AGREEMENT', 'LICENSE'], pageSize: 20 })}`
       : null,
   )
   const meetings = useResource<MeetingDto[]>(
@@ -339,6 +346,7 @@ function CooperationContent() {
               stage={stage}
               canWrite={user.permissions.canWrite}
               isHighlighted={stage.id === focusStageId}
+              signedDocuments={stage.stageNumber === SIGNING_STAGE_NUMBER ? (signedDocuments.data ?? []) : undefined}
               onStageChanged={(updated) => {
                 setPatchedStages((current) => ({ ...current, [updated.id]: updated }))
                 cooperation.reload()
@@ -431,6 +439,16 @@ function CooperationContent() {
             setIsMeetingOpen(false)
             if (created) meetings.reload()
           }}
+        />
+      )}
+
+      {tab === 'recommendations' && (
+        <AiAssistCard
+          key={params.id}
+          title="Сводка"
+          description="Где связка сейчас, что мешает и что сделать дальше — по этапам и открытым рекомендациям. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
+          actionLabel="Составить сводку"
+          endpoint={`/api/cooperations/${params.id}/ai-summary`}
         />
       )}
 

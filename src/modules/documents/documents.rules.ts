@@ -239,3 +239,31 @@ export function packageSkipReason(
   if (!existing) return null
   return `уже есть: «${existing.title}», ${STATUS_TEXT[existing.status].toLowerCase()}`
 }
+
+/**
+ * Подпись каких документов проверяет этап «Подписание документов» (решение 87):
+ * договор и лицензия (ТЗ Артура). Пункты этапа отмечает подписанный договор;
+ * подпись лицензии лишь запускает ту же проверку.
+ */
+export const SIGNING_DOCUMENT_TYPES: readonly DocumentType[] = ['AGREEMENT', 'LICENSE']
+
+/** Статусы, в которых подпись ещё впереди. Отклонённый и архивный — не ждут подписи. */
+const AWAITING_SIGNATURE: readonly DocumentStatus[] = ['DRAFT', 'REVIEW', 'APPROVED']
+
+/**
+ * «Документы подписаны» для этапа 6: договор подписан, и ни один другой договор
+ * по связке больше не ждёт подписи.
+ *
+ * Лицензию этап 6 не ждёт: она передаётся на этапе 7, за контрольной точкой,
+ * и обычно подписывается позже договора. Одна подписанная лицензия при договоре
+ * на согласовании — тоже не «документы подписаны»: это была бы неправда.
+ */
+export function areSigningDocumentsSigned(
+  documents: ReadonlyArray<{ type: DocumentType; status: DocumentStatus }>,
+): boolean {
+  const agreements = documents.filter((document) => document.type === 'AGREEMENT')
+  return (
+    agreements.some((document) => document.status === 'SIGNED') &&
+    !agreements.some((document) => AWAITING_SIGNATURE.includes(document.status))
+  )
+}
