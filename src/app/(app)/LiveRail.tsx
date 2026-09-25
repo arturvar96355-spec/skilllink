@@ -76,21 +76,13 @@ export function LiveRail({
   problemTotal,
   generatedAt,
   showcase = false,
-  focus = null,
-  onFocus,
 }: {
   numbers: RailNumber[]
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
-  /**
-   * Презентационный режим (решение 87): под числами — сравнение за 30 дней,
-   * точки маршрута подсвечивают свой вуз во всей главной.
-   */
+  /** Презентационный режим (решение 87): под числами — сравнение за 30 дней. */
   showcase?: boolean
-  /** Подсвеченный вуз (`universityId`); остальные точки уходят в тень. */
-  focus?: string | null
-  onFocus?: (universityId: string | null) => void
 }) {
   const onRail = cooperations.filter((item) => item.currentStage !== null)
   const shown = onRail.slice(0, MAX_DOTS)
@@ -163,15 +155,7 @@ export function LiveRail({
               >
                 <Link
                   href={cooperationHref(item.id)}
-                  className={[
-                    styles.dot,
-                    stuck ? styles.stuck : '',
-                    focus && focus !== item.universityId ? styles.dim : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                  onPointerEnter={onFocus ? () => onFocus(item.universityId) : undefined}
-                  onPointerLeave={onFocus ? () => onFocus(null) : undefined}
+                  className={[styles.dot, stuck ? styles.stuck : ''].filter(Boolean).join(' ')}
                   aria-label={`${name}, ${item.programName}: этап ${stage} из ${TOTAL_STAGES}${stuck ? ', требует внимания' : ''}`}
                   title={`${name} — ${item.programName}\nЭтап ${stage}: ${item.currentStage!.title}`}
                 />

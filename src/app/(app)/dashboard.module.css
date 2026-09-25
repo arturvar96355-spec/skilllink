@@ -524,23 +524,7 @@
   }
 }
 
-/*
- * Презентационный режим (решение 87): графики внутри строк и общая подсветка вуза.
- * Наведение на вуз в любом блоке приглушает строки других вузов — плавно.
- */
-.dimmed {
-  opacity: 0.32;
-  filter: saturate(0.4);
-}
-
-.queue > li,
-.routes > li,
-.ranking > li {
-  transition:
-    opacity var(--motion-surface) var(--ease-out),
-    filter var(--motion-surface) var(--ease-out);
-}
-
+/* Презентационный режим (решения 87, 88): графики внутри строк. */
 /* Полоска этапов под связкой и разложенный балл под программой. */
 .chartLine {
   display: block;
@@ -558,4 +542,58 @@
 .gapsTitle {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+}
+
+/* «Здоровье портфеля» — три объёмных кольца в ряд (решение 88). */
+.health {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--bg-haze-violet), transparent 70%),
+    var(--surface-1);
+}
+
+.healthItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.healthCaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 28ch;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+/* Подложка объёмных графиков: «пол» с мягким светом сверху. */
+.panel3d {
+  padding: var(--space-5);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--bg-haze-violet), transparent 65%),
+    var(--surface-1);
+}
+
+@media (max-width: 860px) {
+  .health {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.healthTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
 }

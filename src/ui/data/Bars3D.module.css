@@ -1,0 +1,155 @@
+/* Объёмные столбики (решение 88). */
+
+.root {
+  position: relative;
+  min-width: 0;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.floor {
+  fill: var(--surface-sunken);
+  stroke: var(--line-subtle);
+}
+
+.grid line {
+  stroke: var(--line-faint);
+  stroke-dasharray: 2 4;
+}
+
+.axisText {
+  fill: var(--text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Грани: передняя — цвет части, боковина темнее, крышка светлее. */
+.front {
+  fill: currentColor;
+  filter: brightness(0.92);
+}
+
+.side {
+  fill: currentColor;
+  filter: brightness(0.58);
+}
+
+.cap {
+  fill: currentColor;
+  filter: brightness(1.25);
+}
+
+.bar {
+  cursor: pointer;
+  outline: none;
+}
+
+.bar > g,
+.bar .value {
+  transition: transform var(--motion-surface) var(--ease-out);
+}
+
+.lifted .front {
+  filter: brightness(1.08);
+}
+
+.lifted .cap {
+  filter: brightness(1.45);
+}
+
+.label {
+  fill: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lifted .label {
+  fill: var(--text-primary);
+}
+
+.value {
+  fill: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  animation: valueIn var(--motion-surface) var(--ease-out) both;
+}
+
+@keyframes valueIn {
+  from {
+    opacity: 0;
+  }
+}
+
+.tip {
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-floating);
+  box-shadow: var(--shadow-floating);
+  pointer-events: none;
+  animation: tipIn var(--motion-micro) var(--ease-out) both;
+  z-index: 2;
+}
+
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+
+.tipTitle {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+}
+
+.tipRow,
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+}
+
+.tipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.tipLabel {
+  color: var(--text-secondary);
+}
+
+.tipValue {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+
+.legendNote {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
