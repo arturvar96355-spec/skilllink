@@ -64,6 +64,14 @@ export async function findCooperationsOfObjects(
   return result
 }
 
+/** Существует ли вуз: лента несуществующего вуза — «не найден», а не пустой список. */
+export async function findUniversityRef(id: string) {
+  return prisma.university.findUnique({
+    where: { id },
+    select: { id: true },
+  })
+}
+
 /**
  * Источники ленты событий вуза. Берётся с запасом по каждому виду,
  * потом всё сливается и обрезается до нужного количества.

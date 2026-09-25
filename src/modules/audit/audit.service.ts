@@ -1,6 +1,5 @@
 import { notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { prisma } from '@/shared/db/prisma'
 import { assertCan, canSeeInternalNotes, isUniversityVisible } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
@@ -66,10 +65,7 @@ export async function universityEvents(
 
   if (!isUniversityVisible(user, universityId)) throw notFound('Вуз не найден')
 
-  const university = await prisma.university.findUnique({
-    where: { id: universityId },
-    select: { id: true },
-  })
+  const university = await repo.findUniversityRef(universityId)
   if (!university) throw notFound('Вуз не найден')
 
   const hideInternal = !canSeeInternalNotes(user)
