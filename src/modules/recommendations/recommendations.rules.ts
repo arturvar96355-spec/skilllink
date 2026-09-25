@@ -281,6 +281,12 @@ export interface CriticalGapInput {
   programs: Array<{ id: string; name: string; universityName: string }>
 }
 
+/** Заголовок правила 3. Шаблон один — для правила и для переименования навыка. */
+const criticalGapTitle = (skillName: string) => `Дефицит навыка «${skillName}» закрывается нашим продуктом`
+const CRITICAL_GAP_TITLE = /^Дефицит навыка «(.*)» закрывается нашим продуктом$/su
+/** Фрагмент описания правила 3, который называет навык. */
+const criticalGapSkillPhrase = (skillName: string) => `продукт даёт навык «${skillName}», `
+
 /**
  * Рынок просит навык, которого нет в программах, и у нас есть продукт, который его даёт.
  * Это главный сигнал системы: он соединяет аналитику навыков с работой менеджера.
@@ -301,9 +307,9 @@ export function ruleCriticalGapWithProduct(input: CriticalGapInput): Recommendat
     type: 'SKILL',
     objectType: 'Skill',
     objectId: input.skillId,
-    title: `Дефицит навыка «${input.skillName}» закрывается нашим продуктом`,
+    title: criticalGapTitle(input.skillName),
     description:
-      `Предложите вузам ${productNames}: продукт даёт навык «${input.skillName}», ` +
+      `Предложите вузам ${productNames}: ${criticalGapSkillPhrase(input.skillName)}` +
       `которого нет в программах ${programList}${more}.`,
     priority: 'HIGH',
     justification:
@@ -320,6 +326,49 @@ export function ruleCriticalGapWithProduct(input: CriticalGapInput): Recommendat
     // Уверенность средняя: спрос считается по демонстрационному набору данных.
     confidence: 'MEDIUM',
     cooperationId: null,
+  }
+}
+
+export interface SkillRecommendationText {
+  ruleKey: string
+  title: string
+  description: string
+  relatedData: unknown
+}
+
+/**
+ * Рекомендация по навыку, которая называет навык иначе, чем он называется сейчас:
+ * после объединения дубля (перешла на целевой навык) или переименования. Решение 110.
+ *
+ * Правится ровно то, что правило подставило: навык в заголовке, фраза «продукт даёт
+ * навык «…»» в описании и `relatedData.skillId`. Остальное — продукты, программы,
+ * обоснование — от навыка по имени не зависит и остаётся как было: пересобрать их
+ * значило бы запустить все правила, а это делает генерация, не справочник.
+ * Прежнее имя берётся из самого заголовка, а не с навыка: текст мог остаться
+ * от ещё более раннего названия. `null` — менять нечего или текст не по шаблону
+ * (его перепишет следующая генерация).
+ */
+export function renameSkillInRecommendation(
+  row: SkillRecommendationText,
+  skill: { id: string; name: string },
+): { title: string; description: string; relatedData: unknown } | null {
+  if (row.ruleKey !== 'skill.critical-gap-with-product') return null
+  const shown = CRITICAL_GAP_TITLE.exec(row.title)?.[1]
+  const related =
+    row.relatedData !== null && typeof row.relatedData === 'object' && !Array.isArray(row.relatedData)
+      ? (row.relatedData as Record<string, unknown>)
+      : null
+  const staleName = shown !== undefined && shown !== skill.name
+  const staleId = related !== null && 'skillId' in related && related.skillId !== skill.id
+  if (!staleName && !staleId) return null
+
+  return {
+    title: staleName ? criticalGapTitle(skill.name) : row.title,
+    description: staleName
+      ? // Замена функцией: в названии может быть «$», а строка-замена его толкует.
+        row.description.replace(criticalGapSkillPhrase(shown), () => criticalGapSkillPhrase(skill.name))
+      : row.description,
+    relatedData: staleId ? { ...related, skillId: skill.id } : row.relatedData,
   }
 }
 

@@ -14,6 +14,7 @@ import { getMarketDataProvider } from '@/integrations/market-data'
 import { getLmsClient } from '@/integrations/lms/lms.client'
 import { getSiteClient } from '@/integrations/site/site.client'
 import { getLlmProvider } from '@/integrations/llm'
+import { skillNameKey } from '@/modules/skills/skills.rules'
 import * as repo from './data-sources.repo'
 import type { DataSourceListQuery, SyncMarketDataInput } from './data-sources.schema'
 
@@ -136,15 +137,17 @@ export async function syncMarketData(
   })
 
   const skillsByName = await repo.loadSkillsByName()
-  const unknownSkills = new Set<string>()
+  /** Неизвестные навыки — по тому же ключу: «ML Ops» и «MLOps» в списке один раз. */
+  const unknownSkills = new Map<string, string>()
   let imported = 0
   let updated = 0
   let period: string | null = null
 
   for (const record of records) {
-    const skillId = skillsByName.get(record.skillName.toLowerCase())
+    const key = skillNameKey(record.skillName)
+    const skillId = skillsByName.get(key)
     if (!skillId) {
-      unknownSkills.add(record.skillName)
+      if (!unknownSkills.has(key)) unknownSkills.set(key, record.skillName)
       continue
     }
 
@@ -187,7 +190,7 @@ export async function syncMarketData(
     period: input.period ?? period,
     imported,
     updated,
-    unknownSkills: [...unknownSkills],
+    unknownSkills: [...unknownSkills.values()],
     isMock: info.isMock,
     syncedAt: new Date().toISOString(),
   }

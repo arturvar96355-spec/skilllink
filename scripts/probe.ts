@@ -133,6 +133,7 @@ async function warmUp(): Promise<void> {
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
     '/api/data-sources',
+    '/api/data-sources/sync',
     '/api/integrations/status',
     '/api/document-templates',
     '/api/export?dataset=universities&limit=1',
@@ -3190,6 +3191,43 @@ async function checkSkillDirectory(ctx: ProbeContext): Promise<void> {
     await call('PATCH', `/api/skills/${idA}`, { name: nameA })
     check('своё название в другом регистре — не дубль: 200', ownCase.status === 200, `статус ${ownCase.status}`)
 
+    // Решение 110: гонку держит база (индекс skills_name_key_ci), а не блокировка в коде.
+    // Одновременные запросы проходят проверку в коде оба — второй останавливает индекс.
+    type Created = Result<Skill>
+    const raceName = `Пробная гонка ${sfx}`
+    const raced: Created[] = await Promise.all(
+      [raceName, `пробная ГОНКА ${sfx}`, `ПробнаяГонка${sfx}`, `  пробная   гонка ${sfx} `].map((name) =>
+        call<Skill>('POST', '/api/skills', { name, category: 'Пробная' }),
+      ),
+    )
+    const raceWinners = raced.filter((result) => result.status === 201)
+    const raceLosers = raced.filter((result) => result.status === 409)
+    const winnerName = raceWinners[0]?.body.data?.name ?? ''
+    check(
+      'четыре одновременных создания одного навыка в разном написании: ровно одно 201, остальные 409 с его названием',
+      raceWinners.length === 1 &&
+        raceLosers.length === 3 &&
+        raceLosers.every(
+          (result) => result.body.error?.code === 'CONFLICT' && (result.body.error.message ?? '').includes(`«${winnerName}»`),
+        ),
+      raced.map((result) => result.status).join(', '),
+    )
+    const raceId = raceWinners[0]?.body.data?.id
+    if (raceId) await call('DELETE', `/api/skills/${raceId}`)
+
+    const sharedName = `Пробный общий ${sfx}`
+    const renames = await Promise.all([
+      call<Skill>('PATCH', `/api/skills/${idA}`, { name: sharedName }),
+      call<Skill>('PATCH', `/api/skills/${idB}`, { name: sharedName.toUpperCase().replaceAll(' ', '') }),
+    ])
+    check(
+      'два одновременных переименования в одно название: одно 200, другое 409',
+      renames.map((result) => result.status).sort().join() === '200,409',
+      renames.map((result) => result.status).join(', '),
+    )
+    await call('PATCH', `/api/skills/${idA}`, { name: nameA })
+    await call('PATCH', `/api/skills/${idB}`, { name: nameB })
+
     // Навыки — в программе-черновике и запланированном продукте: в аналитику они не входят,
     // и цифры сценария показа не сдвигаются.
     const drafts = await call<Array<{ id: string }>>('GET', '/api/programs?status=DRAFT&pageSize=1')
@@ -3312,6 +3350,121 @@ async function checkSkillDirectory(ctx: ProbeContext): Promise<void> {
     }
     actAs(null)
   }
+}
+
+/**
+ * Решение 110: один ключ названия навыка везде — в справочнике, при загрузке рыночных
+ * данных и в тексте рекомендаций после объединения. Демо-навыки трогаются временно
+ * и возвращаются как были (название, категория, описание, связи, текст рекомендации);
+ * меняется только id навыка из сценария объединения — сид его не фиксирует.
+ */
+async function checkSkillNameConsistency(ctx: ProbeContext): Promise<void> {
+  step('Навык по ключу названия: загрузка рыночных данных и текст рекомендаций после объединения')
+  const { adminId } = ctx
+  if (!adminId) {
+    check('демо-данные готовы (администратор)', false, 'запустите npm run db:seed')
+    return
+  }
+  actAs(adminId)
+  type Skill = { id: string; name: string; category: string; description: string | null }
+  const findSkill = async (name: string) =>
+    (await call<Skill[]>('GET', `/api/skills?q=${encodeURIComponent(name)}&pageSize=50`)).body.data?.find(
+      (row) => row.name === name,
+    )
+
+  // ── Загрузка: источник пишет «Сетевые технологии», в справочнике — другим регистром и слитно.
+  const importName = 'Сетевые технологии'
+  const imported = await findSkill(importName)
+  if (!imported) {
+    check(`в демо-справочнике есть навык «${importName}»`, false, 'запустите npm run db:seed')
+  } else {
+    const renamed = await call<Skill>('PATCH', `/api/skills/${imported.id}`, { name: 'СЕТЕВЫЕТехнологии' })
+    try {
+      type Sync = { imported: number; updated: number; unknownSkills: string[] }
+      // Демонстрационный источник за 2026-Q1 отдаёт ровно значения сида: данные не меняются.
+      const sync = await call<Sync>('POST', '/api/data-sources/sync', {})
+      check(
+        'своё название другим регистром и без пробела — 200 (тот же навык)',
+        renamed.status === 200,
+        `статус ${renamed.status}`,
+      )
+      check(
+        'загрузка сопоставляет «Сетевые технологии» с «СЕТЕВЫЕТехнологии»: неизвестных нет, новых строк нет',
+        sync.status === 200 &&
+          (sync.body.data?.unknownSkills ?? ['?']).length === 0 &&
+          sync.body.data?.imported === 0 &&
+          (sync.body.data?.updated ?? 0) > 0,
+        `статус ${sync.status}: ${JSON.stringify(sync.body.data ?? sync.body.error)}`,
+      )
+    } finally {
+      await call('PATCH', `/api/skills/${imported.id}`, { name: imported.name })
+    }
+  }
+
+  // ── Объединение: рекомендация дубля переходит к целевому навыку и называет его.
+  type Rec = {
+    id: string
+    ruleKey: string
+    title: string
+    description: string
+    relatedData: { skillId?: string } | null
+    target: { objectType: string; objectId: string }
+  }
+  const recs = await call<Rec[]>('GET', '/api/recommendations?pageSize=100')
+  const rec = (recs.body.data ?? []).find((row) => row.ruleKey === 'skill.critical-gap-with-product')
+  const source = rec ? (await call<Skill[]>('GET', `/api/skills?pageSize=100`)).body.data?.find((row) => row.id === rec.target.objectId) : undefined
+  if (!rec || !source) {
+    check('в демо-наборе есть рекомендация по дефициту навыка', false, 'запустите npm run db:seed')
+    actAs(null)
+    return
+  }
+
+  const targetName = `Пробная цель ${Date.now().toString().slice(-6)}`
+  const target = await call<Skill>('POST', '/api/skills', { name: targetName, category: source.category })
+  const targetId = target.body.data?.id
+  if (!targetId) {
+    check('пробный целевой навык заведён', false, `статус ${target.status}`)
+    actAs(null)
+    return
+  }
+  let merged = false
+  try {
+    type Merge = { recommendations: { moved: number; dropped: number } }
+    const merge = await call<Merge>('POST', `/api/skills/${source.id}/merge`, { targetId })
+    merged = merge.status === 200
+    const after = await call<Rec>('GET', `/api/recommendations/${rec.id}`)
+    const text = `${after.body.data?.title ?? ''} ${after.body.data?.description ?? ''}`
+    check(
+      'после объединения рекомендация называет целевой навык и ссылается на него',
+      merged &&
+        merge.body.data?.recommendations.moved === 1 &&
+        after.body.data?.title === `Дефицит навыка «${targetName}» закрывается нашим продуктом` &&
+        text.includes(`навык «${targetName}»`) &&
+        !text.includes(`«${source.name}»`) &&
+        after.body.data?.target.objectId === targetId &&
+        after.body.data?.relatedData?.skillId === targetId,
+      `статус ${merge.status}: ${after.body.data?.title ?? JSON.stringify(merge.body.error)}`,
+    )
+  } finally {
+    // Целевой навык становится прежним демо-навыком: название, категория, описание.
+    // Переименование переписывает текст рекомендации обратно в той же транзакции.
+    if (merged) {
+      await call('PATCH', `/api/skills/${targetId}`, {
+        name: source.name,
+        category: source.category,
+        description: source.description,
+      })
+    } else {
+      await call('DELETE', `/api/skills/${targetId}`)
+    }
+  }
+  const restored = await call<Rec>('GET', `/api/recommendations/${rec.id}`)
+  check(
+    'переименование навыка возвращает прежний текст рекомендации',
+    restored.body.data?.title === rec.title && restored.body.data?.description === rec.description,
+    restored.body.data?.title ?? `статус ${restored.status}`,
+  )
+  actAs(null)
 }
 
 async function checkContactPrivacy(ctx: ProbeContext): Promise<void> {
@@ -4162,6 +4315,7 @@ async function main(): Promise<void> {
   await checkRecommendationFeedOrder(ctx)
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
+  await checkSkillNameConsistency(ctx)
   await checkContactPrivacy(ctx)
   await checkUserManagement(ctx)
   await checkSessionRevocation(ctx)

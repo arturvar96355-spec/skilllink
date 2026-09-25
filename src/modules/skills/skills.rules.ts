@@ -177,6 +177,10 @@ export function outOfProfileNote(category: string, group: string): string {
  * Пробелы убираются все, а не только по краям: дубль, заведённый с пробелом
  * внутри, так же расщепляет аналитику, как дубль в другом регистре. NFKC сводит
  * вместе знаки, которые выглядят одинаково (неразрывный пробел, «полноширинные» буквы).
+ *
+ * Тот же ключ — в уникальном индексе базы `skills_name_key_ci` (решение 110) и в
+ * сопоставлении навыков при загрузке рыночных данных. Меняешь функцию — меняй индекс
+ * новой миграцией: примеры в skill-name-key.samples.ts сверяют и код, и базу (`db:verify`).
  */
 export function skillNameKey(name: string): string {
   return name.normalize('NFKC').toLocaleLowerCase('ru').replace(/\s+/gu, '')

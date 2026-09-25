@@ -23,6 +23,7 @@ import {
   ruleCooperationWithoutProduct,
   ruleCriticalGapWithProduct,
   ruleMissingProgramMetrics,
+  renameSkillInRecommendation,
   ruleOverdueStage,
   lastCooperationActivity,
   ruleStalledCooperation,
@@ -207,6 +208,63 @@ describe('правило: критичный дефицит навыка и пр
 
   it('уверенность средняя: спрос считается по демонстрационному набору', () => {
     expect(ruleCriticalGapWithProduct(base)?.confidence).toBe('MEDIUM')
+  })
+})
+
+describe('рекомендация называет навык так, как он называется сейчас (решение 110)', () => {
+  const draft = ruleCriticalGapWithProduct({
+    skillId: 'dup',
+    skillName: 'ML Ops',
+    demandNormalized: 0.8,
+    products: [{ id: 'prod-1', name: 'Платформа «ML Ops» РТК', relevance: 'CORE' }],
+    programs: [{ id: 'prog-1', name: 'Курс «ML Ops»', universityName: 'КНИТУ-КАИ' }],
+  })!
+
+  it('после объединения — целевой навык в заголовке, описании и relatedData', () => {
+    const patch = renameSkillInRecommendation(draft, { id: 'target', name: 'MLOps' })
+    // Пересборка правилом по целевому навыку дала бы тот же текст.
+    const rebuilt = ruleCriticalGapWithProduct({
+      skillId: 'target',
+      skillName: 'MLOps',
+      demandNormalized: 0.8,
+      products: [{ id: 'prod-1', name: 'Платформа «ML Ops» РТК', relevance: 'CORE' }],
+      programs: [{ id: 'prog-1', name: 'Курс «ML Ops»', universityName: 'КНИТУ-КАИ' }],
+    })!
+    expect(patch).toEqual({
+      title: rebuilt.title,
+      description: rebuilt.description,
+      relatedData: rebuilt.relatedData,
+    })
+  })
+
+  it('названия продуктов и программ с тем же словом в кавычках не трогаются', () => {
+    const patch = renameSkillInRecommendation(draft, { id: 'target', name: 'MLOps' })!
+    expect(patch.description).toContain('Платформа «ML Ops» РТК')
+    expect(patch.description).toContain('Курс «ML Ops»')
+    expect(patch.description).toContain('продукт даёт навык «MLOps»')
+  })
+
+  it('«$» в названии не толкуется как шаблон замены', () => {
+    const patch = renameSkillInRecommendation(draft, { id: 'dup', name: "C$'" })!
+    expect(patch.title).toBe("Дефицит навыка «C$'» закрывается нашим продуктом")
+    expect(patch.description).toContain("продукт даёт навык «C$'», ")
+  })
+
+  it('имя и навык прежние — менять нечего; другие правила не трогаются', () => {
+    expect(renameSkillInRecommendation(draft, { id: 'dup', name: 'ML Ops' })).toBeNull()
+    expect(
+      renameSkillInRecommendation({ ...draft, ruleKey: 'stage.overdue' }, { id: 'x', name: 'Y' }),
+    ).toBeNull()
+  })
+
+  it('текст не по шаблону — не переписывается, ссылка на навык правится', () => {
+    const patch = renameSkillInRecommendation(
+      { ...draft, title: 'Старый заголовок' },
+      { id: 'target', name: 'MLOps' },
+    )
+    expect(patch?.title).toBe('Старый заголовок')
+    expect(patch?.description).toBe(draft.description)
+    expect((patch?.relatedData as { skillId: string }).skillId).toBe('target')
   })
 })
 
