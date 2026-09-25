@@ -2861,6 +2861,90 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Почта и телефон контактов вузов — только ADMIN и MANAGER (решение 106) ──
+  step('Почта и телефон контактов вузов: аналитику и наблюдателю — «скрыто», поиском не достать')
+
+  {
+    type Contact = {
+      fullName: string
+      position: string | null
+      email: string | null
+      phone: string | null
+      contactDetailsHidden: boolean
+    }
+    type Card = { id: string; contacts: Contact[] }
+    type SearchBody = { groups: Array<{ type: string; items: Array<{ id: string }> }> }
+    const firstId = async (role: string): Promise<string | null> =>
+      (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
+
+    actAs(adminId)
+    const analystId = await firstId('ANALYST')
+    const viewerId = await firstId('VIEWER')
+    // Вуз представителя: на нём заодно видно, что свой вуз представитель видит как раньше.
+    const universityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
+    const adminCard = universityId ? await call<Card>('GET', `/api/universities/${universityId}`) : null
+    const withDetails = adminCard?.body.data?.contacts.find((contact) => contact.email && contact.phone)
+    check('у вуза есть контакт с почтой и телефоном (демо-данные)', Boolean(withDetails))
+
+    if (universityId && withDetails?.email && withDetails.phone) {
+      const email = withDetails.email
+      const phone = withDetails.phone
+
+      for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId]] as const) {
+        actAs(id)
+        const card = await call<Card>('GET', `/api/universities/${universityId}`)
+        const contact = card.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+        check(
+          `${role}: карточка открывается, ФИО и должность на месте`,
+          card.status === 200 && contact?.position === withDetails.position,
+        )
+        check(
+          `${role}: почта и телефон — null, признак «скрыто»`,
+          contact?.email === null && contact.phone === null && contact.contactDetailsHidden === true,
+        )
+        check(`${role}: ни почты, ни телефона нигде в ответе`, !card.raw.includes(email) && !card.raw.includes(phone))
+
+        const found = await call<SearchBody>('GET', `/api/search?q=${encodeURIComponent(email)}`)
+        const hits = (found.body.data?.groups ?? []).reduce((sum, group) => sum + group.items.length, 0)
+        check(`${role}: поиск по почте контакта ничего не находит`, found.status === 200 && hits === 0, `находок ${hits}`)
+        const registry = await call<unknown[]>(
+          'GET',
+          `/api/universities?withRating=false&q=${encodeURIComponent(email)}`,
+        )
+        check(`${role}: реестр по почте контакта пуст`, registry.status === 200 && registry.body.meta?.total === 0)
+
+        const me = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+        check(`${role}: /api/me — canSeeContactDetails: false`, me.body.data?.permissions.canSeeContactDetails === false)
+      }
+
+      actAs(managerId)
+      const managerCard = await call<Card>('GET', `/api/universities/${universityId}`)
+      const managerContact = managerCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+      check(
+        'MANAGER: почта и телефон видны, признака нет',
+        managerContact?.email === email && managerContact.phone === phone && managerContact.contactDetailsHidden === false,
+      )
+      const managerMe = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+      check('MANAGER: /api/me — canSeeContactDetails: true', managerMe.body.data?.permissions.canSeeContactDetails === true)
+
+      if (rep?.universityId === universityId) {
+        actAs(rep.id)
+        const repCard = await call<Card>('GET', `/api/universities/${universityId}`)
+        const repContact = repCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+        check(
+          'UNIVERSITY_REP: контакты своего вуза видны как раньше',
+          repContact?.email === email && repContact.phone === phone && repContact.contactDetailsHidden === false,
+        )
+      }
+
+      // Выгрузка: почта контакта — только ADMIN и MANAGER, как и была (аудит S-17).
+      actAs(viewerId)
+      const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
+      check('VIEWER: в выгрузке вузов почты контакта нет', exported.status === 200 && !exported.raw.includes(email))
+    }
+    actAs(null)
+  }
+
   // ── Управление пользователями и смена пароля ──────────────────────────────
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
 
