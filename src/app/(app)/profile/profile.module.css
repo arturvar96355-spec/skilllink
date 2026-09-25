@@ -1,119 +1,707 @@
-/* Личный кабинет: три области, типографика раздела 13 документа о шрифтах. */
+/* Личный кабинет (решение 89): шапка-портал, плитки, мои связки, события, настройки. */
 
-.identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-}
+/* ——— Шапка ——— */
 
-.identityText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-/* Имя пользователя — размер заголовка страницы (раздел 13 документа о шрифтах). */
-.name {
-  font-size: var(--text-h1-size);
-  font-weight: var(--text-h1-weight);
-  letter-spacing: -0.025em;
-  line-height: 1.2;
-  color: var(--text-primary);
-}
-
-.position {
-  font-size: var(--text-card-title-size);
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
-.fields {
+.hero {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-5);
-  margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--border-divider);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--glass-plate);
+  box-shadow: var(--glass-shadow);
+  overflow: hidden;
+  isolation: isolate;
 }
 
-.field {
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-edge);
+  pointer-events: none;
+}
+
+/* Сияние за шапкой: два медленно плывущих пятна фирменных цветов. */
+.aurora {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 70%;
+  height: 180%;
+  z-index: -1;
+  background:
+    radial-gradient(closest-side, var(--bg-glow), transparent),
+    radial-gradient(closest-side at 30% 70%, var(--bg-haze-violet), transparent);
+  filter: blur(8px);
+  pointer-events: none;
+  animation: drift 14s var(--ease-in-out) infinite alternate;
+}
+
+@keyframes drift {
+  to {
+    transform: translate(-12%, 8%) scale(1.1);
+  }
+}
+
+.heroText {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
 }
 
-.fieldLabel {
-  font-size: var(--text-label-size);
-  font-weight: 500;
-  color: var(--text-tertiary);
+.kicker {
+  font-size: var(--text-kicker-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: var(--text-accent);
 }
 
-.fieldValue {
-  font-size: var(--text-value-size);
+.name {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.position {
+  font-size: var(--text-body-lg-size);
+  color: var(--text-secondary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--glass-field);
+  box-shadow: inset 0 0 0 1px var(--glass-edge);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition:
+    color var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out);
+}
+
+a.chip:hover {
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--glass-edge-strong);
+}
+
+.summary {
+  margin-top: var(--space-3);
+  font-size: var(--text-body-lg-size);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ——— Сфера-аватар с орбитой ——— */
+
+.orbStage {
+  width: 200px;
+  height: 200px;
+  perspective: 700px;
+}
+
+.orbScene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.orb {
+  position: absolute;
+  inset: 40px;
+  border-radius: 50%;
+}
+
+/* Кольцо вокруг сферы: градиент бренда крутится по кругу. */
+.orbRing {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent-violet), var(--accent-pink), var(--accent-orange), var(--accent-violet));
+  filter: drop-shadow(0 0 14px var(--glass-line));
+  animation: spin 8s linear infinite;
+}
+
+.orbCore {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 30%, var(--surface-3), var(--canvas) 70%);
+  box-shadow:
+    inset 0 2px 10px var(--glass-edge-strong),
+    inset 0 -12px 24px var(--canvas);
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * Орбита — кольцо, наклонённое к зрителю. Связки-«планеты» стоят на нём
+ * и облетают сферу: передняя половина орбиты проходит перед сферой.
+ */
+.orbit {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1px solid var(--glass-edge-strong);
+  box-shadow:
+    0 0 12px var(--glass-edge),
+    inset 0 0 12px var(--glass-edge);
+  transform-style: preserve-3d;
+  transform: rotateX(70deg) rotateZ(0deg);
+  animation: orbit 26s linear infinite;
+}
+
+@keyframes orbit {
+  to {
+    transform: rotateX(70deg) rotateZ(360deg);
+  }
+}
+
+.arm {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateZ(var(--a, 0deg));
+}
+
+/* Планета смотрит на зрителя: наклон орбиты снят обратным поворотом. */
+.planet {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--text-accent-pale), var(--accent-violet) 60%);
+  box-shadow: 0 0 14px var(--accent-violet);
+  transform: rotateX(-70deg);
+}
+
+.planetHot {
+  background: radial-gradient(circle at 35% 30%, var(--text-danger-soft), var(--status-danger) 60%);
+  box-shadow: 0 0 16px var(--status-danger);
+}
+
+/* ——— Разделы ——— */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  min-width: 0;
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.blockTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  color: var(--text-primary);
+}
+
+.blockNote {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.hint {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  cursor: help;
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.more:hover {
+  color: var(--text-primary);
+}
+
+/* ——— Показатели ——— */
+
+.statsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+  gap: var(--space-4);
+  align-items: stretch;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border-radius: var(--radius-card);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+  overflow: hidden;
+  animation: tileIn var(--motion-panel) var(--ease-out) calc(var(--i, 0) * 70ms) both;
+  transition:
+    transform var(--motion-surface) var(--ease-out),
+    box-shadow var(--motion-surface) var(--ease-out);
+}
+
+/* Цветной свет из угла плитки — по смыслу показателя. */
+.tile::before {
+  content: '';
+  position: absolute;
+  inset: auto -30% -60% auto;
+  width: 70%;
+  height: 120%;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.12;
+  filter: blur(28px);
+  pointer-events: none;
+}
+
+.tile:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    var(--shadow-floating);
+}
+
+@keyframes tileIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.violet {
+  color: var(--accent-violet);
+}
+
+.cyan {
+  color: var(--accent-cyan);
+}
+
+.pink {
+  color: var(--accent-pink);
+}
+
+.danger {
+  color: var(--status-danger);
+}
+
+.success {
+  color: var(--status-success);
+}
+
+.tileIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-icon);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+}
+
+.tileValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.tileLabel {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.onTime {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(ellipse at 50% 0%, var(--bg-haze-violet), transparent 70%),
+    var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+}
+
+.onTimeCaption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.onTimeCaption strong {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+}
+
+/* ——— Мои связки и события ——— */
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-8);
+  align-items: start;
+}
+
+.mineGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coopItem {
+  animation: tileIn var(--motion-panel) var(--ease-out) calc(var(--i, 0) * 70ms) both;
+}
+
+.coop {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  height: 100%;
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+  text-decoration: none;
+  transition:
+    transform var(--motion-surface) var(--ease-out),
+    box-shadow var(--motion-surface) var(--ease-out);
+}
+
+.coop:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    inset 0 0 0 1px var(--line-strong),
+    var(--shadow-floating);
+}
+
+/* Связка, где горит, — с красной кромкой слева. */
+.coop.overdue {
+  box-shadow:
+    inset 3px 0 0 var(--status-danger),
+    inset 0 0 0 1px var(--line-subtle);
+}
+
+.coop.blocked {
+  box-shadow:
+    inset 3px 0 0 var(--status-warning),
+    inset 0 0 0 1px var(--line-subtle);
+}
+
+.coopUni {
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--text-accent);
+}
+
+.coopProgram {
+  font-size: var(--text-body-size);
   font-weight: 600;
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 
-.link {
-  color: var(--text-primary);
+.coopProduct {
+  margin-bottom: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.coopFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.coopStage {
+  min-width: 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coopState {
+  flex: none;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+}
+
+.okText {
+  color: var(--status-success);
+  background: var(--success-surface);
+}
+
+.overdueText {
+  color: var(--text-danger-strong);
+  background: var(--danger-surface);
+}
+
+.blockedText {
+  color: var(--status-warning);
+  background: var(--line-faint);
+}
+
+/* Лента событий: точка на линии времени, заголовок, где, когда. */
+.feed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0 0 0 var(--space-5);
+  list-style: none;
+}
+
+.feed::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: linear-gradient(var(--line-strong), transparent);
+}
+
+.event {
+  position: relative;
+  animation: tileIn var(--motion-panel) var(--ease-out) calc(120ms + var(--i, 0) * 70ms) both;
+}
+
+.eventDot {
+  position: absolute;
+  left: calc(var(--space-5) * -1 + 1px);
+  top: 12px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-violet);
+  box-shadow: 0 0 0 3px var(--canvas);
+}
+
+.eventDot.critical {
+  background: var(--status-danger);
+}
+
+.eventDot.warning {
+  background: var(--status-warning);
+}
+
+.eventLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-row);
   text-decoration: none;
-  border-bottom: 1px solid var(--border-hover);
-  transition: color var(--motion-micro) var(--ease-out);
+  transition: background var(--motion-micro) var(--ease-out);
 }
 
-.link:hover {
-  color: var(--accent-primary);
+.eventLink:hover {
+  background: var(--surface-hover);
 }
 
-.generated {
-  margin-top: var(--space-4);
+.eventTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.eventText {
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eventTime {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
 
-.note {
-  font-size: var(--text-body-sm-size);
-  line-height: var(--text-body-sm-line);
-  color: var(--text-secondary);
+/* ——— Настройки ——— */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  max-width: 820px;
 }
 
-.exit {
+.row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--border-divider);
+  gap: var(--space-6);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-divider);
 }
 
-.exitText {
+.row:last-child {
+  border-bottom: none;
+}
+
+.rowText {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
 }
 
-.exitTitle {
-  font-size: var(--text-h3-size);
-  font-weight: var(--text-h3-weight);
+.rowTitle {
+  font-size: var(--text-body-size);
+  font-weight: 500;
   color: var(--text-primary);
 }
 
-@media (max-width: 640px) {
-  .identity {
-    align-items: flex-start;
+.rowCaption {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.rowSide {
+  flex: none;
+}
+
+.generated {
+  margin-top: var(--space-6);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* ——— Спокойно: рабочий режим и «уменьшить движение» ——— */
+
+:global(html[data-mode='work']) .aurora,
+:global(html[data-mode='work']) .orbRing,
+:global(html[data-mode='work']) .orbit {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora,
+  .orbRing,
+  .orbit {
+    animation: none;
+  }
+}
+
+/* ——— Узкий экран ——— */
+
+@media (max-width: 1080px) {
+  .columns,
+  .statsLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
     gap: var(--space-4);
+    padding: var(--space-6) var(--space-5);
+    text-align: center;
   }
 
-  .name {
-    /* На узком экране заголовок в одну строку не помещается. */
-    font-size: var(--text-kpi-md-size);
+  .heroText {
+    align-items: center;
+  }
+
+  .chips {
+    justify-content: center;
+  }
+
+  .orbStage {
+    width: 160px;
+    height: 160px;
+  }
+
+  .orb {
+    inset: 32px;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
   }
 }
