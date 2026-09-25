@@ -780,6 +780,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -824,6 +825,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -840,6 +842,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -868,6 +873,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19582,6 +19588,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19626,6 +19633,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19642,6 +19650,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -19670,6 +19681,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19766,6 +19778,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19810,6 +19823,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19854,6 +19868,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -19870,6 +19885,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -19898,6 +19916,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20044,6 +20063,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20088,6 +20108,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20132,6 +20153,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20148,6 +20170,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -20176,6 +20201,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20250,6 +20276,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20294,6 +20321,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20310,6 +20338,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -20338,6 +20369,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20412,6 +20444,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20456,6 +20489,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
@@ -20472,6 +20506,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "description": "INTERNAL",
@@ -20500,6 +20537,7 @@
                             "CONFLICT",
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
                             "INTERNAL"
                           ]
                         },
