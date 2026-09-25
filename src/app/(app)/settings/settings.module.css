@@ -1,82 +1,115 @@
 /*
- * Настройки — плотный список «параметр — значение — изменить» (ТЗ визуалу, п. 3).
- * Разделы без карточек: заголовок, под ним строки через тонкую линию.
+ * Настройки — как настройки Claude (ТЗ визуалу, п. 3): слева колонка разделов,
+ * справа один раздел. Строка — название и короткая подпись слева, значение или
+ * действие справа, между строками тонкая линия. Карточек и абзацев нет.
  */
 
-.list {
+.layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: var(--space-10);
+  align-items: start;
+  max-width: 1040px;
+}
+
+/* Колонка разделов: тихие пункты, выбранный — подложкой, как в меню Claude. */
+.nav {
+  position: sticky;
+  top: calc(var(--header-height) + var(--space-6));
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  max-width: 960px;
+  gap: 2px;
 }
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-/* Якорь из подвала: заголовок не должен уезжать под закреплённую шапку. */
-.group[id] {
-  scroll-margin-top: calc(var(--header-height) + var(--space-6));
-}
-
-.groupHead {
+.navItem {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  font-size: var(--text-body-size);
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
 }
 
-.groupTitle {
-  display: inline-flex;
+.navItem:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.navItem[aria-current='page'] {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.panel {
+  min-width: 0;
+  max-width: 720px;
+}
+
+.panelTitle {
+  display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-kicker-size);
-  font-weight: 600;
-  letter-spacing: var(--text-kicker-tracking);
-  text-transform: uppercase;
-  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-h2-size);
+  font-weight: var(--text-h2-weight);
+  line-height: var(--text-h2-line);
+  color: var(--text-primary);
 }
 
 .rows {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--border-divider);
 }
 
 .row {
-  display: grid;
-  /* Колонка управления одной ширины во всех строках — значения стоят ровным столбцом. */
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 224px;
+  display: flex;
   align-items: center;
-  gap: var(--space-4);
-  min-height: 48px;
-  padding: var(--space-2) 0;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--border-divider);
 }
 
-.label {
+.rows > .row:last-child,
+.rows > div:last-child > .source:last-child {
+  border-bottom: none;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowTitle {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  min-width: 0;
   font-size: var(--text-body-size);
   font-weight: 500;
   color: var(--text-primary);
-  overflow-wrap: anywhere;
 }
 
-.value {
-  min-width: 0;
+.rowCaption {
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
   overflow-wrap: anywhere;
 }
 
-.control {
+.rowSide {
   display: inline-flex;
+  flex: none;
+  align-items: center;
   justify-content: flex-end;
 }
 
@@ -94,11 +127,7 @@
 .muted {
   font-size: var(--text-body-sm-size);
   color: var(--text-tertiary);
-}
-
-.code {
-  font-variant-numeric: tabular-nums;
-  color: var(--text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .number {
@@ -109,24 +138,30 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-button);
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-primary);
   text-decoration: none;
-  transition: color var(--motion-micro) var(--ease-out);
+  transition:
+    border-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
 }
 
 .link:hover {
+  border-color: var(--border-hover);
   color: var(--accent-primary);
 }
 
 /* Источник: строка и раскрытые под ней подробности (ТЗ фронту, задача 8). */
-.source .row {
-  border-bottom: none;
-}
-
 .source {
   border-bottom: 1px solid var(--border-divider);
+}
+
+.source .row {
+  border-bottom: none;
 }
 
 .disclosure {
@@ -157,9 +192,9 @@
 
 .details {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--space-3) var(--space-6);
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-4);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-row);
   background: var(--surface-sunken);
@@ -177,30 +212,47 @@
   overflow-wrap: anywhere;
 }
 
-.url {
-  color: var(--text-secondary);
-}
-
 .refreshing {
   opacity: 0.6;
   transition: opacity var(--motion-micro) var(--ease-out);
 }
 
-.locked {
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--border-divider);
-}
-
-/* Телефон: параметр над значением, кнопка — под ними. */
-@media (max-width: 720px) {
-  .row {
+/*
+ * Узкий экран: разделы — полосой над содержимым с прокруткой вбок внутри себя
+ * (страница вбок не едет), строка складывается — действие под текстом.
+ */
+@media (max-width: 860px) {
+  .layout {
     grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
-    padding: var(--space-3) 0;
+    gap: var(--space-5);
   }
 
-  .control {
+  .nav {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 calc(var(--space-4) * -1);
+    padding: 0 var(--space-4);
+  }
+
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .navItem {
+    flex: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .rowSide {
     justify-content: flex-start;
-    margin-top: var(--space-1);
   }
 }
