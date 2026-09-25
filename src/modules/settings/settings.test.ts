@@ -27,9 +27,9 @@ const CONFIG_MODULES: Record<string, unknown>[] = [analytics, auth, retention, w
 
 function resolve(configKey: string): unknown {
   const [root, ...path] = configKey.split('.')
-  const module = CONFIG_MODULES.find((item) => root! in item)
-  if (!module) throw new Error(`Константа ${root} не найдена в конфигах`)
-  return path.reduce<unknown>((value, key) => (value as Record<string, unknown>)[key], module[root!])
+  const configModule = CONFIG_MODULES.find((item) => root! in item)
+  if (!configModule) throw new Error(`Константа ${root} не найдена в конфигах`)
+  return path.reduce<unknown>((value, key) => (value as Record<string, unknown>)[key], configModule[root!])
 }
 
 /** Строка конфига, где задано значение: объявление константы или её поле. */

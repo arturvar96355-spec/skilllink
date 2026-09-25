@@ -3829,6 +3829,78 @@ async function checkSessionRevocation(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+async function checkTelegram(ctx: ProbeContext): Promise<void> {
+  step('Уведомления в Telegram: вебхук без секрета закрыт, кабинет честно говорит о настройке')
+  const { rep, managerId } = ctx
+
+  {
+    /*
+     * Настоящий бот пробнику не нужен и не используется (решение 102). Вебхук без
+     * заголовка секрета или с чужим — 403 при любой настройке: без TELEGRAM_WEBHOOK_SECRET
+     * он закрыт для всех. Запрос Telegram идёт без Origin — как этот.
+     */
+    const update = JSON.stringify({ update_id: 1, message: { chat: { id: 42, type: 'private' }, text: '/today' } })
+    const webhook = async (headers: Record<string, string>) => {
+      const response = await fetch(`${BASE_URL}/api/telegram/webhook`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: update,
+      })
+      const body = (await response.json().catch(() => ({}))) as { error?: { code?: string } }
+      return { status: response.status, code: body.error?.code ?? null }
+    }
+    const noSecret = await webhook({})
+    const wrongSecret = await webhook({ 'x-telegram-bot-api-secret-token': `probe-${Date.now()}` })
+    check(
+      'вебхук без секрета и с чужим секретом — 403 по контракту',
+      noSecret.status === 403 && noSecret.code === 'FORBIDDEN' && wrongSecret.status === 403,
+      `без секрета ${noSecret.status}, с чужим ${wrongSecret.status}`,
+    )
+
+    actAs(managerId)
+    type Status = { configured: boolean; available: boolean; linked: boolean; username: string | null }
+    const status = await call<Status>('GET', '/api/me/telegram')
+    const data = status.body.data
+    check(
+      'менеджеру: состояние блока с признаком настройки, сводка доступна',
+      status.status === 200 && typeof data?.configured === 'boolean' && data.available === true,
+      `статус ${status.status}, ${JSON.stringify(data)}`,
+    )
+    const connect = await call<{ url: string; expiresAt: string }>('POST', '/api/me/telegram')
+    if (data?.configured) {
+      const token = /[?&]start=([^&]+)$/.exec(connect.body.data?.url ?? '')?.[1] ?? ''
+      check(
+        'бот настроен: ссылка на t.me с токеном не длиннее 64 символов из алфавита Telegram',
+        connect.status === 200 && /^https:\/\/t\.me\//.test(connect.body.data?.url ?? '') && /^[A-Za-z0-9_-]{1,64}$/.test(token),
+        `статус ${connect.status}`,
+      )
+    } else {
+      check(
+        'бот не настроен: ссылки нет — 502 «не настроены администратором»',
+        connect.status === 502 && connect.body.error?.code === 'INTEGRATION_ERROR',
+        `статус ${connect.status}`,
+      )
+    }
+    // Отключение без привязки — не ошибка. Настоящую привязку пробник не трогает.
+    if (data && !data.linked) {
+      const off = await call<Status>('DELETE', '/api/me/telegram')
+      check('отключение без привязки — 200, linked=false', off.status === 200 && off.body.data?.linked === false, `статус ${off.status}`)
+    }
+
+    if (rep) {
+      actAs(rep.id)
+      const repStatus = await call<Status>('GET', '/api/me/telegram')
+      const repConnect = await call('POST', '/api/me/telegram')
+      check(
+        'представителю вуза сводка недоступна: available=false, ссылка — 403',
+        repStatus.status === 200 && repStatus.body.data?.available === false && repConnect.status === 403,
+        `состояние ${repStatus.status}, ссылка ${repConnect.status}`,
+      )
+    }
+    actAs(null)
+  }
+}
+
 async function checkStaleSession(): Promise<void> {
   step('Устаревшая сессия не запирает вход')
 
@@ -4093,6 +4165,7 @@ async function main(): Promise<void> {
   await checkContactPrivacy(ctx)
   await checkUserManagement(ctx)
   await checkSessionRevocation(ctx)
+  await checkTelegram(ctx)
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)

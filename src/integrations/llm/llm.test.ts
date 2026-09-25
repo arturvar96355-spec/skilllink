@@ -21,7 +21,7 @@ import {
   resetGigaChatToken,
   type HttpsTransport,
 } from '.'
-import type { HttpsPostRequest } from './https-transport'
+import type { HttpsPostRequest } from '../https-transport'
 
 /**
  * Провайдеры ИИ-помощника. Настоящей сети здесь нет: fetch и HTTPS подменены,
