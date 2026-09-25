@@ -118,7 +118,7 @@ export async function getById(user: CurrentUser, id: string): Promise<Cooperatio
   return {
     ...toListItem(row, now),
     goal: row.goal,
-    // Заметки по связке — внутренние: вуз их не видит (решение 9).
+    // Заметки по связке — внутренние: вуз их не видит.
     notes: hideInternalNotes ? null : row.notes,
     firstContactAt: toIso(row.firstContactAt),
     startedAt: toIso(row.startedAt),
