@@ -42,6 +42,13 @@ export const PERMISSIONS = {
    * отдельно в canSeeContactDetails, в список роль не входит.
    */
   CONTACT_DETAILS: ['ADMIN', 'MANAGER'],
+  /**
+   * Правовое основание обработки ПД контактов и согласия (решение 111): видеть,
+   * фиксировать, отзывать согласие, открывать историю. Те же, кто ведёт переписку
+   * с контактами и получает от них документы. Представителю вуза — нет даже
+   * по своему вузу: это учёт оператора (ИТ-Школы), а не сведения вуза.
+   */
+  CONTACT_BASIS: ['ADMIN', 'MANAGER'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS

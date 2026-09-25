@@ -23,6 +23,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import type { StageStatus } from '@/shared/contracts/enums'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
+import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
 import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
 
@@ -177,6 +178,36 @@ const RULES: Rule[] = [
   {
     name: 'Нет рекомендаций в упразднённом статусе «Принята»',
     sql: `SELECT id FROM recommendations WHERE status = 'ACCEPTED'`,
+  },
+  {
+    // Решение 111. CHECK в базе держит то же на уровне строки; здесь — на случай
+    // правки CHECK или данных, залитых в обход миграций.
+    name: 'Полученное согласие: основание «согласие», есть дата и форма',
+    sql: `SELECT id FROM contacts
+          WHERE consent_status = 'OBTAINED'
+            AND (legal_basis IS DISTINCT FROM 'CONSENT'
+                 OR consent_obtained_at IS NULL OR consent_form IS NULL)`,
+  },
+  {
+    // Отзыв единственного основания — немедленное обезличивание (ч. 5 ст. 21 152-ФЗ).
+    name: 'Отозванное согласие: контакт обезличен, есть дата и документ отзыва',
+    sql: `SELECT id FROM contacts
+          WHERE consent_status = 'WITHDRAWN'
+            AND NOT (full_name = '${ANONYMIZED_CONTACT_NAME.replaceAll("'", "''")}'
+                     AND position IS NULL AND email IS NULL AND phone IS NULL
+                     AND consent_withdrawn_at IS NOT NULL AND withdrawal_reference IS NOT NULL)`,
+  },
+  {
+    name: 'Основание контакта совпадает с последней записью его истории',
+    sql: `SELECT c.id FROM contacts c
+          LEFT JOIN LATERAL (
+            SELECT to_basis, to_consent_status FROM contact_basis_history h
+            WHERE h.contact_id = c.id
+            ORDER BY h.changed_at DESC, h.id DESC LIMIT 1
+          ) last ON true
+          WHERE (c.legal_basis IS NULL) <> (last.to_basis IS NULL)
+             OR last.to_basis <> c.legal_basis
+             OR last.to_consent_status <> c.consent_status`,
   },
   {
     name: 'Рекомендация ссылается на существующий объект',

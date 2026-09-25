@@ -1,6 +1,9 @@
 import type {
   ApplicationStatus,
   ConfidenceLevel,
+  ConsentForm,
+  ConsentStatus,
+  ContactLegalBasis,
   CooperationStatus,
   DataOrigin,
   DataSourceType,
@@ -232,6 +235,26 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   CANCELLED: 'Отменена',
 }
 
+/** Правовое основание обработки ПД контакта вуза (решение 111) — со ссылкой на пункт закона. */
+export const CONTACT_LEGAL_BASIS_LABELS: Record<ContactLegalBasis, string> = {
+  LEGITIMATE_INTEREST: 'Законный интерес: договор с вузом (п. 7 ч. 1 ст. 6 152-ФЗ)',
+  CONTRACT: 'Договор, стороной которого является сам контакт (п. 5 ч. 1 ст. 6 152-ФЗ)',
+  CONSENT: 'Согласие субъекта (п. 1 ч. 1 ст. 6 152-ФЗ)',
+  OTHER: 'Иное основание ст. 6 152-ФЗ — по документу',
+}
+
+export const CONSENT_STATUS_LABELS: Record<ConsentStatus, string> = {
+  NONE: 'Не требуется',
+  OBTAINED: 'Согласие получено',
+  WITHDRAWN: 'Согласие отозвано',
+}
+
+export const CONSENT_FORM_LABELS: Record<ConsentForm, string> = {
+  WRITTEN: 'Письменное',
+  ELECTRONIC: 'Электронное',
+  ORAL_CONFIRMED_BY_EMAIL: 'Устное, подтверждено письмом по почте',
+}
+
 /** Происхождение показателя: как объяснить пользователю, откуда взялось число. */
 export const METRIC_BASIS_LABELS = {
   actual: 'Фактические данные',
@@ -261,6 +284,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'university.archive': 'Вуз отправлен в архив',
   'university.restore': 'Вуз возвращён из архива',
   'contact.anonymize': 'Контакт вуза обезличен',
+  'contact.basis.set': 'Зафиксировано основание обработки ПД контакта',
+  'contact.consent.withdraw': 'Отозвано согласие контакта на обработку ПД',
   'program.create': 'Создана программа',
   'program.update': 'Изменена программа',
   'program.skills.replace': 'Изменены навыки программы',

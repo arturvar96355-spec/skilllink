@@ -97,21 +97,33 @@ export function universityRatingCells(rating: UniversityRatingDto | null): CsvVa
   return [rating.score, METRIC_BASIS_LABELS[rating.basis], rating.ratedProgramCount]
 }
 
-/** Колонки основного контакта в выгрузке вузов. Состав одинаков для всех ролей. */
-export const CONTACT_HEADERS = ['Контактное лицо', 'Должность', 'Почта']
+/**
+ * Колонки основного контакта в выгрузке вузов. Состав одинаков для всех ролей.
+ * Последняя — признак, что правовое основание обработки ПД контакта зафиксировано
+ * (решение 111): сами основание, согласие и документы в файл не уходят.
+ */
+export const CONTACT_HEADERS = ['Контактное лицо', 'Должность', 'Почта', 'Основание обработки ПД зафиксировано']
 
 /**
  * Ячейки основного контакта. Почта — только ролям, которым она нужна для работы
  * (canSeeContactDetails): остальным колонка остаётся, но пустая — так файл
  * у всех ролей одного вида и цикл «выгрузил → загрузил» не ломается.
  * Телефон в выгрузку не попадает ни у кого: он есть в карточке вуза.
+ * Признак основания — «да»/«нет» всем: это не сведения о человеке.
  */
 export function contactCells(
-  contact: { fullName: string; position: string | null; email: string | null } | undefined,
+  contact:
+    | { fullName: string; position: string | null; email: string | null; legalBasis: string | null }
+    | undefined,
   showDetails: boolean,
 ): CsvValue[] {
-  if (!contact) return [null, null, null]
-  return [contact.fullName, contact.position, showDetails ? contact.email : null]
+  if (!contact) return [null, null, null, null]
+  return [
+    contact.fullName,
+    contact.position,
+    showDetails ? contact.email : null,
+    contact.legalBasis !== null,
+  ]
 }
 
 /** Фильтры со свободным текстом: в поиске может оказаться фамилия. */

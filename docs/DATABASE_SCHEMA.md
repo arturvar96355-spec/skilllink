@@ -41,6 +41,11 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `tasks_sort_order_check` | ≥ 0 |
 | `calendar_feeds_token_hash_check` | 64 шестнадцатеричных знака — хеш, а не сам токен (миграция `20260925210200_calendar_feeds`) |
 | `tasks_confirmation_note_check` | пометка — только у отмеченного пункта вуза, 3–500 символов без краевых пробелов (миграция `20260925210000_task_university_item`) |
+| `contacts_consent_status_check` | статус согласия не `NONE` ровно при основании `CONSENT` (миграция `20260925230200_contact_legal_basis`, решение 111) |
+| `contacts_consent_details_check` | дата и форма согласия — ровно при `OBTAINED` и `WITHDRAWN` |
+| `contacts_consent_withdrawal_check` | дата и документ отзыва — ровно при `WITHDRAWN`; отзыв не раньше получения |
+| `contacts_basis_reference_check` | документ-основание и дата фиксации — ровно при заданном основании |
+| `contact_basis_history_consent_status_check` | в истории: статус согласия не `NONE` ровно при `to_basis = CONSENT` |
 | `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
@@ -59,7 +64,10 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 у пунктов вуза из конфига, а отмеченный пункт вуза отметил представитель этого вуза
 или у него есть пометка «чем подтверждено» (решение 103); выражение индекса
 `skills_name_key_ci` считает ключ названия навыка так же, как `skillNameKey` в коде
-(решение 110). С `--demo` — ещё пометка `is_mock` у всего демо-набора.
+(решение 110); у полученного согласия есть дата и форма, отозванное согласие — у
+обезличенного контакта с датой и документом отзыва, основание контакта совпадает
+с последней записью его истории (решение 111). С `--demo` — ещё пометка `is_mock`
+у всего демо-набора.
 
 Каждое правило — запрос, который ищет нарушения; всё в транзакции READ ONLY.
 Запускается в CI после сида и после сквозного сценария с пробником (записи самого
@@ -141,6 +149,33 @@ WHERE c.contype = 'f'
 **Расширение относительно раздела 11 ТЗ:** в ТЗ контактное лицо перечислено как поля карточки
 вуза (раздел 7.3). Вынесено в отдельную таблицу, потому что контактов бывает несколько и на них
 ссылаются участники встреч (`meeting_participants`). В карточке вуза отдаётся `primaryContact`.
+
+**Правовое основание обработки ПД (решение 111, миграция `20260925230200_contact_legal_basis`):**
+
+| Поле | Тип | Примечание |
+| --- | --- | --- |
+| legal_basis | ContactLegalBasis? | `LEGITIMATE_INTEREST` (п. 7 ч. 1 ст. 6 — договор с вузом), `CONTRACT` (п. 5 — договор с самим контактом), `CONSENT` (п. 1), `OTHER`. NULL — не зафиксировано |
+| consent_status | ConsentStatus | `NONE` (по умолчанию), `OBTAINED`, `WITHDRAWN` |
+| consent_obtained_at, consent_form | timestamptz?, ConsentForm? | при `OBTAINED`/`WITHDRAWN`; форма `WRITTEN`, `ELECTRONIC`, `ORAL_CONFIRMED_BY_EMAIL` |
+| consent_withdrawn_at, withdrawal_reference | timestamptz?, text? | только при `WITHDRAWN` |
+| basis_reference | text? | где лежит документ-основание (номер, дата, место хранения). Не файл |
+| basis_updated_at | timestamptz? | когда основание фиксировали в последний раз |
+
+Согласованность полей держат четыре CHECK (выше). Существующие контакты получили NULL/`NONE`:
+основание задним числом не выдумывается. Индексов нет: по этим полям не ищут, `db:verify`
+проходит таблицу целиком (контактов — сотни).
+
+### contact_basis_history — история основания и согласия (решение 111)
+
+`contact_id` (CASCADE), `from_basis?`, `to_basis`, `from_consent_status`, `to_consent_status`,
+`consent_obtained_at?`, `consent_form?`, `consent_withdrawn_at?`, `reference_changed`,
+`anonymized`, `changed_by_id` (RESTRICT, как у `stage_history`), `changed_at`.
+Индексы: (`contact_id`, `changed_at`) — под историю контакта по времени; `changed_by_id` — FK.
+
+**Свободного текста нет** — ни комментария, ни копии документа-основания (только признак
+`reference_changed`): история переживает обезличивание контакта и служит выгрузкой для акта
+уничтожения, ПД в ней оказаться не должно. Пишется в одной транзакции с изменением контакта
+под `FOR UPDATE` строки контакта.
 
 ### educational_programs — образовательные программы
 
@@ -387,6 +422,8 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | university → contacts | CASCADE | контакт без вуза не имеет смысла |
 | cooperation → stages, documents, meetings | CASCADE | часть одной сущности |
 | stage → tasks, history | CASCADE | часть одной сущности |
+| contact → contact_basis_history | CASCADE | история основания без контакта бессмысленна; контакты не удаляются, а обезличиваются |
+| user → contact_basis_history | RESTRICT | автор фиксации основания — доказательство, как в `stage_history` |
 | user → любые ссылки | SET NULL | увольнение сотрудника не удаляет историю |
 | user → telegram_links | CASCADE | привязка — не история, без пользователя она не нужна (решение 102) |
 | user → calendar_feeds | CASCADE | подписка без пользователя — доступ без владельца |
@@ -401,6 +438,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
 | `skills_name_key_ci` — уникальный индекс по выражению | Уникальность названия навыка без учёта регистра и пробелов держит база, а не блокировка в коде (решение 110). Если в базе уже есть дубли, миграция падает с их списком и ничего не меняет | `20260925230100_skill_name_key_unique` |
 | `users.session_version` | Отзыв выданных JWT-сессий при смене и сбросе пароля, блокировке и смене роли (решение 109). Существующим строкам — 0, токен без версии тоже считается 0: выкладка никого не разлогинивает. Добавление колонки с константным DEFAULT таблицу не переписывает. Откат — в комментарии миграции | `20260925230000_user_session_version` |
+| Основание обработки ПД у `contacts` (8 колонок, 3 перечисления, 4 CHECK), таблица `contact_basis_history` | Учёт оснований и согласий контактов вузов (152-ФЗ, решение 111). **Ждёт согласования с Тиграном** | `20260925230200_contact_legal_basis` |
 
 ## Что обсудить с Тиграном
 

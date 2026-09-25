@@ -36,6 +36,14 @@ function user(role: UserRole): CurrentUser {
 }
 
 const LIVE = {
+  legalBasis: null,
+  consentStatus: 'NONE',
+  consentObtainedAt: null,
+  consentForm: null,
+  consentWithdrawnAt: null,
+  basisReference: null,
+  withdrawalReference: null,
+  basisUpdatedAt: null,
   id: 'c-1',
   universityId: 'uni-1',
   fullName: 'Ветрова Ирина Павловна',
