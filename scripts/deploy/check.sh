@@ -44,6 +44,17 @@ check "миграции применены" "$(yes_no "$SCHEMA" ready)" "schema=
 ME=$(curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 20 "$URL/api/me")
 check "вход без пароля выключен" "$(yes_no "$ME" 401)" "/api/me без сессии → $ME (нужен 401)"
 
+# ── Ограничение частоты запросов (решение 117) ──────────────────────────────
+#
+# Только наличие заголовков: один запрос, без попыток исчерпать предел —
+# стенд под показом, а 429 проверяет пробник локально.
+RL=$(curl -s $CURL_INSECURE -D - -o /dev/null --max-time 20 "$URL/api/me" | tr 'A-Z' 'a-z' | tr -d '\r')
+RL_OK=1
+for header in ratelimit-limit ratelimit-remaining ratelimit-reset; do
+  echo "$RL" | grep -q "^$header: *[0-9]" || RL_OK=0
+done
+check "ответы API несут RateLimit-*" "$RL_OK" "$(echo "$RL" | sed -nE 's/^ratelimit-limit: *([0-9]+).*/предел \1 в минуту/p')"
+
 # ── Защитные заголовки ──────────────────────────────────────────────────────
 HEADERS=$(curl -fsSI $CURL_INSECURE --max-time 20 "$URL/api/health" 2>/dev/null | tr 'A-Z' 'a-z')
 for header in x-content-type-options x-frame-options referrer-policy; do

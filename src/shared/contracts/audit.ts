@@ -11,6 +11,11 @@ export const AUDIT_ACTIONS = [
   'auth.login.success',
   'auth.login.failure',
   'auth.login.blocked',
+  /**
+   * Превышен предел частоты запросов к API (решение 117): одна запись на ключ
+   * в минуту. В payload — группа, предел и вид субъекта; адреса и пути нет.
+   */
+  'api.rate-limit.exceeded',
   'user.create',
   /** ФИО, должность или вуз представителя. В журнале — только имена полей. */
   'user.update',
