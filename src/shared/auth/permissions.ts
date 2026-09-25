@@ -29,6 +29,12 @@ export const PERMISSIONS = {
    * подменил бы подтверждение второй стороны своим.
    */
   UNIVERSITY_PORTAL_WRITE: ['UNIVERSITY_REP'],
+  /**
+   * Личная подписка на календарь сроков и встреч (решение 105). Только сотрудники:
+   * в ленте сроки этапов — внутренняя кухня ИТ-Школы, которую представитель вуза
+   * не видит (решение 9), а своих сроков и встреч у него в системе нет.
+   */
+  CALENDAR: ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS

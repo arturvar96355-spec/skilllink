@@ -24,14 +24,14 @@ function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): JsonSchema {
   return result
 }
 
-/** Параметры пути: берутся из самого пути, отдельного описания не требуют. */
-function pathParameters(path: string): JsonSchema[] {
+/** Параметры пути: берутся из самого пути; описание — своё, если это не идентификатор. */
+function pathParameters(path: string, descriptions: Record<string, string> = {}): JsonSchema[] {
   return [...path.matchAll(/\{([a-zA-Z]+)\}/g)].map((match) => ({
     name: match[1],
     in: 'path',
     required: true,
     schema: { type: 'string' },
-    description: 'Идентификатор (cuid)',
+    description: descriptions[match[1]!] ?? 'Идентификатор (cuid)',
   }))
 }
 
@@ -123,13 +123,17 @@ const PERMISSION_NOTES: Record<string, string> = {
   ADMIN: 'Роль: ADMIN',
   UNIVERSITY_PORTAL: 'Роли: ADMIN, MANAGER, UNIVERSITY_REP',
   UNIVERSITY_PORTAL_WRITE: 'Роль: UNIVERSITY_REP. Сотрудник ИТ-Школы в кабинете вуза только просматривает',
+  CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {
-  const parameters = [...pathParameters(spec.path)]
+  const parameters = [...pathParameters(spec.path, spec.pathParams)]
   if (spec.query) parameters.push(...queryParameters(spec.query))
 
-  const description = [spec.description, `Право доступа: ${PERMISSION_NOTES[spec.permission]}.`]
+  const access = spec.public
+    ? 'Право доступа: без входа — доступ даёт сам адрес.'
+    : `Право доступа: ${PERMISSION_NOTES[spec.permission]}.`
+  const description = [spec.description, access]
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join('\n\n')
 
@@ -147,10 +151,14 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
         ? '201'
         : '200']: {
         description: 'Успех',
-        content: { 'application/json': { schema: successSchema(spec) } },
+        content: spec.fileContentType
+          ? { [spec.fileContentType]: { schema: { type: 'string' } } }
+          : { 'application/json': { schema: successSchema(spec) } },
       },
       ...errorResponses(spec.errors),
     },
+    // Открытый маршрут: схема авторизации документа по умолчанию к нему не относится.
+    ...(spec.public ? { security: [] } : {}),
   }
 
   if (spec.body) {

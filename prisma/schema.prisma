@@ -214,6 +214,7 @@ model User {
   recommendationsClosed  Recommendation[]     @relation("RecommendationResolver")
   auditLogs              AuditLog[]           @relation("AuditLogUser")
   applicationsCreated    Application[]        @relation("ApplicationAuthor")
+  calendarFeed           CalendarFeed?
 
   @@index([role])
   @@index([universityId])
@@ -650,6 +651,8 @@ model Meeting {
   @@index([cooperationId])
   @@index([universityId])
   @@index([date])
+  /// Встречи ответственного — лента календаря (решение 105).
+  @@index([responsibleId])
   @@map("meetings")
 }
 
@@ -669,6 +672,8 @@ model MeetingParticipant {
   contact Contact? @relation("MeetingParticipantContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([meetingId])
+  /// Встречи, где сотрудник — участник: лента календаря (решение 105).
+  @@index([userId])
   @@map("meeting_participants")
 }
 
@@ -753,6 +758,21 @@ model AuditLog {
   @@index([createdAt])
   @@index([userId])
   @@map("audit_log")
+}
+
+/// Личная подписка на календарь сроков и встреч (.ics, решение 105).
+/// Одна на пользователя. Токен из ссылки в базе не хранится — только SHA-256 от него:
+/// утёкшая копия базы не даёт открыть ни одну ленту. Перевыпуск заменяет хеш,
+/// отзыв удаляет строку.
+model CalendarFeed {
+  userId    String   @id @map("user_id")
+  /// SHA-256 от токена, шестнадцатеричный (64 знака).
+  tokenHash String   @unique @map("token_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_feeds")
 }
 
 /// Заявка на обучение (решение 9). Персональных данных обучающихся не содержит.

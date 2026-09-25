@@ -131,6 +131,8 @@ async function warmUp(): Promise<void> {
     '/api/export?dataset=universities&limit=1',
     '/api/portal/overview',
     '/api/openapi.json',
+    '/api/me/calendar',
+    '/api/calendar/warm-up.ics',
   ]
 
   await Promise.all(
@@ -3204,6 +3206,108 @@ async function main(): Promise<void> {
       secondSolved === 'credentials' && blocked === 'too_many_attempts',
       [secondSolved, blocked].join(', '),
     )
+  }
+
+  // ── Календарь (.ics, решение 105) ─────────────────────────────────────────
+  step('Календарь: ссылка — единственный доступ, отзыв закрывает её сразу')
+
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+  } else {
+    /** Лента без cookie — как её запрашивает календарное приложение. */
+    const feed = async (url: string) => {
+      // Адрес в ответе строится от AUTH_URL / APP_BASE_URL; пробник ходит на свой сервер.
+      const path = url.startsWith('http') ? new URL(url).pathname : url
+      const response = await fetch(`${BASE_URL}${path}`)
+      return {
+        status: response.status,
+        type: response.headers.get('content-type') ?? '',
+        cache: response.headers.get('cache-control') ?? '',
+        text: await response.text(),
+      }
+    }
+    const randomToken = () =>
+      Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('base64url')
+
+    const misses = await Promise.all(
+      ['/api/calendar/.ics', '/api/calendar/abc.ics', `/api/calendar/${randomToken()}.ics`, `/api/calendar/${randomToken()}`].map(feed),
+    )
+    check(
+      'без токена, кривой и чужой (неизвестный) токен — 404 без различий',
+      misses.every((miss) => miss.status === 404) && new Set(misses.slice(1).map((miss) => miss.text)).size === 1,
+      misses.map((miss) => miss.status).join(', '),
+    )
+
+    actAs(rep.id)
+    const repStatus = await call('GET', '/api/me/calendar')
+    const repIssue = await call('POST', '/api/me/calendar')
+    check('представителю вуза подписка закрыта — 403', repStatus.status === 403 && repIssue.status === 403, `${repStatus.status}, ${repIssue.status}`)
+
+    actAs(managerId)
+    const first = await call<{ url: string; webcalUrl: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const firstUrl = first.body.data?.url ?? ''
+    check('менеджер выпускает ссылку — 201, адрес вида …/api/calendar/<43 знака>.ics', first.status === 201 && /\/api\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(firstUrl), `статус ${first.status}`)
+    const status = await call<{ active: boolean }>('GET', '/api/me/calendar')
+    const token = firstUrl.split('/').pop()?.replace('.ics', '') ?? '—'
+    check('статус подписки — без адреса ссылки', status.body.data?.active === true && !status.raw.includes(token))
+
+    const ok = await feed(firstUrl)
+    check('лента — 200, text/calendar и no-store', ok.status === 200 && ok.type.startsWith('text/calendar') && ok.cache.includes('no-store'), `${ok.status}, ${ok.type}, ${ok.cache}`)
+    check('лента — iCalendar с CRLF и строками не длиннее 75 октетов', ok.text.startsWith('BEGIN:VCALENDAR\r\n') && ok.text.endsWith('END:VCALENDAR\r\n') && ok.text.split('\r\n').every((line) => !line.includes('\n') && Buffer.byteLength(line) <= 75))
+    const unfolded = ok.text.replace(/\r\n[ \t]/g, '')
+    check('в ленте есть сроки этапов менеджера', /SUMMARY:(\[[^\]]+\] )?Срок: этап \d+ «/.test(unfolded))
+
+    // Почт и ФИО в ленте нет: ни контактов вузов, ни сотрудников.
+    const me = await call<{ fullName: string }>('GET', '/api/me')
+    const coopUniversities = [...new Set((cooperations.body.data ?? []).filter((item) => item.responsible.id === managerId).map((item) => item.universityId))]
+    const contactNames: string[] = []
+    for (const universityId of coopUniversities.slice(0, 5)) {
+      const card = await call<{ contacts: Array<{ fullName: string }> }>('GET', `/api/universities/${universityId}`)
+      contactNames.push(...(card.body.data?.contacts ?? []).map((contact) => contact.fullName))
+    }
+    check('в ленте нет почт', !/[\w.+-]+@[\w-]+\.[\w.-]+/.test(unfolded))
+    check(
+      'в ленте нет ФИО контактов вузов и сотрудника',
+      contactNames.length > 0 && contactNames.every((name) => !unfolded.includes(name)) && !unfolded.includes(me.body.data?.fullName ?? '—'),
+      `контактов проверено: ${contactNames.length}`,
+    )
+
+    const second = await call<{ url: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const secondUrl = second.body.data?.url ?? ''
+    const afterReissueOld = await feed(firstUrl)
+    const afterReissueNew = await feed(secondUrl)
+    check('перевыпуск: старая ссылка — 404, новая — 200', second.body.data?.replaced === true && afterReissueOld.status === 404 && afterReissueNew.status === 200, `${afterReissueOld.status}, ${afterReissueNew.status}`)
+
+    const revoked = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    const afterRevoke = await feed(secondUrl)
+    const revokedAgain = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    check('после отзыва старый адрес — 404, повторный отзыв — revoked=false', revoked.body.data?.revoked === true && afterRevoke.status === 404 && revokedAgain.body.data?.revoked === false, `${afterRevoke.status}`)
+
+    actAs(adminId)
+    const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${managerId}&pageSize=20`)
+    const actions = (journal.body.data ?? []).map((entry) => entry.action)
+    check('в журнале выпуск и отзыв, токена нет', actions.includes('calendar.issue') && actions.includes('calendar.revoke') && !journal.raw.includes(token) && !journal.raw.includes(secondUrl.split('/').pop() ?? '—'))
+
+    // Заблокированный пользователь: его лента — 404, как неизвестная.
+    const blockedEmail = `probe-calendar-${Date.now()}@example.invalid`
+    const createdUser = await call<{ user: { id: string } }>('POST', '/api/users', { email: blockedEmail, fullName: 'Пробный Календарь Пробникович', role: 'VIEWER' })
+    const blockedId = createdUser.body.data?.user.id
+    if (!blockedId) {
+      check('пробный пользователь для блокировки заведён', false, `статус ${createdUser.status}`)
+    } else {
+      actAs(blockedId)
+      const viewerFeed = await call<{ url: string }>('POST', '/api/me/calendar')
+      const viewerUrl = viewerFeed.body.data?.url ?? ''
+      const beforeBlock = await feed(viewerUrl)
+      actAs(adminId)
+      const block = await call('PATCH', `/api/users/${blockedId}`, { isActive: false })
+      const afterBlock = await feed(viewerUrl)
+      check(
+        'наблюдатель выпускает ссылку; после блокировки его лента — 404',
+        viewerFeed.status === 201 && beforeBlock.status === 200 && block.status === 200 && afterBlock.status === 404,
+        `${viewerFeed.status}, ${beforeBlock.status}, ${block.status}, ${afterBlock.status}`,
+      )
+    }
   }
 
   // ── Итог ───────────────────────────────────────────────────────────────────
