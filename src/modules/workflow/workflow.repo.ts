@@ -12,6 +12,17 @@ import type { StageListQuery } from './workflow.schema'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
 
+/**
+ * Действующий представитель вуза (решение 103): от него зависит, может ли сотрудник
+ * отметить пункт вуза. Заблокированный представитель в кабинет не войдёт — он не в счёт.
+ */
+const activeRepWhere = { role: 'UNIVERSITY_REP', isActive: true } satisfies Prisma.UserWhereInput
+
+/** Есть ли у вуза связки представитель — один id, не список: нужен только факт. */
+const universityRepSelect = {
+  users: { where: activeRepWhere, select: { id: true }, take: 1 },
+} satisfies Prisma.UniversitySelect
+
 const stageSelect = {
   id: true,
   cooperationId: true,
@@ -37,9 +48,12 @@ const stageSelect = {
       isDone: true,
       doneAt: true,
       sortOrder: true,
+      isUniversityItem: true,
+      confirmationNote: true,
       doneBy: { select: userRefSelect },
     },
   },
+  cooperation: { select: { university: { select: universityRepSelect } } },
 } satisfies Prisma.WorkflowStageSelect
 
 const stageWithCooperationSelect = {
@@ -47,7 +61,7 @@ const stageWithCooperationSelect = {
   cooperation: {
     select: {
       id: true,
-      university: { select: { id: true, name: true } },
+      university: { select: { id: true, name: true, ...universityRepSelect } },
       program: { select: { id: true, name: true } },
       product: { select: { id: true, name: true } },
     },
@@ -202,9 +216,27 @@ export async function findTaskById(id: string) {
       stageId: true,
       isDone: true,
       isRequired: true,
-      stage: { select: { id: true, status: true, stageNumber: true, cooperationId: true } },
+      isUniversityItem: true,
+      stage: {
+        select: {
+          id: true,
+          status: true,
+          stageNumber: true,
+          cooperationId: true,
+          cooperation: { select: { universityId: true } },
+        },
+      },
     },
   })
+}
+
+/** Есть ли у вуза действующий представитель (решение 103). */
+export async function hasActiveUniversityRep(universityId: string): Promise<boolean> {
+  const rep = await prisma.user.findFirst({
+    where: { ...activeRepWhere, universityId },
+    select: { id: true },
+  })
+  return rep !== null
 }
 
 export async function findHistory(stageId: string) {

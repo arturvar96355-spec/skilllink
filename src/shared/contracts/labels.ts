@@ -270,6 +270,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'stage.fields.change': 'Изменены поля этапа',
   'stage.auto.recompute': 'Статус этапа пересчитан автоматически',
   'task.toggle': 'Отмечен пункт чек-листа',
+  'task.university-item.confirm-by-staff': 'Сотрудник отметил подтверждение вуза с пометкой',
   'application.create': 'Подана заявка на обучение',
   'recommendation.generate': 'Пересобраны рекомендации',
   'recommendation.status.change': 'Изменён статус рекомендации',

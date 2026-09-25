@@ -1,5 +1,20 @@
 import type { StagePhase, StageStatus, UserRole } from './enums'
 
+/**
+ * Как сотрудник ИТ-Школы может отметить пункт чек-листа (решение 103):
+ * - ALLOWED — как обычно;
+ * - NOTE_REQUIRED — пункт вуза, представителя у вуза нет: отметка только с пометкой
+ *   «чем подтверждено» (`confirmationNote`), снять можно без неё;
+ * - UNIVERSITY_ONLY — пункт вуза, у вуза есть действующий представитель: отмечает
+ *   и снимает только он в кабинете вуза, сотруднику — 403.
+ */
+export const STAFF_MARK_RULES = ['ALLOWED', 'NOTE_REQUIRED', 'UNIVERSITY_ONLY'] as const
+export type StaffMarkRule = (typeof STAFF_MARK_RULES)[number]
+
+/** Границы пометки «чем подтверждено» — одни для API, фронта и CHECK в базе. */
+export const CONFIRMATION_NOTE_MIN = 3
+export const CONFIRMATION_NOTE_MAX = 500
+
 export interface StageTaskDto {
   id: string
   title: string
@@ -8,6 +23,15 @@ export interface StageTaskDto {
   doneAt: string | null
   doneBy: UserRefDto | null
   sortOrder: number
+  /** Пункт вуза: «Вуз подтвердил получение материалов» (решение 103). */
+  isUniversityItem: boolean
+  /** Как его может отметить сотрудник. Для обычных пунктов — всегда ALLOWED. */
+  staffMarkRule: StaffMarkRule
+  /**
+   * Чем подтверждено, если пункт вуза отметил сотрудник. null — отметил сам вуз,
+   * пункт не отмечен или смотрит представитель вуза (внутренняя пометка, решение 9).
+   */
+  confirmationNote: string | null
 }
 
 export interface UserRefDto {
