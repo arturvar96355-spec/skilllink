@@ -275,6 +275,13 @@
   color: var(--text-primary);
 }
 
+/* Меньше 380 px шапка с названием не влезала: профиль уезжал за край (решение 110). */
+@media (max-width: 379px) {
+  .homeName {
+    display: none;
+  }
+}
+
 .context {
   display: inline-flex;
   align-items: center;
@@ -745,11 +752,13 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-  padding: 6px 2px;
+  /* Без боковых полей и чуть плотнее: «Программы» целиком влезает на 375 px (решение 110). */
+  padding: 6px 0;
   border-radius: var(--radius-control);
   color: var(--text-tertiary);
   font-size: var(--text-caption-size);
   font-weight: 600;
+  letter-spacing: -0.02em;
   text-decoration: none;
 }
 

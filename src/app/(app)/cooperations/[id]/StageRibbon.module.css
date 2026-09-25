@@ -177,7 +177,7 @@
 .focus .dot {
   background: var(--text-primary);
   border-color: transparent;
-  color: var(--text-on-light);
+  color: var(--text-inverse);
 }
 
 @keyframes accentIn {

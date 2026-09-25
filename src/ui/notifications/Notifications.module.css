@@ -199,3 +199,31 @@
   gap: var(--space-3);
   padding: var(--space-5);
 }
+
+/* Заголовок не разрывается: «7 новых» и «Отметить прочитанным» — одной строкой. */
+.title,
+.count,
+.head > :last-child {
+  white-space: nowrap;
+}
+
+/*
+ * Телефон (решение 110): панель, привязанная к колокольчику справа, уходила за
+ * левый край экрана. Здесь она встаёт под шапкой по ширине экрана с полями.
+ */
+@media (max-width: 720px) {
+  .panel {
+    position: fixed;
+    top: calc(var(--header-height) + var(--space-2));
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+  }
+
+  /* Кнопка «Отметить прочитанным» не влезает рядом с заголовком — уходит строкой ниже. */
+  .head {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+  }
+}

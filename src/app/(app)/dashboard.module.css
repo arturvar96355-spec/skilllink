@@ -382,8 +382,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.6;
-  transition: opacity var(--motion-fast) var(--ease-out);
+  /* Без прозрачности: подпись мелкая, при 0.6 контраст падал ниже 4,5:1 в обеих темах. */
+  transition: color var(--motion-fast) var(--ease-out);
 }
 
 /* Тонкая линия к баллу дорисовывается при наведении. */
@@ -401,7 +401,7 @@
 }
 
 .rank:hover .rankReason {
-  opacity: 1;
+  color: var(--text-secondary);
 }
 
 .rank:hover .rankLine {
