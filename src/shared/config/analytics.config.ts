@@ -1,7 +1,7 @@
 /**
  * Все коэффициенты аналитики. Формулы описаны в docs/ANALYTICS_METHODOLOGY.md.
- * Любое число отсюда помечено TEMP: утверждает Артур, пока это рабочая гипотеза.
- * TODO: PM DECISION — утвердить веса рейтинга и пороги дефицита навыков.
+ * Веса рейтинга, порог дефицита навыков и методика рейтинга вуза — утверждено заказчиком 26.09.2026.
+ * Остальные числа помечены TEMP: рабочее значение, согласуется с заказчиком.
  */
 
 import { PROGRAM_METRIC_LABELS } from '@/shared/contracts/labels'
@@ -12,9 +12,9 @@ import { PROGRAM_METRIC_LABELS } from '@/shared/contracts/labels'
  * они показываются отдельными объяснимыми сигналами.
  */
 export const PROGRAM_RATING_WEIGHTS = {
-  applicationCount: 0.4, // TEMP
-  studentCount: 0.4, // TEMP
-  groupCount: 0.2, // TEMP
+  applicationCount: 0.4,
+  studentCount: 0.4,
+  groupCount: 0.2,
 } as const
 
 export type ProgramRatingFactor = keyof typeof PROGRAM_RATING_WEIGHTS
@@ -47,7 +47,7 @@ export const SKILL_PROFILE = {
 
 export const SKILL_GAP = {
   /** Навык считается востребованным, если нормированный спрос не ниже порога. */
-  demandThreshold: 0.5, // TEMP
+  demandThreshold: 0.5,
   /** Дефицит критичен, если навык востребован и полностью отсутствует в программе. */
   criticalWhenMissing: true,
   /** Вклад уровня освоения в покрытие навыка программой. */
@@ -130,7 +130,7 @@ export const RECOMMENDATION_RULES = {
  * его образовательных программ. Это не смешивание сигналов: те же три показателя
  * ТЗ, просто поднятые на уровень вуза.
  *
- * TODO: PM DECISION — утвердить методику агрегации.
+ * Методика — среднее по программам — утверждено заказчиком 26.09.2026.
  */
 export const UNIVERSITY_RATING = {
   /**
@@ -138,7 +138,7 @@ export const UNIVERSITY_RATING = {
    * и пятью слабыми программами не обгоняет вуз с пятью ровными.
    * `best` — балл сильнейшей программы.
    */
-  method: 'average' as 'average' | 'best', // TEMP
+  method: 'average' as 'average' | 'best',
   /** Сколько программ с рассчитанным баллом нужно, чтобы рейтинг вуза вообще показывался. */
   minRatedPrograms: 1, // TEMP
 }
