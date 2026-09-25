@@ -70,7 +70,7 @@ function programRating(): CalculationParameterGroupDto {
           `Вес: ${PROGRAM_RATING_LABELS[factor].toLowerCase()}`,
           PROGRAM_RATING_WEIGHTS[factor],
           'weight',
-          true,
+          false, // утверждено заказчиком 26.09.2026
         ),
       ),
       param(
@@ -87,7 +87,7 @@ function programRating(): CalculationParameterGroupDto {
         'Рейтинг вуза',
         UNIVERSITY_RATING.method,
         'choice',
-        true,
+        false, // утверждено заказчиком 26.09.2026
         'Как балл вуза собирается из баллов его программ',
         UNIVERSITY_RATING_METHOD_LABELS[UNIVERSITY_RATING.method],
       ),
@@ -116,7 +116,7 @@ function skillGap(): CalculationParameterGroupDto {
         'Порог востребованности навыка',
         SKILL_GAP.demandThreshold,
         'share',
-        true,
+        false, // утверждено заказчиком 26.09.2026
         'Навык с нормированным спросом не ниже порога считается востребованным',
       ),
       param(
@@ -183,7 +183,7 @@ function workflow(): CalculationParameterGroupDto {
         'Контрольные точки',
         CONTROL_POINT_STAGES,
         'list',
-        true,
+        false, // утверждено заказчиком 26.09.2026
         'Номера этапов; обоснование — docs/CONTROL_POINTS.md',
       ),
     ],
@@ -374,8 +374,8 @@ function stageNorms(): StageNormDto[] {
     isAutomatic: stage.number === CONTROL_STAGE_NUMBER,
     requiredTaskCount: stage.tasks.filter((task) => task.isRequired).length,
     taskCount: stage.tasks.length,
-    // Нормативы всех этапов — TEMP (StageDefinition.normativeDays в workflow.config.ts).
-    isTemporary: true,
+    // Нормативы этапов утверждены заказчиком 26.09.2026 (workflow.config.ts).
+    isTemporary: false,
   }))
 }
 
