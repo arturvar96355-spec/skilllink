@@ -1,0 +1,74 @@
+# Стенд жив: каждые 30 минут открываем проверку здоровья и страницу входа.
+#
+# С 30.09 по 14.10 стенд проверяют эксперты — асинхронно, без нас рядом. Если он
+# упадёт, узнать надо сразу, а не когда эксперт напишет, что ничего не открывается.
+# Упал — открывается задача «Стенд недоступен» (письмо владельцу и наблюдающим
+# за репозиторием), каждая следующая неудача дописывается в неё же. Поднялся —
+# задача закрывается сама. От ноутбука ничего не зависит.
+#
+# Расписание GitHub может сдвигаться на несколько минут — для этой цели неважно.
+name: Стенд жив
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: stand-uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Проверить стенд
+    runs-on: ubuntu-latest
+    env:
+      # Адрес стенда публичный (README), но его можно сменить переменной репозитория.
+      STAND_URL: ${{ vars.STAND_URL || 'https://skilllink.site' }}
+      LABEL: stand-down
+    steps:
+      - name: Проверка
+        id: probe
+        run: |
+          ok=0
+          # Три попытки с паузой: одна потерянная пачка пакетов — ещё не падение.
+          for attempt in 1 2 3; do
+            health=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/api/health" || true)
+            login=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/login" || true)
+            if [ "$health" = "200" ] && [ "$login" = "200" ]; then ok=1; break; fi
+            [ "$attempt" -lt 3 ] && sleep 20
+          done
+          echo "Здоровье: ${health:-нет ответа}, вход: ${login:-нет ответа}" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "ok=$ok" >> "$GITHUB_OUTPUT"
+          echo "detail=проверка здоровья ${health:-нет ответа}, страница входа ${login:-нет ответа}" >> "$GITHUB_OUTPUT"
+
+      - name: Сообщить о падении
+        if: steps.probe.outputs.ok != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DETAIL: ${{ steps.probe.outputs.detail }}
+        run: |
+          now=$(date -u '+%d.%m.%Y %H:%M UTC')
+          body="Стенд $STAND_URL не отвечает ($now): $DETAIL. Что делать — docs/DEPLOY.md, раздел «Если что-то не так»."
+          open=$(gh issue list -R "$GITHUB_REPOSITORY" --label "$LABEL" --state open --json number -q '.[0].number')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" -R "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh label create "$LABEL" -R "$GITHUB_REPOSITORY" --color B60205 --description 'Стенд недоступен' 2>/dev/null || true
+            gh issue create -R "$GITHUB_REPOSITORY" --title 'Стенд недоступен' --label "$LABEL" --body "$body"
+          fi
+          exit 1
+
+      - name: Стенд снова отвечает
+        if: steps.probe.outputs.ok == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          open=$(gh issue list -R "$GITHUB_REPOSITORY" --label "$LABEL" --state open --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "$open" ]; then
+            gh issue close "$open" -R "$GITHUB_REPOSITORY" --comment "Стенд снова отвечает ($(date -u '+%d.%m.%Y %H:%M UTC'))."
+          fi

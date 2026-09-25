@@ -413,7 +413,7 @@ function Dashboard() {
         meta={data?.containsMockData ? <MockBadge /> : undefined}
         actions={
           <>
-            {user.permissions.canWrite && (
+            {user.permissions.canWorkAnalytics && (
               <Button
                 icon="refresh"
                 onClick={onRegenerate}
@@ -650,7 +650,7 @@ function Dashboard() {
                     title="Рекомендаций нет"
                     description="Система ещё не собирала предложения или все они закрыты."
                     action={
-                      user.permissions.canWrite ? (
+                      user.permissions.canWorkAnalytics ? (
                         <Button icon="refresh" onClick={onRegenerate} isLoading={regenerate.isPending}>
                           Собрать сейчас
                         </Button>

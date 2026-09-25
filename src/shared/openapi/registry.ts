@@ -578,7 +578,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
       'вернулась, открывает; отклонённые с основанием не трогает.',
-    permission: 'WRITE',
+    permission: 'ANALYTICS_WORK',
     errors: COMMON_ERRORS,
   },
   {
@@ -608,7 +608,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию ' +
       'о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда ' +
       'условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.',
-    permission: 'WRITE',
+    permission: 'ANALYTICS_WORK',
     body: updateRecommendationSchema,
     errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
@@ -840,7 +840,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Источники данных',
     summary: 'Загрузить рыночные данные из активного источника',
     description: 'Сбой источника возвращает INTEGRATION_ERROR 502 и не затрагивает систему.',
-    permission: 'WRITE',
+    permission: 'ANALYTICS_WORK',
     body: syncMarketDataSchema,
     bodyOptional: true,
     errors: [...COMMON_ERRORS, 'VALIDATION_ERROR', 'INTEGRATION_ERROR'],

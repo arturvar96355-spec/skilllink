@@ -26,7 +26,26 @@ describe('рейтинг программ', () => {
       program({ programId: 'b', applicationCount: 100, studentCount: 50, groupCount: 2 }),
     ])
     expect(ratings.get('a')?.score).toBe(100)
-    expect(ratings.get('b')?.score).toBe(0)
+    // От нуля (решение 98): четверть максимума по каждому показателю — 25, а не 0.
+    expect(ratings.get('b')?.score).toBe(25)
+  })
+
+  it('программа с наименьшими показателями не получает ноль, если они не нулевые (решение 98)', () => {
+    // Min-max ставил 0,0 программе со 150 заявками только потому, что у других больше.
+    const ratings = calculateRatings([
+      program({ programId: 'big', applicationCount: 420, studentCount: 180, groupCount: 7 }),
+      program({ programId: 'small', applicationCount: 150, studentCount: 52, groupCount: 2 }),
+    ])
+    expect(ratings.get('small')?.score).toBeGreaterThan(0)
+    expect(ratings.get('big')?.score).toBe(100)
+  })
+
+  it('ноль баллов — только у нулевых показателей', () => {
+    const ratings = calculateRatings([
+      program({ programId: 'some', applicationCount: 100, studentCount: 10, groupCount: 1 }),
+      program({ programId: 'zero', applicationCount: 0, studentCount: 0, groupCount: 0 }),
+    ])
+    expect(ratings.get('zero')?.score).toBe(0)
   })
 
   it('возвращает null и basis none, когда нет ни одного показателя', () => {
