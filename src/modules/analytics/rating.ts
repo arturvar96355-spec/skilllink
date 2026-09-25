@@ -91,7 +91,10 @@ export function calculateRatings(
       }
 
       filled += 1
-      const normalized = round(normalize(value, factorBounds.min, factorBounds.max), 3)
+      // От нуля, а не от минимума выборки (решение 98, решение Артура): min-max ставил
+      // 0,0 реальной программе со 150 заявками только потому, что у других больше.
+      // Ноль баллов — только у нуля заявок. Минимум в границах остаётся для объяснения.
+      const normalized = round(normalize(value, 0, factorBounds.max), 3)
       weightedSum += normalized * weight
       usedWeight += weight
 

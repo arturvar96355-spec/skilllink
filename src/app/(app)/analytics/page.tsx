@@ -31,6 +31,7 @@ import {
   PageHeader,
   Progress,
   RemoteSelect,
+  ROUTES,
   Section,
   Select,
   TableSkeleton,
@@ -115,6 +116,12 @@ function AnalyticsView() {
       <PageHeader
         title="Аналитика"
         description="Рейтинг программ, дефициты навыков и востребованность на рынке. Это три разных инструмента: балл рейтинга не смешивается с дефицитами, потому что отвечает на другой вопрос."
+        actions={
+          // Лист A4 для печати и PDF (решение 97): сводка всего раздела на одной странице.
+          <Button href={ROUTES.managerReport} icon="document" variant="secondary">
+            Отчёт руководителю
+          </Button>
+        }
       />
 
       <Tabs items={TABS} active={tab} onChange={(key) => setParams({ tab: key })} />

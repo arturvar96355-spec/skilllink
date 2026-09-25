@@ -138,6 +138,7 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `READ` | ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP |
 | `WRITE` | ADMIN, MANAGER |
 | `ANALYTICS` | ADMIN, MANAGER, ANALYST, VIEWER |
+| `ANALYTICS_WORK` | ADMIN, MANAGER, ANALYST — пересобрать рекомендации, вести их статусы, загрузить рыночные данные (решение 98) |
 | `ADMIN` | ADMIN |
 | `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP — просмотр кабинета вуза |
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
@@ -616,12 +617,21 @@ curl -s "http://localhost:3000/api/skills/demand?period=2026-Q1&limit=5"
       "coverage": 0, "level": null, "importance": null,
       "gap": 0.77, "isCritical": true,
       "explanation": "Навык «Kubernetes» востребован рынком (77 из 100), но в программе отсутствует",
+      "outOfProfile": false,
       "isMock": true
     }
   ],
   "meta": { "page": 1, "pageSize": 18, "total": 18, "period": "2026-Q1", "programId": null, "isMock": true }
 }
 ```
+
+**Вне профиля** (`outOfProfile`, решение 98) — только с `programId`. Непокрытый навык вне
+профиля программы, если ни одна действующая программа той же укрупнённой группы
+направлений (первые две цифры кода: «09» у «09.03.04») не преподаёт ни его, ни — кроме
+языков программирования — навыки той же категории. Такой дефицит не критический
+(`isCritical: false`), идёт после остальных и получает в `explanation` пояснение
+«Вне профиля: …». У программы без кода направления пометки нет. Правило — TEMP
+(`SKILL_PROFILE`), до профиля направления, который задаётся вручную.
 
 ---
 
@@ -1159,7 +1169,7 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 
 ### POST /api/recommendations/generate
 
-Право: `WRITE`. Пересобирает рекомендации по правилам. Тело не нужно.
+Право: `ANALYTICS_WORK` (ADMIN, MANAGER, ANALYST — решение 98). Пересобирает рекомендации по правилам. Тело не нужно.
 
 Существующие записи обновляются по тройке (`ruleKey`, `objectType`, `objectId`), поэтому
 повторный запуск не плодит дубликаты. Что пересборка делает со статусами:
@@ -1257,9 +1267,11 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 
 ### PATCH /api/recommendations/:id
 
-Право: `WRITE`. Тело: `{ "status": "ACCEPTED", "comment": "Взято в работу" }`.
+Право: `ANALYTICS_WORK`. Тело: `{ "status": "IN_PROGRESS", "comment": "Взято в работу" }`.
 
-Статусы: `NEW`, `IN_PROGRESS`, `ACCEPTED`, `DISMISSED`, `DONE`.
+Статусы — четыре (решение 98): `NEW` → `IN_PROGRESS` → `DONE` / `DISMISSED`.
+`ACCEPTED` («Принята») упразднён: миграция перевела такие записи в `IN_PROGRESS`,
+войти в него нельзя (409), значение осталось только в перечислении базы.
 **Отклонение (`DISMISSED`) требует непустой `comment`** — иначе 422.
 
 **Переходы** — таблица `RECOMMENDATION_TRANSITIONS` в `shared/contracts`, одна на сервер
@@ -1268,9 +1280,9 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 
 | Из | Куда можно |
 | --- | --- |
-| `NEW` | `IN_PROGRESS`, `ACCEPTED`, `DISMISSED` |
-| `IN_PROGRESS` | `DONE`, `ACCEPTED`, `DISMISSED` |
-| `ACCEPTED` | `DONE`, `DISMISSED` |
+| `NEW` | `IN_PROGRESS`, `DISMISSED` |
+| `IN_PROGRESS` | `DONE`, `DISMISSED` |
+| `ACCEPTED` (упразднён) | `IN_PROGRESS`, `DONE`, `DISMISSED` |
 | `DISMISSED` | `NEW` |
 | `DONE` | — (вернувшуюся проблему открывает пересборка) |
 
@@ -2133,7 +2145,7 @@ AI_ASSIST_PROVIDER=off». **Ни ключей, ни их фрагментов, �
 
 ### POST /api/data-sources/sync
 
-Право: `WRITE`. Загружает рыночные данные из активного источника
+Право: `ANALYTICS_WORK` (ADMIN, MANAGER, ANALYST — решение 98). Загружает рыночные данные из активного источника
 (`MARKET_DATA_PROVIDER`: `mock`, `csv`, `external-api`, `future-rtk`).
 Тело необязательно: `{ "period": "2026-Q1" }`.
 

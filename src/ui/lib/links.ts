@@ -21,6 +21,8 @@ export const ROUTES = {
   settings: '/settings',
   profile: '/profile',
   portal: '/portal',
+  /** Отчёт руководителю: лист A4 для печати и PDF (решение 97). */
+  managerReport: '/reports/portfolio',
   login: '/login',
   /** Политика обработки персональных данных — открыта без входа. */
   privacy: '/privacy',

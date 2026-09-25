@@ -101,6 +101,7 @@ export function describeCurrentUser(
     permissions: {
       canWrite: can(user, 'WRITE'),
       canSeeAnalytics: can(user, 'ANALYTICS'),
+      canWorkAnalytics: can(user, 'ANALYTICS_WORK'),
       canUsePortal: can(user, 'UNIVERSITY_PORTAL'),
       canWritePortal: can(user, 'UNIVERSITY_PORTAL_WRITE'),
       isAdmin: can(user, 'ADMIN'),
