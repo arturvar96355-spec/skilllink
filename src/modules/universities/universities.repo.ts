@@ -177,3 +177,27 @@ export async function exists(id: string): Promise<boolean> {
   const found = await prisma.university.findUnique({ where: { id }, select: { id: true } })
   return found !== null
 }
+
+const contactSelect = {
+  id: true,
+  universityId: true,
+  fullName: true,
+  position: true,
+  email: true,
+  phone: true,
+  isPrimary: true,
+} satisfies Prisma.ContactSelect
+
+export type ContactRow = Prisma.ContactGetPayload<{ select: typeof contactSelect }>
+
+/** Контакт именно этого вуза: чужой идентификатор в адресе — null, а не запись другого вуза. */
+export async function findContact(universityId: string, contactId: string): Promise<ContactRow | null> {
+  return prisma.contact.findFirst({ where: { id: contactId, universityId }, select: contactSelect })
+}
+
+export async function updateContact(
+  contactId: string,
+  data: Prisma.ContactUpdateInput,
+): Promise<ContactRow> {
+  return prisma.contact.update({ where: { id: contactId }, data, select: contactSelect })
+}

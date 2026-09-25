@@ -5,6 +5,7 @@ import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { conflict } from '@/shared/http/errors'
 import type { Prisma } from '@/generated/prisma/client'
 import { DOCUMENT_SORT_FIELDS, type DocumentListQuery } from './documents.schema'
+import { LIVE_CONTACT_WHERE } from '@/modules/universities/universities.rules'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
 
@@ -251,6 +252,8 @@ export async function loadTemplateContextSource(cooperationId: string) {
           address: true,
           website: true,
           contacts: {
+            // Обезличенный контакт в новый документ не подставляется: «в лице Контакт удалён».
+            where: LIVE_CONTACT_WHERE,
             orderBy: [{ isPrimary: 'desc' }, { fullName: 'asc' }],
             take: 1,
             select: { fullName: true, position: true },
