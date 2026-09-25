@@ -45,7 +45,7 @@ export type UniversityDetailRow = Prisma.UniversityGetPayload<{ select: typeof d
 
 /**
  * Собирает where по фильтрам списка.
- * `scope` приходит из общего хелпера ограничения по вузу (решение 10) —
+ * `scope` приходит из общего хелпера ограничения по вузу (`universityScope`) —
  * для представителя вуза он сужает выборку до его собственной записи.
  */
 export function buildWhere(

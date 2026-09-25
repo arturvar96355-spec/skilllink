@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { intersectUniversityFilter } from '@/shared/auth/scope'
+import { universityLinkedWhere } from '@/shared/db/university-scope'
 import type { Prisma } from '@/generated/prisma/client'
 import { MEETING_SORT_FIELDS, type MeetingListQuery } from './meetings.schema'
 
@@ -37,14 +38,7 @@ export type MeetingRow = Prisma.MeetingGetPayload<{ select: typeof meetingSelect
 
 /** Представитель вуза видит встречи своего вуза — напрямую или через связку и программу. */
 function scopeFilter(scope: { universityId?: string }): Prisma.MeetingWhereInput {
-  if (!scope.universityId) return {}
-  return {
-    OR: [
-      { universityId: scope.universityId },
-      { cooperation: { universityId: scope.universityId } },
-      { program: { universityId: scope.universityId } },
-    ],
-  }
+  return universityLinkedWhere(scope)
 }
 
 export async function findMany(
