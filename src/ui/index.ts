@@ -79,7 +79,7 @@ export { usePageInRange } from './hooks/page-range'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
 export { UI_MODE_LABELS, type UiMode } from './lib/ui-mode'
 
-export { apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
+export { apiDelete, apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
 export {
   NO_DATA,
   formatNumber,

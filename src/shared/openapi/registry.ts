@@ -7,6 +7,7 @@ import { exportQuerySchema } from '@/modules/export/export.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
+import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
 import {
   changePasswordSchema,
   createUserSchema,
@@ -146,6 +147,21 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ANY',
     errors: ['INTERNAL'],
   },
+  {
+    method: 'post',
+    path: '/api/telegram/webhook',
+    tag: 'Служебное',
+    summary: 'Вебхук бота личных уведомлений (вызывает Telegram)',
+    description:
+      'Без входа: подлинность — заголовок X-Telegram-Bot-Api-Secret-Token, равный ' +
+      'TELEGRAM_WEBHOOK_SECRET; без него или с другим — 403. Команды: /start <токен> — привязать ' +
+      'чат, /today — сводка, /stop — отвязать, прочее — справка. Отвечает 200 сразу ' +
+      '({ accepted }), команду выполняет после ответа; нераспознанное тело — тоже 200 (решение 102).',
+    body: telegramUpdateSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['FORBIDDEN', 'INTERNAL'],
+  },
 
   // ── Пользователи ──────────────────────────────────────────────────────────
   {
@@ -258,6 +274,42 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ANY',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'VALIDATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/me/telegram',
+    tag: 'Пользователи',
+    summary: 'Уведомления в Telegram: состояние для личного кабинета',
+    description:
+      'configured — бот настроен администратором (иначе блок пишет «Не настроено администратором»); ' +
+      'available — сводка доступна роли (представителю вуза — нет); linked, username, linkedAt — ' +
+      'привязка текущего пользователя (решение 102).',
+    permission: 'READ',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/me/telegram',
+    tag: 'Пользователи',
+    summary: 'Уведомления в Telegram: ссылка на бота для подключения',
+    description:
+      'Отдаёт url вида https://t.me/<бот>?start=<токен> и срок expiresAt. Токен — HMAC над id ' +
+      'пользователя и сроком, живёт 15 минут, срабатывает один раз; в базе не хранится. ' +
+      'Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Бот не настроен — 502. Тело не нужно.',
+    permission: 'ANALYTICS',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'delete',
+    path: '/api/me/telegram',
+    tag: 'Пользователи',
+    summary: 'Уведомления в Telegram: отключить',
+    description:
+      'Удаляет привязку текущего пользователя и отдаёт новое состояние. Повтор — не ошибка; ' +
+      'работает и при выключенном боте.',
+    permission: 'READ',
+    errors: COMMON_ERRORS,
   },
   {
     method: 'get',

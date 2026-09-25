@@ -126,11 +126,13 @@ PostgreSQL
 | `export` | готов | выгрузка реестров в CSV теми же запросами, что у экранов |
 | `auth` | готов (mock) | текущий пользователь, права, справочник пользователей |
 | `ai-assist` | готов, по умолчанию выключен | черновики текста по фактам правил: сводка по связке, письмо вузу, дела на сегодня (решение 90) |
+| `telegram` | готов, по умолчанию выключен | личная сводка «что горит у меня» в Telegram: привязка чата, вебхук бота, рассылка (решение 102) |
 | `settings` | готов | параметры расчётов для «Настроек»: значения из `shared/config` с пометкой TEMP, только чтение (решение 107) |
 | `calendar` | готов (API) | личная подписка на календарь сроков и встреч: лента `.ics` по ссылке без входа, выпуск и отзыв ссылки (решение 105) |
 
 Каталог `src/integrations` — интерфейсы внешних систем: рыночные данные (Mock, Csv,
-ExternalApi, FutureRtk), LMS, сайт и языковая модель ИИ-помощника (YandexGPT, GigaChat).
+ExternalApi, FutureRtk), LMS, сайт, языковая модель ИИ-помощника (YandexGPT, GigaChat)
+и Telegram Bot API для личных уведомлений.
 Бизнес-логика знает только интерфейсы.
 
 Модуль `ai-assist` решений не принимает: что рекомендовать и в каком порядке, считают
@@ -196,6 +198,9 @@ integrations/
   lms/                   LmsClient: mock и HTTP-реализация
   site/                  SiteClient: заявки с сайта
   llm/                   LlmProvider: YandexGPT, GigaChat, выключен (AI_ASSIST_PROVIDER)
+  telegram/              TelegramClient.sendMessage — Bot API, выключен без TELEGRAM_BOT_TOKEN
+  https-transport.ts     POST через node:https: свой сертификат (GigaChat), подключение
+                         к запасному IP с прежним именем в TLS (Telegram из Yandex Cloud)
 ```
 
 Активный источник рыночных данных выбирается переменной `MARKET_DATA_PROVIDER`.

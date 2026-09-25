@@ -225,6 +225,40 @@ ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудн�
 Решение уходит полем `captcha` формы входа — см. «Проверка «не робот»» в разделе
 «Авторизация».
 
+### POST /api/telegram/webhook
+
+Вебхук бота личных уведомлений (решение 102). Вызывает **Telegram**, не браузер и не фронт.
+Входа нет; подлинность — заголовок `X-Telegram-Bot-Api-Secret-Token`, равный
+`TELEGRAM_WEBHOOK_SECRET` (задаётся в `setWebhook(secret_token=…)`, docs/SETUP.md).
+Сравнение — `timingSafeEqual`. Заголовка нет, он другой или секрет не задан — `403 FORBIDDEN`.
+Запрос приходит без `Origin`, поэтому проверку «same-origin» (`shared/http/origin.ts`)
+проходит, как любой запрос не из браузера; для остальных маршрутов она не ослаблена.
+
+Тело — объект Update Bot API; разбираются только `update_id`, `message.chat.{id,type}`,
+`message.from.username`, `message.text`, остальное отбрасывается.
+
+| Команда в личном чате | Что делает бот |
+| --- | --- |
+| `/start <токен>` | Проверяет токен привязки (HMAC, 15 минут, один раз) и что пользователь активен и видит сводку; привязывает чат. Журнал: `telegram.link` |
+| `/start` без токена | Подсказывает, где взять ссылку |
+| `/today` | Сводка «что горит у меня» пользователя этого чата |
+| `/stop` | Отвязывает чат. Журнал: `telegram.unlink` |
+| что угодно ещё | Короткая справка |
+
+В группах бот не работает: отвечает, что сводка — только в личной переписке.
+
+Ответ всегда `200` и сразу: `{ "data": { "accepted": true } }`; команда выполняется после
+ответа. Тело не разобралось — `{ "accepted": false }`, тоже `200`: Telegram повторяет
+обновление, пока не получит 2xx, а повтор того же тела ничего не исправит. Причина — строкой
+в журнале приложения без содержимого сообщения. Повтор одного `update_id` выполняется один раз.
+Бот не настроен (нет токена) — `200`, команда не выполняется.
+
+```bash
+curl -X POST http://localhost:3000/api/telegram/webhook \
+  -H 'content-type: application/json' -H 'x-telegram-bot-api-secret-token: <секрет>' \
+  -d '{"update_id":1,"message":{"chat":{"id":42,"type":"private"},"text":"/today"}}'
+```
+
 ### GET /api/health
 
 Проверка живости приложения. Авторизация не требуется.
@@ -2044,6 +2078,51 @@ curl -X POST http://localhost:3000/api/me/password -H 'content-type: application
   -d '{"currentPassword":"skilllink","newPassword":"мой-новый-пароль-2026"}'
 ```
 
+### GET /api/me/telegram, POST /api/me/telegram, DELETE /api/me/telegram
+
+Блок «Уведомления в Telegram» личного кабинета (решение 102). Только о себе: пользователь
+берётся из сессии, идентификатора в запросе нет.
+
+**GET** — авторизация: любая роль. Ответ `200` — `TelegramStatusDto`:
+
+```json
+{ "data": { "configured": true, "available": true, "linked": true,
+            "username": "ivanov", "linkedAt": "2026-09-25T09:00:00.000Z" } }
+```
+
+| Поле | Смысл |
+| --- | --- |
+| `configured` | Бот настроен администратором (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`). `false` — блок пишет «Не настроено администратором», кнопок нет |
+| `available` | Сводка доступна роли (право `ANALYTICS`). Представителю вуза — `false`, блок скрыт |
+| `linked`, `username`, `linkedAt` | Привязка: подключено ли, ник в Telegram без `@` (может быть `null`), когда |
+
+**POST** — авторизация: `ANALYTICS` (ADMIN, MANAGER, ANALYST, VIEWER); тело не нужно.
+Ничего не создаёт — `200`, `TelegramConnectDto`:
+
+```json
+{ "data": { "url": "https://t.me/skilllink_notify_bot?start=AbC…", "expiresAt": "2026-09-25T09:15:00.000Z" } }
+```
+
+Токен в ссылке — HMAC-SHA-256 (ключ производный от `AUTH_SECRET`) над id пользователя
+и сроком, base64url, не длиннее 64 символов (предел Telegram для `start`), живёт 15 минут
+и срабатывает один раз. В базе не хранится. Привязка появляется, когда человек нажмёт
+«Старт» в Telegram, — фронт переспрашивает GET, пока ссылка жива.
+Бот не настроен — `502 INTEGRATION_ERROR` «Уведомления в Telegram не настроены администратором»;
+представитель вуза — `403`.
+
+**DELETE** — авторизация: любая роль. Удаляет свою привязку и отдаёт `TelegramStatusDto`
+(`linked: false`). Привязки нет — тоже `200`. Работает и при выключенном боте: убрать свои
+данные можно всегда. Журнал: `telegram.unlink` (только если привязка была).
+
+```bash
+curl http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+curl -X POST http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+```
+
+Затрагивает фронт: новая строка в «Настройках» личного кабинета (`TelegramRow.tsx`),
+в `src/ui/lib/api.ts` добавлен `apiDelete`.
+
 ### GET /api/me/stats
 
 Авторизация: любая. Блок «Статистика» личного кабинета — всё по связкам и этапам,
@@ -2598,6 +2677,9 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 в `shared/contracts/labels.ts`. С 25.09.2026 добавлены действия `user.create`, `user.update`,
 `user.role.change`, `user.block`, `user.unblock`, `user.password.reset`, `user.password.change`
 (объект `User`, `objectId` — id пользователя). Ни пароль, ни хеш в журнал не пишутся.
+С 25.09.2026 (решение 102) — `telegram.link` и `telegram.unlink` (объект `User`,
+`payload: { source: "telegram" | "profile" }`); идентификатор чата и ник в журнал не пишутся.
+
 С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
 на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
@@ -2751,7 +2833,8 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 
 ## 16. Чего ещё нет
 
-- уведомления вне системы (мессенджер) — отложены до финала конкурса;
+- внешние уведомления — личная сводка в Telegram (решение 102, по умолчанию выключена,
+  включается токеном бота); почта и другие каналы — не делаются;
 - политики доступа на уровне строк (RLS) — осознанно отложены,
   см. [SECURITY_LIMITATIONS.md](SECURITY_LIMITATIONS.md);
 - загрузка файлов документов — P2 по решению 14, в MVP хранятся метаданные,

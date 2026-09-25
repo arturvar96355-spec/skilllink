@@ -2,11 +2,15 @@ import { request as httpsRequest, type RequestOptions } from 'node:https'
 import type { ClientRequest, IncomingMessage } from 'node:http'
 
 /**
- * POST по HTTPS через встроенный `node:https` — ради одной опции: `ca`.
+ * POST по HTTPS через встроенный `node:https` — ради опций, которых нет у `fetch`
+ * без отдельного пакета undici. Новых зависимостей нет.
  *
- * Сертификат GigaChat выпущен НУЦ Минцифры, которого нет в стандартном наборе
- * доверенных центров. `fetch` в Node своего набора сертификатов на запрос не принимает
- * (нужен отдельный пакет undici), а `node:https` — принимает. Новых зависимостей нет.
+ * - `ca`: сертификат GigaChat выпущен НУЦ Минцифры, которого нет в стандартном
+ *   наборе доверенных центров.
+ * - `connectAddress`: из Yandex Cloud api.telegram.org по имени не отвечает, а по
+ *   запасному IP отвечает (решение 102). Соединение идёт на IP, а имя сервера в TLS
+ *   (SNI) и заголовок Host остаются из адреса запроса — сертификат проверяется
+ *   на это имя как обычно, проверка не ослабляется.
  */
 export interface HttpsPostRequest {
   url: string
@@ -15,6 +19,11 @@ export interface HttpsPostRequest {
   timeoutMs: number
   /** Дополнительный доверенный сертификат (PEM). null — стандартный набор. */
   ca: string | Buffer | null
+  /**
+   * IP, на который открывать соединение вместо адреса из `url`. Имя из `url`
+   * остаётся в SNI и Host, сертификат сверяется с ним. Не задан — обычный DNS.
+   */
+  connectAddress?: string | null
 }
 
 export interface HttpsPostResponse {
@@ -27,7 +36,7 @@ export type HttpsTransport = (request: HttpsPostRequest) => Promise<HttpsPostRes
 /** Ответ больше этого не читается: модели в ответ столько не пишут. */
 const MAX_RESPONSE_BYTES = 1024 * 1024
 
-type RequestFn = (options: RequestOptions, callback: (response: IncomingMessage) => void) => ClientRequest
+export type RequestFn = (options: RequestOptions, callback: (response: IncomingMessage) => void) => ClientRequest
 
 /**
  * Транспорт на `node:https`. Функция запроса подставляется в тестах — сети в них нет.
@@ -37,14 +46,24 @@ export function createHttpsTransport(requestFn: RequestFn = httpsRequest): Https
   return (input) =>
     new Promise<HttpsPostResponse>((resolve, reject) => {
       const url = new URL(input.url)
+      const connectAddress = input.connectAddress ?? null
       const request = requestFn(
         {
           protocol: url.protocol,
-          hostname: url.hostname,
-          port: url.port === '' ? 443 : Number(url.port),
+          hostname: connectAddress ?? url.hostname,
+          port: url.port === '' ? (url.protocol === 'http:' ? 80 : 443) : Number(url.port),
           path: `${url.pathname}${url.search}`,
           method: 'POST',
-          headers: { ...input.headers, 'content-length': String(Buffer.byteLength(input.body)) },
+          headers: {
+            ...input.headers,
+            // По IP Node сам не знает имени: без явного Host сервер Telegram
+            // получил бы IP вместо имени.
+            ...(connectAddress ? { host: url.host } : {}),
+            'content-length': String(Buffer.byteLength(input.body)),
+          },
+          // Без servername TLS ушёл бы без SNI (по IP он не ставится), а сертификат
+          // сверялся бы с IP и не прошёл. С ним — проверка на имя из адреса.
+          ...(connectAddress ? { servername: url.hostname } : {}),
           ...(input.ca ? { ca: input.ca } : {}),
         },
         (response) => {

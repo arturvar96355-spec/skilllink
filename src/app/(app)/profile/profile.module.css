@@ -546,6 +546,14 @@ a.chip:hover {
   flex: none;
 }
 
+/* Уведомления в Telegram: отметка «Подключено» рядом с кнопкой. */
+.rowActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
 /* Плашка «смените временный пароль» над кабинетом. */
 .tempPassword {
   display: flex;
