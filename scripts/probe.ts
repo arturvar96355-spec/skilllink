@@ -8,6 +8,7 @@
  * Запуск: npm run dev, затем npm run probe
  */
 import 'dotenv/config'
+import { createHash } from 'node:crypto'
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
@@ -3131,14 +3132,14 @@ async function main(): Promise<void> {
     check('без reauth вошедший уходит со входа на главную', plain.status === 307, `код ${plain.status}`)
   }
 
-  // ── Блокировка входа называет себя ─────────────────────────────────────────
-  step('Исчерпанные попытки входа отличимы от неверного пароля')
+  // ── Блокировка входа называет себя, перед ней — проверка «не робот» ─────────
+  step('Исчерпанные попытки входа отличимы от неверного пароля; перед блокировкой — «не робот»')
 
   {
     // Несуществующий адрес: так проверка не закрывает вход демо-учётной записи
     // и заодно доказывает, что код не выдаёт существование адреса.
     const email = `probe-${Date.now()}@example.invalid`
-    const attempt = async (): Promise<string | null> => {
+    const attempt = async (captcha?: string): Promise<string | null> => {
       // Своя пара запросов без общего состояния пробника: cookie csrf-токена
       // нужна только этой попытке.
       const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
@@ -3146,21 +3147,62 @@ async function main(): Promise<void> {
         .map((line) => line.split(';')[0])
         .join('; ')
       const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+      const form = new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' })
+      if (captcha !== undefined) form.set('captcha', captcha)
       const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
         method: 'POST',
         redirect: 'manual',
         headers: { 'content-type': 'application/x-www-form-urlencoded', cookie },
-        body: new URLSearchParams({ csrfToken, email, password: 'заведомо-неверный' }).toString(),
+        body: form.toString(),
       })
       const location = response.headers.get('location') ?? ''
       return /[?&]code=([a-z_]+)/.exec(location)?.[1] ?? null
     }
-    const codes: Array<string | null> = []
-    for (let index = 0; index < 6; index += 1) codes.push(await attempt())
+    // Задача решается так же, как в браузере (captcha-search.ts), только здесь.
+    interface Challenge { algorithm: string; challenge: string; salt: string; maxNumber: number; signature: string }
+    const challengeResponse = async () => fetch(`${BASE_URL}/api/login-challenge`)
+    const solved = async (): Promise<string> => {
+      const { data } = (await (await challengeResponse()).json()) as { data: Challenge }
+      let number = 0
+      while (number <= data.maxNumber && createHash('sha256').update(data.salt + number).digest('hex') !== data.challenge) {
+        number += 1
+      }
+      const { algorithm, challenge, salt, signature } = data
+      return JSON.stringify({ algorithm, challenge, salt, number, signature })
+    }
+
+    const challenge = await challengeResponse()
     check(
-      'пять неудач — «неверные данные», шестая — «слишком много попыток»',
-      codes.slice(0, 5).every((code) => code === 'credentials') && codes[5] === 'too_many_attempts',
-      codes.join(', '),
+      'задача «не робот» выдаётся без входа и не кэшируется',
+      challenge.status === 200 && (challenge.headers.get('cache-control') ?? '').includes('no-store'),
+      `статус ${challenge.status}, cache-control ${challenge.headers.get('cache-control')}`,
+    )
+
+    const codes: Array<string | null> = []
+    for (let index = 0; index < 3; index += 1) codes.push(await attempt())
+    const withoutCaptcha = await attempt()
+    const reused = await solved()
+    const firstSolved = await attempt(reused)
+    const replayed = await attempt(reused)
+    const forged = JSON.stringify({ ...JSON.parse(await solved()), number: -1 })
+    const forgedCode = await attempt(forged)
+    const secondSolved = await attempt(await solved())
+    const blocked = await attempt()
+
+    check(
+      'три неудачи — «неверные данные», дальше без решённой задачи — «нужна проверка»',
+      codes.every((code) => code === 'credentials') && withoutCaptcha === 'captcha_required',
+      [...codes, withoutCaptcha].join(', '),
+    )
+    check(
+      'с решённой задачей пароль проверяется; повтор того же решения и подделка — снова «нужна проверка»',
+      firstSolved === 'credentials' && replayed === 'captcha_required' && forgedCode === 'captcha_required',
+      [firstSolved, replayed, forgedCode].join(', '),
+    )
+    check(
+      'пятая неудача закрывает вход, дальше — «слишком много попыток» без всякой задачи',
+      secondSolved === 'credentials' && blocked === 'too_many_attempts',
+      [secondSolved, blocked].join(', '),
     )
   }
 

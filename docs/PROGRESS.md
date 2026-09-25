@@ -136,12 +136,12 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 64 маршрута, 80 операций
+### Модули и эндпоинты — 65 маршрутов, 81 операция
 
 | Модуль | Эндпоинты |
 | --- | --- |
 | health | `GET /api/health` |
-| auth | `GET /api/me`; `POST /api/me/password`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
+| auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
 | universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore` |
 | programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
 | skills | `GET /api/skills`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
@@ -309,7 +309,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 63 пути, 80 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 64 пути, 81 операция. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

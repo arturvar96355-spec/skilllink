@@ -125,6 +125,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ANY',
     errors: ['INTERNAL'],
   },
+  {
+    method: 'get',
+    path: '/api/login-challenge',
+    tag: 'Служебное',
+    summary: 'Задача проверки «не робот» для входа',
+    description:
+      'Без входа. Нужна, когда вход ответил code=captcha_required (после трёх неудач подряд): ' +
+      'найти число от 0 до maxNumber, при котором SHA-256 от salt + число равен challenge, ' +
+      'и повторить вход с полем captcha. Решение действует один раз и живёт 5 минут (решение 100).',
+    permission: 'ANY',
+    errors: ['INTERNAL'],
+  },
 
   // ── Пользователи ──────────────────────────────────────────────────────────
   {

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
+import { LOGIN_CAPTCHA, LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import {
   UNKNOWN_ADDRESS,
   checkLogin,
   clientAddress,
   forgiveFailure,
   isBlocked,
+  needsCaptcha,
   recordFailure,
   recordSuccess,
   registerFailure,
@@ -317,5 +318,47 @@ describe('снятие блокировки с учётной записи', () 
 
     expect(checkLogin(other, NOW).blocked).toBe(true)
     expect(trackedCounts().byAddress).toBe(before.byAddress)
+  })
+})
+
+describe('когда нужна проверка «не робот»', () => {
+  beforeEach(() => resetThrottle())
+
+  it('после нескольких неудач по учётной записи с одного адреса — и не раньше', () => {
+    const source = from('captcha@example.ru')
+    for (let failure = 0; failure < LOGIN_CAPTCHA.afterFailures; failure += 1) {
+      expect(needsCaptcha(source, NOW)).toBe(false)
+      recordFailure(source, NOW)
+    }
+    expect(needsCaptcha(source, NOW)).toBe(true)
+    // Раньше, чем закрывается вход: иначе проверку никто бы не увидел.
+    expect(checkLogin(source, NOW).blocked).toBe(false)
+  })
+
+  it('опечатки соседей по адресу её не включают', () => {
+    for (let index = 0; index < LOGIN_CAPTCHA.afterFailures * 3; index += 1) {
+      recordFailure(from(`neighbour-${index}@example.ru`), NOW)
+    }
+    expect(needsCaptcha(from('me@example.ru'), NOW)).toBe(false)
+  })
+
+  it('перебор одной учётной записи с многих адресов включает её для всех', () => {
+    for (let index = 0; index < LOGIN_CAPTCHA.afterFailuresPerAccount; index += 1) {
+      recordFailure(from('target@example.ru', `198.51.100.${index}`), NOW)
+    }
+    expect(needsCaptcha(from('target@example.ru', '203.0.113.99'), NOW)).toBe(true)
+  })
+
+  it('удачный вход снимает её', () => {
+    const source = from('captcha@example.ru')
+    for (let failure = 0; failure < LOGIN_CAPTCHA.afterFailures; failure += 1) recordFailure(source, NOW)
+    recordSuccess(source, NOW)
+    expect(needsCaptcha(source, NOW)).toBe(false)
+  })
+
+  it('после окна неудачи забываются', () => {
+    const source = from('captcha@example.ru')
+    for (let failure = 0; failure < LOGIN_CAPTCHA.afterFailures; failure += 1) recordFailure(source, NOW)
+    expect(needsCaptcha(source, NOW + LOGIN_THROTTLE.windowMs + 1)).toBe(false)
   })
 })

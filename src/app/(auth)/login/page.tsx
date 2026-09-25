@@ -9,8 +9,9 @@ import { ARRIVAL_KEY } from '@/ui/layout/arrival'
 import { Constellation, WARP_NAVIGATE_MS } from './Constellation'
 import { DepthLayer, DepthScene, TiltCard } from './Depth'
 import { safeReturnPath } from '@/shared/auth/return-path'
-import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
+import { LOGIN_CAPTCHA, LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo, ROUTES } from '@/ui'
+import { passCaptcha } from './captcha-solver'
 import styles from './login.module.css'
 
 /**
@@ -26,6 +27,9 @@ const BLOCK_MINUTES = Math.round(LOGIN_THROTTLE.blockMs / 60_000)
 /** Сообщения об отказе входа. Текст объясняет, что делать, а не только называет ошибку. */
 function errorMessage(error: string | null, code: string | null): string | null {
   if (!error && !code) return null
+  if (code === 'captcha_required') {
+    return 'Проверка «не робот» не прошла. Нажмите «Войти» ещё раз.'
+  }
   if (code === 'too_many_attempts') {
     return `Слишком много неудачных попыток. Вход в эту учётную запись закрыт на ${BLOCK_MINUTES} минут — подождите и попробуйте снова.`
   }
@@ -46,6 +50,11 @@ function LoginForm() {
   const [message, setMessage] = useState<string | null>(
     errorMessage(params.get('error'), params.get('code')),
   )
+  /**
+   * Проверка «не робот» (решение 100): сервер попросил её после нескольких неудач.
+   * Браузер решает задачу сам, человек видит только строку состояния.
+   */
+  const [captcha, setCaptcha] = useState<'off' | 'solving' | 'passed'>('off')
   // Сюда привело приложение: сессия была, но сервер её больше не принимает —
   // например, демо-данные перезалиты и пользователи созданы заново.
   const isReauth = params.has(REAUTH_PARAM)
@@ -61,9 +70,26 @@ function LoginForm() {
     // signIn не только возвращает ошибку, но и бросает её — при обрыве сети
     // или не-JSON ответе прокси. Без перехвата кнопка оставалась в ожидании
     // навсегда, без единого слова.
+    //
+    // После нескольких неудач сервер отвечает `captcha_required`, не проверяя пароль:
+    // тогда задача решается и попытка повторяется сама — второй раз «Войти»
+    // нажимать не нужно. Дальше задача решается заранее, до каждой попытки.
+    const solveCaptcha = async (): Promise<string> => {
+      setCaptcha('solving')
+      const solution = await passCaptcha()
+      setCaptcha('passed')
+      return solution
+    }
+    const attempt = (solution: string | null) =>
+      signIn('credentials', { email, password, ...(solution ? { captcha: solution } : {}), redirect: false })
+
     let result: Awaited<ReturnType<typeof signIn>> | null
     try {
-      result = await signIn('credentials', { email, password, redirect: false })
+      const solution = captcha === 'off' ? null : await solveCaptcha()
+      result = await attempt(solution)
+      if (result?.code === 'captcha_required' && solution === null) {
+        result = await attempt(await solveCaptcha())
+      }
     } catch {
       setIsPending(false)
       setMessage('Сервер не ответил. Проверьте подключение и попробуйте ещё раз.')
@@ -141,6 +167,14 @@ function LoginForm() {
             required
           />
 
+          {captcha !== 'off' && (
+            <p className={styles.notice} role="status">
+              <Icon name={captcha === 'passed' ? 'check' : 'lock'} size={18} />
+              {captcha === 'solving'
+                ? 'Проверяем, что вход не автоматический…'
+                : 'Проверка «не робот» пройдена — это защита от подбора пароля.'}
+            </p>
+          )}
           {isReauth && !message && (
             <p className={styles.notice} role="status">
               <Icon name="info" size={18} />
@@ -166,8 +200,10 @@ function LoginForm() {
         </form>
 
         <p className={styles.note}>
-          После {LOGIN_THROTTLE.maxFailures} неудачных попыток подряд вход в учётную запись
-          закрывается на {BLOCK_MINUTES} минут — это защита от подбора пароля.
+          После {LOGIN_CAPTCHA.afterFailures} неудачных попыток вход проверяет, что он
+          не автоматический, — браузер делает это сам за пару секунд. После{' '}
+          {LOGIN_THROTTLE.maxFailures} подряд вход в учётную запись закрывается
+          на {BLOCK_MINUTES} минут — это защита от подбора пароля.
         </p>
 
         <p className={styles.note}>

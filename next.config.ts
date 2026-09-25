@@ -73,6 +73,11 @@ const nextConfig: NextConfig = {
         source: '/api/users/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      /** Задача проверки «не робот» у каждого запроса своя — хранить её нечего и незачем. */
+      {
+        source: '/api/login-challenge',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
     ]
   },
 }

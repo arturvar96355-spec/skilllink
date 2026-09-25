@@ -1,4 +1,4 @@
-import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
+import { LOGIN_CAPTCHA, LOGIN_THROTTLE } from '@/shared/config/auth.config'
 
 /**
  * Ограничение перебора пароля.
@@ -221,6 +221,26 @@ export function checkLogin(
     blocked: states.some((state) => isBlocked(state, now)),
     retryAfterSeconds: Math.max(...states.map((state) => secondsUntilUnblocked(state, now))),
   }
+}
+
+/** Сколько неудач в текущем окне: окно прошло — ноль, как и при следующей неудаче. */
+function failuresInWindow(state: ThrottleState | undefined, now: number, windowMs: number): number {
+  if (state === undefined || now - state.windowStartedAt > windowMs) return 0
+  return state.failures
+}
+
+/**
+ * Нужна ли перед этой попыткой проверка «не робот» (captcha.ts, решение 100).
+ *
+ * Да — после нескольких неудач подряд по этой учётной записи с этого адреса или
+ * после многих неудач по ней со всех адресов. Счётчик одного адреса по всем
+ * учётным записям её не включает: за одним адресом бывает целая аудитория.
+ * Удачный вход обнуляет оба счётчика (recordSuccess) — дальше снова без проверки.
+ */
+export function needsCaptcha(source: LoginSource, now = Date.now()): boolean {
+  const pair = failuresInWindow(byAccountAndAddress.get(pairKey(source)), now, PAIR_LIMITS.windowMs)
+  const account = failuresInWindow(byAccount.get(source.account), now, ACCOUNT_LIMITS.windowMs)
+  return pair >= LOGIN_CAPTCHA.afterFailures || account >= LOGIN_CAPTCHA.afterFailuresPerAccount
 }
 
 /** Какой счётчик закрыл вход этой неудачей — для журнала действий. */
