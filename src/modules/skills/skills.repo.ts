@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
+import { renameSkillInRecommendation } from '@/modules/recommendations/recommendations.rules'
 import {
   findNameClash,
   latestOfPeriods,
@@ -149,65 +150,109 @@ export async function findById(id: string, client: Tx | typeof prisma = prisma):
 }
 
 /**
- * Проверка названия и запись — под одной транзакционной блокировкой справочника.
- *
- * Уникальность «без учёта регистра и пробелов» база сама не держит (её ключ —
- * точное название), поэтому два одновременных «Python» и «python» иначе прошли бы
- * оба. Блокировка рекомендательная и живёт до конца транзакции; справочник меняет
- * администратор, очередь из двух запросов незаметна.
- */
-async function withNameLock<T>(action: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT 1 FROM (SELECT pg_advisory_xact_lock(hashtext('skilllink:skills:name'))) AS locked`
-    return action(tx)
-  })
-}
-
-/**
  * Названия всех навыков — только `id` и `name`. Справочник — десятки строк,
- * в пределе сотни: сравнение по ключу делается в коде одной функцией
- * (`skillNameKey`, её проверяют модульные тесты), а не повтором правила на SQL.
+ * в пределе сотни: навык, с которым совпало название, ищется в коде той же
+ * функцией, что повторяет индекс базы (`skillNameKey`), — чтобы назвать его в ответе.
  */
-async function allNames(tx: Tx): Promise<Array<{ id: string; name: string }>> {
-  return tx.skill.findMany({ select: { id: true, name: true } })
+async function allNames(client: Tx | typeof prisma = prisma): Promise<Array<{ id: string; name: string }>> {
+  return client.skill.findMany({ select: { id: true, name: true } })
 }
 
 export type NameGuarded<T> = { ok: true; row: T } | { ok: false; clash: { id: string; name: string } }
 
-export async function createSkill(input: CreateSkillInput): Promise<NameGuarded<SkillRow>> {
-  return withNameLock(async (tx) => {
-    const clash = findNameClash(input.name, await allNames(tx))
-    if (clash) return { ok: false, clash }
-    const row = await tx.skill.create({
-      data: { name: input.name, category: input.category, description: input.description ?? null },
-      select: skillSelect({}),
-    })
-    return { ok: true, row }
-  })
+/** P2002 — нарушение уникальности. У навыка уникально только название: другой причины нет. */
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 'P2002'
 }
 
+/**
+ * Уникальность названия без учёта регистра и пробелов держит база — индекс
+ * `skills_name_key_ci` (решение 110). Проверка в коде до записи нужна для
+ * понятного ответа: «совпадает с „Machine Learning“». Между проверкой и записью
+ * то же название может сохранить параллельный запрос — тогда откажет индекс,
+ * и ответ должен быть тем же 409 с названием, а не общим «запись уже существует».
+ */
+async function guardName<T>(
+  name: string | undefined,
+  excludeId: string | undefined,
+  write: () => Promise<T>,
+): Promise<NameGuarded<T>> {
+  if (name !== undefined) {
+    const clash = findNameClash(name, await allNames(), excludeId)
+    if (clash) return { ok: false, clash }
+  }
+  try {
+    return { ok: true, row: await write() }
+  } catch (error) {
+    if (name === undefined || !isUniqueViolation(error)) throw error
+    // Соперник мог уже исчезнуть (объединён, удалён) — тогда называем то, что ввели.
+    const clash = findNameClash(name, await allNames(), excludeId) ?? { id: '', name }
+    return { ok: false, clash }
+  }
+}
+
+export async function createSkill(input: CreateSkillInput): Promise<NameGuarded<SkillRow>> {
+  return guardName(input.name, undefined, () =>
+    prisma.skill.create({
+      data: { name: input.name, category: input.category, description: input.description ?? null },
+      select: skillSelect({}),
+    }),
+  )
+}
+
+/**
+ * Рекомендации навыка называют его так, как он называется сейчас (решение 110).
+ * Вызывается в транзакции переименования и объединения: запись навыка и текст
+ * рекомендаций меняются вместе или не меняются вовсе.
+ */
+async function renameInRecommendations(skill: { id: string; name: string }, tx: Tx): Promise<number> {
+  const rows = await tx.recommendation.findMany({
+    where: { objectType: 'Skill', objectId: skill.id },
+    select: { id: true, ruleKey: true, title: true, description: true, relatedData: true },
+  })
+  let changed = 0
+  for (const row of rows) {
+    const patch = renameSkillInRecommendation(row, skill)
+    if (!patch) continue
+    await tx.recommendation.update({
+      where: { id: row.id },
+      data: {
+        title: patch.title,
+        description: patch.description,
+        // Ссылка на навык не менялась — поле не пишется: пустой relatedData (NULL)
+        // Prisma не примет как обычное значение JSON.
+        ...(patch.relatedData !== row.relatedData
+          ? { relatedData: patch.relatedData as Prisma.InputJsonValue }
+          : {}),
+      },
+    })
+    changed += 1
+  }
+  return changed
+}
+
+/** `null` — навыка нет. */
 export async function updateSkill(
   id: string,
   input: UpdateSkillInput,
 ): Promise<NameGuarded<SkillRow> | null> {
-  return withNameLock(async (tx) => {
-    const existing = await tx.skill.findUnique({ where: { id }, select: { id: true } })
-    if (!existing) return null
-    if (input.name !== undefined) {
-      const clash = findNameClash(input.name, await allNames(tx), id)
-      if (clash) return { ok: false, clash }
-    }
-    const row = await tx.skill.update({
-      where: { id },
-      data: {
-        ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.category !== undefined ? { category: input.category } : {}),
-        ...(input.description !== undefined ? { description: input.description } : {}),
-      },
-      select: skillSelect({}),
-    })
-    return { ok: true, row }
-  })
+  const existing = await prisma.skill.findUnique({ where: { id }, select: { id: true } })
+  if (!existing) return null
+  return guardName(input.name, id, () =>
+    prisma.$transaction(async (tx) => {
+      const row = await tx.skill.update({
+        where: { id },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.category !== undefined ? { category: input.category } : {}),
+          ...(input.description !== undefined ? { description: input.description } : {}),
+        },
+        select: skillSelect({}),
+      })
+      if (input.name !== undefined) await renameInRecommendations({ id, name: row.name }, tx)
+      return row
+    }),
+  )
 }
 
 async function countUsage(id: string, client: Tx | typeof prisma): Promise<SkillUsage> {
@@ -269,7 +314,12 @@ async function loadLinks(skillId: string, tx: Tx): Promise<SkillLinks> {
   return { programs, products, demand, recommendations }
 }
 
-async function applyMergePlan(plan: SkillMergePlan, targetId: string, tx: Tx): Promise<void> {
+async function applyMergePlan(
+  plan: SkillMergePlan,
+  target: { id: string; name: string },
+  tx: Tx,
+): Promise<void> {
+  const targetId = target.id
   // Сначала то, что совпало (связь дубля удаляется), потом перенос остального:
   // перенос раньше удаления упёрся бы в уникальность «программа — навык».
   for (const item of plan.programs.combine) {
@@ -306,12 +356,13 @@ async function applyMergePlan(plan: SkillMergePlan, targetId: string, tx: Tx): P
     await tx.recommendation.deleteMany({ where: { id: { in: plan.recommendations.drop } } })
   }
   if (plan.recommendations.move.length > 0) {
-    // Текст и relatedData перепишет следующая пересборка: правило выдаст ту же
-    // рекомендацию уже по целевому навыку и обновит запись по ключу.
     await tx.recommendation.updateMany({
       where: { id: { in: plan.recommendations.move } },
       data: { objectId: targetId },
     })
+    // Текст — в той же транзакции, а не «при следующей генерации»: до неё
+    // лента называла бы навык, которого в справочнике уже нет (решение 110).
+    await renameInRecommendations(target, tx)
   }
 }
 
@@ -338,14 +389,14 @@ export async function mergeInto(sourceId: string, targetId: string): Promise<Mer
 
     const [source, target] = await Promise.all([
       tx.skill.findUnique({ where: { id: sourceId }, select: { id: true, name: true } }),
-      tx.skill.findUnique({ where: { id: targetId }, select: { id: true } }),
+      tx.skill.findUnique({ where: { id: targetId }, select: { id: true, name: true } }),
     ])
     if (!source) return { status: 'not-found', which: 'source' }
     if (!target) return { status: 'not-found', which: 'target' }
 
     const [sourceLinks, targetLinks] = await Promise.all([loadLinks(sourceId, tx), loadLinks(targetId, tx)])
     const plan = planSkillMerge(targetLinks, sourceLinks)
-    await applyMergePlan(plan, targetId, tx)
+    await applyMergePlan(plan, target, tx)
     await tx.skill.delete({ where: { id: sourceId } })
 
     const row = await findById(targetId, tx)

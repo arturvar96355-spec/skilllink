@@ -15,7 +15,7 @@ export async function findUniversityExtras(ids: string[]) {
       contacts: {
         where: { isPrimary: true },
         take: 1,
-        select: { fullName: true, position: true, email: true },
+        select: { fullName: true, position: true, email: true, legalBasis: true },
       },
     },
   })

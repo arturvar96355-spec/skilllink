@@ -1,3 +1,5 @@
+import { isIP } from 'node:net'
+
 /**
  * Настройки интеграций. Всё берётся из переменных окружения — в коде секретов нет.
  *
@@ -68,6 +70,65 @@ export interface AiAssistConfig {
   }
 }
 
+/**
+ * Бот личных уведомлений в Telegram (решение 102). Выключен, пока не задан токен:
+ * блок в профиле пишет «Не настроено администратором», вебхук ничего не делает.
+ */
+export interface TelegramConfig {
+  /** Токен от BotFather. Секрет: только в env, в журнал и в ответы не попадает. */
+  botToken: string | null
+  /** Имя бота без @ — для ссылки t.me/<имя>?start=<токен привязки>. */
+  botUsername: string | null
+  /** Значение заголовка X-Telegram-Bot-Api-Secret-Token, заданное в setWebhook. */
+  webhookSecret: string | null
+  /** База Bot API без завершающего слэша. */
+  apiBase: string
+  /**
+   * IP, на который идёт соединение с Bot API, если имя из apiBase недоступно
+   * (из Yandex Cloud — 149.154.167.220). SNI и Host остаются из apiBase.
+   */
+  apiIp: string | null
+  timeoutMs: number
+  /** Бот работает: есть и токен, и имя, и секрет вебхука. */
+  enabled: boolean
+}
+
+export const TELEGRAM_DEFAULT_API_BASE = 'https://api.telegram.org'
+
+/** База Bot API: только http(s)-адрес, иначе — адрес по умолчанию. */
+function readTelegramApiBase(): string {
+  const raw = readString('TELEGRAM_API_BASE')
+  if (!raw) return TELEGRAM_DEFAULT_API_BASE
+  try {
+    const url = new URL(raw)
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return TELEGRAM_DEFAULT_API_BASE
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
+  } catch {
+    return TELEGRAM_DEFAULT_API_BASE
+  }
+}
+
+/** Только IP: имя здесь теряет смысл — ради обхода DNS переменная и заведена. */
+function readTelegramApiIp(): string | null {
+  const raw = readString('TELEGRAM_API_IP')
+  return raw && isIP(raw) !== 0 ? raw : null
+}
+
+function readTelegramConfig(timeoutMs: number): TelegramConfig {
+  const botToken = readString('TELEGRAM_BOT_TOKEN')
+  const botUsername = readString('TELEGRAM_BOT_USERNAME')?.replace(/^@/, '') ?? null
+  const webhookSecret = readString('TELEGRAM_WEBHOOK_SECRET')
+  return {
+    botToken,
+    botUsername,
+    webhookSecret,
+    apiBase: readTelegramApiBase(),
+    apiIp: readTelegramApiIp(),
+    timeoutMs,
+    enabled: botToken !== null && botUsername !== null && webhookSecret !== null,
+  }
+}
+
 export interface IntegrationCommonConfig {
   timeoutMs: number
   retries: number
@@ -92,6 +153,7 @@ export interface IntegrationsConfig {
   lms: RemoteServiceConfig
   site: RemoteServiceConfig
   aiAssist: AiAssistConfig
+  telegram: TelegramConfig
 }
 
 /**
@@ -99,12 +161,13 @@ export interface IntegrationsConfig {
  * можно поменять без пересборки, а тесты не зависят от порядка импортов.
  */
 export function getIntegrationsConfig(): IntegrationsConfig {
+  const common: IntegrationCommonConfig = {
+    timeoutMs: readNumber('INTEGRATION_TIMEOUT_MS', 5000),
+    retries: readNumber('INTEGRATION_RETRIES', 2),
+    minIntervalMs: readNumber('INTEGRATION_MIN_INTERVAL_MS', 200),
+  }
   return {
-    common: {
-      timeoutMs: readNumber('INTEGRATION_TIMEOUT_MS', 5000),
-      retries: readNumber('INTEGRATION_RETRIES', 2),
-      minIntervalMs: readNumber('INTEGRATION_MIN_INTERVAL_MS', 200),
-    },
+    common,
     marketData: {
       kind: readProviderKind(),
       csvPath: readString('MARKET_DATA_CSV_PATH'),
@@ -136,5 +199,6 @@ export function getIntegrationsConfig(): IntegrationsConfig {
         caCertPath: readString('GIGACHAT_CA_CERT_PATH'),
       },
     },
+    telegram: readTelegramConfig(common.timeoutMs),
   }
 }

@@ -38,6 +38,7 @@ const CONTACT = {
   fullName: 'Ветрова Ирина Павловна',
   position: 'Заместитель декана',
   email: 'vetrova@example.invalid',
+  legalBasis: 'LEGITIMATE_INTEREST',
 }
 
 const ROW: UniversityListItemDto = {
@@ -78,9 +79,14 @@ describe('кто видит почту контакта в выгрузке', ()
   })
 
   it('ячейки контакта: почта только с правом', () => {
-    expect(contactCells(CONTACT, true)).toEqual([CONTACT.fullName, CONTACT.position, CONTACT.email])
-    expect(contactCells(CONTACT, false)).toEqual([CONTACT.fullName, CONTACT.position, null])
-    expect(contactCells(undefined, true)).toEqual([null, null, null])
+    expect(contactCells(CONTACT, true)).toEqual([CONTACT.fullName, CONTACT.position, CONTACT.email, true])
+    expect(contactCells(CONTACT, false)).toEqual([CONTACT.fullName, CONTACT.position, null, true])
+    expect(contactCells(undefined, true)).toEqual([null, null, null, null])
+  })
+
+  it('признак основания: «да»/«нет», без самого основания и документа', () => {
+    expect(contactCells({ ...CONTACT, legalBasis: null }, true)[3]).toBe(false)
+    expect(contactCells(CONTACT, false)[3]).toBe(true)
   })
 })
 
@@ -99,6 +105,8 @@ describe('выгрузка вузов', () => {
       expect(result.csv).not.toContain(CONTACT.email)
       expect(cell(result.csv, 'Почта')).toBe('')
       expect(cell(result.csv, 'Контактное лицо')).toBe(CONTACT.fullName)
+      expect(cell(result.csv, 'Основание обработки ПД зафиксировано')).toBe('да')
+      expect(result.csv).not.toContain('LEGITIMATE_INTEREST')
     },
   )
 

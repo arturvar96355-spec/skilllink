@@ -1,6 +1,6 @@
 import { countSchema, webUrlSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
-import { UNIVERSITY_STATUSES } from '@/shared/contracts/enums'
+import { CONSENT_FORMS, CONTACT_LEGAL_BASES, UNIVERSITY_STATUSES } from '@/shared/contracts/enums'
 
 const statusSchema = z.enum(UNIVERSITY_STATUSES)
 
@@ -134,3 +134,42 @@ export const updateUniversitySchema = z
   })
 
 export type UpdateUniversityInput = z.infer<typeof updateUniversitySchema>
+
+// ───────────── Правовое основание обработки ПД и согласие (решение 111) ─────────────
+
+const isoDate = z.iso.datetime({ message: 'Дата должна быть в формате ISO 8601' })
+
+/**
+ * Где лежит документ: номер, дата, место хранения («Соглашение № 12/2026 от 01.09.2026,
+ * папка «Договоры с вузами»»). Не файл и не персональные данные — ФИО сюда не пишут.
+ */
+const documentReferenceSchema = (message: string) =>
+  z.string().trim().min(3, message).max(200, 'Не длиннее 200 символов')
+
+/**
+ * Зафиксировать основание обработки ПД контакта. Согласованность полей (дата и форма
+ * только при согласии, дата не в будущем) проверяют правила модуля: там же текущее
+ * состояние контакта и время.
+ */
+export const setContactBasisSchema = z.object({
+  basis: z.enum(CONTACT_LEGAL_BASES),
+  documentReference: documentReferenceSchema(
+    'Укажите документ-основание: номер, дату и где он хранится',
+  ),
+  consentObtainedAt: isoDate.nullish(),
+  consentForm: z.enum(CONSENT_FORMS).nullish(),
+})
+
+export type SetContactBasisBody = z.infer<typeof setContactBasisSchema>
+
+/** Отзыв согласия. Дата — когда получен отзыв (по умолчанию сейчас); документ обязателен. */
+export const withdrawConsentSchema = z.object({
+  withdrawnAt: isoDate.optional(),
+  withdrawalReference: documentReferenceSchema(
+    'Укажите документ отзыва: входящий номер, дату и где он хранится',
+  ),
+})
+
+export type WithdrawConsentBody = z.infer<typeof withdrawConsentSchema>
+
+export const contactBasisHistoryQuerySchema = paginationSchema

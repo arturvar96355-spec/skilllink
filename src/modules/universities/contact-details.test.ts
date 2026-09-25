@@ -38,7 +38,20 @@ function user(role: UserRole, universityId: string | null = null): CurrentUser {
 const EMAIL = 'vetrova@example.invalid'
 const PHONE = '+7 900 000-00-00'
 
+/** Основание не зафиксировано — как у контактов, заведённых до решения 111. */
+const NO_BASIS = {
+  legalBasis: null,
+  consentStatus: 'NONE',
+  consentObtainedAt: null,
+  consentForm: null,
+  consentWithdrawnAt: null,
+  basisReference: null,
+  withdrawalReference: null,
+  basisUpdatedAt: null,
+} as const
+
 const LIVE = {
+  ...NO_BASIS,
   id: 'c-1',
   fullName: 'Ветрова Ирина Павловна',
   position: 'Заместитель декана',
@@ -48,6 +61,7 @@ const LIVE = {
 }
 
 const ANONYMIZED = {
+  ...NO_BASIS,
   id: 'c-2',
   fullName: ANONYMIZED_CONTACT_NAME,
   position: null,
@@ -107,7 +121,7 @@ describe('право на почту и телефон контактов', () =
 
 describe('маскирование контакта в DTO', () => {
   it('с правом — значения как есть, признака нет', () => {
-    expect(toContactDto(LIVE, true)).toMatchObject({
+    expect(toContactDto(LIVE, true, true)).toMatchObject({
       email: EMAIL,
       phone: PHONE,
       contactDetailsHidden: false,
@@ -116,7 +130,7 @@ describe('маскирование контакта в DTO', () => {
   })
 
   it('без права — null и признак «скрыто»; ФИО и должность остаются', () => {
-    expect(toContactDto(LIVE, false)).toEqual({
+    expect(toContactDto(LIVE, false, false)).toEqual({
       id: 'c-1',
       fullName: LIVE.fullName,
       position: LIVE.position,
@@ -125,11 +139,13 @@ describe('маскирование контакта в DTO', () => {
       isPrimary: true,
       isAnonymized: false,
       contactDetailsHidden: true,
+      basisRecorded: false,
+      legalBasis: null,
     })
   })
 
   it('обезличенный контакт не «скрыт»: данных нет ни у кого', () => {
-    expect(toContactDto(ANONYMIZED, false)).toMatchObject({
+    expect(toContactDto(ANONYMIZED, false, false)).toMatchObject({
       isAnonymized: true,
       contactDetailsHidden: false,
     })

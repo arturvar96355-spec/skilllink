@@ -5,6 +5,7 @@ import { AppError, unauthorized } from '@/shared/http/errors'
 import type { UserRole } from '@/shared/contracts/enums'
 import { auth } from './auth'
 import { DEMO_USER_COOKIE, isDemoAuthEnabled } from './demo-mode'
+import { isSessionCurrent } from './session-version'
 
 export { DEMO_USER_COOKIE, isDemoAuthEnabled }
 
@@ -64,14 +65,30 @@ export function describeAuthError(error: unknown): string {
   return text.replace(/eyJ[\w-]*(?:\.[\w-]*)*/g, '[токен скрыт]').slice(0, 300)
 }
 
-/** Пользователь из настоящей сессии NextAuth. */
+/**
+ * Текст отказа отозванной сессии. Фронт на любой 401 снимает сессию и ведёт на вход
+ * с `reauth=1` (src/ui/lib/session.ts); текст — для того, кто смотрит ответ API.
+ */
+export const SESSION_REVOKED_MESSAGE =
+  'Сессия больше не действует: пароль, роль или доступ изменились. Войдите заново'
+
+/**
+ * Пользователь из настоящей сессии NextAuth.
+ *
+ * `null` — сессии нет. Сессия есть, но пользователь заблокирован, удалён или версия
+ * сессий в базе ушла вперёд (решение 109), — 401, а не `null`: в демо-режиме `null`
+ * отдал бы запрос демо-пользователю с правами менеджера, и отозванная сессия
+ * заблокированного продолжала бы работать — уже чужими правами.
+ */
 async function fromSession(): Promise<CurrentUser | null> {
   // Тип выводится из вызова без аргументов: у `auth` несколько перегрузок,
   // и явная аннотация схлопнула бы их в объединение с типом middleware.
   let userId: string | null = null
+  let tokenVersion: unknown
   try {
     const session = await auth()
     userId = session?.user?.id ?? null
+    tokenVersion = session?.user?.sessionVersion
   } catch (error) {
     // Отсутствие сессии — это `null` от auth(), а не исключение. Исключение — сбой
     // проверки входа, и молча считать его «сессии нет» нельзя: в демо-режиме запрос
@@ -84,8 +101,16 @@ async function fromSession(): Promise<CurrentUser | null> {
   if (!userId) return null
 
   // Роль перечитывается из базы: она могла измениться после выдачи токена,
-  // а права важнее удобства.
-  return prisma.user.findFirst({ where: { id: userId, isActive: true }, select: USER_FIELDS })
+  // а права важнее удобства. Тем же запросом — версия сессий для сверки.
+  const row = await prisma.user.findFirst({
+    where: { id: userId, isActive: true },
+    select: { ...USER_FIELDS, sessionVersion: true },
+  })
+  if (!row || !isSessionCurrent(tokenVersion, row.sessionVersion)) {
+    throw unauthorized(SESSION_REVOKED_MESSAGE)
+  }
+  const { sessionVersion: _checked, ...user } = row
+  return user
 }
 
 async function fromDemoCookie(): Promise<CurrentUser | null> {
@@ -115,7 +140,8 @@ async function demoFallbackUser(): Promise<CurrentUser | null> {
  * не затрагивает остальной код.
  *
  * Порядок: настоящая сессия NextAuth → демо-cookie → демо-пользователь по умолчанию.
- * Два последних шага работают только в демо-режиме.
+ * Два последних шага работают только в демо-режиме и только без сессии: отозванная
+ * сессия — 401 и в демо-режиме (fromSession).
  */
 export async function getCurrentUser(): Promise<CurrentUser> {
   const fromRealSession = await fromSession()

@@ -128,6 +128,23 @@ curl — не затрагивается. `/api/auth/*` не затрагива�
 
 **Срок сессии** — 8 часов с момента входа (с 25.09.2026; раньше 30 дней).
 
+**Отзыв сессий** (с 25.09.2026, решение 109). Сессия действует, пока версия в её токене
+равна версии сессий пользователя в базе. Версия растёт при смене своего пароля
+(`POST /api/me/password`), сбросе пароля администратором (`POST /api/users/:id/password-reset`),
+блокировке и смене роли (`PATCH /api/users/:id`). Любой запрос к API с отозванной сессией,
+а также с сессией заблокированного или удалённого пользователя получает:
+
+```json
+{ "error": { "code": "UNAUTHORIZED",
+  "message": "Сессия больше не действует: пароль, роль или доступ изменились. Войдите заново" } }
+```
+
+`401` — **и в демо-режиме**: к демо-пользователю уходит только запрос без cookie сессии,
+отозванная сессия в него не превращается. Фронт поступает с этим 401 как с любым другим:
+снимает сессию и ведёт на `/login?reauth=1` (`src/ui/lib/session.ts`). Разблокировка
+прежние сессии не возвращает — нужен новый вход. Сессия, выданная до 25.09.2026 (в токене
+нет версии), считается версией 0 и продолжает работать.
+
 Пространство `/api/auth/*` целиком принадлежит NextAuth. Сведения о текущем пользователе
 системы отдаёт **`GET /api/me`**.
 
@@ -152,6 +169,7 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
 | `CALENDAR` | ADMIN, MANAGER, ANALYST, VIEWER — личная подписка на календарь сроков и встреч (решение 105) |
 | `CONTACT_DETAILS` | ADMIN, MANAGER — почта и телефон контактных лиц вузов (решение 106); UNIVERSITY_REP — только контактов своего вуза |
+| `CONTACT_BASIS` | ADMIN, MANAGER — правовое основание обработки ПД контактов и согласия: видеть, фиксировать, отзывать согласие, история (решение 111). UNIVERSITY_REP — нет, даже по своему вузу |
 
 **Почта и телефон контактных лиц вузов** (с 25.09.2026, решение владельца, решение 106):
 
@@ -164,6 +182,8 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | Встречи (участник-контакт), документы (подстановка контакта) | только ФИО и должность | то же | то же |
 | ИИ-помощник | почта и телефон вырезаются из текста до отправки модели | то же | — |
 | `GET /api/me` → `permissions.canSeeContactDetails` | `true` | `false` | `false` (признак «скрыто» — в самом контакте) |
+| Основание обработки ПД контакта (решение 111): карточка — `legalBasis` | основание, согласие, документы | `legalBasis: null`, только `basisRecorded` | то же, что ANALYST |
+| Выгрузка вузов — «Основание обработки ПД зафиксировано» | «да»/«нет» | то же | то же |
 
 **Ответственным** за связку, этап, встречу и документ назначается только действующий
 ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
@@ -224,6 +244,40 @@ ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудн�
 
 Решение уходит полем `captcha` формы входа — см. «Проверка «не робот»» в разделе
 «Авторизация».
+
+### POST /api/telegram/webhook
+
+Вебхук бота личных уведомлений (решение 102). Вызывает **Telegram**, не браузер и не фронт.
+Входа нет; подлинность — заголовок `X-Telegram-Bot-Api-Secret-Token`, равный
+`TELEGRAM_WEBHOOK_SECRET` (задаётся в `setWebhook(secret_token=…)`, docs/SETUP.md).
+Сравнение — `timingSafeEqual`. Заголовка нет, он другой или секрет не задан — `403 FORBIDDEN`.
+Запрос приходит без `Origin`, поэтому проверку «same-origin» (`shared/http/origin.ts`)
+проходит, как любой запрос не из браузера; для остальных маршрутов она не ослаблена.
+
+Тело — объект Update Bot API; разбираются только `update_id`, `message.chat.{id,type}`,
+`message.from.username`, `message.text`, остальное отбрасывается.
+
+| Команда в личном чате | Что делает бот |
+| --- | --- |
+| `/start <токен>` | Проверяет токен привязки (HMAC, 15 минут, один раз) и что пользователь активен и видит сводку; привязывает чат. Журнал: `telegram.link` |
+| `/start` без токена | Подсказывает, где взять ссылку |
+| `/today` | Сводка «что горит у меня» пользователя этого чата |
+| `/stop` | Отвязывает чат. Журнал: `telegram.unlink` |
+| что угодно ещё | Короткая справка |
+
+В группах бот не работает: отвечает, что сводка — только в личной переписке.
+
+Ответ всегда `200` и сразу: `{ "data": { "accepted": true } }`; команда выполняется после
+ответа. Тело не разобралось — `{ "accepted": false }`, тоже `200`: Telegram повторяет
+обновление, пока не получит 2xx, а повтор того же тела ничего не исправит. Причина — строкой
+в журнале приложения без содержимого сообщения. Повтор одного `update_id` выполняется один раз.
+Бот не настроен (нет токена) — `200`, команда не выполняется.
+
+```bash
+curl -X POST http://localhost:3000/api/telegram/webhook \
+  -H 'content-type: application/json' -H 'x-telegram-bot-api-secret-token: <секрет>' \
+  -d '{"update_id":1,"message":{"chat":{"id":42,"type":"private"},"text":"/today"}}'
+```
 
 ### GET /api/health
 
@@ -367,7 +421,14 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
     "id": "…", "fullName": "Ветрова Ирина Павловна",
     "position": "Заместитель декана",
     "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true,
-    "isAnonymized": false, "contactDetailsHidden": false
+    "isAnonymized": false, "contactDetailsHidden": false,
+    "basisRecorded": true,
+    "legalBasis": {
+      "basis": "LEGITIMATE_INTEREST", "consentStatus": "NONE",
+      "consentObtainedAt": null, "consentForm": null, "consentWithdrawnAt": null,
+      "documentReference": "Соглашение о сотрудничестве № 14/2026 (демо), архив договоров",
+      "withdrawalReference": null, "updatedAt": "2026-01-28T19:06:23.449Z"
+    }
   },
   "contacts": [ "…" ],
   "createdAt": "2026-09-21T07:23:11.101Z"
@@ -383,8 +444,26 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
 ```json
 { "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
   "email": null, "phone": null, "isPrimary": true,
-  "isAnonymized": false, "contactDetailsHidden": true }
+  "isAnonymized": false, "contactDetailsHidden": true,
+  "basisRecorded": true, "legalBasis": null }
 ```
+
+**Правовое основание обработки ПД контакта** (решение 111). `basisRecorded` приходит всем,
+кто видит контакт: основание зафиксировано или нет. `legalBasis` целиком
+(`ContactLegalBasisDto`) — только ADMIN и MANAGER (право `CONTACT_BASIS`); остальным `null`.
+Для фронта: `basisRecorded: true` и `legalBasis: null` — «скрыто», `basisRecorded: false` —
+«основание не зафиксировано».
+
+| Поле `legalBasis` | Тип | Смысл |
+| --- | --- | --- |
+| `basis` | `LEGITIMATE_INTEREST` \| `CONTRACT` \| `CONSENT` \| `OTHER` | основание по ч. 1 ст. 6 152-ФЗ, подписи — `CONTACT_LEGAL_BASIS_LABELS` |
+| `consentStatus` | `NONE` \| `OBTAINED` \| `WITHDRAWN` | `NONE` — основание не согласие; подписи — `CONSENT_STATUS_LABELS` |
+| `consentObtainedAt` | ISO \| null | дата получения согласия — при `OBTAINED` и `WITHDRAWN` |
+| `consentForm` | `WRITTEN` \| `ELECTRONIC` \| `ORAL_CONFIRMED_BY_EMAIL` \| null | форма согласия, подписи — `CONSENT_FORM_LABELS` |
+| `consentWithdrawnAt` | ISO \| null | дата получения отзыва — только при `WITHDRAWN` |
+| `documentReference` | string | где лежит документ-основание: номер, дата, место хранения |
+| `withdrawalReference` | string \| null | где лежит отзыв — только при `WITHDRAWN` |
+| `updatedAt` | ISO | когда основание фиксировали в последний раз |
 
 ### POST /api/universities
 
@@ -431,7 +510,85 @@ curl -s -X POST http://localhost:3000/api/universities \
 должность, почта, телефон и заметки стираются, признак основного снимается. Запись остаётся:
 на неё ссылаются участники встреч. Необратимо; повтор ничего не меняет и отвечает тем же.
 Чужой вуз или чужой контакт — `NOT_FOUND`. В журнал — `contact.anonymize` без ФИО
-и прежних значений. Ответ — контакт с `isAnonymized: true`.
+и прежних значений. Ответ `200` — контакт с `isAnonymized: true`. Основание и согласие
+обезличивание не меняет: удаление по требованию субъекта — не отзыв согласия.
+
+### PUT /api/universities/:id/contacts/:contactId/legal-basis
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). Зафиксировать правовое основание обработки ПД
+контакта (решение 111, docs/PRIVACY.md, раздел 3). Ответ `200` — `ContactDto` с `legalBasis`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `basis` | enum | да | `LEGITIMATE_INTEREST`, `CONTRACT`, `CONSENT`, `OTHER` |
+| `documentReference` | string | да | 3..200: номер, дата и место хранения документа-основания. Не файл; ФИО сюда не писать |
+| `consentObtainedAt` | ISO \| null | при `CONSENT` — да | не в будущем; при другом основании — нельзя |
+| `consentForm` | enum \| null | при `CONSENT` — да | `WRITTEN`, `ELECTRONIC`, `ORAL_CONFIRMED_BY_EMAIL`; при другом основании — нельзя |
+
+- При `CONSENT` статус становится `OBTAINED`, при остальных — `NONE`. Смена согласия на
+  другое основание разрешена (ч. 2 ст. 9 152-ФЗ): дата и форма согласия в карточке
+  очищаются, в истории остаются.
+- Повтор той же формы — `200` без новой записи истории и журнала.
+- `VALIDATION_ERROR` 422: нет документа; согласие без даты или формы; дата в будущем;
+  дата или форма при основании не «согласие».
+- `CONFLICT` 409: контакт обезличен; согласие уже отозвано.
+- `NOT_FOUND` 404: чужой вуз или контакт. ANALYST, VIEWER, UNIVERSITY_REP — `FORBIDDEN` 403.
+- Журнал: `contact.basis.set` с `{ universityId, fromBasis, toBasis, fromConsentStatus,
+  toConsentStatus, referenceChanged }` — без текста документа и ПД.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/universities/<id>/contacts/<contactId>/legal-basis \
+  -H 'content-type: application/json' -b 'skilllink_user=<id менеджера>' \
+  -d '{"basis":"CONSENT","documentReference":"Согласие вх. № 12/2026 от 01.09.2026, папка «Согласия ПД»","consentObtainedAt":"2026-09-01T00:00:00.000Z","consentForm":"WRITTEN"}'
+```
+
+### POST /api/universities/:id/contacts/:contactId/consent/withdraw
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). Отзыв согласия (ст. 9, ч. 5 ст. 21 152-ФЗ).
+Ответ `200` — `ContactDto`: `isAnonymized: true`, `legalBasis.consentStatus: "WITHDRAWN"`.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `withdrawalReference` | string | да | 3..200: входящий номер, дата, где хранится отзыв |
+| `withdrawnAt` | ISO | нет | когда получен отзыв; по умолчанию — сейчас. Не в будущем и не раньше получения согласия |
+
+- Только когда основание — действующее согласие (`CONSENT` + `OBTAINED`). Иначе `CONFLICT` 409:
+  «основание не зафиксировано» или «основание — не согласие» (требование прекратить обработку
+  при другом основании исполняется обезличиванием, `…/anonymize`).
+- **Контакт обезличивается сразу**, в той же транзакции, тем же набором полей, что и
+  `…/anonymize`: согласие — единственное основание, продолжать обработку не на чем.
+  **Необратимо** — фронту нужно подтверждение перед отправкой.
+- Повтор — `200` с тем же результатом, без новых записей.
+- Журнал: `contact.consent.withdraw` `{ universityId, anonymized }` и следом `contact.anonymize`
+  `{ universityId, wasPrimary, reason: "consent.withdraw" }`.
+
+```bash
+curl -s -X POST http://localhost:3000/api/universities/<id>/contacts/<contactId>/consent/withdraw \
+  -H 'content-type: application/json' -b 'skilllink_user=<id менеджера>' \
+  -d '{"withdrawalReference":"Письмо вх. № 45/2026 от 20.09.2026","withdrawnAt":"2026-09-20T00:00:00.000Z"}'
+```
+
+### GET /api/universities/:id/contacts/:contactId/legal-basis/history
+
+Право: `CONTACT_BASIS` (ADMIN, MANAGER). История основания и согласия контакта, новые сверху,
+`page`/`pageSize` (по умолчанию 20, до 100). Без комментариев и без текста документов.
+
+```json
+{ "data": [{
+    "id": "…", "kind": "consent.withdraw",
+    "fromBasis": "CONSENT", "toBasis": "CONSENT",
+    "fromConsentStatus": "OBTAINED", "toConsentStatus": "WITHDRAWN",
+    "consentObtainedAt": "2026-03-09T19:06:23.449Z", "consentForm": "ORAL_CONFIRMED_BY_EMAIL",
+    "consentWithdrawnAt": "2026-09-05T19:06:23.449Z",
+    "referenceChanged": true, "anonymized": true,
+    "changedBy": { "id": "…", "fullName": "Кириллов Пётр Андреевич", "role": "MANAGER" },
+    "changedAt": "2026-09-05T19:06:23.449Z" }],
+  "meta": { "page": 1, "pageSize": 20, "total": 2 } }
+```
+
+`kind`: `basis.set` — основание зафиксировано или изменено, `consent.withdraw` — отзыв.
+`referenceChanged` — документ-основание сменился или появился документ отзыва (сам текст
+в истории не хранится). Чужой вуз или контакт — `NOT_FOUND`.
 
 ---
 
@@ -592,7 +749,10 @@ curl -s -X PUT http://localhost:3000/api/programs/PROGRAM_ID/skills \
 **Уникальность названия — без учёта регистра и пробелов:** «Machine Learning»,
 «machine learning» и «MachineLearning» — один навык (`skillNameKey` в `skills.rules.ts`).
 Повтор — `CONFLICT` 409: «Навык «machine learning» совпадает с «Machine Learning» без учёта
-регистра и пробелов…», `details: [{ field: "name", … }]`. Пробелы по краям обрезаются,
+регистра и пробелов…», `details: [{ field: "name", … }]`. С решения 110 правило держит
+и база — уникальный индекс `skills_name_key_ci`: из одновременных запросов с одним названием
+в разном написании проходит один, остальные получают тот же 409 с названием сохранённого
+(а не общее «запись уже существует»). Пробелы по краям обрезаются,
 внутри сводятся к одному. Название — от 1 до 120 знаков (языки C и R), категория — до 100,
 описание — до 2000 или `null`.
 
@@ -615,6 +775,8 @@ curl -X POST http://localhost:3000/api/skills -H 'content-type: application/json
 
 Любое из полей `name`, `category`, `description`; пустое тело — 422. Новое название
 проверяется на дубль так же (своё название в другом регистре — не дубль). Нет навыка — 404.
+При переименовании рекомендации по навыку в той же транзакции начинают называть его по-новому:
+заголовок и фраза «продукт даёт навык «…»» в описании (решение 110).
 Журнал: `skill.update` с `{ fields, from?, to? }` — старое и новое название при переименовании.
 
 #### POST /api/skills/:id/merge
@@ -628,7 +790,7 @@ curl -X POST http://localhost:3000/api/skills -H 'content-type: application/json
 | Программа (`ProgramSkill`) | та же программа | наибольшие уровень, важность и уверенность; происхождение — от связи с более высоким уровнем (при равном — целевой); комментарий целевой, а без него — дубля |
 | IT-продукт (`ProductSkill`) | тот же продукт | наибольшая значимость: ключевой > смежный > дополнительный |
 | Рыночный показатель (`MarketDemand`) | тот же период, источник и регион | строка с наибольшим значением (не сумма: одна вакансия с «ML» и «Machine Learning» посчиталась бы дважды) |
-| Рекомендация | то же правило | рекомендация целевого навыка; дубля — удаляется. Перенесённые обновит следующая пересборка |
+| Рекомендация | то же правило | рекомендация целевого навыка; дубля — удаляется. Перенесённые в той же транзакции называют целевой навык: заголовок, описание, `relatedData.skillId` (решение 110) |
 
 Покрытие программы при объединении не падает: уровень берётся наибольший.
 
@@ -2023,7 +2185,13 @@ curl -s -X POST http://localhost:3000/api/ai/today
 { "currentPassword": "…", "newPassword": "…" }
 ```
 
-Ответ `200`: `{ "data": { "changedAt": "2026-09-25T12:00:00.000Z" } }`.
+Ответ `200`: `{ "data": { "changedAt": "2026-09-25T12:00:00.000Z", "sessionRenewed": true } }`.
+
+`sessionRenewed` (с 25.09.2026, решение 109): остальные сессии пользователя закрыты, а
+**текущая переоформлена** — в ответе новая cookie сессии (`Set-Cookie`), и работа
+продолжается без повторного входа. `false` — переоформить не удалось или вход был демо-cookie
+без сессии: следующий запрос с прежней cookie получит 401, и фронт уведёт на вход
+(`reauth=1`) — можно заранее сказать «Пароль изменён, войдите с новым».
 
 Правила нового пароля: не короче 10 символов, не длиннее 72 байт (дальше bcrypt не читает;
 русская буква — два байта), не из одних пробелов, не совпадает с текущим и с адресом почты
@@ -2036,13 +2204,59 @@ curl -s -X POST http://localhost:3000/api/ai/today
 | `403` | «Слишком много неверных попыток. Смена пароля и вход закрыты ещё на N мин.» — текущий пароль проверяется под **тем же ограничением перебора, что и вход** (счётчик «учётная запись + адрес», пять неудач — 15 минут), и неудачи здесь и на входе складываются |
 
 В журнал пишется `user.password.change` — без пароля и хеша. Уже выданные сессии на других
-устройствах смена пароля не завершает (JWT, SECURITY_LIMITATIONS.md).
+устройствах и вкладках с прежней cookie смена пароля завершает: они получают 401
+(«Отзыв сессий» в разделе «Авторизация»).
 
 ```bash
 curl -X POST http://localhost:3000/api/me/password -H 'content-type: application/json' \
   -H 'cookie: authjs.session-token=…' \
   -d '{"currentPassword":"skilllink","newPassword":"мой-новый-пароль-2026"}'
 ```
+
+### GET /api/me/telegram, POST /api/me/telegram, DELETE /api/me/telegram
+
+Блок «Уведомления в Telegram» личного кабинета (решение 102). Только о себе: пользователь
+берётся из сессии, идентификатора в запросе нет.
+
+**GET** — авторизация: любая роль. Ответ `200` — `TelegramStatusDto`:
+
+```json
+{ "data": { "configured": true, "available": true, "linked": true,
+            "username": "ivanov", "linkedAt": "2026-09-25T09:00:00.000Z" } }
+```
+
+| Поле | Смысл |
+| --- | --- |
+| `configured` | Бот настроен администратором (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET`). `false` — блок пишет «Не настроено администратором», кнопок нет |
+| `available` | Сводка доступна роли (право `ANALYTICS`). Представителю вуза — `false`, блок скрыт |
+| `linked`, `username`, `linkedAt` | Привязка: подключено ли, ник в Telegram без `@` (может быть `null`), когда |
+
+**POST** — авторизация: `ANALYTICS` (ADMIN, MANAGER, ANALYST, VIEWER); тело не нужно.
+Ничего не создаёт — `200`, `TelegramConnectDto`:
+
+```json
+{ "data": { "url": "https://t.me/skilllink_notify_bot?start=AbC…", "expiresAt": "2026-09-25T09:15:00.000Z" } }
+```
+
+Токен в ссылке — HMAC-SHA-256 (ключ производный от `AUTH_SECRET`) над id пользователя
+и сроком, base64url, не длиннее 64 символов (предел Telegram для `start`), живёт 15 минут
+и срабатывает один раз. В базе не хранится. Привязка появляется, когда человек нажмёт
+«Старт» в Telegram, — фронт переспрашивает GET, пока ссылка жива.
+Бот не настроен — `502 INTEGRATION_ERROR` «Уведомления в Telegram не настроены администратором»;
+представитель вуза — `403`.
+
+**DELETE** — авторизация: любая роль. Удаляет свою привязку и отдаёт `TelegramStatusDto`
+(`linked: false`). Привязки нет — тоже `200`. Работает и при выключенном боте: убрать свои
+данные можно всегда. Журнал: `telegram.unlink` (только если привязка была).
+
+```bash
+curl http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+curl -X POST http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
+```
+
+Затрагивает фронт: новая строка в «Настройках» личного кабинета (`TelegramRow.tsx`),
+в `src/ui/lib/api.ts` добавлен `apiDelete`.
 
 ### GET /api/me/stats
 
@@ -2331,7 +2545,11 @@ curl -X PATCH http://localhost:3000/api/users/<id> -H 'content-type: application
 
 **Блокировка** (`isActive: false`) действует сразу: `getCurrentUser()` читает пользователя
 из базы с `isActive: true` на каждый запрос, поэтому уже выданная сессия заблокированного
-перестаёт работать со следующего запроса, а вход по паролю не принимается.
+перестаёт работать со следующего запроса (401), а вход по паролю не принимается.
+Блокировка и **смена роли** увеличивают версию сессий (решение 109): выданные раньше сессии
+получают 401 и после разблокировки не оживают. Блокировка в той же транзакции удаляет
+подписку на календарь (`/api/calendar/<токен>.ics` — 404 и после разблокировки;
+в журнал — `calendar.revoke` с `{ reason: "user.block" }` от имени администратора).
 
 Отказы — `CONFLICT` 409 с понятным текстом:
 
@@ -2360,7 +2578,8 @@ curl -X PATCH http://localhost:3000/api/users/<id> -H 'content-type: application
 
 Новый временный пароль. Тела нет. Ответ `200` — как у `POST /api/users`:
 `{ "data": { "user": { … }, "temporaryPassword": "…" } }`. Старый пароль перестаёт подходить
-сразу; блокировка входа после неудачных попыток с этой учётной записи снимается.
+сразу, выданные сессии пользователя закрываются (401, решение 109); блокировка входа после
+неудачных попыток с этой учётной записи снимается.
 
 Свой пароль так не меняется — 409 «Свой пароль меняйте в личном кабинете: там нужен текущий
 пароль» (`POST /api/me/password`). Журнал: `user.password.reset` — без пароля.
@@ -2418,8 +2637,12 @@ AI_ASSIST_PROVIDER=off». **Ни ключей, ни их фрагментов, �
             "isMock": true, "syncedAt": "…" } }
 ```
 
-Навыки, которых нет в справочнике, **пропускаются и перечисляются** в `unknownSkills`:
-создавать записи справочника по строке из внешнего источника нельзя.
+Навык сопоставляется со справочником **без учёта регистра и пробелов** — тем же ключом
+`skillNameKey`, что держит уникальность справочника (решение 110): «ML Ops» из источника —
+это «MLOps» из справочника. Навыки, которых нет в справочнике, **пропускаются и перечисляются**
+в `unknownSkills` (каждый один раз, в написании источника): создавать записи справочника
+по строке из внешнего источника нельзя. Две строки источника, которые сводятся к одному
+навыку, периоду и региону, — один показатель: вторая обновляет первую.
 
 Сбой источника — `INTEGRATION_ERROR` 502. Остальная система при этом работает.
 
@@ -2598,6 +2821,9 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 в `shared/contracts/labels.ts`. С 25.09.2026 добавлены действия `user.create`, `user.update`,
 `user.role.change`, `user.block`, `user.unblock`, `user.password.reset`, `user.password.change`
 (объект `User`, `objectId` — id пользователя). Ни пароль, ни хеш в журнал не пишутся.
+С 25.09.2026 (решение 102) — `telegram.link` и `telegram.unlink` (объект `User`,
+`payload: { source: "telegram" | "profile" }`); идентификатор чата и ник в журнал не пишутся.
+
 С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
 на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
@@ -2691,6 +2917,10 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 считается тем же кодом, что в интерфейсе (реестр вузов, карточка программы), и совпадает
 с экраном. «Нет данных» — пустой балл, а не ноль. Представителю вуза рейтинг недоступен,
 и этих колонок в его файле нет.
+
+**Основной контакт** — колонки «Контактное лицо», «Должность», «Почта» (только ADMIN
+и MANAGER) и «Основание обработки ПД зафиксировано» («да»/«нет», всем ролям; решение 111).
+Само основание, согласие и документы в файл не уходят. Импорт эту колонку не читает.
 Формат совпадает с тем, что принимает `POST /api/import`: цикл «выгрузил → поправил
 в Excel → загрузил обратно» работает без переименований.
 
@@ -2751,7 +2981,8 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 
 ## 16. Чего ещё нет
 
-- уведомления вне системы (мессенджер) — отложены до финала конкурса;
+- внешние уведомления — личная сводка в Telegram (решение 102, по умолчанию выключена,
+  включается токеном бота); почта и другие каналы — не делаются;
 - политики доступа на уровне строк (RLS) — осознанно отложены,
   см. [SECURITY_LIMITATIONS.md](SECURITY_LIMITATIONS.md);
 - загрузка файлов документов — P2 по решению 14, в MVP хранятся метаданные,

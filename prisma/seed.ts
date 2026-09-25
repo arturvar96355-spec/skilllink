@@ -12,6 +12,7 @@ import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
+import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 
@@ -38,6 +39,7 @@ const DAYS_AFTER_CLASSES_START: Partial<Record<number, number>> = { 11: 30, 12: 
 /** Порядок важен: сначала зависимые таблицы. */
 async function clean(): Promise<void> {
   await prisma.auditLog.deleteMany()
+  await prisma.contactBasisHistory.deleteMany()
   await prisma.stageHistory.deleteMany()
   await prisma.task.deleteMany()
   await prisma.workflowStage.deleteMany()
@@ -499,6 +501,127 @@ async function seedUniversities() {
     return id
   }
   return { universityId, universityCreatedAt }
+}
+
+/**
+ * Правовые основания обработки ПД демо-контактов (решение 111): каждый вариант,
+ * который увидит зритель в карточке вуза.
+ *
+ * - Четыре вуза — законный интерес по соглашению с вузом (п. 7 ч. 1 ст. 6):
+ *   основной случай по docs/PRIVACY.md, раздел 3.
+ * - УрФУ и ДГТУ — согласие получено (электронное и письменное).
+ * - ТУСУР (в архиве) — основание не зафиксировано: переговоры закончились
+ *   до учёта оснований, так бывает и с реальными данными.
+ * - В ДГТУ второй, не основной контакт отозвал согласие — и обезличен. Не основной
+ *   и не в вузе со встречами: сценарий показа и встречи его не касаются.
+ *
+ * История — как если бы основание фиксировал менеджер; журнал действий сид не пишет.
+ */
+async function seedContactBases(
+  manager: SeedUser,
+  universityId: IdOf,
+  universityCreatedAt: ReadonlyMap<string, Date>,
+): Promise<void> {
+  console.log('Основания обработки ПД контактов...')
+  const plan: Array<{
+    key: string
+    basis: 'LEGITIMATE_INTEREST' | 'CONSENT'
+    form?: 'WRITTEN' | 'ELECTRONIC'
+    reference: string
+  }> = [
+    { key: 'spbgu', basis: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 14/2026 (демо), архив договоров' },
+    { key: 'mtuci', basis: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 21/2026 (демо), архив договоров' },
+    { key: 'kazan', basis: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 3/2025 (демо), архив договоров' },
+    { key: 'nsu', basis: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 27/2026 (демо), архив договоров' },
+    { key: 'urfu', basis: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 118/2026 (демо)' },
+    { key: 'rostov', basis: 'CONSENT', form: 'WRITTEN', reference: 'Согласие вх. № 64/2025 (демо), папка «Согласия ПД»' },
+  ]
+
+  for (const item of plan) {
+    const since = universityCreatedAt.get(item.key)
+    if (!since) throw new Error(`Нет даты заведения вуза: ${item.key}`)
+    const contact = await prisma.contact.findFirstOrThrow({
+      where: { universityId: universityId(item.key), isPrimary: true },
+      select: { id: true },
+    })
+    const consent = item.basis === 'CONSENT'
+    await prisma.contact.update({
+      where: { id: contact.id },
+      data: {
+        legalBasis: item.basis,
+        consentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm: consent ? (item.form ?? null) : null,
+        basisReference: item.reference,
+        basisUpdatedAt: since,
+      },
+    })
+    await prisma.contactBasisHistory.create({
+      data: {
+        contactId: contact.id,
+        fromBasis: null,
+        toBasis: item.basis,
+        fromConsentStatus: 'NONE',
+        toConsentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm: consent ? (item.form ?? null) : null,
+        referenceChanged: true,
+        changedById: manager.id,
+        changedAt: since,
+      },
+    })
+  }
+
+  // Отозванное согласие: контакт уже обезличен тем же набором полей, что и в приложении.
+  const obtainedAt = daysAgo(200)
+  const withdrawnAt = daysAgo(20)
+  const withdrawn = await prisma.contact.create({
+    data: {
+      universityId: universityId('rostov'),
+      ...ANONYMIZED_CONTACT_FIELDS,
+      legalBasis: 'CONSENT',
+      consentStatus: 'WITHDRAWN',
+      consentObtainedAt: obtainedAt,
+      consentForm: 'ORAL_CONFIRMED_BY_EMAIL',
+      consentWithdrawnAt: withdrawnAt,
+      basisReference: 'Письмо-подтверждение вх. № 71/2026 (демо)',
+      withdrawalReference: 'Отзыв согласия, письмо вх. № 212/2026 (демо)',
+      basisUpdatedAt: withdrawnAt,
+      createdAt: obtainedAt,
+      updatedAt: withdrawnAt,
+    },
+    select: { id: true },
+  })
+  await prisma.contactBasisHistory.createMany({
+    data: [
+      {
+        contactId: withdrawn.id,
+        fromBasis: null,
+        toBasis: 'CONSENT',
+        fromConsentStatus: 'NONE',
+        toConsentStatus: 'OBTAINED',
+        consentObtainedAt: obtainedAt,
+        consentForm: 'ORAL_CONFIRMED_BY_EMAIL',
+        referenceChanged: true,
+        changedById: manager.id,
+        changedAt: obtainedAt,
+      },
+      {
+        contactId: withdrawn.id,
+        fromBasis: 'CONSENT',
+        toBasis: 'CONSENT',
+        fromConsentStatus: 'OBTAINED',
+        toConsentStatus: 'WITHDRAWN',
+        consentObtainedAt: obtainedAt,
+        consentForm: 'ORAL_CONFIRMED_BY_EMAIL',
+        consentWithdrawnAt: withdrawnAt,
+        referenceChanged: true,
+        anonymized: true,
+        changedById: manager.id,
+        changedAt: withdrawnAt,
+      },
+    ],
+  })
 }
 
 /** Программы демо-набора. У части показатели намеренно не заполнены — проверка поведения «Нет данных». */
@@ -1544,6 +1667,7 @@ async function main(): Promise<void> {
   await seedMarket(mockSource, skillId)
   const products = await seedProducts(skillId)
   const { universityId, universityCreatedAt } = await seedUniversities()
+  await seedContactBases(users.manager, universityId, universityCreatedAt)
   const programId = await seedPrograms(skillId, universityId, universityCreatedAt)
   const cooperations = await seedCooperations(products, users.manager, users.manager2, universityId, programId)
   const universityRep = await seedUniversityRep(users.demoPasswordHash, universityId)
