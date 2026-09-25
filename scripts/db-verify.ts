@@ -119,6 +119,14 @@ const RULES: Rule[] = [
           WHERE last.to_status <> s.status`,
   },
   {
+    // Длительность этапов и воронка (решение 120) восстанавливаются из истории:
+    // этап, сменивший статус без записи, выпал бы из хронологии связки.
+    name: 'У этапа 1–13 не в статусе «Не начат» есть запись в истории',
+    sql: `SELECT s.id FROM workflow_stages s
+          WHERE s.stage_number < ${CONTROL_STAGE_NUMBER} AND s.status <> 'NOT_STARTED'
+            AND NOT EXISTS (SELECT 1 FROM stage_history h WHERE h.stage_id = s.id)`,
+  },
+  {
     name: 'Последняя запись истории документа совпадает с его статусом',
     sql: `SELECT d.id FROM documents d
           JOIN LATERAL (
