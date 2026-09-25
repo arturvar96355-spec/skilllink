@@ -9,6 +9,13 @@ export interface TaskDefinition {
    * подпись уже зафиксирована в документе, вводить её второй раз не нужно.
    */
   closedBySignedDocuments?: boolean
+  /**
+   * Пункт вуза: утверждение второй стороны, его отмечает представитель вуза
+   * в кабинете (решение 103). Без действующего представителя сотрудник ИТ-Школы
+   * отмечает его только с пометкой «чем подтверждено». Переносится в поле
+   * `Task.isUniversityItem` при создании этапов.
+   */
+  universityItem?: boolean
 }
 
 export interface StageDefinition {
@@ -148,7 +155,7 @@ export const WORKFLOW_STAGES: readonly StageDefinition[] = [
     tasks: [
       { title: 'Переданы учебные материалы', isRequired: true }, // TEMP
       { title: 'Передана лицензия на IT-продукт', isRequired: true }, // TEMP
-      { title: 'Вуз подтвердил получение материалов', isRequired: true }, // TEMP
+      { title: 'Вуз подтвердил получение материалов', isRequired: true, universityItem: true }, // TEMP
     ],
   },
   {

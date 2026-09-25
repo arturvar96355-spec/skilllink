@@ -902,7 +902,8 @@ curl -s -X POST http://localhost:3000/api/cooperations \
   "tasks": [
     { "id": "…", "title": "Найден ответственный сотрудник вуза", "isRequired": true,
       "isDone": true, "doneAt": "…", "doneBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
-      "sortOrder": 0 }
+      "sortOrder": 0, "isUniversityItem": false, "staffMarkRule": "ALLOWED",
+      "confirmationNote": null }
   ],
   "requiredTasksTotal": 2,
   "requiredTasksDone": 2,
@@ -914,6 +915,15 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 `OPERATION` (11–13), `CONTROL` (14).
 
 `isAutoManaged: true` только у этапа 14. Фронт должен показывать его только для чтения.
+
+Пункт чек-листа (решение 103):
+- `isUniversityItem` — пункт вуза: «Вуз подтвердил получение материалов» этапа 7;
+- `staffMarkRule` — как его может отметить сотрудник: `ALLOWED` (обычный пункт),
+  `NOTE_REQUIRED` (пункт вуза, у вуза нет действующего представителя — отметка только
+  с пометкой `confirmationNote`), `UNIVERSITY_ONLY` (у вуза есть представитель — отмечает
+  он в кабинете вуза, у сотрудника чекбокс неактивен);
+- `confirmationNote` — чем подтверждено, если пункт вуза отметил сотрудник. Представителю
+  вуза — `null`: внутренняя пометка, как комментарий к этапу.
 
 ### PATCH /api/workflow/stages/:id
 
@@ -1074,6 +1084,28 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 
 Право: `WRITE`. Тело: `{ "isDone": true }`. Ответ — **этап целиком**, чтобы фронт сразу обновил
 `requiredTasksDone` и прогресс.
+
+| Поле | Тип |
+| --- | --- |
+| `isDone` | boolean, обязательно |
+| `confirmationNote` | string 3–500 \| null — чем вуз подтвердил получение материалов, «письмо от 12.09». Нужна только для пункта вуза с `staffMarkRule: "NOTE_REQUIRED"` при отметке; у остальных пунктов и при снятии отметки игнорируется |
+
+Пункт вуза (`isUniversityItem`, решение 103):
+- у вуза есть действующий представитель (`UNIVERSITY_REP`, не заблокирован) — 403 `FORBIDDEN`
+  «Этот пункт отмечает представитель вуза в кабинете вуза» и на отметку, и на снятие;
+- представителя нет — отметка без `confirmationNote` даёт 422 `VALIDATION_ERROR`
+  с `details: [{ "field": "confirmationNote", "message": "Обязательное поле: например, «письмо от 12.09»" }]`;
+  короче 3 или длиннее 500 символов — тоже 422 по этому полю. Снять отметку можно без пометки,
+  пометка при этом стирается.
+
+В журнал отметка за вуз пишется отдельным действием `task.university-item.confirm-by-staff`
+с длиной пометки (`noteLength`), без её текста; текст хранится в пункте (`confirmationNote`).
+
+```bash
+curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
+  -H 'content-type: application/json' -b 'skilllink_user=<managerId>' \
+  -d '{"isDone":true,"confirmationNote":"письмо от 12.09"}'
+```
 
 ### GET /api/workflow/overdue
 
@@ -1810,6 +1842,8 @@ curl -s -X POST http://localhost:3000/api/ai/today
 Право: `UNIVERSITY_PORTAL_WRITE`. Тело необязательно: `{ "comment": "Материалы получены" }`.
 Текст комментария в журнал действий не пишется — только признак, что он был.
 Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+Пункт «Вуз подтвердил получение материалов» (пункт вуза, решение 103) при действующем
+представителе отмечается только здесь: сотруднику `PATCH /api/workflow/tasks/:id` отвечает 403.
 Запись идёт той же функцией, что у сотрудника ИТ-Школы (`setTaskDone`), в очереди со сменой
 статусов связки, и отказывает так же — 409:
 - связка закрыта или этап 7 завершён либо отменён — `CONFLICT`;

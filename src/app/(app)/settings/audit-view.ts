@@ -154,6 +154,7 @@ const KEY_LABELS: Record<string, string> = {
   affectedCooperations: 'связок затронуто',
   reopenedStages: 'этапов переоткрыто',
   addressesStripped: 'адресов стёрто',
+  noteLength: 'длина пометки',
 }
 
 const keyLabel = (key: string): string => KEY_LABELS[key] ?? key

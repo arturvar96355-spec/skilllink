@@ -1,9 +1,20 @@
-import { conflict, invalidTransition, validationError } from '@/shared/http/errors'
+import {
+  conflict,
+  // Под другим именем: `forbidden` здесь — локальная строка отказа контрольной точки.
+  forbidden as forbiddenError,
+  invalidTransition,
+  validationError,
+} from '@/shared/http/errors'
 import { daysBetween } from '@/shared/utils/date'
 import { CONTROL_POINT_STAGES, CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import type { StageStatus, UserRole } from '@/shared/contracts/enums'
 import { STAGE_STATUS_LABELS } from '@/shared/contracts/labels'
+import {
+  CONFIRMATION_NOTE_MAX,
+  CONFIRMATION_NOTE_MIN,
+  type StaffMarkRule,
+} from '@/shared/contracts/workflow'
 
 /**
  * Таблица переходов (решение 3 в CLAUDE.md).
@@ -402,6 +413,67 @@ export function assertTasksEditable(stageStatus: StageStatus, stageNumber: numbe
       { stageStatus },
     )
   }
+}
+
+/** Отказ сотруднику, когда у вуза есть представитель (решение 103). */
+export const UNIVERSITY_ITEM_FORBIDDEN_MESSAGE =
+  'Этот пункт отмечает представитель вуза в кабинете вуза'
+
+/**
+ * Как сотрудник может отметить пункт (решение 103, R-07).
+ *
+ * «Вуз подтвердил получение материалов» — утверждение второй стороны. Сотрудник
+ * ИТ-Школы отмечал его наравне с остальными, и в системе выглядело, будто вуз
+ * подтвердил, хотя вуз мог ничего не знать. Кабинет вуза для этого есть — значит,
+ * при действующем представителе подтверждает только он. Представителя нет —
+ * подтверждение приходит письмом или звонком, и отмечает сотрудник, но с пометкой,
+ * чем оно подтверждено: без неё отметка снова неотличима от выдумки.
+ */
+export function staffMarkRule(
+  task: { isUniversityItem: boolean },
+  universityHasRep: boolean,
+): StaffMarkRule {
+  if (!task.isUniversityItem) return 'ALLOWED'
+  return universityHasRep ? 'UNIVERSITY_ONLY' : 'NOTE_REQUIRED'
+}
+
+/**
+ * Проверяет отметку пункта сотрудником по правилу `staffMarkRule` и возвращает
+ * пометку, которую нужно сохранить (null — хранить нечего).
+ *
+ * - UNIVERSITY_ONLY: ни отметить, ни снять — 403. Снять тоже нельзя: снятое
+ *   сотрудником подтверждение вуза — такое же решение за вуз, как отметка.
+ * - NOTE_REQUIRED: отметка — только с пометкой, иначе 422 по полю `confirmationNote`.
+ *   Снять можно без пометки: снятие ничего не утверждает (как у контрольной точки).
+ * - Представитель вуза сюда не попадает (у него нет права WRITE), но если попадёт —
+ *   правило его не касается: он и есть вуз.
+ * Пометка у обычного пункта не хранится: ей там нечего подтверждать.
+ */
+export function assertStaffTaskMark(
+  rule: StaffMarkRule,
+  request: { isDone: boolean; confirmationNote?: string | null },
+  role: UserRole,
+): string | null {
+  if (role === 'UNIVERSITY_REP' || rule === 'ALLOWED') return null
+  if (rule === 'UNIVERSITY_ONLY') throw forbiddenError(UNIVERSITY_ITEM_FORBIDDEN_MESSAGE)
+  if (!request.isDone) return null
+
+  const note = request.confirmationNote?.trim() ?? ''
+  if (note.length < CONFIRMATION_NOTE_MIN || note.length > CONFIRMATION_NOTE_MAX) {
+    throw validationError(
+      'У вуза нет представителя в системе: укажите, чем вуз подтвердил получение материалов',
+      [
+        {
+          field: 'confirmationNote',
+          message:
+            note.length === 0
+              ? 'Обязательное поле: например, «письмо от 12.09»'
+              : `Пометка — от ${CONFIRMATION_NOTE_MIN} до ${CONFIRMATION_NOTE_MAX} символов`,
+        },
+      ],
+    )
+  }
+  return note
 }
 
 /**

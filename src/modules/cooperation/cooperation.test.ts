@@ -36,6 +36,13 @@ describe('набор этапов новой связки', () => {
     expect(deadlines[0]).toBeGreaterThan(startedAt.getTime())
   })
 
+  it('переносит признак пункта вуза из конфига (решение 103)', () => {
+    const flagged = stages.flatMap((stage) =>
+      stage.tasks.filter((task) => task.isUniversityItem).map((task) => [stage.stageNumber, task.title]),
+    )
+    expect(flagged).toEqual([[7, 'Вуз подтвердил получение материалов']])
+  })
+
   it('не создаёт чек-лист у контрольного этапа', () => {
     expect(stages.find((stage) => stage.stageNumber === CONTROL_STAGE_NUMBER)?.tasks).toHaveLength(0)
   })

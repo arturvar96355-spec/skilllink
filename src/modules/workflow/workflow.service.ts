@@ -39,6 +39,8 @@ import {
   isOverdue,
   isPlanShifted,
   resolveStageFields,
+  assertStaffTaskMark,
+  staffMarkRule,
 } from './workflow.rules'
 import type { StageListQuery, UpdateStageInput, UpdateTaskInput } from './workflow.schema'
 
@@ -54,6 +56,7 @@ export function toStageDto(
 ): WorkflowStageDto {
   const requiredTasks = row.tasks.filter((task) => task.isRequired)
   const hide = options.hideInternalNotes === true
+  const universityHasRep = row.cooperation.university.users.length > 0
   return {
     id: row.id,
     cooperationId: row.cooperationId,
@@ -83,6 +86,11 @@ export function toStageDto(
       doneAt: toIso(task.doneAt),
       doneBy: task.doneBy,
       sortOrder: task.sortOrder,
+      isUniversityItem: task.isUniversityItem,
+      staffMarkRule: staffMarkRule(task, universityHasRep),
+      // Пометка сотрудника — внутренняя, как комментарий к этапу: в ней бывает
+      // «письмо от И. И. Иванова», а вуз внутренних заметок не видит (решение 9).
+      confirmationNote: hide ? null : task.confirmationNote,
     })),
     requiredTasksTotal: requiredTasks.length,
     requiredTasksDone: requiredTasks.filter((task) => task.isDone).length,
@@ -333,6 +341,11 @@ export async function setTaskDone(
   target: { taskId: string; stageId: string; cooperationId: string },
   isDone: boolean,
   userId: string,
+  /**
+   * Чем подтверждено — только у пункта вуза, отмеченного сотрудником (решение 103).
+   * Отметка вузом и снятие отметки пометку стирают: она относится к этой отметке.
+   */
+  confirmationNote: string | null = null,
 ): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
     // В очереди со сменой статусов этой связки (lockCooperation): иначе пункт
@@ -371,6 +384,7 @@ export async function setTaskDone(
         isDone,
         doneAt: isDone ? new Date() : null,
         doneById: isDone ? userId : null,
+        confirmationNote: isDone ? confirmationNote : null,
       },
     })
     return true
@@ -483,19 +497,34 @@ export async function toggleTask(
   assertCooperationOpen(taskCooperation.status)
   assertTasksEditable(task.stage.status, task.stage.stageNumber)
 
+  // Пункт вуза (решение 103): при представителе — только он, без него — с пометкой.
+  // Представитель проверяется до очереди связки: его появление не связано с этапами,
+  // а окно в миллисекунды между проверкой и записью ничего не меняет по смыслу.
+  const universityHasRep = task.isUniversityItem
+    ? await repo.hasActiveUniversityRep(task.stage.cooperation.universityId)
+    : false
+  const note = assertStaffTaskMark(staffMarkRule(task, universityHasRep), input, user.role)
+
   const changed = await setTaskDone(
     { taskId, stageId: task.stageId, cooperationId: task.stage.cooperationId },
     input.isDone,
     user.id,
+    note,
   )
 
   if (changed) {
+    // Отметка за вуз — отдельным действием: в журнале её должно быть видно
+    // среди обычных отметок. Саму пометку журнал не хранит (в свободном тексте
+    // бывают ФИО и телефоны, как у комментария кабинета вуза) — только её длину;
+    // текст лежит в пункте чек-листа и виден сотрудникам в карточке этапа.
     await writeAudit({
       userId: user.id,
-      action: 'task.toggle',
+      action: note ? 'task.university-item.confirm-by-staff' : 'task.toggle',
       objectType: 'Task',
       objectId: taskId,
-      payload: { isDone: input.isDone, stageId: task.stageId },
+      payload: note
+        ? { isDone: true, stageId: task.stageId, stageNumber: task.stage.stageNumber, noteLength: note.length }
+        : { isDone: input.isDone, stageId: task.stageId },
     })
     // Отметка в чек-листе — движение по связке: «без движения» больше неправда.
     await syncRecommendations(task.stage.cooperationId)

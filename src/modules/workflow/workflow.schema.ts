@@ -1,6 +1,7 @@
 import { z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import { STAGE_STATUSES } from '@/shared/contracts/enums'
+import { CONFIRMATION_NOTE_MAX, CONFIRMATION_NOTE_MIN } from '@/shared/contracts/workflow'
 
 export const updateStageSchema = z
   .object({
@@ -19,6 +20,17 @@ export type UpdateStageInput = z.infer<typeof updateStageSchema>
 
 export const updateTaskSchema = z.object({
   isDone: z.boolean(),
+  /**
+   * Чем подтверждено — для пункта вуза, который отмечает сотрудник (решение 103):
+   * «письмо от 12.09». Обязательность решает сервис: она зависит от того, есть ли
+   * у вуза представитель. Здесь — только длина. У остальных пунктов не хранится.
+   */
+  confirmationNote: z
+    .string()
+    .trim()
+    .min(CONFIRMATION_NOTE_MIN, `Пометка — не короче ${CONFIRMATION_NOTE_MIN} символов`)
+    .max(CONFIRMATION_NOTE_MAX, `Пометка — не длиннее ${CONFIRMATION_NOTE_MAX} символов`)
+    .nullish(),
 })
 
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>

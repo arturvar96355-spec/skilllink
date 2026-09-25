@@ -25,6 +25,9 @@ const now = new Date()
 const daysAgo = (days: number) => new Date(now.getTime() - days * DAY)
 const daysAhead = (days: number) => new Date(now.getTime() + days * DAY)
 
+/** Вуз, у которого в демо есть представитель в кабинете (rep@spbgu.example.invalid). */
+const UNIVERSITY_WITH_REP = 'spbgu'
+
 /**
  * Сроки этапов после начала занятий, дней от него: 11 «Проведение занятий»,
  * 12 «Обновление документации», 13 «Повышение квалификации», 14 «Контроль».
@@ -973,10 +976,20 @@ async function main(): Promise<void> {
                     data: definition.tasks.map((task, index) => ({
                       title: task.title,
                       isRequired: task.isRequired,
+                      isUniversityItem: task.universityItem === true,
                       sortOrder: index,
                       isDone: finalStatus === 'COMPLETED',
                       doneAt: dates.completedAt,
                       doneById: finalStatus === 'COMPLETED' ? item.responsibleId : null,
+                      // Пункт вуза (решение 103). У вуза без представителя его отметил
+                      // сотрудник — значит, с пометкой, чем подтверждено. У СПбГУТ
+                      // представитель есть: отметку ниже переписываем на него.
+                      confirmationNote:
+                        finalStatus === 'COMPLETED' &&
+                        task.universityItem === true &&
+                        item.university !== UNIVERSITY_WITH_REP
+                          ? 'Подтверждено письмом вуза (демонстрационные данные)'
+                          : null,
                     })),
                   },
                 },
@@ -1058,9 +1071,38 @@ async function main(): Promise<void> {
       fullName: 'Ветрова Ирина Павловна',
       position: 'Заместитель декана',
       role: 'UNIVERSITY_REP',
-      universityId: universityId('spbgu'),
+      universityId: universityId(UNIVERSITY_WITH_REP),
     },
   })
+
+  // Пункт «Вуз подтвердил получение материалов» у вуза с представителем отмечает
+  // представитель в кабинете (решение 103), а не ответственный связки. Представитель
+  // появляется только здесь, поэтому отметки переписываются после этапов; дата
+  // та же — день закрытия этапа 7. В журнал — то же действие, что пишет кабинет.
+  const repConfirmed = await prisma.task.findMany({
+    where: {
+      isUniversityItem: true,
+      isDone: true,
+      stage: { cooperation: { universityId: universityId(UNIVERSITY_WITH_REP) } },
+    },
+    select: { id: true, doneAt: true },
+  })
+  for (const task of repConfirmed) {
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { doneById: universityRep.id, confirmationNote: null },
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: universityRep.id,
+        action: 'portal.material.confirm',
+        objectType: 'Task',
+        objectId: task.id,
+        payload: { universityId: universityId(UNIVERSITY_WITH_REP), withComment: false },
+        ...(task.doneAt ? { createdAt: task.doneAt } : {}),
+      },
+    })
+  }
 
   // ─── Документы и встречи ───────────────────────────────────────────────────
   console.log('Документы и встречи...')

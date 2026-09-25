@@ -1661,7 +1661,7 @@ async function main(): Promise<void> {
     id: string
     stageNumber: number
     status: string
-    tasks: Array<{ id: string; isRequired: boolean; isDone: boolean }>
+    tasks: Array<{ id: string; isRequired: boolean; isDone: boolean; isUniversityItem: boolean }>
   }
   const releaseProgram = await call<Identified>('POST', '/api/programs', {
     universityId,
@@ -1697,7 +1697,11 @@ async function main(): Promise<void> {
     if (CONTROL_POINT_STAGES.includes(stage.stageNumber)) {
       await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'IN_PROGRESS' })
       for (const task of stage.tasks.filter((item) => item.isRequired && !item.isDone)) {
-        await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+        // Пункт вуза у вуза без представителя — с пометкой, чем подтверждено (решение 103).
+        await call('PATCH', `/api/workflow/tasks/${task.id}`, {
+          isDone: true,
+          ...(task.isUniversityItem ? { confirmationNote: 'Подтверждено письмом (сквозной сценарий)' } : {}),
+        })
       }
       await call('PATCH', `/api/workflow/stages/${stage.id}`, {
         status: 'COMPLETED',

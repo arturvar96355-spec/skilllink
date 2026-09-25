@@ -540,6 +540,11 @@ model Task {
   isDone     Boolean   @default(false) @map("is_done")
   doneAt     DateTime? @map("done_at")
   doneById   String?   @map("done_by_id")
+  /// Пункт отмечает вуз («Вуз подтвердил получение материалов», решение 103). Переносится из конфига.
+  isUniversityItem Boolean @default(false) @map("is_university_item")
+  /// Чем подтверждено, если пункт вуза отметил сотрудник (решение 103). Есть только у отмеченного
+  /// пункта вуза, со снятием отметки стирается. CHECK tasks_confirmation_note_check — в миграции.
+  confirmationNote String? @map("confirmation_note")
   sortOrder  Int       @default(0) @map("sort_order")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
