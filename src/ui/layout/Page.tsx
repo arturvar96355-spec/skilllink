@@ -59,6 +59,11 @@ export interface PageHeaderProps {
    * программа), как у A24 (решение 79). Реестры и служебные страницы — обычный.
    */
   variant?: 'default' | 'display'
+  /**
+   * Строка под заголовком — полное название, когда крупно стоит короткое
+   * (страница вуза: «СПбГУТ», ниже полное). ТЗ визуалу, п. 4.
+   */
+  subtitle?: string
   /** Заголовок проявляется из «рассыпки» букв (решение 79) — для приветствия на главной. */
   scramble?: boolean
 }
@@ -70,6 +75,7 @@ export function PageHeader({
   meta,
   actions,
   variant = 'default',
+  subtitle,
   scramble = false,
 }: PageHeaderProps) {
   // Заголовок — место посадки перехода из реестра (lib/morph): название строки,
@@ -90,6 +96,7 @@ export function PageHeader({
             </h1>
             {meta}
           </div>
+          {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
           {description && <p className={styles.description}>{description}</p>}
         </div>
         {actions && <div className={styles.actions}>{actions}</div>}

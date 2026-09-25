@@ -82,7 +82,7 @@
 
 .phaseCount {
   font-size: var(--text-caption-size);
-  color: var(--text-disabled);
+  color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 

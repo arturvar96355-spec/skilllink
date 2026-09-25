@@ -53,7 +53,7 @@
   padding-top: 2px;
   font-size: var(--text-body-size);
   font-weight: 600;
-  color: var(--text-disabled);
+  color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -219,7 +219,7 @@
 }
 
 .status[data-status='DISMISSED'] {
-  color: var(--text-disabled);
+  color: var(--text-tertiary);
 }
 
 .actions {

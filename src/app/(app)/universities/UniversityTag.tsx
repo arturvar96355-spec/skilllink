@@ -8,24 +8,7 @@ import styles from './UniversityTag.module.css'
  * в референсе New Zealanderlivery Service.
  */
 
-/** Штрихкод из идентификатора: у каждого вуза свой, одинаковый при каждом показе. */
-function barsOf(id: string): number[] {
-  const bars: number[] = []
-  for (let i = 0; i < 38; i++) {
-    const code = id.charCodeAt(i % id.length) + i * 7
-    bars.push(1 + (code % 3))
-  }
-  return bars
-}
-
-/** Номер бирки — цифры из идентификатора, как номер на багажной бирке. */
-function tagNumber(id: string): string {
-  let hash = 0
-  for (const char of id) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
-  return String(hash).padStart(10, '0').slice(0, 10)
-}
-
-/** Бирка вуза: как багажная — крупный код, поля с подписями, «фото», штрихкод. */
+/** Бирка вуза: как багажная — крупный код, поля с подписями, «фото». Штрихкод и номер бирки убраны (ТЗ визуалу, п. 2). */
 export function UniversityTag({
   row,
   canSeeAnalytics,
@@ -98,14 +81,6 @@ export function UniversityTag({
               <span className={styles.statValue}>{score === null ? <span className={styles.noData}>Нет данных</span> : formatScore(score)}</span>
             </span>
           )}
-          <span className={styles.barcode} aria-hidden>
-            {barsOf(row.id).map((width, i) => (
-              <span key={i} style={{ width: `${width}px` }} className={i % 2 ? styles.gap : styles.bar} />
-            ))}
-          </span>
-          <span className={styles.number} aria-hidden>
-            {tagNumber(row.id)}
-          </span>
         </span>
       </span>
     </span>

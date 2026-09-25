@@ -1,126 +1,206 @@
-/* Настройки системы: источники данных, интеграции, сведения о системе. */
+/*
+ * Настройки — плотный список «параметр — значение — изменить» (ТЗ визуалу, п. 3).
+ * Разделы без карточек: заголовок, под ним строки через тонкую линию.
+ */
 
-.cell {
+.list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+  gap: var(--space-8);
+  max-width: 960px;
 }
 
-.cellTitle {
-  display: inline-flex;
-  align-items: center;
+.group {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.cellMeta {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-line);
-  color: var(--text-tertiary);
-  overflow-wrap: anywhere;
-}
-
-.number {
-  font-size: var(--text-body-sm-size);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-primary);
-}
-
-.permissionNote {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
 }
 
 /* Якорь из подвала: заголовок не должен уезжать под закреплённую шапку. */
-.anchor {
+.group[id] {
   scroll-margin-top: calc(var(--header-height) + var(--space-6));
 }
 
-.integrations {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-4);
-}
-
-.integrationHead {
+.groupHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
 }
 
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-}
-
-.key {
-  margin-top: var(--space-3);
-  font-size: var(--text-caption-size);
-  color: var(--text-disabled);
-}
-
-.generated {
-  margin-top: var(--space-4);
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
-}
-
-.note {
-  font-size: var(--text-body-sm-size);
-  line-height: var(--text-body-sm-line);
-  color: var(--text-secondary);
-}
-
-.modeRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-}
-
-.modeRow .note {
-  flex: 1 1 320px;
-  max-width: 640px;
-}
-
-.note + .note {
-  margin-top: var(--space-3);
-}
-
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-top: var(--space-5);
-  padding-top: var(--space-5);
-  border-top: 1px solid var(--border-divider);
-}
-
-.apiLink {
+.groupTitle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  font-size: var(--text-kicker-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-divider);
+}
+
+.row {
+  display: grid;
+  /* Колонка управления одной ширины во всех строках — значения стоят ровным столбцом. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) 224px;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 48px;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.value {
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.control {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.hint {
+  display: inline-flex;
+  color: var(--text-tertiary);
+  cursor: help;
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.hint:hover {
+  color: var(--text-secondary);
+}
+
+.muted {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.code {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.number {
+  font-variant-numeric: tabular-nums;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-primary);
   text-decoration: none;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-button);
-  transition: border-color var(--motion-micro) var(--ease-out),
-    color var(--motion-micro) var(--ease-out);
+  transition: color var(--motion-micro) var(--ease-out);
 }
 
-.apiLink:hover {
-  border-color: var(--border-hover);
+.link:hover {
   color: var(--accent-primary);
+}
+
+/* Источник: строка и раскрытые под ней подробности (ТЗ фронту, задача 8). */
+.source .row {
+  border-bottom: none;
+}
+
+.source {
+  border-bottom: 1px solid var(--border-divider);
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.disclosure:hover {
+  color: var(--text-primary);
+}
+
+.chevron {
+  transition: transform var(--motion-micro) var(--ease-out);
+}
+
+.disclosure[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-3) var(--space-6);
+  margin: 0 0 var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--surface-sunken);
+}
+
+.details dt {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.details dd {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.url {
+  color: var(--text-secondary);
+}
+
+.refreshing {
+  opacity: 0.6;
+  transition: opacity var(--motion-micro) var(--ease-out);
+}
+
+.locked {
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--border-divider);
+}
+
+/* Телефон: параметр над значением, кнопка — под ними. */
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+    padding: var(--space-3) 0;
+  }
+
+  .control {
+    justify-content: flex-start;
+    margin-top: var(--space-1);
+  }
 }
