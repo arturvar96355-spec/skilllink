@@ -111,10 +111,12 @@
   height: 2px;
   background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-pill);
+  z-index: 0;
 }
 
 .lineDone {
   position: absolute;
+  z-index: 0;
   left: 0;
   top: 25px;
   height: 2px;
@@ -135,11 +137,10 @@
   background: none;
   cursor: pointer;
   color: var(--text-tertiary);
+  /* Этап — над линией: линия не должна проходить по номеру. */
+  z-index: 1;
   transform: translateZ(var(--z, 0));
-  opacity: var(--fade, 1);
-  transition:
-    transform var(--motion-panel) var(--ease-out),
-    opacity var(--motion-panel) var(--ease-out);
+  transition: transform var(--motion-panel) var(--ease-out);
   animation: depthIn var(--motion-scene) var(--ease-out) both;
 }
 
@@ -147,7 +148,6 @@
 .node:hover,
 .node:focus-visible {
   transform: translateZ(calc(var(--z, 0) + 14px));
-  opacity: 1;
 }
 
 @keyframes depthIn {
@@ -212,27 +212,31 @@
   outline-offset: 2px;
 }
 
+/*
+ * Оттенок статуса — поверх сплошного фона полосы, а не полупрозрачной заливкой:
+ * иначе сквозь кружок просвечивала линия и номер выглядел зачёркнутым.
+ */
 .done .dot {
-  background: rgba(85, 200, 194, 0.12);
+  background: linear-gradient(rgba(85, 200, 194, 0.12), rgba(85, 200, 194, 0.12)), var(--surface-1);
   border-color: var(--success-border);
   color: var(--status-success);
 }
 
 .current .dot {
-  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)), var(--surface-1);
   border-color: var(--border-hover);
   color: var(--text-accent);
   box-shadow: none;
 }
 
 .overdue .dot {
-  background: var(--danger-surface);
+  background: linear-gradient(var(--danger-surface), var(--danger-surface)), var(--surface-1);
   border-color: var(--danger-border);
   color: var(--status-danger);
 }
 
 .blocked .dot {
-  background: rgba(242, 193, 78, 0.12);
+  background: linear-gradient(rgba(242, 193, 78, 0.12), rgba(242, 193, 78, 0.12)), var(--surface-1);
   border-color: rgba(242, 193, 78, 0.32);
   color: var(--status-warning);
 }
