@@ -20,6 +20,7 @@ import type {
 } from '@/shared/contracts/user'
 import { toIsoRequired } from '@/shared/utils/date'
 import * as calendarRepo from '@/modules/calendar/calendar.repo'
+import * as telegramRepo from '@/modules/telegram/telegram.repo'
 import * as repo from './auth.repo'
 import {
   assertUserChangeAllowed,
@@ -259,8 +260,14 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
     }
   }, async (tx, { before, after }) => {
     if (!(before.isActive && !after.isActive)) return
-    // Здесь же — место для отвязки Telegram и других личных каналов доступа,
-    // когда они появятся: всё, что работает без сессии, закрывается при блокировке.
+    // Всё, что работает без сессии, закрывается при блокировке: лента календаря
+    // и сводки в Telegram (решения 105 и 102).
+    if (await telegramRepo.unlinkUser(id, tx)) {
+      await writeAudit(
+        { userId: user.id, action: 'telegram.unlink', objectType: 'User', objectId: id, payload: { source: 'user.block' } },
+        tx,
+      )
+    }
     if (await calendarRepo.remove(id, tx)) {
       await writeAudit(
         { userId: user.id, action: 'calendar.revoke', objectType: 'User', objectId: id, payload: { reason: 'user.block' } },

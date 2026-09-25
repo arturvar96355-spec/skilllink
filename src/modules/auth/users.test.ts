@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   workflowStage: { count: vi.fn() },
   auditLog: { findFirst: vi.fn() },
   calendarFeed: { deleteMany: vi.fn() },
+  telegramLink: { deleteMany: vi.fn() },
   queryRaw: vi.fn(),
   writeAudit: vi.fn(),
 }))
@@ -34,6 +35,7 @@ vi.mock('@/shared/db/prisma', () => {
     workflowStage: mocks.workflowStage,
     auditLog: mocks.auditLog,
     calendarFeed: mocks.calendarFeed,
+    telegramLink: mocks.telegramLink,
     $queryRaw: mocks.queryRaw,
   }
   return { prisma: { ...client, $transaction: (fn: (tx: typeof client) => unknown) => fn(client) } }
@@ -77,6 +79,7 @@ beforeEach(() => {
   mocks.user.count.mockResolvedValue(1)
   mocks.queryRaw.mockResolvedValue([])
   mocks.calendarFeed.deleteMany.mockResolvedValue({ count: 0 })
+  mocks.telegramLink.deleteMany.mockResolvedValue({ count: 0 })
 })
 
 describe('права: управление пользователями — только администратор', () => {
@@ -429,6 +432,26 @@ describe('отзыв сессий (решение 109): версия растё�
       payload: { reason: 'user.block' },
     })
     expect(revokeCall?.[1]).toBeDefined()
+  })
+
+  it('блокировка: привязка к Telegram снята в той же транзакции, запись в журнале', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    mocks.telegramLink.deleteMany.mockResolvedValue({ count: 1 })
+
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+
+    expect(mocks.telegramLink.deleteMany).toHaveBeenCalledWith({ where: { userId: 'target' } })
+    const unlinkCall = mocks.writeAudit.mock.calls.find(([entry]) => entry.action === 'telegram.unlink')
+    expect(unlinkCall?.[0]).toMatchObject({ objectType: 'User', objectId: 'target', payload: { source: 'user.block' } })
+    expect(unlinkCall?.[1]).toBeDefined()
+  })
+
+  it('смена роли привязку к Telegram не трогает', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ role: 'ANALYST' }))
+    await service.updateUser(as('ADMIN'), 'target', { role: 'ANALYST' }).catch(() => undefined)
+    expect(mocks.telegramLink.deleteMany).not.toHaveBeenCalled()
   })
 
   it('блокировка без подписки — удалять нечего, записи об отзыве нет', async () => {
