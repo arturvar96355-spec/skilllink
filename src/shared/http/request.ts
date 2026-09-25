@@ -4,8 +4,8 @@ import { AppError, fromZod, validationError } from './errors'
 
 /**
  * Символ с кодом 0 база не примет ни в записи, ни в поиске (shared/db/storable.ts).
- * Останавливаем его здесь, вместе с остальной проверкой входа: иначе он доходил
- * до запроса и возвращался как «Внутренняя ошибка сервера».
+ * Останавливаем его здесь, вместе с остальной проверкой входа: иначе он дойдёт
+ * до запроса и вернётся как «Внутренняя ошибка сервера».
  */
 function rejectNul(raw: unknown, message: string): void {
   const field = findNul(raw)
@@ -26,8 +26,8 @@ export const MAX_JSON_BODY_BYTES = 1024 * 1024
  *
  * `request.json()`, `.text()` и `.arrayBuffer()` читают тело целиком, сколько бы
  * его ни было. Заголовок `Content-Length` при потоковой передаче (chunked)
- * отсутствует, поэтому любой вошедший — хоть наблюдатель — мог прислать
- * гигабайты, и процесс держал их в памяти до проверки размера. Здесь тело
+ * отсутствует, поэтому любой вошедший — хоть наблюдатель — может прислать
+ * гигабайты, и процесс держал бы их в памяти до проверки размера. Здесь тело
  * читается кусками, и чтение обрывается, как только предел превышен.
  */
 export async function readBodyBytes(
@@ -122,8 +122,8 @@ export async function parseOptionalBody<S extends z.ZodType>(
  * Повторяющиеся ключи (?status=A&status=B) собираются в массив — так работают фильтры списков.
  *
  * Пустое значение — то же, что его отсутствие, и значение из одних пробелов тоже:
- * схемы обрезают пробелы, и `?q=%20` раньше превращался в отказ «введите хотя бы
- * один символ» — поиск из пробела ломал таблицу программ и продуктов ошибкой.
+ * схемы обрезают пробелы, и без этого `?q=%20` превращался бы в отказ «введите
+ * хотя бы один символ» — поиск из пробела ломал бы таблицу ошибкой.
  */
 export function parseQuery<S extends z.ZodType>(request: Request, schema: S): z.infer<S> {
   const params = new URL(request.url).searchParams
@@ -137,9 +137,4 @@ export function parseQuery<S extends z.ZodType>(request: Request, schema: S): z.
   const parsed = schema.safeParse(raw)
   if (!parsed.success) throw fromZod(parsed.error, 'Некорректные параметры запроса')
   return parsed.data
-}
-
-/** Достаёт параметры маршрута. В Next 15 они приходят промисом. */
-export async function routeParams<T>(context: { params: Promise<T> }): Promise<T> {
-  return context.params
 }
