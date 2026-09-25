@@ -140,6 +140,8 @@ async function warmUp(): Promise<void> {
     '/api/export?dataset=universities&limit=1',
     '/api/portal/overview',
     '/api/openapi.json',
+    '/api/me/calendar',
+    '/api/calendar/warm-up.ics',
   ]
 
   await Promise.all(
@@ -593,6 +595,186 @@ async function main(): Promise<void> {
         .flatMap((item) => item.tasks)
         .find((item) => item.id === task.id)
       check('пункт отменённого этапа остался неотмеченным', after?.isDone === false, `isDone ${after?.isDone}`)
+    }
+  }
+
+  step('2в. Пункт вуза: при представителе отмечает вуз, без него — сотрудник с пометкой (решение 103)')
+
+  if (rep?.universityId && managerId) {
+    type ProbeTask = {
+      id: string
+      title: string
+      isRequired: boolean
+      isDone: boolean
+      isUniversityItem: boolean
+      staffMarkRule: string
+      confirmationNote: string | null
+    }
+    type ProbeStage = { id: string; stageNumber: number; tasks: ProbeTask[] }
+
+    /**
+     * Новая связка вуза с закрытыми этапами 1–6: пункты этапа 7 — контрольной
+     * точки — отмечаются только после них. Своя связка, а не демо-набор: пробник
+     * не должен менять то, что потом сверяет demo:check.
+     */
+    const cooperationAtMaterials = async (universityId: string, label: string) => {
+      const sfx = Date.now().toString().slice(-6)
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId,
+        name: `Пробная программа пункта вуза ${label} ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const created = await call<{ id: string; stages: ProbeStage[] }>('POST', '/api/cooperations', {
+        universityId,
+        programId: program.body.data?.id,
+        responsibleId: managerId,
+      })
+      const stages = created.body.data?.stages ?? []
+      for (const stage of stages.filter((item) => item.stageNumber <= 6)) {
+        if (stage.stageNumber === 5) {
+          await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+            status: 'CANCELLED',
+            comment: 'Не требуется для этой связки',
+          })
+          continue
+        }
+        await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'IN_PROGRESS' })
+        for (const task of stage.tasks) {
+          await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+        }
+        await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'COMPLETED', result: 'Готово' })
+      }
+      const materials = stages.find((item) => item.stageNumber === 7)
+      return {
+        cooperationId: created.body.data?.id ?? null,
+        stageId: materials?.id ?? null,
+        item: materials?.tasks.find((task) => task.isUniversityItem) ?? null,
+      }
+    }
+    const itemOf = (stage: ProbeStage | undefined, taskId: string) =>
+      stage?.tasks.find((task) => task.id === taskId)
+
+    // Вуз с представителем (демо: СПбГУТ).
+    actAs(null)
+    const withRep = await cooperationAtMaterials(rep.universityId, 'с представителем')
+    check(
+      'у связки есть пункт вуза «Вуз подтвердил получение материалов»',
+      withRep.item?.title === 'Вуз подтвердил получение материалов',
+      `пункт ${withRep.item?.title ?? 'не найден'}`,
+    )
+    if (withRep.item) {
+      check(
+        'в DTO пункта вуза при представителе — UNIVERSITY_ONLY',
+        withRep.item.staffMarkRule === 'UNIVERSITY_ONLY',
+        `staffMarkRule ${withRep.item.staffMarkRule}`,
+      )
+      const byStaff = await call('PATCH', `/api/workflow/tasks/${withRep.item.id}`, {
+        isDone: true,
+        confirmationNote: 'письмо от 12.09',
+      })
+      check(
+        'сотрудник не отмечает пункт вуза, у которого есть представитель: 403',
+        byStaff.status === 403 &&
+          byStaff.body.error?.message === 'Этот пункт отмечает представитель вуза в кабинете вуза',
+        `статус ${byStaff.status}: ${byStaff.body.error?.message ?? ''}`,
+      )
+
+      actAs(rep.id)
+      const byRep = await call<Array<{ taskId: string; isConfirmed: boolean }>>(
+        'POST',
+        `/api/portal/materials/${withRep.item.id}/confirm`,
+        {},
+      )
+      check(
+        'представитель вуза подтверждает этот пункт в кабинете: 200',
+        byRep.status === 200 &&
+          byRep.body.data?.find((item) => item.taskId === withRep.item?.id)?.isConfirmed === true,
+        `статус ${byRep.status}`,
+      )
+      actAs(null)
+
+      const unmark = await call('PATCH', `/api/workflow/tasks/${withRep.item.id}`, { isDone: false })
+      check(
+        'снять подтверждение вуза сотрудник тоже не может: 403',
+        unmark.status === 403,
+        `статус ${unmark.status}`,
+      )
+    }
+
+    // Вуз без представителя — только что созданный.
+    const sfx = Date.now().toString().slice(-6)
+    const lonely = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз без представителя ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const noRep = lonely.body.data?.id
+      ? await cooperationAtMaterials(lonely.body.data.id, 'без представителя')
+      : null
+    const item = noRep?.item
+    if (!item || !noRep?.stageId) {
+      check('пробная связка вуза без представителя готова', false, `статус вуза ${lonely.status}`)
+    } else {
+      check(
+        'в DTO пункта вуза без представителя — NOTE_REQUIRED',
+        item.staffMarkRule === 'NOTE_REQUIRED',
+        `staffMarkRule ${item.staffMarkRule}`,
+      )
+      const bare = await call('PATCH', `/api/workflow/tasks/${item.id}`, { isDone: true })
+      const bareFields = Array.isArray(bare.body.error?.details)
+        ? (bare.body.error.details as Array<{ field?: string }>).map((detail) => detail.field)
+        : []
+      check(
+        'без представителя отметка без пометки — 422 по полю confirmationNote',
+        bare.status === 422 &&
+          bare.body.error?.code === 'VALIDATION_ERROR' &&
+          bareFields.includes('confirmationNote'),
+        `статус ${bare.status}, поля ${bareFields.join(', ')}`,
+      )
+      const tooShort = await call('PATCH', `/api/workflow/tasks/${item.id}`, {
+        isDone: true,
+        confirmationNote: 'ок',
+      })
+      check('пометка короче 3 символов — 422', tooShort.status === 422, `статус ${tooShort.status}`)
+
+      const noted = await call<ProbeStage>('PATCH', `/api/workflow/tasks/${item.id}`, {
+        isDone: true,
+        confirmationNote: 'письмо от 12.09',
+      })
+      const markedItem = itemOf(noted.body.data, item.id)
+      check(
+        'с пометкой — 200, пометка сохранена в пункте',
+        noted.status === 200 &&
+          markedItem?.isDone === true &&
+          markedItem.confirmationNote === 'письмо от 12.09',
+        `статус ${noted.status}, пометка ${markedItem?.confirmationNote ?? null}`,
+      )
+
+      // Журнал: отдельное действие, без текста пометки. Журнал читает только администратор.
+      actAs(adminId)
+      const audit = await call<Array<{ action: string; objectId: string; payload: Record<string, unknown> | null }>>(
+        'GET',
+        `/api/audit?objectType=Task&objectId=${item.id}&pageSize=10`,
+      )
+      actAs(null)
+      const entry = (audit.body.data ?? []).find(
+        (row) => row.objectId === item.id && row.action === 'task.university-item.confirm-by-staff',
+      )
+      check(
+        'в журнале отдельное действие с длиной пометки, без её текста',
+        Boolean(entry) &&
+          entry?.payload?.noteLength === 'письмо от 12.09'.length &&
+          !JSON.stringify(entry?.payload ?? {}).includes('письмо'),
+        entry ? JSON.stringify(entry.payload) : `статус журнала ${audit.status}`,
+      )
+
+      const cleared = await call<ProbeStage>('PATCH', `/api/workflow/tasks/${item.id}`, { isDone: false })
+      const clearedItem = itemOf(cleared.body.data, item.id)
+      check(
+        'снять отметку можно без пометки — пометка стирается',
+        cleared.status === 200 && clearedItem?.isDone === false && clearedItem.confirmationNote === null,
+        `статус ${cleared.status}, пометка ${clearedItem?.confirmationNote ?? null}`,
+      )
     }
   }
 
@@ -3094,6 +3276,90 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Почта и телефон контактов вузов — только ADMIN и MANAGER (решение 106) ──
+  step('Почта и телефон контактов вузов: аналитику и наблюдателю — «скрыто», поиском не достать')
+
+  {
+    type Contact = {
+      fullName: string
+      position: string | null
+      email: string | null
+      phone: string | null
+      contactDetailsHidden: boolean
+    }
+    type Card = { id: string; contacts: Contact[] }
+    type SearchBody = { groups: Array<{ type: string; items: Array<{ id: string }> }> }
+    const firstId = async (role: string): Promise<string | null> =>
+      (await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)).body.data?.[0]?.id ?? null
+
+    actAs(adminId)
+    const analystId = await firstId('ANALYST')
+    const viewerId = await firstId('VIEWER')
+    // Вуз представителя: на нём заодно видно, что свой вуз представитель видит как раньше.
+    const universityId = rep?.universityId ?? universities.body.data?.[0]?.id ?? null
+    const adminCard = universityId ? await call<Card>('GET', `/api/universities/${universityId}`) : null
+    const withDetails = adminCard?.body.data?.contacts.find((contact) => contact.email && contact.phone)
+    check('у вуза есть контакт с почтой и телефоном (демо-данные)', Boolean(withDetails))
+
+    if (universityId && withDetails?.email && withDetails.phone) {
+      const email = withDetails.email
+      const phone = withDetails.phone
+
+      for (const [role, id] of [['ANALYST', analystId], ['VIEWER', viewerId]] as const) {
+        actAs(id)
+        const card = await call<Card>('GET', `/api/universities/${universityId}`)
+        const contact = card.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+        check(
+          `${role}: карточка открывается, ФИО и должность на месте`,
+          card.status === 200 && contact?.position === withDetails.position,
+        )
+        check(
+          `${role}: почта и телефон — null, признак «скрыто»`,
+          contact?.email === null && contact.phone === null && contact.contactDetailsHidden === true,
+        )
+        check(`${role}: ни почты, ни телефона нигде в ответе`, !card.raw.includes(email) && !card.raw.includes(phone))
+
+        const found = await call<SearchBody>('GET', `/api/search?q=${encodeURIComponent(email)}`)
+        const hits = (found.body.data?.groups ?? []).reduce((sum, group) => sum + group.items.length, 0)
+        check(`${role}: поиск по почте контакта ничего не находит`, found.status === 200 && hits === 0, `находок ${hits}`)
+        const registry = await call<unknown[]>(
+          'GET',
+          `/api/universities?withRating=false&q=${encodeURIComponent(email)}`,
+        )
+        check(`${role}: реестр по почте контакта пуст`, registry.status === 200 && registry.body.meta?.total === 0)
+
+        const me = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+        check(`${role}: /api/me — canSeeContactDetails: false`, me.body.data?.permissions.canSeeContactDetails === false)
+      }
+
+      actAs(managerId)
+      const managerCard = await call<Card>('GET', `/api/universities/${universityId}`)
+      const managerContact = managerCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+      check(
+        'MANAGER: почта и телефон видны, признака нет',
+        managerContact?.email === email && managerContact.phone === phone && managerContact.contactDetailsHidden === false,
+      )
+      const managerMe = await call<{ permissions: { canSeeContactDetails: boolean } }>('GET', '/api/me')
+      check('MANAGER: /api/me — canSeeContactDetails: true', managerMe.body.data?.permissions.canSeeContactDetails === true)
+
+      if (rep?.universityId === universityId) {
+        actAs(rep.id)
+        const repCard = await call<Card>('GET', `/api/universities/${universityId}`)
+        const repContact = repCard.body.data?.contacts.find((item) => item.fullName === withDetails.fullName)
+        check(
+          'UNIVERSITY_REP: контакты своего вуза видны как раньше',
+          repContact?.email === email && repContact.phone === phone && repContact.contactDetailsHidden === false,
+        )
+      }
+
+      // Выгрузка: почта контакта — только ADMIN и MANAGER, как и была (аудит S-17).
+      actAs(viewerId)
+      const exported = await call<unknown>('GET', '/api/export?dataset=universities&limit=100')
+      check('VIEWER: в выгрузке вузов почты контакта нет', exported.status === 200 && !exported.raw.includes(email))
+    }
+    actAs(null)
+  }
+
   // ── Управление пользователями и смена пароля ──────────────────────────────
   step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
 
@@ -3437,6 +3703,108 @@ async function main(): Promise<void> {
       secondSolved === 'credentials' && blocked === 'too_many_attempts',
       [secondSolved, blocked].join(', '),
     )
+  }
+
+  // ── Календарь (.ics, решение 105) ─────────────────────────────────────────
+  step('Календарь: ссылка — единственный доступ, отзыв закрывает её сразу')
+
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+  } else {
+    /** Лента без cookie — как её запрашивает календарное приложение. */
+    const feed = async (url: string) => {
+      // Адрес в ответе строится от AUTH_URL / APP_BASE_URL; пробник ходит на свой сервер.
+      const path = url.startsWith('http') ? new URL(url).pathname : url
+      const response = await fetch(`${BASE_URL}${path}`)
+      return {
+        status: response.status,
+        type: response.headers.get('content-type') ?? '',
+        cache: response.headers.get('cache-control') ?? '',
+        text: await response.text(),
+      }
+    }
+    const randomToken = () =>
+      Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('base64url')
+
+    const misses = await Promise.all(
+      ['/api/calendar/.ics', '/api/calendar/abc.ics', `/api/calendar/${randomToken()}.ics`, `/api/calendar/${randomToken()}`].map(feed),
+    )
+    check(
+      'без токена, кривой и чужой (неизвестный) токен — 404 без различий',
+      misses.every((miss) => miss.status === 404) && new Set(misses.slice(1).map((miss) => miss.text)).size === 1,
+      misses.map((miss) => miss.status).join(', '),
+    )
+
+    actAs(rep.id)
+    const repStatus = await call('GET', '/api/me/calendar')
+    const repIssue = await call('POST', '/api/me/calendar')
+    check('представителю вуза подписка закрыта — 403', repStatus.status === 403 && repIssue.status === 403, `${repStatus.status}, ${repIssue.status}`)
+
+    actAs(managerId)
+    const first = await call<{ url: string; webcalUrl: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const firstUrl = first.body.data?.url ?? ''
+    check('менеджер выпускает ссылку — 201, адрес вида …/api/calendar/<43 знака>.ics', first.status === 201 && /\/api\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(firstUrl), `статус ${first.status}`)
+    const status = await call<{ active: boolean }>('GET', '/api/me/calendar')
+    const token = firstUrl.split('/').pop()?.replace('.ics', '') ?? '—'
+    check('статус подписки — без адреса ссылки', status.body.data?.active === true && !status.raw.includes(token))
+
+    const ok = await feed(firstUrl)
+    check('лента — 200, text/calendar и no-store', ok.status === 200 && ok.type.startsWith('text/calendar') && ok.cache.includes('no-store'), `${ok.status}, ${ok.type}, ${ok.cache}`)
+    check('лента — iCalendar с CRLF и строками не длиннее 75 октетов', ok.text.startsWith('BEGIN:VCALENDAR\r\n') && ok.text.endsWith('END:VCALENDAR\r\n') && ok.text.split('\r\n').every((line) => !line.includes('\n') && Buffer.byteLength(line) <= 75))
+    const unfolded = ok.text.replace(/\r\n[ \t]/g, '')
+    check('в ленте есть сроки этапов менеджера', /SUMMARY:(\[[^\]]+\] )?Срок: этап \d+ «/.test(unfolded))
+
+    // Почт и ФИО в ленте нет: ни контактов вузов, ни сотрудников.
+    const me = await call<{ fullName: string }>('GET', '/api/me')
+    const coopUniversities = [...new Set((cooperations.body.data ?? []).filter((item) => item.responsible.id === managerId).map((item) => item.universityId))]
+    const contactNames: string[] = []
+    for (const universityId of coopUniversities.slice(0, 5)) {
+      const card = await call<{ contacts: Array<{ fullName: string }> }>('GET', `/api/universities/${universityId}`)
+      contactNames.push(...(card.body.data?.contacts ?? []).map((contact) => contact.fullName))
+    }
+    check('в ленте нет почт', !/[\w.+-]+@[\w-]+\.[\w.-]+/.test(unfolded))
+    check(
+      'в ленте нет ФИО контактов вузов и сотрудника',
+      contactNames.length > 0 && contactNames.every((name) => !unfolded.includes(name)) && !unfolded.includes(me.body.data?.fullName ?? '—'),
+      `контактов проверено: ${contactNames.length}`,
+    )
+
+    const second = await call<{ url: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const secondUrl = second.body.data?.url ?? ''
+    const afterReissueOld = await feed(firstUrl)
+    const afterReissueNew = await feed(secondUrl)
+    check('перевыпуск: старая ссылка — 404, новая — 200', second.body.data?.replaced === true && afterReissueOld.status === 404 && afterReissueNew.status === 200, `${afterReissueOld.status}, ${afterReissueNew.status}`)
+
+    const revoked = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    const afterRevoke = await feed(secondUrl)
+    const revokedAgain = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    check('после отзыва старый адрес — 404, повторный отзыв — revoked=false', revoked.body.data?.revoked === true && afterRevoke.status === 404 && revokedAgain.body.data?.revoked === false, `${afterRevoke.status}`)
+
+    actAs(adminId)
+    const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${managerId}&pageSize=20`)
+    const actions = (journal.body.data ?? []).map((entry) => entry.action)
+    check('в журнале выпуск и отзыв, токена нет', actions.includes('calendar.issue') && actions.includes('calendar.revoke') && !journal.raw.includes(token) && !journal.raw.includes(secondUrl.split('/').pop() ?? '—'))
+
+    // Заблокированный пользователь: его лента — 404, как неизвестная.
+    const blockedEmail = `probe-calendar-${Date.now()}@example.invalid`
+    const createdUser = await call<{ user: { id: string } }>('POST', '/api/users', { email: blockedEmail, fullName: 'Пробный Календарь Пробникович', role: 'VIEWER' })
+    const blockedId = createdUser.body.data?.user.id
+    if (!blockedId) {
+      check('пробный пользователь для блокировки заведён', false, `статус ${createdUser.status}`)
+    } else {
+      actAs(blockedId)
+      const viewerFeed = await call<{ url: string }>('POST', '/api/me/calendar')
+      const viewerUrl = viewerFeed.body.data?.url ?? ''
+      const beforeBlock = await feed(viewerUrl)
+      actAs(adminId)
+      const block = await call('PATCH', `/api/users/${blockedId}`, { isActive: false })
+      const afterBlock = await feed(viewerUrl)
+      check(
+        'наблюдатель выпускает ссылку; после блокировки его лента — 404',
+        viewerFeed.status === 201 && beforeBlock.status === 200 && block.status === 200 && afterBlock.status === 404,
+        `${viewerFeed.status}, ${beforeBlock.status}, ${block.status}, ${afterBlock.status}`,
+      )
+    }
   }
 
   // ── Итог ───────────────────────────────────────────────────────────────────

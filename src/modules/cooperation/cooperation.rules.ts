@@ -10,7 +10,7 @@ export interface NewStageData {
   phase: 'ATTRACTION' | 'FORMALIZATION' | 'IMPLEMENTATION' | 'OPERATION' | 'CONTROL'
   deadline: Date
   responsibleId: string
-  tasks: Array<{ title: string; isRequired: boolean; sortOrder: number }>
+  tasks: Array<{ title: string; isRequired: boolean; isUniversityItem: boolean; sortOrder: number }>
 }
 
 /**
@@ -27,6 +27,8 @@ export function buildStages(startedAt: Date, responsibleId: string): NewStageDat
     tasks: definition.tasks.map((task, index) => ({
       title: task.title,
       isRequired: task.isRequired,
+      // Пункт вуза (решение 103): кто его отмечает, решает признак, а не заголовок.
+      isUniversityItem: task.universityItem === true,
       sortOrder: index,
     })),
   }))

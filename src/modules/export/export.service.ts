@@ -1,4 +1,3 @@
-import { prisma } from '@/shared/db/prisma'
 import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -40,6 +39,7 @@ import {
   type CsvValue,
 } from './export.rules'
 import type { ExportRequest } from './export.schema'
+import * as repo from './export.repo'
 
 export interface ExportResult {
   fileName: string
@@ -66,20 +66,7 @@ async function exportUniversities(
 ): Promise<{ headers: string[]; rows: CsvValue[][] }> {
   const list = await universitiesService.list(user, { ...filters, page: 1, pageSize: limit })
   const ids = list.data.map((row) => row.id)
-  const extras = await prisma.university.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      directionCount: true,
-      studentCount: true,
-      website: true,
-      contacts: {
-        where: { isPrimary: true },
-        take: 1,
-        select: { fullName: true, position: true, email: true },
-      },
-    },
-  })
+  const extras = await repo.findUniversityExtras(ids)
   const extraById = new Map(extras.map((row) => [row.id, row]))
   // Почта контакта — только ADMIN и MANAGER (аудит S-17, docs/PRIVACY.md).
   const withContactDetails = canSeeContactDetails(user)
@@ -188,35 +175,15 @@ async function exportCooperations(
   const where = cooperationRepo.buildWhere(filters, universityScope(user), now)
   if (where === null) return { headers: COOPERATION_HEADERS, rows: [] }
 
-  const rows = await prisma.cooperation.findMany({
-    where,
-    orderBy: cooperationRepo.listOrderBy(filters),
-    take: limit,
-    select: {
-      status: true,
-      goal: true,
-      classesStartAt: true,
-      targetDate: true,
-      isMock: true,
-      updatedAt: true,
-      university: { select: { name: true } },
-      program: { select: { name: true } },
-      product: { select: { name: true } },
-      responsible: { select: { fullName: true } },
-      stages: {
-        orderBy: { stageNumber: 'asc' },
-        select: { stageNumber: true, title: true, status: true, deadline: true },
-      },
-    },
-  })
+  const rows = await repo.findCooperations(where, filters, limit)
 
   return {
     headers: COOPERATION_HEADERS,
     rows: rows.map((row) => {
       const countable = row.stages.filter((stage) => !isAutoManaged(stage.stageNumber))
       const current = findCurrentStage(row.stages)
-      // То же правило, что у карточки связки: своя копия здесь считала
-      // просроченными и не начатые этапы (решение 84).
+      // То же правило, что у карточки связки: своя копия правила разошлась бы
+      // с ним в том, считать ли просроченными не начатые этапы (решение 84).
       const overdue = countable.filter((stage) => isOverdue(stage.deadline, stage.status, now)).length
 
       return [

@@ -2,7 +2,6 @@ import type { Metric } from './common'
 import type { ProgramRatingFactorKey } from './rating'
 import type { RecommendationDto } from './recommendation'
 
-/** Показатель дашборда: значение, единица, период, источник, признак демо-данных. */
 /**
  * Сравнение показателя с прошлым периодом: что было на его начале и насколько изменилось.
  * Считается по датам в данных (заведение и закрытие связок, сроки и закрытие этапов),
@@ -18,6 +17,7 @@ export interface MetricTrendDto {
   periodLabel: string
 }
 
+/** Показатель дашборда: значение, единица, период, источник, признак демо-данных. */
 export interface DashboardMetricDto extends Metric {
   key: string
   title: string

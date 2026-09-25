@@ -21,6 +21,10 @@ export const AUDIT_ACTIONS = [
   'user.password.reset',
   /** Пользователь сменил свой пароль. */
   'user.password.change',
+  /** Выпущена или перевыпущена ссылка на календарь (решение 105). Без токена. */
+  'calendar.issue',
+  /** Ссылка на календарь отозвана. */
+  'calendar.revoke',
   'university.create',
   'university.update',
   'university.archive',
@@ -37,6 +41,11 @@ export const AUDIT_ACTIONS = [
   'stage.fields.change',
   'stage.auto.recompute',
   'task.toggle',
+  /**
+   * Сотрудник отметил за вуз пункт «Вуз подтвердил получение материалов» — у вуза
+   * нет представителя (решение 103). В журнале — длина пометки, не её текст.
+   */
+  'task.university-item.confirm-by-staff',
   'application.create',
   'recommendation.generate',
   'recommendation.status.change',
@@ -103,8 +112,8 @@ export interface AuditLogEntryDto {
   payload: Record<string, unknown> | null
   user: UserRefDto | null
   /**
-   * Связка, к которой относится объект, — для этапа и пункта чек-листа
-   * (с 25.09.2026): у них нет своей страницы, открываются они на странице связки.
+   * Связка, к которой относится объект, — для этапа и пункта чек-листа:
+   * у них нет своей страницы, открываются они на странице связки.
    * У остальных объектов — null.
    */
   cooperationId: string | null

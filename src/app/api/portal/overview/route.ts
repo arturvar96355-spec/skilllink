@@ -7,7 +7,7 @@ const querySchema = z.object({ universityId: z.string().trim().min(1).optional()
 
 /**
  * Кабинет представителя вуза: свой вуз, его программы, связки и статусы этапов.
- * Аналитики, рейтингов и рекомендаций здесь нет (решение 9).
+ * Аналитики, рейтингов и рекомендаций здесь нет: вузу они не показываются.
  */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()

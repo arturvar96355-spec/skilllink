@@ -8,7 +8,7 @@ import type {
 } from '@/shared/contracts/enums'
 import { conflict, type AppError } from '@/shared/http/errors'
 import { normalize, outOf100, range, round } from '@/shared/utils/number'
-import { pluralize } from '@/shared/utils/text'
+import { countWithNoun } from '@/shared/utils/text'
 
 /** Покрытие навыка программой по уровню освоения. Навыка нет — покрытие 0. */
 export function coverageByLevel(level: SkillLevel | null): number {
@@ -379,13 +379,13 @@ export function isSkillUsed(usage: SkillUsage): boolean {
  */
 export function skillInUseMessage(name: string, usage: SkillUsage): string {
   const parts = [
-    usage.programs > 0 ? `в ${pluralize(usage.programs, ['программе', 'программах', 'программах'])}` : null,
-    usage.products > 0 ? `в ${pluralize(usage.products, ['IT-продукте', 'IT-продуктах', 'IT-продуктах'])}` : null,
+    usage.programs > 0 ? `в ${countWithNoun(usage.programs, ['программе', 'программах', 'программах'])}` : null,
+    usage.products > 0 ? `в ${countWithNoun(usage.products, ['IT-продукте', 'IT-продуктах', 'IT-продуктах'])}` : null,
     usage.demand > 0
-      ? `в ${pluralize(usage.demand, ['рыночном показателе', 'рыночных показателях', 'рыночных показателях'])}`
+      ? `в ${countWithNoun(usage.demand, ['рыночном показателе', 'рыночных показателях', 'рыночных показателях'])}`
       : null,
     usage.recommendations > 0
-      ? `в ${pluralize(usage.recommendations, ['рекомендации', 'рекомендациях', 'рекомендациях'])}`
+      ? `в ${countWithNoun(usage.recommendations, ['рекомендации', 'рекомендациях', 'рекомендациях'])}`
       : null,
   ].filter((part): part is string => part !== null)
   return (

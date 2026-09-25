@@ -13,9 +13,9 @@ export function toIsoRequired(value: Date): string {
  * Смещение московских суток от UTC.
  *
  * Сутки считаются по Москве — там же, где их показывает интерфейс
- * (`TIME_ZONE` в `src/ui/lib/format.ts`). Раньше считались по UTC: срок
- * «01.10, 01:00» по Москве — это 30.09, 22:00 по UTC, и 30 сентября днём
- * рядом с датой «01.10» стояло «срок через 0 дн.». Перехода на летнее время
+ * (`TIME_ZONE` в `src/ui/lib/format.ts`). По UTC нельзя: срок «01.10, 01:00»
+ * по Москве — это 30.09, 22:00 по UTC, и 30 сентября днём рядом с датой «01.10»
+ * стояло бы «срок через 0 дн.». Перехода на летнее время
  * в Москве с 2014 года нет, поэтому смещение постоянное.
  */
 const BUSINESS_DAY_OFFSET_MS = 3 * 60 * 60 * 1000
@@ -39,6 +39,15 @@ export function daysBetween(from: Date, to: Date): number {
  */
 export function moscowDayStart(date: Date, shiftDays = 0): Date {
   return new Date((businessDay(date) + shiftDays) * MS_IN_DAY - BUSINESS_DAY_OFFSET_MS)
+}
+
+/**
+ * Московская календарная дата `date`, сдвинутая на `shiftDays`, — строкой `ГГГГ-ММ-ДД`.
+ * Срок этапа в календаре — день, а не момент: «01.10, 01:00 по Москве» — это 1 октября,
+ * хотя по UTC ещё 30 сентября.
+ */
+export function moscowIsoDate(date: Date, shiftDays = 0): string {
+  return new Date((businessDay(date) + shiftDays) * MS_IN_DAY).toISOString().slice(0, 10)
 }
 
 export function addDays(date: Date, days: number): Date {
