@@ -1,5 +1,5 @@
 import { conflict, validationError, type AppError } from '@/shared/http/errors'
-import { pluralize } from '@/shared/utils/text'
+import { countWithNoun } from '@/shared/utils/text'
 
 /**
  * Этап, на котором вузу передаётся актуальная версия продукта:
@@ -68,7 +68,7 @@ export function assertVersionEditable(
 ): void {
   if (next === undefined || next === current || openCooperations === 0) return
   throw conflict(
-    `У продукта ${pluralize(openCooperations, OPEN_COOPERATION_FORMS)}: ` +
+    `У продукта ${countWithNoun(openCooperations, OPEN_COOPERATION_FORMS)}: ` +
       'новая версия передаётся вузам выпуском версии, он откроет этап обновления материалов. ' +
       'Правкой карточки версию не поменять.',
     [

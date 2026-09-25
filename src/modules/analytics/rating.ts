@@ -14,7 +14,7 @@ import type {
   UniversityRatingDto,
 } from '@/shared/contracts/rating'
 import { normalize, range, round } from '@/shared/utils/number'
-import { PROGRAM_FORMS_OF, plural, pluralize } from '@/shared/utils/text'
+import { PROGRAM_FORMS_OF, plural, countWithNoun } from '@/shared/utils/text'
 
 export interface RatingInput {
   programId: string
@@ -185,7 +185,7 @@ export function aggregateUniversityRatings(
             ? 'Нет данных: у вуза нет действующих программ'
             : programCount === 1
               ? 'Нет данных: у единственной программы вуза не заполнены показатели рейтинга'
-              : `Нет данных: показатели рейтинга не заполнены ни у одной из ${pluralize(programCount, PROGRAM_FORMS_OF)} вуза`,
+              : `Нет данных: показатели рейтинга не заполнены ни у одной из ${countWithNoun(programCount, PROGRAM_FORMS_OF)} вуза`,
         programCount,
         ratedProgramCount,
         topProgram: null,
