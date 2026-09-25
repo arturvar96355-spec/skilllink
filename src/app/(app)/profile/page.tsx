@@ -342,8 +342,11 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Настройки — строками, как на странице настроек. */}
-      <section className={styles.block} aria-labelledby="profile-settings">
+      {/*
+        Настройки — карточкой посередине экрана: строки во всю ширину уводили
+        переключатель и «Выйти» к дальнему правому краю, до них было далеко.
+      */}
+      <section className={[styles.block, styles.settings].join(' ')} aria-labelledby="profile-settings">
         <div className={styles.blockHead}>
           <h2 id="profile-settings" className={styles.blockTitle}>
             Настройки
