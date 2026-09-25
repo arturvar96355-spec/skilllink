@@ -10,6 +10,13 @@
  *   2. в записях старше RETENTION.clientAddressDays (90 дней) стирает адрес
  *      клиента (IP) — сама запись о действии остаётся до п. 1.
  *
+ * Журнал защищён цепочкой хешей (решение 115), и обе операции её не ломают:
+ *   - адрес клиента в хеш строки не входит — стирание идёт обычным UPDATE с обходом
+ *     запрета (`skilllink.allow_audit_purge`) в той же транзакции;
+ *   - удаляется только НАЧАЛО цепочки — функцией audit_purge_before(), которая
+ *     записывает точку чистки. Запись старше срока, стоящая в цепочке после более
+ *     свежей (долгая транзакция), удалится при следующем запуске.
+ *
  * Сроки — src/shared/config/retention.config.ts, правила отбора —
  * src/modules/audit/retention.rules.ts (с тестом).
  *
@@ -50,7 +57,7 @@ function parseMode(argv: readonly string[]): 'apply' | 'dry-run' {
 const day = (date: Date) => date.toISOString().slice(0, 10)
 
 /** Записи к удалению по видам действий — чтобы было видно, что уходит. */
-async function describeDeletion(prisma: PrismaClient, cutoffs: RetentionCutoffs): Promise<number> {
+async function describeDeletion(prisma: PrismaClient, cutoffs: RetentionCutoffs): Promise<PurgeResult> {
   const groups = await prisma.auditLog.groupBy({
     by: ['action'],
     where: { createdAt: { lt: cutoffs.deleteBefore } },
@@ -58,26 +65,48 @@ async function describeDeletion(prisma: PrismaClient, cutoffs: RetentionCutoffs)
     orderBy: { action: 'asc' },
   })
   const total = groups.reduce((sum, group) => sum + group._count._all, 0)
-  console.log(`Удалить записи журнала старше ${day(cutoffs.deleteBefore)}: ${total}`)
+  console.log(`Записей журнала старше ${day(cutoffs.deleteBefore)}: ${total}`)
   for (const group of groups) console.log(`   ${group.action}: ${group._count._all}`)
-  return total
+  const plan = await purge(prisma, cutoffs, false)
+  console.log(`Удалится начало цепочки: ${plan.deleted} (по № ${plan.cutSeq ?? '—'})`)
+  if (plan.olderKept > 0n) {
+    console.log(`   старше срока, но после более свежей записи — останутся до следующего запуска: ${plan.olderKept}`)
+  }
+  return plan
+}
+
+interface PurgeResult {
+  cutSeq: bigint | null
+  deleted: bigint
+  olderKept: bigint
+}
+
+/** audit_purge_before(): без `apply` только считает. Граница — UTC без часового пояса, как в колонке. */
+async function purge(prisma: PrismaClient, cutoffs: RetentionCutoffs, apply: boolean): Promise<PurgeResult> {
+  const cutoff = cutoffs.deleteBefore.toISOString()
+  const [row] = await prisma.$queryRaw<Array<{ cut_seq: bigint | null; deleted: bigint; older_kept: bigint }>>`
+    SELECT * FROM audit_purge_before(${cutoff}::timestamp, ${apply})`
+  return { cutSeq: row?.cut_seq ?? null, deleted: row?.deleted ?? 0n, olderKept: row?.older_kept ?? 0n }
 }
 
 /**
- * Стирает адрес клиента пачками. В пачку попадают только записи между границами:
- * более старые будут удалены целиком, и тратить на них запись незачем.
+ * Стирает адрес клиента пачками. При показе в пачку попадают только записи между
+ * границами: более старые будут удалены целиком. При применении стирание идёт после
+ * чистки и берёт всё старше срока адреса: чистка удаляет только начало цепочки,
+ * и запись старше срока журнала, оставшаяся до следующего запуска, адрес тоже теряет.
  */
 async function stripAddresses(
   prisma: PrismaClient,
   cutoffs: RetentionCutoffs,
   apply: boolean,
 ): Promise<number> {
+  const scope = apply ? { ...cutoffs, deleteBefore: new Date(0) } : cutoffs
   let cursor: string | undefined
   let stripped = 0
 
   for (;;) {
     const rows = await prisma.auditLog.findMany({
-      where: { createdAt: { gte: cutoffs.deleteBefore, lt: cutoffs.stripAddressBefore } },
+      where: { createdAt: { gte: scope.deleteBefore, lt: scope.stripAddressBefore } },
       select: { id: true, createdAt: true, payload: true },
       orderBy: { id: 'asc' },
       take: RETENTION.batchSize,
@@ -86,11 +115,13 @@ async function stripAddresses(
     if (rows.length === 0) break
     cursor = rows.at(-1)!.id
 
-    const { stripIds } = planRetention(rows, cutoffs)
+    const { stripIds } = planRetention(rows, scope)
     if (apply && stripIds.length > 0) {
       const byId = new Map(rows.map((row) => [row.id, row]))
-      await prisma.$transaction(
-        stripIds.map((id) =>
+      // Запрет правки журнала обходится только в этой транзакции (решение 115).
+      await prisma.$transaction([
+        prisma.$executeRaw`SELECT set_config('skilllink.allow_audit_purge', 'on', true)`,
+        ...stripIds.map((id) =>
           prisma.auditLog.update({
             where: { id },
             data: {
@@ -98,7 +129,7 @@ async function stripAddresses(
             },
           }),
         ),
-      )
+      ])
     }
     stripped += stripIds.length
   }
@@ -127,17 +158,22 @@ async function main(): Promise<void> {
       `   журнал — ${RETENTION.auditLogDays} дн., адрес клиента — ${RETENTION.clientAddressDays} дн.`,
     )
 
-    const toDelete = await describeDeletion(prisma, cutoffs)
-    const stripped = await stripAddresses(prisma, cutoffs, mode === 'apply')
-    console.log(`Стереть адрес клиента в записях старше ${day(cutoffs.stripAddressBefore)}: ${stripped}`)
+    const plan = await describeDeletion(prisma, cutoffs)
 
     if (mode === 'dry-run') {
+      const toStrip = await stripAddresses(prisma, cutoffs, false)
+      console.log(`Стереть адрес клиента в записях старше ${day(cutoffs.stripAddressBefore)}: ${toStrip}`)
       console.log('Ничего не изменено.')
       return
     }
 
-    const deleted = await prisma.auditLog.deleteMany({ where: { createdAt: { lt: cutoffs.deleteBefore } } })
-    console.log(`Удалено записей: ${deleted.count} (ожидалось ${toDelete}). Адрес стёрт в записях: ${stripped}.`)
+    const done = await purge(prisma, cutoffs, true)
+    const stripped = await stripAddresses(prisma, cutoffs, true)
+    console.log(
+      `Удалено записей: ${done.deleted} (ожидалось ${plan.deleted})` +
+        (done.cutSeq === null ? '. ' : `, цепочка журнала теперь начинается с № ${done.cutSeq + 1n}. `) +
+        `Адрес стёрт в записях: ${stripped}.`,
+    )
 
     // Факт применения — в сам журнал, только числа и границы.
     await writeAudit(
@@ -147,7 +183,9 @@ async function main(): Promise<void> {
         objectType: 'AuditLog',
         objectId: 'retention',
         payload: {
-          deleted: deleted.count,
+          deleted: Number(done.deleted),
+          olderKept: Number(done.olderKept),
+          ...(done.cutSeq === null ? {} : { cutSeq: Number(done.cutSeq) }),
           addressesStripped: stripped,
           deleteBefore: cutoffs.deleteBefore.toISOString(),
           stripAddressBefore: cutoffs.stripAddressBefore.toISOString(),

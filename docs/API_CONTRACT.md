@@ -2847,6 +2847,79 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
 на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
+С 25.09.2026 (решение 115) — `audit.verify`: проверка целостности журнала, объект `AuditLog`,
+`objectId: "chain"`, `payload: { source: "api" | "script", ok, checked, headSeq, code?, brokenAt? }`
+— без хешей и содержимого строк.
+
+### GET /api/audit/verify
+
+Право: **`ADMIN`**. Остальным ролям — `FORBIDDEN` 403. Решение 115.
+
+Проверяет, что журнал не подменён: цепочку хешей записей (изменённая, удалённая,
+переставленная запись) и сверку с печатями (отрезанный хвост, пересчитанная история).
+Проверка идёт двумя независимыми путями — функцией в базе и кодом приложения; пройдена,
+только если оба согласны. Нарушение — это тоже ответ **200** с `ok: false`: запрос
+выполнен, результат — «журнал нарушен». Сам факт проверки пишется в журнал (`audit.verify`) —
+поэтому следующая проверка покажет `headSeq` на единицу больше.
+
+```json
+{
+  "data": {
+    "ok": true,
+    "checked": 412,
+    "code": null,
+    "brokenAt": null,
+    "brokenId": null,
+    "reason": null,
+    "headSeq": 412,
+    "headHash": "5b9801fee22a53fea6fa01c13457752a40b417cf867d38390fe32751db0c17f9",
+    "anchorSeq": 0,
+    "sealsChecked": 3,
+    "lastSeal": { "id": "3", "headSeq": 398, "headHash": "cdab…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" },
+    "verifiedAt": "2026-09-25T20:40:11.020Z"
+  }
+}
+```
+
+При нарушении:
+
+```json
+{ "data": { "ok": false, "checked": 2, "code": "rows_missing", "brokenAt": 4,
+  "brokenId": "cmub7a170008ftnrlc8cw4kr6", "reason": "Удалена строка № 3", "headSeq": 2, "…": "…" } }
+```
+
+| Поле | Описание |
+| --- | --- |
+| `ok` | журнал цел |
+| `checked` | сколько записей проверено до первого нарушения (или всего) |
+| `code` | `AUDIT_CHAIN_BREAK_CODES` в `shared/contracts/audit.ts`: `rows_missing`, `row_before_cut`, `link_broken`, `row_modified`, `row_unnumbered`, `tail_removed`, `history_rewritten`, `engines_disagree`; подписи для значка — `AUDIT_CHAIN_BREAK_LABELS` |
+| `brokenAt`, `brokenId` | номер записи в цепочке (`chain_seq`) и id записи журнала; у нарушений по печати `brokenId` — `null` |
+| `reason` | что не так, по-русски, готово к показу |
+| `headSeq`, `headHash` | номер и SHA-256 последней проверенной записи — их можно сверить с печатью, хранящейся вне системы |
+| `anchorSeq` | с какого номера цепочка законно начинается после чистки по сроку; `0` — чистки не было |
+| `sealsChecked`, `lastSeal` | сколько печатей сверено, последняя печать (`null` — не снимали) |
+
+Проверка читает весь журнал: на сотнях тысяч записей — секунды. Кнопку стоит блокировать
+до ответа.
+
+### GET /api/audit/seals
+
+Право: **`ADMIN`**. Решение 115. Печати журнала — голова цепочки на момент снятия,
+новые сверху. Параметры: `page`, `pageSize`. Печать снимает `npm run audit:seal`
+по расписанию, через API печать не создаётся.
+
+```json
+{
+  "data": [
+    { "id": "3", "headSeq": 398, "headHash": "cdabd190…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 3 }
+}
+```
+
+`headSeq: 0` и `headHash: null` — журнал был пуст. `count` меньше `headSeq` после чистки
+журнала по сроку.
+
 ---
 
 ## 15в. Групповая операция: выпуск версии продукта
