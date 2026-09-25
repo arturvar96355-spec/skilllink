@@ -15,6 +15,9 @@
  * и пробника и на стенде после перезаливки (scripts/deploy/reseed.sh).
  */
 
+// Локально адрес базы берётся из .env, как у сида и сквозного сценария;
+// в CI и на стенде переменная задана снаружи и .env её не перекрывает.
+import 'dotenv/config'
 import { PrismaClient } from '@/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
