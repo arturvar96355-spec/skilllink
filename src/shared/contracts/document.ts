@@ -1,6 +1,21 @@
 import type { DocumentStatus, DocumentType } from './enums'
 import type { UserRefDto } from './workflow'
 
+/**
+ * Жизненный цикл документа (раздел 9.1 ТЗ).
+ *
+ * Подписанный документ не редактируется и не возвращается в работу: правка подписанного
+ * документа — это новая версия, а не изменение старой. Иначе теряется смысл подписи.
+ */
+export const ALLOWED_DOCUMENT_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
+  DRAFT: ['REVIEW', 'ARCHIVED'],
+  REVIEW: ['APPROVED', 'REJECTED', 'DRAFT', 'ARCHIVED'],
+  APPROVED: ['SIGNED', 'REVIEW', 'ARCHIVED'],
+  SIGNED: ['ARCHIVED'],
+  REJECTED: ['DRAFT', 'ARCHIVED'],
+  ARCHIVED: [],
+}
+
 export interface DocumentLinksDto {
   cooperationId: string | null
   universityId: string | null

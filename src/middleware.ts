@@ -27,9 +27,10 @@ const PUBLIC_PATHS = ['/login']
  * Открыты всем — и с сессией, и без: презентация проекта для защиты и её файлы
  * в `public/presentation/`, политика обработки персональных данных (её оператор
  * обязан опубликовать — ч. 2 ст. 18.1 152-ФЗ, и прочитать её должен и тот, кто
- * ещё не вошёл). Данных системы не содержат, в API не ходят.
+ * ещё не вошёл). Данных системы не содержат, в API не ходят. Манифест со значками
+ * браузер запрашивает без входа — иначе получал бы перенаправление на страницу входа.
  */
-const OPEN_PATHS = ['/presentation', '/privacy']
+const OPEN_PATHS = ['/presentation', '/privacy', '/manifest.webmanifest']
 
 function matches(paths: readonly string[], pathname: string): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`))

@@ -2,6 +2,8 @@ import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
 import type { StageStatus } from '@/shared/contracts/enums'
+import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
+import { updateTaskSchema } from './workflow.schema'
 import {
   isDueSoon,
   isControlPoint,
@@ -22,6 +24,9 @@ import {
   resolveStageFields,
   assertStageFieldsComplete,
   historyComment,
+  assertStaffTaskMark,
+  staffMarkRule,
+  UNIVERSITY_ITEM_FORBIDDEN_MESSAGE,
   type StageState,
   type StageStatusFields,
 } from './workflow.rules'
@@ -792,5 +797,89 @@ describe('запись истории этапа', () => {
         'MANAGER',
       ),
     ).not.toThrow()
+  })
+})
+
+describe('пункт вуза в чек-листе (решение 103)', () => {
+  const universityItem = { isUniversityItem: true }
+  const ordinary = { isUniversityItem: false }
+
+  it('в конфиге пункт вуза один: «Вуз подтвердил получение материалов» этапа 7', () => {
+    const items = WORKFLOW_STAGES.flatMap((stage) =>
+      stage.tasks.filter((task) => task.universityItem).map((task) => [stage.number, task.title]),
+    )
+    expect(items).toEqual([[7, 'Вуз подтвердил получение материалов']])
+  })
+
+  it('правило: обычный пункт — как всегда; пункт вуза — по наличию представителя', () => {
+    expect(staffMarkRule(ordinary, true)).toBe('ALLOWED')
+    expect(staffMarkRule(ordinary, false)).toBe('ALLOWED')
+    expect(staffMarkRule(universityItem, true)).toBe('UNIVERSITY_ONLY')
+    expect(staffMarkRule(universityItem, false)).toBe('NOTE_REQUIRED')
+  })
+
+  it('при представителе сотрудник не отмечает и не снимает — 403 с понятным текстом', () => {
+    for (const role of ['ADMIN', 'MANAGER'] as const) {
+      for (const isDone of [true, false]) {
+        expectError(
+          () => assertStaffTaskMark('UNIVERSITY_ONLY', { isDone, confirmationNote: 'письмо от 12.09' }, role),
+          'FORBIDDEN',
+        )
+      }
+    }
+    try {
+      assertStaffTaskMark('UNIVERSITY_ONLY', { isDone: true }, 'MANAGER')
+    } catch (error) {
+      expect((error as AppError).message).toBe(UNIVERSITY_ITEM_FORBIDDEN_MESSAGE)
+    }
+  })
+
+  it('без представителя отметка без пометки — 422 по полю confirmationNote', () => {
+    for (const note of [undefined, null, '', '   ']) {
+      try {
+        assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: note }, 'MANAGER')
+        throw new Error('ожидалась ошибка')
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError)
+        expect((error as AppError).code).toBe('VALIDATION_ERROR')
+        expect((error as AppError).details).toEqual([
+          expect.objectContaining({ field: 'confirmationNote' }),
+        ])
+      }
+    }
+    expectError(
+      () => assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: 'ок' }, 'MANAGER'),
+      'VALIDATION_ERROR',
+    )
+    expectError(
+      () =>
+        assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: 'я'.repeat(501) }, 'MANAGER'),
+      'VALIDATION_ERROR',
+    )
+  })
+
+  it('без представителя с пометкой — можно, пометка возвращается обрезанной', () => {
+    expect(
+      assertStaffTaskMark('NOTE_REQUIRED', { isDone: true, confirmationNote: '  письмо от 12.09 ' }, 'ADMIN'),
+    ).toBe('письмо от 12.09')
+  })
+
+  it('снять отметку без представителя можно без пометки', () => {
+    expect(assertStaffTaskMark('NOTE_REQUIRED', { isDone: false }, 'MANAGER')).toBeNull()
+    expect(
+      assertStaffTaskMark('NOTE_REQUIRED', { isDone: false, confirmationNote: 'письмо' }, 'MANAGER'),
+    ).toBeNull()
+  })
+
+  it('у обычного пункта пометка не хранится, представителя правило не касается', () => {
+    expect(assertStaffTaskMark('ALLOWED', { isDone: true, confirmationNote: 'письмо' }, 'MANAGER')).toBeNull()
+    expect(assertStaffTaskMark('UNIVERSITY_ONLY', { isDone: true }, 'UNIVERSITY_REP')).toBeNull()
+  })
+
+  it('схема: пометка необязательна, но не короче 3 и не длиннее 500 символов', () => {
+    expect(updateTaskSchema.safeParse({ isDone: true }).success).toBe(true)
+    expect(updateTaskSchema.safeParse({ isDone: true, confirmationNote: 'письмо от 12.09' }).success).toBe(true)
+    expect(updateTaskSchema.safeParse({ isDone: true, confirmationNote: 'ок' }).success).toBe(false)
+    expect(updateTaskSchema.safeParse({ isDone: true, confirmationNote: 'я'.repeat(501) }).success).toBe(false)
   })
 })

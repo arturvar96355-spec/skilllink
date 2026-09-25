@@ -77,6 +77,7 @@ Vitest; Docker и Caddy на Yandex Cloud. Без UI-библиотек и Tailw
 
 ```bash
 npm run typecheck && npm test        # типы и модульные тесты
+npm run check:docs                   # только сверка документов и конфигов с кодом (входит и в npm test)
 npm run smoke                        # сквозной сценарий против запущенного сервера
 npm run probe                        # пробник: изоляция ролей, противоречивые состояния, кривой ввод
 npm run db:verify                    # правила целостности данных в базе
@@ -107,6 +108,7 @@ npm run demo:check -- <адрес>        # сверка стенда со сц�
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура и модули |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Контракт API: эндпоинты, поля, ошибки, примеры |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы |
+| [docs/DATABASE_ANSWERS.md](docs/DATABASE_ANSWERS.md) | База данных: короткие ответы экспертам |
 | [docs/ANALYTICS_METHODOLOGY.md](docs/ANALYTICS_METHODOLOGY.md) | Формулы и коэффициенты аналитики |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Персональные данные и 152-ФЗ |
 | [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md) | Безопасность: что сделано, чего нет |

@@ -77,11 +77,11 @@ PostgreSQL такой символ не принимает. Количества
 направления) — не больше 2 147 483 647, сколько вмещает колонка `Int`.
 Раньше и то и другое доходило до базы и отвечало `INTERNAL`.
 
-**Из серверных компонентов Next зовите API через `apiFetch`** из
-`@/shared/api/server-fetch`, а не голым `fetch`. На сервере запрос уходит от имени
-процесса и не несёт cookie пользователя: в демо-режиме API подставит пользователя
+**API вызывается из браузера**, из клиентских компонентов: браузер сам отправляет
+cookie пользователя. Серверные компоненты Next к API не обращаются. Запрос с сервера
+уходит от имени процесса и не несёт cookie: в демо-режиме API подставит пользователя
 по умолчанию и страница покажет чужие данные, в промышленном — вернёт `401`.
-Обёртка передаёт cookie и определяет адрес из заголовков запроса.
+Если такой вызов понадобится, cookie входящего запроса нужно передать явно.
 
 **Несуществующий адрес API** тоже отвечает JSON, а не HTML-страницей:
 `404` с `code: "NOT_FOUND"`. Так опечатка в пути выглядит как обычная ошибка API,
@@ -151,6 +151,20 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `ADMIN` | ADMIN |
 | `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP — просмотр кабинета вуза |
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
+| `CALENDAR` | ADMIN, MANAGER, ANALYST, VIEWER — личная подписка на календарь сроков и встреч (решение 105) |
+| `CONTACT_DETAILS` | ADMIN, MANAGER — почта и телефон контактных лиц вузов (решение 106); UNIVERSITY_REP — только контактов своего вуза |
+
+**Почта и телефон контактных лиц вузов** (с 25.09.2026, решение владельца, решение 106):
+
+| Где | ADMIN, MANAGER | ANALYST, VIEWER | UNIVERSITY_REP |
+| --- | --- | --- | --- |
+| Карточка вуза `GET /api/universities/:id` (`contacts`, `primaryContact`) | почта и телефон | ФИО и должность; `email`, `phone` = `null`, `contactDetailsHidden: true` | свой вуз — почта и телефон; чужой — `NOT_FOUND` |
+| Ответы `POST/PATCH /api/universities…`, обезличивание | почта и телефон | — (нет права) | — (нет права) |
+| Реестр `GET /api/universities?q=` и поиск `GET /api/search` | по почте и телефону контакта не ищут ни для кого | то же | то же |
+| Выгрузка вузов `GET /api/export?dataset=universities` | почта основного контакта, телефона нет | почта пустая | почта пустая |
+| Встречи (участник-контакт), документы (подстановка контакта) | только ФИО и должность | то же | то же |
+| ИИ-помощник | почта и телефон вырезаются из текста до отправки модели | то же | — |
+| `GET /api/me` → `permissions.canSeeContactDetails` | `true` | `false` | `false` (признак «скрыто» — в самом контакте) |
 
 **Ответственным** за связку, этап, встречу и документ назначается только действующий
 ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
@@ -353,11 +367,24 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
   "primaryContact": {
     "id": "…", "fullName": "Ветрова Ирина Павловна",
     "position": "Заместитель декана",
-    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true
+    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true,
+    "isAnonymized": false, "contactDetailsHidden": false
   },
   "contacts": [ "…" ],
   "createdAt": "2026-09-21T07:23:11.101Z"
 }
+```
+
+**Почта и телефон контактов** (решение 106) — только ADMIN и MANAGER, представителю вуза —
+своего вуза. ANALYST и VIEWER получают ФИО и должность, а `email` и `phone` — `null`
+с `contactDetailsHidden: true`: фронт пишет «скрыто — доступно менеджеру», а не «не указано».
+Значения скрываются в сервисе, в ответ не попадают. У обезличенного контакта
+`contactDetailsHidden: false` — там данных нет ни у кого.
+
+```json
+{ "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
+  "email": null, "phone": null, "isPrimary": true,
+  "isAnonymized": false, "contactDetailsHidden": true }
 ```
 
 ### POST /api/universities
@@ -876,7 +903,8 @@ curl -s -X POST http://localhost:3000/api/cooperations \
   "tasks": [
     { "id": "…", "title": "Найден ответственный сотрудник вуза", "isRequired": true,
       "isDone": true, "doneAt": "…", "doneBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
-      "sortOrder": 0 }
+      "sortOrder": 0, "isUniversityItem": false, "staffMarkRule": "ALLOWED",
+      "confirmationNote": null }
   ],
   "requiredTasksTotal": 2,
   "requiredTasksDone": 2,
@@ -888,6 +916,15 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 `OPERATION` (11–13), `CONTROL` (14).
 
 `isAutoManaged: true` только у этапа 14. Фронт должен показывать его только для чтения.
+
+Пункт чек-листа (решение 103):
+- `isUniversityItem` — пункт вуза: «Вуз подтвердил получение материалов» этапа 7;
+- `staffMarkRule` — как его может отметить сотрудник: `ALLOWED` (обычный пункт),
+  `NOTE_REQUIRED` (пункт вуза, у вуза нет действующего представителя — отметка только
+  с пометкой `confirmationNote`), `UNIVERSITY_ONLY` (у вуза есть представитель — отмечает
+  он в кабинете вуза, у сотрудника чекбокс неактивен);
+- `confirmationNote` — чем подтверждено, если пункт вуза отметил сотрудник. Представителю
+  вуза — `null`: внутренняя пометка, как комментарий к этапу.
 
 ### PATCH /api/workflow/stages/:id
 
@@ -1048,6 +1085,28 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 
 Право: `WRITE`. Тело: `{ "isDone": true }`. Ответ — **этап целиком**, чтобы фронт сразу обновил
 `requiredTasksDone` и прогресс.
+
+| Поле | Тип |
+| --- | --- |
+| `isDone` | boolean, обязательно |
+| `confirmationNote` | string 3–500 \| null — чем вуз подтвердил получение материалов, «письмо от 12.09». Нужна только для пункта вуза с `staffMarkRule: "NOTE_REQUIRED"` при отметке; у остальных пунктов и при снятии отметки игнорируется |
+
+Пункт вуза (`isUniversityItem`, решение 103):
+- у вуза есть действующий представитель (`UNIVERSITY_REP`, не заблокирован) — 403 `FORBIDDEN`
+  «Этот пункт отмечает представитель вуза в кабинете вуза» и на отметку, и на снятие;
+- представителя нет — отметка без `confirmationNote` даёт 422 `VALIDATION_ERROR`
+  с `details: [{ "field": "confirmationNote", "message": "Обязательное поле: например, «письмо от 12.09»" }]`;
+  короче 3 или длиннее 500 символов — тоже 422 по этому полю. Снять отметку можно без пометки,
+  пометка при этом стирается.
+
+В журнал отметка за вуз пишется отдельным действием `task.university-item.confirm-by-staff`
+с длиной пометки (`noteLength`), без её текста; текст хранится в пункте (`confirmationNote`).
+
+```bash
+curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
+  -H 'content-type: application/json' -b 'skilllink_user=<managerId>' \
+  -d '{"isDone":true,"confirmationNote":"письмо от 12.09"}'
+```
 
 ### GET /api/workflow/overdue
 
@@ -1784,6 +1843,8 @@ curl -s -X POST http://localhost:3000/api/ai/today
 Право: `UNIVERSITY_PORTAL_WRITE`. Тело необязательно: `{ "comment": "Материалы получены" }`.
 Текст комментария в журнал действий не пишется — только признак, что он был.
 Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+Пункт «Вуз подтвердил получение материалов» (пункт вуза, решение 103) при действующем
+представителе отмечается только здесь: сотруднику `PATCH /api/workflow/tasks/:id` отвечает 403.
 Запись идёт той же функцией, что у сотрудника ИТ-Школы (`setTaskDone`), в очереди со сменой
 статусов связки, и отказывает так же — 409:
 - связка закрыта или этап 7 завершён либо отменён — `CONFLICT`;
@@ -1841,8 +1902,9 @@ curl -s -X POST http://localhost:3000/api/ai/today
   "data": {
     "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
     "role": "MANAGER", "universityId": null, "universityName": null,
-    "permissions": { "canWrite": true, "canSeeAnalytics": true,
-                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false },
+    "permissions": { "canWrite": true, "canSeeAnalytics": true, "canWorkAnalytics": true,
+                     "canUsePortal": true, "canWritePortal": false,
+                     "canSeeContactDetails": true, "isAdmin": false },
     "passwordTemporary": false
   }
 }
@@ -1853,6 +1915,10 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 `canWritePortal` (с 25.09.2026) — может ли пользователь записывать в кабинете вуза:
 `true` только у `UNIVERSITY_REP`. У сотрудника кабинет открывается только для просмотра.
+
+`canSeeContactDetails` (с 25.09.2026, решение 106) — видит ли пользователь почту и телефон
+контактных лиц любого вуза: `true` у ADMIN и MANAGER. У представителя вуза `false`, хотя
+контакты своего вуза он видит: что именно скрыто, говорит `contactDetailsHidden` в контакте.
 
 `passwordTemporary` (с 25.09.2026, решение 99) — действующий пароль выдан администратором
 как временный: личный кабинет показывает плашку «смените временный пароль». Отдельного
@@ -1915,6 +1981,83 @@ curl -X POST http://localhost:3000/api/me/password -H 'content-type: application
 `stagesOnTimePercent: null` — **«Нет данных»**: у пользователя ещё нет завершённых
 этапов со сроком. Не ноль. У представителя вуза и наблюдателя связок нет — нули
 здесь настоящие.
+
+### GET, POST, DELETE /api/me/calendar — подписка на календарь
+
+С 25.09.2026, решение 105. Право **`CALENDAR`**: ADMIN, MANAGER, ANALYST, VIEWER.
+Представителю вуза — `FORBIDDEN` 403 (сроки этапов — внутренняя кухня ИТ-Школы, решение 9).
+Только для себя: пользователь берётся из сессии. Ответы не кэшируются (`Cache-Control: no-store`).
+
+Личная ссылка, на которую подписывается календарь (Google, Яндекс, Apple, Outlook).
+**Ссылка = доступ**: кто её знает, видит сроки и встречи владельца без входа. В базе только
+SHA-256 от токена, поэтому адрес показывается **один раз** — в ответе на выпуск; потерял —
+перевыпусти.
+
+**`GET`** — есть ли действующая ссылка (адреса в ответе нет):
+
+```json
+{ "data": { "active": true, "createdAt": "2026-09-25T12:00:00.000Z" } }
+```
+
+**`POST`** (тела нет) — выпустить или перевыпустить. Ответ `201`:
+
+```json
+{
+  "data": {
+    "url": "https://skilllink.example/api/calendar/Q2hh…43-знака….ics",
+    "webcalUrl": "webcal://skilllink.example/api/calendar/Q2hh….ics",
+    "createdAt": "2026-09-25T12:00:00.000Z",
+    "replaced": false
+  }
+}
+```
+
+`replaced: true` — прежняя ссылка перестала работать. `url` — для «Подписаться по URL»
+в Google и Яндекс Календаре, `webcalUrl` — открывает подписку в Apple Календаре и Outlook.
+Адрес строится от `AUTH_URL`, затем `APP_BASE_URL` (не из заголовков запроса).
+
+**`DELETE`** — отозвать: `{ "data": { "revoked": true } }`; ссылки не было — `revoked: false`,
+тоже `200`. Прежний адрес ленты сразу отвечает 404.
+
+Журнал: `calendar.issue` (`payload: { replaced }`) и `calendar.revoke`, объект `User` —
+без токена и хеша.
+
+```bash
+curl -X POST http://localhost:3000/api/me/calendar -H 'cookie: skilllink_user=<id>'
+```
+
+### GET /api/calendar/:feed — лента календаря (.ics)
+
+`:feed` — имя файла `<токен>.ics`, адрес целиком — из `url` ответа `POST /api/me/calendar`.
+**Без входа**: календарные приложения cookie не шлют, доступ даёт сам токен.
+
+Ответ `200`, `Content-Type: text/calendar; charset=utf-8`, `Cache-Control: no-store` —
+документ iCalendar (RFC 5545): CRLF, строки свёрнуты по 75 октетов, текст экранирован.
+
+| Событие | Когда попадает | Как выглядит |
+| --- | --- | --- |
+| Срок этапа | этап не завершён и не отменён, срок задан, связка действует (черновик, активна, на паузе), владелец ссылки — ответственный за этап **или** за связку. Контрольный этап 14 — нет | на весь день в московскую дату срока; `Срок: этап 6 «Подписание документов» — СПбГУТ, Программная инженерия`; просроченный — с `[Просрочен]` в начале, не начатый с прошедшим сроком — `[План сдвинут]` (правила `isOverdue` / `isPlanShifted`, как в карточке связки) |
+| Встреча | владелец — ответственный или участник; прошедшие — за последние 60 дней (TEMP) | время начала, длительность 60 мин (TEMP: у встречи в системе нет конца); `Встреча (онлайн): тема` |
+
+В `URL` и `DESCRIPTION` — ссылка на карточку связки (для срока — с `?stage=<id>`, как из
+уведомления), у встречи без связки — на карточку вуза или программы. В описании — статус
+этапа, дата срока, формат встречи, вуз и программа. **ФИО, почт и телефонов нет** — ни
+контактов вуза, ни сотрудников; участники встреч в ленту не выбираются. UID стабилен
+(`stage-<id>@skilllink`, `meeting-<id>@skilllink`): календарь обновляет событие, а не
+заводит второе.
+
+Не больше **500 событий** (TEMP, `CALENDAR_FEED.maxEvents`): при переполнении уходят самые
+далёкие от сегодняшнего дня. Приложению подсказано обновлять ленту раз в час
+(`REFRESH-INTERVAL`); как часто оно спрашивает на деле, решает оно само — Google раз
+в несколько часов.
+
+| Ответ | Когда |
+| --- | --- |
+| `404` `NOT_FOUND` «Календарь не найден» | имя не `<43 знака base64url>.ics`, токен неизвестен или отозван, владелец заблокирован или больше не сотрудник. Одинаково во всех случаях — по ответу не узнать, существовал ли токен |
+
+```bash
+curl -i http://localhost:3000/api/calendar/<токен>.ics
+```
 
 ### GET /api/notifications
 
@@ -2372,6 +2515,8 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 в `shared/contracts/labels.ts`. С 25.09.2026 добавлены действия `user.create`, `user.update`,
 `user.role.change`, `user.block`, `user.unblock`, `user.password.reset`, `user.password.change`
 (объект `User`, `objectId` — id пользователя). Ни пароль, ни хеш в журнал не пишутся.
+С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
+на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
 ---
 

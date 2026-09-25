@@ -108,6 +108,7 @@ export function describeCurrentUser(
       canWorkAnalytics: can(user, 'ANALYTICS_WORK'),
       canUsePortal: can(user, 'UNIVERSITY_PORTAL'),
       canWritePortal: can(user, 'UNIVERSITY_PORTAL_WRITE'),
+      canSeeContactDetails: can(user, 'CONTACT_DETAILS'),
       isAdmin: can(user, 'ADMIN'),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
