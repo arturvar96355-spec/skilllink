@@ -77,6 +77,9 @@ export {
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
+export { useReveal } from './hooks/reveal'
+export { useTheme, setTheme } from './hooks/theme'
+export { ThemeToggle } from './layout/ThemeToggle'
 export { UI_MODE_LABELS, type UiMode } from './lib/ui-mode'
 
 export { apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'

@@ -15,6 +15,7 @@ import type {
   UniversityListItemDto,
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
+import { Finale } from './Finale'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
 import {
@@ -937,6 +938,15 @@ function Dashboard() {
               </Section>
             </div>
           </div>
+
+          {/* Финал главной (решение 106): сеть SkillLink — только в презентационном режиме. */}
+          {showcase && (funnelSource.data?.length ?? 0) > 0 && (
+            <div className={styles.reveal} data-assemble="center" style={{ '--delay': '760ms' } as CSSProperties}>
+              <Section title="Сеть SkillLink" description="Вузы → программы → навыки → IT-продукты.">
+                <Finale cooperations={funnelSource.data ?? []} skills={(gaps.data ?? []).map((gap) => gap.name)} />
+              </Section>
+            </div>
+          )}
         </>
       ) : null}
     </>
