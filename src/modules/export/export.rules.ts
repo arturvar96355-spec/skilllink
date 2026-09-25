@@ -75,7 +75,7 @@ export const PROGRAM_RATING_HEADERS = ['Рейтинг', 'Основание р�
 
 /**
  * Рейтинг программы в строке выгрузки — из того же расчёта, что на экране.
- * «Нет данных» — пустой балл, а не ноль (решение 8).
+ * «Нет данных» — пустой балл, а не ноль.
  */
 export function programRatingCells(rating: ProgramRatingDto | undefined): CsvValue[] {
   if (!rating) return [null, METRIC_BASIS_LABELS.none, 0]
@@ -119,15 +119,15 @@ const FREE_TEXT_FILTERS = new Set(['q'])
 /** Служебные параметры списка — к набору выгруженных данных отношения не имеют. */
 const PAGING_FILTERS = new Set(['page', 'pageSize'])
 
+type AuditScalar = string | number | boolean | null
+export type AuditFilterValue = AuditScalar | AuditScalar[]
+
 /**
  * Фильтры выгрузки для журнала действий: что именно выгрузили, без персональных
  * данных. Значения перечислений, флагов и идентификаторов пишутся как есть —
  * по ним видно, какой срез базы ушёл в файл. Свободный текст поиска заменяется
  * признаком `true`: был отбор по строке, но какой — в журнал не попадает.
  */
-type AuditScalar = string | number | boolean | null
-export type AuditFilterValue = AuditScalar | AuditScalar[]
-
 export function auditFilters(
   filters: Readonly<Record<string, unknown>>,
 ): Record<string, AuditFilterValue> {
