@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { animate, useMotionValue, useMotionValueEvent } from 'motion/react'
 import Link from 'next/link'
 import { useCalmMotion } from '../hooks/ui-mode'
@@ -111,6 +111,37 @@ export function Bars3D({ groups, label, unit }: { groups: Bars3DGroup[]; label: 
   const gridStep = Math.max(1, Math.ceil(max / 5))
   // Узкое поле (телефон): подписи под колонками наклонены, чтобы не налезали.
   const tiltLabels = slot < 76
+  /** Где стоит каждая колонка и где её верх — для подсказки сбоку от неё. */
+  const spots = groups.map((group, index) => {
+    const x = 16 + index * slot + (slot - DX - barWidth) / 2
+    const total = group.parts.reduce((sum, part) => sum + part.value, 0)
+    return { left: x, right: x + barWidth + DX, top: FLOOR - total * unitHeight + DY }
+  })
+
+  // Подсказка — сбоку от колонки на уровне её верха, в пределах блока: над
+  // колонкой по центру длинное название вуза вылезало за край и закрывало колонки.
+  const tipRef = useRef<HTMLDivElement>(null)
+  const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
+
+  // Поле диаграммы — в пикселях блока (единица viewBox = пиксель), поэтому
+  // координаты колонки годятся для подсказки как есть.
+  const spot = active !== null ? spots[active] : undefined
+  useLayoutEffect(() => {
+    const tip = tipRef.current
+    if (!spot || !tip) {
+      setTipAt(null)
+      return
+    }
+    const gap = 12
+    const tipWidth = tip.offsetWidth
+    const tipHeight = tip.offsetHeight
+    // Справа от колонки; не помещается — слева; и в любом случае внутри блока.
+    let left = spot.right + gap
+    if (left + tipWidth > width) left = spot.left - gap - tipWidth
+    left = Math.max(0, Math.min(left, width - tipWidth))
+    const top = Math.max(0, Math.min(spot.top - 8, FLOOR - tipHeight))
+    setTipAt((current) => (current && current.left === left && current.top === top ? current : { left, top }))
+  }, [spot?.left, spot?.right, spot?.top, width, active])
 
   return (
     <div ref={ref} className={styles.root}>
@@ -220,8 +251,9 @@ export function Bars3D({ groups, label, unit }: { groups: Bars3DGroup[]; label: 
       {/* Разбор колонки под курсором — HTML над SVG, чтобы текст не масштабировался. */}
       {active !== null && groups[active] && (
         <div
+          ref={tipRef}
           className={styles.tip}
-          style={{ left: `${((16 + active * slot + slot / 2) / width) * 100}%` }}
+          style={tipAt ? { left: tipAt.left, top: tipAt.top } : { visibility: 'hidden' }}
           role="status"
         >
           <strong className={styles.tipTitle}>{groups[active].title}</strong>
