@@ -398,6 +398,7 @@ const calm = useCalmMotion()            // «уменьшить движение
 ## Проверка
 
     npm run typecheck     типы (strict, без неиспользуемых переменных)
+    npm run lint          ESLint: ошибки (порядок хуков, key в списках) валят CI, предупреждения — нет
     npm test              модульные тесты
     npm run dev           локальный запуск, демо-пользователи из `npm run db:seed`
 

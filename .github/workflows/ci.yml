@@ -55,6 +55,30 @@ jobs:
       - name: Проверка типов
         run: npm run typecheck
 
+      # Падает только на правилах уровня error — настоящих ошибках (eslint.config.mjs).
+      # Предупреждения прогон не валят, их число по правилам — в сводке следующим шагом.
+      - name: Линтер
+        id: lint
+        run: npm run lint
+
+      - name: Предупреждения линтера в сводку
+        if: ${{ !cancelled() && steps.lint.outcome != 'skipped' }}
+        run: |
+          npx eslint . --format json --output-file "$RUNNER_TEMP/eslint.json" || true
+          node -e '
+            const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"))
+            const counts = {}
+            for (const file of report) for (const m of file.messages) {
+              const key = (m.severity === 2 ? "ошибка" : "предупреждение") + " | `" + (m.ruleId ?? "разбор файла") + "`"
+              counts[key] = (counts[key] ?? 0) + 1
+            }
+            const rows = Object.entries(counts).sort((a, b) => b[1] - a[1])
+            console.log("### Линтер\n")
+            if (rows.length === 0) { console.log("Замечаний нет."); process.exit(0) }
+            console.log("| Уровень | Правило | Число |\n| --- | --- | --- |")
+            for (const [key, n] of rows) console.log("| " + key + " | " + n + " |")
+          ' "$RUNNER_TEMP/eslint.json" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Модульные тесты
         run: npm test
 
