@@ -12,7 +12,7 @@ import type { RankedProgramDto, UniversityRatingDto } from './rating'
 import type { UniversityListItemDto } from './university'
 
 /**
- * Здесь проверяется не логика, а то, что код из docs/TASK_FRONTEND.md
+ * Здесь проверяется не логика, а то, что код, которым фронт пользуется контрактами,
  * вообще компилируется.
  *
  * Поля перечислений, объявленные как `string`, выглядят безобидно — пока фронт

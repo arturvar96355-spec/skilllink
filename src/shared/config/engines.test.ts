@@ -31,7 +31,7 @@ describe('требование к версии Node', () => {
     ).toBe(true)
   })
 
-  for (const file of ['README.md', 'docs/TASK_FRONTEND.md']) {
+  for (const file of ['README.md']) {
     it(`${file} называет те же версии`, () => {
       const text = readFileSync(join(process.cwd(), file), 'utf8')
       expect(
