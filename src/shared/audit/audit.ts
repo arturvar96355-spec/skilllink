@@ -1,50 +1,14 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import { describeForLog } from '@/shared/db/log'
+import type { AuditActionCode } from '@/shared/contracts/audit'
 
-/** Действия, которые журналируются (раздел 15 ТЗ). Список расширяется по мере надобности. */
-export type AuditAction =
-  | 'auth.login.success'
-  | 'auth.login.failure'
-  | 'auth.login.blocked'
-  | 'university.create'
-  | 'university.update'
-  | 'university.archive'
-  | 'university.restore'
-  | 'contact.anonymize'
-  | 'program.create'
-  | 'program.update'
-  | 'program.skills.replace'
-  | 'program.archive'
-  | 'program.restore'
-  | 'cooperation.create'
-  | 'cooperation.update'
-  | 'stage.status.change'
-  | 'stage.fields.change'
-  | 'stage.auto.recompute'
-  | 'task.toggle'
-  | 'application.create'
-  | 'recommendation.generate'
-  | 'recommendation.status.change'
-  /** Черновик ИИ-помощника: вид, объект, провайдер, модель или шаблон. Без текста. */
-  | 'ai.draft'
-  | 'document.create'
-  | 'document.update'
-  | 'document.status.change'
-  | 'document.version.create'
-  | 'document.package.generate'
-  | 'meeting.create'
-  | 'meeting.update'
-  | 'portal.material.confirm'
-  | 'portal.metrics.update'
-  | 'datasource.sync'
-  | 'product.create'
-  | 'product.update'
-  | 'product.skills.replace'
-  | 'product.version.release'
-  | 'export.download'
-  | 'audit.retention'
-  | 'import.apply'
+/**
+ * Действия, которые журналируются (раздел 15 ТЗ). Сам список — в
+ * `shared/contracts/audit.ts` (AUDIT_ACTIONS): по нему вкладка журнала строит
+ * фильтр и подписи, и действие без подписи не соберётся.
+ */
+export type AuditAction = AuditActionCode
 
 export interface AuditEntry {
   userId: string | null

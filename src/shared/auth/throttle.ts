@@ -168,6 +168,11 @@ class ThrottleStore {
     this.states.delete(key)
   }
 
+  /** Копия списка ключей: по ней можно удалять, не ломая обход. */
+  keys(): string[] {
+    return [...this.states.keys()]
+  }
+
   clear(): void {
     this.states.clear()
   }
@@ -272,6 +277,22 @@ export async function throttledAttempt<T>(
     return { blocked: false, result, triggered: [] }
   }
   return { blocked: false, result, triggered }
+}
+
+/**
+ * Снимает блокировку входа с учётной записи — со всех адресов.
+ *
+ * Нужна, когда администратор выдал новый временный пароль: чаще всего его просят
+ * именно после пяти неудачных попыток, и без снятия человек с новым паролем
+ * ещё 15 минут получал бы «слишком много попыток». Счётчики адресов не трогаются:
+ * они про перебор многих учётных записей, а не этой.
+ */
+export function releaseAccount(account: string): void {
+  const suffix = `\n${account}`
+  for (const key of byAccountAndAddress.keys()) {
+    if (key.endsWith(suffix)) byAccountAndAddress.forget(key)
+  }
+  byAccount.forget(account)
 }
 
 /** Только для тестов: сколько записей держит каждый счётчик. */

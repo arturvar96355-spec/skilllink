@@ -1,5 +1,91 @@
 import type { UserRefDto } from './workflow'
 
+/**
+ * Действия, которые журналируются (раздел 15 ТЗ). Список расширяется по мере надобности.
+ *
+ * Список здесь, а не в `shared/audit`: вкладка «Журнал действий» строит по нему
+ * фильтр и подписи (AUDIT_ACTION_LABELS), а тип `AuditAction` журнала берётся
+ * отсюда — действие без подписи не соберётся.
+ */
+export const AUDIT_ACTIONS = [
+  'auth.login.success',
+  'auth.login.failure',
+  'auth.login.blocked',
+  'user.create',
+  /** ФИО, должность или вуз представителя. В журнале — только имена полей. */
+  'user.update',
+  'user.role.change',
+  'user.block',
+  'user.unblock',
+  /** Администратор выдал новый временный пароль. Сам пароль не пишется. */
+  'user.password.reset',
+  /** Пользователь сменил свой пароль. */
+  'user.password.change',
+  'university.create',
+  'university.update',
+  'university.archive',
+  'university.restore',
+  'contact.anonymize',
+  'program.create',
+  'program.update',
+  'program.skills.replace',
+  'program.archive',
+  'program.restore',
+  'cooperation.create',
+  'cooperation.update',
+  'stage.status.change',
+  'stage.fields.change',
+  'stage.auto.recompute',
+  'task.toggle',
+  'application.create',
+  'recommendation.generate',
+  'recommendation.status.change',
+  /** Черновик ИИ-помощника: вид, объект, провайдер, модель или шаблон. Без текста. */
+  'ai.draft',
+  'document.create',
+  'document.update',
+  'document.status.change',
+  'document.version.create',
+  'document.package.generate',
+  'meeting.create',
+  'meeting.update',
+  'portal.material.confirm',
+  'portal.metrics.update',
+  'datasource.sync',
+  'product.create',
+  'product.update',
+  'product.skills.replace',
+  'product.version.release',
+  'export.download',
+  'audit.retention',
+  'import.apply',
+] as const
+export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
+
+/**
+ * Типы объектов в журнале — значения `objectType`, которые пишут модули.
+ * Подписи — AUDIT_OBJECT_TYPE_LABELS; фильтр вкладки журнала строится по ним.
+ */
+export const AUDIT_OBJECT_TYPES = [
+  'User',
+  'University',
+  'Contact',
+  'EducationalProgram',
+  'Cooperation',
+  'WorkflowStage',
+  'Task',
+  'Document',
+  'Meeting',
+  'Recommendation',
+  'Application',
+  'ITProduct',
+  'DataSource',
+  'Export',
+  'Import',
+  'AuditLog',
+] as const
+export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
+
 /** Запись журнала критичных действий (раздел 15 ТЗ). Доступна только администратору. */
 export interface AuditLogEntryDto {
   id: string
@@ -9,6 +95,12 @@ export interface AuditLogEntryDto {
   /** Служебные поля действия. Персональных данных здесь нет. */
   payload: Record<string, unknown> | null
   user: UserRefDto | null
+  /**
+   * Связка, к которой относится объект, — для этапа и пункта чек-листа
+   * (с 25.09.2026): у них нет своей страницы, открываются они на странице связки.
+   * У остальных объектов — null.
+   */
+  cooperationId: string | null
   createdAt: string
 }
 

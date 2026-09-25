@@ -15,8 +15,6 @@ import {
   ErrorState,
   Icon,
   PageHeader,
-  Skeleton,
-  Tooltip,
   UiModeSwitch,
   apiPost,
   buildQuery,
@@ -27,6 +25,9 @@ import {
   useResource,
   useToast,
 } from '@/ui'
+import { AuditSection } from './AuditSection'
+import { Hint, Row, RowsSkeleton } from './SettingsRow'
+import { UsersSection } from './UsersSection'
 import styles from './settings.module.css'
 
 /**
@@ -43,6 +44,9 @@ import styles from './settings.module.css'
  *
  * Разделы, закрытые для роли, не рисуются вхолостую (раздел 32 шаблона страниц):
  * источники и интеграции требуют права на аналитику, без него — объяснение.
+ *
+ * «Пользователи» и «Журнал действий» (ТЗ, п. 5) — только администратору: другим
+ * ролям этих пунктов в колонке нет вовсе, а адрес `#users` открывает «Интерфейс».
  */
 
 /** Сколько источников показывать: их единицы, страницы здесь были бы лишними. */
@@ -61,21 +65,50 @@ const PROVIDER_LABELS: Record<string, string> = {
 }
 
 const SECTIONS = [
-  { key: 'interface', label: 'Интерфейс', icon: 'settings' },
-  { key: 'market', label: 'Рыночные данные', icon: 'analytics' },
-  { key: 'sources', label: 'Источники данных', icon: 'document' },
-  { key: 'integrations', label: 'Интеграции', icon: 'cooperation' },
-  { key: 'about', label: 'О системе', icon: 'info' },
+  { key: 'interface', label: 'Интерфейс', icon: 'settings', adminOnly: false },
+  { key: 'market', label: 'Рыночные данные', icon: 'analytics', adminOnly: false },
+  { key: 'sources', label: 'Источники данных', icon: 'document', adminOnly: false },
+  { key: 'integrations', label: 'Интеграции', icon: 'cooperation', adminOnly: false },
+  { key: 'users', label: 'Пользователи', icon: 'user', adminOnly: true },
+  { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
+  { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
 ] as const
 
 type SectionKey = (typeof SECTIONS)[number]['key']
+type Section = (typeof SECTIONS)[number]
 
-function sectionFromHash(): SectionKey {
+/** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'audit']
+
+function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
-  return SECTIONS.find((section) => section.key === hash)?.key ?? 'interface'
+  return available.find((section) => section.key === hash)?.key ?? 'interface'
 }
 
 type Integration = IntegrationsStatusDto['integrations'][number]
+
+/**
+ * ИИ-помощник одной строкой (решение 90): кто пишет черновики — модель или шаблон.
+ * Ключей в ответе API нет — только провайдер, модель и чего не хватает.
+ */
+function aiAssistRow(ai: IntegrationsStatusDto['aiAssist']): {
+  caption: string
+  label: string
+  tone: 'neutral' | 'warning' | 'success'
+} {
+  if (ai.provider === 'off') {
+    return { caption: 'Выключен — ответы пишет шаблон', label: 'Выключен', tone: 'neutral' }
+  }
+  const name = ai.model ? `${ai.name} (${ai.model})` : ai.name
+  if (!ai.ready) {
+    return {
+      caption: `${name} — не настроен, ответы пишет шаблон${ai.reason ? `. ${ai.reason}` : ''}`,
+      label: 'Требует настройки',
+      tone: 'warning',
+    }
+  }
+  return { caption: `${name} — подключён`, label: 'Подключён', tone: 'success' }
+}
 
 /**
  * Три признака интеграции — одним статусом (ТЗ фронту, задача 7).
@@ -87,42 +120,6 @@ function integrationStatus(item: Integration): { label: string; tone: 'neutral' 
   if (!item.enabled) return { label: 'Выключена', tone: 'neutral' }
   if (!item.configured) return { label: 'Требует настройки', tone: 'warning' }
   return { label: item.isMock ? 'Подключена (демо)' : 'Подключена', tone: 'success' }
-}
-
-function Hint({ text }: { text: string }) {
-  return (
-    <Tooltip text={text}>
-      <span className={styles.hint}>
-        <Icon name="info" size={16} />
-      </span>
-    </Tooltip>
-  )
-}
-
-/** Строка: слева название и короткая подпись, справа значение или действие. */
-function Row({
-  title,
-  caption,
-  hint,
-  children,
-}: {
-  title: ReactNode
-  caption?: ReactNode
-  hint?: string
-  children?: ReactNode
-}) {
-  return (
-    <div className={styles.row}>
-      <div className={styles.rowText}>
-        <span className={styles.rowTitle}>
-          {title}
-          {hint && <Hint text={hint} />}
-        </span>
-        {caption && <span className={styles.rowCaption}>{caption}</span>}
-      </div>
-      {children !== undefined && <div className={styles.rowSide}>{children}</div>}
-    </div>
-  )
 }
 
 /**
@@ -188,22 +185,6 @@ function SourceRow({ source }: { source: DataSourceDto }) {
   )
 }
 
-/** Строки-заглушки на время загрузки: высота раздела не прыгает. */
-function RowsSkeleton({ count }: { count: number }) {
-  return (
-    <>
-      {Array.from({ length: count }, (_, index) => (
-        <div key={index} className={styles.row}>
-          <div className={styles.rowText}>
-            <Skeleton width="180px" />
-            <Skeleton width="260px" height="12px" />
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
 function Locked({ what }: { what: string }) {
   return (
     <EmptyState
@@ -218,14 +199,17 @@ export default function SettingsPage() {
   const user = useCurrentUser()
   const toast = useToast()
   const [active, setActive] = useState<SectionKey>('interface')
+  const isAdmin = user.permissions.isAdmin
+  const sections = SECTIONS.filter((section) => !section.adminOnly || isAdmin)
 
   // Раздел из адреса — после монтирования: на сервере адреса с # нет.
   useEffect(() => {
-    const sync = () => setActive(sectionFromHash())
+    const available = SECTIONS.filter((section) => !section.adminOnly || isAdmin)
+    const sync = () => setActive(sectionFromHash(available))
     sync()
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
-  }, [])
+  }, [isAdmin])
 
   // На телефоне разделы — полосой с прокруткой: выбранный должен быть виден.
   useEffect(() => {
@@ -270,17 +254,21 @@ export default function SettingsPage() {
     sources.reload()
   }
 
-  const current = SECTIONS.find((section) => section.key === active)!
+  const current = sections.find((section) => section.key === active) ?? sections[0]!
 
   const hints: Partial<Record<SectionKey, string>> = {
     market:
       'Записи об источниках создаются при загрузке рыночных данных. Какие источники включены, задаётся переменными окружения на сервере.',
     integrations:
       'Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения.',
+    users:
+      'Сотрудники ИТ-Школы и представители вузов. Пароль нового пользователя система придумывает сама и показывает один раз; блокировка действует сразу, в том числе на открытые сессии.',
+    audit:
+      'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
   }
 
   function body(): ReactNode {
-    switch (active) {
+    switch (current.key) {
       case 'interface':
         // Режим интерфейса (решение 80): выбор каждого человека, хранится в его браузере.
         return (
@@ -349,16 +337,40 @@ export default function SettingsPage() {
         if (integrations.isLoading) return <RowsSkeleton count={3} />
         if (integrations.error) return <ErrorState error={integrations.error} onRetry={integrations.reload} />
         if (!integrations.data) return null
-        return integrations.data.integrations.map((item) => {
-          const status = integrationStatus(item)
-          return (
-            <Row key={item.key} title={item.name} caption={item.reason ?? undefined}>
-              <Badge tone={status.tone} withDot>
-                {status.label}
-              </Badge>
-            </Row>
-          )
-        })
+        return (
+          <>
+            {integrations.data.integrations.map((item) => {
+              const status = integrationStatus(item)
+              return (
+                <Row key={item.key} title={item.name} caption={item.reason ?? undefined}>
+                  <Badge tone={status.tone} withDot>
+                    {status.label}
+                  </Badge>
+                </Row>
+              )
+            })}
+            {(() => {
+              const ai = aiAssistRow(integrations.data.aiAssist)
+              return (
+                <Row
+                  title="ИИ-помощник"
+                  caption={ai.caption}
+                  hint="Пишет черновики сводки по связке, письма вузу и дел на сегодня по фактам, которые посчитали правила. Провайдер задаётся переменной AI_ASSIST_PROVIDER; без модели тот же текст собирает шаблон."
+                >
+                  <Badge tone={ai.tone} withDot>
+                    {ai.label}
+                  </Badge>
+                </Row>
+              )
+            })()}
+          </>
+        )
+
+      case 'users':
+        return isAdmin ? <UsersSection /> : null
+
+      case 'audit':
+        return isAdmin ? <AuditSection /> : null
 
       case 'about':
         return (
@@ -395,14 +407,14 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Настройки" />
 
-      <div className={styles.layout}>
+      <div className={[styles.layout, WIDE_SECTIONS.includes(current.key) ? styles.layoutWide : ''].filter(Boolean).join(' ')}>
         <nav className={styles.nav} aria-label="Разделы настроек">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <a
               key={section.key}
               href={`#${section.key}`}
               className={styles.navItem}
-              aria-current={section.key === active ? 'page' : undefined}
+              aria-current={section.key === current.key ? 'page' : undefined}
               onClick={(event) => {
                 event.preventDefault()
                 choose(section.key)
@@ -414,10 +426,14 @@ export default function SettingsPage() {
           ))}
         </nav>
 
-        <section className={styles.panel} id={active} aria-labelledby="settings-section-title">
+        <section
+          className={[styles.panel, WIDE_SECTIONS.includes(current.key) ? styles.panelWide : ''].filter(Boolean).join(' ')}
+          id={current.key}
+          aria-labelledby="settings-section-title"
+        >
           <h2 className={styles.panelTitle} id="settings-section-title">
             {current.label}
-            {hints[active] && <Hint text={hints[active]!} />}
+            {hints[current.key] && <Hint text={hints[current.key]!} />}
           </h2>
           <div className={styles.rows}>{body()}</div>
         </section>

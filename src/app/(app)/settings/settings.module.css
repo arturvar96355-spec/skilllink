@@ -52,6 +52,18 @@
   max-width: 720px;
 }
 
+/*
+ * «Пользователи» и «Журнал действий» — строки с фильтрами над ними: в 720 px
+ * фильтры журнала вставали в три ряда. Разделу отдаётся вся ширина колонки.
+ */
+.layoutWide {
+  max-width: 1280px;
+}
+
+.panelWide {
+  max-width: none;
+}
+
 .panelTitle {
   display: flex;
   align-items: center;

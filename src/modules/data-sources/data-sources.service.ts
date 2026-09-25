@@ -13,6 +13,7 @@ import { getIntegrationsConfig } from '@/integrations/config'
 import { getMarketDataProvider } from '@/integrations/market-data'
 import { getLmsClient } from '@/integrations/lms/lms.client'
 import { getSiteClient } from '@/integrations/site/site.client'
+import { getLlmProvider } from '@/integrations/llm'
 import * as repo from './data-sources.repo'
 import type { DataSourceListQuery, SyncMarketDataInput } from './data-sources.schema'
 
@@ -54,6 +55,9 @@ export function status(user: CurrentUser): IntegrationsStatusDto {
   const marketData = getMarketDataProvider().info()
   const lms = getLmsClient().status()
   const site = getSiteClient().status()
+  // Сведения провайдера, а не его настройки: ключ и каталог в ответ не попадают,
+  // в `reason` — только имена недостающих переменных.
+  const ai = getLlmProvider().info()
 
   return {
     marketDataProvider: config.marketData.kind,
@@ -83,6 +87,13 @@ export function status(user: CurrentUser): IntegrationsStatusDto {
         isMock: !site.enabled,
       },
     ],
+    aiAssist: {
+      provider: ai.kind,
+      name: ai.name,
+      ready: ai.ready,
+      model: ai.model,
+      reason: ai.reason,
+    },
     checkedAt: new Date().toISOString(),
   }
 }

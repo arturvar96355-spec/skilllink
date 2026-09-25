@@ -39,6 +39,32 @@ export async function findAuditEntries(query: AuditListQuery) {
 }
 
 /**
+ * Связка этапов и пунктов чек-листа — для ссылки из журнала. Удалённый объект
+ * (этапы не удаляются, но журнал живёт дольше данных) просто без ссылки.
+ */
+export async function findCooperationsOfObjects(
+  stageIds: string[],
+  taskIds: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (stageIds.length > 0) {
+    const stages = await prisma.workflowStage.findMany({
+      where: { id: { in: [...new Set(stageIds)] } },
+      select: { id: true, cooperationId: true },
+    })
+    for (const stage of stages) result.set(stage.id, stage.cooperationId)
+  }
+  if (taskIds.length > 0) {
+    const tasks = await prisma.task.findMany({
+      where: { id: { in: [...new Set(taskIds)] } },
+      select: { id: true, stage: { select: { cooperationId: true } } },
+    })
+    for (const task of tasks) result.set(task.id, task.stage.cooperationId)
+  }
+  return result
+}
+
+/**
  * Источники ленты событий вуза. Берётся с запасом по каждому виду,
  * потом всё сливается и обрезается до нужного количества.
  */

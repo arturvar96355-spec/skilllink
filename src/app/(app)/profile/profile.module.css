@@ -546,6 +546,65 @@ a.chip:hover {
   flex: none;
 }
 
+/* Плашка «смените временный пароль» над кабинетом. */
+.tempPassword {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 32%, transparent);
+  color: var(--text-primary);
+}
+
+.tempPasswordText {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.tempPasswordText > svg {
+  flex: none;
+  color: var(--status-warning);
+}
+
+.tempPasswordText p {
+  margin: 0;
+}
+
+/* Окно смены пароля. */
+.passwordForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.passwordProblem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+}
+
+.passwordProblem > svg {
+  flex: none;
+  color: var(--status-danger);
+}
+
+.passwordProblem p {
+  margin: 0;
+}
+
 .generated {
   margin-top: var(--space-6);
   font-size: var(--text-caption-size);
@@ -599,5 +658,10 @@ a.chip:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-3);
+  }
+
+  .tempPassword {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
