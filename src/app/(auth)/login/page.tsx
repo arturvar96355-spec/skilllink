@@ -6,6 +6,7 @@ import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import { ARRIVAL_KEY } from '@/ui/layout/arrival'
 import { Constellation, WARP_NAVIGATE_MS } from './Constellation'
+import { DepthLayer, DepthScene, TiltCard } from './Depth'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
 import { Button, Icon, Input, Logo } from '@/ui'
@@ -103,130 +104,143 @@ function LoginForm() {
   }
 
   return (
-    <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
-      {/* Светящаяся линия, бегущая по кромке панели (решение 85). */}
-      <span className={styles.edge} aria-hidden="true" />
-      <div className={styles.panelHead}>
-        <h1 className={styles.title}>Вход</h1>
-        <p className={styles.subtitle}>
-          Рабочая почта и пароль. Учётные записи заводит администратор системы.
+    <TiltCard resting={isLeaving}>
+      <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
+        {/* Светящаяся линия, бегущая по кромке панели (решение 85). */}
+        <span className={styles.edge} aria-hidden="true" />
+        <div className={styles.panelHead}>
+          <h1 className={styles.title}>Вход</h1>
+          <p className={styles.subtitle}>
+            Рабочая почта и пароль. Учётные записи заводит администратор системы.
+          </p>
+        </div>
+
+        <form className={styles.form} onSubmit={onSubmit}>
+          <Input
+            label="Электронная почта"
+            type="email"
+            name="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@example.ru"
+            icon="mail"
+            autoComplete="username"
+            required
+            autoFocus
+          />
+          <Input
+            label="Пароль"
+            type="password"
+            name="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="••••••••"
+            icon="lock"
+            autoComplete="current-password"
+            required
+          />
+
+          {isReauth && !message && (
+            <p className={styles.notice} role="status">
+              <Icon name="info" size={18} />
+              Сессия устарела — войдите снова.
+            </p>
+          )}
+          {message && (
+            <p className={styles.error} role="alert">
+              <Icon name="alert" size={18} />
+              {message}
+            </p>
+          )}
+
+          <Button
+            type="submit"
+            variant="accent"
+            size="lg"
+            fullWidth
+            isLoading={isPending || isLeaving}
+          >
+            Войти
+          </Button>
+        </form>
+
+        <p className={styles.note}>
+          После {LOGIN_THROTTLE.maxFailures} неудачных попыток подряд вход в учётную запись
+          закрывается на {BLOCK_MINUTES} минут — это защита от подбора пароля.
         </p>
       </div>
-
-      <form className={styles.form} onSubmit={onSubmit}>
-        <Input
-          label="Электронная почта"
-          type="email"
-          name="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="name@example.ru"
-          icon="mail"
-          autoComplete="username"
-          required
-          autoFocus
-        />
-        <Input
-          label="Пароль"
-          type="password"
-          name="password"
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="••••••••"
-          icon="lock"
-          autoComplete="current-password"
-          required
-        />
-
-        {isReauth && !message && (
-          <p className={styles.notice} role="status">
-            <Icon name="info" size={18} />
-            Сессия устарела — войдите снова.
-          </p>
-        )}
-        {message && (
-          <p className={styles.error} role="alert">
-            <Icon name="alert" size={18} />
-            {message}
-          </p>
-        )}
-
-        <Button
-          type="submit"
-          variant="accent"
-          size="lg"
-          fullWidth
-          isLoading={isPending || isLeaving}
-        >
-          Войти
-        </Button>
-      </form>
-
-      <p className={styles.note}>
-        После {LOGIN_THROTTLE.maxFailures} неудачных попыток подряд вход в учётную запись
-        закрывается на {BLOCK_MINUTES} минут — это защита от подбора пароля.
-      </p>
-    </div>
+    </TiltCard>
   )
 }
 
 export default function LoginPage() {
   return (
-    <div className={styles.screen}>
-      {/* 3D-созвездие за экраном; без WebGL или при «уменьшить движение» — фон как был. */}
-      <Constellation />
-      <section className={styles.brandSide}>
-        <div className={styles.brandRow}>
-          <Logo size={34} />
-          <span>
-            <span className={styles.brandName}>SkillLink</span>
-            <span className={styles.brandSub} style={{ display: 'block' }}>
-              Вузы × IT-компании
-            </span>
-          </span>
-        </div>
+    <DepthScene>
+      <div className={styles.screen}>
+        {/* 3D-созвездие за экраном; без WebGL или при «уменьшить движение» — фон как был. */}
+        <Constellation />
+        <section className={styles.brandSide}>
+          {/* Слои левой колонки сдвигаются за курсором на разную глубину (решение 86). */}
+          <DepthLayer depth={6}>
+            <div className={styles.brandRow}>
+              <Logo size={34} />
+              <span>
+                <span className={styles.brandName}>SkillLink</span>
+                <span className={styles.brandSub} style={{ display: 'block' }}>
+                  Вузы × IT-компании
+                </span>
+              </span>
+            </div>
+          </DepthLayer>
 
-        <h2 className={styles.headline}>Партнёрство с вузами под контролем</h2>
-        <p className={styles.lead}>
-          Вузы, образовательные программы и IT-продукты в одной связке: четырнадцать этапов
-          работы, честная аналитика и рекомендации с обоснованием.
-        </p>
+          <DepthLayer depth={14}>
+            <h2 className={styles.headline}>Партнёрство с вузами под контролем</h2>
+          </DepthLayer>
+          <DepthLayer depth={10}>
+            <p className={styles.lead}>
+              Вузы, образовательные программы и IT-продукты в одной связке: четырнадцать этапов
+              работы, честная аналитика и рекомендации с обоснованием.
+            </p>
+          </DepthLayer>
 
-        {/*
-          Слева — не абстрактный фон, а сама система связей (07, раздел 17):
-          вуз, программа и продукт в одной связке и маршрут из четырнадцати
-          этапов под ней. Линии дорисовываются при появлении, а после входа
-          маршрут продолжается вправо — в рабочее пространство.
-        */}
-        <div className={styles.map} aria-hidden="true">
-          <div className={styles.mapChain}>
-            <span className={styles.mapNode} style={{ '--n': 0 } as CSSProperties}>Вуз</span>
-            <span className={styles.mapLink} style={{ '--n': 0 } as CSSProperties} />
-            <span className={styles.mapNode} style={{ '--n': 1 } as CSSProperties}>Программа</span>
-            <span className={styles.mapLink} style={{ '--n': 1 } as CSSProperties} />
-            <span className={styles.mapNode} style={{ '--n': 2 } as CSSProperties}>IT-продукт</span>
-          </div>
-          <div className={styles.mapRail}>
-            {Array.from({ length: 14 }, (_, index) => (
-              <span
-                key={index}
-                className={[styles.mapTick, index < 5 ? styles.mapTickDone : '', index === 5 ? styles.mapTickNow : '']
-                  .filter(Boolean)
-                  .join(' ')}
-                style={{ '--t': index } as CSSProperties}
-              />
-            ))}
-          </div>
-          <span className={styles.mapCaption}>маршрут связки — четырнадцать этапов с контрольными точками</span>
-        </div>
-      </section>
+          {/*
+            Слева — не абстрактный фон, а сама система связей (07, раздел 17):
+            вуз, программа и продукт в одной связке и маршрут из четырнадцати
+            этапов под ней. Линии дорисовываются при появлении, а после входа
+            маршрут продолжается вправо — в рабочее пространство.
+          */}
+          <DepthLayer depth={22}>
+            <div className={styles.map} aria-hidden="true">
+              <div className={styles.mapChain}>
+                <span className={styles.mapNode} style={{ '--n': 0 } as CSSProperties}>Вуз</span>
+                <span className={styles.mapLink} style={{ '--n': 0 } as CSSProperties} />
+                <span className={styles.mapNode} style={{ '--n': 1 } as CSSProperties}>Программа</span>
+                <span className={styles.mapLink} style={{ '--n': 1 } as CSSProperties} />
+                <span className={styles.mapNode} style={{ '--n': 2 } as CSSProperties}>IT-продукт</span>
+              </div>
+              <div className={styles.mapRail}>
+                {Array.from({ length: 14 }, (_, index) => (
+                  <span
+                    key={index}
+                    className={[styles.mapTick, index < 5 ? styles.mapTickDone : '', index === 5 ? styles.mapTickNow : '']
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={{ '--t': index } as CSSProperties}
+                  />
+                ))}
+              </div>
+              <span className={styles.mapCaption}>маршрут связки — четырнадцать этапов с контрольными точками</span>
+            </div>
+          </DepthLayer>
+        </section>
 
-      <section className={styles.formSide}>
-        {/* useSearchParams требует границы Suspense: без неё страница не пройдёт сборку. */}
-        <Suspense fallback={null}>
-          <LoginForm />
-        </Suspense>
-      </section>
-    </div>
+        <section className={styles.formSide}>
+          {/* useSearchParams требует границы Suspense: без неё страница не пройдёт сборку. */}
+          <Suspense fallback={null}>
+            <LoginForm />
+          </Suspense>
+        </section>
+      </div>
+    </DepthScene>
   )
 }

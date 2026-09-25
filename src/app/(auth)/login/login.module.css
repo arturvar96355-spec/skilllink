@@ -165,6 +165,36 @@
   animation: panelIn 760ms var(--ease-out) 180ms both;
 }
 
+/*
+ * Объём (решение 86): карточку наклоняет обёртка `.tilt` (Depth.tsx), а не сама
+ * панель — у панели свои анимации появления и ухода по transform. Блик лежит
+ * поверх стекла и не ловит щелчки.
+ */
+.tilt {
+  position: relative;
+  width: min(420px, 100%);
+  border-radius: var(--radius-panel);
+  will-change: transform;
+}
+
+.tilt > .panel {
+  width: 100%;
+}
+
+.glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* Слой левой колонки: сдвиг за курсором; сама колонка раскладывается как раньше. */
+.layer {
+  position: relative;
+  min-width: 0;
+}
+
 /* Морозная кромка — отдельным слоем, как у AuthKit: не сдвигает содержимое. */
 .panel::after {
   content: '';
