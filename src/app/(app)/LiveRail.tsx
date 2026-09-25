@@ -75,14 +75,11 @@ export function LiveRail({
   cooperations,
   problemTotal,
   generatedAt,
-  showcase = false,
 }: {
   numbers: RailNumber[]
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
-  /** Презентационный режим (решение 94): под числами — сравнение за 30 дней. */
-  showcase?: boolean
 }) {
   const onRail = cooperations.filter((item) => item.currentStage !== null)
   const shown = onRail.slice(0, MAX_DOTS)
@@ -105,9 +102,10 @@ export function LiveRail({
     <section className={styles.rail} aria-label="Активно сейчас">
       <span className={styles.kicker}>Активно сейчас</span>
 
+      {/* Сравнение за 30 дней — в обоих режимах: это данные, а не украшение (ТЗ фронту, задача 1). */}
       <div className={styles.numbers}>
         {numbers.map((number, index) => (
-          <RailValue key={number.key} number={number} order={index} showTrend={showcase} />
+          <RailValue key={number.key} number={number} order={index} showTrend />
         ))}
       </div>
 

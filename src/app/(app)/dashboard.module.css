@@ -518,8 +518,9 @@
   padding: var(--space-4);
   border: 1px solid var(--line-subtle);
   border-radius: var(--radius-panel);
+  /* «Космос» под неоновой картой: мягкое сияние, сетка — у самой карты. */
   background:
-    radial-gradient(circle, var(--line-subtle) 1px, transparent 1.2px) 0 0 / 16px 16px,
+    radial-gradient(ellipse at 50% 40%, var(--bg-haze-violet), transparent 70%),
     var(--surface-sunken);
 }
 
@@ -601,4 +602,26 @@
   font-size: var(--text-body-sm-size);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/*
+ * Бенто «Где сейчас связки» и «Вузы на карте» (бриф v2, 1.6): одинаковой высоты,
+ * одинаковые отступы; карта крупнее и по центру своего блока.
+ */
+.bentoCell {
+  display: flex;
+  flex-direction: column;
+}
+
+.bentoCell > section {
+  flex: 1;
+}
+
+.bentoCell .panel3d,
+.bentoCell .mapPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--space-5);
 }

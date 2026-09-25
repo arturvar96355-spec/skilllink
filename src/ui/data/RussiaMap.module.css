@@ -1,4 +1,4 @@
-/* Карта России с точками (решение 79). */
+/* Карта России (решения 79, 104): неоновый контур, сетка, светящиеся точки, дуги-связи. */
 
 .root {
   margin: 0;
@@ -16,11 +16,91 @@
   overflow: visible;
 }
 
-.land {
-  fill: color-mix(in srgb, var(--accent-violet) 9%, var(--surface-3));
-  stroke: color-mix(in srgb, var(--accent-violet) 30%, transparent);
-  stroke-width: 1;
+/* Материк — глубина градиентом: светлее сверху, темнее к югу. */
+.landTop {
+  stop-color: var(--surface-3);
+}
+
+.landBottom {
+  stop-color: var(--surface-1);
+}
+
+/* Сетка параллелей и меридианов — едва заметная, только внутри материка. */
+.grid {
+  fill: none;
+  stroke: var(--accent-violet);
+  stroke-width: 0.8;
+  opacity: 0.16;
+}
+
+/* Неоновый контур: тонкая линия со свечением (фильтр в разметке). */
+.coast {
+  fill: none;
+  stroke: var(--accent-violet);
+  stroke-width: 1.4;
   stroke-linejoin: round;
+  opacity: 0.85;
+}
+
+/* Дуги-связи: тонкие и тихие; наведённая — ярче. */
+.linkLine {
+  fill: none;
+  stroke: var(--accent-cyan);
+  stroke-width: 1.6;
+  stroke-dasharray: 4 5;
+  opacity: 0.6;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.linkLit .linkLine {
+  stroke-dasharray: none;
+  stroke-width: 2;
+  opacity: 0.95;
+}
+
+/* Импульс бежит по дуге; у каждой дуги — своя очередь, одновременно горит одна. */
+.linkPulse {
+  fill: none;
+  stroke: var(--accent-cyan);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 0.08 1;
+  stroke-dashoffset: 1.08;
+  opacity: 0;
+  animation-name: travel;
+  animation-timing-function: var(--ease-in-out);
+  animation-iteration-count: infinite;
+}
+
+@keyframes travel {
+  0% {
+    stroke-dashoffset: 1.08;
+    opacity: 0;
+  }
+  4% {
+    opacity: 0.9;
+  }
+  18% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+  22%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+/* Центр — ИТ-Школа РТК: ядро и мягкий ореол. */
+.hubHalo {
+  fill: var(--accent-cyan);
+  opacity: 0.22;
+}
+
+.hubCore {
+  fill: var(--accent-cyan);
+  stroke: var(--surface-1);
+  stroke-width: 2;
 }
 
 .point {
@@ -28,34 +108,71 @@
   outline: none;
 }
 
+/* Точка вуза: ореол градиентом и яркое ядро. */
+.dotCore {
+  stop-color: var(--accent-violet);
+  stop-opacity: 0.55;
+}
+
+.dotMid {
+  stop-color: var(--accent-violet);
+  stop-opacity: 0.18;
+}
+
+.dotEdge {
+  stop-color: var(--accent-violet);
+  stop-opacity: 0;
+}
+
+.halo {
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
 .dot {
   fill: var(--accent-violet);
-  stroke: var(--surface-sunken);
-  stroke-width: 2;
+  stroke: var(--text-accent-pale);
+  stroke-width: 1.5;
+  transition: fill var(--motion-fast) var(--ease-out);
+}
+
+/* Вуз без связок в работе — тише. */
+.pointDim .dot {
+  fill: var(--text-tertiary);
+  stroke: none;
+}
+
+.pointDim .halo {
+  opacity: 0.3;
 }
 
 .point:hover .dot,
-.point:focus-visible .dot {
+.point:focus-visible .dot,
+.pointLit .dot {
   fill: var(--accent-pink);
+}
+
+.point:focus-visible .halo,
+.pointLit .halo {
+  opacity: 1;
 }
 
 .pulse {
   fill: none;
   stroke: var(--accent-violet);
-  stroke-width: 2;
+  stroke-width: 1.5;
   transform-box: fill-box;
   transform-origin: center;
-  animation: pulse 2.8s var(--ease-out) infinite;
+  animation: pulse 3.6s var(--ease-out) infinite;
 }
 
 @keyframes pulse {
   from {
-    opacity: 0.7;
-    transform: scale(1);
+    opacity: 0.6;
+    transform: scale(0.6);
   }
   to {
     opacity: 0;
-    transform: scale(2.6);
+    transform: scale(2.2);
   }
 }
 
@@ -64,9 +181,14 @@
   font-size: 22px;
   font-weight: 600;
   paint-order: stroke;
-  stroke: var(--surface-sunken);
+  stroke: var(--surface-1);
   stroke-width: 4px;
   pointer-events: none;
+}
+
+.pointLit .label,
+.point:hover .label {
+  fill: var(--text-primary);
 }
 
 .tooltip {
@@ -78,12 +200,22 @@
   width: max-content;
   max-width: 240px;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--glass-edge);
   border-radius: var(--radius-card-sm);
-  background: var(--surface-overlay);
+  background: var(--glass-search);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow: var(--shadow-floating);
   transform: translate(-50%, calc(-100% - 18px));
   pointer-events: none;
+  animation: tipIn var(--motion-fast) var(--ease-out) both;
+}
+
+@keyframes tipIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% - 12px));
+  }
 }
 
 .tooltipTitle {
@@ -95,4 +227,12 @@
 .tooltipText {
   font-size: var(--text-label-size);
   color: var(--text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse,
+  .linkPulse {
+    animation: none;
+    opacity: 0;
+  }
 }

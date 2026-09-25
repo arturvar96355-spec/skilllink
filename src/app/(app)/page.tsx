@@ -250,6 +250,7 @@ function Dashboard() {
             value: row.cooperationCount,
             detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
             href: universityHref(row.id),
+            active: row.activeCooperationCount > 0,
           },
         ]
       }),
@@ -444,7 +445,6 @@ function Dashboard() {
             cooperations={cooperations}
             problemTotal={data.problemStageTotal}
             generatedAt={data.generatedAt}
-            showcase={showcase}
           />
 
           {/*
@@ -518,7 +518,12 @@ function Dashboard() {
                     }
                   >
                     <div className={styles.mapPanel}>
-                      <RussiaMap points={mapPoints} label="Вузы на карте России" />
+                      {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
+                      <RussiaMap
+                        points={mapPoints}
+                        label="Вузы на карте России"
+                        hub={{ label: 'ИТ-Школа РТК', lat: 55.756, lon: 37.617 }}
+                      />
                     </div>
                     {offMap > 0 && (
                       <p className={styles.funnelNote}>
