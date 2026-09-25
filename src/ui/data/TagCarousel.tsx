@@ -235,13 +235,65 @@ export function TagCarousel<T>({
     setDrag(0)
   }
 
-  function onCardClick(position: number, event: MouseEvent<HTMLButtonElement>) {
+  /**
+   * Какая бирка видна в этой точке экрана (решение 108). Бирки лежат веером:
+   * у боковой видна только полоска края, а браузер отдаёт щелчок той, что лежит
+   * сверху по глубине, — «соседняя перехватывает щелчок». Поэтому решаем сами,
+   * по прямоугольникам на экране: в пределах передней — передняя; правее или
+   * левее — та боковая, чья видимая полоска накрывает точку.
+   */
+  function positionAt(x: number): number | null {
+    const stage = stageRef.current
+    if (!stage) return null
+    const slots = Array.from(stage.querySelectorAll<HTMLElement>('[data-position]')).map((element) => ({
+      position: Number(element.dataset.position),
+      rect: element.getBoundingClientRect(),
+    }))
+    const front = slots.find((slot) => slot.position === current)
+    if (!front) return null
+    if (x >= front.rect.left && x <= front.rect.right) return current
+    if (x > front.rect.right) {
+      const right = slots.filter((slot) => slot.position > current).sort((a, b) => a.position - b.position)
+      for (const slot of right) if (x <= slot.rect.right) return slot.position
+      return right.at(-1)?.position ?? null
+    }
+    const left = slots.filter((slot) => slot.position < current).sort((a, b) => b.position - a.position)
+    for (const slot of left) if (x >= slot.rect.left) return slot.position
+    return left.at(-1)?.position ?? null
+  }
+
+  function onCardClick(_position: number, event: MouseEvent<HTMLElement>) {
     if (justDragged.current) return
+    // Клавиатура (Enter/пробел) даёт щелчок без координат — тогда бирка та, на которой фокус.
+    const position = event.detail === 0 ? _position : (positionAt(event.clientX) ?? _position)
     const row = rows[position]
     if (!row) return
-    if (position === current) open(row, event.currentTarget)
-    else go(position)
+    if (position === current) {
+      const card = stageRef.current?.querySelector<HTMLElement>(`[data-position="${position}"]`) ?? (event.currentTarget as HTMLElement)
+      open(row, card)
+    } else go(position)
   }
+
+  // Стрелки ← → листают на всей странице, а не только с фокусом на карусели —
+  // если фокус не в поле ввода, не открыто окно и карусель на экране.
+  useEffect(() => {
+    function onKey(event: globalThis.KeyboardEvent) {
+      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return
+      if (stageRef.current?.contains(target)) return // свой обработчик у сцены
+      const rect = stageRef.current?.getBoundingClientRect()
+      if (!rect || rect.bottom < 0 || rect.top > window.innerHeight) return
+      if (event.key === 'ArrowRight') go(current + 1)
+      else if (event.key === 'ArrowLeft') go(current - 1)
+      else if (event.key === 'Home') go(0)
+      else go(last)
+      event.preventDefault()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  })
 
   function open(row: T, card: HTMLElement) {
     if (leaving) return
@@ -300,6 +352,11 @@ export function TagCarousel<T>({
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onPointerLeave={() => setCursor(null)}
+          // Щелчок мимо бирок — у края дальней бирки: тоже по координате.
+          onClick={(event) => {
+            if ((event.target as HTMLElement).closest('[data-position]')) return
+            onCardClick(current, event)
+          }}
         >
           {cursor && (
             <span
@@ -334,6 +391,7 @@ export function TagCarousel<T>({
                         ? { duration: 0 }
                         : { type: 'spring', stiffness: 170, damping: 24, mass: 0.9 }
                 }
+                data-position={position}
                 tabIndex={isCurrent ? 0 : -1}
                 aria-label={isCurrent ? `${getLabel(row)} — открыть` : `${getLabel(row)} — показать`}
                 aria-current={isCurrent || undefined}
