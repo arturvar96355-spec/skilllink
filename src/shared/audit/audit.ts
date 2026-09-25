@@ -25,6 +25,8 @@ export type AuditAction =
   | 'application.create'
   | 'recommendation.generate'
   | 'recommendation.status.change'
+  /** Черновик ИИ-помощника: вид, объект, провайдер, модель или шаблон. Без текста. */
+  | 'ai.draft'
   | 'document.create'
   | 'document.update'
   | 'document.status.change'

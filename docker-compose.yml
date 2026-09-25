@@ -67,6 +67,18 @@ services:
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
       LMS_ENABLED: ${LMS_ENABLED:-false}
       SITE_ENABLED: ${SITE_ENABLED:-false}
+      # ИИ-помощник (решение 84). По умолчанию выключен — черновики пишутся шаблоном.
+      # Ключи задаются только в .env.cloud на сервере: docs/DEPLOY.md,
+      # раздел «Как подключить YandexGPT». В git их нет.
+      AI_ASSIST_PROVIDER: ${AI_ASSIST_PROVIDER:-off}
+      AI_ASSIST_TIMEOUT_MS: ${AI_ASSIST_TIMEOUT_MS:-15000}
+      YANDEX_GPT_API_KEY: ${YANDEX_GPT_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      YANDEX_GPT_MODEL: ${YANDEX_GPT_MODEL:-yandexgpt-lite}
+      GIGACHAT_AUTH_KEY: ${GIGACHAT_AUTH_KEY:-}
+      GIGACHAT_SCOPE: ${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}
+      GIGACHAT_MODEL: ${GIGACHAT_MODEL:-GigaChat}
+      GIGACHAT_CA_CERT_PATH: ${GIGACHAT_CA_CERT_PATH:-}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.

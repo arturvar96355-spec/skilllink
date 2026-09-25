@@ -277,3 +277,97 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 на сервере помечен `github-actions-frontend-deploy`), `DEPLOY_KNOWN_HOSTS`,
 `SEED_DEMO_PASSWORD`. Отозвать доступ — удалить строку ключа из
 `~/.ssh/authorized_keys` на сервере.
+
+## 8. Как подключить YandexGPT (ИИ-помощник)
+
+ИИ-помощник пишет черновики: сводку по связке, письмо вузу, дела на сегодня
+(TECHNICAL_DECISIONS.md, решение 84). По умолчанию он выключен — черновики собирает
+шаблон, и стенд работает как раньше. Модель ничего не решает, только формулирует
+факты правил; персональные данные в неё не уходят. Включать ли помощник на показе —
+решение Артура (`TODO: PM DECISION`).
+
+### 1. В консоли Yandex Cloud
+
+В том же облаке и каталоге, где стоит машина стенда (console.yandex.cloud):
+
+1. **Сервисный аккаунт.** «Сервисные аккаунты» → «Создать»: имя `skilllink-ai`,
+   роль **`ai.languageModels.user`** на каталог. Других ролей не нужно.
+2. **API-ключ.** Открыть аккаунт → «Создать новый ключ» → «API-ключ». Если консоль
+   спрашивает область действия — `yc.ai.languageModels.execute`. Секрет показывается
+   **один раз** — сразу скопируйте его, в чат и в git не вставляйте.
+3. **ID каталога.** На странице каталога, строка вида `b1g…`.
+
+Модель по умолчанию — `yandexgpt-lite`: дешевле и быстрее, для пересказа фактов её хватает.
+Тарификация — по токенам, по договору того же облака.
+
+### 2. На сервере
+
+Дописать в `~/skilllink/.env.cloud` (файл уже с правами 600, развёртывание эти строки
+не трогает):
+
+```bash
+ssh skilllink@<адрес>
+cat >> ~/skilllink/.env.cloud <<'LINES'
+AI_ASSIST_PROVIDER=yandexgpt
+YANDEX_GPT_API_KEY=<секрет API-ключа>
+YANDEX_FOLDER_ID=<ID каталога>
+# YANDEX_GPT_MODEL=yandexgpt-lite
+# AI_ASSIST_TIMEOUT_MS=15000
+LINES
+```
+
+Перезапустить только приложение — без пересборки, данные не трогаются:
+
+```bash
+cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ../.env.cloud --profile app up -d app
+```
+
+Переменные попадают в контейнер через `docker-compose.yml` (сервис `app`), так что
+и следующее `deploy.sh` их сохранит.
+
+### 3. Как проверить
+
+1. Войти менеджером → любая связка → вкладка «Рекомендации» → «Составить сводку».
+   Над текстом должно быть **«Черновик ИИ (YandexGPT) — проверьте перед отправкой»**.
+   «Шаблон без ИИ: помощник не настроен» — не задан ключ или каталог;
+   «модель ответила ошибкой» — ключ неверный или у аккаунта нет роли.
+2. Журнал приложения: сбой модели пишется строкой `[AI] yandexgpt: модель не дала черновик
+   (error|timeout|empty)` — без текста запроса.
+
+   ```bash
+   ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink logs --tail 100 app | grep -E '\[AI\]|yandexgpt'"
+   ```
+3. Журнал действий (администратор, `GET /api/audit`): записи `ai.draft` с `outcome: "model"`.
+
+Выключить — `AI_ASSIST_PROVIDER=off` в `.env.cloud` и тот же перезапуск.
+
+### Запасной вариант: GigaChat
+
+Если YandexGPT недоступен, переключение — одна переменная, код не меняется.
+
+1. developers.sber.ru → Studio → проект GigaChat API → **ключ авторизации**
+   (строка Base64). Область: `GIGACHAT_API_PERS` — физлица, `GIGACHAT_API_CORP` —
+   юрлица по договору.
+2. **Сертификат НУЦ Минцифры** — корневой `russian_trusted_root_ca.pem` с Госуслуг
+   (gosuslugi.ru/crt). Без него TLS до GigaChat не проходит. На сервере:
+   `~/skilllink/certs/russian_trusted_root_ca.pem`.
+3. Контейнеру файл нужно показать: в `deploy/yandex-cloud/compose.cloud.yml` у сервиса
+   `app` добавить том (изменение — через репозиторий, иначе следующее развёртывание
+   его сотрёт):
+
+   ```yaml
+   app:
+     volumes:
+       - ../certs/russian_trusted_root_ca.pem:/certs/russian_trusted_root_ca.pem:ro
+   ```
+4. В `~/skilllink/.env.cloud`:
+
+   ```bash
+   AI_ASSIST_PROVIDER=gigachat
+   GIGACHAT_AUTH_KEY=<ключ авторизации>
+   GIGACHAT_CA_CERT_PATH=/certs/russian_trusted_root_ca.pem
+   # GIGACHAT_SCOPE=GIGACHAT_API_PERS
+   # GIGACHAT_MODEL=GigaChat
+   ```
+5. Перезапуск и проверка — как выше; пометка будет «Черновик ИИ (GigaChat)».

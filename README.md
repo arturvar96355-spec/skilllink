@@ -465,6 +465,10 @@ npm run openapi
 | `LMS_ENABLED`, `LMS_API_URL`, `LMS_API_TOKEN` | интеграция с LMS |
 | `SITE_ENABLED`, `SITE_API_URL`, `SITE_API_TOKEN` | заявки с сайта |
 | `INTEGRATION_TIMEOUT_MS`, `INTEGRATION_RETRIES` | таймаут и число повторов |
+| `AI_ASSIST_PROVIDER` | ИИ-помощник: `off` (по умолчанию), `yandexgpt`, `gigachat` — решение 84, подключение в [docs/DEPLOY.md](docs/DEPLOY.md) |
+| `YANDEX_GPT_API_KEY`, `YANDEX_FOLDER_ID`, `YANDEX_GPT_MODEL` | YandexGPT |
+| `GIGACHAT_AUTH_KEY`, `GIGACHAT_SCOPE`, `GIGACHAT_MODEL`, `GIGACHAT_CA_CERT_PATH` | GigaChat, запасной |
+| `AI_ASSIST_TIMEOUT_MS` | таймаут модели; не уложилась — шаблон |
 
 Загрузка рыночных данных активным источником:
 

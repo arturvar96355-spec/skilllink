@@ -12,6 +12,7 @@ import {
   RECOMMENDATION_STATUS_LABELS,
   RECOMMENDATION_TRANSITIONS,
   RECOMMENDATION_TYPE_LABELS,
+  type AiDraftDto,
   type RecommendationDto,
   type RecommendationGenerationResultDto,
   type RecommendationStatus,
@@ -47,6 +48,7 @@ import {
   usePageInRange,
   type TabItem,
 } from '@/ui'
+import { AiAssistCard, AiDraftLoading, AiDraftView } from '../AiDraft'
 import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
@@ -84,6 +86,8 @@ function RecommendationsContent() {
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
   const [comment, setComment] = useState('')
+  // Черновик письма вузу: по нажатию, не при открытии страницы (решение 84).
+  const [letter, setLetter] = useState<{ item: RecommendationDto; draft: AiDraftDto | null } | null>(null)
 
   const path = `/api/recommendations${buildQuery({
     type: tab === 'all' ? undefined : tab,
@@ -110,6 +114,11 @@ function RecommendationsContent() {
       return result.data
     },
   )
+
+  const draftLetter = useMutation(async (id: string) => {
+    const result = await apiPost<AiDraftDto>(`/api/recommendations/${id}/ai-letter`)
+    return result.data
+  })
 
   const rows = recommendations.data ?? []
   const openedInList = rows.find((row) => row.id === openedId) ?? null
@@ -168,6 +177,18 @@ function RecommendationsContent() {
     recommendations.reload()
   }
 
+  async function openLetter(item: RecommendationDto) {
+    setLetter({ item, draft: null })
+    const result = await draftLetter.run(item.id)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      setLetter(null)
+      return
+    }
+    // Пока писалось, могли открыть письмо по другой рекомендации — чужой текст не подставляем.
+    setLetter((current) => (current?.item.id === item.id ? { item, draft: result.data } : current))
+  }
+
   function closeDrawer() {
     router.replace('/recommendations')
   }
@@ -189,6 +210,13 @@ function RecommendationsContent() {
             </Button>
           ) : undefined
         }
+      />
+
+      <AiAssistCard
+        title="Что сделать сегодня"
+        description="Ваши дела по открытым рекомендациям и проблемным этапам ваших связок — в порядке, который задают правила. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
+        actionLabel="Что сделать сегодня"
+        endpoint="/api/ai/today"
       />
 
       <Tabs items={TABS} active={tab} onChange={(key) => changeFilter(() => setTab(key))} />
@@ -312,6 +340,18 @@ function RecommendationsContent() {
                         ))}
                       </div>
                     )}
+                    {/* Письмо — только по открытой рекомендации: по закрытой писать вузу не о чем. */}
+                    {user.permissions.canWrite && item.status !== 'DONE' && item.status !== 'DISMISSED' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon="mail"
+                          onClick={() => openLetter(item)}
+                          isLoading={draftLetter.isPending && letter?.item.id === item.id}
+                        >
+                          Черновик письма
+                        </Button>
+                      )}
                   </div>
                 </li>
               ))}
@@ -391,6 +431,23 @@ function RecommendationsContent() {
             </div>
           </div>
         </Drawer>
+      )}
+
+      {letter && (
+        <Modal
+          isOpen
+          onClose={() => setLetter(null)}
+          title="Черновик письма вузу"
+          description={letter.item.title}
+          wide
+          footer={
+            <Button variant="ghost" onClick={() => setLetter(null)}>
+              Закрыть
+            </Button>
+          }
+        >
+          {letter.draft ? <AiDraftView draft={letter.draft} /> : <AiDraftLoading />}
+        </Modal>
       )}
 
       {resolving && (

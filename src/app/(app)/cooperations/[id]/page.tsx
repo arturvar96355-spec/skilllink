@@ -48,6 +48,7 @@ import {
   type Column,
   type TabItem,
 } from '@/ui'
+import { AiAssistCard } from '../../AiDraft'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
@@ -431,6 +432,16 @@ function CooperationContent() {
             setIsMeetingOpen(false)
             if (created) meetings.reload()
           }}
+        />
+      )}
+
+      {tab === 'recommendations' && (
+        <AiAssistCard
+          key={params.id}
+          title="Сводка"
+          description="Где связка сейчас, что мешает и что сделать дальше — по этапам и открытым рекомендациям. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
+          actionLabel="Составить сводку"
+          endpoint={`/api/cooperations/${params.id}/ai-summary`}
         />
       )}
 

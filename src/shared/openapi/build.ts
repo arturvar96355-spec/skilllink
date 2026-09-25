@@ -139,7 +139,10 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
     operationId: `${spec.method}${spec.path.replace(/[/{}]/g, '_')}`,
     ...(parameters.length > 0 ? { parameters } : {}),
     responses: {
-      [spec.method === 'post' && !spec.path.includes('release') && !spec.path.includes('generate')
+      [spec.method === 'post' &&
+      spec.returnsOk !== true &&
+      !spec.path.includes('release') &&
+      !spec.path.includes('generate')
         ? '201'
         : '200']: {
         description: 'Успех',

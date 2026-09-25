@@ -144,7 +144,7 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
  * Одно на выборку и на счётчик: если они разойдутся, главная скажет
  * «10 из 13», а в списке окажется другое множество.
  */
-function problemStageWhere(scope: { universityId?: string }, now: Date) {
+export function problemStageWhere(scope: { universityId?: string }, now: Date) {
   return {
     OR: [
       { deadline: { lt: now }, status: { notIn: ['COMPLETED' as const, 'CANCELLED' as const] } },
