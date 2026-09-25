@@ -62,6 +62,68 @@ function arc(from: { x: number; y: number }, to: { x: number; y: number }): stri
   return `M${from.x.toFixed(1)} ${from.y.toFixed(1)}Q${mx.toFixed(1)} ${(my - length * 0.28).toFixed(1)} ${to.x.toFixed(1)} ${to.y.toFixed(1)}`
 }
 
+/** Кегль подписи в единицах поля (как в CSS) и примерная ширина знака. */
+const LABEL_SIZE = 22
+/** С запасом: кириллица полужирная и с обводкой шире латиницы. */
+const CHAR_WIDTH = LABEL_SIZE * 0.68
+/** Длиннее подпись на карте не бывает: полное имя — в подсказке. */
+const LABEL_MAX_CHARS = 16
+
+interface Box {
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+}
+
+interface LabelSpot {
+  x: number
+  y: number
+  anchor: 'start' | 'end' | 'middle'
+  text: string
+}
+
+const overlaps = (a: Box, b: Box) => a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2
+
+/**
+ * Раскладка подписей (решение 130): близкие вузы (Москва и Петербург, тестовые
+ * записи в одном городе) подписывались поверх друг друга. Подпись пробует встать
+ * справа, слева, сверху и снизу от точки — туда, где не задевает уже поставленные
+ * подписи и чужие точки. Важные точки (со связками, с большим числом) ставятся
+ * первыми. Не нашлось места — точка без подписи: имя в подсказке при наведении.
+ */
+function placeLabels(points: Array<{ key: string; label: string; x: number; y: number; r: number; weight: number }>) {
+  const dots: Box[] = points.map((p) => ({ x1: p.x - p.r, y1: p.y - p.r, x2: p.x + p.r, y2: p.y + p.r }))
+  const taken: Box[] = []
+  const spots = new Map<string, LabelSpot>()
+  for (const point of [...points].sort((a, b) => b.weight - a.weight)) {
+    const text = point.label.length > LABEL_MAX_CHARS ? `${point.label.slice(0, LABEL_MAX_CHARS - 1)}…` : point.label
+    const width = text.length * CHAR_WIDTH + 8
+    const gap = point.r + 6
+    const candidates: Array<LabelSpot & { box: Box }> = [
+      { x: point.x + gap, y: point.y + 7, anchor: 'start', text, box: { x1: point.x + gap, y1: point.y - 17, x2: point.x + gap + width, y2: point.y + 14 } },
+      { x: point.x - gap, y: point.y + 7, anchor: 'end', text, box: { x1: point.x - gap - width, y1: point.y - 17, x2: point.x - gap, y2: point.y + 14 } },
+      { x: point.x, y: point.y - gap - 4, anchor: 'middle', text, box: { x1: point.x - width / 2, y1: point.y - gap - 26, x2: point.x + width / 2, y2: point.y - gap + 2 } },
+      { x: point.x, y: point.y + gap + 18, anchor: 'middle', text, box: { x1: point.x - width / 2, y1: point.y + gap - 2, x2: point.x + width / 2, y2: point.y + gap + 26 } },
+    ]
+    const own = dots[points.indexOf(point)]
+    const spot = candidates.find(
+      (candidate) =>
+        // Подпись целиком в поле карты: у края она обрезалась.
+        candidate.box.x1 >= 0 &&
+        candidate.box.x2 <= RUSSIA_VIEWBOX.width &&
+        candidate.box.y1 >= 0 &&
+        candidate.box.y2 <= RUSSIA_VIEWBOX.height &&
+        !taken.some((box) => overlaps(box, candidate.box)) &&
+        !dots.some((box) => box !== own && overlaps(box, candidate.box)),
+    )
+    if (!spot) continue
+    taken.push(spot.box)
+    spots.set(point.key, { x: spot.x, y: spot.y, anchor: spot.anchor, text: spot.text })
+  }
+  return spots
+}
+
 export function RussiaMap({ points, label, hub }: { points: MapPoint[]; label: string; hub?: MapHub }) {
   const reduced = useCalmMotion()
   const id = useId().replace(/:/g, '')
@@ -71,6 +133,17 @@ export function RussiaMap({ points, label, hub }: { points: MapPoint[]; label: s
   const center = hub ? { ...hub, ...projectRussia(hub.lat, hub.lon) } : null
   const links = center ? placed.filter((point) => point.active !== false && Math.hypot(point.x - center.x, point.y - center.y) > 8) : []
   const active = placed.find((point) => point.key === hovered) ?? null
+  const radius = (value: number) => 5 + 8 * Math.sqrt(value / max)
+  const labels = placeLabels(
+    placed.map((point) => ({
+      key: point.key,
+      label: point.label,
+      x: point.x,
+      y: point.y,
+      r: radius(point.value) * 0.62,
+      weight: (point.active === false ? 0 : 1000) + point.value,
+    })),
+  )
 
   return (
     <figure className={styles.root} aria-label={label}>
@@ -132,8 +205,9 @@ export function RussiaMap({ points, label, hub }: { points: MapPoint[]; label: s
           )}
 
           {placed.map((point, index) => {
-            const r = 5 + 8 * Math.sqrt(point.value / max)
+            const r = radius(point.value)
             const dim = point.active === false
+            const spot = labels.get(point.key)
             return (
               <Link
                 key={point.key}
@@ -167,9 +241,11 @@ export function RussiaMap({ points, label, hub }: { points: MapPoint[]; label: s
                   transition={{ delay: reduced ? 0 : 0.3 + index * 0.08, type: 'spring', stiffness: 260, damping: 18 }}
                   style={{ transformOrigin: `${point.x}px ${point.y}px`, transformBox: 'view-box' }}
                 />
-                <text x={point.x + r + 6} y={point.y + 5} className={styles.label}>
-                  {point.label}
-                </text>
+                {spot && (
+                  <text x={spot.x} y={spot.y} textAnchor={spot.anchor} className={styles.label}>
+                    {spot.text}
+                  </text>
+                )}
               </Link>
             )
           })}

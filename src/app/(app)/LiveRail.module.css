@@ -257,22 +257,31 @@
   animation-delay: calc(620ms + var(--i, 0) * 35ms);
 }
 
-.dotLabel,
-.dotMore {
+.stageLabel {
   position: absolute;
-  left: 0;
-  bottom: calc(10px + var(--stack, 0) * 15px);
-  transform: translateX(-50%);
+  top: 14px;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
   font-size: var(--text-caption-size);
   font-weight: 500;
-  color: var(--text-secondary);
+  line-height: 16px;
   white-space: nowrap;
-  pointer-events: none;
   animation: fade var(--motion-control) var(--ease-out) both;
-  animation-delay: calc(380ms + var(--i, 0) * 35ms);
+  animation-delay: 380ms;
 }
 
-.dotMore {
+/* Длинное название обрезается по ширине этапа: соседние подписи не пересекаются. */
+.stageName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.stageMore {
+  flex: none;
   color: var(--text-tertiary);
 }
 
@@ -353,8 +362,7 @@
   /* На узком экране подписи не помещаются — маршрут читается по точкам,
      имя связки — в подсказке и в строках ниже. */
   .phase,
-  .dotLabel,
-  .dotMore {
+  .stageLabel {
     display: none;
   }
 
