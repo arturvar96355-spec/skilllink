@@ -214,6 +214,7 @@ model User {
   recommendationsClosed  Recommendation[]     @relation("RecommendationResolver")
   auditLogs              AuditLog[]           @relation("AuditLogUser")
   applicationsCreated    Application[]        @relation("ApplicationAuthor")
+  telegramLink           TelegramLink?
 
   @@index([role])
   @@index([universityId])
@@ -780,4 +781,22 @@ model Application {
   @@index([universityId])
   @@index([status])
   @@map("applications")
+}
+
+/// Привязка пользователя к личному чату Telegram (решение 102): туда приходит сводка
+/// «что горит у меня». Один пользователь — один чат, один чат — один пользователь.
+/// Хранится только то, без чего сообщение не доставить: идентификатор чата и ник,
+/// чтобы человек в профиле узнал свой аккаунт. Удаляется вместе с пользователем
+/// и командой /stop — истории у привязки нет и не нужно.
+model TelegramLink {
+  id       String   @id @default(cuid())
+  userId   String   @unique @map("user_id")
+  /// Идентификатор чата Telegram — целое до 52 бит, хранится строкой: в Int не влезает.
+  chatId   String   @unique @map("chat_id")
+  username String?
+  linkedAt DateTime @default(now()) @map("linked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_links")
 }
