@@ -6,7 +6,7 @@ import { getIntegrationsConfig, type IntegrationCommonConfig } from '../config'
  * Интеграция с LMS (раздел 14 ТЗ).
  *
  * По умолчанию выключена. Когда выключена, вызов возвращает понятный отказ,
- * а не падает: сбой интеграции не ломает основную систему (решение 13).
+ * а не падает: сбой интеграции не ломает основную систему.
  */
 
 export interface LmsCourseProgress {

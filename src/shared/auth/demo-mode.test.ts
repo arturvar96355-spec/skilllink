@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { isDemoAuthEnabled } from './demo-mode'
 
-/**
+/*
  * Демо-режим — это обход авторизации: вход без пароля по cookie.
  * Поведение по умолчанию важнее удобства, поэтому проверяется отдельно.
  */
+
 /**
  * `NODE_ENV` в типах Node объявлен только на чтение, поэтому и он, и соседняя
  * переменная меняются через defineProperty — присваивание не проходит проверку типов.

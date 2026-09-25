@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { plural, pluralize, PROGRAM_FORMS, PROGRAM_FORMS_OF } from './text'
+import { plural, countWithNoun, PROGRAM_FORMS, PROGRAM_FORMS_OF } from './text'
 
 describe('склонение при числе', () => {
   it('единственное число', () => {
@@ -28,15 +28,15 @@ describe('склонение при числе', () => {
   })
 
   it('число подставляется вместе со словом', () => {
-    expect(pluralize(1, PROGRAM_FORMS)).toBe('1 программа')
-    expect(pluralize(5, PROGRAM_FORMS)).toBe('5 программ')
+    expect(countWithNoun(1, PROGRAM_FORMS)).toBe('1 программа')
+    expect(countWithNoun(5, PROGRAM_FORMS)).toBe('5 программ')
   })
 
   it('после «из» падеж другой', () => {
     // «учтено 1 из 1 программы», а не «из 1 программа».
-    expect(`из ${pluralize(1, PROGRAM_FORMS_OF)}`).toBe('из 1 программы')
-    expect(`из ${pluralize(2, PROGRAM_FORMS_OF)}`).toBe('из 2 программ')
-    expect(`из ${pluralize(21, PROGRAM_FORMS_OF)}`).toBe('из 21 программы')
-    expect(`из ${pluralize(11, PROGRAM_FORMS_OF)}`).toBe('из 11 программ')
+    expect(`из ${countWithNoun(1, PROGRAM_FORMS_OF)}`).toBe('из 1 программы')
+    expect(`из ${countWithNoun(2, PROGRAM_FORMS_OF)}`).toBe('из 2 программ')
+    expect(`из ${countWithNoun(21, PROGRAM_FORMS_OF)}`).toBe('из 21 программы')
+    expect(`из ${countWithNoun(11, PROGRAM_FORMS_OF)}`).toBe('из 11 программ')
   })
 })

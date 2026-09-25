@@ -77,7 +77,6 @@ export async function listUsers(
   }
 }
 
-/** Текущий пользователь и его права: фронт по ним решает, что показывать. */
 /**
  * Должность и вуз не входят в объект текущего пользователя: он проходит через
  * каждую проверку прав, и тащить туда поля для шапки незачем. Их дочитывает
@@ -90,6 +89,7 @@ export interface CurrentUserProfile {
   passwordTemporary?: boolean
 }
 
+/** Текущий пользователь и его права: фронт по ним решает, что показывать. */
 export function describeCurrentUser(
   user: CurrentUser,
   profile: CurrentUserProfile = { position: null, universityName: null },

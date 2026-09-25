@@ -82,8 +82,8 @@ export async function getById(user: CurrentUser, id: string): Promise<ProductDto
 /**
  * Заведение IT-продукта в реестр.
  *
- * Без него продукт существовал только в демо-наборе: у новой связки он навсегда
- * оставался «не выбран». Продукт, заведённый вручную, — не демонстрационный.
+ * Без него продукт существует только в демо-наборе, и у новой связки он навсегда
+ * остаётся «не выбран». Продукт, заведённый вручную, — не демонстрационный.
  */
 export async function create(user: CurrentUser, input: CreateProductInput): Promise<ProductDto> {
   assertCan(user, 'WRITE')

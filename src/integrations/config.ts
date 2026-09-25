@@ -1,7 +1,7 @@
 /**
  * Настройки интеграций. Всё берётся из переменных окружения — в коде секретов нет.
  *
- * По умолчанию интеграции выключены (решение 13): система должна работать без них,
+ * По умолчанию интеграции выключены: система должна работать без них,
  * а их сбой не должен ломать основной контур.
  */
 
@@ -21,7 +21,7 @@ function readString(name: string): string | null {
   return raw === undefined || raw.trim() === '' ? null : raw.trim()
 }
 
-/** Какой источник рыночных данных активен (решение 12). */
+/** Какой источник рыночных данных активен — переменная `MARKET_DATA_PROVIDER`. */
 export const MARKET_DATA_PROVIDERS = ['mock', 'csv', 'external-api', 'future-rtk'] as const
 export type MarketDataProviderKind = (typeof MARKET_DATA_PROVIDERS)[number]
 

@@ -20,8 +20,12 @@ export function plural(count: number, forms: readonly [string, string, string]):
   return forms[2]
 }
 
-/** Число вместе со склонённым словом: `3 программы`. */
-export function pluralize(count: number, forms: readonly [string, string, string]): string {
+/**
+ * Число вместе со склонённым словом: `3 программы`. Для текстов сервера.
+ * В интерфейсе `pluralize` из `src/ui/lib/format.ts` возвращает только слово
+ * (по тому же `plural`), а число форматирует `formatCount`.
+ */
+export function countWithNoun(count: number, forms: readonly [string, string, string]): string {
   return `${count} ${plural(count, forms)}`
 }
 

@@ -13,7 +13,7 @@ export const GET = handle(async (request) => {
   return okList(data, meta)
 })
 
-/** В MVP сохраняются метаданные и ссылка. Загрузка файлов — P2 (решение 14). */
+/** В MVP сохраняются метаданные и ссылка. Загрузка файлов — P2. */
 export const POST = handle(async (request) => {
   const user = await getCurrentUser()
   const input = await parseBody(request, createDocumentSchema)

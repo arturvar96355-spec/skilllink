@@ -27,7 +27,7 @@ function joined(...parts: Array<string | null | undefined>): string | null {
 
 /**
  * Связка в выдаче — так же, как в реестре: «СПбГУТ — Программная инженерия».
- * Полное имя вуза длиннее строки окна и обрезалось раньше, чем доходило до программы.
+ * Полное имя вуза длиннее строки окна и обрезается раньше, чем доходит до программы.
  */
 export function cooperationTitle(row: {
   universityName: string

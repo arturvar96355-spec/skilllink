@@ -1,4 +1,4 @@
-/** Три показателя рейтинга программы (решение 7). Других в рейтинге нет. */
+/** Три показателя рейтинга программы из ТЗ: заявки, обучающиеся, группы. Других в рейтинге нет. */
 export type ProgramRatingFactorKey = 'applicationCount' | 'studentCount' | 'groupCount'
 
 export interface RatingFactorDto {

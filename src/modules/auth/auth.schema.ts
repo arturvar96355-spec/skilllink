@@ -16,7 +16,7 @@ export const userListQuerySchema = paginationSchema.extend({
   includeInactive: booleanParam.optional(),
   /**
    * Только действующие (`true`) или только заблокированные (`false`) — фильтр
-   * вкладки «Пользователи» (с 25.09.2026). Задан — важнее `includeInactive`.
+   * вкладки «Пользователи». Задан — важнее `includeInactive`.
    */
   isActive: booleanParam.optional(),
 })

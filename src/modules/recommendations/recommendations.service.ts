@@ -86,7 +86,7 @@ export async function list(
   user: CurrentUser,
   query: RecommendationListQuery,
 ): Promise<{ data: RecommendationDto[]; meta: PageMeta }> {
-  // Представитель вуза рекомендаций не видит (решение 9).
+  // Представитель вуза рекомендаций не видит: это внутренняя аналитика ИТ-Школы.
   assertCan(user, 'ANALYTICS')
   const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
@@ -152,8 +152,8 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
 
   // ── Правило по критичным дефицитам навыков ─────────────────────────────────
   // Одна строка на навык — как в списке дефицитов (demandPerSkill): иначе два
-  // региональных замера одного навыка давали две рекомендации с одним ключом,
-  // и вторая молча затирала первую.
+  // региональных замера одного навыка дали бы две рекомендации с одним ключом,
+  // и вторая молча затёрла бы первую.
   const demand = demandPerSkill(input.demand)
   const normalizeValue = demandNormalizer(demand.map((row) => row.value))
 

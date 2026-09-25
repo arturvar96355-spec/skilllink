@@ -108,7 +108,7 @@ describe('лента уведомлений', () => {
 
   it('свежие изменения не вытесняют просрочку из показанной части', () => {
     // Просрочка датирована истёкшим сроком — прошлым. При обрезке по времени
-    // двадцать свежих изменений выталкивали её из колокольчика целиком.
+    // двадцать свежих изменений вытолкнули бы её из колокольчика целиком.
     const overdue = [
       stage({ stageId: 'old-1', deadline: new Date(now.getTime() - 40 * DAY) }),
       stage({ stageId: 'old-2', deadline: new Date(now.getTime() - 50 * DAY) }),
@@ -133,7 +133,7 @@ describe('лента уведомлений', () => {
 
     expect(feed.items).toHaveLength(20)
     expect(feed.items.filter((item) => item.kind === 'stage.overdue')).toHaveLength(2)
-    // Порядок — по времени, как и был: просрочки внизу, потому что они старше.
+    // Порядок — по времени: просрочки внизу, потому что они старше.
     expect(feed.items.slice(-2).map((item) => item.target.stageId)).toEqual(['old-1', 'old-2'])
     const times = feed.items.map((item) => item.occurredAt)
     expect([...times].sort().reverse()).toEqual(times)
