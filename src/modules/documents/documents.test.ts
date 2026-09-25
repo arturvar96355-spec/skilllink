@@ -21,6 +21,7 @@ import {
   renderTemplate,
   SKIP_REASON_NO_PRODUCT,
   type ExistingPackageDocument,
+  areSigningDocumentsSigned,
 } from './documents.rules'
 import {
   createDocumentSchema,
@@ -467,3 +468,73 @@ describe('содержимое документа дальше черновик�
   })
 })
 
+describe('подпись документов отмечает этап 6 (решение 87)', () => {
+  it('договор подписан, других документов на подпись нет — документы подписаны', () => {
+    expect(areSigningDocumentsSigned([{ type: 'AGREEMENT', status: 'SIGNED' }])).toBe(true)
+  })
+
+  it('договор и лицензия подписаны — документы подписаны', () => {
+    expect(
+      areSigningDocumentsSigned([
+        { type: 'AGREEMENT', status: 'SIGNED' },
+        { type: 'LICENSE', status: 'SIGNED' },
+      ]),
+    ).toBe(true)
+  })
+
+  it('лицензия подписана, а договор на согласовании — ещё нет', () => {
+    expect(
+      areSigningDocumentsSigned([
+        { type: 'AGREEMENT', status: 'REVIEW' },
+        { type: 'LICENSE', status: 'SIGNED' },
+      ]),
+    ).toBe(false)
+  })
+
+  it('договор подписан, а второй договор ещё ждёт подписи — ещё нет', () => {
+    for (const status of ['DRAFT', 'REVIEW', 'APPROVED'] as const) {
+      expect(
+        areSigningDocumentsSigned([
+          { type: 'AGREEMENT', status: 'SIGNED' },
+          { type: 'AGREEMENT', status },
+        ]),
+      ).toBe(false)
+    }
+  })
+
+  it('лицензию этап 6 не ждёт: она передаётся на этапе 7', () => {
+    for (const status of ['DRAFT', 'REVIEW', 'APPROVED'] as const) {
+      expect(
+        areSigningDocumentsSigned([
+          { type: 'AGREEMENT', status: 'SIGNED' },
+          { type: 'LICENSE', status },
+        ]),
+      ).toBe(true)
+    }
+  })
+
+  it('без подписанного договора — нет, даже если лицензия подписана', () => {
+    expect(areSigningDocumentsSigned([{ type: 'LICENSE', status: 'SIGNED' }])).toBe(false)
+    expect(areSigningDocumentsSigned([])).toBe(false)
+  })
+
+  it('отклонённый и архивный документ подписи не ждут', () => {
+    expect(
+      areSigningDocumentsSigned([
+        { type: 'AGREEMENT', status: 'SIGNED' },
+        { type: 'AGREEMENT', status: 'REJECTED' },
+        { type: 'LICENSE', status: 'ARCHIVED' },
+      ]),
+    ).toBe(true)
+  })
+
+  it('другие документы (соглашение о неразглашении, учебный план) не мешают', () => {
+    expect(
+      areSigningDocumentsSigned([
+        { type: 'AGREEMENT', status: 'SIGNED' },
+        { type: 'NDA', status: 'DRAFT' },
+        { type: 'CURRICULUM', status: 'REVIEW' },
+      ]),
+    ).toBe(true)
+  })
+})
