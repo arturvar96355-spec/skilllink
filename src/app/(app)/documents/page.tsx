@@ -13,7 +13,9 @@ import {
   type DocumentLinksDto,
   type DocumentListItemDto,
   type DocumentStatus,
+  type DocumentStatusChangeDto,
   type ProgramListItemDto,
+  type SigningChecklistEffectDto,
   type UniversityListItemDto,
 } from '@/shared/contracts'
 import {
@@ -81,6 +83,26 @@ const ALLOWED_TRANSITIONS: Record<DocumentStatus, readonly DocumentStatus[]> = {
   SIGNED: ['ARCHIVED'],
   REJECTED: ['DRAFT', 'ARCHIVED'],
   ARCHIVED: [],
+}
+
+/**
+ * Что подпись сделала с чек-листом этапа «Подписание документов» (решение 87) —
+ * одной фразой к сообщению о статусе. Молчим, когда сказать нечего: пункты уже
+ * отмечены, этап закрыт или связка закрыта.
+ */
+function signingEffectText(effect: SigningChecklistEffectDto | undefined): string | null {
+  if (!effect) return null
+  const stage = `этапа ${effect.stageNumber} «Подписание документов»`
+  switch (effect.outcome) {
+    case 'marked':
+      return `Пункты ${stage} отмечены: ${effect.marked}`
+    case 'locked':
+      return `Пункты ${stage} не отмечены: этап ещё за контрольной точкой`
+    case 'pending-documents':
+      return `Пункты ${stage} отметятся, когда будут подписаны все договоры по связке`
+    default:
+      return null
+  }
 }
 
 /** Отклонение и возврат на доработку сервер без основания не примет. */
@@ -436,7 +458,7 @@ function DocumentDrawer({
 
   const changeStatus = useMutation(
     async (input: { status: DocumentStatus; comment: string | null }) =>
-      (await apiPatch<DocumentDto>(`/api/documents/${id}/status`, input)).data,
+      (await apiPatch<DocumentStatusChangeDto>(`/api/documents/${id}/status`, input)).data,
   )
 
   const card = detail.data
@@ -456,7 +478,10 @@ function DocumentDrawer({
       toast.error(result.error.message)
       return
     }
-    toast.success(`Статус документа: «${DOCUMENT_STATUS_LABELS[result.data.status]}»`)
+    const effect = signingEffectText(result.data.stageChecklist)
+    toast.success(
+      `Статус документа: «${DOCUMENT_STATUS_LABELS[result.data.status]}»` + (effect ? `. ${effect}` : ''),
+    )
     setNextStatus('')
     setComment('')
     detail.reload()
