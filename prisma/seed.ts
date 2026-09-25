@@ -61,11 +61,18 @@ async function clean(): Promise<void> {
   await prisma.user.deleteMany()
 }
 
-async function main(): Promise<void> {
-  console.log('Очистка демонстрационных данных...')
-  await clean()
+/** Поиск id записи по естественному ключу: имени навыка, ключу вуза или программы. */
+type IdOf = (key: string) => string
 
-  // ─── Пользователи ──────────────────────────────────────────────────────────
+/** Созданная связка: по ключу «вуз-программа» на неё ссылаются документы, встречи и рекомендации. */
+interface CreatedCooperation {
+  key: string
+  id: string
+  universityKey: string
+}
+
+/** Сотрудники ИТ-Школы. Представитель вуза создаётся позже — ему нужен свой вуз. */
+async function seedUsers() {
   console.log('Пользователи...')
 
   // Демонстрационный пароль один на всех: это стенд, а не промышленный контур.
@@ -122,8 +129,14 @@ async function main(): Promise<void> {
       role: 'VIEWER',
     },
   })
+  return { customPassword, DEMO_PASSWORD, demoPasswordHash, admin, manager, manager2, analyst }
+}
 
-  // ─── Источники данных ──────────────────────────────────────────────────────
+type SeedUsers = Awaited<ReturnType<typeof seedUsers>>
+type SeedUser = SeedUsers['manager']
+
+/** Источник рыночных данных — демонстрационный набор вакансий. */
+async function seedDataSources() {
   console.log('Источники данных...')
   const mockSource = await prisma.dataSource.create({
     data: {
@@ -136,8 +149,11 @@ async function main(): Promise<void> {
       isMock: true,
     },
   })
+  return mockSource
+}
 
-  // ─── Навыки ────────────────────────────────────────────────────────────────
+/** Справочник навыков. Возвращает поиск id навыка по имени. */
+async function seedSkills(): Promise<IdOf> {
   console.log('Навыки...')
   const skillSeed: Array<{ name: string; category: string; description: string }> = [
     { name: 'Python', category: 'Языки программирования', description: 'Разработка на Python' },
@@ -170,8 +186,11 @@ async function main(): Promise<void> {
     if (!id) throw new Error(`Навык не найден: ${name}`)
     return id
   }
+  return skillId
+}
 
-  // ─── Рыночная востребованность ─────────────────────────────────────────────
+/** Рыночная востребованность навыков по кварталам — из демонстрационного источника. */
+async function seedMarket(mockSource: { id: string }, skillId: IdOf): Promise<void> {
   console.log('Рыночная востребованность навыков...')
   const demandByPeriod: Record<string, Record<string, number>> = {
     '2025-Q4': {
@@ -209,8 +228,10 @@ async function main(): Promise<void> {
       })
     }
   }
+}
 
-  // ─── IT-продукты ───────────────────────────────────────────────────────────
+/** IT-продукты ИТ-Школы с навыками, во всех статусах жизненного цикла. */
+async function seedProducts(skillId: IdOf) {
   // Даты — по сюжету: продукты ИТ-Школы заведены задолго до первой связки,
   // «обновлён» — выпуск текущей версии.
   console.log('IT-продукты...')
@@ -335,7 +356,13 @@ async function main(): Promise<void> {
       },
     }),
   }
+  return products
+}
 
+type SeedProducts = Awaited<ReturnType<typeof seedProducts>>
+
+/** Вузы с основным контактом. Возвращает поиск id вуза по ключу и даты заведения вузов. */
+async function seedUniversities() {
   console.log('Вузы, контакты и программы...')
   const universitySeed = [
     {
@@ -426,8 +453,7 @@ async function main(): Promise<void> {
     },
   ]
 
-  // Даты записи — по сюжету, а не момент заливки: вуз заведён до первой связки
-  // с ним. Иначе у всех вузов «Заведён 25.09, 00:25», а первый контакт — в мае.
+  // Даты записи — по сюжету, а не момент заливки: вуз заведён до первой связки с ним.
   const universities = new Map<string, string>()
   const universityCreatedAt = new Map<string, Date>()
   for (const item of universitySeed) {
@@ -472,176 +498,183 @@ async function main(): Promise<void> {
     if (!id) throw new Error(`Вуз не найден: ${key}`)
     return id
   }
+  return { universityId, universityCreatedAt }
+}
 
-  // Программы. У части показатели намеренно не заполнены — проверка поведения «Нет данных».
-  const programSeed = [
-    {
-      key: 'spbgu-infosec', university: 'spbgu',
-      name: 'Информационная безопасность телекоммуникационных систем',
-      code: '10.03.01', direction: 'Информационная безопасность',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 310, studentCount: 124, groupCount: 5,
-      skills: [
-        ['Информационная безопасность', 'ADVANCED', 'CRITICAL'],
-        ['Сетевые технологии', 'ADVANCED', 'HIGH'],
-        ['Linux', 'INTERMEDIATE', 'HIGH'],
-        ['Python', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'spbgu-soft', university: 'spbgu',
-      name: 'Программная инженерия',
-      code: '09.03.04', direction: 'Информатика и вычислительная техника',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 420, studentCount: 180, groupCount: 7,
-      skills: [
-        ['Java', 'ADVANCED', 'CRITICAL'],
-        ['SQL', 'INTERMEDIATE', 'HIGH'],
-        ['Тестирование ПО', 'INTERMEDIATE', 'MEDIUM'],
-        ['Микросервисы', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'mtuci-cloud', university: 'mtuci',
-      name: 'Облачные технологии и инфраструктура',
-      code: '09.04.01', direction: 'Информатика и вычислительная техника',
-      level: 'MASTER' as const, durationMonths: 24,
-      applicationCount: 190, studentCount: 76, groupCount: 3,
-      skills: [
-        ['Облачные платформы', 'ADVANCED', 'CRITICAL'],
-        ['Docker', 'ADVANCED', 'HIGH'],
-        ['Linux', 'INTERMEDIATE', 'HIGH'],
-      ] as const,
-    },
-    {
-      key: 'mtuci-data', university: 'mtuci',
-      name: 'Анализ данных в телекоммуникациях',
-      code: '01.03.02', direction: 'Прикладная математика',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 260, studentCount: 98, groupCount: 4,
-      skills: [
-        ['Аналитика данных', 'ADVANCED', 'CRITICAL'],
-        ['Python', 'ADVANCED', 'CRITICAL'],
-        ['SQL', 'INTERMEDIATE', 'HIGH'],
-      ] as const,
-    },
-    {
-      key: 'kazan-devops', university: 'kazan',
-      name: 'Инженерия программного обеспечения и DevOps',
-      code: '09.03.04', direction: 'Информатика и вычислительная техника',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 205, studentCount: 88, groupCount: 3,
-      skills: [
-        ['CI/CD', 'INTERMEDIATE', 'HIGH'],
-        ['Docker', 'INTERMEDIATE', 'HIGH'],
-        ['JavaScript', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'kazan-networks', university: 'kazan',
-      name: 'Сети связи и системы коммутации',
-      code: '11.03.02', direction: 'Инфокоммуникационные технологии',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      // Показатели не заполнены: сотрудничество ещё не начато.
-      applicationCount: null, studentCount: null, groupCount: null,
-      skills: [
-        ['Сетевые технологии', 'ADVANCED', 'CRITICAL'],
-        ['Linux', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'nsu-ai', university: 'nsu',
-      name: 'Искусственный интеллект и машинное обучение',
-      code: '02.04.02', direction: 'Фундаментальная информатика',
-      level: 'MASTER' as const, durationMonths: 24,
-      applicationCount: 150, studentCount: 52, groupCount: 2,
-      skills: [
-        ['Машинное обучение', 'ADVANCED', 'CRITICAL'],
-        ['Python', 'ADVANCED', 'CRITICAL'],
-        ['Аналитика данных', 'INTERMEDIATE', 'HIGH'],
-      ] as const,
-    },
-    {
-      key: 'nsu-soft', university: 'nsu',
-      name: 'Разработка информационных систем',
-      code: '09.03.02', direction: 'Информационные системы и технологии',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 280, studentCount: null, groupCount: 4,
-      skills: [
-        ['JavaScript', 'INTERMEDIATE', 'HIGH'],
-        ['SQL', 'INTERMEDIATE', 'HIGH'],
-        ['Бизнес-анализ', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'urfu-security', university: 'urfu',
-      name: 'Компьютерная безопасность',
-      code: '10.05.01', direction: 'Информационная безопасность',
-      level: 'SPECIALIST' as const, durationMonths: 66,
-      applicationCount: null, studentCount: null, groupCount: null,
-      skills: [
-        ['Информационная безопасность', 'INTERMEDIATE', 'CRITICAL'],
-        ['Сетевые технологии', 'BASIC', 'HIGH'],
-      ] as const,
-    },
-    {
-      key: 'rostov-it', university: 'rostov',
-      name: 'Информационные технологии и управление',
-      code: '09.03.03', direction: 'Прикладная информатика',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: 175, studentCount: 64, groupCount: 2,
-      skills: [
-        ['Управление проектами', 'INTERMEDIATE', 'MEDIUM'],
-        ['SQL', 'BASIC', 'MEDIUM'],
-        ['Бизнес-анализ', 'INTERMEDIATE', 'HIGH'],
-      ] as const,
-    },
-    // Программы не только «действует»: черновик, приостановленная и архивная видны
-    // в реестре со своим статусом, но в рейтинг, дефициты и рекомендации не входят
-    // (ACTIVE_PROGRAM_WHERE) — показатели набора у них не заполнены.
-    {
-      key: 'urfu-gamedev', university: 'urfu', status: 'DRAFT' as const,
-      name: 'Технологии разработки компьютерных игр',
-      code: '09.03.04', direction: 'Программная инженерия',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: null, studentCount: null, groupCount: null,
-      skills: [
-        ['Python', 'INTERMEDIATE', 'HIGH'],
-        ['JavaScript', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'rostov-networks', university: 'rostov', status: 'SUSPENDED' as const,
-      name: 'Инфокоммуникационные технологии и системы связи',
-      code: '11.03.02', direction: 'Инфокоммуникационные технологии',
-      level: 'BACHELOR' as const, durationMonths: 48,
-      applicationCount: null, studentCount: null, groupCount: null,
-      skills: [
-        ['Сетевые технологии', 'ADVANCED', 'CRITICAL'],
-        ['Linux', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-    {
-      key: 'nsu-embedded', university: 'nsu', status: 'ARCHIVED' as const,
-      name: 'Встраиваемые системы',
-      code: '09.04.01', direction: 'Информатика и вычислительная техника',
-      level: 'MASTER' as const, durationMonths: 24,
-      applicationCount: null, studentCount: null, groupCount: null,
-      skills: [
-        ['Linux', 'ADVANCED', 'HIGH'],
-        ['Python', 'BASIC', 'MEDIUM'],
-      ] as const,
-    },
-  ]
+/** Программы демо-набора. У части показатели намеренно не заполнены — проверка поведения «Нет данных». */
+const programSeed = [
+  {
+    key: 'spbgu-infosec', university: 'spbgu',
+    name: 'Информационная безопасность телекоммуникационных систем',
+    code: '10.03.01', direction: 'Информационная безопасность',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 310, studentCount: 124, groupCount: 5,
+    skills: [
+      ['Информационная безопасность', 'ADVANCED', 'CRITICAL'],
+      ['Сетевые технологии', 'ADVANCED', 'HIGH'],
+      ['Linux', 'INTERMEDIATE', 'HIGH'],
+      ['Python', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'spbgu-soft', university: 'spbgu',
+    name: 'Программная инженерия',
+    code: '09.03.04', direction: 'Информатика и вычислительная техника',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 420, studentCount: 180, groupCount: 7,
+    skills: [
+      ['Java', 'ADVANCED', 'CRITICAL'],
+      ['SQL', 'INTERMEDIATE', 'HIGH'],
+      ['Тестирование ПО', 'INTERMEDIATE', 'MEDIUM'],
+      ['Микросервисы', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'mtuci-cloud', university: 'mtuci',
+    name: 'Облачные технологии и инфраструктура',
+    code: '09.04.01', direction: 'Информатика и вычислительная техника',
+    level: 'MASTER' as const, durationMonths: 24,
+    applicationCount: 190, studentCount: 76, groupCount: 3,
+    skills: [
+      ['Облачные платформы', 'ADVANCED', 'CRITICAL'],
+      ['Docker', 'ADVANCED', 'HIGH'],
+      ['Linux', 'INTERMEDIATE', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'mtuci-data', university: 'mtuci',
+    name: 'Анализ данных в телекоммуникациях',
+    code: '01.03.02', direction: 'Прикладная математика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 260, studentCount: 98, groupCount: 4,
+    skills: [
+      ['Аналитика данных', 'ADVANCED', 'CRITICAL'],
+      ['Python', 'ADVANCED', 'CRITICAL'],
+      ['SQL', 'INTERMEDIATE', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'kazan-devops', university: 'kazan',
+    name: 'Инженерия программного обеспечения и DevOps',
+    code: '09.03.04', direction: 'Информатика и вычислительная техника',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 205, studentCount: 88, groupCount: 3,
+    skills: [
+      ['CI/CD', 'INTERMEDIATE', 'HIGH'],
+      ['Docker', 'INTERMEDIATE', 'HIGH'],
+      ['JavaScript', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'kazan-networks', university: 'kazan',
+    name: 'Сети связи и системы коммутации',
+    code: '11.03.02', direction: 'Инфокоммуникационные технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    // Показатели не заполнены: сотрудничество ещё не начато.
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Сетевые технологии', 'ADVANCED', 'CRITICAL'],
+      ['Linux', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'nsu-ai', university: 'nsu',
+    name: 'Искусственный интеллект и машинное обучение',
+    code: '02.04.02', direction: 'Фундаментальная информатика',
+    level: 'MASTER' as const, durationMonths: 24,
+    applicationCount: 150, studentCount: 52, groupCount: 2,
+    skills: [
+      ['Машинное обучение', 'ADVANCED', 'CRITICAL'],
+      ['Python', 'ADVANCED', 'CRITICAL'],
+      ['Аналитика данных', 'INTERMEDIATE', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'nsu-soft', university: 'nsu',
+    name: 'Разработка информационных систем',
+    code: '09.03.02', direction: 'Информационные системы и технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 280, studentCount: null, groupCount: 4,
+    skills: [
+      ['JavaScript', 'INTERMEDIATE', 'HIGH'],
+      ['SQL', 'INTERMEDIATE', 'HIGH'],
+      ['Бизнес-анализ', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'urfu-security', university: 'urfu',
+    name: 'Компьютерная безопасность',
+    code: '10.05.01', direction: 'Информационная безопасность',
+    level: 'SPECIALIST' as const, durationMonths: 66,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Информационная безопасность', 'INTERMEDIATE', 'CRITICAL'],
+      ['Сетевые технологии', 'BASIC', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'rostov-it', university: 'rostov',
+    name: 'Информационные технологии и управление',
+    code: '09.03.03', direction: 'Прикладная информатика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 175, studentCount: 64, groupCount: 2,
+    skills: [
+      ['Управление проектами', 'INTERMEDIATE', 'MEDIUM'],
+      ['SQL', 'BASIC', 'MEDIUM'],
+      ['Бизнес-анализ', 'INTERMEDIATE', 'HIGH'],
+    ] as const,
+  },
+  // Программы не только «действует»: черновик, приостановленная и архивная видны
+  // в реестре со своим статусом, но в рейтинг, дефициты и рекомендации не входят
+  // (ACTIVE_PROGRAM_WHERE) — показатели набора у них не заполнены.
+  {
+    key: 'urfu-gamedev', university: 'urfu', status: 'DRAFT' as const,
+    name: 'Технологии разработки компьютерных игр',
+    code: '09.03.04', direction: 'Программная инженерия',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Python', 'INTERMEDIATE', 'HIGH'],
+      ['JavaScript', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'rostov-networks', university: 'rostov', status: 'SUSPENDED' as const,
+    name: 'Инфокоммуникационные технологии и системы связи',
+    code: '11.03.02', direction: 'Инфокоммуникационные технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Сетевые технологии', 'ADVANCED', 'CRITICAL'],
+      ['Linux', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'nsu-embedded', university: 'nsu', status: 'ARCHIVED' as const,
+    name: 'Встраиваемые системы',
+    code: '09.04.01', direction: 'Информатика и вычислительная техника',
+    level: 'MASTER' as const, durationMonths: 24,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Linux', 'ADVANCED', 'HIGH'],
+      ['Python', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+]
 
+/** Образовательные программы с навыками. Возвращает поиск id программы по ключу. */
+async function seedPrograms(
+  skillId: IdOf,
+  universityId: IdOf,
+  universityCreatedAt: Map<string, Date>,
+): Promise<IdOf> {
   const programs = new Map<string, string>()
   for (const item of programSeed) {
     const hasMetrics =
       item.applicationCount !== null || item.studentCount !== null || item.groupCount !== null
-    // У СПбГУТ есть представитель в кабинете вуза (ниже): показатели набора внёс
-    // и подтвердил сам вуз — это данные вуза, а не оценка. Иначе одна и та же цифра
-    // «420 заявок» в карточке программы шла с пометкой «оценка», а в кабинете —
-    // «подтверждена вузом» (ТЗ Артура, п. 2). У остальных вузов кабинета нет.
+    // У СПбГУТ есть представитель в кабинете вуза: показатели набора внёс и подтвердил
+    // сам вуз — это данные вуза, а не оценка, и карточка программы не расходится
+    // с кабинетом. У остальных вузов кабинета нет.
     const reportedByUniversity = item.university === 'spbgu'
     const metricsUpdatedAt = hasMetrics ? daysAgo(14) : null
     const createdAt = new Date(universityCreatedAt.get(item.university)!.getTime() + 2 * DAY)
@@ -681,45 +714,55 @@ async function main(): Promise<void> {
     if (!id) throw new Error(`Программа не найдена: ${key}`)
     return id
   }
+  return programId
+}
 
-  // ─── Связки и этапы ────────────────────────────────────────────────────────
+/** Описание связки демо-набора: из него строятся запись, этапы и их хронология. */
+interface CooperationSeed {
+  university: string
+  program: string
+  productId: string | null
+  responsibleId: string
+  status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
+  goal: string
+  /** Заметка связки: причина паузы или отмены. */
+  notes?: string
+  /** Отменённая связка: сколько дней назад закрыта. */
+  closedDaysAgo?: number
+  /**
+   * Работа остановлена после закрытого этапа: следующий не начат. Пауза ставится
+   * между этапами — иначе этап «в работе» на стоящей связке считался бы просроченным.
+   */
+  nextStageNotStarted?: boolean
+  startedDaysAgo: number
+  firstContactDaysAgo: number | null
+  classesStartInDays: number | null
+  /** До какого номера этапы считаются завершёнными. */
+  completedUpTo: number
+  blockedStage?: number
+  blockingReason?: string
+  /** Этапам с этими номерами ставится просроченный срок. */
+  overdueStages?: number[]
+  /**
+   * Завершённые этапы, закрытые ПОСЛЕ срока.
+   *
+   * Без них показатель «этапы, закрытые в срок» всегда равен 100 %: завершение
+   * в демо-наборе по построению ложится раньше срока. Стопроцентная дисциплина
+   * обесценивает сам контроль сроков — на демонстрации нечего показать.
+   */
+  lateStages?: number[]
+  cancelledStages?: number[]
+}
+
+/** Связки «вуз — программа — продукт» со всеми 14 этапами, историей и журналом. */
+async function seedCooperations(
+  products: SeedProducts,
+  manager: SeedUser,
+  manager2: SeedUser,
+  universityId: IdOf,
+  programId: IdOf,
+): Promise<CreatedCooperation[]> {
   console.log('Связки и этапы...')
-
-  interface CooperationSeed {
-    university: string
-    program: string
-    productId: string | null
-    responsibleId: string
-    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
-    goal: string
-    /** Заметка связки: причина паузы или отмены. */
-    notes?: string
-    /** Отменённая связка: сколько дней назад закрыта. */
-    closedDaysAgo?: number
-    /**
-     * Работа остановлена после закрытого этапа: следующий не начат. Пауза ставится
-     * между этапами — иначе этап «в работе» на стоящей связке считался бы просроченным.
-     */
-    nextStageNotStarted?: boolean
-    startedDaysAgo: number
-    firstContactDaysAgo: number | null
-    classesStartInDays: number | null
-    /** До какого номера этапы считаются завершёнными. */
-    completedUpTo: number
-    blockedStage?: number
-    blockingReason?: string
-    /** Этапам с этими номерами ставится просроченный срок. */
-    overdueStages?: number[]
-    /**
-     * Завершённые этапы, закрытые ПОСЛЕ срока.
-     *
-     * Без них показатель «этапы, закрытые в срок» всегда равен 100 %: завершение
-     * в демо-наборе по построению ложится раньше срока. Стопроцентная дисциплина
-     * обесценивает сам контроль сроков — на демонстрации нечего показать.
-     */
-    lateStages?: number[]
-    cancelledStages?: number[]
-  }
 
   const cooperationSeed: CooperationSeed[] = [
     {
@@ -743,8 +786,7 @@ async function main(): Promise<void> {
       responsibleId: manager.id, status: 'ACTIVE',
       goal: 'Внедрение системы мониторинга безопасности в учебный процесс',
       // Занятия идут два месяца: этапы 11 «Проведение занятий» и 12 закрыты,
-      // значит, занятия начались. Раньше начало стояло через 30 дней — «Проведение
-      // занятий» было завершено до начала занятий.
+      // значит, занятия уже начались.
       startedDaysAgo: 210, firstContactDaysAgo: 210, classesStartInDays: -60,
       completedUpTo: 12, lateStages: [6, 9],
     },
@@ -819,251 +861,264 @@ async function main(): Promise<void> {
     },
   ]
 
-  const createdCooperations: Array<{ key: string; id: string; universityKey: string }> = []
-
+  const createdCooperations: CreatedCooperation[] = []
   for (const item of cooperationSeed) {
-    const startedAt = daysAgo(item.startedDaysAgo)
+    createdCooperations.push(await seedCooperation(item, universityId, programId))
+  }
+  return createdCooperations
+}
 
-    const cooperation = await prisma.cooperation.create({
+/**
+ * Одна связка: запись, этапы со сроками и хронологией, чек-листы, история этапов
+ * и те же события в журнале действий, что пишет работающая система.
+ *
+ * Застой не подделывается: даты изменения не сдвигаются, правило застоя смотрит
+ * на движение по этапам (решение 56) и само находит связку, где работа стоит.
+ */
+async function seedCooperation(
+  item: CooperationSeed,
+  universityId: IdOf,
+  programId: IdOf,
+): Promise<CreatedCooperation> {
+  const startedAt = daysAgo(item.startedDaysAgo)
+
+  const cooperation = await prisma.cooperation.create({
+    data: {
+      universityId: universityId(item.university),
+      programId: programId(item.program),
+      productId: item.productId,
+      responsibleId: item.responsibleId,
+      status: item.status,
+      goal: item.goal,
+      notes: item.notes ?? null,
+      startedAt,
+      firstContactAt:
+        item.firstContactDaysAgo === null ? null : daysAgo(item.firstContactDaysAgo),
+      classesStartAt:
+        item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
+      targetDate: item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
+      isMock: true,
+      // Время записи — по сюжету, а не момент заливки: связка заведена, когда
+      // началась работа, и с тех пор не правилась (решение 56).
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    },
+  })
+
+  await prisma.auditLog.create({
+    data: {
+      userId: item.responsibleId,
+      action: 'cooperation.create',
+      objectType: 'Cooperation',
+      objectId: cooperation.id,
+      payload: { status: item.status },
+      createdAt: startedAt,
+    },
+  })
+
+  type SeedStageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED'
+  const seedStatus = (number: number): SeedStageStatus => {
+    if (item.cancelledStages?.includes(number)) return 'CANCELLED'
+    if (number <= item.completedUpTo) return 'COMPLETED'
+    if (item.blockedStage === number) return 'BLOCKED'
+    if (number === item.completedUpTo + 1 && !item.nextStageNotStarted) return 'IN_PROGRESS'
+    return 'NOT_STARTED'
+  }
+  // Контрольный этап — тем же правилом, что в системе (computeControlStatus), а не своей копией.
+  const controlStatus = computeControlStatus(
+    WORKFLOW_STAGES.filter((definition) => definition.number !== 14).map((definition) =>
+      seedStatus(definition.number),
+    ),
+  )
+
+  // Сроки этапов. Нормативные — от начала связки, но этапы 11–14 (занятия
+  // и то, что идёт после них) привязаны к началу занятий: срок «Проведения занятий»
+  // не может быть раньше их начала.
+  const classesStartAt =
+    item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays)
+  const deadlineOf = new Map<number, Date>()
+  for (const definition of WORKFLOW_STAGES) {
+    const number = definition.number
+    let deadline = item.overdueStages?.includes(number)
+      ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
+      : new Date(startedAt.getTime() + definition.normativeDays * DAY)
+    const afterClasses = DAYS_AFTER_CLASSES_START[number]
+    if (classesStartAt && afterClasses !== undefined) {
+      const fromClasses = new Date(classesStartAt.getTime() + afterClasses * DAY)
+      if (fromClasses > deadline) deadline = fromClasses
+    }
+    deadlineOf.set(number, deadline)
+  }
+
+  // Хронология: этап начинается, когда закрыт предыдущий, и закрывается
+  // незадолго до своего срока, а опоздавший (lateStages) — через несколько дней после.
+  // Так завершения распределены по всей жизни связки, и тренд главной не пуст.
+  const timeline = new Map<number, { startedAt: Date | null; completedAt: Date | null }>()
+  let previousDoneAt = startedAt
+  for (const definition of WORKFLOW_STAGES) {
+    const number = definition.number
+    if (number === 14) continue
+    const status = seedStatus(number)
+    if (status === 'NOT_STARTED') {
+      timeline.set(number, { startedAt: null, completedAt: null })
+      continue
+    }
+    const stageStartedAt = previousDoneAt
+    if (status !== 'COMPLETED') {
+      timeline.set(number, { startedAt: stageStartedAt, completedAt: null })
+      continue
+    }
+    const deadline = deadlineOf.get(number)!
+    let completedAt = item.lateStages?.includes(number)
+      ? new Date(deadline.getTime() + (3 + (number % 5)) * DAY)
+      : new Date(deadline.getTime() - (1 + (number % 3)) * DAY)
+    const earliest = new Date(stageStartedAt.getTime() + DAY / 2)
+    if (completedAt < earliest) completedAt = earliest
+    const latest = daysAgo(1)
+    if (completedAt > latest) completedAt = latest
+    timeline.set(number, { startedAt: stageStartedAt, completedAt })
+    previousDoneAt = completedAt
+  }
+  // Контрольный этап открывается с началом работы и закрывается вместе с последним.
+  timeline.set(14, {
+    startedAt: controlStatus === 'NOT_STARTED' ? null : startedAt,
+    completedAt: controlStatus === 'COMPLETED' ? previousDoneAt : null,
+  })
+
+  let lastCompletedAt: Date | null = null
+
+  for (const definition of WORKFLOW_STAGES) {
+    const number = definition.number
+    const isControl = number === 14
+    const status = seedStatus(number)
+    const deadline = deadlineOf.get(number)!
+    const dates = timeline.get(number)!
+
+    const finalStatus = isControl ? controlStatus : status
+
+    const stage = await prisma.workflowStage.create({
       data: {
-        universityId: universityId(item.university),
-        programId: programId(item.program),
-        productId: item.productId,
+        cooperationId: cooperation.id,
+        stageNumber: number,
+        title: definition.title,
+        phase: definition.phase,
+        status: finalStatus,
         responsibleId: item.responsibleId,
-        status: item.status,
-        goal: item.goal,
-        notes: item.notes ?? null,
-        startedAt,
-        firstContactAt:
-          item.firstContactDaysAgo === null ? null : daysAgo(item.firstContactDaysAgo),
-        classesStartAt:
-          item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
-        targetDate: item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays),
-        isMock: true,
-        // Время записи — по сюжету, а не момент заливки: связка заведена, когда
-        // началась работа, и с тех пор не правилась. Иначе у всех связок «изменена
-        // сегодня», и застой по этапам в наборе не виден (решение 56).
-        createdAt: startedAt,
-        updatedAt: startedAt,
-      },
-    })
-
-    await prisma.auditLog.create({
-      data: {
-        userId: item.responsibleId,
-        action: 'cooperation.create',
-        objectType: 'Cooperation',
-        objectId: cooperation.id,
-        payload: { status: item.status },
-        createdAt: startedAt,
-      },
-    })
-
-    createdCooperations.push({
-      key: `${item.university}-${item.program}`,
-      id: cooperation.id,
-      universityKey: item.university,
-    })
-
-    type SeedStageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'CANCELLED'
-    const seedStatus = (number: number): SeedStageStatus => {
-      if (item.cancelledStages?.includes(number)) return 'CANCELLED'
-      if (number <= item.completedUpTo) return 'COMPLETED'
-      if (item.blockedStage === number) return 'BLOCKED'
-      if (number === item.completedUpTo + 1 && !item.nextStageNotStarted) return 'IN_PROGRESS'
-      return 'NOT_STARTED'
-    }
-    // Контрольный этап — тем же правилом, что в системе (computeControlStatus),
-    // а не своей копией: копия считала по номеру последнего закрытого этапа,
-    // и у связки с начатым первым этапом этап 14 оставался «Не начат».
-    const controlStatus = computeControlStatus(
-      WORKFLOW_STAGES.filter((definition) => definition.number !== 14).map((definition) =>
-        seedStatus(definition.number),
-      ),
-    )
-
-    // Сроки этапов. Нормативные — от начала связки, но этапы 11–14 (занятия
-    // и то, что идёт после них) привязаны к началу занятий: «Проведение занятий»
-    // со сроком раньше начала занятий — неправда на экране (ТЗ Артура, п. 2).
-    const classesStartAt =
-      item.classesStartInDays === null ? null : daysAhead(item.classesStartInDays)
-    const deadlineOf = new Map<number, Date>()
-    for (const definition of WORKFLOW_STAGES) {
-      const number = definition.number
-      let deadline = item.overdueStages?.includes(number)
-        ? daysAgo(Math.max(3, item.startedDaysAgo - definition.normativeDays))
-        : new Date(startedAt.getTime() + definition.normativeDays * DAY)
-      const afterClasses = DAYS_AFTER_CLASSES_START[number]
-      if (classesStartAt && afterClasses !== undefined) {
-        const fromClasses = new Date(classesStartAt.getTime() + afterClasses * DAY)
-        if (fromClasses > deadline) deadline = fromClasses
-      }
-      deadlineOf.set(number, deadline)
-    }
-
-    // Хронология: этап начинается, когда закрыт предыдущий, и закрывается
-    // незадолго до своего срока, а опоздавший — через несколько дней после.
-    // Раньше все этапы закрывались в первые две недели связки: «Проведение
-    // занятий» оказывалось завершённым за полгода до начала занятий, а за
-    // последний месяц не закрывалось ничего и тренд главной был пуст.
-    // Кто закрыт в срок, а кто с опозданием — как раньше, доля «в срок» та же.
-    const timeline = new Map<number, { startedAt: Date | null; completedAt: Date | null }>()
-    let previousDoneAt = startedAt
-    for (const definition of WORKFLOW_STAGES) {
-      const number = definition.number
-      if (number === 14) continue
-      const status = seedStatus(number)
-      if (status === 'NOT_STARTED') {
-        timeline.set(number, { startedAt: null, completedAt: null })
-        continue
-      }
-      const stageStartedAt = previousDoneAt
-      if (status !== 'COMPLETED') {
-        timeline.set(number, { startedAt: stageStartedAt, completedAt: null })
-        continue
-      }
-      const deadline = deadlineOf.get(number)!
-      let completedAt = item.lateStages?.includes(number)
-        ? new Date(deadline.getTime() + (3 + (number % 5)) * DAY)
-        : new Date(deadline.getTime() - (1 + (number % 3)) * DAY)
-      const earliest = new Date(stageStartedAt.getTime() + DAY / 2)
-      if (completedAt < earliest) completedAt = earliest
-      const latest = daysAgo(1)
-      if (completedAt > latest) completedAt = latest
-      timeline.set(number, { startedAt: stageStartedAt, completedAt })
-      previousDoneAt = completedAt
-    }
-    // Контрольный этап открывается с началом работы и закрывается вместе с последним.
-    timeline.set(14, {
-      startedAt: controlStatus === 'NOT_STARTED' ? null : startedAt,
-      completedAt: controlStatus === 'COMPLETED' ? previousDoneAt : null,
-    })
-
-    let lastCompletedAt: Date | null = null
-
-    for (const definition of WORKFLOW_STAGES) {
-      const number = definition.number
-      const isControl = number === 14
-      const status = seedStatus(number)
-      const deadline = deadlineOf.get(number)!
-      const dates = timeline.get(number)!
-
-      const finalStatus = isControl ? controlStatus : status
-
-      const stage = await prisma.workflowStage.create({
-        data: {
-          cooperationId: cooperation.id,
-          stageNumber: number,
-          title: definition.title,
-          phase: definition.phase,
-          status: finalStatus,
-          responsibleId: item.responsibleId,
-          deadline,
-          startedAt: dates.startedAt,
-          completedAt: dates.completedAt,
-          completedById: finalStatus === 'COMPLETED' && !isControl ? item.responsibleId : null,
-          result:
-            finalStatus === 'COMPLETED' && !isControl
-              ? `Этап «${definition.title}» выполнен (демонстрационные данные)`
-              : null,
-          comment:
-            finalStatus === 'CANCELLED' ? 'Не требуется для этой связки' : null,
-          blockingReason: finalStatus === 'BLOCKED' ? (item.blockingReason ?? null) : null,
-          ...(definition.tasks.length > 0
-            ? {
-                tasks: {
-                  createMany: {
-                    data: definition.tasks.map((task, index) => ({
-                      title: task.title,
-                      isRequired: task.isRequired,
-                      isUniversityItem: task.universityItem === true,
-                      sortOrder: index,
-                      isDone: finalStatus === 'COMPLETED',
-                      doneAt: dates.completedAt,
-                      doneById: finalStatus === 'COMPLETED' ? item.responsibleId : null,
-                      // Пункт вуза (решение 103). У вуза без представителя его отметил
-                      // сотрудник — значит, с пометкой, чем подтверждено. У СПбГУТ
-                      // представитель есть: отметку ниже переписываем на него.
-                      confirmationNote:
-                        finalStatus === 'COMPLETED' &&
-                        task.universityItem === true &&
-                        item.university !== UNIVERSITY_WITH_REP
-                          ? 'Подтверждено письмом вуза (демонстрационные данные)'
-                          : null,
-                    })),
-                  },
+        deadline,
+        startedAt: dates.startedAt,
+        completedAt: dates.completedAt,
+        completedById: finalStatus === 'COMPLETED' && !isControl ? item.responsibleId : null,
+        result:
+          finalStatus === 'COMPLETED' && !isControl
+            ? `Этап «${definition.title}» выполнен (демонстрационные данные)`
+            : null,
+        comment:
+          finalStatus === 'CANCELLED' ? 'Не требуется для этой связки' : null,
+        blockingReason: finalStatus === 'BLOCKED' ? (item.blockingReason ?? null) : null,
+        ...(definition.tasks.length > 0
+          ? {
+              tasks: {
+                createMany: {
+                  data: definition.tasks.map((task, index) => ({
+                    title: task.title,
+                    isRequired: task.isRequired,
+                    isUniversityItem: task.universityItem === true,
+                    sortOrder: index,
+                    isDone: finalStatus === 'COMPLETED',
+                    doneAt: dates.completedAt,
+                    doneById: finalStatus === 'COMPLETED' ? item.responsibleId : null,
+                    // Пункт вуза (решение 103). У вуза без представителя его отметил
+                    // сотрудник — значит, с пометкой, чем подтверждено. У СПбГУТ
+                    // представитель есть: отметку ниже переписываем на него.
+                    confirmationNote:
+                      finalStatus === 'COMPLETED' &&
+                      task.universityItem === true &&
+                      item.university !== UNIVERSITY_WITH_REP
+                        ? 'Подтверждено письмом вуза (демонстрационные данные)'
+                        : null,
+                  })),
                 },
-              }
-            : {}),
+              },
+            }
+          : {}),
+      },
+    })
+
+    if (stage.completedAt && (!lastCompletedAt || stage.completedAt > lastCompletedAt)) {
+      lastCompletedAt = stage.completedAt
+    }
+
+    if (finalStatus !== 'NOT_STARTED') {
+      const changedAt = dates.completedAt ?? dates.startedAt ?? startedAt
+
+      await prisma.stageHistory.create({
+        data: {
+          stageId: stage.id,
+          fromStatus: 'NOT_STARTED',
+          toStatus: finalStatus,
+          comment: 'Демонстрационные данные',
+          changedById: item.responsibleId,
+          changedAt,
         },
       })
 
-      if (stage.completedAt && (!lastCompletedAt || stage.completedAt > lastCompletedAt)) {
-        lastCompletedAt = stage.completedAt
-      }
-
-      if (finalStatus !== 'NOT_STARTED') {
-        const changedAt = dates.completedAt ?? dates.startedAt ?? startedAt
-
-        await prisma.stageHistory.create({
-          data: {
-            stageId: stage.id,
-            fromStatus: 'NOT_STARTED',
-            toStatus: finalStatus,
-            comment: 'Демонстрационные данные',
-            changedById: item.responsibleId,
-            changedAt,
-          },
-        })
-
-        // То же событие пишется и в журнал действий — ровно как делает работающая
-        // система. Иначе демо-набор внутренне противоречив: история этапов есть,
-        // а журнал пуст, и администратор видит пустой раздел при десятках
-        // завершённых этапов.
-        await prisma.auditLog.create({
-          data: {
-            userId: item.responsibleId,
-            action: 'stage.status.change',
-            objectType: 'WorkflowStage',
-            objectId: stage.id,
-            payload: { from: 'NOT_STARTED', to: finalStatus, stageNumber: number },
-            createdAt: changedAt,
-          },
-        })
-      }
-    }
-
-    // Закрытая связка закрыта вместе с последним этапом. Приложение ставит дату
-    // закрытия при смене статуса; без неё карточка не показывает «Закрыта»,
-    // а db:verify считает запись противоречивой.
-    if (item.status === 'COMPLETED' && lastCompletedAt) {
-      await prisma.cooperation.update({
-        where: { id: cooperation.id },
-        data: { closedAt: lastCompletedAt, updatedAt: lastCompletedAt },
-      })
-    }
-    // Отменённая закрыта в день отмены — так же, как её закрыло бы приложение.
-    if (item.status === 'CANCELLED' && item.closedDaysAgo !== undefined) {
-      const closedAt = daysAgo(item.closedDaysAgo)
-      await prisma.cooperation.update({
-        where: { id: cooperation.id },
-        data: { closedAt, updatedAt: closedAt },
-      })
+      // То же событие пишется и в журнал действий — ровно как делает работающая
+      // система. Иначе демо-набор внутренне противоречив: история этапов есть,
+      // а журнал пуст, и администратор видит пустой раздел при десятках
+      // завершённых этапов.
       await prisma.auditLog.create({
         data: {
           userId: item.responsibleId,
-          action: 'cooperation.update',
-          objectType: 'Cooperation',
-          objectId: cooperation.id,
-          payload: { status: 'CANCELLED' },
-          createdAt: closedAt,
+          action: 'stage.status.change',
+          objectType: 'WorkflowStage',
+          objectId: stage.id,
+          payload: { from: 'NOT_STARTED', to: finalStatus, stageNumber: number },
+          createdAt: changedAt,
         },
       })
     }
   }
 
-  // ─── Представитель вуза ────────────────────────────────────────────────────
-  // Создаётся после вузов: роли UNIVERSITY_REP обязательно нужен свой вуз (решение 9).
+  // Закрытая связка закрыта вместе с последним этапом. Приложение ставит дату
+  // закрытия при смене статуса; без неё карточка не показывает «Закрыта»,
+  // а db:verify считает запись противоречивой.
+  if (item.status === 'COMPLETED' && lastCompletedAt) {
+    await prisma.cooperation.update({
+      where: { id: cooperation.id },
+      data: { closedAt: lastCompletedAt, updatedAt: lastCompletedAt },
+    })
+  }
+  // Отменённая закрыта в день отмены — так же, как её закрыло бы приложение.
+  if (item.status === 'CANCELLED' && item.closedDaysAgo !== undefined) {
+    const closedAt = daysAgo(item.closedDaysAgo)
+    await prisma.cooperation.update({
+      where: { id: cooperation.id },
+      data: { closedAt, updatedAt: closedAt },
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: item.responsibleId,
+        action: 'cooperation.update',
+        objectType: 'Cooperation',
+        objectId: cooperation.id,
+        payload: { status: 'CANCELLED' },
+        createdAt: closedAt,
+      },
+    })
+  }
+
+  return {
+    key: `${item.university}-${item.program}`,
+    id: cooperation.id,
+    universityKey: item.university,
+  }
+}
+
+/**
+ * Представитель вуза в кабинете. Роли UNIVERSITY_REP обязательно нужен свой вуз
+ * (решение 9), поэтому создаётся после вузов и связок.
+ */
+async function seedUniversityRep(demoPasswordHash: string, universityId: IdOf) {
   const universityRep = await prisma.user.create({
     data: {
       email: 'rep@spbgu.example.invalid',
@@ -1103,24 +1158,27 @@ async function main(): Promise<void> {
       },
     })
   }
+  return universityRep
+}
 
-  // ─── Документы и встречи ───────────────────────────────────────────────────
+/**
+ * Связка по ключу «вуз-программа», а не по номеру в списке: вставка связки в начало
+ * списка не должна переносить документы и встречи к соседям. Неизвестный ключ
+ * роняет заливку, а не пропускается молча.
+ */
+function cooperationByKey(cooperations: CreatedCooperation[], key: string): CreatedCooperation {
+  const found = cooperations.find((item) => item.key === key)
+  if (!found) throw new Error(`В демонстрационном наборе нет связки ${key}`)
+  return found
+}
+
+/** Документы связок с историей статусов. */
+async function seedDocuments(
+  cooperations: CreatedCooperation[],
+  manager: SeedUser,
+  universityId: IdOf,
+): Promise<void> {
   console.log('Документы и встречи...')
-
-  /**
-   * Связка по ключу «вуз-программа», а не по номеру в списке.
-   *
-   * Документы и встречи раньше ссылались на номер. 22.09.2026 в начало списка
-   * вставили завершённую связку КНИТУ-КАИ, номера съехали на один, и всё
-   * уехало к соседям: у «Программной инженерии» СПбГУТ, где подписание ещё
-   * идёт, договор значился подписанным, а у связки на этапе 13 — «на
-   * согласовании». Неизвестный ключ роняет заливку, а не пропускается молча.
-   */
-  const cooperationByKey = (key: string) => {
-    const found = createdCooperations.find((item) => item.key === key)
-    if (!found) throw new Error(`В демонстрационном наборе нет связки ${key}`)
-    return found
-  }
 
   const docPlan: Array<{
     coopKey: string
@@ -1150,7 +1208,7 @@ async function main(): Promise<void> {
   ]
 
   for (const plan of docPlan) {
-    const coop = cooperationByKey(plan.coopKey)
+    const coop = cooperationByKey(cooperations, plan.coopKey)
 
     // История статусов: путь от черновика до текущего состояния, шаг — два дня.
     // Архивная первая редакция: была на согласовании и заменена второй.
@@ -1182,8 +1240,7 @@ async function main(): Promise<void> {
         issuedAt: daysAgo(plan.daysAgoIssued),
         // День подписания — тот же, что у перехода «Подписан» в истории ниже.
         signedAt: plan.status === 'SIGNED' ? lastChangedAt : null,
-        // Даты записи — по сюжету: заведён в день выпуска, обновлён последней
-        // сменой статуса. Иначе у всех документов «Обновлён 25.09, 00:25».
+        // Даты записи — по сюжету: заведён в день выпуска, обновлён последней сменой статуса.
         createdAt: daysAgo(plan.daysAgoIssued),
         updatedAt: lastChangedAt,
       },
@@ -1211,7 +1268,14 @@ async function main(): Promise<void> {
       previous = step
     }
   }
+}
 
+/** Встречи с вузами: участник от ИТ-Школы и основной контакт вуза. */
+async function seedMeetings(
+  cooperations: CreatedCooperation[],
+  manager: SeedUser,
+  universityId: IdOf,
+): Promise<void> {
   const meetingPlan: Array<{
     coopKey: string
     daysAgoDate: number
@@ -1251,7 +1315,7 @@ async function main(): Promise<void> {
   ]
 
   for (const plan of meetingPlan) {
-    const coop = cooperationByKey(plan.coopKey)
+    const coop = cooperationByKey(cooperations, plan.coopKey)
 
     const contact = await prisma.contact.findFirst({
       where: { universityId: universityId(coop.universityKey) },
@@ -1282,17 +1346,15 @@ async function main(): Promise<void> {
       },
     })
   }
+}
 
-  // Застой не подделывается. Раньше у связки УрФУ дату изменения сдвигали на 30 дней
-  // назад, и правило выдавало «Связка без движения 30 дн.» о связке, созданной 5 дней
-  // назад, где этап 1 начат 4 дня назад. Правило смотрит на движение по этапам
-  // (решение 56) и само находит связку, где работа действительно стоит.
-
-  // ─── Заявки на обучение ────────────────────────────────────────────────────
-  // applicationCount программы считается по заявкам (решение 9), поэтому демо-данные
-  // обязаны быть согласованы: для каждой программы с заявками создаётся запись
-  // ровно на то количество, которое проставлено в показателе. Иначе кабинет вуза
-  // пересчитает показатель и цифра на демонстрации изменится на глазах у зрителей.
+/**
+ * Заявки на обучение. applicationCount программы считается по заявкам (решение 9), поэтому демо-данные
+ * обязаны быть согласованы: для каждой программы с заявками создаётся запись
+ * ровно на то количество, которое проставлено в показателе. Иначе кабинет вуза
+ * пересчитает показатель и цифра на демонстрации изменится на глазах у зрителей.
+ */
+async function seedApplications(universityId: IdOf, programId: IdOf): Promise<void> {
   console.log('Заявки на обучение...')
   for (const item of programSeed) {
     if (item.applicationCount === null) continue
@@ -1325,14 +1387,15 @@ async function main(): Promise<void> {
       )
     }
   }
+}
 
-  // ─── Итог ──────────────────────────────────────────────────────────────────
-  // ─── Рекомендации ──────────────────────────────────────────────────────────
-  // Прогоняем настоящий движок правил по посеянным данным, а не сочиняем записи.
-  //
-  // Без этого шага свежая демонстрация открывается с пустым блоком «приоритетные
-  // действия» на дашборде: рекомендации появляются только после явной генерации,
-  // и до первого нажатия система выглядит так, будто раздел не работает.
+/**
+ * Рекомендации: настоящий движок правил по посеянным данным, а не сочинённые записи.
+ *
+ * Без этого шага свежая демонстрация открывается с пустым блоком «приоритетные
+ * действия» на дашборде: рекомендации появляются только после явной генерации.
+ */
+async function seedRecommendations(cooperations: CreatedCooperation[], manager: SeedUser): Promise<void> {
   console.log('Рекомендации...')
   const generation = await generateRecommendations({
     id: manager.id,
@@ -1363,7 +1426,7 @@ async function main(): Promise<void> {
     })
   }
   // Связка на паузе: правило застоя её видит, менеджер отклонил — пауза по просьбе вуза.
-  const pausedCoop = createdCooperations.find((item) => item.key === 'rostov-rostov-it')
+  const pausedCoop = cooperations.find((item) => item.key === 'rostov-rostov-it')
   const pausedStalled = pausedCoop
     ? await prisma.recommendation.findFirst({ where: { ruleKey: 'cooperation.stalled', objectId: pausedCoop.id } })
     : null
@@ -1387,8 +1450,8 @@ async function main(): Promise<void> {
       },
     })
   }
-  const completedCoop = createdCooperations.find((item) => item.key === 'kazan-kazan-networks')
-  const cancelledCoop = createdCooperations.find((item) => item.key === 'nsu-nsu-soft')
+  const completedCoop = cooperations.find((item) => item.key === 'kazan-kazan-networks')
+  const cancelledCoop = cooperations.find((item) => item.key === 'nsu-nsu-soft')
   const stage4 = WORKFLOW_STAGES.find((definition) => definition.number === 4)!
   const resolvedPlan = [
     completedCoop && {
@@ -1433,7 +1496,11 @@ async function main(): Promise<void> {
       },
     })
   }
+}
 
+/** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
+async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<void> {
+  const { admin, manager, analyst, customPassword, DEMO_PASSWORD } = users
   const counts = {
     Вузы: await prisma.university.count(),
     Программы: await prisma.educationalProgram.count(),
@@ -1465,6 +1532,26 @@ async function main(): Promise<void> {
       : `\nПароль всех демо-пользователей: ${DEMO_PASSWORD}`,
   )
   console.log('\nВсе записи помечены isMock = true и не являются подтверждённой статистикой.')
+}
+
+async function main(): Promise<void> {
+  console.log('Очистка демонстрационных данных...')
+  await clean()
+
+  const users = await seedUsers()
+  const mockSource = await seedDataSources()
+  const skillId = await seedSkills()
+  await seedMarket(mockSource, skillId)
+  const products = await seedProducts(skillId)
+  const { universityId, universityCreatedAt } = await seedUniversities()
+  const programId = await seedPrograms(skillId, universityId, universityCreatedAt)
+  const cooperations = await seedCooperations(products, users.manager, users.manager2, universityId, programId)
+  const universityRep = await seedUniversityRep(users.demoPasswordHash, universityId)
+  await seedDocuments(cooperations, users.manager, universityId)
+  await seedMeetings(cooperations, users.manager, universityId)
+  await seedApplications(universityId, programId)
+  await seedRecommendations(cooperations, users.manager)
+  await printSummary(users, universityRep)
 }
 
 main()

@@ -91,10 +91,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
 /**
  * Все строки списка, по страницам.
  *
- * Один запрос с `pageSize=50` видит только первые пятьдесят. На рабочей базе,
- * где пробник и прошлые прогоны оставили записи, нужная рекомендация уезжала
- * на вторую страницу, и проверка «сработало правило» падала без ошибки
- * в приложении.
+ * Один запрос с `pageSize=50` видит только первые пятьдесят: на рабочей базе, где
+ * остались записи пробника и прошлых прогонов, нужная строка бывает на следующей странице.
  */
 async function callAll<T>(path: string): Promise<{ status: number; rows: T[]; total: number }> {
   const separator = path.includes('?') ? '&' : '?'
@@ -211,8 +209,6 @@ interface Identified {
  * падает не из-за приложения, а из-за того, что оно ещё собирается.
  *
  * В CI этого не видно: там промышленная сборка, где всё собрано заранее.
- * А человек, запустивший npm run dev и сразу npm run smoke, упирался бы
- * в непонятный отказ.
  */
 async function warmUp(): Promise<void> {
   const routes = [
@@ -253,13 +249,44 @@ async function warmUp(): Promise<void> {
   )
 }
 
-async function main(): Promise<void> {
-  console.log(`${BOLD}Сквозной сценарий SkillLink${RESET}`)
-  console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+/** Строка реестра вузов из шага 3. */
+type UniversityRow = Identified & { name: string; programCount: number }
 
-  await warmUp()
+/** Этап только что созданной связки. */
+interface CreatedStage {
+  id: string
+  stageNumber: number
+  status: string
+  isAutoManaged: boolean
+  tasks: Array<Identified & { isRequired: boolean }>
+}
 
-  // ── 1. Подключение ─────────────────────────────────────────────────────────
+/** Вуз и программа, заведённые сценарием на шаге 5. */
+interface CreatedUniversity {
+  /** Уникальный хвост названий этого прогона: по нему записи находятся среди прошлых. */
+  suffix: string
+  universityId: string
+  programId: string
+}
+
+/** Связка, заведённая сценарием на шаге 8, и её первые этапы. */
+interface CreatedCooperation {
+  managerId: string | undefined
+  cooperationId: string
+  stage1: CreatedStage
+  stage2: CreatedStage
+  stage3: CreatedStage
+  controlStage: CreatedStage
+}
+
+/** Общий контекст сценария: записи, созданные в начале и нужные следующим шагам. */
+interface SmokeContext extends CreatedUniversity, CreatedCooperation {
+  universityList: UniversityRow[]
+  productId: string | undefined
+}
+
+/** Возвращает false, если сервер не отвечает: дальше идти незачем. */
+async function checkDatabase(): Promise<boolean> {
   step('1. Проверка подключения к базе данных')
   const health = await call<{ status: string; database: string }>('GET', '/api/health')
   check('GET /api/health отвечает 200', health.status === 200, `статус ${health.status}`)
@@ -268,10 +295,12 @@ async function main(): Promise<void> {
   if (health.status !== 200) {
     console.log(`\n${RED}Сервер не отвечает. Запустите npm run dev и повторите.${RESET}`)
     process.exitCode = 1
-    return
+    return false
   }
+  return true
+}
 
-  // ── 2. Дашборд ─────────────────────────────────────────────────────────────
+async function checkDashboard(): Promise<void> {
   step('2. Dashboard: сводные показатели')
   const overview = await call<{
     metrics: Array<{ key: string; value: number | null; basis: string; explanation: string }>
@@ -307,8 +336,9 @@ async function main(): Promise<void> {
     'блок приоритетных действий присутствует в ответе',
     Array.isArray(overview.body.data?.priorityActions),
   )
+}
 
-  // ── 3. Реестр вузов ────────────────────────────────────────────────────────
+async function checkUniversityRegistry(): Promise<UniversityRow[]> {
   step('3. Реестр университетов')
   const universities = await call<Array<Identified & { name: string; programCount: number }>>(
     'GET',
@@ -325,13 +355,15 @@ async function main(): Promise<void> {
 
   const filtered = await call<unknown[]>('GET', '/api/universities?status=ACTIVE')
   check('фильтр по статусу работает', filtered.status === 200, `найдено ${filtered.body.data?.length ?? 0}`)
+  return universityList
+}
 
-  // ── 4. Карточка вуза ───────────────────────────────────────────────────────
+async function checkUniversityCard(universityList: UniversityRow[]): Promise<boolean> {
   step('4. Карточка университета')
   const firstUniversity = universityList[0]
   if (!firstUniversity) {
     check('есть хотя бы один вуз', false, 'запустите npm run db:seed')
-    return
+    return false
   }
   const universityCard = await call<{ name: string; primaryContact: unknown; contacts: unknown[] }>(
     'GET',
@@ -343,8 +375,10 @@ async function main(): Promise<void> {
   const missing = await call('GET', '/api/universities/no-such-id')
   check('несуществующий вуз отдаёт 404', missing.status === 404, `код ${missing.body.error?.code}`)
   check('ошибка содержит код', missing.body.error?.code === 'NOT_FOUND')
+  return true
+}
 
-  // ── 5. Создание вуза и программы ───────────────────────────────────────────
+async function createUniversityAndProgram(): Promise<CreatedUniversity | null> {
   step('5. Создание университета и образовательной программы')
   const suffix = Date.now().toString().slice(-6)
   const newUniversity = await call<Identified>('POST', '/api/universities', {
@@ -377,7 +411,7 @@ async function main(): Promise<void> {
   )
   check('в ошибке есть разбор по полям', Array.isArray(invalidUniversity.body.error?.details))
 
-  if (!universityId) return
+  if (!universityId) return null
 
   const newProgram = await call<Identified>('POST', '/api/programs', {
     universityId,
@@ -399,9 +433,11 @@ async function main(): Promise<void> {
   })
   check('программа для несуществующего вуза отклоняется', foreignProgram.status === 422)
 
-  if (!programId) return
+  if (!programId) return null
+  return { suffix, universityId, programId }
+}
 
-  // ── 6. Привязка навыков ────────────────────────────────────────────────────
+async function attachProgramSkills(programId: string): Promise<void> {
   step('6. Привязка навыков к программе')
   const skills = await call<Array<Identified & { name: string }>>('GET', '/api/skills?pageSize=5')
   check('GET /api/skills отвечает 200', skills.status === 200)
@@ -422,8 +458,9 @@ async function main(): Promise<void> {
     skills: [{ skillId: 'no-such-skill' }],
   })
   check('несуществующий навык отклоняется', badSkill.status === 422)
+}
 
-  // ── 7. IT-продукты ─────────────────────────────────────────────────────────
+async function checkProducts(): Promise<string | undefined> {
   step('7. IT-продукты')
   const products = await call<Array<Identified & { name: string }>>('GET', '/api/products')
   check('GET /api/products отвечает 200', products.status === 200)
@@ -458,8 +495,10 @@ async function main(): Promise<void> {
     'PATCH /api/products/:id сохраняет правку',
     productEdited.body.data?.description === 'Заведён сквозным сценарием',
   )
+  return productId
+}
 
-  // ── 7a. Списки и сортировка ────────────────────────────────────────────────
+async function checkProgramLists({ universityId, suffix }: CreatedUniversity): Promise<void> {
   step('7a. Списки программ: пагинация, фильтры, сортировка')
   const programList = await call<Array<{ id: string; metrics: Record<string, { value: number | null }> }>>(
     'GET',
@@ -491,7 +530,7 @@ async function main(): Promise<void> {
     check('дата архивирования проставлена', Boolean(archived.body.data?.archivedAt))
 
     // Сужаем по уникальному суффиксу: на рабочей базе программ больше сотни,
-    // и по алфавиту «Программа для архива…» уезжала за первую страницу.
+    // и по алфавиту нужная может оказаться за первой страницей.
     const byName = `q=${encodeURIComponent(suffix)}`
     const hidden = await call<Array<{ id: string }>>('GET', `/api/programs?pageSize=100&${byName}`)
     check(
@@ -528,8 +567,9 @@ async function main(): Promise<void> {
     sortedCooperations.status === 200,
     `статус ${sortedCooperations.status}`,
   )
+}
 
-  // ── 8. Создание связки и 14 этапов ─────────────────────────────────────────
+async function createCooperation({ universityId, programId }: CreatedUniversity, productId: string | undefined): Promise<CreatedCooperation | null> {
   step('8. Создание связки: вуз — программа — продукт')
   // Ответственным назначается только менеджер или администратор — берём менеджера
   // из справочника, а не ответственного первой попавшейся связки.
@@ -539,13 +579,7 @@ async function main(): Promise<void> {
 
   const cooperation = await call<{
     id: string
-    stages: Array<{
-      id: string
-      stageNumber: number
-      status: string
-      isAutoManaged: boolean
-      tasks: Array<Identified & { isRequired: boolean }>
-    }>
+    stages: CreatedStage[]
     progress: { percent: number; totalStages: number }
     currentStage: { stageNumber: number } | null
   }>('POST', '/api/cooperations', {
@@ -602,10 +636,13 @@ async function main(): Promise<void> {
   const stage2 = stages[1]
   const stage3 = stages[2]
   const controlStage = stages[13]
-  if (!cooperationId || !stage1 || !stage2 || !stage3 || !controlStage) return
+  if (!cooperationId || !stage1 || !stage2 || !stage3 || !controlStage) return null
+  return { managerId, cooperationId, stage1, stage2, stage3, controlStage }
+}
 
-  // ── 9. Работа с этапом ─────────────────────────────────────────────────────
+async function workOnFirstStages(ctx: SmokeContext): Promise<void> {
   step('9. Текущий этап, чек-лист и смена статуса')
+  const { stage1, stage2, stage3, controlStage } = ctx
   const started = await call<{ status: string; startedAt: string | null }>(
     'PATCH',
     `/api/workflow/stages/${stage1.id}`,
@@ -691,9 +728,11 @@ async function main(): Promise<void> {
     controlAttempt.status === 409,
     `код ${controlAttempt.body.error?.code}`,
   )
+}
 
-  // ── 10. Прогресс и история ─────────────────────────────────────────────────
+async function checkProgressAndHistory(ctx: SmokeContext): Promise<void> {
   step('10. Прогресс и история изменений обновились')
+  const { cooperationId, stage1 } = ctx
   const refreshed = await call<{
     progress: { percent: number; blockedStages: number; completedStages: number }
     currentStage: { stageNumber: number; status: string } | null
@@ -730,8 +769,9 @@ async function main(): Promise<void> {
   const stagesList = await call<unknown[]>('GET', `/api/cooperations/${cooperationId}/stages`)
   check('GET /api/cooperations/:id/stages отвечает 200', stagesList.status === 200)
   check('вернулись все 14 этапов', (stagesList.body.data?.length ?? 0) === 14)
+}
 
-  // ── 11. Просроченные и заблокированные ─────────────────────────────────────
+async function checkOverdueAndBlocked(): Promise<void> {
   step('11. Просроченные и заблокированные этапы')
   const overdue = await call<unknown[]>('GET', '/api/workflow/overdue')
   check('GET /api/workflow/overdue отвечает 200', overdue.status === 200)
@@ -748,9 +788,11 @@ async function main(): Promise<void> {
     (blockedList.body.data?.length ?? 0) > 0,
     `${blockedList.body.data?.length ?? 0} этапов`,
   )
+}
 
-  // ── 12. Навыки, спрос, дефициты ────────────────────────────────────────────
+async function checkSkillDemandAndGaps(ctx: SmokeContext): Promise<void> {
   step('12. Востребованность навыков и skill gap')
+  const { programId } = ctx
   const demand = await call<
     Array<{ normalized: number | null; source: string | null; isMock: boolean }>
   >('GET', '/api/skills/demand')
@@ -788,8 +830,9 @@ async function main(): Promise<void> {
     'критичный дефицит — это навык, которого нет ни в одной программе',
     (criticalGaps.body.data ?? []).every((row) => row.coverage === 0),
   )
+}
 
-  // ── 13. Рейтинг программ ───────────────────────────────────────────────────
+async function checkProgramRating(): Promise<void> {
   step('13. Рейтинг программ с раскрытием вклада показателей')
   const rating = await call<
     Array<{
@@ -809,9 +852,11 @@ async function main(): Promise<void> {
     'программы без данных не получают выдуманный балл',
     ranked.every((program) => program.basis !== 'none' || program.score === null),
   )
+}
 
-  // ── 14. Связки: фильтры и изменение ────────────────────────────────────────
+async function checkCooperationSection(ctx: SmokeContext): Promise<void> {
   step('14. Раздел сотрудничества: списки, фильтры, изменение')
+  const { cooperationId } = ctx
   const cooperations = await call<unknown[]>('GET', '/api/cooperations?pageSize=50')
   check('GET /api/cooperations отвечает 200', cooperations.status === 200)
   check(
@@ -834,8 +879,9 @@ async function main(): Promise<void> {
 
   const emptyPatch = await call('PATCH', `/api/cooperations/${cooperationId}`, {})
   check('пустое тело изменения отклоняется', emptyPatch.status === 422, `код ${emptyPatch.body.error?.code}`)
+}
 
-  // ── 15. Рекомендации ───────────────────────────────────────────────────────
+async function checkRecommendations(): Promise<void> {
   step('15. Рекомендации: генерация, основание, работа сотрудника')
   const generated = await call<{ created: number; updated: number; closed: number; total: number }>(
     'POST',
@@ -973,9 +1019,11 @@ async function main(): Promise<void> {
     actions.length === 0 || ['CRITICAL', 'HIGH'].includes(actions[0]?.priority ?? ''),
     `первый приоритет: ${actions[0]?.priority}`,
   )
+}
 
-  // ── 16. Документы ──────────────────────────────────────────────────────────
+async function checkDocuments(ctx: SmokeContext): Promise<void> {
   step('16. Документы: метаданные, жизненный цикл, история, версии')
+  const { cooperationId } = ctx
   const documents = await call<Array<{ id: string; status: string; links: { cooperationId: string | null } }>>(
     'GET',
     '/api/documents?pageSize=50',
@@ -1061,9 +1109,11 @@ async function main(): Promise<void> {
     const oldVersion = await call<{ status: string }>('GET', `/api/documents/${documentId}`)
     check('прежняя версия ушла в архив', oldVersion.body.data?.status === 'ARCHIVED')
   }
+}
 
-  // ── 17. Встречи ────────────────────────────────────────────────────────────
+async function checkSignedDocumentsCloseStage6(ctx: SmokeContext): Promise<void> {
   step('16a. Подписанные документы отмечают пункты этапа 6')
+  const { suffix, universityId, productId, managerId } = ctx
 
   {
     // Подпись вводилась дважды: статусом документа и галочками этапа 6 (решение 87).
@@ -1173,8 +1223,11 @@ async function main(): Promise<void> {
       check('этап 6 закрывается без ручных галочек', closed.body.data?.status === 'COMPLETED', `статус ${closed.status}`)
     }
   }
+}
 
+async function checkMeetings(ctx: SmokeContext): Promise<void> {
   step('17. Встречи: участники, результат, следующее действие')
+  const { managerId, cooperationId } = ctx
   const meetings = await call<Array<{ id: string; participants: unknown[] }>>(
     'GET',
     '/api/meetings?pageSize=50',
@@ -1248,8 +1301,9 @@ async function main(): Promise<void> {
     const emptyMeetingPatch = await call('PATCH', `/api/meetings/${meetingId}`, {})
     check('пустое тело изменения встречи отклоняется', emptyMeetingPatch.status === 422)
   }
+}
 
-  // ── 17a. Текущий пользователь и права ──────────────────────────────────────
+async function checkCurrentUser(): Promise<void> {
   step('17a. Текущий пользователь и его права')
   const me = await call<{
     role: string
@@ -1258,9 +1312,12 @@ async function main(): Promise<void> {
   check('GET /api/me отвечает 200', me.status === 200)
   check('роль определена', Boolean(me.body.data?.role), me.body.data?.role)
   check('права переданы фронту', me.body.data?.permissions.canWrite === true)
+}
 
-  // ── 18. Кабинет представителя вуза ─────────────────────────────────────────
+/** Возвращает вуз, кабинет которого проверялся; без него сценарий останавливается. */
+async function checkUniversityPortal(ctx: SmokeContext): Promise<UniversityRow | null> {
   step('18. Кабинет представителя вуза: свой вуз и только он')
+  const { universityList, programId, cooperationId, stage1 } = ctx
 
   // Находим демо-представителя вуза среди пользователей, известных системе.
   const repProbe = await call<{ universityId: string; universityName: string }>(
@@ -1274,7 +1331,7 @@ async function main(): Promise<void> {
   )
 
   const ownUniversity = universityList[0]
-  if (!ownUniversity) return
+  if (!ownUniversity) return null
 
   const staffPortal = await call<{ universityId: string; programs: unknown[] }>(
     'GET',
@@ -1503,8 +1560,10 @@ async function main(): Promise<void> {
     // Возвращаемся к сотруднику.
     actAs(null)
   }
+  return ownUniversity
+}
 
-  // ── 19. Интеграции и источники данных ──────────────────────────────────────
+async function checkIntegrations(): Promise<void> {
   step('19. Интеграционный слой и источники данных')
   const integrations = await call<{
     marketDataProvider: string
@@ -1573,8 +1632,9 @@ async function main(): Promise<void> {
   const demandAfterSync = await call<unknown[]>('GET', '/api/skills/demand?period=2026-Q1')
   check('спрос по навыкам доступен после загрузки', demandAfterSync.status === 200)
   check('данные на месте', (demandAfterSync.body.data?.length ?? 0) > 0)
+}
 
-  // ── 20. Журнал и лента событий ─────────────────────────────────────────────
+async function checkAuditAndUniversityFeed(ownUniversity: UniversityRow): Promise<string | undefined> {
   step('20. Журнал действий и лента событий вуза')
 
   // Берём вуз, по которому реально шла работа: у вуза без связок в ленте будет
@@ -1646,9 +1706,12 @@ async function main(): Promise<void> {
     )
     actAs(null)
   }
+  return adminId
+}
 
-  // ── 21. Групповая операция по IT-продукту ──────────────────────────────────
+async function checkProductRelease(ctx: SmokeContext): Promise<void> {
   step('21. Выпуск новой версии продукта: групповая операция')
+  const { suffix, universityId, productId, managerId } = ctx
 
   // Сценарий сам готовит предусловие — в отдельной связке, чтобы не менять ту,
   // на которой держатся шаги выше, и не зависеть от прошлых запусков. Связке нужен
@@ -1831,9 +1894,11 @@ async function main(): Promise<void> {
     const emptyVersion = await call('POST', `/api/products/${productId}/release`, { version: '' })
     check('пустая версия отклоняется', emptyVersion.status === 422)
   }
+}
 
-  // ── 21a. Пакет документов из шаблонов ──────────────────────────────────────
+async function checkDocumentPackage(ctx: SmokeContext): Promise<void> {
   step('21a. Сборка пакета документов из шаблонов')
+  const { cooperationId } = ctx
 
   const templates = await call<{
     templates: Array<{ key: string; inDefaultPackage: boolean; placeholders: string[] }>
@@ -1961,17 +2026,16 @@ async function main(): Promise<void> {
       `статус ${toReview.status}`,
     )
   }
+}
 
-  // ── 22. Настоящая аутентификация ───────────────────────────────────────────
+async function checkPasswordLogin(adminId: string | undefined): Promise<void> {
   step('22. Вход по паролю: NextAuth.js и bcrypt')
 
   /**
    * Пароль демо-пользователей.
    *
-   * Читается из окружения ровно так же, как его задаёт `prisma/seed.ts`.
-   * Зашитая строка работала только против базы, засеянной по умолчанию:
-   * на копии стенда, где пароль свой, проверки входа падали так, будто
-   * сломалась авторизация, — и следующий человек искал бы несуществующую ошибку.
+   * Читается из окружения так же, как его задаёт `prisma/seed.ts`: на стенде
+   * со своим паролем зашитая строка дала бы ложные провалы входа.
    */
   const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD?.trim() || 'skilllink'
 
@@ -2046,8 +2110,9 @@ async function main(): Promise<void> {
     check('выход завершает сессию', !sessionUserOf(afterSignOut)?.id)
     clearSession()
   }
+}
 
-  // ── 23. Спецификация OpenAPI ───────────────────────────────────────────────
+async function checkOpenApi(): Promise<void> {
   step('23. Спецификация OpenAPI')
 
   const spec = await call<Record<string, never>>('GET', '/api/openapi.json')
@@ -2082,9 +2147,11 @@ async function main(): Promise<void> {
   // Спецификация должна описывать живой сервер, а не расходиться с ним.
   const gapsSpec = document.paths?.['/api/skills/gaps']?.get
   check('описан эндпоинт дефицита навыков', Boolean(gapsSpec))
+}
 
-  // ── 24. Выгрузка реестров ──────────────────────────────────────────────────
+async function checkCsvExport(ctx: SmokeContext): Promise<void> {
   step('24. Выгрузка реестров в CSV')
+  const { suffix } = ctx
 
   for (const dataset of ['universities', 'programs', 'cooperations', 'skill-gaps']) {
     const file = await fetchRaw(`/api/export?dataset=${dataset}&limit=50`)
@@ -2166,11 +2233,13 @@ async function main(): Promise<void> {
 
   const hugeLimit = await fetchRaw('/api/export?dataset=universities&limit=999999')
   check('слишком большая выгрузка отклоняется', hugeLimit.status === 422)
+}
 
-  // ── Рейтинг вуза (пункт 7.2 ТЗ) ────────────────────────────────────────────
+/** Рейтинг вуза в реестре: расчёт, сортировка и фильтр (пункт 7.2 ТЗ). */
+async function checkUniversityRating(): Promise<void> {
   step('Рейтинг вуза и фильтрация по нему')
 
-  // Решение Артура, пункт 11: рейтинг — обычное поле реестра, приходит по умолчанию.
+  // Рейтинг — обычное поле реестра и приходит по умолчанию.
   const r_byDefault = await call<{ rating: unknown }[]>('GET', '/api/universities?pageSize=3')
   check(
     'рейтинг приходит по умолчанию, без параметров',
@@ -2270,8 +2339,10 @@ async function main(): Promise<void> {
 
   const r_ratedCard = await call<RatedRow>('GET', `/api/universities/${r_ratedRows[0]!.id}`)
   check('карточка вуза отдаёт рейтинг без дополнительных параметров', r_ratedCard.body.data?.rating != null)
+}
 
-  // ── Итог ───────────────────────────────────────────────────────────────────
+/** Итог прогона: число проверок и список провалившихся. */
+function printSummary(): void {
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Успешно: ${passed}${RESET}`)
   if (failed > 0) {
@@ -2281,6 +2352,50 @@ async function main(): Promise<void> {
   } else {
     console.log(`  ${GREEN}Сквозной сценарий пройден полностью.${RESET}`)
   }
+}
+
+async function main(): Promise<void> {
+  console.log(`${BOLD}Сквозной сценарий SkillLink${RESET}`)
+  console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
+
+  await warmUp()
+
+  if (!(await checkDatabase())) return
+  await checkDashboard()
+  const universityList = await checkUniversityRegistry()
+  if (!(await checkUniversityCard(universityList))) return
+  const university = await createUniversityAndProgram()
+  if (!university) return
+  await attachProgramSkills(university.programId)
+  const productId = await checkProducts()
+  await checkProgramLists(university)
+  const cooperation = await createCooperation(university, productId)
+  if (!cooperation) return
+
+  const ctx: SmokeContext = { universityList, productId, ...university, ...cooperation }
+  await workOnFirstStages(ctx)
+  await checkProgressAndHistory(ctx)
+  await checkOverdueAndBlocked()
+  await checkSkillDemandAndGaps(ctx)
+  await checkProgramRating()
+  await checkCooperationSection(ctx)
+  await checkRecommendations()
+  await checkDocuments(ctx)
+  await checkSignedDocumentsCloseStage6(ctx)
+  await checkMeetings(ctx)
+  await checkCurrentUser()
+  const ownUniversity = await checkUniversityPortal(ctx)
+  if (!ownUniversity) return
+  await checkIntegrations()
+  const adminId = await checkAuditAndUniversityFeed(ownUniversity)
+  await checkProductRelease(ctx)
+  await checkDocumentPackage(ctx)
+  await checkPasswordLogin(adminId)
+  await checkOpenApi()
+  await checkCsvExport(ctx)
+  await checkUniversityRating()
+
+  printSummary()
 }
 
 main().catch((error) => {
