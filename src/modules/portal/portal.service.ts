@@ -39,7 +39,8 @@ import type {
 
 /**
  * Общий вход в кабинет: определяет вуз и проверяет, что он виден пользователю.
- * Чужой вуз для представителя — NOT_FOUND, а не FORBIDDEN (решение 9).
+ * Чужой вуз для представителя — NOT_FOUND, а не FORBIDDEN: ответ не раскрывает,
+ * что такая запись существует.
  */
 async function resolveUniversity(
   user: CurrentUser,
@@ -96,9 +97,8 @@ type MaterialRow = Awaited<ReturnType<typeof repo.findMaterials>>[number]
  * Почему материалы каждой связки пока нельзя подтверждать.
  *
  * Этап 7 — контрольная точка: пока договор не подписан, материалы не переданы.
- * Раньше кабинет всё равно показывал их «к подтверждению» и принимал
- * подтверждение — у связки, где этап 7 начать нельзя, появлялась отметка
- * «Передана лицензия».
+ * Иначе кабинет показывал бы их «к подтверждению» и принимал подтверждение —
+ * у связки, где этап 7 начать нельзя, появлялась бы отметка «Передана лицензия».
  */
 async function materialLocks(rows: readonly MaterialRow[]): Promise<Map<string, string | null>> {
   const cooperationIds = [...new Set(rows.filter((row) => !row.isDone).map((row) => row.stage.cooperationId))]
@@ -206,8 +206,8 @@ export async function confirmMaterial(
   assertMaterialsTask(task.stage.stageNumber)
 
   // Те же правила, что и на пути сотрудника ИТ-Школы (workflow.service.toggleTask).
-  // Без них представитель вуза менял состояние закрытой связки, когда сотруднику
-  // это уже запрещено, — и отменить изменение было некому. Сама запись — та же
+  // Без них представитель вуза менял бы состояние закрытой связки, когда сотруднику
+  // это уже запрещено, — и отменить изменение было бы некому. Сама запись — та же
   // функция, что у сотрудника: закрытый этап, очередь со сменой статусов, повтор.
   assertCooperationOpen(task.stage.cooperation.status)
   // Уже подтверждённое подтверждается повторно без ошибки — двойное нажатие
@@ -309,7 +309,7 @@ export async function submitApplication(
     createdBy: { connect: { id: user.id } },
   })
 
-  // Показатель заявок считается по самим заявкам, а не вводится руками (решение 9).
+  // Показатель заявок считается по самим заявкам, а не вводится руками.
   const total = await repo.recalcApplicationCount(input.programId)
 
   await writeAudit({
