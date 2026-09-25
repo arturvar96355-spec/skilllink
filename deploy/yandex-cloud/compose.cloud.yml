@@ -7,7 +7,10 @@
 # Что добавляет к базовому файлу:
 #   * Caddy перед приложением — HTTPS с автоматическим сертификатом, если задан домен;
 #   * обязательные секреты: без них compose откажется стартовать с понятным
-#     сообщением, а не поднимет стенд с паролем базы «skilllink» по умолчанию.
+#     сообщением, а не поднимет стенд с паролем базы «skilllink» по умолчанию;
+#   * пределы памяти, процессора и числа процессов: утечка памяти или поток
+#     запросов в приложении не должны отнять машину у базы и у SSH;
+#   * журнал запросов Caddy с ротацией (Caddyfile).
 #
 # Наружу открыты только 80 и 443 — у Caddy. База и приложение в базовом файле
 # привязаны к 127.0.0.1, а в облаке ещё и закрыты группой безопасности.
@@ -22,15 +25,36 @@ x-logging: &logging
     max-size: '10m'
     max-file: '3'
 
+# Пределы рассчитаны на машину из docs/DEPLOY.md: 2 ядра и 4 ГБ. Сборка образа
+# идёт вне контейнеров и под них не попадает. Если машина больше — пределы можно
+# поднять, но не снимать: без них один контейнер может съесть всю память,
+# и ядро начнёт убивать процессы без разбора, начиная с базы.
 services:
   postgres:
     logging: *logging
+    mem_limit: 1g
+    pids_limit: 200
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD в .env.cloud}
 
   app:
     logging: *logging
+    # Next.js standalone держится в 200–400 МБ; 1 ГБ — запас на пики и выгрузки.
+    mem_limit: 1g
+    cpus: '1.5'
+    # Процессов у Node немного; сотни — признак того, что что-то пошло не так.
+    pids_limit: 200
+    # Процесс не может получить больше прав, чем у него есть (setuid и т. п.).
+    # Приложение и так работает не от root (Dockerfile) и привилегий не требует.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
+      # Отдельная роль базы без прав суперпользователя (deploy/yandex-cloud/create-app-role.sql,
+      # docs/DEPLOY.md «Роль базы для приложения»). Пока APP_DATABASE_URL в .env.cloud
+      # не задан, приложение ходит в базу как раньше — ролью-владельцем.
+      DATABASE_URL: ${APP_DATABASE_URL:-postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public}
       AUTH_SECRET: ${DOCKER_AUTH_SECRET:?задайте DOCKER_AUTH_SECRET в .env.cloud}
       # Без публичного адреса после входа пользователя отправит на localhost
       # (docs/TECHNICAL_DECISIONS.md, решение 36).
@@ -43,6 +67,8 @@ services:
 
   caddy:
     logging: *logging
+    mem_limit: 256m
+    pids_limit: 100
     profiles: ['app']
     image: caddy:2.8-alpine
     container_name: skilllink-caddy
