@@ -24,6 +24,16 @@ export interface CurrentUser {
  */
 const DEFAULT_ROLE_ORDER: UserRole[] = ['MANAGER', 'ADMIN', 'ANALYST', 'VIEWER']
 
+/**
+ * Пользователь по умолчанию из кандидатов — по `DEFAULT_ROLE_ORDER`.
+ * При равной роли остаётся порядок кандидатов: сортировка устойчивая.
+ */
+export function pickDefault<T extends { role: UserRole }>(candidates: readonly T[]): T | undefined {
+  return candidates
+    .slice()
+    .sort((a, b) => DEFAULT_ROLE_ORDER.indexOf(a.role) - DEFAULT_ROLE_ORDER.indexOf(b.role))[0]
+}
+
 const USER_FIELDS = {
   id: true,
   email: true,
@@ -97,16 +107,12 @@ async function demoFallbackUser(): Promise<CurrentUser | null> {
     select: USER_FIELDS,
   })
 
-  return (
-    candidates
-      .slice()
-      .sort((a, b) => DEFAULT_ROLE_ORDER.indexOf(a.role) - DEFAULT_ROLE_ORDER.indexOf(b.role))[0] ??
-    null
-  )
+  return pickDefault(candidates) ?? null
 }
 
 /**
- * Единственная точка получения текущего пользователя (решение 9 в CLAUDE.md).
+ * Единственная точка получения текущего пользователя: смена способа входа
+ * не затрагивает остальной код.
  *
  * Порядок: настоящая сессия NextAuth → демо-cookie → демо-пользователь по умолчанию.
  * Два последних шага работают только в демо-режиме.

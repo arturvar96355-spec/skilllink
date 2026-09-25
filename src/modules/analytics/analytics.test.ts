@@ -31,7 +31,7 @@ describe('рейтинг программ', () => {
   })
 
   it('программа с наименьшими показателями не получает ноль, если они не нулевые (решение 98)', () => {
-    // Min-max ставил 0,0 программе со 150 заявками только потому, что у других больше.
+    // Нормирование от минимума выборки дало бы 0,0 программе со 150 заявками.
     const ratings = calculateRatings([
       program({ programId: 'big', applicationCount: 420, studentCount: 180, groupCount: 7 }),
       program({ programId: 'small', applicationCount: 150, studentCount: 52, groupCount: 2 }),
@@ -218,7 +218,7 @@ describe('рейтинг с заранее посчитанными границ
 
 describe('раскрытие балла', () => {
   it('вклады складываются в балл и при пустом показателе', () => {
-    // Раньше балл пересчитывался на учтённые веса, а вклады — нет: 45,4 = 19,3 + 8,0.
+    // Балл пересчитывается на учтённые веса — и вклады обязаны пересчитываться так же.
     const ratings = calculateRatings([
       program({ programId: 'full', applicationCount: 300, studentCount: 90, groupCount: 4 }),
       program({ programId: 'partial', applicationCount: 280, studentCount: null, groupCount: 4 }),
