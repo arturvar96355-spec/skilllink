@@ -294,6 +294,43 @@ async function main(): Promise<void> {
         },
       },
     }),
+    // Весь жизненный цикл продукта, а не только «действует»: планируемый ещё нельзя
+    // предлагать вузам, выводимый — только доживает в открытых связках.
+    labs: await prisma.iTProduct.create({
+      data: {
+        name: 'Платформа виртуальных лабораторий',
+        category: 'Учебная инфраструктура',
+        description: 'Лабораторные стенды в браузере для практикумов по сетям и Linux. Выпуск запланирован на весну.',
+        documentationUrl: null,
+        version: null,
+        status: 'PLANNED',
+        isMock: true,
+        createdAt: daysAgo(30),
+        updatedAt: daysAgo(12),
+        skills: {
+          create: [
+            { skillId: skillId('Linux'), relevance: 'CORE' },
+            { skillId: skillId('Сетевые технологии'), relevance: 'RELATED' },
+          ],
+        },
+      },
+    }),
+    legacyNet: await prisma.iTProduct.create({
+      data: {
+        name: 'Учебный стенд сетей передачи данных',
+        category: 'Учебная инфраструктура',
+        description: 'Прежнее поколение сетевого стенда. Выводится: новым вузам не предлагается, поддержка до конца учебного года.',
+        documentationUrl: 'https://example.invalid/docs/netlab-v1',
+        version: '1.4',
+        status: 'DEPRECATED',
+        isMock: true,
+        createdAt: daysAgo(900),
+        updatedAt: daysAgo(90),
+        skills: {
+          create: [{ skillId: skillId('Сетевые технологии'), relevance: 'CORE' }],
+        },
+      },
+    }),
   }
 
   console.log('Вузы, контакты и программы...')
@@ -370,6 +407,20 @@ async function main(): Promise<void> {
       studentCount: 16400,
       contact: { fullName: 'Петренко Виктор Иванович', position: 'Проректор по развитию' },
     },
+    {
+      // Вуз в архиве: переговоры год назад не пошли дальше знакомства. В реестре
+      // виден по фильтру «В архиве», в рейтинг и аналитику не входит.
+      key: 'tomsk',
+      createdDaysAgo: 420, updatedDaysAgo: 330,
+      name: 'Томский государственный университет систем управления и радиоэлектроники',
+      shortName: 'ТУСУР',
+      city: 'Томск',
+      region: 'Томская область',
+      status: 'ARCHIVED' as const,
+      directionCount: 18,
+      studentCount: 13500,
+      contact: { fullName: 'Орлов Дмитрий Сергеевич', position: 'Начальник отдела партнёрств' },
+    },
   ]
 
   // Даты записи — по сюжету, а не момент заливки: вуз заведён до первой связки
@@ -390,6 +441,8 @@ async function main(): Promise<void> {
         address: `${item.city}, адрес указан условно`,
         website: `https://example.invalid/${item.key}`,
         status: item.status,
+        // Архив — это и статус, и дата: по дате архивный вуз исключается из аналитики.
+        archivedAt: item.status === 'ARCHIVED' ? daysAgo(item.updatedDaysAgo) : null,
         directionCount: item.directionCount,
         studentCount: item.studentCount,
         description: 'Демонстрационная запись. Показатели не являются подтверждённой статистикой.',
@@ -540,6 +593,42 @@ async function main(): Promise<void> {
         ['Бизнес-анализ', 'INTERMEDIATE', 'HIGH'],
       ] as const,
     },
+    // Программы не только «действует»: черновик, приостановленная и архивная видны
+    // в реестре со своим статусом, но в рейтинг, дефициты и рекомендации не входят
+    // (ACTIVE_PROGRAM_WHERE) — показатели набора у них не заполнены.
+    {
+      key: 'urfu-gamedev', university: 'urfu', status: 'DRAFT' as const,
+      name: 'Технологии разработки компьютерных игр',
+      code: '09.03.04', direction: 'Программная инженерия',
+      level: 'BACHELOR' as const, durationMonths: 48,
+      applicationCount: null, studentCount: null, groupCount: null,
+      skills: [
+        ['Python', 'INTERMEDIATE', 'HIGH'],
+        ['JavaScript', 'BASIC', 'MEDIUM'],
+      ] as const,
+    },
+    {
+      key: 'rostov-networks', university: 'rostov', status: 'SUSPENDED' as const,
+      name: 'Инфокоммуникационные технологии и системы связи',
+      code: '11.03.02', direction: 'Инфокоммуникационные технологии',
+      level: 'BACHELOR' as const, durationMonths: 48,
+      applicationCount: null, studentCount: null, groupCount: null,
+      skills: [
+        ['Сетевые технологии', 'ADVANCED', 'CRITICAL'],
+        ['Linux', 'BASIC', 'MEDIUM'],
+      ] as const,
+    },
+    {
+      key: 'nsu-embedded', university: 'nsu', status: 'ARCHIVED' as const,
+      name: 'Встраиваемые системы',
+      code: '09.04.01', direction: 'Информатика и вычислительная техника',
+      level: 'MASTER' as const, durationMonths: 24,
+      applicationCount: null, studentCount: null, groupCount: null,
+      skills: [
+        ['Linux', 'ADVANCED', 'HIGH'],
+        ['Python', 'BASIC', 'MEDIUM'],
+      ] as const,
+    },
   ]
 
   const programs = new Map<string, string>()
@@ -563,7 +652,8 @@ async function main(): Promise<void> {
         direction: item.direction,
         level: item.level,
         durationMonths: item.durationMonths,
-        status: 'ACTIVE',
+        status: item.status ?? 'ACTIVE',
+        archivedAt: item.status === 'ARCHIVED' ? daysAgo(120) : null,
         applicationCount: item.applicationCount,
         studentCount: item.studentCount,
         groupCount: item.groupCount,
@@ -597,8 +687,17 @@ async function main(): Promise<void> {
     program: string
     productId: string | null
     responsibleId: string
-    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED'
+    status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED'
     goal: string
+    /** Заметка связки: причина паузы или отмены. */
+    notes?: string
+    /** Отменённая связка: сколько дней назад закрыта. */
+    closedDaysAgo?: number
+    /**
+     * Работа остановлена после закрытого этапа: следующий не начат. Пауза ставится
+     * между этапами — иначе этап «в работе» на стоящей связке считался бы просроченным.
+     */
+    nextStageNotStarted?: boolean
     startedDaysAgo: number
     firstContactDaysAgo: number | null
     classesStartInDays: number | null
@@ -693,6 +792,28 @@ async function main(): Promise<void> {
       startedDaysAgo: 5, firstContactDaysAgo: null, classesStartInDays: null,
       completedUpTo: 0,
     },
+    {
+      // На паузе: вуз пересматривает учебный план, переговоры вернутся в декабре.
+      // Вуз тоже «приостановлен» — связка объясняет, почему.
+      university: 'rostov', program: 'rostov-it', productId: products.cloud.id,
+      responsibleId: manager.id, status: 'PAUSED',
+      goal: 'Облачная платформа в курсе ИТ-управления',
+      notes: 'Пауза: вуз пересматривает учебный план на следующий год. Вернуться к переговорам в декабре.',
+      // Договор подписан, этап 4 закрыт с опозданием: доля этапов «в срок» по набору
+      // остаётся той же, что в сценарии показа (demo-check).
+      startedDaysAgo: 200, firstContactDaysAgo: 200, classesStartInDays: null,
+      completedUpTo: 6, nextStageNotStarted: true, lateStages: [4],
+    },
+    {
+      // Отменена: вуз выбрал собственный стенд вместо нашего продукта. Закрытая связка
+      // в проблемы и рекомендации не попадает, но остаётся в истории вуза.
+      university: 'nsu', program: 'nsu-soft', productId: products.devops.id,
+      responsibleId: manager2.id, status: 'CANCELLED',
+      goal: 'Конвейер сборки в программе разработки информационных систем',
+      notes: 'Отменена: вуз решил использовать собственный стенд. Договор не подписывали.',
+      startedDaysAgo: 150, firstContactDaysAgo: 150, classesStartInDays: null,
+      completedUpTo: 3, cancelledStages: [4], closedDaysAgo: 40,
+    },
   ]
 
   const createdCooperations: Array<{ key: string; id: string; universityKey: string }> = []
@@ -708,6 +829,7 @@ async function main(): Promise<void> {
         responsibleId: item.responsibleId,
         status: item.status,
         goal: item.goal,
+        notes: item.notes ?? null,
         startedAt,
         firstContactAt:
           item.firstContactDaysAgo === null ? null : daysAgo(item.firstContactDaysAgo),
@@ -745,7 +867,7 @@ async function main(): Promise<void> {
       if (item.cancelledStages?.includes(number)) return 'CANCELLED'
       if (number <= item.completedUpTo) return 'COMPLETED'
       if (item.blockedStage === number) return 'BLOCKED'
-      if (number === item.completedUpTo + 1) return 'IN_PROGRESS'
+      if (number === item.completedUpTo + 1 && !item.nextStageNotStarted) return 'IN_PROGRESS'
       return 'NOT_STARTED'
     }
     // Контрольный этап — тем же правилом, что в системе (computeControlStatus),
@@ -907,6 +1029,24 @@ async function main(): Promise<void> {
         data: { closedAt: lastCompletedAt, updatedAt: lastCompletedAt },
       })
     }
+    // Отменённая закрыта в день отмены — так же, как её закрыло бы приложение.
+    if (item.status === 'CANCELLED' && item.closedDaysAgo !== undefined) {
+      const closedAt = daysAgo(item.closedDaysAgo)
+      await prisma.cooperation.update({
+        where: { id: cooperation.id },
+        data: { closedAt, updatedAt: closedAt },
+      })
+      await prisma.auditLog.create({
+        data: {
+          userId: item.responsibleId,
+          action: 'cooperation.update',
+          objectType: 'Cooperation',
+          objectId: cooperation.id,
+          payload: { status: 'CANCELLED' },
+          createdAt: closedAt,
+        },
+      })
+    }
   }
 
   // ─── Представитель вуза ────────────────────────────────────────────────────
@@ -944,10 +1084,13 @@ async function main(): Promise<void> {
     coopKey: string
     type: 'NDA' | 'AGREEMENT' | 'ANNEX' | 'ACT' | 'LICENSE' | 'CURRICULUM' | 'METHODOLOGY'
     title: string
-    status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED'
+    status: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED'
     version: string
     daysAgoIssued: number
   }> = [
+    // Первая редакция договора, замененная второй: в архиве, в проверках подписания
+    // не участвует (documents.rules — архивные не считаются).
+    { coopKey: 'spbgu-spbgu-infosec', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'ARCHIVED', version: '1', daysAgoIssued: 185 },
     // Связка на этапе 13: всё давно подписано.
     { coopKey: 'spbgu-spbgu-infosec', type: 'NDA', title: 'Соглашение о неразглашении', status: 'SIGNED', version: '1', daysAgoIssued: 190 },
     { coopKey: 'spbgu-spbgu-infosec', type: 'AGREEMENT', title: 'Договор о сотрудничестве', status: 'SIGNED', version: '2', daysAgoIssued: 170 },
@@ -968,8 +1111,11 @@ async function main(): Promise<void> {
     const coop = cooperationByKey(plan.coopKey)
 
     // История статусов: путь от черновика до текущего состояния, шаг — два дня.
-    const path: Array<'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED'> =
-      plan.status === 'SIGNED'
+    // Архивная первая редакция: была на согласовании и заменена второй.
+    const path: Array<'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED'> =
+      plan.status === 'ARCHIVED'
+        ? ['REVIEW', 'ARCHIVED']
+        : plan.status === 'SIGNED'
         ? ['REVIEW', 'APPROVED', 'SIGNED']
         : plan.status === 'APPROVED'
           ? ['REVIEW', 'APPROVED']
@@ -1001,7 +1147,7 @@ async function main(): Promise<void> {
       },
     })
 
-    let previous: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' = 'DRAFT'
+    let previous: 'DRAFT' | 'REVIEW' | 'APPROVED' | 'SIGNED' | 'REJECTED' | 'ARCHIVED' = 'DRAFT'
     let offset = plan.daysAgoIssued
     for (const step of path) {
       offset -= 2
@@ -1011,7 +1157,11 @@ async function main(): Promise<void> {
           fromStatus: previous,
           toStatus: step,
           comment:
-            step === 'REJECTED' ? 'Требуется приложение с перечнем материалов' : 'Демонстрационные данные',
+            step === 'REJECTED'
+              ? 'Требуется приложение с перечнем материалов'
+              : step === 'ARCHIVED'
+                ? 'Заменена второй редакцией'
+                : 'Демонстрационные данные',
           changedById: manager.id,
           changedAt: daysAgo(Math.max(1, offset)),
         },
@@ -1049,6 +1199,12 @@ async function main(): Promise<void> {
       coopKey: 'kazan-kazan-devops', daysAgoDate: 30, topic: 'Обсуждение DevOps-практик в программе', format: 'ONLINE',
       result: 'Вуз просит расширить блок по контейнеризации',
       nextAction: 'Согласовать обновлённую программу', nextActionInDays: 14,
+    },
+    {
+      // Переписка — тоже взаимодействие: по ней вуз и сообщил об отказе.
+      coopKey: 'nsu-nsu-soft', daysAgoDate: 42, topic: 'Письмо вуза о решении по стенду', format: 'CORRESPONDENCE',
+      result: 'Вуз решил использовать собственный стенд, связка отменена',
+      nextAction: null, nextActionInDays: null,
     },
   ]
 
@@ -1144,6 +1300,97 @@ async function main(): Promise<void> {
     universityId: manager.universityId,
   })
   console.log(`  создано: ${generation.created}`)
+
+  // Рекомендации во всех статусах, а не только «новые». Движок выдаёт только новые;
+  // остальное — то, что сделали бы люди: одну взяли в работу, одну выполнили
+  // и одну отклонили — обе последние на закрытых связках, где правило их больше
+  // не выдаст, поэтому пересборка их не трогает.
+  const noProduct = await prisma.recommendation.findFirst({ where: { ruleKey: 'cooperation.no-product' } })
+  if (noProduct) {
+    const takenAt = daysAgo(2)
+    await prisma.recommendation.update({
+      where: { id: noProduct.id },
+      data: { status: 'IN_PROGRESS', updatedAt: takenAt },
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: manager.id, action: 'recommendation.status.change', objectType: 'Recommendation',
+        objectId: noProduct.id, payload: { from: 'NEW', to: 'IN_PROGRESS', ruleKey: noProduct.ruleKey },
+        createdAt: takenAt,
+      },
+    })
+  }
+  // Связка на паузе: правило застоя её видит, менеджер отклонил — пауза по просьбе вуза.
+  const pausedCoop = createdCooperations.find((item) => item.key === 'rostov-rostov-it')
+  const pausedStalled = pausedCoop
+    ? await prisma.recommendation.findFirst({ where: { ruleKey: 'cooperation.stalled', objectId: pausedCoop.id } })
+    : null
+  if (pausedStalled) {
+    const dismissedAt = daysAgo(3)
+    await prisma.recommendation.update({
+      where: { id: pausedStalled.id },
+      data: {
+        status: 'DISMISSED',
+        resolutionComment: 'Пауза по просьбе вуза: пересматривают учебный план. Вернёмся в декабре.',
+        resolvedById: manager.id,
+        resolvedAt: dismissedAt,
+        updatedAt: dismissedAt,
+      },
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: manager.id, action: 'recommendation.status.change', objectType: 'Recommendation',
+        objectId: pausedStalled.id, payload: { from: 'NEW', to: 'DISMISSED', ruleKey: pausedStalled.ruleKey },
+        createdAt: dismissedAt,
+      },
+    })
+  }
+  const completedCoop = createdCooperations.find((item) => item.key === 'kazan-kazan-networks')
+  const cancelledCoop = createdCooperations.find((item) => item.key === 'nsu-nsu-soft')
+  const stage4 = WORKFLOW_STAGES.find((definition) => definition.number === 4)!
+  const resolvedPlan = [
+    completedCoop && {
+      // Приоритет «высокий», как у правила при короткой просрочке: закрытая
+      // рекомендация не должна стоять в ленте среди открытых критичных.
+      cooperationId: completedCoop.id, ruleKey: 'stage.overdue', status: 'DONE' as const,
+      type: 'ACTION' as const, priority: 'HIGH' as const,
+      title: `Просрочен этап 4: ${stage4.title}`,
+      description: 'Свяжитесь с ответственным и закройте этап либо перенесите срок с комментарием.',
+      justification: 'Нормативный срок этапа прошёл 6 дн. назад, этап был в статусе «В работе».',
+      comment: 'Встреча проведена с опозданием, этап закрыт. Срок следующих согласован с вузом.',
+      relatedData: { status: 'IN_PROGRESS', deadline: daysAgo(346).toISOString(), daysOverdue: 6, stageNumber: 4 },
+      createdDaysAgo: 340, resolvedDaysAgo: 330,
+    },
+    cancelledCoop && {
+      cooperationId: cancelledCoop.id, ruleKey: 'cooperation.stalled', status: 'DISMISSED' as const,
+      type: 'ACTION' as const, priority: 'MEDIUM' as const,
+      title: 'Связка без движения 21 дн.',
+      description: 'Уточните у вуза, в силе ли планы, и назначьте следующий шаг.',
+      justification: 'По этапам связки не было движения 21 день.',
+      comment: 'Не актуально: вуз письмом отказался от продукта, связка отменена.',
+      relatedData: { idleDays: 21, stageNumber: 4, stageStatus: 'NOT_STARTED', lastActivityAt: daysAgo(69).toISOString() },
+      createdDaysAgo: 48, resolvedDaysAgo: 41,
+    },
+  ].filter((item) => item !== undefined)
+  for (const item of resolvedPlan) {
+    const created = await prisma.recommendation.create({
+      data: {
+        type: item.type, objectType: 'Cooperation', objectId: item.cooperationId, ruleKey: item.ruleKey,
+        title: item.title, description: item.description, justification: item.justification,
+        priority: item.priority, confidence: 'HIGH', status: item.status, relatedData: item.relatedData,
+        resolutionComment: item.comment, cooperationId: item.cooperationId,
+        resolvedById: manager.id, resolvedAt: daysAgo(item.resolvedDaysAgo),
+        createdAt: daysAgo(item.createdDaysAgo), updatedAt: daysAgo(item.resolvedDaysAgo),
+      },
+    })
+    await prisma.auditLog.create({
+      data: {
+        userId: manager.id, action: 'recommendation.status.change', objectType: 'Recommendation',
+        objectId: created.id, payload: { from: 'NEW', to: item.status, ruleKey: item.ruleKey },
+        createdAt: daysAgo(item.resolvedDaysAgo),
+      },
+    })
+  }
 
   const counts = {
     Вузы: await prisma.university.count(),
