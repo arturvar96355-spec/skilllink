@@ -23,7 +23,7 @@ enum UserRole {
   UNIVERSITY_REP
 }
 
-/// TODO: PM DECISION — подтвердить перечень статусов взаимодействия с вузом.
+/// Перечень статусов взаимодействия с вузом — утверждено заказчиком 26.09.2026.
 enum UniversityStatus {
   NEW
   IN_PROGRESS
@@ -173,7 +173,7 @@ enum DataSourceType {
 }
 
 /// Заявка на обучение. Персональных данных обучающихся не содержит.
-/// TODO: PM DECISION — окончательный состав полей заявки.
+/// Состав полей заявки — рабочее значение, согласуется с заказчиком.
 enum ApplicationStatus {
   NEW
   CONFIRMED
@@ -455,7 +455,7 @@ model Cooperation {
   universityId  String            @map("university_id")
   programId     String            @map("program_id")
   /// Продукт может быть не выбран на ранних этапах.
-  /// TODO: PM DECISION — обязателен ли продукт при создании связки.
+  /// Продукт при создании связки не обязателен — утверждено заказчиком 26.09.2026.
   productId     String?           @map("product_id")
   status        CooperationStatus @default(DRAFT)
   responsibleId String            @map("responsible_id")
