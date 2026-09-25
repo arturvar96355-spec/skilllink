@@ -11,6 +11,9 @@
 --     (npm run db:retention через сервис migrate);
 --   * история оснований обработки ПД контактов (contact_basis_history, решение 111) —
 --     так же: только читать и дописывать;
+--   * печати журнала (audit_seals, решение 115) — только читать и дописывать: печать
+--     снимает приложение; точки чистки журнала (audit_chain_cuts) — только читать:
+--     их пишет чистка по сроку, а она идёт ролью-владельцем;
 --   * реестр запросов субъектов ПД (dsar_requests, решение 116) — читать, дописывать
 --     и закрывать запрос (UPDATE статуса; прочие колонки сторожит триггер), без DELETE;
 --   * таблица миграций — только чтение;
@@ -93,7 +96,17 @@ SELECT to_regclass('public.contact_basis_history') IS NOT NULL AS has_basis_hist
 REVOKE UPDATE, DELETE ON TABLE public.contact_basis_history FROM :"app_role";
 \endif
 
--- 5б. Реестр запросов субъектов ПД: без удаления. Неизменяемые колонки держит триггер
+-- 5б. Цепочка журнала (решение 115): печати только дописываются, точки чистки —
+-- только читаются. Сверх прав — триггеры запрета правки в самой базе, а чистку журнала
+-- (audit_purge_before) роли приложения не вызвать: EXECUTE снят миграцией.
+-- Таблицы появляются миграцией 20260926000000; до неё шаг пропускается.
+SELECT to_regclass('public.audit_seals') IS NOT NULL AS has_audit_chain \gset
+\if :has_audit_chain
+REVOKE UPDATE, DELETE ON TABLE public.audit_seals FROM :"app_role";
+REVOKE INSERT, UPDATE, DELETE ON TABLE public.audit_chain_cuts FROM :"app_role";
+\endif
+
+-- 5в. Реестр запросов субъектов ПД: без удаления. Неизменяемые колонки держит триггер
 -- dsar_requests_guard (миграция 20260926011600); на базе до неё шаг пропускается.
 SELECT to_regclass('public.dsar_requests') IS NOT NULL AS has_dsar_requests \gset
 \if :has_dsar_requests
@@ -116,5 +129,5 @@ SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassr
   FROM pg_roles WHERE rolname = :'app_role';
 SELECT table_name, string_agg(privilege_type, ', ' ORDER BY privilege_type) AS privileges
   FROM information_schema.role_table_grants
- WHERE grantee = :'app_role' AND table_name IN ('audit_log', 'contact_basis_history', 'dsar_requests', '_prisma_migrations', 'users')
+ WHERE grantee = :'app_role' AND table_name IN ('audit_log', 'contact_basis_history', 'audit_seals', 'audit_chain_cuts', 'dsar_requests', '_prisma_migrations', 'users')
  GROUP BY table_name ORDER BY table_name;

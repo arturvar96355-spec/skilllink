@@ -3,6 +3,7 @@ import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
+import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
 import {
   createDsarRequestSchema,
@@ -1292,6 +1293,31 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description: 'Доступен только администратору.',
     permission: 'ADMIN',
     query: auditListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/audit/verify',
+    tag: 'Журнал',
+    summary: 'Проверка целостности журнала: цепочка хешей и печати',
+    description:
+      'Решение 115. Проверяет цепочку хешей журнала двумя независимыми путями (функцией в базе ' +
+      'и кодом приложения) и сверяет её с сохранёнными печатями. Ответ 200 и при нарушении: ' +
+      'ok=false, code, brokenAt, reason. Факт проверки пишется в журнал (audit.verify).',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/audit/seals',
+    tag: 'Журнал',
+    summary: 'Печати журнала: голова цепочки на момент снятия',
+    description:
+      'Решение 115. Новые сверху. Печать снимает npm run audit:seal по расписанию; ' +
+      'её копия вне базы ловит удаление хвоста журнала.',
+    permission: 'ADMIN',
+    query: paginationSchema,
     list: true,
     errors: COMMON_ERRORS,
   },
