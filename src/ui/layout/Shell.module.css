@@ -1,16 +1,13 @@
 /* Каркас приложения: сайдбар слева, шапка сверху, содержимое, подвал (раздел 2 шаблона). */
 
+/*
+ * Разделы — в шапке (решение 122): бокового меню на широком экране больше нет,
+ * содержимое во всю ширину. На узком экране меню выезжает по кнопке.
+ */
 .shell {
   min-height: 100vh;
-  padding-left: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-}
-
-@media (max-width: 1080px) {
-  .shell {
-    padding-left: 0;
-  }
 }
 
 .header {
@@ -22,10 +19,224 @@
   gap: var(--space-3);
   height: var(--header-height);
   padding: 0 var(--space-6);
+  /* Полупрозрачная, с размытием и тонкой границей — отделена от фона, но лёгкая. */
   background: var(--bg-header);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 -1px 0 var(--border-divider);
+}
+
+/* ——— Разделы в шапке ——— */
+
+.topNav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: var(--space-4);
+  min-width: 0;
+}
+
+.topItem {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--ease-out);
+}
+
+.topItem:hover {
+  color: var(--text-primary);
+}
+
+.topItemActive {
+  color: var(--text-primary);
+}
+
+/* Подложка активного раздела — переезжает к новому разделу (общий layoutId). */
+.topPill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--surface-2);
+  box-shadow:
+    inset 0 0 0 1px var(--border-subtle),
+    0 0 18px rgba(142, 108, 255, 0.12);
+}
+
+.topLabel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.chevron,
+.chevronOpen {
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.moreWrap {
+  position: relative;
+}
+
+.dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+  padding: var(--space-2);
+  border-radius: var(--radius-card);
+  background: var(--surface-floating);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  box-shadow:
+    inset 0 0 0 1px var(--border-subtle),
+    var(--shadow-floating);
+  animation: dropIn var(--motion-surface) var(--ease-out) both;
+}
+
+.dropdownRight {
+  left: auto;
+  right: 0;
+  min-width: 260px;
+}
+
+@keyframes dropIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.dropdownItem:hover,
+.dropdownActive {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+.dropdownDanger:hover {
+  color: var(--text-danger-strong);
+  background: var(--danger-surface);
+}
+
+.dropdownHead {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  margin-bottom: var(--space-1);
   border-bottom: 1px solid var(--border-divider);
+}
+
+.dropdownMode {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.dropdownLabel {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Поиск-«таблетка»: компактно до открытия, окно вырастает из неё (search-events). */
+.searchPill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-2) 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--border-subtle);
+  font: inherit;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    box-shadow var(--motion-fast) var(--ease-out);
+}
+
+.searchPill:hover {
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 0 0 1px var(--border-hover),
+    0 0 16px rgba(142, 108, 255, 0.12);
+}
+
+.searchLabel {
+  min-width: 72px;
+  text-align: left;
+}
+
+.kbd {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  font-family: inherit;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Узкий десктоп: разделы теснее, подписи поиска нет — только значок. */
+@media (max-width: 1320px) {
+  .topItem {
+    padding: 0 var(--space-2);
+  }
+
+  .searchLabel,
+  .kbd {
+    display: none;
+  }
+}
+
+/* Меньше 1081 px разделы уходят в выезжающее меню. */
+@media (max-width: 1080px) {
+  .topNav {
+    display: none;
+  }
 }
 
 .menuButton {
@@ -53,22 +264,29 @@
 }
 
 .home:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.096);
+  background: rgb(var(--ink-rgb) / 0.04);
+  border-color: rgb(var(--ink-rgb) / 0.096);
   box-shadow: var(--glow-soft);
 }
 
 .homeName {
-  font-size: 14px;
+  font-size: var(--text-body-size);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* Меньше 380 px шапка с названием не влезала: профиль уезжал за край (решение 129). */
+@media (max-width: 379px) {
+  .homeName {
+    display: none;
+  }
 }
 
 .context {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -94,28 +312,27 @@
   gap: var(--space-1);
 }
 
-/* В шапке — только на широком экране: на узком места нет, режим — в настройках и кабинете. */
-@media (max-width: 1080px) {
-  .modeSwitchHeader {
-    display: none;
-  }
+/* Режим — в меню профиля (решение 122): там место есть на любой ширине. */
+.modeSwitchHeader {
+  flex-wrap: nowrap;
 }
 
 .profile {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  height: 44px;
-  padding: 0 var(--space-3) 0 var(--space-2);
-  border-radius: var(--radius-button);
-  border: 1px solid transparent;
-  transition: background var(--motion-micro) var(--ease-out),
-    border-color var(--motion-micro) var(--ease-out);
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+  transition: box-shadow var(--motion-fast) var(--ease-out);
 }
 
-.profile:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.096);
+.profile:hover,
+.profile[aria-expanded='true'] {
+  box-shadow:
+    0 0 0 2px var(--border-hover),
+    0 0 16px rgba(142, 108, 255, 0.18);
 }
 
 .profileText {
@@ -126,7 +343,7 @@
 }
 
 .profileName {
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -535,11 +752,13 @@
   align-items: center;
   gap: 2px;
   min-width: 0;
-  padding: 6px 2px;
+  /* Без боковых полей и чуть плотнее: «Программы» целиком влезает на 375 px (решение 129). */
+  padding: 6px 0;
   border-radius: var(--radius-control);
   color: var(--text-tertiary);
   font-size: var(--text-caption-size);
   font-weight: 600;
+  letter-spacing: -0.02em;
   text-decoration: none;
 }
 

@@ -7,8 +7,37 @@
   min-width: 0;
 }
 
+/*
+ * Значок записи (логотип вуза, аватар) — главный участник наведения (бриф v2, 2.4):
+ * чуть крупнее, чуть смещается, мягко светится; текст рядом не двигается.
+ * Одинаково во всех лентах — вузы, программы, продукты (13.3).
+ */
 .leading {
   flex: none;
+  transition:
+    transform var(--motion-surface) var(--ease-out),
+    filter var(--motion-surface) var(--ease-out);
+}
+
+tr:focus-within .leading {
+  transform: scale(1.08) translate(1px, -1px);
+  filter: drop-shadow(0 0 10px rgba(142, 108, 255, 0.35));
+}
+
+/* Наведение — только с мышью: на тач-экране реакция оставалась после касания. */
+@media (hover: hover) {
+  tr:hover .leading,
+  a:hover .leading {
+    transform: scale(1.08) translate(1px, -1px);
+    filter: drop-shadow(0 0 10px rgba(142, 108, 255, 0.35));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr:hover .leading,
+  a:hover .leading {
+    transform: none;
+  }
 }
 
 .text {
