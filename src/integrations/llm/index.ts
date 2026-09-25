@@ -14,7 +14,7 @@ export {
   GIGACHAT_COMPLETIONS_URL,
   GIGACHAT_OAUTH_URL,
 } from './gigachat.provider'
-export { createHttpsTransport, type HttpsTransport } from './https-transport'
+export { createHttpsTransport, type HttpsTransport } from '../https-transport'
 
 /**
  * Активный провайдер ИИ-помощника выбирается переменной AI_ASSIST_PROVIDER

@@ -302,6 +302,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'recommendation.generate': 'Пересобраны рекомендации',
   'recommendation.status.change': 'Изменён статус рекомендации',
   'ai.draft': 'Черновик ИИ-помощника',
+  'telegram.link': 'Подключены уведомления в Telegram',
+  'telegram.unlink': 'Отключены уведомления в Telegram',
   'document.create': 'Создан документ',
   'document.update': 'Изменён документ',
   'document.status.change': 'Изменён статус документа',
