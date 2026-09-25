@@ -25,7 +25,7 @@ function recentCalls(userId: string, now: number): number[] {
  * Забирает одно обращение из лимита. `false` — лимит исчерпан, модель не вызывается.
  *
  * Проверка и запись идут подряд, без `await` между ними: иначе десять
- * одновременных нажатий прошли бы проверку все разом — как было со входом.
+ * одновременных нажатий прошли бы проверку все разом.
  */
 export function takeGeneration(userId: string, now = Date.now()): boolean {
   const calls = recentCalls(userId, now)

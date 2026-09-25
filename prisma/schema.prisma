@@ -215,6 +215,7 @@ model User {
   auditLogs              AuditLog[]           @relation("AuditLogUser")
   applicationsCreated    Application[]        @relation("ApplicationAuthor")
   telegramLink           TelegramLink?
+  calendarFeed           CalendarFeed?
 
   @@index([role])
   @@index([universityId])
@@ -405,6 +406,7 @@ model MarketDemand {
    */
   @@unique([skillId, period, source, region])
   @@index([period])
+  @@index([dataSourceId])
   @@map("market_demand")
 }
 
@@ -525,6 +527,7 @@ model WorkflowStage {
   @@index([deadline])
   /** Выборка этапов по ответственному сотруднику (правка Тиграна). */
   @@index([responsibleId])
+  @@index([completedById])
   @@map("workflow_stages")
 }
 
@@ -539,6 +542,11 @@ model Task {
   isDone     Boolean   @default(false) @map("is_done")
   doneAt     DateTime? @map("done_at")
   doneById   String?   @map("done_by_id")
+  /// Пункт отмечает вуз («Вуз подтвердил получение материалов», решение 103). Переносится из конфига.
+  isUniversityItem Boolean @default(false) @map("is_university_item")
+  /// Чем подтверждено, если пункт вуза отметил сотрудник (решение 103). Есть только у отмеченного
+  /// пункта вуза, со снятием отметки стирается. CHECK tasks_confirmation_note_check — в миграции.
+  confirmationNote String? @map("confirmation_note")
   sortOrder  Int       @default(0) @map("sort_order")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
@@ -547,6 +555,7 @@ model Task {
   doneBy User?         @relation("TaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
 
   @@index([stageId])
+  @@index([doneById])
   @@map("tasks")
 }
 
@@ -565,6 +574,7 @@ model StageHistory {
 
   @@index([stageId])
   @@index([changedAt])
+  @@index([changedById])
   @@map("stage_history")
 }
 
@@ -603,6 +613,9 @@ model Document {
   @@index([cooperationId])
   @@index([universityId])
   @@index([status])
+  @@index([programId])
+  @@index([authorId])
+  @@index([responsibleId])
   @@map("documents")
 }
 
@@ -622,6 +635,7 @@ model DocumentHistory {
 
   @@index([documentId])
   @@index([changedAt])
+  @@index([changedById])
   @@map("document_history")
 }
 
@@ -651,6 +665,8 @@ model Meeting {
   @@index([cooperationId])
   @@index([universityId])
   @@index([date])
+  @@index([programId])
+  @@index([responsibleId])
   @@map("meetings")
 }
 
@@ -670,6 +686,8 @@ model MeetingParticipant {
   contact Contact? @relation("MeetingParticipantContact", fields: [contactId], references: [id], onDelete: SetNull)
 
   @@index([meetingId])
+  @@index([userId])
+  @@index([contactId])
   @@map("meeting_participants")
 }
 
@@ -716,6 +734,7 @@ model Recommendation {
    */
   @@index([objectType, objectId])
   @@index([cooperationId])
+  @@index([resolvedById])
   @@map("recommendations")
 }
 
@@ -756,6 +775,21 @@ model AuditLog {
   @@map("audit_log")
 }
 
+/// Личная подписка на календарь сроков и встреч (.ics, решение 105).
+/// Одна на пользователя. Токен из ссылки в базе не хранится — только SHA-256 от него:
+/// утёкшая копия базы не даёт открыть ни одну ленту. Перевыпуск заменяет хеш,
+/// отзыв удаляет строку.
+model CalendarFeed {
+  userId    String   @id @map("user_id")
+  /// SHA-256 от токена, шестнадцатеричный (64 знака).
+  tokenHash String   @unique @map("token_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_feeds")
+}
+
 /// Заявка на обучение (решение 9). Персональных данных обучающихся не содержит.
 /// CHECK в базе: quantity 1–10000.
 model Application {
@@ -780,6 +814,7 @@ model Application {
   @@index([programId])
   @@index([universityId])
   @@index([status])
+  @@index([createdById])
   @@map("applications")
 }
 

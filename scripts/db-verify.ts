@@ -21,6 +21,17 @@ import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.
 import type { StageStatus } from '@/shared/contracts/enums'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 
+/**
+ * Пункты вуза из конфига (решение 103): пары «номер этапа — заголовок пункта».
+ * Заголовки из нашего же конфига, кавычек в них нет — но экранируем, как положено.
+ */
+const UNIVERSITY_ITEMS = WORKFLOW_STAGES.flatMap((stage) =>
+  stage.tasks
+    .filter((task) => task.universityItem)
+    .map((task) => `(${stage.number}, '${task.title.replaceAll("'", "''")}')`),
+)
+const UNIVERSITY_ITEMS_SQL = UNIVERSITY_ITEMS.length > 0 ? UNIVERSITY_ITEMS.join(', ') : '(NULL, NULL)'
+
 interface Rule {
   name: string
   /** Запрос возвращает нарушителей: колонка `id`. */
@@ -67,6 +78,27 @@ const RULES: Rule[] = [
     name: 'Отметка пункта чек-листа: дата и автор есть ровно у выполненных',
     sql: `SELECT id FROM tasks
           WHERE is_done <> (done_at IS NOT NULL) OR is_done <> (done_by_id IS NOT NULL)`,
+  },
+  {
+    name: 'Признак «пункт вуза» стоит ровно у пунктов вуза из конфига',
+    sql: `SELECT t.id FROM tasks t
+          JOIN workflow_stages s ON s.id = t.stage_id
+          WHERE t.is_university_item
+             <> ((s.stage_number, t.title) IN (${UNIVERSITY_ITEMS_SQL}))`,
+  },
+  {
+    // Решение 103: отметка за вуз без следа, чем она подтверждена, — ровно та
+    // дыра R-07, которую закрыли. Отметил представитель этого вуза — пометка не нужна.
+    name: 'Отмеченный пункт вуза: отметил представитель этого вуза или есть пометка',
+    sql: `SELECT t.id FROM tasks t
+          JOIN workflow_stages s ON s.id = t.stage_id
+          JOIN cooperations c ON c.id = s.cooperation_id
+          WHERE t.is_university_item AND t.is_done AND t.confirmation_note IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM users u
+              WHERE u.id = t.done_by_id AND u.role = 'UNIVERSITY_REP'
+                AND u.university_id = c.university_id
+            )`,
   },
   {
     name: 'Последняя запись истории этапа совпадает с его статусом',
@@ -140,6 +172,14 @@ const RULES: Rule[] = [
   {
     name: 'Нет рекомендаций в упразднённом статусе «Принята»',
     sql: `SELECT id FROM recommendations WHERE status = 'ACCEPTED'`,
+  },
+  {
+    // Решение 107: справочник держит это правило в коде (skillNameKey), база — только
+    // точное совпадение. lower() на колонке с ICU-сортировкой работает и для кириллицы.
+    name: 'Названия навыков не повторяются без учёта регистра и пробелов',
+    sql: `SELECT min(id) AS id FROM skills
+          GROUP BY lower(regexp_replace(normalize(name, NFKC), '\\s+', '', 'g'))
+          HAVING count(*) > 1`,
   },
   {
     name: 'Рекомендация ссылается на существующий объект',

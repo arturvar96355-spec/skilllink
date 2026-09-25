@@ -2,7 +2,7 @@ import { TELEGRAM_DIGEST, TELEGRAM_LINK } from '@/shared/config/telegram.config'
 import { RECOMMENDATION_PRIORITY_LABELS } from '@/shared/contracts/labels'
 import type { RecommendationPriority, StageStatus } from '@/shared/contracts/enums'
 import { daysBetween } from '@/shared/utils/date'
-import { pluralize } from '@/shared/utils/text'
+import { countWithNoun } from '@/shared/utils/text'
 import { cooperationHref, recommendationHref, ROUTES } from '@/ui/lib/links'
 import { formatDay } from '@/modules/ai-assist/ai-assist.rules'
 import { isDueSoon, isLockedByControlPoint, isOverdue } from '@/modules/workflow/workflow.rules'
@@ -228,7 +228,7 @@ export function buildDigest(
           text: stageLine(
             stage,
             `. Срок ${formatDay(stage.deadline?.toISOString() ?? null)}` +
-              (late > 0 ? `, просрочка ${pluralize(late, DAY_FORMS)}` : '') +
+              (late > 0 ? `, просрочка ${countWithNoun(late, DAY_FORMS)}` : '') +
               blockedMark,
           ),
           link: stageLink(stage),

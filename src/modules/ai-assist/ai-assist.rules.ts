@@ -19,7 +19,7 @@ import {
   type RecommendationDraft,
 } from '@/modules/recommendations/recommendations.rules'
 import { daysBetween } from '@/shared/utils/date'
-import { pluralize } from '@/shared/utils/text'
+import { countWithNoun } from '@/shared/utils/text'
 
 /**
  * Факты для ИИ-помощника (решение 90) и шаблоны без модели.
@@ -159,7 +159,7 @@ function stageProblem(stage: StageFact): string {
     parts.push(
       stage.daysOverdue === 0
         ? 'срок истёк сегодня'
-        : `просрочен на ${pluralize(stage.daysOverdue, DAY_FORMS)}`,
+        : `просрочен на ${countWithNoun(stage.daysOverdue, DAY_FORMS)}`,
     )
   }
   if (stage.status === 'BLOCKED') {
@@ -177,14 +177,14 @@ function stageLine(stage: StageFact): string {
       ? ''
       : stage.daysOverdue === 0
         ? ', срок истёк сегодня'
-        : `, просрочен на ${pluralize(stage.daysOverdue, DAY_FORMS)}`)
+        : `, просрочен на ${countWithNoun(stage.daysOverdue, DAY_FORMS)}`)
   )
 }
 
 function classesLine(facts: SummaryFacts): string {
   const date = formatDay(facts.classesStartAt)
   if (!date || facts.daysToClasses === null) return 'не указано'
-  if (facts.daysToClasses > 0) return `${date}, через ${pluralize(facts.daysToClasses, DAY_FORMS)}`
+  if (facts.daysToClasses > 0) return `${date}, через ${countWithNoun(facts.daysToClasses, DAY_FORMS)}`
   if (facts.daysToClasses === 0) return `${date}, сегодня`
   return `${date}, занятия уже начались`
 }
@@ -281,7 +281,7 @@ function numberOf(value: unknown): number | null {
 /** «плановый срок был 30.07.2026, прошло 57 дней.» — дата и дни одной фразой. */
 function overdueClause(date: string | null, daysOverdue: number | null): string {
   if (daysOverdue === 0) return date ? `плановый срок — сегодня, ${date}.` : 'плановый срок — сегодня.'
-  const days = daysOverdue === null ? null : pluralize(daysOverdue, DAY_FORMS)
+  const days = daysOverdue === null ? null : countWithNoun(daysOverdue, DAY_FORMS)
   if (date) return days ? `плановый срок был ${date}, прошло ${days}.` : `плановый срок был ${date}.`
   return days ? `плановый срок прошёл ${days} назад.` : 'плановый срок прошёл.'
 }
@@ -328,7 +328,7 @@ export function letterFacts(
           ? `Совместная работа по программе «${cooperation.programName}»: этап «${title}» не завершён, ` +
             overdueClause(formatDay(deadline), daysOverdue)
           : `Совместная работа по программе «${cooperation.programName}»: по этапу «${title}» ` +
-            (idleDays === null ? 'давно не было движения.' : `не было движения ${pluralize(idleDays, DAY_FORMS)}.`),
+            (idleDays === null ? 'давно не было движения.' : `не было движения ${countWithNoun(idleDays, DAY_FORMS)}.`),
       request:
         recommendation.ruleKey === 'stage.overdue'
           ? `Просим сообщить, на каком шаге сейчас этап «${title}», что мешает его завершить, и согласовать новую дату завершения.`
@@ -632,7 +632,7 @@ export function todayTemplate(items: readonly TodayItem[]): string {
     return 'На сегодня срочных дел нет: открытых рекомендаций и проблемных этапов по вашим связкам нет.'
   }
   return [
-    `Что сделать сегодня — ${pluralize(items.length, TASK_FORMS)} в порядке важности:`,
+    `Что сделать сегодня — ${countWithNoun(items.length, TASK_FORMS)} в порядке важности:`,
     '',
     ...items.flatMap((item, index) => [
       `${index + 1}. ${item.action} (${item.where})`,

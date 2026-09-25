@@ -49,3 +49,26 @@ export interface SkillGapDto {
   outOfProfile: boolean
   isMock: boolean
 }
+
+/** Итог объединения дубля в целевой навык (решение 107). */
+export interface SkillMergeResultDto {
+  /** Целевой навык после объединения — со счётчиками программ и продуктов. */
+  target: SkillDto
+  /** Дубль удалён; имя — чтобы сказать, что именно объединено. */
+  removed: { id: string; name: string }
+  /**
+   * Что стало со связями дубля: `moved` — перешли на целевой навык,
+   * `combined` — у целевого уже была такая связь, осталась более сильная.
+   */
+  programs: { moved: number; combined: number }
+  products: { moved: number; combined: number }
+  demand: { moved: number; combined: number }
+  /** Рекомендации по дублю: перенесены или удалены как повтор рекомендации целевого навыка. */
+  recommendations: { moved: number; dropped: number }
+}
+
+/** Удалённый неиспользуемый навык. */
+export interface SkillDeletedDto {
+  id: string
+  name: string
+}

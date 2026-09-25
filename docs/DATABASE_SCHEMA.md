@@ -39,6 +39,8 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `applications_quantity_check` | 1–10000 |
 | `market_demand_value_check` | ≥ 0 |
 | `tasks_sort_order_check` | ≥ 0 |
+| `calendar_feeds_token_hash_check` | 64 шестнадцатеричных знака — хеш, а не сам токен (миграция `20260925210200_calendar_feeds`) |
+| `tasks_confirmation_note_check` | пометка — только у отмеченного пункта вуза, 3–500 символов без краевых пробелов (миграция `20260925210000_task_university_item`) |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
 в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
@@ -52,13 +54,43 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 этапов 1–13 (тот же `computeControlStatus`, что в приложении); последняя запись
 истории совпадает со статусом; документ, встреча и заявка относятся к вузу своей
 связки и программы; дата закрытия — ровно у закрытых связок и рекомендаций;
-рекомендация ссылается на существующий объект. С `--demo` — ещё пометка `is_mock`
+рекомендация ссылается на существующий объект; признак «пункт вуза» стоит ровно
+у пунктов вуза из конфига, а отмеченный пункт вуза отметил представитель этого вуза
+или у него есть пометка «чем подтверждено» (решение 103). С `--demo` — ещё пометка `is_mock`
 у всего демо-набора.
 
 Каждое правило — запрос, который ищет нарушения; всё в транзакции READ ONLY.
 Запускается в CI после сида и после сквозного сценария с пробником (записи самого
 приложения правил не нарушают) и на стенде при каждой перезаливке (`reseed.sh`).
 Новое правило приложения, которое держится на нескольких таблицах, добавляется сюда.
+
+### Индексы на внешние ключи
+
+У каждого внешнего ключа есть индекс, первая колонка которого — колонка ключа
+(решение 104, миграция `20260925210100_fk_indexes`). Сам PostgreSQL такой индекс
+не создаёт. Без него при удалении строки, на которую ссылаются, проверка ключа
+(RESTRICT, SET NULL, CASCADE) читает ссылающуюся таблицу целиком — на каждую
+удаляемую строку.
+
+Миграция добавила 14 индексов: `applications.created_by_id`,
+`document_history.changed_by_id`, `documents.{program_id, author_id, responsible_id}`,
+`market_demand.data_source_id`, `meeting_participants.{user_id, contact_id}`,
+`meetings.{program_id, responsible_id}`, `recommendations.resolved_by_id`,
+`stage_history.changed_by_id`, `tasks.done_by_id`, `workflow_stages.completed_by_id`.
+Имена — по правилу Prisma: `<таблица>_<столбец>_idx`.
+
+Проверка, что ключей без индекса нет (норма — ноль строк):
+
+```sql
+SELECT c.conrelid::regclass, a.attname, c.conname
+FROM pg_constraint c
+JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+WHERE c.contype = 'f'
+  AND NOT EXISTS (SELECT 1 FROM pg_index i
+                  WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1]);
+```
+
+Новый внешний ключ заводится вместе с `@@index` на его колонку.
 
 ## Таблицы
 
@@ -155,7 +187,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | confidence | ConfidenceLevel | |
 | is_mock | boolean | по умолчанию **true** |
 
-UNIQUE: (`skill_id`, `period`, `source`). Индекс по `period`.
+UNIQUE: (`skill_id`, `period`, `source`, `region`). Индексы: `period`, `data_source_id`.
 
 Агрегированная таблица: одна строка — один навык за один период из одного источника.
 Сырых вакансий система не хранит.
@@ -205,7 +237,8 @@ UNIQUE: (`skill_id`, `period`, `source`). Индекс по `period`.
 | started_at, completed_at | timestamptz? | |
 | completed_by_id | text? FK → users (SET NULL) | |
 
-UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`.
+UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`, `responsible_id`,
+`completed_by_id`.
 
 Название этапа хранится копией, а не берётся из конфига при чтении: переименование этапа
 в конфиге не должно задним числом менять историю уже пройденных связок.
@@ -214,14 +247,24 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 
 ### tasks — пункты чек-листа
 
-`stage_id` (CASCADE), `title`, `is_required`, `is_done`, `done_at?`, `done_by_id?`, `sort_order`.
+`stage_id` (CASCADE), `title`, `is_required`, `is_done`, `done_at?`, `done_by_id?`, `sort_order`,
+`is_university_item`, `confirmation_note?`.
 
 Обязательные пункты блокируют перевод этапа в COMPLETED.
+
+`is_university_item` — пункт вуза (решение 103): «Вуз подтвердил получение материалов»
+этапа 7. Ставится из конфига (`universityItem` в `workflow.config.ts`) при создании этапов;
+существующим пунктам проставлен миграцией `20260925210000_task_university_item` по номеру
+этапа и заголовку. При действующем представителе вуза пункт отмечает только он.
+`confirmation_note` — чем подтверждено, если пункт вуза отметил сотрудник (у вуза нет
+представителя): «письмо от 12.09». Есть только у отмеченного пункта вуза, стирается
+со снятием отметки. Уже отмеченные до миграции пункты вуза, отмеченные не представителем,
+получили пометку «Отмечено сотрудником до решения 103: основание не записывалось».
 
 ### stage_history — история изменений этапа
 
 `stage_id` (CASCADE), `from_status?`, `to_status`, `comment?`, `changed_by_id` (RESTRICT),
-`changed_at`. Индексы: `stage_id`, `changed_at`.
+`changed_at`. Индексы: `stage_id`, `changed_at`, `changed_by_id`.
 
 Пишется при каждой смене статуса, включая автоматический пересчёт этапа 14.
 
@@ -232,10 +275,17 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 `file_reference`, `author_id`,
 `responsible_id`, `issued_at`, `signed_at`. Файлы **не хранятся**: в MVP только метаданные и
 ссылка (решение 14).
-`document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`.
+Индексы `documents`: `cooperation_id`, `university_id`, `program_id`, `status`, `author_id`,
+`responsible_id`.
+`document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`,
+`changed_by_id`.
 
 `meeting_participants` допускает участника-пользователя, участника-контакт или внешнее имя
 строкой.
+
+Индексы `meetings.responsible_id` и `meeting_participants.user_id` (с 25.09.2026, миграция
+`20260925210200_calendar_feeds`) — под выборку ленты календаря: встречи, где сотрудник
+ответственный или участник.
 
 ### recommendations
 
@@ -261,6 +311,19 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 Индексы: (`object_type`, `object_id`), `created_at`, `user_id`.
 
 Персональные данные в `payload` не пишутся — только служебные поля.
+
+### calendar_feeds — подписка на календарь (решение 105)
+
+`user_id` — первичный ключ и FK на `users` (CASCADE): одна подписка на пользователя.
+`token_hash` UNIQUE — SHA-256 от токена личной ссылки, 64 шестнадцатеричных знака (CHECK).
+`created_at` — когда выпущена действующая ссылка.
+
+**Самого токена в базе нет**: утёкшая копия базы или резервная копия не открывает ни одну
+ленту. Перевыпуск заменяет `token_hash` в той же строке, отзыв удаляет строку. `updated_at`
+нет намеренно: строка не редактируется, а выпускается заново — время выпуска и есть `created_at`.
+Суррогатного `id` тоже нет: строка определяется пользователем.
+
+Персональных данных таблица не содержит; откат — в комментарии миграции.
 
 ### applications — заявки на обучение
 
@@ -302,6 +365,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | stage → tasks, history | CASCADE | часть одной сущности |
 | user → любые ссылки | SET NULL | увольнение сотрудника не удаляет историю |
 | user → telegram_links | CASCADE | привязка — не история, без пользователя она не нужна (решение 102) |
+| user → calendar_feeds | CASCADE | подписка без пользователя — доступ без владельца |
 | skill → program_skills, product_skills, market_demand | CASCADE | связки без навыка бессмысленны |
 
 ## Согласованные изменения после первой версии
@@ -310,6 +374,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | --- | --- | --- |
 | `recommendations.resolution_comment` | Комментарий сотрудника при закрытии рекомендации. Раньше он затирал бы `justification` — обоснование системы | `20260921074512_recommendation_resolution_comment` |
 | `documents.content`, `documents.template_key` | Текст, собранный из шаблона, и ключ шаблона. Без хранения текста «генерация документов из шаблонов» не оставляет после себя ничего. Это **текст, а не файл**: загрузка файлов остаётся P2 | `20260921082617_document_template_content` |
+| `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
 
 ## Что обсудить с Тиграном
 
