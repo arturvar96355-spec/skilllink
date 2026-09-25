@@ -1,0 +1,179 @@
+/* Шкала просрочек (решение 87). */
+
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-2) var(--space-5);
+}
+
+.axis {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 56px;
+}
+
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  height: 1px;
+  background: var(--line-strong);
+}
+
+/* Краснота к давним: тонкая полоса под осью, от яркой слева к прозрачной у «сегодня». */
+.heat {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 17px;
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--status-danger), transparent 85%);
+  opacity: 0.55;
+  transform-origin: right center;
+  transform: scaleX(0);
+}
+
+.strip[data-inview] .heat {
+  animation: heatIn 900ms var(--ease-out) 120ms forwards;
+}
+
+@keyframes heatIn {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 22px;
+  background: var(--line-subtle);
+}
+
+.tickLabel {
+  position: absolute;
+  top: 26px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tick:first-of-type .tickLabel {
+  transform: none;
+}
+
+.tick:last-of-type .tickLabel {
+  transform: translateX(-100%);
+}
+
+/*
+ * Точка просрочки: выезжает из «сегодня» (правый край) на своё место —
+ * чем давнее срок, тем дальше и дольше едет. Потом мягко вспыхивает один раз.
+ */
+.dot {
+  position: absolute;
+  left: var(--at, 100%);
+  bottom: calc(14px + var(--lane, 0) * 11px);
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger);
+  box-shadow: 0 0 0 3px var(--danger-surface);
+  opacity: 0;
+  transition:
+    opacity var(--motion-surface) var(--ease-out),
+    transform var(--motion-micro) var(--ease-out),
+    box-shadow var(--motion-micro) var(--ease-out);
+}
+
+.strip[data-inview] .dot {
+  opacity: 1;
+  /* backwards, а не both: после въезда наведение снова управляет transform. */
+  animation: dotIn 900ms var(--ease-out) calc(200ms + var(--i, 0) * 60ms) backwards;
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+    left: 100%;
+    transform: scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+  to {
+    opacity: 1;
+    left: var(--at, 100%);
+    transform: scale(1);
+  }
+}
+
+.dot:hover,
+.dot:focus-visible {
+  transform: scale(1.5);
+  box-shadow:
+    0 0 0 3px var(--danger-surface),
+    0 0 14px var(--status-danger);
+}
+
+/* Заблокированные — квадратом другого цвета справа от «сегодня». */
+.blocked {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding-bottom: 14px;
+  min-width: 32px;
+}
+
+.blocked .tickLabel {
+  top: auto;
+  bottom: -8px;
+  left: 50%;
+}
+
+.block {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--status-warning);
+  opacity: 0;
+  transition: transform var(--motion-micro) var(--ease-out);
+}
+
+.strip[data-inview] .block {
+  opacity: 1;
+  animation: blockIn 500ms var(--ease-out) calc(200ms + var(--i, 0) * 60ms) backwards;
+}
+
+@keyframes blockIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) rotate(45deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.block:hover,
+.block:focus-visible {
+  transform: scale(1.5);
+}
+
+/* Подсветка вуза: остальные точки уходят в тень, но не исчезают. */
+.strip .dim {
+  opacity: 0.18 !important;
+}
