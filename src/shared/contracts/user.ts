@@ -37,6 +37,12 @@ export interface CurrentUserDto {
     canUsePortal: boolean
     /** Подтверждать материалы, вносить показатели и подавать заявки в кабинете вуза. */
     canWritePortal: boolean
+    /**
+     * Видит почту и телефон контактных лиц любого вуза (решение 106): ADMIN и MANAGER.
+     * У представителя вуза `false`, хотя контакты своего вуза он видит: признак
+     * «скрыто» приходит в самом контакте (`ContactDto.contactDetailsHidden`).
+     */
+    canSeeContactDetails: boolean
     isAdmin: boolean
   }
   /**

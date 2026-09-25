@@ -3367,7 +3367,7 @@
           "Университеты"
         ],
         "summary": "Карточка университета",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Почта и телефон контактных лиц — только ADMIN и MANAGER, представителю вуза — своего вуза (решение 106). Остальным `email` и `phone` = null и `contactDetailsHidden: true`; ФИО и должность видны.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
         "operationId": "get_api_universities__id_",
         "parameters": [
           {

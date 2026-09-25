@@ -151,6 +151,19 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `ADMIN` | ADMIN |
 | `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP — просмотр кабинета вуза |
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
+| `CONTACT_DETAILS` | ADMIN, MANAGER — почта и телефон контактных лиц вузов (решение 106); UNIVERSITY_REP — только контактов своего вуза |
+
+**Почта и телефон контактных лиц вузов** (с 25.09.2026, решение владельца, решение 106):
+
+| Где | ADMIN, MANAGER | ANALYST, VIEWER | UNIVERSITY_REP |
+| --- | --- | --- | --- |
+| Карточка вуза `GET /api/universities/:id` (`contacts`, `primaryContact`) | почта и телефон | ФИО и должность; `email`, `phone` = `null`, `contactDetailsHidden: true` | свой вуз — почта и телефон; чужой — `NOT_FOUND` |
+| Ответы `POST/PATCH /api/universities…`, обезличивание | почта и телефон | — (нет права) | — (нет права) |
+| Реестр `GET /api/universities?q=` и поиск `GET /api/search` | по почте и телефону контакта не ищут ни для кого | то же | то же |
+| Выгрузка вузов `GET /api/export?dataset=universities` | почта основного контакта, телефона нет | почта пустая | почта пустая |
+| Встречи (участник-контакт), документы (подстановка контакта) | только ФИО и должность | то же | то же |
+| ИИ-помощник | почта и телефон вырезаются из текста до отправки модели | то же | — |
+| `GET /api/me` → `permissions.canSeeContactDetails` | `true` | `false` | `false` (признак «скрыто» — в самом контакте) |
 
 **Ответственным** за связку, этап, встречу и документ назначается только действующий
 ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
@@ -353,11 +366,24 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
   "primaryContact": {
     "id": "…", "fullName": "Ветрова Ирина Павловна",
     "position": "Заместитель декана",
-    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true
+    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true,
+    "isAnonymized": false, "contactDetailsHidden": false
   },
   "contacts": [ "…" ],
   "createdAt": "2026-09-21T07:23:11.101Z"
 }
+```
+
+**Почта и телефон контактов** (решение 106) — только ADMIN и MANAGER, представителю вуза —
+своего вуза. ANALYST и VIEWER получают ФИО и должность, а `email` и `phone` — `null`
+с `contactDetailsHidden: true`: фронт пишет «скрыто — доступно менеджеру», а не «не указано».
+Значения скрываются в сервисе, в ответ не попадают. У обезличенного контакта
+`contactDetailsHidden: false` — там данных нет ни у кого.
+
+```json
+{ "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
+  "email": null, "phone": null, "isPrimary": true,
+  "isAnonymized": false, "contactDetailsHidden": true }
 ```
 
 ### POST /api/universities
@@ -1841,8 +1867,9 @@ curl -s -X POST http://localhost:3000/api/ai/today
   "data": {
     "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
     "role": "MANAGER", "universityId": null, "universityName": null,
-    "permissions": { "canWrite": true, "canSeeAnalytics": true,
-                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false },
+    "permissions": { "canWrite": true, "canSeeAnalytics": true, "canWorkAnalytics": true,
+                     "canUsePortal": true, "canWritePortal": false,
+                     "canSeeContactDetails": true, "isAdmin": false },
     "passwordTemporary": false
   }
 }
@@ -1853,6 +1880,10 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 `canWritePortal` (с 25.09.2026) — может ли пользователь записывать в кабинете вуза:
 `true` только у `UNIVERSITY_REP`. У сотрудника кабинет открывается только для просмотра.
+
+`canSeeContactDetails` (с 25.09.2026, решение 106) — видит ли пользователь почту и телефон
+контактных лиц любого вуза: `true` у ADMIN и MANAGER. У представителя вуза `false`, хотя
+контакты своего вуза он видит: что именно скрыто, говорит `contactDetailsHidden` в контакте.
 
 `passwordTemporary` (с 25.09.2026, решение 99) — действующий пароль выдан администратором
 как временный: личный кабинет показывает плашку «смените временный пароль». Отдельного

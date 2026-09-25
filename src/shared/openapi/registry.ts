@@ -288,6 +288,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/universities/{id}',
     tag: 'Университеты',
     summary: 'Карточка университета',
+    description:
+      'Почта и телефон контактных лиц — только ADMIN и MANAGER, представителю вуза — своего вуза ' +
+      '(решение 106). Остальным `email` и `phone` = null и `contactDetailsHidden: true`; ФИО и должность видны.',
     permission: 'READ',
     errors: READ_ERRORS,
   },

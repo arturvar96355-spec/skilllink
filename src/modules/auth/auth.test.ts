@@ -75,4 +75,12 @@ describe('права текущего пользователя', () => {
     expect(describeCurrentUser(as('MANAGER')).permissions.canWritePortal).toBe(false)
     expect(describeCurrentUser(as('MANAGER')).permissions.canUsePortal).toBe(true)
   })
+
+  it('почту и телефон контактов вузов видят только ADMIN и MANAGER (решение 106)', () => {
+    expect(describeCurrentUser(as('ADMIN')).permissions.canSeeContactDetails).toBe(true)
+    expect(describeCurrentUser(as('MANAGER')).permissions.canSeeContactDetails).toBe(true)
+    expect(describeCurrentUser(as('ANALYST')).permissions.canSeeContactDetails).toBe(false)
+    expect(describeCurrentUser(as('VIEWER')).permissions.canSeeContactDetails).toBe(false)
+    expect(describeCurrentUser(as('UNIVERSITY_REP')).permissions.canSeeContactDetails).toBe(false)
+  })
 })
