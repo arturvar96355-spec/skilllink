@@ -323,7 +323,7 @@ export async function eraseUser(
     if (isSharedDemoAccount(target.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
     if (!confirmMatches(input.confirm, target.email)) {
       throw validationError('Подтверждение не совпадает', [
-        { field: 'confirm', message: 'Введите логин (почту) обезличиваемого пользователя' },
+        { field: 'confirm', message: 'Введите почту для входа обезличиваемого пользователя' },
       ])
     }
     if (target.role === 'ADMIN' && target.isActive && otherActiveAdmins === 0) {

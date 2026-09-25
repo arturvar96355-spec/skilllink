@@ -3795,7 +3795,7 @@ Storage не проверялось — бакета ещё нет.
 отказе — равен `Retry-After`) и `Retry-After` на 429. Вход через `signIn()` из
 `next-auth/react` ждёт в ответе `url` и без него бросает исключение («Сервер не ответил»),
 поэтому запросу NextAuth (`X-Auth-Return-Redirect`) в ответ добавляется `url` на `/login`
-с `error=CredentialsSignin&code=rate_limited`. В OpenAPI у 95 из 97 операций — ответ
+с `error=CredentialsSignin&code=rate_limited`. В OpenAPI у всех операций, кроме проверки живости и вебхука Telegram, — ответ
 `429` ссылкой на общий `components.responses.RateLimited`.
 
 **Сбой — пропустить (fail-open)** с `console.warn`. Ограничение частоты — защита от
