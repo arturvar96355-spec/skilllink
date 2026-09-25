@@ -264,8 +264,8 @@
 }
 
 .home:hover {
-  background: rgb(var(--ink) / 0.04);
-  border-color: rgb(var(--ink) / 0.096);
+  background: rgb(var(--ink-rgb) / 0.04);
+  border-color: rgb(var(--ink-rgb) / 0.096);
   box-shadow: var(--glow-soft);
 }
 

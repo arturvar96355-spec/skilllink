@@ -34,7 +34,7 @@
   background: var(--surface-floating);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgb(var(--ink) / 0.096);
+  border: 1px solid rgb(var(--ink-rgb) / 0.096);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-floating);
   transform-origin: top right;
@@ -117,11 +117,11 @@
 }
 
 .item:hover {
-  background: rgb(var(--ink) / 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 
 .unread {
-  background: rgb(var(--ink) / 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 
 .icon {
@@ -146,7 +146,7 @@
 }
 
 .info {
-  border-color: rgb(var(--ink) / 0.14);
+  border-color: rgb(var(--ink-rgb) / 0.14);
   color: var(--text-accent-soft);
 }
 

@@ -84,12 +84,12 @@
 
 .secondary {
   background: transparent;
-  border-color: rgb(var(--ink) / 0.1);
+  border-color: rgb(var(--ink-rgb) / 0.1);
   color: var(--text-primary);
 }
 
 .secondary:hover:not(:disabled) {
-  background: rgb(var(--ink) / 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   border-color: var(--line-strong);
   transform: translateY(-1px);
 }
@@ -105,7 +105,7 @@
 }
 
 .ghost:hover:not(:disabled) {
-  background: rgb(var(--ink) / 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
   color: var(--text-primary);
 }
 
@@ -148,7 +148,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  border: 2px solid rgb(var(--ink) / 0.35);
+  border: 2px solid rgb(var(--ink-rgb) / 0.35);
   border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 640ms linear infinite;

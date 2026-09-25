@@ -51,7 +51,7 @@
 }
 
 a.node:hover {
-  background: rgb(var(--ink) / 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
 }
 
 .role {

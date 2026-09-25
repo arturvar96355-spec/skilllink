@@ -16,7 +16,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgb(var(--ink) / 0.096);
+  border: 1px solid rgb(var(--ink-rgb) / 0.096);
   box-shadow: var(--shadow-floating);
   color: var(--text-secondary);
   font-size: var(--text-caption-size);

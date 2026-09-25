@@ -16,7 +16,7 @@
   height: 38px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-input);
-  background: rgb(var(--ink) / 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
   font-size: var(--text-body-size);
@@ -29,14 +29,14 @@
 }
 
 .trigger:hover:not(:disabled) {
-  border-color: rgb(var(--ink) / 0.132);
+  border-color: rgb(var(--ink-rgb) / 0.132);
 }
 
 .open,
 .trigger:focus-visible {
-  border-color: rgb(var(--ink) / 0.14);
+  border-color: rgb(var(--ink-rgb) / 0.14);
   box-shadow: none;
-  background: rgb(var(--ink) / 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
 }
 
 .trigger:disabled {
@@ -84,7 +84,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgb(var(--ink) / 0.096);
+  border: 1px solid rgb(var(--ink-rgb) / 0.096);
   box-shadow: var(--shadow-floating);
   animation: listIn var(--motion-micro) var(--ease-out);
 }
@@ -123,7 +123,7 @@
 
 .option:hover,
 .active {
-  background: rgb(var(--ink) / 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   color: var(--text-primary);
 }
 

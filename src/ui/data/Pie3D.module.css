@@ -34,7 +34,7 @@
 /* Грани: цвет сектора — currentColor, тени граней — затемнением поверх. */
 .top {
   fill: currentColor;
-  stroke: rgb(var(--ink) / 0.14);
+  stroke: rgb(var(--ink-rgb) / 0.14);
   stroke-width: 0.6;
   transition: filter var(--motion-micro) var(--ease-out);
 }
