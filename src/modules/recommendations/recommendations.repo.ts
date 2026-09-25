@@ -347,7 +347,10 @@ const programRuleSelect = {
   studentCount: true,
   groupCount: true,
   university: { select: { name: true } },
-  _count: { select: { cooperations: true } },
+  // Отменённая связка не в счёт: вуз от сотрудничества отказался, и требовать
+  // у него цифры так же бессмысленно, как у того, с кем не начинали (правило
+  // ruleMissingProgramMetrics). Завершённая — в счёт: курс прочитан, связь с вузом есть.
+  _count: { select: { cooperations: { where: { status: { not: 'CANCELLED' } } } } },
 } satisfies Prisma.EducationalProgramSelect
 
 /**
