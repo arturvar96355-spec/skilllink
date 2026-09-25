@@ -59,7 +59,6 @@ import {
   type TabItem,
   formatShare,
   formatDemand,
-  ScrollRuler,
 } from '@/ui'
 import styles from './program.module.css'
 
@@ -664,7 +663,6 @@ export default function ProgramPage() {
             />
           </Card>
         ))}
-      <ScrollRuler />
     </>
   )
 }

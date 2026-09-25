@@ -239,25 +239,3 @@
   opacity: 0.6;
 }
 
-.barcode {
-  display: flex;
-  height: 26px;
-  margin-top: auto;
-  overflow: hidden;
-}
-
-.bar {
-  flex: none;
-  background: var(--text-on-light);
-}
-
-.gap {
-  flex: none;
-}
-
-.number {
-  font-size: var(--text-caption-size);
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  font-variant-numeric: tabular-nums;
-}

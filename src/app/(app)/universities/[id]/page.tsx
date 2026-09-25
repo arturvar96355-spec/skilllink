@@ -54,7 +54,6 @@ import {
   formatShare,
   formatDemand,
   formatPlace,
-  ScrollRuler,
 } from '@/ui'
 import { UniversityGraph } from '../UniversityGraph'
 import styles from './university.module.css'
@@ -319,7 +318,8 @@ export default function UniversityPage() {
     <>
       <PageHeader
         variant="display"
-        title={data.name}
+        title={data.shortName ?? data.name}
+        subtitle={data.shortName ? data.name : undefined}
         breadcrumbs={[{ label: 'Университеты', href: '/universities' }, { label: data.shortName ?? data.name }]}
         meta={
           <>
@@ -686,7 +686,6 @@ export default function UniversityPage() {
           </Tooltip>
         </p>
       )}
-      <ScrollRuler />
     </>
   )
 }

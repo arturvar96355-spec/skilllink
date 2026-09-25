@@ -61,10 +61,20 @@
 /* Страница объекта: название крупно и с засечками (A24, решение 79). */
 .titleDisplay {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: var(--text-display-size);
+  font-size: var(--text-object-title-size);
   font-weight: 400;
-  line-height: 1.08;
+  line-height: 1.12;
   letter-spacing: -0.015em;
+  overflow-wrap: anywhere;
+}
+
+/* Полное название под коротким — мельче и тише, теми же засечками. */
+.subtitle {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-line);
+  color: var(--text-secondary);
+  max-width: 720px;
 }
 
 .description {

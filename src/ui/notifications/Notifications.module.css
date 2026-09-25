@@ -14,7 +14,7 @@
   border-radius: var(--radius-pill);
   background: var(--gradient-button);
   color: #fff;
-  font-size: 10px;
+  font-size: var(--text-caption-size);
   font-weight: 700;
   line-height: 16px;
   text-align: center;
