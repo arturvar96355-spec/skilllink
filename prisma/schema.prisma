@@ -187,18 +187,23 @@ enum ApplicationStatus {
 /// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
 /// он ограничивает видимость его собственным вузом.
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  fullName     String   @map("full_name")
-  position     String?
-  role         UserRole @default(VIEWER)
+  id             String   @id @default(cuid())
+  email          String   @unique
+  fullName       String   @map("full_name")
+  position       String?
+  role           UserRole @default(VIEWER)
   /// Заполнен только у UNIVERSITY_REP: ограничивает видимость своим вузом.
-  universityId String?  @map("university_id")
+  universityId   String?  @map("university_id")
   /// P1: NextAuth.js + bcrypt. На P0 не используется (mock-авторизация через cookie).
-  passwordHash String?  @map("password_hash")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  passwordHash   String?  @map("password_hash")
+  isActive       Boolean  @default(true) @map("is_active")
+  /// Версия сессий (решение 109): кладётся в JWT при входе и сверяется на каждый запрос.
+  /// Растёт при смене и сбросе пароля, блокировке и смене роли — выданные раньше сессии
+  /// перестают действовать. Токен без версии (выдан до миграции) считается версией 0.
+  /// CHECK в базе (миграция user_session_version): session_version ≥ 0.
+  sessionVersion Int      @default(0) @map("session_version")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   university             University?          @relation(fields: [universityId], references: [id], onDelete: SetNull)
   cooperations           Cooperation[]        @relation("CooperationResponsible")
@@ -214,6 +219,7 @@ model User {
   recommendationsClosed  Recommendation[]     @relation("RecommendationResolver")
   auditLogs              AuditLog[]           @relation("AuditLogUser")
   applicationsCreated    Application[]        @relation("ApplicationAuthor")
+  telegramLink           TelegramLink?
   calendarFeed           CalendarFeed?
 
   @@index([role])
@@ -227,24 +233,24 @@ model User {
 /// и история отношений — основная ценность системы.
 /// CHECK в базе (миграция check_constraints): student_count, direction_count — NULL или ≥ 0.
 model University {
-  id        String           @id @default(cuid())
-  name      String
-  shortName String?          @map("short_name")
-  city      String
-  region    String
-  address   String?
-  website   String?
-  status    UniversityStatus @default(NEW)
+  id             String           @id @default(cuid())
+  name           String
+  shortName      String?          @map("short_name")
+  city           String
+  region         String
+  address        String?
+  website        String?
+  status         UniversityStatus @default(NEW)
   /// Количество направлений подготовки. null — данных нет (никогда не 0 «по умолчанию»).
-  directionCount Int?        @map("direction_count")
+  directionCount Int?             @map("direction_count")
   /// Общая численность обучающихся в вузе.
-  studentCount   Int?        @map("student_count")
+  studentCount   Int?             @map("student_count")
   description    String?
   /// Демонстрационная запись. Фронт обязан показывать пометку.
-  isMock     Boolean   @default(false) @map("is_mock")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
-  archivedAt DateTime? @map("archived_at")
+  isMock         Boolean          @default(false) @map("is_mock")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  archivedAt     DateTime?        @map("archived_at")
 
   contacts     Contact[]
   programs     EducationalProgram[]
@@ -273,7 +279,7 @@ model Contact {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  university   University           @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  university     University           @relation(fields: [universityId], references: [id], onDelete: Cascade)
   participations MeetingParticipant[] @relation("MeetingParticipantContact")
 
   @@index([universityId])
@@ -281,7 +287,6 @@ model Contact {
    * Единственность основного контакта обеспечена частичным уникальным индексом
    * `contacts_one_primary_per_university` — он создан в миграции вручную,
    * потому что условие `WHERE is_primary` в схеме Prisma не выражается.
-   *
    * Без него при двух основных контактах карточка вуза показывала бы произвольный:
    * она берёт первый найденный.
    */
@@ -292,16 +297,16 @@ model Contact {
 /// допускают null: незаполненный показатель — это «нет данных», а не ноль.
 /// CHECK в базе: три показателя — NULL или ≥ 0; duration_months — NULL или 1–120.
 model EducationalProgram {
-  id           String        @id @default(cuid())
-  universityId String        @map("university_id")
-  name         String
-  code         String?
+  id             String        @id @default(cuid())
+  universityId   String        @map("university_id")
+  name           String
+  code           String?
   /// Направление подготовки / УГСН.
-  direction    String?
-  level        ProgramLevel
+  direction      String?
+  level          ProgramLevel
   /// Длительность обучения в месяцах. null — данных нет.
-  durationMonths Int?        @map("duration_months")
-  status       ProgramStatus @default(ACTIVE)
+  durationMonths Int?          @map("duration_months")
+  status         ProgramStatus @default(ACTIVE)
 
   /// Три показателя рейтинга: в балл программы входят только они. null означает «Нет данных», а не ноль.
   applicationCount Int?        @map("application_count")
@@ -389,14 +394,13 @@ model MarketDemand {
   unit         String          @default("vacancies")
   /**
    * Регион замера. Обязателен и по умолчанию «Россия».
-   *
    * Обязателен, потому что входит в уникальный ключ: в PostgreSQL NULL-ы
    * в уникальном ключе считаются различными, и два замера «по стране»
    * без региона перестали бы схлопываться — то есть уникальность
    * потеряла бы смысл ровно там, где она нужна. Федеральный уровень — это
    * тоже значение региона, а не его отсутствие.
    */
-  region       String  @default("Россия")
+  region       String          @default("Россия")
   source       String
   dataSourceId String?         @map("data_source_id")
   confidence   ConfidenceLevel @default(LOW)
@@ -505,24 +509,24 @@ model Cooperation {
 /// CHECK в базе: stage_number 1–14; COMPLETED — с результатом (кроме этапа 14);
 /// BLOCKED — с причиной.
 model WorkflowStage {
-  id            String      @id @default(cuid())
-  cooperationId String      @map("cooperation_id")
+  id             String      @id @default(cuid())
+  cooperationId  String      @map("cooperation_id")
   /// 1..14 по разделу 8 ТЗ.
-  stageNumber   Int         @map("stage_number")
+  stageNumber    Int         @map("stage_number")
   /// Копия названия на момент создания: история не должна зависеть от конфига.
-  title         String
-  phase         StagePhase
-  status        StageStatus @default(NOT_STARTED)
-  responsibleId String?     @map("responsible_id")
-  deadline      DateTime?
-  comment       String?
-  result        String?
-  blockingReason String?    @map("blocking_reason")
-  startedAt     DateTime?   @map("started_at")
-  completedAt   DateTime?   @map("completed_at")
-  completedById String?     @map("completed_by_id")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  title          String
+  phase          StagePhase
+  status         StageStatus @default(NOT_STARTED)
+  responsibleId  String?     @map("responsible_id")
+  deadline       DateTime?
+  comment        String?
+  result         String?
+  blockingReason String?     @map("blocking_reason")
+  startedAt      DateTime?   @map("started_at")
+  completedAt    DateTime?   @map("completed_at")
+  completedById  String?     @map("completed_by_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   cooperation Cooperation    @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
   responsible User?          @relation("StageResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
@@ -533,7 +537,9 @@ model WorkflowStage {
   @@unique([cooperationId, stageNumber])
   @@index([status])
   @@index([deadline])
-  /** Выборка этапов по ответственному сотруднику. */
+  /**
+   * Выборка этапов по ответственному сотруднику.
+   */
   @@index([responsibleId])
   @@index([completedById])
   @@map("workflow_stages")
@@ -542,22 +548,22 @@ model WorkflowStage {
 /// Пункт чек-листа этапа. Состав пунктов по этапам — в src/shared/config/workflow.config.ts.
 /// CHECK в базе: sort_order ≥ 0.
 model Task {
-  id         String    @id @default(cuid())
-  stageId    String    @map("stage_id")
-  title      String
+  id               String    @id @default(cuid())
+  stageId          String    @map("stage_id")
+  title            String
   /// Обязательные пункты блокируют перевод этапа в COMPLETED.
-  isRequired Boolean   @default(false) @map("is_required")
-  isDone     Boolean   @default(false) @map("is_done")
-  doneAt     DateTime? @map("done_at")
-  doneById   String?   @map("done_by_id")
+  isRequired       Boolean   @default(false) @map("is_required")
+  isDone           Boolean   @default(false) @map("is_done")
+  doneAt           DateTime? @map("done_at")
+  doneById         String?   @map("done_by_id")
   /// Пункт отмечает вуз («Вуз подтвердил получение материалов», решение 103). Переносится из конфига.
-  isUniversityItem Boolean @default(false) @map("is_university_item")
+  isUniversityItem Boolean   @default(false) @map("is_university_item")
   /// Чем подтверждено, если пункт вуза отметил сотрудник (решение 103). Есть только у отмеченного
   /// пункта вуза, со снятием отметки стирается. CHECK tasks_confirmation_note_check — в миграции.
-  confirmationNote String? @map("confirmation_note")
-  sortOrder  Int       @default(0) @map("sort_order")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  confirmationNote String?   @map("confirmation_note")
+  sortOrder        Int       @default(0) @map("sort_order")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   stage  WorkflowStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
   doneBy User?         @relation("TaskDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
@@ -704,30 +710,30 @@ model MeetingParticipant {
 /// Подсказка системы с обязательным обоснованием. Уникальна по тройке
 /// «правило + объект»: повторная генерация обновляет, а не плодит дубли.
 model Recommendation {
-  id            String                 @id @default(cuid())
-  type          RecommendationType
+  id                String                 @id @default(cuid())
+  type              RecommendationType
   /// Тип и идентификатор объекта, к которому относится рекомендация.
-  objectType    String                 @map("object_type")
-  objectId      String                 @map("object_id")
+  objectType        String                 @map("object_type")
+  objectId          String                 @map("object_id")
   /// Ключ правила, которое породило рекомендацию. Нужен для повторной генерации без дублей.
-  ruleKey       String                 @map("rule_key")
-  title         String
-  description   String
-  priority      RecommendationPriority @default(MEDIUM)
+  ruleKey           String                 @map("rule_key")
+  title             String
+  description       String
+  priority          RecommendationPriority @default(MEDIUM)
   /// Человекочитаемое основание: почему система это предлагает.
-  justification String
+  justification     String
   /// Связанные данные для раскрытия основания на фронте.
-  relatedData   Json?                  @map("related_data")
-  confidence    ConfidenceLevel        @default(MEDIUM)
-  status        RecommendationStatus   @default(NEW)
+  relatedData       Json?                  @map("related_data")
+  confidence        ConfidenceLevel        @default(MEDIUM)
+  status            RecommendationStatus   @default(NEW)
   /// Комментарий сотрудника при закрытии или отклонении.
   /// Отдельно от justification: то — обоснование системы, это — решение человека.
-  resolutionComment String?            @map("resolution_comment")
-  cooperationId String?                @map("cooperation_id")
-  resolvedById  String?                @map("resolved_by_id")
-  resolvedAt    DateTime?              @map("resolved_at")
-  createdAt     DateTime               @default(now()) @map("created_at")
-  updatedAt     DateTime               @updatedAt @map("updated_at")
+  resolutionComment String?                @map("resolution_comment")
+  cooperationId     String?                @map("cooperation_id")
+  resolvedById      String?                @map("resolved_by_id")
+  resolvedAt        DateTime?              @map("resolved_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
 
   cooperation Cooperation? @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
   resolvedBy  User?        @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
@@ -825,4 +831,22 @@ model Application {
   @@index([status])
   @@index([createdById])
   @@map("applications")
+}
+
+/// Привязка пользователя к личному чату Telegram (решение 102): туда приходит сводка
+/// «что горит у меня». Один пользователь — один чат, один чат — один пользователь.
+/// Хранится только то, без чего сообщение не доставить: идентификатор чата и ник,
+/// чтобы человек в профиле узнал свой аккаунт. Удаляется вместе с пользователем
+/// и командой /stop — истории у привязки нет и не нужно.
+model TelegramLink {
+  id       String   @id @default(cuid())
+  userId   String   @unique @map("user_id")
+  /// Идентификатор чата Telegram — целое до 52 бит, хранится строкой: в Int не влезает.
+  chatId   String   @unique @map("chat_id")
+  username String?
+  linkedAt DateTime @default(now()) @map("linked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_links")
 }

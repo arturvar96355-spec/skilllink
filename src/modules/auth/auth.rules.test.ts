@@ -9,6 +9,7 @@ import {
   generateTemporaryPassword,
   newPasswordProblem,
   resolveRoleAssignment,
+  revokesSessions,
   userChangeAuditActions,
   type UserChangeFacts,
 } from './auth.rules'
@@ -305,5 +306,24 @@ describe('общие демо-учётные записи стенда (реше
     expect(isSharedDemoAccount('probe-user-1@example.invalid')).toBe(false)
     expect(isSharedDemoAccount('ivanova@skilllink.demo.ru')).toBe(false)
     expect(isSharedDemoAccount('new@skilllink.demo')).toBe(false)
+  })
+})
+
+describe('какие изменения отзывают сессии (решение 109)', () => {
+  const manager = { role: 'MANAGER' as UserRole, isActive: true }
+
+  it('блокировка и смена роли — отзывают', () => {
+    expect(revokesSessions(manager, { ...manager, isActive: false })).toBe(true)
+    expect(revokesSessions(manager, { ...manager, role: 'VIEWER' })).toBe(true)
+    expect(revokesSessions(manager, { role: 'ADMIN', isActive: false })).toBe(true)
+  })
+
+  it('без изменений и разблокировка — нет', () => {
+    expect(revokesSessions(manager, manager)).toBe(false)
+    expect(revokesSessions({ ...manager, isActive: false }, manager)).toBe(false)
+  })
+
+  it('заблокированному сменили роль — тоже отзыв: версия всё равно растёт', () => {
+    expect(revokesSessions({ role: 'VIEWER', isActive: false }, { role: 'ANALYST', isActive: false })).toBe(true)
   })
 })
