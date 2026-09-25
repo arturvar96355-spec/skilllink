@@ -89,6 +89,19 @@ const nextConfig: NextConfig = {
         source: '/api/calendar/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      /**
+       * «Всё о субъекте» и реестр запросов субъектов ПД (решение 116): в выгрузке все
+       * ПД человека. Маршрут выгрузки ставит no-store сам, но общее правило выше его
+       * перекрыло бы — поэтому и здесь.
+       */
+      {
+        source: '/api/admin/dsar/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+      {
+        source: '/api/me/data-export',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
       /** Задача проверки «не робот» у каждого запроса своя — хранить её нечего и незачем. */
       {
         source: '/api/login-challenge',

@@ -209,6 +209,31 @@ enum ConsentForm {
   ORAL_CONFIRMED_BY_EMAIL
 }
 
+/// Чьи это сведения в запросе субъекта (решение 116): пользователь системы или контакт вуза.
+enum DsarSubjectType {
+  USER
+  CONTACT
+}
+
+/// Что просит субъект: сведения о своих ПД (ст. 14) или их уничтожение (ч. 3 ст. 20, ст. 21).
+enum DsarRequestKind {
+  EXPORT
+  ERASE
+}
+
+/// Открыт — срок идёт; исполнен — выгрузка отдана или ПД обезличены.
+enum DsarRequestStatus {
+  OPEN
+  COMPLETED
+}
+
+/// Откуда запрос: сам пользователь из кабинета, письмо субъекта, выгрузка администратора без письма.
+enum DsarRequestChannel {
+  SELF_SERVICE
+  LETTER
+  ADMIN
+}
+
 // ──────────────────────────── Пользователи и доступ ─────────────────────────
 
 /// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
@@ -249,6 +274,7 @@ model User {
   telegramLink           TelegramLink?
   calendarFeed           CalendarFeed?
   contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
+  dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
 
   @@index([role])
   @@index([universityId])
@@ -927,4 +953,35 @@ model TelegramLink {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("telegram_links")
+}
+
+/// Реестр запросов субъектов ПД (решение 116): кто, о ком, что просил, срок ответа и когда исполнено.
+/// Строки не удаляются: приложение только добавляет запрос и закрывает его (роль БД без DELETE,
+/// триггер `dsar_requests_guard` не даёт менять неизменяемые колонки). ПД в строке нет, кроме
+/// идентификаторов и адреса клиента (`ip`) у запроса из личного кабинета.
+/// CHECK в базе: COMPLETED ровно при completed_at; срок позже запроса; исполнение не раньше запроса.
+model DsarRequest {
+  id            String             @id @default(cuid())
+  subjectType   DsarSubjectType    @map("subject_type")
+  /// Идентификатор пользователя или контакта. Без внешнего ключа: субъект двух видов.
+  subjectId     String             @map("subject_id")
+  kind          DsarRequestKind
+  channel       DsarRequestChannel
+  requestedById String             @map("requested_by_id")
+  requestedAt   DateTime           @default(now()) @map("requested_at")
+  /// Срок ответа: 10 рабочих дней на сведения (ч. 3 ст. 14), 7 — на уничтожение (ч. 3 ст. 20).
+  dueAt         DateTime           @map("due_at")
+  completedAt   DateTime?          @map("completed_at")
+  status        DsarRequestStatus  @default(OPEN)
+  /// Итог исполнения: счётчики по разделам, без самих данных.
+  summary       Json?
+  /// Адрес клиента — только у запроса из личного кабинета.
+  ip            String?
+
+  requestedBy User @relation("DsarRequestAuthor", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([subjectType, subjectId, requestedAt])
+  @@index([status, dueAt])
+  @@index([requestedById])
+  @@map("dsar_requests")
 }
