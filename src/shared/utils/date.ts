@@ -41,6 +41,15 @@ export function moscowDayStart(date: Date, shiftDays = 0): Date {
   return new Date((businessDay(date) + shiftDays) * MS_IN_DAY - BUSINESS_DAY_OFFSET_MS)
 }
 
+/**
+ * Московская календарная дата `date`, сдвинутая на `shiftDays`, — строкой `ГГГГ-ММ-ДД`.
+ * Срок этапа в календаре — день, а не момент: «01.10, 01:00 по Москве» — это 1 октября,
+ * хотя по UTC ещё 30 сентября.
+ */
+export function moscowIsoDate(date: Date, shiftDays = 0): string {
+  return new Date((businessDay(date) + shiftDays) * MS_IN_DAY).toISOString().slice(0, 10)
+}
+
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * MS_IN_DAY)
 }

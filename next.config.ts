@@ -73,6 +73,19 @@ const nextConfig: NextConfig = {
         source: '/api/users/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      /**
+       * Календарь (решение 105): в ответе на выпуск — ссылка-доступ, лента — личная.
+       * Ни браузер, ни прокси не должны хранить ни то, ни другое: после отзыва
+       * ссылки лента из кэша выдала бы то, что владелец уже закрыл.
+       */
+      {
+        source: '/api/me/calendar',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+      {
+        source: '/api/calendar/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
       /** Задача проверки «не робот» у каждого запроса своя — хранить её нечего и незачем. */
       {
         source: '/api/login-challenge',

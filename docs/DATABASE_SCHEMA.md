@@ -39,6 +39,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `applications_quantity_check` | 1–10000 |
 | `market_demand_value_check` | ≥ 0 |
 | `tasks_sort_order_check` | ≥ 0 |
+| `calendar_feeds_token_hash_check` | 64 шестнадцатеричных знака — хеш, а не сам токен (миграция `20260925210200_calendar_feeds`) |
 | `tasks_confirmation_note_check` | пометка — только у отмеченного пункта вуза, 3–500 символов без краевых пробелов (миграция `20260925210000_task_university_item`) |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
@@ -282,6 +283,10 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 `meeting_participants` допускает участника-пользователя, участника-контакт или внешнее имя
 строкой.
 
+Индексы `meetings.responsible_id` и `meeting_participants.user_id` (с 25.09.2026, миграция
+`20260925210200_calendar_feeds`) — под выборку ленты календаря: встречи, где сотрудник
+ответственный или участник.
+
 ### recommendations
 
 `type`, `object_type`, `object_id`, `rule_key`, `title`, `description`, `priority`,
@@ -307,6 +312,19 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 
 Персональные данные в `payload` не пишутся — только служебные поля.
 
+### calendar_feeds — подписка на календарь (решение 105)
+
+`user_id` — первичный ключ и FK на `users` (CASCADE): одна подписка на пользователя.
+`token_hash` UNIQUE — SHA-256 от токена личной ссылки, 64 шестнадцатеричных знака (CHECK).
+`created_at` — когда выпущена действующая ссылка.
+
+**Самого токена в базе нет**: утёкшая копия базы или резервная копия не открывает ни одну
+ленту. Перевыпуск заменяет `token_hash` в той же строке, отзыв удаляет строку. `updated_at`
+нет намеренно: строка не редактируется, а выпускается заново — время выпуска и есть `created_at`.
+Суррогатного `id` тоже нет: строка определяется пользователем.
+
+Персональных данных таблица не содержит; откат — в комментарии миграции.
+
 ### applications — заявки на обучение
 
 `program_id` (CASCADE), `university_id` (CASCADE), `source`, `status`, `quantity`,
@@ -327,6 +345,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | cooperation → stages, documents, meetings | CASCADE | часть одной сущности |
 | stage → tasks, history | CASCADE | часть одной сущности |
 | user → любые ссылки | SET NULL | увольнение сотрудника не удаляет историю |
+| user → calendar_feeds | CASCADE | подписка без пользователя — доступ без владельца |
 | skill → program_skills, product_skills, market_demand | CASCADE | связки без навыка бессмысленны |
 
 ## Согласованные изменения после первой версии
@@ -335,6 +354,7 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 | --- | --- | --- |
 | `recommendations.resolution_comment` | Комментарий сотрудника при закрытии рекомендации. Раньше он затирал бы `justification` — обоснование системы | `20260921074512_recommendation_resolution_comment` |
 | `documents.content`, `documents.template_key` | Текст, собранный из шаблона, и ключ шаблона. Без хранения текста «генерация документов из шаблонов» не оставляет после себя ничего. Это **текст, а не файл**: загрузка файлов остаётся P2 | `20260921082617_document_template_content` |
+| `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
 
 ## Что обсудить с Тиграном
 

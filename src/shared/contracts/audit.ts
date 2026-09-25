@@ -21,6 +21,10 @@ export const AUDIT_ACTIONS = [
   'user.password.reset',
   /** Пользователь сменил свой пароль. */
   'user.password.change',
+  /** Выпущена или перевыпущена ссылка на календарь (решение 105). Без токена. */
+  'calendar.issue',
+  /** Ссылка на календарь отозвана. */
+  'calendar.revoke',
   'university.create',
   'university.update',
   'university.archive',

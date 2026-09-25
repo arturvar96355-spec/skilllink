@@ -100,6 +100,12 @@ export interface EndpointSpec {
   list?: boolean
   /** POST, который ничего не создаёт (черновик ИИ-помощника), отвечает 200, а не 201. */
   returnsOk?: boolean
+  /** Без входа: доступ даёт не cookie сессии, а сам адрес (лента календаря). */
+  public?: boolean
+  /** Успешный ответ — не JSON `{ data }`, а файл этого типа. */
+  fileContentType?: string
+  /** Описания параметров пути, если это не идентификатор записи. */
+  pathParams?: Record<string, string>
   errors: ErrorCode[]
 }
 
@@ -160,6 +166,55 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'и просроченные — по связкам и этапам, где текущий пользователь ответственный.',
     permission: 'ANY',
     errors: ['UNAUTHORIZED', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/me/calendar',
+    tag: 'Пользователи',
+    summary: 'Есть ли личная ссылка на календарь сроков и встреч',
+    description:
+      'Только признак и время выпуска: сам адрес ленты показывается один раз, при выпуске (решение 105).',
+    permission: 'CALENDAR',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/me/calendar',
+    tag: 'Пользователи',
+    summary: 'Выпустить или перевыпустить ссылку на календарь (.ics)',
+    description:
+      'Тела нет. В ответе url и webcalUrl — один раз; в базе хранится только SHA-256 токена. ' +
+      'Перевыпуск сразу закрывает прежнюю ссылку. Ссылка = доступ без входа: хранить как пароль. ' +
+      'В журнал — calendar.issue без токена.',
+    permission: 'CALENDAR',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'delete',
+    path: '/api/me/calendar',
+    tag: 'Пользователи',
+    summary: 'Отозвать ссылку на календарь',
+    description:
+      'Прежний адрес ленты сразу отвечает 404. Повторный отзыв — 200 с revoked=false. ' +
+      'В журнал — calendar.revoke.',
+    permission: 'CALENDAR',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/calendar/{feed}',
+    tag: 'Пользователи',
+    summary: 'Лента календаря сроков и встреч (iCalendar)',
+    description:
+      'Без входа: календарные приложения cookie не шлют, доступ даёт токен в адресе. ' +
+      'Ответ — text/calendar (RFC 5545): сроки незавершённых этапов, где владелец ссылки ' +
+      'ответственный за этап или связку (события на весь день), и его встречи. ' +
+      'Неизвестный или отозванный токен, заблокированный владелец — одинаково 404.',
+    permission: 'ANY',
+    public: true,
+    fileContentType: 'text/calendar',
+    pathParams: { feed: 'Имя файла ленты: <токен>.ics — токен из ответа POST /api/me/calendar' },
+    errors: ['NOT_FOUND', 'INTERNAL'],
   },
   {
     method: 'get',

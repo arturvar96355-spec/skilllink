@@ -254,6 +254,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'user.unblock': 'Пользователь разблокирован',
   'user.password.reset': 'Выдан временный пароль',
   'user.password.change': 'Пользователь сменил пароль',
+  'calendar.issue': 'Выпущена ссылка на календарь',
+  'calendar.revoke': 'Отозвана ссылка на календарь',
   'university.create': 'Создан вуз',
   'university.update': 'Изменён вуз',
   'university.archive': 'Вуз отправлен в архив',
