@@ -14,6 +14,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "check:docs": "vitest run src/shared/openapi/docs-counts.test.ts src/shared/openapi/doc-links.test.ts src/shared/openapi/contract-coverage.test.ts src/shared/config/env-coverage.test.ts src/shared/config/compose-docs.test.ts src/shared/config/engines.test.ts src/ui/design-tokens.test.ts src/shared/db/schema-constraints.test.ts",
@@ -49,12 +50,15 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^26.6.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
     "dotenv": "^18.0.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.25",
     "prisma": "^7.10.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
