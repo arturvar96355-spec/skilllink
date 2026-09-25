@@ -1,0 +1,66 @@
+/* Переключатель темы (решение 122). */
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-out),
+    background var(--motion-fast) var(--ease-out),
+    border-color var(--motion-fast) var(--ease-out);
+}
+
+.toggle:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+  border-color: var(--border-subtle);
+}
+
+.core {
+  fill: currentColor;
+  transform-origin: 12px 12px;
+  transition: transform var(--motion-panel) var(--ease-out);
+}
+
+.bite {
+  transition: transform var(--motion-panel) var(--ease-out);
+}
+
+.rays {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  transform-origin: 12px 12px;
+  transition:
+    transform var(--motion-panel) var(--ease-out),
+    opacity var(--motion-surface) var(--ease-out);
+}
+
+/* Тёмная тема — показываем луну: круг больше, тень наезжает, лучей нет. */
+.toggle[data-theme-icon='dark'] .core {
+  transform: scale(1.5);
+}
+
+.toggle[data-theme-icon='dark'] .bite {
+  transform: translate(-7px, 5px);
+}
+
+.toggle[data-theme-icon='dark'] .rays {
+  opacity: 0;
+  transform: rotate(-45deg) scale(0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .core,
+  .bite,
+  .rays {
+    transition: none;
+  }
+}
