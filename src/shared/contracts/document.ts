@@ -32,7 +32,7 @@ export interface DocumentListItemDto {
   title: string
   version: string
   status: DocumentStatus
-  /** Ссылка на внешний документ. Загрузка файлов — P2 (решение 14). */
+  /** Ссылка на внешний документ. Загрузка файлов — P2. */
   fileReference: string | null
   /** Текст, собранный из шаблона. null — документ заведён вручную. */
   content: string | null
