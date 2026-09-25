@@ -8,6 +8,7 @@ import { importQuerySchema } from '@/modules/import/import.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
 import {
   changePasswordSchema,
   createUserSchema,
@@ -188,6 +189,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'и просроченные — по связкам и этапам, где текущий пользователь ответственный.',
     permission: 'ANY',
     errors: ['UNAUTHORIZED', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/me/pulse',
+    tag: 'Пользователи',
+    summary: 'Пульс: «Внимание», «Сегодня», «Решить», «Успехи» по моим связкам',
+    description:
+      'Решение 120. То же содержимое, что сводка в Telegram. Разделы с потолком пунктов, total — ' +
+      'сколько всего; checkedRules — сколько правил проверено; пустой пульс — isCalm и calmText.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
   },
   {
     method: 'get',
@@ -857,6 +869,63 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/analytics/programs',
     tag: 'Аналитика',
     summary: 'Рейтинг программ с раскрытием вклада показателей',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/stage-durations',
+    tag: 'Аналитика',
+    summary: 'Длительность этапов по Каплану–Мейеру и порог застоя',
+    description:
+      'Решение 120. По каждому этапу 1–13: n (входили в этап), events (перешли дальше), censored ' +
+      '(ещё на этапе, пауза, отмена), median и p90 в днях с 95% интервалом (ci), кривая ' +
+      'curve [{day, F, lo, hi}] — доля прошедших этап к дню. status insufficient_data — меньше ' +
+      'minObservations наблюдений или minEvents переходов: порог застоя тогда ручной (threshold.source manual).',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/stalled-preview',
+    tag: 'Аналитика',
+    summary: 'Предпросмотр порога застоя: сколько связок станут или перестанут быть застрявшими',
+    description:
+      'Решение 120. Было (текущий порог правила) → станет (порог days) по открытым связкам, у которых ' +
+      'этап stage текущий; без stage — по всем этапам. Ничего не меняет.',
+    permission: 'ANALYTICS',
+    query: stalledPreviewQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/funnel',
+    tag: 'Аналитика',
+    summary: 'Воронка по этапам или вехам с отвалившимися и разрезом',
+    description:
+      'Решение 120. Для каждого шага: дошли, конверсия от предыдущего и от начала, медиана дней ' +
+      'перехода, в работе, отвалившиеся (отменены или на паузе) со ссылками. milestones=true — ' +
+      'шесть вех вместо 14 этапов; groupBy — разрез.',
+    permission: 'ANALYTICS',
+    query: funnelQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/cohorts',
+    tag: 'Аналитика',
+    summary: 'Когорты: квартал старта × кварталы с начала → доля с подписанным договором',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/insights',
+    tag: 'Аналитика',
+    summary: '«Система заметила»: отклонения рядов и выводы по этапам',
+    description:
+      'Решение 120. [{code, severity, title, detail, facts, link}] — детерминированные тексты по ' +
+      'шаблонам, каждое число из текста есть в facts. Без ИИ.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
   },

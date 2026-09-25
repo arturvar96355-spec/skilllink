@@ -83,6 +83,7 @@ npm run smoke                        # сквозной сценарий про�
 npm run probe                        # пробник: изоляция ролей, противоречивые состояния, кривой ввод
 npm run db:verify                    # правила целостности данных в базе
 npm run demo:check -- <адрес>        # сверка стенда со сценарием показа (только чтение)
+npm run analytics:report             # длительность этапов, воронка, «Система заметила» — цифры для слайда
 ```
 
 Всё это, плюс сборка и сверка OpenAPI со спецификацией, идёт в CI на каждый PR;
@@ -112,6 +113,7 @@ npm run demo:check -- <адрес>        # сверка стенда со сц�
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы |
 | [docs/DATABASE_ANSWERS.md](docs/DATABASE_ANSWERS.md) | База данных: короткие ответы экспертам |
 | [docs/ANALYTICS_METHODOLOGY.md](docs/ANALYTICS_METHODOLOGY.md) | Формулы и коэффициенты аналитики |
+| [docs/ANALYTICS_MODEL.md](docs/ANALYTICS_MODEL.md) | Аналитика этапов на статистике: Каплан–Мейер, порог застоя, воронка, «Система заметила» |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Персональные данные и 152-ФЗ |
 | [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md) | Безопасность: что сделано, чего нет |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Интерфейс и дизайн-система |

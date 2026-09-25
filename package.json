@@ -32,7 +32,8 @@
     "db:retention": "tsx scripts/retention.ts",
     "telegram:digest": "tsx scripts/telegram-digest.ts",
     "bench": "tsx scripts/bench.ts",
-    "demo:check": "tsx scripts/demo-check.ts"
+    "demo:check": "tsx scripts/demo-check.ts",
+    "analytics:report": "tsx scripts/analytics-report.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
