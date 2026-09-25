@@ -1,6 +1,5 @@
 import { notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { prisma } from '@/shared/db/prisma'
 import { writeAudit } from '@/shared/audit/audit'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -134,10 +133,7 @@ export async function create(
   assertCan(user, 'WRITE')
   const { universityId, metricsSource, ...fields } = input
 
-  const university = await prisma.university.findUnique({
-    where: { id: universityId },
-    select: { id: true, archivedAt: true },
-  })
+  const university = await repo.findUniversityRef(universityId)
   if (!university) throw validationError('Указан несуществующий вуз', [
     { field: 'universityId', message: 'Вуз не найден' },
   ])
@@ -215,7 +211,7 @@ export async function setSkills(
     ])
   }
 
-  const found = await prisma.skill.findMany({ where: { id: { in: ids } }, select: { id: true } })
+  const found = await repo.findExistingSkillIds(ids)
   const missing = ids.filter((skillId) => !found.some((skill) => skill.id === skillId))
   if (missing.length > 0) {
     throw validationError('Указаны несуществующие навыки', [
@@ -253,8 +249,8 @@ export async function archive(user: CurrentUser, id: string): Promise<ProgramDto
 /**
  * Возврат программы из архива.
  *
- * Парная операция к архивированию: у вузов она была с самого начала, а программу,
- * убранную в архив по ошибке, вернуть было нечем.
+ * Парная операция к архивированию, как у вузов: программу, убранную в архив
+ * по ошибке, должно быть чем вернуть.
  */
 export async function restore(user: CurrentUser, id: string): Promise<ProgramDto> {
   assertCan(user, 'WRITE')
@@ -262,10 +258,7 @@ export async function restore(user: CurrentUser, id: string): Promise<ProgramDto
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Образовательная программа не найдена')
 
-  const university = await prisma.university.findUnique({
-    where: { id: existing.universityId },
-    select: { archivedAt: true },
-  })
+  const university = await repo.findUniversityArchivedAt(existing.universityId)
   if (university?.archivedAt) {
     throw validationError('Нельзя вернуть программу: её вуз находится в архиве', [
       { field: 'universityId', message: 'Сначала восстановите вуз' },
