@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { textContains } from '@/shared/db/text-search'
 import { toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
+import { skillNameKey } from '@/modules/skills/skills.rules'
 import type { DataSourceListQuery } from './data-sources.schema'
 
 const dataSourceSelect = {
@@ -53,10 +54,14 @@ export async function upsertDataSource(data: {
   })
 }
 
-/** Справочник навыков по имени в нижнем регистре: источник может писать иначе. */
+/**
+ * Справочник навыков по ключу названия (`skillNameKey`: регистр и пробелы не важны) —
+ * тем же ключом, что держит уникальность в базе (решение 110). Источник пишет
+ * «ML Ops», в справочнике «MLOps» — это один навык, а не «неизвестный».
+ */
 export async function loadSkillsByName(): Promise<Map<string, string>> {
   const skills = await prisma.skill.findMany({ select: { id: true, name: true } })
-  return new Map(skills.map((skill) => [skill.name.toLowerCase(), skill.id]))
+  return new Map(skills.map((skill) => [skillNameKey(skill.name), skill.id]))
 }
 
 export interface DemandUpsert {
