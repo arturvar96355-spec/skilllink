@@ -21,8 +21,9 @@ import styles from './Finale.module.css'
  * тормозит. «Уменьшить движение» и рабочий режим — статичная картинка.
  */
 
-const HEIGHT = 380
-const TOP = 56
+const HEIGHT = 400
+/** Место сверху: заголовки столбцов и подписи над первыми узлами. */
+const TOP = 76
 const BOTTOM = 32
 const COLUMNS = [0.1, 0.37, 0.63, 0.9]
 const TITLES = ['Вузы', 'Программы', 'Навыки рынка', 'IT-продукты']
@@ -117,9 +118,9 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
         {/* Полоса навыков — «фильтр», через который идут маршруты к продуктам. */}
         <rect
           x={COLUMNS[2]! * width - 70}
-          y={TOP - 18}
+          y={TOP - 36}
           width={140}
-          height={HEIGHT - TOP - BOTTOM + 36}
+          height={HEIGHT - TOP - BOTTOM + 54}
           rx={18}
           className={styles.skillBand}
         />
@@ -152,10 +153,11 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
             >
               <circle cx={node.x} cy={node.y} r={14} className={styles.nodeHalo} />
               <circle cx={node.x} cy={node.y} r={5} className={styles.nodeCore} />
+              {/* Подпись — над узлом: линии уходят от узла вбок и текст не перечёркивают. */}
               <text
-                x={node.x + (columnIndex === 3 ? -12 : 12)}
-                y={node.y + 4}
-                textAnchor={columnIndex === 3 ? 'end' : 'start'}
+                x={node.x + (columnIndex === 0 ? -8 : columnIndex === 3 ? 8 : 0)}
+                y={node.y - 20}
+                textAnchor={columnIndex === 0 ? 'start' : columnIndex === 3 ? 'end' : 'middle'}
                 className={styles.nodeLabel}
               >
                 {node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label}
