@@ -35,6 +35,13 @@ export const PERMISSIONS = {
    * не видит (решение 9), а своих сроков и встреч у него в системе нет.
    */
   CALENDAR: ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER'],
+  /**
+   * Почта и телефон контактных лиц вузов (решение 106, решение владельца 25.09.2026):
+   * только тем, кто ведёт с ними переписку. Аналитик и наблюдатель видят ФИО
+   * и должность. Представитель вуза видит контакты своего вуза — это проверяется
+   * отдельно в canSeeContactDetails, в список роль не входит.
+   */
+  CONTACT_DETAILS: ['ADMIN', 'MANAGER'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
@@ -50,13 +57,23 @@ export function assertCan(user: CurrentUser, permission: Permission): void {
 }
 
 /**
- * Почта и телефон контактных лиц вузов в выгрузках — только тем, кто ведёт с ними
- * переписку: ADMIN и MANAGER (право WRITE), как и почта в справочнике пользователей
- * (auth.service.ts). Аналитику и наблюдателю файл с адресами всех контактов не нужен —
- * это персональные данные сверх цели (ст. 5 152-ФЗ, docs/PRIVACY.md).
+ * Почта и телефон контактных лиц вузов — только тем, кто ведёт с ними переписку:
+ * ADMIN и MANAGER (право CONTACT_DETAILS, решение 106), как и почта в справочнике
+ * пользователей (auth.service.ts). Аналитику и наблюдателю адреса и телефоны
+ * не нужны — это персональные данные сверх цели (ст. 5 152-ФЗ, docs/PRIVACY.md).
+ *
+ * `universityId` — вуз, чьи контакты показываются. Представитель вуза видит
+ * контакты своего вуза (как и раньше): это его же коллеги. Без `universityId`
+ * (выгрузка по многим вузам) ему — нет.
  */
-export function canSeeContactDetails(user: CurrentUser): boolean {
-  return can(user, 'WRITE')
+export function canSeeContactDetails(user: CurrentUser, universityId?: string): boolean {
+  if (can(user, 'CONTACT_DETAILS')) return true
+  return (
+    user.role === 'UNIVERSITY_REP' &&
+    universityId !== undefined &&
+    user.universityId !== null &&
+    user.universityId === universityId
+  )
 }
 
 /**

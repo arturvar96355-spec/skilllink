@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AppError } from '@/shared/http/errors'
+import { expectCode } from '@/shared/testing/expect-code'
 import {
   DOCUMENT_TEMPLATES,
   MISSING_PLACEHOLDER,
@@ -30,17 +30,6 @@ import {
   updateDocumentSchema,
 } from './documents.schema'
 
-function expectError(fn: () => void, code: string): void {
-  try {
-    fn()
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
-
 const doc = (
   status: Parameters<typeof assertDocumentEditable>[0],
   fileReference: string | null = 'https://example.invalid/doc.pdf',
@@ -62,28 +51,28 @@ describe('жизненный цикл документа', () => {
   })
 
   it('нельзя подписать документ, минуя согласование', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('DRAFT'), { toStatus: 'SIGNED' }),
       'INVALID_TRANSITION',
     )
   })
 
   it('нельзя вернуть подписанный документ в работу', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('SIGNED'), { toStatus: 'DRAFT', comment: 'Ошибка' }),
       'INVALID_TRANSITION',
     )
   })
 
   it('нельзя перевести документ в тот же статус', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('DRAFT'), { toStatus: 'DRAFT' }),
       'INVALID_TRANSITION',
     )
   })
 
   it('на согласование нельзя отправить пустой документ', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('DRAFT', null), { toStatus: 'REVIEW' }),
       'VALIDATION_ERROR',
     )
@@ -100,7 +89,7 @@ describe('жизненный цикл документа', () => {
   })
 
   it('отклонение требует основания', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('REVIEW'), { toStatus: 'REJECTED' }),
       'VALIDATION_ERROR',
     )
@@ -113,7 +102,7 @@ describe('жизненный цикл документа', () => {
   })
 
   it('возврат с согласования на доработку требует основания', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition(doc('REVIEW'), { toStatus: 'DRAFT' }),
       'VALIDATION_ERROR',
     )
@@ -139,15 +128,15 @@ describe('редактирование документа', () => {
   })
 
   it('подписанный и архивный документ не правятся', () => {
-    expectError(() => assertDocumentEditable('SIGNED'), 'CONFLICT')
-    expectError(() => assertDocumentEditable('ARCHIVED'), 'CONFLICT')
+    expectCode(() => assertDocumentEditable('SIGNED'), 'CONFLICT')
+    expectCode(() => assertDocumentEditable('ARCHIVED'), 'CONFLICT')
   })
 })
 
 describe('привязка документа', () => {
   it('без единой привязки документ не создаётся', () => {
-    expectError(() => assertHasLink({}), 'VALIDATION_ERROR')
-    expectError(
+    expectCode(() => assertHasLink({}), 'VALIDATION_ERROR')
+    expectCode(
       () => assertHasLink({ cooperationId: null, universityId: null, programId: null }),
       'VALIDATION_ERROR',
     )
@@ -286,8 +275,8 @@ describe('набор шаблонов', () => {
   })
 
   it('служебные пометки не попадают в текст документа', () => {
-    // Неутверждённость текстов отмечена комментарием у конфига. В самом документе
-    // строка «TEMP: болванка для демонстрации» уходила вузу на согласование.
+    // Неутверждённость текстов отмечена комментарием у конфига. Пометка в самом
+    // документе ушла бы вузу на согласование вместе с текстом.
     for (const template of DOCUMENT_TEMPLATES) {
       expect(`${template.title}\n${template.body}`).not.toMatch(/TEMP|болванк/i)
     }
@@ -382,7 +371,8 @@ describe('что пакет документов не пересобирает',
   })
 
   it('договор, заведённый вручную, тоже закрывает шаблон', () => {
-    // Раньше сверка шла только по ключу шаблона, и пакет добавлял второй договор.
+    // Сверка только по ключу шаблона пропустила бы его,
+    // и пакет добавил бы второй договор.
     const manual = existing({ title: 'Договор сквозного сценария', templateKey: null, status: 'SIGNED' })
     expect(packageSkipReason(agreement, { documents: [manual], hasProduct: true })).toBe(
       'уже есть: «Договор сквозного сценария», подписан',
@@ -442,8 +432,9 @@ describe('запрос на сборку пакета', () => {
 
 describe('содержимое документа дальше черновика', () => {
   it('у утверждённого документа ссылку не стереть, если нет текста', () => {
-    // Раньше правка ссылки правилам не подчинялась: стёртый файл, затем «Подписан».
-    expectError(
+    // Правка ссылки подчиняется тем же правилам: иначе можно стереть файл
+    // и затем подписать пустой документ.
+    expectCode(
       () => assertDocumentHasContent({ status: 'APPROVED', fileReference: null, content: null }),
       'VALIDATION_ERROR',
     )
@@ -461,7 +452,7 @@ describe('содержимое документа дальше черновик�
   })
 
   it('подписать пустой нельзя и переходом', () => {
-    expectError(
+    expectCode(
       () => assertDocumentTransition({ status: 'APPROVED', fileReference: null, content: null }, { toStatus: 'SIGNED' }),
       'VALIDATION_ERROR',
     )

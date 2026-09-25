@@ -82,7 +82,7 @@ export function buildWhere(
   if (query.q) {
     // Связку ищут так, как её называют вслух: «СПбГУТ программная», «Савельева».
     // Краткое имя вуза и ответственный — поля, по которым связку узнают в реестре;
-    // без них поиск находил её только по полному имени вуза.
+    // без них поиск находил бы её только по полному имени вуза.
     where.AND = everyWordInSomeField(query.q, (contains) => [
       { university: { name: contains } },
       { university: { shortName: contains } },
@@ -139,11 +139,32 @@ export async function findById(
  * Очередь создания связок по программе: блокировка строки программы до конца транзакции.
  *
  * Проверка «такой связки ещё нет» и создание идут в одной транзакции, но без очереди
- * два одновременных «Создать» оба видели пустоту и заводили две одинаковые связки.
+ * два одновременных «Создать» оба видели бы пустоту и завели две одинаковые связки.
  * Связка всегда принадлежит программе, поэтому очереди по программе достаточно.
  */
 export async function lockProgram(tx: Prisma.TransactionClient, programId: string): Promise<void> {
   await tx.$queryRaw`SELECT id FROM educational_programs WHERE id = ${programId} FOR UPDATE`
+}
+
+/** Вуз для проверок при создании связки: существует ли и не в архиве ли. */
+export async function findUniversityRef(id: string) {
+  return prisma.university.findUnique({
+    where: { id },
+    select: { id: true, archivedAt: true },
+  })
+}
+
+/** Программа для проверок при создании связки: её вуз и признак архива. */
+export async function findProgramRef(id: string) {
+  return prisma.educationalProgram.findUnique({
+    where: { id },
+    select: { id: true, universityId: true, archivedAt: true },
+  })
+}
+
+/** Существует ли IT-продукт: проверка до `connect`, чтобы ответить понятной ошибкой поля. */
+export async function findProductRef(id: string) {
+  return prisma.iTProduct.findUnique({ where: { id }, select: { id: true } })
 }
 
 /** Незакрытая связка с тем же «вуз + программа + продукт»; `productId: null` — продукт не выбран. */

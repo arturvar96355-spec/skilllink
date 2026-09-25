@@ -284,7 +284,8 @@ const calm = useCalmMotion()            // «уменьшить движение
 ## Роли
 
 Текущий пользователь — `useCurrentUser()`. Права приходят с сервера
-(`permissions.canWrite`, `canSeeAnalytics`, `canUsePortal`, `canWritePortal`, `isAdmin`):
+(`permissions.canWrite`, `canSeeAnalytics`, `canUsePortal`, `canWritePortal`,
+`canSeeContactDetails`, `isAdmin`):
 матрица доступа не дублируется на фронте.
 
 Представитель вуза (`UNIVERSITY_REP`) видит только свой кабинет `/portal`.

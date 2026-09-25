@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { AppError } from '@/shared/http/errors'
+import { expectCode } from '@/shared/testing/expect-code'
 import {
   BULK_TARGET_STATUSES,
   MATERIALS_UPDATE_STAGE_NUMBER,
@@ -18,17 +19,6 @@ import {
   updateProductSchema,
 } from './products.schema'
 
-function expectError(fn: () => void, code: string): void {
-  try {
-    fn()
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
-
 describe('групповая операция по продукту', () => {
   it('затрагивает этап обновления материалов', () => {
     expect(MATERIALS_UPDATE_STAGE_NUMBER).toBe(12)
@@ -41,7 +31,7 @@ describe('групповая операция по продукту', () => {
   })
 
   it('повторный выпуск той же версии отклоняется', () => {
-    expectError(() => assertVersionChanged('3.2', '3.2'), 'CONFLICT')
+    expectCode(() => assertVersionChanged('3.2', '3.2'), 'CONFLICT')
     expect(() => assertVersionChanged('3.2', '3.3')).not.toThrow()
   })
 
@@ -50,7 +40,7 @@ describe('групповая операция по продукту', () => {
   })
 
   it('пустая версия отклоняется', () => {
-    expectError(() => assertVersionFormat('   '), 'VALIDATION_ERROR')
+    expectCode(() => assertVersionFormat('   '), 'VALIDATION_ERROR')
     expect(() => assertVersionFormat('4.1')).not.toThrow()
   })
 
@@ -179,8 +169,8 @@ describe('версия при правке карточки', () => {
   })
 
   it('с открытыми связками — только выпуском версии', () => {
-    expectError(() => assertVersionEditable('1.0', '1.1', 2), 'CONFLICT')
-    expectError(() => assertVersionEditable('1.0', null, 1), 'CONFLICT')
+    expectCode(() => assertVersionEditable('1.0', '1.1', 2), 'CONFLICT')
+    expectCode(() => assertVersionEditable('1.0', null, 1), 'CONFLICT')
   })
 
   it('та же версия или её отсутствие в запросе — не изменение', () => {

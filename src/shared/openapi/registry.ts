@@ -343,6 +343,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/universities/{id}',
     tag: 'Университеты',
     summary: 'Карточка университета',
+    description:
+      'Почта и телефон контактных лиц — только ADMIN и MANAGER, представителю вуза — своего вуза ' +
+      '(решение 106). Остальным `email` и `phone` = null и `contactDetailsHidden: true`; ФИО и должность видны.',
     permission: 'READ',
     errors: READ_ERRORS,
   },
@@ -660,7 +663,11 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса. ' +
       'Закрытая связка или этап — конфликт; пункт контрольной точки до закрытия ' +
-      'предыдущих этапов — недопустимый переход.',
+      'предыдущих этапов — недопустимый переход. Пункт вуза (`isUniversityItem`, ' +
+      'решение 103): при действующем представителе вуза — 403 «Этот пункт отмечает ' +
+      'представитель вуза в кабинете вуза»; без представителя отметка только с ' +
+      '`confirmationNote` (3–500 символов), иначе 422 по полю `confirmationNote`. ' +
+      'Как сотрудник может отметить пункт — `staffMarkRule` в пункте этапа.',
     permission: 'WRITE',
     body: updateTaskSchema,
     errors: [...WRITE_ERRORS, 'CONFLICT', 'INVALID_TRANSITION'],

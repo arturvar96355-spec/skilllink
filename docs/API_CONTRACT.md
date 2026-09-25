@@ -77,11 +77,11 @@ PostgreSQL такой символ не принимает. Количества
 направления) — не больше 2 147 483 647, сколько вмещает колонка `Int`.
 Раньше и то и другое доходило до базы и отвечало `INTERNAL`.
 
-**Из серверных компонентов Next зовите API через `apiFetch`** из
-`@/shared/api/server-fetch`, а не голым `fetch`. На сервере запрос уходит от имени
-процесса и не несёт cookie пользователя: в демо-режиме API подставит пользователя
+**API вызывается из браузера**, из клиентских компонентов: браузер сам отправляет
+cookie пользователя. Серверные компоненты Next к API не обращаются. Запрос с сервера
+уходит от имени процесса и не несёт cookie: в демо-режиме API подставит пользователя
 по умолчанию и страница покажет чужие данные, в промышленном — вернёт `401`.
-Обёртка передаёт cookie и определяет адрес из заголовков запроса.
+Если такой вызов понадобится, cookie входящего запроса нужно передать явно.
 
 **Несуществующий адрес API** тоже отвечает JSON, а не HTML-страницей:
 `404` с `code: "NOT_FOUND"`. Так опечатка в пути выглядит как обычная ошибка API,
@@ -152,6 +152,19 @@ MANAGER → ADMIN → ANALYST → VIEWER.
 | `UNIVERSITY_PORTAL` | ADMIN, MANAGER, UNIVERSITY_REP — просмотр кабинета вуза |
 | `UNIVERSITY_PORTAL_WRITE` | UNIVERSITY_REP — запись в кабинете: подтверждение материалов, показатели, заявки |
 | `CALENDAR` | ADMIN, MANAGER, ANALYST, VIEWER — личная подписка на календарь сроков и встреч (решение 105) |
+| `CONTACT_DETAILS` | ADMIN, MANAGER — почта и телефон контактных лиц вузов (решение 106); UNIVERSITY_REP — только контактов своего вуза |
+
+**Почта и телефон контактных лиц вузов** (с 25.09.2026, решение владельца, решение 106):
+
+| Где | ADMIN, MANAGER | ANALYST, VIEWER | UNIVERSITY_REP |
+| --- | --- | --- | --- |
+| Карточка вуза `GET /api/universities/:id` (`contacts`, `primaryContact`) | почта и телефон | ФИО и должность; `email`, `phone` = `null`, `contactDetailsHidden: true` | свой вуз — почта и телефон; чужой — `NOT_FOUND` |
+| Ответы `POST/PATCH /api/universities…`, обезличивание | почта и телефон | — (нет права) | — (нет права) |
+| Реестр `GET /api/universities?q=` и поиск `GET /api/search` | по почте и телефону контакта не ищут ни для кого | то же | то же |
+| Выгрузка вузов `GET /api/export?dataset=universities` | почта основного контакта, телефона нет | почта пустая | почта пустая |
+| Встречи (участник-контакт), документы (подстановка контакта) | только ФИО и должность | то же | то же |
+| ИИ-помощник | почта и телефон вырезаются из текста до отправки модели | то же | — |
+| `GET /api/me` → `permissions.canSeeContactDetails` | `true` | `false` | `false` (признак «скрыто» — в самом контакте) |
 
 **Ответственным** за связку, этап, встречу и документ назначается только действующий
 ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудник, включая ANALYST и VIEWER).
@@ -354,11 +367,24 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
   "primaryContact": {
     "id": "…", "fullName": "Ветрова Ирина Павловна",
     "position": "Заместитель декана",
-    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true
+    "email": "contact@spbgu.example.invalid", "phone": "+7 900 000-00-00", "isPrimary": true,
+    "isAnonymized": false, "contactDetailsHidden": false
   },
   "contacts": [ "…" ],
   "createdAt": "2026-09-21T07:23:11.101Z"
 }
+```
+
+**Почта и телефон контактов** (решение 106) — только ADMIN и MANAGER, представителю вуза —
+своего вуза. ANALYST и VIEWER получают ФИО и должность, а `email` и `phone` — `null`
+с `contactDetailsHidden: true`: фронт пишет «скрыто — доступно менеджеру», а не «не указано».
+Значения скрываются в сервисе, в ответ не попадают. У обезличенного контакта
+`contactDetailsHidden: false` — там данных нет ни у кого.
+
+```json
+{ "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
+  "email": null, "phone": null, "isPrimary": true,
+  "isAnonymized": false, "contactDetailsHidden": true }
 ```
 
 ### POST /api/universities
@@ -877,7 +903,8 @@ curl -s -X POST http://localhost:3000/api/cooperations \
   "tasks": [
     { "id": "…", "title": "Найден ответственный сотрудник вуза", "isRequired": true,
       "isDone": true, "doneAt": "…", "doneBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
-      "sortOrder": 0 }
+      "sortOrder": 0, "isUniversityItem": false, "staffMarkRule": "ALLOWED",
+      "confirmationNote": null }
   ],
   "requiredTasksTotal": 2,
   "requiredTasksDone": 2,
@@ -889,6 +916,15 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 `OPERATION` (11–13), `CONTROL` (14).
 
 `isAutoManaged: true` только у этапа 14. Фронт должен показывать его только для чтения.
+
+Пункт чек-листа (решение 103):
+- `isUniversityItem` — пункт вуза: «Вуз подтвердил получение материалов» этапа 7;
+- `staffMarkRule` — как его может отметить сотрудник: `ALLOWED` (обычный пункт),
+  `NOTE_REQUIRED` (пункт вуза, у вуза нет действующего представителя — отметка только
+  с пометкой `confirmationNote`), `UNIVERSITY_ONLY` (у вуза есть представитель — отмечает
+  он в кабинете вуза, у сотрудника чекбокс неактивен);
+- `confirmationNote` — чем подтверждено, если пункт вуза отметил сотрудник. Представителю
+  вуза — `null`: внутренняя пометка, как комментарий к этапу.
 
 ### PATCH /api/workflow/stages/:id
 
@@ -1049,6 +1085,28 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
 
 Право: `WRITE`. Тело: `{ "isDone": true }`. Ответ — **этап целиком**, чтобы фронт сразу обновил
 `requiredTasksDone` и прогресс.
+
+| Поле | Тип |
+| --- | --- |
+| `isDone` | boolean, обязательно |
+| `confirmationNote` | string 3–500 \| null — чем вуз подтвердил получение материалов, «письмо от 12.09». Нужна только для пункта вуза с `staffMarkRule: "NOTE_REQUIRED"` при отметке; у остальных пунктов и при снятии отметки игнорируется |
+
+Пункт вуза (`isUniversityItem`, решение 103):
+- у вуза есть действующий представитель (`UNIVERSITY_REP`, не заблокирован) — 403 `FORBIDDEN`
+  «Этот пункт отмечает представитель вуза в кабинете вуза» и на отметку, и на снятие;
+- представителя нет — отметка без `confirmationNote` даёт 422 `VALIDATION_ERROR`
+  с `details: [{ "field": "confirmationNote", "message": "Обязательное поле: например, «письмо от 12.09»" }]`;
+  короче 3 или длиннее 500 символов — тоже 422 по этому полю. Снять отметку можно без пометки,
+  пометка при этом стирается.
+
+В журнал отметка за вуз пишется отдельным действием `task.university-item.confirm-by-staff`
+с длиной пометки (`noteLength`), без её текста; текст хранится в пункте (`confirmationNote`).
+
+```bash
+curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
+  -H 'content-type: application/json' -b 'skilllink_user=<managerId>' \
+  -d '{"isDone":true,"confirmationNote":"письмо от 12.09"}'
+```
 
 ### GET /api/workflow/overdue
 
@@ -1785,6 +1843,8 @@ curl -s -X POST http://localhost:3000/api/ai/today
 Право: `UNIVERSITY_PORTAL_WRITE`. Тело необязательно: `{ "comment": "Материалы получены" }`.
 Текст комментария в журнал действий не пишется — только признак, что он был.
 Подтверждать можно только задачи этапа 7 — иначе 404. В ответе — обновлённый список материалов.
+Пункт «Вуз подтвердил получение материалов» (пункт вуза, решение 103) при действующем
+представителе отмечается только здесь: сотруднику `PATCH /api/workflow/tasks/:id` отвечает 403.
 Запись идёт той же функцией, что у сотрудника ИТ-Школы (`setTaskDone`), в очереди со сменой
 статусов связки, и отказывает так же — 409:
 - связка закрыта или этап 7 завершён либо отменён — `CONFLICT`;
@@ -1842,8 +1902,9 @@ curl -s -X POST http://localhost:3000/api/ai/today
   "data": {
     "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
     "role": "MANAGER", "universityId": null, "universityName": null,
-    "permissions": { "canWrite": true, "canSeeAnalytics": true,
-                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false },
+    "permissions": { "canWrite": true, "canSeeAnalytics": true, "canWorkAnalytics": true,
+                     "canUsePortal": true, "canWritePortal": false,
+                     "canSeeContactDetails": true, "isAdmin": false },
     "passwordTemporary": false
   }
 }
@@ -1854,6 +1915,10 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 `canWritePortal` (с 25.09.2026) — может ли пользователь записывать в кабинете вуза:
 `true` только у `UNIVERSITY_REP`. У сотрудника кабинет открывается только для просмотра.
+
+`canSeeContactDetails` (с 25.09.2026, решение 106) — видит ли пользователь почту и телефон
+контактных лиц любого вуза: `true` у ADMIN и MANAGER. У представителя вуза `false`, хотя
+контакты своего вуза он видит: что именно скрыто, говорит `contactDetailsHidden` в контакте.
 
 `passwordTemporary` (с 25.09.2026, решение 99) — действующий пароль выдан администратором
 как временный: личный кабинет показывает плашку «смените временный пароль». Отдельного
