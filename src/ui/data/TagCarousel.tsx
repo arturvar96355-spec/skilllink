@@ -79,11 +79,6 @@ export interface TagCarouselProps<T> {
   noun: { previous: string; next: string }
   /** Оттенок листа, в который бирка перетекает в страницу. */
   tint?: string
-  /**
-   * Своё открытие центральной бирки вместо перехода на страницу: вузы
-   * раскрывают граф связей (решение 79).
-   */
-  onOpen?: (item: T, card: HTMLElement) => void
   /** Факты центральной бирки слева от карусели, как у A24 (решение 79). */
   renderFacts?: (item: T) => ReactNode
   /** Строка в списке «Index»: название и пояснение справа. */
@@ -99,7 +94,6 @@ export function TagCarousel<T>({
   label,
   noun,
   tint,
-  onOpen,
   renderFacts,
   getIndexMeta,
 }: TagCarouselProps<T>) {
@@ -251,7 +245,6 @@ export function TagCarousel<T>({
 
   function open(row: T, card: HTMLElement) {
     if (leaving) return
-    if (onOpen) return onOpen(row, card)
     const href = getHref(row)
     if (reduced) {
       router.push(href)
