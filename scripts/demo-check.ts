@@ -165,11 +165,12 @@ async function main(): Promise<void> {
   check('активные связи', metric('activeCooperations'), 7)
   check('вузы в работе', metric('universitiesInWork'), 4)
   check('этапы в срок, %', metric('stagesOnTimePercent'), 89.1)
-  check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 204)
+  // 186: у СПбГУТ ИБ занятия идут два месяца — этапы 11–12 закрыты после их начала.
+  check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 186)
   // По одному этапу на связку: не начатые этапы с вышедшим сроком — «план
   // сдвинут», а не просрочка, и в счётчик не идут (решение 84).
-  check('проблемных этапов всего', overview.problemStageTotal, 5)
-  check('из них показано на главной', overview.problemCooperations.length, 5)
+  check('проблемных этапов всего', overview.problemStageTotal, 4)
+  check('из них показано на главной', overview.problemCooperations.length, 4)
   check('приоритетных действий', overview.priorityActions.length, 5)
   check(
     'верхнее действие',
