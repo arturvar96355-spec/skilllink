@@ -38,3 +38,11 @@ export const PROGRAM_FORMS = ['программа', 'программы', 'пр�
  * в каждом пояснении к рейтингу.
  */
 export const PROGRAM_FORMS_OF = ['программы', 'программ', 'программ'] as const
+
+/**
+ * Строка заполнена: не null и не из одних пробелов. Этим правилом проверяются
+ * обязательные тексты — результат этапа, причина блокировки, комментарий к переходу.
+ */
+export function isFilled(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}

@@ -6,6 +6,7 @@ import {
 import type { DocumentStatus, DocumentType } from '@/shared/contracts/enums'
 import { DOCUMENT_STATUS_LABELS as STATUS_TEXT } from '@/shared/contracts/labels'
 import { ALLOWED_DOCUMENT_TRANSITIONS } from '@/shared/contracts/document'
+import { isFilled } from '@/shared/utils/text'
 
 /**
  * Таблица переходов живёт в контрактах: по ней и сервер проверяет переход, и фронт
@@ -15,10 +16,6 @@ export { ALLOWED_DOCUMENT_TRANSITIONS }
 
 /** Реэкспорт: словарь один на всю систему и живёт в контрактах, доступных фронту. */
 export { DOCUMENT_STATUS_LABELS } from '@/shared/contracts/labels'
-
-function isFilled(value: string | null | undefined): boolean {
-  return typeof value === 'string' && value.trim().length > 0
-}
 
 export interface DocumentState {
   status: DocumentStatus

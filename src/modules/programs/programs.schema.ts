@@ -43,7 +43,7 @@ export type ProgramListQuery = z.infer<typeof programListQuerySchema>
 
 /**
  * Показатели набора необязательны и могут быть null.
- * null — это «Нет данных» (решение 8), а не ноль.
+ * null — это «Нет данных», а не ноль.
  */
 const metricsSchema = {
   applicationCount: countSchema().nullish(),
