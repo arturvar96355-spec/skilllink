@@ -60,6 +60,34 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 приложения правил не нарушают) и на стенде при каждой перезаливке (`reseed.sh`).
 Новое правило приложения, которое держится на нескольких таблицах, добавляется сюда.
 
+### Индексы на внешние ключи
+
+У каждого внешнего ключа есть индекс, первая колонка которого — колонка ключа
+(решение 104, миграция `20260925210100_fk_indexes`). Сам PostgreSQL такой индекс
+не создаёт. Без него при удалении строки, на которую ссылаются, проверка ключа
+(RESTRICT, SET NULL, CASCADE) читает ссылающуюся таблицу целиком — на каждую
+удаляемую строку.
+
+Миграция добавила 14 индексов: `applications.created_by_id`,
+`document_history.changed_by_id`, `documents.{program_id, author_id, responsible_id}`,
+`market_demand.data_source_id`, `meeting_participants.{user_id, contact_id}`,
+`meetings.{program_id, responsible_id}`, `recommendations.resolved_by_id`,
+`stage_history.changed_by_id`, `tasks.done_by_id`, `workflow_stages.completed_by_id`.
+Имена — по правилу Prisma: `<таблица>_<столбец>_idx`.
+
+Проверка, что ключей без индекса нет (норма — ноль строк):
+
+```sql
+SELECT c.conrelid::regclass, a.attname, c.conname
+FROM pg_constraint c
+JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+WHERE c.contype = 'f'
+  AND NOT EXISTS (SELECT 1 FROM pg_index i
+                  WHERE i.indrelid = c.conrelid AND i.indkey[0] = c.conkey[1]);
+```
+
+Новый внешний ключ заводится вместе с `@@index` на его колонку.
+
 ## Таблицы
 
 ### users — пользователи и роли
@@ -155,7 +183,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | confidence | ConfidenceLevel | |
 | is_mock | boolean | по умолчанию **true** |
 
-UNIQUE: (`skill_id`, `period`, `source`). Индекс по `period`.
+UNIQUE: (`skill_id`, `period`, `source`, `region`). Индексы: `period`, `data_source_id`.
 
 Агрегированная таблица: одна строка — один навык за один период из одного источника.
 Сырых вакансий система не хранит.
@@ -205,7 +233,8 @@ UNIQUE: (`skill_id`, `period`, `source`). Индекс по `period`.
 | started_at, completed_at | timestamptz? | |
 | completed_by_id | text? FK → users (SET NULL) | |
 
-UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`.
+UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`, `responsible_id`,
+`completed_by_id`.
 
 Название этапа хранится копией, а не берётся из конфига при чтении: переименование этапа
 в конфиге не должно задним числом менять историю уже пройденных связок.
@@ -221,7 +250,7 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 ### stage_history — история изменений этапа
 
 `stage_id` (CASCADE), `from_status?`, `to_status`, `comment?`, `changed_by_id` (RESTRICT),
-`changed_at`. Индексы: `stage_id`, `changed_at`.
+`changed_at`. Индексы: `stage_id`, `changed_at`, `changed_by_id`.
 
 Пишется при каждой смене статуса, включая автоматический пересчёт этапа 14.
 
@@ -232,7 +261,10 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 `file_reference`, `author_id`,
 `responsible_id`, `issued_at`, `signed_at`. Файлы **не хранятся**: в MVP только метаданные и
 ссылка (решение 14).
-`document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`.
+Индексы `documents`: `cooperation_id`, `university_id`, `program_id`, `status`, `author_id`,
+`responsible_id`.
+`document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`,
+`changed_by_id`.
 
 `meeting_participants` допускает участника-пользователя, участника-контакт или внешнее имя
 строкой.
