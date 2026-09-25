@@ -107,6 +107,7 @@ npm run demo:check -- <адрес>        # сверка стенда со сц�
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура и модули |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Контракт API: эндпоинты, поля, ошибки, примеры |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы |
+| [docs/DATABASE_ANSWERS.md](docs/DATABASE_ANSWERS.md) | База данных: короткие ответы экспертам |
 | [docs/ANALYTICS_METHODOLOGY.md](docs/ANALYTICS_METHODOLOGY.md) | Формулы и коэффициенты аналитики |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Персональные данные и 152-ФЗ |
 | [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md) | Безопасность: что сделано, чего нет |

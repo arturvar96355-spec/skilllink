@@ -133,6 +133,8 @@ async function main(): Promise<void> {
         title: stage.title,
         phase: stage.phase,
         status: stage.number < 5 ? ('COMPLETED' as const) : ('NOT_STARTED' as const),
+        // CHECK workflow_stages_completed_result_check: завершённый этап — с результатом.
+        result: stage.number < 5 ? 'Нагрузочный результат' : null,
       })),
     ).flat(),
   })
