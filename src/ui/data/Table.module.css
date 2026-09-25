@@ -532,14 +532,18 @@
   transition:
     background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
+    box-shadow var(--motion-surface) var(--ease-out),
+    transform var(--motion-surface) var(--ease-out);
 }
 
+/* Единое наведение (бриф v2, 4): карточка поднимается и мягко светится — текст стоит. */
 .list .clickable:hover {
   background: var(--surface-2);
   border-color: var(--line-strong);
-  box-shadow: inset 3px 0 0 var(--accent-violet);
-  transform: translateX(4px);
+  box-shadow:
+    inset 3px 0 0 var(--accent-violet),
+    var(--glow-hover);
+  transform: translateY(var(--hover-lift));
 }
 
 .list .selected {

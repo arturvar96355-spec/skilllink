@@ -7,7 +7,6 @@ import {
   type UniversityListItemDto,
 } from '@/shared/contracts'
 import {
-  Avatar,
   Badge,
   Button,
   Card,
@@ -45,6 +44,7 @@ import {
 import { CreateUniversityModal } from './CreateUniversityModal'
 import { UniversityTag } from './UniversityTag'
 import { UniversityFacts } from './UniversityFacts'
+import { UniversityMark } from './UniversityMark'
 import styles from './universities.module.css'
 
 /**
@@ -154,7 +154,7 @@ export default function UniversitiesPage() {
       render: (row) => (
         // Лента: название и одна строка пояснения — сокращение, город с регионом, связки.
         <ListTitle
-          leading={<Avatar name={row.shortName ?? row.name} kind="entity" size="sm" />}
+          leading={<UniversityMark name={row.name} shortName={row.shortName} />}
           title={row.name}
           tooltip={row.name}
           subline={[
