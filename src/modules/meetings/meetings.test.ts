@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AppError } from '@/shared/http/errors'
+import { expectCode } from '@/shared/testing/expect-code'
 import { assertHasLink, assertNextActionHasDate } from './meetings.rules'
 import {
   createMeetingSchema,
@@ -7,20 +7,9 @@ import {
   updateMeetingSchema,
 } from './meetings.schema'
 
-function expectError(fn: () => void, code: string): void {
-  try {
-    fn()
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
-
 describe('привязка встречи', () => {
   it('без привязки встреча не создаётся', () => {
-    expectError(() => assertHasLink({}), 'VALIDATION_ERROR')
+    expectCode(() => assertHasLink({}), 'VALIDATION_ERROR')
   })
 
   it('любой одной привязки достаточно', () => {
@@ -31,7 +20,7 @@ describe('привязка встречи', () => {
 
 describe('следующее действие', () => {
   it('действие без срока не принимается', () => {
-    expectError(
+    expectCode(
       () => assertNextActionHasDate('Отправить договор', null),
       'VALIDATION_ERROR',
     )
