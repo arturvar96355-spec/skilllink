@@ -1041,6 +1041,9 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
       { "key": "avgDaysToClasses", "title": "Среднее время до начала занятий", "…": "…" },
       { "key": "operationsPerCooperation", "title": "Операций на связку", "basis": "estimate", "…": "…" }
     ],
+    "cooperationCounts": {
+      "active": 7, "inWork": 6, "drafts": 1, "paused": 0, "completed": 1, "total": 8
+    },
     "topPrograms": [
       { "programId": "…", "programName": "…", "universityId": "…", "universityName": "…",
         "score": 100, "basis": "estimate",
@@ -1062,6 +1065,12 @@ curl -s -X PATCH http://localhost:3000/api/workflow/stages/STAGE_ID \
   }
 }
 ```
+
+`cooperationCounts` — связки по статусам, одна разбивка на все места главной (решение 86):
+`active` = `inWork` + `drafts` — это же число в показателе `activeCooperations`, в шапке,
+в подсказке меню и под блоком «Связки в работе»; `total` = `active` + `paused` + `completed`
+(все, кроме отменённых) — столько связок в воронке. Отменённые не входят никуда.
+Совпадает с `/api/cooperations` при тех же фильтрах статуса — это сверяет пробник.
 
 `metrics[].trend` — сравнение с началом периода (30 дней, `TREND_PERIOD_DAYS`), есть
 у `activeCooperations` и `stagesOnTimePercent`; у остальных показателей поля нет.

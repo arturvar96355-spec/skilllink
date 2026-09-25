@@ -74,8 +74,32 @@ export interface SkillMatchSummaryDto {
   isMock: boolean
 }
 
+/**
+ * Связки по статусам — одна разбивка на все места главной (решение 86).
+ *
+ * Шапка, меню, кольцо и блок «Связки в работе» говорят об `active`,
+ * воронка — о `total`; обе суммы складываются из одних и тех же слагаемых,
+ * поэтому интерфейс может объяснить любое число через другое.
+ */
+export interface CooperationCountsDto {
+  /** Активные: в работе и черновики (`ACTIVE_COOPERATION_STATUSES`) = `inWork + drafts`. */
+  active: number
+  /** В статусе «В работе». */
+  inWork: number
+  /** В статусе «Черновик». */
+  drafts: number
+  /** На паузе. */
+  paused: number
+  /** Завершённые. */
+  completed: number
+  /** Все, кроме отменённых: столько связок в воронке. */
+  total: number
+}
+
 export interface DashboardOverviewDto {
   metrics: DashboardMetricDto[]
+  /** Связки по статусам; `metrics[activeCooperations].value === cooperationCounts.active`. */
+  cooperationCounts: CooperationCountsDto
   topPrograms: TopProgramDto[]
   /** Самые давние проблемные этапы — не больше `DASHBOARD_PROBLEM_LIMIT`. */
   problemCooperations: ProblemCooperationDto[]
