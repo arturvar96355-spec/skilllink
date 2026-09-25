@@ -208,9 +208,9 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 ssh skilllink@<адрес>
 cd ~/skilllink/app
 C="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud"
-export APP_DB_PASSWORD=$(openssl rand -hex 24)
-$C exec -T -e APP_DB_PASSWORD postgres psql -U skilllink -d skilllink < deploy/yandex-cloud/create-app-role.sql
-echo "APP_DATABASE_URL=postgresql://skilllink_app:$APP_DB_PASSWORD@postgres:5432/skilllink?schema=public" >> ~/skilllink/.env.cloud
+pw=$(openssl rand -hex 24)
+$C exec -T -e APP_DB_PASSWORD="$pw" postgres psql -U skilllink -d skilllink < deploy/yandex-cloud/create-app-role.sql
+echo "APP_DATABASE_URL=postgresql://skilllink_app:$pw@postgres:5432/skilllink?schema=public" >> ~/skilllink/.env.cloud
 $C up -d app
 ```
 
