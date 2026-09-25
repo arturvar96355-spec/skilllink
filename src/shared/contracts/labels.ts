@@ -270,6 +270,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'auth.login.success': 'Вход в систему',
   'auth.login.failure': 'Неудачная попытка входа',
   'auth.login.blocked': 'Вход закрыт после неудачных попыток',
+  'api.rate-limit.exceeded': 'Превышен предел частоты запросов',
   'user.create': 'Заведён пользователь',
   'user.update': 'Изменены данные пользователя',
   'user.role.change': 'Изменена роль пользователя',
