@@ -16,7 +16,7 @@
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 600;
   cursor: pointer;
   box-shadow: none;
@@ -111,7 +111,7 @@
   background: none;
   outline: none;
   color: var(--text-primary);
-  font-size: 16px;
+  font-size: var(--text-body-lg-size);
   font-weight: 500;
   cursor: text;
 }
@@ -184,7 +184,7 @@
 }
 
 .resultTitle {
-  font-size: 14px;
+  font-size: var(--text-body-size);
   font-weight: 550;
   line-height: 1.35;
   overflow: hidden;

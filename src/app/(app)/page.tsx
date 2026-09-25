@@ -602,7 +602,6 @@ function Dashboard() {
                         <Link
                           className={styles.eventLink}
                           href={cooperationHref(row.cooperationId, row.stageId)}
-                          title={`${row.universityName} — ${row.programName}\n${row.reason}`}
                           onClick={(event) => startMorph(event.currentTarget, event)}
                         >
                           <span className={styles.eventText}>
@@ -618,11 +617,11 @@ function Dashboard() {
                           </span>
                           {/* Значок внутри ссылки: вся плашка — одна цель для щелчка. */}
                           {row.daysOverdue === null ? (
-                            <Badge tone="warning" withDot title={row.reason}>
+                            <Badge tone="warning" withDot>
                               блок
                             </Badge>
                           ) : (
-                            <Badge tone="danger" withDot title={row.reason}>
+                            <Badge tone="danger" withDot>
                               {deadlineBadgeText('overdue', row.daysOverdue, true)}
                             </Badge>
                           )}

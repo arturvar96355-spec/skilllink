@@ -87,6 +87,7 @@
 /* Узкий экран: полотно прокручивается вбок внутри себя, страница не шире экрана. */
 .scroll {
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
 }
 

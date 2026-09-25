@@ -10,6 +10,8 @@
 :root {
   /* Шрифт: переменную задаёт next/font в корневом макете, стек — запасной. */
   --font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Коды и идентификаторы (хеш документа, ключ записи журнала) — единственное место второй гарнитуры. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
    * Поверхности — четыре уровня (docs/design/07_Human_Crafted_Override.md, раздел 1).
@@ -139,6 +141,16 @@
   --glow-cta: 0 0 0 transparent;
   --shadow-base: 0 1px 0 rgba(255, 255, 255, 0.02);
   --shadow-floating: 0 24px 64px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+
+  /*
+   * Единая система наведения (бриф v2, 4): карточка поднимается и мягко светится,
+   * а не уезжает вбок; сильнее — только крупные «живые» объекты. Свет — уровнями:
+   * обычный акцент для наведения, отдельный тревожный — для проблемных карточек.
+   */
+  --hover-lift: -2px;
+  --hover-lift-strong: -4px;
+  --glow-hover: 0 8px 24px rgba(142, 108, 255, 0.14), 0 0 0 1px rgba(142, 108, 255, 0.28);
+  --glow-hover-danger: 0 8px 24px rgba(240, 97, 111, 0.14), 0 0 0 1px rgba(240, 97, 111, 0.32);
 
   /*
    * «Стекло» плашки входа — по образцу карточек AuthKit (решение 92): почти

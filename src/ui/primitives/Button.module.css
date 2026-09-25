@@ -8,7 +8,7 @@
   gap: var(--space-2);
   border: 1px solid transparent;
   border-radius: var(--radius-button);
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 600;
   letter-spacing: -0.005em;
   line-height: 1;
@@ -38,7 +38,7 @@
 .lg {
   height: 44px;
   padding: 0 var(--space-5);
-  font-size: 14px;
+  font-size: var(--text-body-size);
   font-weight: 650;
 }
 

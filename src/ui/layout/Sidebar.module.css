@@ -122,7 +122,7 @@
   position: relative;
   border-radius: var(--radius-control);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-body-size);
   font-weight: 500;
   transition: background var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out),
