@@ -26,7 +26,15 @@ export const ROUTES = {
   login: '/login',
   /** Политика обработки персональных данных — открыта без входа. */
   privacy: '/privacy',
+  /** Состояние системы словами — вместо сырого JSON /api/health (решение 107). */
+  status: '/status',
 } as const
+
+/**
+ * Контракт API — документ в репозитории (он публичный): человек видит оформленный
+ * текст, а не сырой /api/openapi.json, который выглядел как «сайт сломался».
+ */
+export const API_CONTRACT_URL = 'https://github.com/arturvar96355-spec/skilllink/blob/main/docs/API_CONTRACT.md'
 
 export function universityHref(id: string): string {
   return `${ROUTES.universities}/${id}`

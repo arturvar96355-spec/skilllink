@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   CONFIDENCE_LABELS,
@@ -9,6 +10,8 @@ import {
   type MarketDataSyncResultDto,
 } from '@/shared/contracts'
 import {
+  ROUTES,
+  API_CONTRACT_URL,
   Badge,
   Button,
   EmptyState,
@@ -385,15 +388,16 @@ export default function SettingsPage() {
             >
               <Badge tone="mock">Демонстрационные данные</Badge>
             </Row>
-            {/* Обычные ссылки, а не переходы внутри приложения: это ответы API. */}
-            <Row title="Состояние системы" caption="/api/health">
-              <a className={styles.link} href="/api/health" target="_blank" rel="noreferrer">
+            {/* Не сырой JSON (решение 107): состояние — страницей в приложении,
+                контракт — документом в репозитории, в новой вкладке. */}
+            <Row title="Состояние системы" caption="Работает ли сервер, база и схема данных">
+              <Link className={styles.link} href={ROUTES.status}>
                 Открыть
-                <Icon name="external" size={16} />
-              </a>
+                <Icon name="arrowRight" size={16} />
+              </Link>
             </Row>
-            <Row title="Спецификация OpenAPI" caption="/api/openapi.json">
-              <a className={styles.link} href="/api/openapi.json" target="_blank" rel="noreferrer">
+            <Row title="Контракт API" caption="Описание методов API — документ в репозитории">
+              <a className={styles.link} href={API_CONTRACT_URL} target="_blank" rel="noreferrer">
                 Открыть
                 <Icon name="external" size={16} />
               </a>

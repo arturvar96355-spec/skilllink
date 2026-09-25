@@ -110,6 +110,7 @@ export {
 } from './lib/format'
 export {
   ROUTES,
+  API_CONTRACT_URL,
   universityHref,
   programHref,
   cooperationHref,
