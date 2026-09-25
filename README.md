@@ -77,6 +77,7 @@ Vitest; Docker и Caddy на Yandex Cloud. Без UI-библиотек и Tailw
 
 ```bash
 npm run typecheck && npm test        # типы и модульные тесты
+npm run check:docs                   # только сверка документов и конфигов с кодом (входит и в npm test)
 npm run smoke                        # сквозной сценарий против запущенного сервера
 npm run probe                        # пробник: изоляция ролей, противоречивые состояния, кривой ввод
 npm run db:verify                    # правила целостности данных в базе

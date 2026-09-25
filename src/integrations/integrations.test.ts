@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { AppError } from '@/shared/http/errors'
+import { expectRejectCode } from '@/shared/testing/expect-code'
 import { getIntegrationsConfig } from './config'
 import { getMarketDataProvider } from './market-data'
 import { CsvMarketDataProvider } from './market-data/csv.provider'
@@ -38,17 +38,6 @@ afterEach(() => {
     else process.env[name] = value
   }
 })
-
-async function expectAppError(promise: Promise<unknown>, code: string): Promise<void> {
-  try {
-    await promise
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
 
 describe('настройки интеграций', () => {
   it('по умолчанию интеграции выключены', () => {
@@ -136,12 +125,12 @@ describe('источник из CSV', () => {
   })
 
   it('без пути отдаёт ошибку интеграции, а не падает', async () => {
-    await expectAppError(new CsvMarketDataProvider(null).fetchDemand(), 'INTEGRATION_ERROR')
+    await expectRejectCode(new CsvMarketDataProvider(null).fetchDemand(), 'INTEGRATION_ERROR')
   })
 
   it('несуществующий файл — ошибка интеграции', async () => {
     const provider = new CsvMarketDataProvider('/nonexistent/market-data.csv')
-    await expectAppError(provider.fetchDemand(), 'INTEGRATION_ERROR')
+    await expectRejectCode(provider.fetchDemand(), 'INTEGRATION_ERROR')
   })
 
   it('разбирает файл и пропускает битые строки', async () => {
@@ -194,7 +183,7 @@ describe('выключенные интеграции', () => {
   })
 
   it('обращение к выключенной LMS даёт ошибку интеграции, а не падение', async () => {
-    await expectAppError(getLmsClient().fetchCourseProgress('course-1'), 'INTEGRATION_ERROR')
+    await expectRejectCode(getLmsClient().fetchCourseProgress('course-1'), 'INTEGRATION_ERROR')
   })
 
   it('сайт выключен и сообщает почему', () => {
@@ -204,7 +193,7 @@ describe('выключенные интеграции', () => {
   })
 
   it('обращение к выключенному сайту даёт ошибку интеграции', async () => {
-    await expectAppError(getSiteClient().fetchApplications(), 'INTEGRATION_ERROR')
+    await expectRejectCode(getSiteClient().fetchApplications(), 'INTEGRATION_ERROR')
   })
 
   it('включённая без адреса интеграция остаётся в демонстрационном режиме', () => {

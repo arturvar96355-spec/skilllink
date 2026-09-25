@@ -16,6 +16,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:docs": "vitest run src/shared/openapi/docs-counts.test.ts src/shared/openapi/doc-links.test.ts src/shared/openapi/contract-coverage.test.ts src/shared/config/env-coverage.test.ts src/shared/config/compose-docs.test.ts src/shared/config/engines.test.ts src/ui/design-tokens.test.ts src/shared/db/schema-constraints.test.ts",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
@@ -50,7 +51,6 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^26.6.2",
-    "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",

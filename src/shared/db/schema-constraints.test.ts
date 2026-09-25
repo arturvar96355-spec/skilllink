@@ -16,7 +16,7 @@ import { UNIVERSITY_SORT_FIELDS } from '@/modules/universities/universities.sche
  * Здесь проверяется, что они не исчезли из миграций и что схема о них
  * упоминает — чтобы следующий читатель искал их там, где они есть.
  */
-describe('ограничения из разбора схемы Тиграном', () => {
+describe('ограничения схемы, которые живут только в SQL миграций', () => {
   const migrations = readdirSync(join(process.cwd(), 'prisma/migrations'))
     .filter((name) => !name.endsWith('.toml'))
     .map((name) => readFileSync(join(process.cwd(), 'prisma/migrations', name, 'migration.sql'), 'utf8'))
@@ -36,7 +36,7 @@ describe('ограничения из разбора схемы Тиграном
 
   it('регион входит в уникальность рыночных данных', () => {
     // Без региона второй замер того же навыка по другому региону
-    // не записывался вовсе.
+    // не записался бы вовсе.
     expect(schema).toMatch(/@@unique\(\[skillId, period, source, region\]\)/)
   })
 

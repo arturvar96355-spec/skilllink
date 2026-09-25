@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
-import { AppError } from '@/shared/http/errors'
+import { expectCode } from '@/shared/testing/expect-code'
 import {
   RECOMMENDATION_STATUSES,
   RECOMMENDATION_TRANSITIONS,
@@ -82,7 +82,7 @@ describe('правило: просроченный этап', () => {
   })
 
   it('в день срока — уже просрочка, как на главной, а не тишина', () => {
-    // Раньше здесь было пусто, и вместо просрочки срабатывало «связка без движения».
+    // Без этого правила вместо просрочки сработало бы «связка без движения».
     const draft = ruleOverdueStage({ ...base, deadline: new Date(NOW.getTime() - 60_000) }, NOW)
     expect(draft?.ruleKey).toBe('stage.overdue')
     expect(draft?.relatedData.daysOverdue).toBe(0)
@@ -390,7 +390,7 @@ describe('порядок ленты рекомендаций', () => {
 
 describe('движение по связке', () => {
   it('закрытый вчера этап — это движение, даже если саму связку не правили месяц', () => {
-    // Раньше правило смотрело только на запись связки и называло её «без движения 30 дн.».
+    // По одной записи связки правило назвало бы её «без движения 30 дн.».
     const last = lastCooperationActivity({
       updatedAt: daysAgo(30),
       stages: [
@@ -448,17 +448,6 @@ function cooperation(
 
 const closedUpTo = (last: number): Record<number, { status: StageStatus }> =>
   Object.fromEntries(Array.from({ length: last }, (_, index) => [index + 1, { status: 'COMPLETED' }]))
-
-function expectCode(fn: () => void, code: string): void {
-  try {
-    fn()
-  } catch (error) {
-    expect(error).toBeInstanceOf(AppError)
-    expect((error as AppError).code).toBe(code)
-    return
-  }
-  throw new Error(`Ожидалась ошибка ${code}, но её не было`)
-}
 
 describe('переходы статусов рекомендации', () => {
   it('разрешённое таблицей проходит', () => {

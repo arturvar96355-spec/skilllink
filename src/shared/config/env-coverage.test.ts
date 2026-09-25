@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 /**
  * Настройка, которую код читает, но `.env.example` не упоминает, существует только
- * для того, кто её написал. Так едва не осталась `INTEGRATION_MIN_INTERVAL_MS`.
+ * для того, кто её написал.
  *
  * Обратное тоже проверяется: переменная в примере, которую никто не читает, —
  * это обещание настройки, которой нет.
@@ -18,9 +18,9 @@ const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE'])
 /**
  * Переменные, которые читает не наш код, а библиотека. В исходниках их не найти,
  * но описать их нужно: без AUTH_URL за HTTPS-прокси next-auth после входа
- * отправляет пользователя на localhost.
+ * отправляет пользователя на localhost, а PORT задаёт порт сервера Next.js.
  */
-const READ_BY_LIBRARIES = new Set(['AUTH_URL'])
+const READ_BY_LIBRARIES = new Set(['AUTH_URL', 'PORT'])
 
 function collectSources(directory: string, found: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {
@@ -28,7 +28,7 @@ function collectSources(directory: string, found: string[] = []): string[] {
     const path = join(directory, entry)
     if (statSync(path).isDirectory()) collectSources(path, found)
     // Тесты настроек не задают, а примеры в их комментариях сканер принял бы
-    // за настоящие имена переменных — этот файл поймал сам себя.
+    // за настоящие имена переменных — в том числе в этом файле.
     else if (/\.tsx?$/.test(entry) && !entry.endsWith('.test.ts')) found.push(path)
   }
   return found

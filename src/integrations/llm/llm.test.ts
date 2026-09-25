@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { catchError } from '@/shared/testing/expect-code'
 import { getIntegrationsConfig } from '../config'
 import { resetRateLimiter } from '../http-client'
 import {
@@ -392,12 +393,3 @@ describe('HTTPS-транспорт GigaChat', () => {
     expect(llmFailureKind(error)).toBe('timeout')
   })
 })
-
-function catchError(action: () => unknown): unknown {
-  try {
-    action()
-  } catch (error) {
-    return error
-  }
-  throw new Error('Ожидалась ошибка')
-}

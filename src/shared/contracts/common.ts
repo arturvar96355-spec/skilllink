@@ -1,18 +1,12 @@
-/** Общие обёртки ответов API. Формат зафиксирован в CLAUDE.md и docs/API_CONTRACT.md. */
+/**
+ * Общие типы ответов API: мета списка, коды ошибок, показатель с происхождением.
+ * Формат зафиксирован в CLAUDE.md и docs/API_CONTRACT.md.
+ */
 
 export interface PageMeta {
   page: number
   pageSize: number
   total: number
-}
-
-export interface ApiItemResponse<T> {
-  data: T
-}
-
-export interface ApiListResponse<T, M extends PageMeta = PageMeta> {
-  data: T[]
-  meta: M
 }
 
 export type ApiErrorCode =
@@ -24,14 +18,6 @@ export type ApiErrorCode =
   | 'INVALID_TRANSITION'
   | 'INTEGRATION_ERROR'
   | 'INTERNAL'
-
-export interface ApiError {
-  error: {
-    code: ApiErrorCode
-    message: string
-    details?: unknown
-  }
-}
 
 /** Происхождение показателя. Обязательно для всего, что считается системой (решение 8). */
 export type MetricBasis = 'actual' | 'estimate' | 'none'

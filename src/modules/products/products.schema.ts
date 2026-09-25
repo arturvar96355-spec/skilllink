@@ -33,8 +33,6 @@ export const releasePreviewQuerySchema = z.object({
   version: z.string().trim().min(1).max(50),
 })
 
-export type ReleasePreviewQuery = z.infer<typeof releasePreviewQuerySchema>
-
 /**
  * Ссылка на документацию — только http(s).
  *

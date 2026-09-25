@@ -1,7 +1,6 @@
 import { z } from '@/shared/zod'
 
 export const IMPORT_DATASETS = ['universities', 'programs'] as const
-export type ImportDataset = (typeof IMPORT_DATASETS)[number]
 
 export const importQuerySchema = z.object({
   dataset: z.enum(IMPORT_DATASETS),
