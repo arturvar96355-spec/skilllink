@@ -159,6 +159,23 @@
   --glass-focus-ring: 0 0 0 3px rgba(185, 166, 255, 0.14);
   --glass-glow: 0 0 12px rgba(185, 166, 255, 0.35), 0 0 24px rgba(142, 108, 255, 0.25);
 
+  /*
+   * Лист документа (решение 97): отчёт руководителю печатается и уходит PDF-файлом,
+   * поэтому это светлая бумага и тёмные чернила при любом режиме интерфейса.
+   * Только лист отчёта. Контраст подписей на бумаге — не ниже 4,5:1.
+   */
+  --paper: #ffffff;
+  --paper-line: #d9d6e0;
+  --paper-line-faint: #ebe9f0;
+  --ink: #17151e;
+  --ink-secondary: #45424f;
+  --ink-tertiary: #65626f;
+  --ink-accent: #5a3ec8;
+  --ink-danger: #b3261e;
+  --ink-warning: #7d5400;
+  --ink-success: #1b6b66;
+  --ink-warm: #9c4317;
+
   /* Статусы */
   --status-success: #55c8c2;
   --status-warning: #f2c14e;
@@ -536,3 +553,40 @@ body[data-star-assembly='pending'] :is(aside, header, [data-page] > *, [data-ass
   opacity: 0;
 }
 
+/*
+ * Печать документа (решение 97). Если на странице есть лист `[data-print-document]`
+ * (отчёт руководителю), печатается только он: меню, шапка, подвал, поиск, живой фон
+ * и кнопки страницы скрыты, у обёрток каркаса вокруг листа сняты отступы и фон.
+ * Страницы без листа печатаются как прежде — правило их не касается.
+ */
+@media print {
+  html:has([data-print-document]),
+  body:has([data-print-document]) {
+    min-height: 0;
+    background: var(--paper);
+    color: var(--ink);
+  }
+
+  body:has([data-print-document]) :not([data-print-document], [data-print-document] *, :has([data-print-document])) {
+    display: none !important;
+  }
+
+  body:has([data-print-document]) :has([data-print-document]) {
+    display: block;
+    min-height: 0;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    transform: none;
+    animation: none;
+  }
+
+  [data-print-document],
+  [data-print-document] * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

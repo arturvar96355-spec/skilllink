@@ -91,6 +91,27 @@ import type { UniversityListItemDto, CooperationDto } from '@/shared/contracts'
 Блок пуст, пока не запускалась генерация рекомендаций
 (`POST /api/recommendations/generate`). Это нормальное пустое состояние, а не ошибка.
 
+### 1а. Отчёт руководителю (`/reports/portfolio`, решение 97)
+
+Лист A4 для печати и PDF. Запросы: `GET /api/analytics/overview` и списки дел
+`GET /api/workflow/overdue`, `GET /api/workflow/blocked` постранично (`pageSize=100`).
+
+| Блок листа | Откуда |
+| --- | --- |
+| Дата и время формирования | `generatedAt` сводки, по Москве |
+| Кто сформировал | `GET /api/me`: `fullName`, `position` (нет — название роли) |
+| Пометка «Демонстрационные данные» | `containsMockData` |
+| Разбивка связок: «7 активных: 6 в работе, 1 черновик», воронка и завершённые | `cooperationCounts`: `active`, `inWork`, `drafts`, `total`, `paused`, `completed` |
+| Показатели: активные связи, вузы в работе, этапы в срок, время до начала занятий | `metrics[key]`: `value`, `unit`; `trend` → «+1 за 30 дней»; `basis: "estimate"` → «оценка» |
+| Требует внимания — все этапы | `overdue[]` и `blocked[]` без повторов по `id`: `universityName`, `programName`, `stageNumber`, `title`; причина — `status`, `daysToDeadline`, `blockingReason`. Число совпадает с `problemStageTotal` |
+| Краткое название вуза в таблице | `problemCooperations[]`, `topPrograms[]`: `universityShortName` по `universityName` |
+| Приоритетные действия | `priorityActions[]`: `title`, `priority`, `target.label` |
+| Лучшие программы | `topPrograms[]`: `programName`, `universityShortName`, `score`, `basis` |
+| Навыки | `skillMatch`: `coveragePercent`, `coveredSkills` / `demandedSkills`, `criticalGaps`, `period` |
+| Строка об источнике | `skillMatch.period`, `containsMockData` |
+
+Представителю вуза сводка отвечает `403` — страница показывает отказ.
+
 ---
 
 ## 2. Реестр университетов (раздел 7.2 ТЗ)
