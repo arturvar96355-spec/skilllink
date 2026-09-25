@@ -7,9 +7,11 @@ import { useEffect, useState, type RefObject } from 'react'
  * запускают появление.
  *
  * Основной путь — IntersectionObserver. Запасной — сверка положения при
- * монтировании и прокрутке: встречаются окружения, где наблюдатель молчит
- * (фоновая вкладка, встроенные просмотрщики), и график навсегда оставался
- * пустым. Пусть лучше появится без повода, чем не появится совсем.
+ * монтировании, прокрутке и раз в 300 мс, пока элемент не показан: встречаются
+ * окружения, где наблюдатель молчит (фоновая вкладка, встроенные просмотрщики),
+ * а элемент въезжает в экран без прокрутки — когда выше догружаются блоки.
+ * Без этого график навсегда оставался пустым. Пусть лучше появится без повода,
+ * чем не появится совсем.
  */
 export function useReveal(ref: RefObject<Element | null>, threshold = 0.9): boolean {
   const [shown, setShown] = useState(false)
@@ -40,10 +42,12 @@ export function useReveal(ref: RefObject<Element | null>, threshold = 0.9): bool
     }
     window.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', onScroll)
+    const poll = window.setInterval(onScroll, 300)
     return () => {
       observer.disconnect()
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onScroll)
+      window.clearInterval(poll)
     }
   }, [ref, shown, threshold])
 

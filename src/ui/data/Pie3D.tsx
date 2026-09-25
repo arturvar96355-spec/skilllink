@@ -220,19 +220,17 @@ export function Pie3D({
   const lifted = visible.find((part) => part.index === active)
 
   const shown = active !== null ? slices[active] : null
-  const share = shown && total > 0 ? Math.round((shown.value / total) * 1000) / 10 : null
+  /** Доля сектора в процентах — показывается в легенде, а не в центре: там ей не хватало места. */
+  const shareOf = (value: number) =>
+    total > 0 ? `${(Math.round((value / total) * 1000) / 10).toLocaleString('ru-RU')}%` : null
 
-  const drawSlice = (part: (typeof visible)[number], withEnds: boolean) => (
+  const drawSlice = (part: (typeof visible)[number], ends: { start: boolean; end: boolean }) => (
     <g key={part.slice.key} className={styles.slice} style={{ color: part.color }}>
       {walls(g, part.a0, part.a1, g.inner, false, part.shift).map((d, i) => (
         <path key={`i${i}`} d={d} className={styles.innerWall} />
       ))}
-      {withEnds && (
-        <>
-          <path d={end(g, part.a0, part.shift)} className={styles.endFace} />
-          <path d={end(g, part.a1, part.shift)} className={styles.endFace} />
-        </>
-      )}
+      {ends.start && <path d={end(g, part.a0, part.shift)} className={styles.endFace} />}
+      {ends.end && <path d={end(g, part.a1, part.shift)} className={styles.endFace} />}
       {walls(g, part.a0, part.a1, g.outer, true, part.shift).map((d, i) => (
         <path key={`o${i}`} d={d} className={styles.outerWall} />
       ))}
@@ -286,8 +284,20 @@ export function Pie3D({
           <ellipse cx={g.cx} cy={g.cy} rx={g.outer} ry={g.outer * g.squash} className={styles.empty} />
         ) : (
           <>
-            {rest.map((part) => drawSlice(part, false))}
-            {lifted && drawSlice(lifted, true)}
+            {/*
+              Пока сектор выдвинут, у соседей открываются срезы в зазор — им торцы.
+              Только эти два: торец в другом месте лёг бы на соседнюю грань.
+            */}
+            {rest.map((part) => {
+              const at = visible.indexOf(part)
+              const liftedAt = lifted ? visible.indexOf(lifted) : -1
+              const count = visible.length
+              return drawSlice(part, {
+                start: liftedAt >= 0 && (liftedAt + 1) % count === at,
+                end: liftedAt >= 0 && (at + 1) % count === liftedAt,
+              })
+            })}
+            {lifted && drawSlice(lifted, { start: true, end: true })}
           </>
         )}
       </svg>
@@ -297,9 +307,7 @@ export function Pie3D({
         <span className={styles.centerValue} style={shown ? { color: TONE_VAR[shown.tone] } : undefined}>
           {total === 0 ? 'Нет данных' : shown ? `${formatNumber(shown.value)}${valueSuffix}` : (centerValue ?? formatNumber(total))}
         </span>
-        <span className={styles.centerLabel}>
-          {shown ? `${shown.label}${share !== null && !valueSuffix ? ` · ${share.toString().replace('.', ',')}%` : ''}` : centerLabel}
-        </span>
+        <span className={styles.centerLabel}>{shown ? shown.label : centerLabel}</span>
       </div>
       </div>
 
@@ -322,6 +330,11 @@ export function Pie3D({
                 {formatNumber(slice.value)}
                 {valueSuffix}
               </span>
+              {/* Доля — у всех подписей сразу: если показывать её только у выбранной,
+                  подпись удлинялась и легенда перескакивала на новую строку. */}
+              {!valueSuffix && shareOf(slice.value) && (
+                <span className={styles.legendShare}>· {shareOf(slice.value)}</span>
+              )}
             </button>
           </li>
         ))}

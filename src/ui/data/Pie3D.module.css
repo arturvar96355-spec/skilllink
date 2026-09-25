@@ -75,27 +75,40 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 1px;
+  /* Не шире отверстия кольца и на тёмной плашке: сквозь отверстие видны цветные
+     стенки, и без подложки текст сливался с ними. */
+  max-width: 40%;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--glass-plate);
+  box-shadow:
+    0 0 0 1px var(--glass-edge),
+    0 6px 18px rgba(0, 0, 0, 0.45);
   transform: translate(-50%, -50%);
   pointer-events: none;
   text-align: center;
-  /* Не шире отверстия кольца: подпись не заходит на грани. */
-  max-width: 34%;
 }
 
 .centerValue {
-  font-size: var(--text-kpi-md-size);
+  font-size: var(--text-kpi-sm-size);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+  white-space: nowrap;
   transition: color var(--motion-micro) var(--ease-out);
 }
 
 .centerLabel {
-  margin-top: 2px;
+  max-width: 100%;
   font-size: var(--text-caption-size);
-  color: var(--text-secondary);
   line-height: 1.25;
+  color: var(--text-secondary);
+  /* Одна строка: длинное название сектора обрезается, полное — в легенде. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .legend {
@@ -143,5 +156,10 @@
 .legendValue {
   font-weight: 600;
   color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.legendShare {
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
