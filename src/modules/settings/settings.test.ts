@@ -106,19 +106,20 @@ describe('параметры расчётов совпадают с конста
       expect(stage.isControlPoint).toBe(workflow.CONTROL_POINT_STAGES.includes(source.number))
       expect(stage.isOptional).toBe(source.optional)
       expect(stage.requiredTaskCount).toBe(source.tasks.filter((task) => task.isRequired).length)
-      expect(stage.isTemporary).toBe(true)
+      expect(stage.isTemporary).toBe(false)
     }
     expect(result.stages.filter((stage) => stage.isAutomatic).map((stage) => stage.number)).toEqual([
       workflow.CONTROL_STAGE_NUMBER,
     ])
-    // Нормативы помечены TEMP в описании поля, а не у каждого числа.
+    // Нормативы утверждены заказчиком: это записано в описании поля, а не у каждого числа.
     const source = readFileSync(join(process.cwd(), CONFIG_FILES['workflow.config.ts']!), 'utf8')
-    expect(source).toMatch(/TEMP — значения взяты как рабочая гипотеза[\s\S]*?normativeDays: number/)
+    expect(source).toMatch(/Нормативы по всем этапам — утверждено заказчиком[\s\S]*?normativeDays: number/)
   })
 
   it('счётчик рабочих значений сходится', () => {
     expect(result.temporaryCount).toBe(
-      parameters.filter((item) => item.isTemporary).length + result.stages.length,
+      parameters.filter((item) => item.isTemporary).length +
+        result.stages.filter((stage) => stage.isTemporary).length,
     )
   })
 

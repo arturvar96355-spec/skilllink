@@ -3078,7 +3078,9 @@ async function main(): Promise<void> {
       values.get('SKILL_GAP.demandThreshold')?.value === SKILL_GAP.demandThreshold &&
         values.get('PROGRAM_RATING_WEIGHTS.applicationCount')?.value === PROGRAM_RATING_WEIGHTS.applicationCount &&
         values.get('RECOMMENDATION_RULES.stalledDays')?.value === RECOMMENDATION_RULES.stalledDays &&
-        values.get('SKILL_GAP.demandThreshold')?.isTemporary === true,
+        // Порог дефицита утверждён заказчиком 26.09.2026, порог застоя — рабочее значение.
+        values.get('SKILL_GAP.demandThreshold')?.isTemporary === false &&
+        values.get('RECOMMENDATION_RULES.stalledDays')?.isTemporary === true,
     )
     const stages = asAnalyst.body.data?.stages ?? []
     check(
