@@ -587,6 +587,186 @@ async function main(): Promise<void> {
     }
   }
 
+  step('2в. Пункт вуза: при представителе отмечает вуз, без него — сотрудник с пометкой (решение 103)')
+
+  if (rep?.universityId && managerId) {
+    type ProbeTask = {
+      id: string
+      title: string
+      isRequired: boolean
+      isDone: boolean
+      isUniversityItem: boolean
+      staffMarkRule: string
+      confirmationNote: string | null
+    }
+    type ProbeStage = { id: string; stageNumber: number; tasks: ProbeTask[] }
+
+    /**
+     * Новая связка вуза с закрытыми этапами 1–6: пункты этапа 7 — контрольной
+     * точки — отмечаются только после них. Своя связка, а не демо-набор: пробник
+     * не должен менять то, что потом сверяет demo:check.
+     */
+    const cooperationAtMaterials = async (universityId: string, label: string) => {
+      const sfx = Date.now().toString().slice(-6)
+      const program = await call<{ id: string }>('POST', '/api/programs', {
+        universityId,
+        name: `Пробная программа пункта вуза ${label} ${sfx}`,
+        level: 'BACHELOR',
+      })
+      const created = await call<{ id: string; stages: ProbeStage[] }>('POST', '/api/cooperations', {
+        universityId,
+        programId: program.body.data?.id,
+        responsibleId: managerId,
+      })
+      const stages = created.body.data?.stages ?? []
+      for (const stage of stages.filter((item) => item.stageNumber <= 6)) {
+        if (stage.stageNumber === 5) {
+          await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+            status: 'CANCELLED',
+            comment: 'Не требуется для этой связки',
+          })
+          continue
+        }
+        await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'IN_PROGRESS' })
+        for (const task of stage.tasks) {
+          await call('PATCH', `/api/workflow/tasks/${task.id}`, { isDone: true })
+        }
+        await call('PATCH', `/api/workflow/stages/${stage.id}`, { status: 'COMPLETED', result: 'Готово' })
+      }
+      const materials = stages.find((item) => item.stageNumber === 7)
+      return {
+        cooperationId: created.body.data?.id ?? null,
+        stageId: materials?.id ?? null,
+        item: materials?.tasks.find((task) => task.isUniversityItem) ?? null,
+      }
+    }
+    const itemOf = (stage: ProbeStage | undefined, taskId: string) =>
+      stage?.tasks.find((task) => task.id === taskId)
+
+    // Вуз с представителем (демо: СПбГУТ).
+    actAs(null)
+    const withRep = await cooperationAtMaterials(rep.universityId, 'с представителем')
+    check(
+      'у связки есть пункт вуза «Вуз подтвердил получение материалов»',
+      withRep.item?.title === 'Вуз подтвердил получение материалов',
+      `пункт ${withRep.item?.title ?? 'не найден'}`,
+    )
+    if (withRep.item) {
+      check(
+        'в DTO пункта вуза при представителе — UNIVERSITY_ONLY',
+        withRep.item.staffMarkRule === 'UNIVERSITY_ONLY',
+        `staffMarkRule ${withRep.item.staffMarkRule}`,
+      )
+      const byStaff = await call('PATCH', `/api/workflow/tasks/${withRep.item.id}`, {
+        isDone: true,
+        confirmationNote: 'письмо от 12.09',
+      })
+      check(
+        'сотрудник не отмечает пункт вуза, у которого есть представитель: 403',
+        byStaff.status === 403 &&
+          byStaff.body.error?.message === 'Этот пункт отмечает представитель вуза в кабинете вуза',
+        `статус ${byStaff.status}: ${byStaff.body.error?.message ?? ''}`,
+      )
+
+      actAs(rep.id)
+      const byRep = await call<Array<{ taskId: string; isConfirmed: boolean }>>(
+        'POST',
+        `/api/portal/materials/${withRep.item.id}/confirm`,
+        {},
+      )
+      check(
+        'представитель вуза подтверждает этот пункт в кабинете: 200',
+        byRep.status === 200 &&
+          byRep.body.data?.find((item) => item.taskId === withRep.item?.id)?.isConfirmed === true,
+        `статус ${byRep.status}`,
+      )
+      actAs(null)
+
+      const unmark = await call('PATCH', `/api/workflow/tasks/${withRep.item.id}`, { isDone: false })
+      check(
+        'снять подтверждение вуза сотрудник тоже не может: 403',
+        unmark.status === 403,
+        `статус ${unmark.status}`,
+      )
+    }
+
+    // Вуз без представителя — только что созданный.
+    const sfx = Date.now().toString().slice(-6)
+    const lonely = await call<{ id: string }>('POST', '/api/universities', {
+      name: `Пробный вуз без представителя ${sfx}`,
+      city: 'Тверь',
+      region: 'Тверская область',
+    })
+    const noRep = lonely.body.data?.id
+      ? await cooperationAtMaterials(lonely.body.data.id, 'без представителя')
+      : null
+    const item = noRep?.item
+    if (!item || !noRep?.stageId) {
+      check('пробная связка вуза без представителя готова', false, `статус вуза ${lonely.status}`)
+    } else {
+      check(
+        'в DTO пункта вуза без представителя — NOTE_REQUIRED',
+        item.staffMarkRule === 'NOTE_REQUIRED',
+        `staffMarkRule ${item.staffMarkRule}`,
+      )
+      const bare = await call('PATCH', `/api/workflow/tasks/${item.id}`, { isDone: true })
+      const bareFields = Array.isArray(bare.body.error?.details)
+        ? (bare.body.error.details as Array<{ field?: string }>).map((detail) => detail.field)
+        : []
+      check(
+        'без представителя отметка без пометки — 422 по полю confirmationNote',
+        bare.status === 422 &&
+          bare.body.error?.code === 'VALIDATION_ERROR' &&
+          bareFields.includes('confirmationNote'),
+        `статус ${bare.status}, поля ${bareFields.join(', ')}`,
+      )
+      const tooShort = await call('PATCH', `/api/workflow/tasks/${item.id}`, {
+        isDone: true,
+        confirmationNote: 'ок',
+      })
+      check('пометка короче 3 символов — 422', tooShort.status === 422, `статус ${tooShort.status}`)
+
+      const noted = await call<ProbeStage>('PATCH', `/api/workflow/tasks/${item.id}`, {
+        isDone: true,
+        confirmationNote: 'письмо от 12.09',
+      })
+      const markedItem = itemOf(noted.body.data, item.id)
+      check(
+        'с пометкой — 200, пометка сохранена в пункте',
+        noted.status === 200 &&
+          markedItem?.isDone === true &&
+          markedItem.confirmationNote === 'письмо от 12.09',
+        `статус ${noted.status}, пометка ${markedItem?.confirmationNote ?? null}`,
+      )
+
+      // Журнал: отдельное действие, без текста пометки. Журнал читает только администратор.
+      actAs(adminId)
+      const audit = await call<Array<{ action: string; objectId: string; payload: Record<string, unknown> | null }>>(
+        'GET',
+        `/api/audit?objectType=Task&objectId=${item.id}&pageSize=10`,
+      )
+      actAs(null)
+      const entry = (audit.body.data ?? []).find(
+        (row) => row.objectId === item.id && row.action === 'task.university-item.confirm-by-staff',
+      )
+      check(
+        'в журнале отдельное действие с длиной пометки, без её текста',
+        Boolean(entry) &&
+          entry?.payload?.noteLength === 'письмо от 12.09'.length &&
+          !JSON.stringify(entry?.payload ?? {}).includes('письмо'),
+        entry ? JSON.stringify(entry.payload) : `статус журнала ${audit.status}`,
+      )
+
+      const cleared = await call<ProbeStage>('PATCH', `/api/workflow/tasks/${item.id}`, { isDone: false })
+      const clearedItem = itemOf(cleared.body.data, item.id)
+      check(
+        'снять отметку можно без пометки — пометка стирается',
+        cleared.status === 200 && clearedItem?.isDone === false && clearedItem.confirmationNote === null,
+        `статус ${cleared.status}, пометка ${clearedItem?.confirmationNote ?? null}`,
+      )
+    }
+  }
+
   // ── 3. Кривой ввод ─────────────────────────────────────────────────────────
   step('3. Кривой ввод не должен ронять систему')
 

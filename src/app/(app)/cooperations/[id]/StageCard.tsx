@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
+  CONFIRMATION_NOTE_MAX,
+  CONFIRMATION_NOTE_MIN,
   STAGE_PHASE_LABELS,
   STAGE_STATUS_LABELS,
   type DocumentListItemDto,
@@ -126,6 +128,9 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
   const [text, setText] = useState('')
   const [refusal, setRefusal] = useState<ApiRequestError | null>(null)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  // Пункт вуза без представителя отмечается с пометкой «чем подтверждено» (решение 103).
+  const [noteTaskId, setNoteTaskId] = useState<string | null>(null)
+  const [noteText, setNoteText] = useState('')
   const cardRef = useRef<HTMLDivElement | null>(null)
 
   // Ссылка из уведомления ведёт к конкретному этапу — прокручиваем к нему.
@@ -147,12 +152,15 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
     return result.data
   })
 
-  const toggleTask = useMutation(async (input: { taskId: string; isDone: boolean }) => {
-    const result = await apiPatch<WorkflowStageDto>(`/api/workflow/tasks/${input.taskId}`, {
-      isDone: input.isDone,
-    })
-    return result.data
-  })
+  const toggleTask = useMutation(
+    async (input: { taskId: string; isDone: boolean; confirmationNote?: string }) => {
+      const result = await apiPatch<WorkflowStageDto>(`/api/workflow/tasks/${input.taskId}`, {
+        isDone: input.isDone,
+        ...(input.confirmationNote ? { confirmationNote: input.confirmationNote } : {}),
+      })
+      return result.data
+    },
+  )
 
   async function apply(body: Record<string, unknown>) {
     setRefusal(null)
@@ -204,15 +212,36 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
     }
   }
 
-  async function onToggleTask(taskId: string, isDone: boolean) {
+  async function onToggleTask(taskId: string, isDone: boolean, confirmationNote?: string) {
     setRefusal(null)
-    const result = await toggleTask.run({ taskId, isDone })
+    // Отметку за вуз без пометки сервер не примет — сначала спрашиваем, чем подтверждено.
+    const task = stage.tasks.find((item) => item.id === taskId)
+    if (isDone && task?.staffMarkRule === 'NOTE_REQUIRED' && confirmationNote === undefined) {
+      toggleTask.reset()
+      setNoteText('')
+      setNoteTaskId(taskId)
+      return false
+    }
+    const result = await toggleTask.run({ taskId, isDone, confirmationNote })
     if (!result.ok) {
       setRefusal(result.error)
       toast.error(result.error.message)
-      return
+      return false
     }
     onStageChanged(result.data)
+    return true
+  }
+
+  function closeNote() {
+    toggleTask.reset()
+    setNoteTaskId(null)
+    setNoteText('')
+  }
+
+  async function onSubmitNote() {
+    if (noteTaskId === null) return
+    const ok = await onToggleTask(noteTaskId, true, noteText.trim())
+    if (ok) closeNote()
   }
 
   const isDone = stage.status === 'COMPLETED'
@@ -334,13 +363,24 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                           </span>
                         }
                         checked={task.isDone}
-                        disabled={!canWrite || isCancelled || toggleTask.isPending}
+                        disabled={
+                          !canWrite ||
+                          isCancelled ||
+                          toggleTask.isPending ||
+                          task.staffMarkRule === 'UNIVERSITY_ONLY'
+                        }
                         onChange={(event) => onToggleTask(task.id, event.target.checked)}
                       />
                       {task.isDone && task.doneBy && (
                         <span className={styles.taskMeta}>
                           {task.doneBy.fullName}
                           {task.doneAt && `, ${formatDate(task.doneAt)}`}
+                          {task.confirmationNote && ` · ${task.confirmationNote}`}
+                        </span>
+                      )}
+                      {canWrite && task.staffMarkRule === 'UNIVERSITY_ONLY' && (
+                        <span className={styles.taskMeta}>
+                          Отмечает представитель вуза в кабинете вуза
                         </span>
                       )}
                     </div>
@@ -462,6 +502,49 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
               <span>
                 <span className={styles.refusalTitle}>Система не разрешает это действие</span>
                 {updateStage.error.message}
+              </span>
+            </p>
+          )}
+        </Modal>
+      )}
+
+      {noteTaskId !== null && (
+        <Modal
+          isOpen
+          onClose={closeNote}
+          title="Подтверждение вуза"
+          description="У вуза нет представителя в системе, поэтому пункт отмечает сотрудник. Укажите, чем вуз подтвердил получение материалов."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={closeNote}>
+                Отмена
+              </Button>
+              <Button
+                variant="primary"
+                onClick={onSubmitNote}
+                isLoading={toggleTask.isPending}
+                disabled={noteText.trim().length < CONFIRMATION_NOTE_MIN}
+              >
+                Отметить
+              </Button>
+            </>
+          }
+        >
+          <Textarea
+            label="Чем подтверждено"
+            hint={`Например, «письмо от 12.09». От ${CONFIRMATION_NOTE_MIN} до ${CONFIRMATION_NOTE_MAX} символов.`}
+            value={noteText}
+            onChange={(event) => setNoteText(event.target.value)}
+            maxLength={CONFIRMATION_NOTE_MAX}
+            autoFocus
+          />
+          {toggleTask.error && (
+            <p className={styles.refusal} role="alert">
+              <Icon name="alert" size={20} />
+              <span>
+                <span className={styles.refusalTitle}>Система не разрешает это действие</span>
+                {toggleTask.error.message}
               </span>
             </p>
           )}

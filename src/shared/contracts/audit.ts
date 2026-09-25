@@ -37,6 +37,11 @@ export const AUDIT_ACTIONS = [
   'stage.fields.change',
   'stage.auto.recompute',
   'task.toggle',
+  /**
+   * Сотрудник отметил за вуз пункт «Вуз подтвердил получение материалов» — у вуза
+   * нет представителя (решение 103). В журнале — длина пометки, не её текст.
+   */
+  'task.university-item.confirm-by-staff',
   'application.create',
   'recommendation.generate',
   'recommendation.status.change',
