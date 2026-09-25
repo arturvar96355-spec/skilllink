@@ -80,6 +80,19 @@ case "$CACHE_HEADER" in
     ;;
 esac
 
+# ── Content-Security-Policy страниц (решение 112) ───────────────────────────
+#
+# Скрипты — только с nonce запроса, eval в боевой сборке запрещён. Если политики
+# нет, внедрённый скрипт исполнится; если nonce не дошёл до разметки — страница
+# не оживёт вовсе.
+CSP=$(curl -s $CURL_INSECURE -D - -o /dev/null --max-time 20 "$URL/login" | sed -nE 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: *//p' | tr -d '\r')
+check "CSP: скрипты только по nonce" \
+  "$(echo "$CSP" | grep -qE "script-src 'nonce-[^']+' 'strict-dynamic'" && echo 1 || echo 0)" "${CSP:-(заголовка нет)}"
+check "CSP: без unsafe-eval" "$(echo "$CSP" | grep -q 'unsafe-eval' && echo 0 || echo 1)"
+case "$URL" in
+  https://*) check "CSP: upgrade-insecure-requests за HTTPS" "$(echo "$CSP" | grep -q 'upgrade-insecure-requests' && echo 1 || echo 0)" ;;
+esac
+
 # ── Устаревшая сессия не запирает вход ──────────────────────────────────────
 #
 # После перезаливки демо-данных cookie в браузере указывает на пользователя,
