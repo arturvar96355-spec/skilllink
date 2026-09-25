@@ -261,7 +261,8 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 
   От ошибки и порчи данных копии спасают, от потери всей машины — нет: копирования
   вне сервера (Object Storage) пока нет. Там же на сервере с 25.09.2026 включены
-  файрвол ufw (22, 80, 443) и fail2ban для SSH; пакеты Docker придержаны
+  файрвол ufw (22, 80, 443), fail2ban для SSH, в `/etc/ssh/sshd_config.d/10-skilllink.conf`
+  запрет входа root и `MaxAuthTries 3`; пакеты Docker придержаны
   (`apt-mark hold`) до конца проверки экспертами, чтобы автообновление не перезапустило
   стенд. После 14.10: `sudo apt-mark unhold docker.io containerd runc docker-compose-v2`.
 
