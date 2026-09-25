@@ -24,7 +24,7 @@ import { aggregateUniversityRatings, calculateRatings, type RatingBounds, type R
 import type { ProgramRatingDto, RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
 import type { CurrentUserStatsDto } from '@/shared/contracts/user'
 
-/** Показатель без данных: значение null и явная пометка, а не ноль (решение 8). */
+/** Показатель без данных: значение null и явная пометка «Нет данных», а не ноль. */
 function noData(key: string, title: string, unit: string, explanation: string): DashboardMetricDto {
   return {
     key,
@@ -66,9 +66,8 @@ async function buildSkillMatch(user: CurrentUser): Promise<SkillMatchSummaryDto>
   const gaps = await skillsService.gaps(user, { limit: 1 })
   const total = gaps.summary.demanded
 
-  // Нет рыночных данных — нет и счётчиков. Раньше рядом с «Нет данных» стояло
-  // «0 навыков покрыто · 0 востребовано · 0 критических дефицитов»: отсутствие
-  // данных читалось как отсутствие дефицитов (ANALYTICS_METHODOLOGY, раздел 3).
+  // Нет рыночных данных — нет и счётчиков: нули рядом с «Нет данных» читались бы
+  // как отсутствие дефицитов (ANALYTICS_METHODOLOGY, раздел 3).
   if (total === 0) {
     return {
       coveragePercent: null,
@@ -88,6 +87,173 @@ async function buildSkillMatch(user: CurrentUser): Promise<SkillMatchSummaryDto>
     criticalGaps: gaps.summary.critical,
     period: gaps.period ?? '—',
     isMock: gaps.isMock,
+  }
+}
+
+type CompletedStage = Awaited<ReturnType<typeof repo.findCompletedStagesWithDeadline>>[number]
+type CycleDuration = Awaited<ReturnType<typeof repo.findCycleDurations>>[number]
+type LoggedOperations = Awaited<ReturnType<typeof repo.countLoggedOperations>>
+type ProgramForRating = Awaited<ReturnType<typeof repo.findProgramsForRating>>[number]
+type ProblemStage = Awaited<ReturnType<typeof repo.findProblemStages>>[number]
+
+/** Доля этапов, закрытых в срок, и её значение на начало периода сравнения. */
+function stagesOnTimeMetric(completedStages: CompletedStage[], trendStart: Date): DashboardMetricDto {
+  if (completedStages.length === 0) {
+    return noData(
+      'stagesOnTimePercent',
+      'Этапы, закрытые в срок',
+      '%',
+      'Нет данных: ещё нет завершённых этапов с установленным сроком',
+    )
+  }
+
+  const onTimeShare = onTimePercent(completedStages)
+  const onTime = completedStages.filter(isClosedOnTime).length
+  // Тот же показатель на начало периода — по этапам, закрытым к тому дню.
+  const onTimeShareBefore = onTimePercent(
+    completedStages.filter((stage) => stage.completedAt && stage.completedAt <= trendStart),
+  )
+  return metric(
+    'stagesOnTimePercent',
+    'Этапы, закрытые в срок',
+    onTimeShare ?? 0,
+    '%',
+    `${onTime} из ${completedStages.length} завершённых этапов закрыты не позже срока ` +
+      '(контрольный этап 14 не считается: он закрывается сам по остальным)',
+    {
+      isMock: completedStages.some((stage) => stage.cooperation.isMock),
+      trend:
+        onTimeShare === null || onTimeShareBefore === null
+          ? null
+          : compareWithPast(onTimeShare, onTimeShareBefore),
+    },
+  )
+}
+
+/** Среднее время от первого контакта до начала занятий. */
+function avgDaysToClassesMetric(cycles: CycleDuration[], now: Date): DashboardMetricDto {
+  if (cycles.length === 0) {
+    return noData(
+      'avgDaysToClasses',
+      'Среднее время до начала занятий',
+      'дней',
+      'Нет данных: ни в одной связке не заполнены первый контакт и дата начала занятий',
+    )
+  }
+
+  const days = cycles.map((cycle) =>
+    daysBetween(cycle.firstContactAt as Date, cycle.classesStartAt as Date),
+  )
+  const average = days.reduce((sum, value) => sum + value, 0) / days.length
+  // Дата начала занятий бывает плановой: занятия ещё не начались. Такой срок —
+  // оценка, а не факт, и помечается как любой оценочный показатель: basis «estimate».
+  const planned = cycles.filter((cycle) => (cycle.classesStartAt as Date) > now).length
+  return metric(
+    'avgDaysToClasses',
+    'Среднее время до начала занятий',
+    round(average, 1),
+    'дней',
+    `Среднее по ${cycles.length} связкам, где заполнены первый контакт и начало занятий` +
+      (planned > 0 ? `; в ${planned} из них начало занятий — плановая дата` : ''),
+    {
+      basis: planned > 0 ? 'estimate' : 'actual',
+      isMock: cycles.some((cycle) => cycle.isMock),
+    },
+  )
+}
+
+/**
+ * Операции на связку. Считается по журналу действий, а не по всем действиям пользователя.
+ *
+ * Пустой журнал — это «ещё не знаем», а не «усилий не требуется». Показать здесь ноль
+ * значило бы соврать ровно в ту сторону, в которую системе выгодно.
+ */
+function operationsPerCooperationMetric(
+  logged: LoggedOperations,
+  isMock: boolean,
+): DashboardMetricDto {
+  if (logged.cooperations === 0 || logged.operations === 0) {
+    return noData(
+      'operationsPerCooperation',
+      'Операций на связку',
+      'операций',
+      logged.cooperations === 0
+        ? 'Нет данных: связок пока нет'
+        : 'Нет данных: действия ещё не записывались в журнал',
+    )
+  }
+
+  return metric(
+    'operationsPerCooperation',
+    'Операций на связку',
+    round(logged.operations / logged.cooperations, 1),
+    'операций',
+    `Учитываются только действия, попавшие в журнал: ${logged.operations} на ${logged.cooperations} связок`,
+    { basis: 'estimate', isMock },
+  )
+}
+
+/** Лучшие программы для главной: только с баллом, по убыванию балла. */
+async function topProgramsOf(
+  programs: ProgramForRating[],
+  scope: { universityId?: string },
+): Promise<TopProgramDto[]> {
+  const ratings = calculateRatings(
+    programs.map((program) => ({
+      programId: program.id,
+      applicationCount: program.applicationCount,
+      studentCount: program.studentCount,
+      groupCount: program.groupCount,
+      metricsSource: program.metricsSource,
+    })),
+    await ratingBoundsFromDatabase(scope),
+  )
+
+  return programs
+    .map((program) => {
+      const rating = ratings.get(program.id)
+      return {
+        programId: program.id,
+        programName: program.name,
+        universityId: program.university.id,
+        universityName: program.university.name,
+        universityShortName: program.university.shortName,
+        score: rating?.score ?? null,
+        basis: rating?.basis ?? 'none',
+        factors:
+          rating?.factors.map((factor) => ({
+            key: factor.key,
+            title: factor.title,
+            value: factor.value,
+            weight: factor.weight,
+            contribution: factor.contribution,
+          })) ?? [],
+      }
+    })
+    .filter((program) => program.score !== null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, DASHBOARD_TOP_LIMIT)
+}
+
+/** Проблемный этап — строкой блока «Требуют внимания» с причиной. */
+function toProblemCooperation(stage: ProblemStage, now: Date): ProblemCooperationDto {
+  const overdueDays =
+    stage.deadline && stage.status !== 'BLOCKED' ? daysBetween(stage.deadline, now) : null
+  return {
+    cooperationId: stage.cooperation.id,
+    universityName: stage.cooperation.university.name,
+    universityShortName: stage.cooperation.university.shortName,
+    programName: stage.cooperation.program.name,
+    reason:
+      stage.status === 'BLOCKED'
+        ? `Этап заблокирован: ${stage.blockingReason ?? 'причина не указана'}`
+        : overdueDays === null || overdueDays === 0
+          ? 'Срок этапа вышел сегодня'
+          : `Этап просрочен на ${overdueDays} дн.`,
+    stageId: stage.id,
+    stageNumber: stage.stageNumber,
+    stageTitle: stage.title,
+    daysOverdue: overdueDays,
   }
 }
 
@@ -156,163 +322,13 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
       'Вузы в статусах «В работе» и «Активен», кроме архивных',
       { isMock: universitiesAreMock },
     ),
+    stagesOnTimeMetric(completedStages, trendStart),
+    avgDaysToClassesMetric(cycles, now),
+    operationsPerCooperationMetric(logged, cooperationsAreMock),
   ]
 
-  // Доля этапов, закрытых в срок.
-  if (completedStages.length === 0) {
-    metrics.push(
-      noData(
-        'stagesOnTimePercent',
-        'Этапы, закрытые в срок',
-        '%',
-        'Нет данных: ещё нет завершённых этапов с установленным сроком',
-      ),
-    )
-  } else {
-    const onTimeShare = onTimePercent(completedStages)
-    const onTime = completedStages.filter(isClosedOnTime).length
-    // Тот же показатель на начало периода — по этапам, закрытым к тому дню.
-    const onTimeShareBefore = onTimePercent(
-      completedStages.filter((stage) => stage.completedAt && stage.completedAt <= trendStart),
-    )
-    metrics.push(
-      metric(
-        'stagesOnTimePercent',
-        'Этапы, закрытые в срок',
-        onTimeShare ?? 0,
-        '%',
-        `${onTime} из ${completedStages.length} завершённых этапов закрыты не позже срока ` +
-          '(контрольный этап 14 не считается: он закрывается сам по остальным)',
-        {
-          isMock: completedStages.some((stage) => stage.cooperation.isMock),
-          trend:
-            onTimeShare === null || onTimeShareBefore === null
-              ? null
-              : compareWithPast(onTimeShare, onTimeShareBefore),
-        },
-      ),
-    )
-  }
-
-  // Среднее время от первого контакта до начала занятий.
-  if (cycles.length === 0) {
-    metrics.push(
-      noData(
-        'avgDaysToClasses',
-        'Среднее время до начала занятий',
-        'дней',
-        'Нет данных: ни в одной связке не заполнены первый контакт и дата начала занятий',
-      ),
-    )
-  } else {
-    const days = cycles.map((cycle) =>
-      daysBetween(cycle.firstContactAt as Date, cycle.classesStartAt as Date),
-    )
-    const average = days.reduce((sum, value) => sum + value, 0) / days.length
-    // Дата начала занятий бывает плановой: занятия ещё не начались. Такой срок —
-    // оценка, а не факт, и помечается так же, как любой оценочный показатель (решение 8).
-    const planned = cycles.filter((cycle) => (cycle.classesStartAt as Date) > now).length
-    metrics.push(
-      metric(
-        'avgDaysToClasses',
-        'Среднее время до начала занятий',
-        round(average, 1),
-        'дней',
-        `Среднее по ${cycles.length} связкам, где заполнены первый контакт и начало занятий` +
-          (planned > 0 ? `; в ${planned} из них начало занятий — плановая дата` : ''),
-        {
-          basis: planned > 0 ? 'estimate' : 'actual',
-          isMock: cycles.some((cycle) => cycle.isMock),
-        },
-      ),
-    )
-  }
-
-  // Операции на связку. Считается по журналу действий, а не по всем действиям пользователя.
-  //
-  // Пустой журнал — это «ещё не знаем», а не «усилий не требуется». Показать здесь ноль
-  // значило бы соврать ровно в ту сторону, в которую системе выгодно (решение 8).
-  if (logged.cooperations === 0 || logged.operations === 0) {
-    metrics.push(
-      noData(
-        'operationsPerCooperation',
-        'Операций на связку',
-        'операций',
-        logged.cooperations === 0
-          ? 'Нет данных: связок пока нет'
-          : 'Нет данных: действия ещё не записывались в журнал',
-      ),
-    )
-  } else {
-    metrics.push(
-      metric(
-        'operationsPerCooperation',
-        'Операций на связку',
-        round(logged.operations / logged.cooperations, 1),
-        'операций',
-        `Учитываются только действия, попавшие в журнал: ${logged.operations} на ${logged.cooperations} связок`,
-        { basis: 'estimate', isMock: cooperationsAreMock },
-      ),
-    )
-  }
-
-  const ratings = calculateRatings(
-    programs.map((program) => ({
-      programId: program.id,
-      applicationCount: program.applicationCount,
-      studentCount: program.studentCount,
-      groupCount: program.groupCount,
-      metricsSource: program.metricsSource,
-    })),
-    await ratingBoundsFromDatabase(scope),
-  )
-
-  const topPrograms: TopProgramDto[] = programs
-    .map((program) => {
-      const rating = ratings.get(program.id)
-      return {
-        programId: program.id,
-        programName: program.name,
-        universityId: program.university.id,
-        universityName: program.university.name,
-        universityShortName: program.university.shortName,
-        score: rating?.score ?? null,
-        basis: rating?.basis ?? 'none',
-        factors:
-          rating?.factors.map((factor) => ({
-            key: factor.key,
-            title: factor.title,
-            value: factor.value,
-            weight: factor.weight,
-            contribution: factor.contribution,
-          })) ?? [],
-      }
-    })
-    .filter((program) => program.score !== null)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, DASHBOARD_TOP_LIMIT)
-
-  const problemCooperations: ProblemCooperationDto[] = problemStages.map((stage) => {
-    const overdueDays =
-      stage.deadline && stage.status !== 'BLOCKED' ? daysBetween(stage.deadline, now) : null
-    return {
-      cooperationId: stage.cooperation.id,
-      universityName: stage.cooperation.university.name,
-      universityShortName: stage.cooperation.university.shortName,
-      programName: stage.cooperation.program.name,
-      reason:
-        stage.status === 'BLOCKED'
-          ? `Этап заблокирован: ${stage.blockingReason ?? 'причина не указана'}`
-          : overdueDays === null || overdueDays === 0
-            ? 'Срок этапа вышел сегодня'
-            : `Этап просрочен на ${overdueDays} дн.`,
-      stageId: stage.id,
-      stageNumber: stage.stageNumber,
-      stageTitle: stage.title,
-      daysOverdue: overdueDays,
-    }
-  })
-
+  const topPrograms = await topProgramsOf(programs, scope)
+  const problemCooperations = problemStages.map((stage) => toProblemCooperation(stage, now))
   const priorityActions: RecommendationDto[] = await toRecommendationDtos(priorityRows)
 
   return {
@@ -331,13 +347,12 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
   }
 }
 
-
 // Тип живёт в контрактах: его читает фронт. Здесь — только реэкспорт,
 // чтобы существующие импорты из модуля не ломались.
 export type { RankedProgramDto } from '@/shared/contracts/rating'
 
 /**
- * Рейтинг программ с раскрытием вклада каждого показателя (концепция, решение 7).
+ * Рейтинг программ по трём показателям ТЗ с раскрытием вклада каждого (концепция).
  * Баллы нормируются внутри выборки, поэтому сравнивать их можно только внутри одного ответа.
  */
 export async function programRating(
@@ -377,8 +392,8 @@ export async function programRating(
     // Программы без данных не выбрасываются: они уходят в конец с пометкой «Нет данных».
     .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
 
-  // Всего — по базе, а не по срезу: срез ограничен пятьюстами, и на шести тысячах
-  // программ страница писала «Показаны 20 из 500».
+  // Всего — по базе, а не по срезу: срез ограничен пятьюстами, и на большой базе
+  // страница иначе напишет «Показаны 20 из 500».
   return {
     data: ranked.slice(0, options.limit),
     total: await repo.countProgramsForRating(ratingScope),
@@ -440,9 +455,8 @@ export async function universityRatingsForPage(
  *
  * Рейтинг считается по срезу программ (двести на дашборде, пятьсот в списке),
  * но шкала обязана быть общей. Иначе балл зависит от того, попала ли программа
- * в срез: на выборке из 260 программ p150 получала 61,3 при полном расчёте
- * и 75,3 при срезе в 200 строк. Это делает рейтинг необъяснимым — то, чего
- * раздел 10 ТЗ прямо требует избегать.
+ * в срез, и рейтинг становится необъяснимым — то, чего раздел 10 ТЗ прямо
+ * требует избегать.
  */
 async function ratingBoundsFromDatabase(scope: { universityId?: string }): Promise<RatingBounds> {
   const bounds = await repo.findRatingBounds(scope)

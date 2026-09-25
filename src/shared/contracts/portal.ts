@@ -1,6 +1,6 @@
 import type { ApplicationStatus, CooperationStatus, DataOrigin, StageStatus, ProgramLevel } from './enums'
 
-/** Заявка на обучение. Персональных данных обучающихся не содержит (решение 9). */
+/** Заявка на обучение. Персональных данных обучающихся не содержит. */
 export interface ApplicationDto {
   id: string
   programId: string
@@ -63,7 +63,7 @@ export interface PortalCooperationDto {
   classesStartAt: string | null
 }
 
-/** Сводка кабинета представителя вуза. Аналитики и рейтингов здесь нет (решение 9). */
+/** Сводка кабинета представителя вуза. Аналитики и рейтингов здесь нет: вузу они не показываются. */
 export interface PortalOverviewDto {
   universityId: string
   universityName: string

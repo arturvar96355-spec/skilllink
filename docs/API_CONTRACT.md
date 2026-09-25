@@ -18,7 +18,6 @@
 ## 1. Общие правила
 
 - JSON наружу — **camelCase**. В базе snake_case через `@map` / `@@map`.
-  `TODO: PM DECISION` — подтвердить camelCase с фронтом.
 - Даты — строка **ISO 8601 в UTC**: `"2026-09-21T07:24:47.059Z"`.
 - Число дней (`daysToDeadline`, `daysToTarget`, `daysOverdue`) — календарные дни
   **по московским суткам**, как их показывает интерфейс. Ноль — тот же день,
@@ -583,6 +582,90 @@ curl -s -X PUT http://localhost:3000/api/programs/PROGRAM_ID/skills \
 { "id": "…", "name": "Kubernetes", "category": "DevOps", "description": "Оркестрация контейнеров",
   "programCount": 0, "productCount": 1 }
 ```
+
+### Справочник навыков: управление (право `ADMIN`)
+
+С 25.09.2026, решение 107 (ТЗ, п. 5: «Администратор — справочники»). Всем остальным ролям —
+`FORBIDDEN` 403 на каждом маршруте ниже. Ответ — `SkillDto`, как в списке; счётчики
+`programCount` и `productCount` — по всем вузам.
+
+**Уникальность названия — без учёта регистра и пробелов:** «Machine Learning»,
+«machine learning» и «MachineLearning» — один навык (`skillNameKey` в `skills.rules.ts`).
+Повтор — `CONFLICT` 409: «Навык «machine learning» совпадает с «Machine Learning» без учёта
+регистра и пробелов…», `details: [{ field: "name", … }]`. Пробелы по краям обрезаются,
+внутри сводятся к одному. Название — от 1 до 120 знаков (языки C и R), категория — до 100,
+описание — до 2000 или `null`.
+
+#### POST /api/skills
+
+```json
+{ "name": "Rust", "category": "Языки программирования", "description": "Системное программирование" }
+```
+
+Ответ `201` — `SkillDto` с `programCount: 0`, `productCount: 0`. Журнал: `skill.create`
+с `{ name, category }`.
+
+```bash
+curl -X POST http://localhost:3000/api/skills -H 'content-type: application/json' \
+  -H 'cookie: skilllink_user=<id администратора>' \
+  -d '{"name":"Rust","category":"Языки программирования"}'
+```
+
+#### PATCH /api/skills/:id
+
+Любое из полей `name`, `category`, `description`; пустое тело — 422. Новое название
+проверяется на дубль так же (своё название в другом регистре — не дубль). Нет навыка — 404.
+Журнал: `skill.update` с `{ fields, from?, to? }` — старое и новое название при переименовании.
+
+#### POST /api/skills/:id/merge
+
+Объединить дубль (`:id`) в целевой навык: `{ "targetId": "…" }`. Всё в одной транзакции:
+связи программ и продуктов, рыночные показатели и рекомендации дубля переходят на целевой
+навык, дубль удаляется. Если такая связь есть у обоих — остаётся одна, **более сильная**:
+
+| Что | Совпадение | Что остаётся |
+| --- | --- | --- |
+| Программа (`ProgramSkill`) | та же программа | наибольшие уровень, важность и уверенность; происхождение — от связи с более высоким уровнем (при равном — целевой); комментарий целевой, а без него — дубля |
+| IT-продукт (`ProductSkill`) | тот же продукт | наибольшая значимость: ключевой > смежный > дополнительный |
+| Рыночный показатель (`MarketDemand`) | тот же период, источник и регион | строка с наибольшим значением (не сумма: одна вакансия с «ML» и «Machine Learning» посчиталась бы дважды) |
+| Рекомендация | то же правило | рекомендация целевого навыка; дубля — удаляется. Перенесённые обновит следующая пересборка |
+
+Покрытие программы при объединении не падает: уровень берётся наибольший.
+
+Ответ `200`:
+
+```json
+{ "data": {
+    "target": { "id": "…", "name": "Машинное обучение", "category": "Данные", "description": "…",
+                "programCount": 4, "productCount": 2 },
+    "removed": { "id": "…", "name": "ML" },
+    "programs": { "moved": 1, "combined": 1 },
+    "products": { "moved": 0, "combined": 1 },
+    "demand": { "moved": 2, "combined": 1 },
+    "recommendations": { "moved": 0, "dropped": 0 } } }
+```
+
+`targetId` равен `:id` — 422; целевого навыка нет — 422 по полю `targetId`; нет дубля — 404.
+Журнал: `skill.merge`, `objectId` — целевой навык, в `payload` — `removedId`, `removedName`,
+`targetName` и счётчики.
+
+```bash
+curl -X POST http://localhost:3000/api/skills/<id дубля>/merge -H 'content-type: application/json' \
+  -H 'cookie: skilllink_user=<id администратора>' -d '{"targetId":"<id целевого>"}'
+```
+
+#### DELETE /api/skills/:id
+
+Удаляется только навык, который **нигде не используется**. Используемый — `CONFLICT` 409:
+
+```json
+{ "error": { "code": "CONFLICT",
+    "message": "Навык «Python» используется: в 6 программах, в 1 IT-продукте, в 8 рыночных показателях. Удалить можно только неиспользуемый навык — объедините его с другим или уберите из программ и продуктов.",
+    "details": { "usage": { "programs": 6, "products": 1, "demand": 8, "recommendations": 0 } } } }
+```
+
+Каскадное удаление молча стёрло бы связи и замеры — покрытие и дефициты изменились бы без
+следа. Ответ `200`: `{ "data": { "id": "…", "name": "Rust" } }`. Журнал: `skill.delete` с `{ name }`.
 
 ### GET /api/skills/demand
 
@@ -2625,9 +2708,50 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 
 ---
 
+## 15е. Параметры расчётов
+
+### GET /api/settings/parameters
+
+Право: `ANALYTICS` — `ADMIN`, `MANAGER`, `ANALYST`, `VIEWER`; представителю вуза — 403
+(решение 107). Только чтение: текущие веса, пороги и нормативы — **из тех же констант,
+по которым считает код** (`src/shared/config`), без копий чисел. Меняются они правкой
+конфигурации, не через API.
+
+```json
+{ "data": {
+    "groups": [
+      { "id": "skillGap", "title": "Дефициты навыков", "description": "…",
+        "methodology": { "document": "docs/ANALYTICS_METHODOLOGY.md", "section": "3. Дефицит навыка (skill gap)" },
+        "parameters": [
+          { "configKey": "SKILL_GAP.demandThreshold", "label": "Порог востребованности навыка",
+            "hint": "Навык с нормированным спросом не ниже порога считается востребованным",
+            "value": 0.5, "unit": "share", "valueLabel": null, "isTemporary": true } ] } ],
+    "stages": [
+      { "number": 6, "title": "Подписание документов", "phase": "FORMALIZATION", "phaseLabel": "Оформление",
+        "normativeDays": 63, "isControlPoint": true, "isOptional": false, "isAutomatic": false,
+        "requiredTaskCount": 3, "taskCount": 3, "isTemporary": true } ],
+    "temporaryCount": 43 } }
+```
+
+- **Группы** (`id`): `programRating` — веса рейтинга, минимум показателей, шкала, способ
+  рейтинга вуза; `skillGap` — порог востребованности и покрытие по уровням; `skillProfile` —
+  области, где навыки сравниваются поимённо (`SKILL_PROFILE`); `workflow` — предупреждение
+  о сроке и контрольные точки; `recommendations` — пороги правил (просрочка, застой, этап без
+  продукта, лимит дефицитов); `login` — попытки, окна, блокировка, проверка «не робот», длина
+  пароля; `retention` — сроки хранения журнала и IP-адреса.
+- `value` — число, `true`/`false`, строка или массив; `unit` — `weight`, `share` (доля 0..1),
+  `days`, `minutes`, `count`, `points`, `stage`, `flag`, `list`, `choice`. Для `choice`
+  в `valueLabel` — значение словами. Миллисекунды конфига отдаются минутами.
+- `isTemporary: true` — **рабочее значение, утверждается с заказчиком**: в коде оно помечено
+  `// TEMP`. Тест `settings.test.ts` сверяет и значения, и пометку с исходником конфига.
+- `configKey` — путь константы, постоянный ключ строки.
+- `methodology` — документ репозитория и заголовок раздела; тест проверяет, что раздел есть.
+- `stages` — все 14 этапов: нормативный срок в днях от создания связки, контрольная точка,
+  можно ли отменить как «не требуется», этап 14 — автоматический.
+
 ## 16. Чего ещё нет
 
-- уведомления — канал не определён, `TODO: PM DECISION`;
+- уведомления вне системы (мессенджер) — отложены до финала конкурса;
 - политики доступа на уровне строк (RLS) — осознанно отложены,
   см. [SECURITY_LIMITATIONS.md](SECURITY_LIMITATIONS.md);
 - загрузка файлов документов — P2 по решению 14, в MVP хранятся метаданные,
