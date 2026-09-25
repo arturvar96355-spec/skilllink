@@ -10,8 +10,10 @@
  * которые создают записи.
  *
  * Зачем отдельная проверка. Демонстрационные даты считаются от момента
- * заливки (prisma/seed.ts), а время идёт: через пару суток у этапов выходят
- * сроки, и числа на главной расходятся с тем, что произносит докладчик.
+ * заливки (prisma/seed.ts), а время идёт. С решения 121 будущие сроки и встречи
+ * сдвинуты за конец экспертизы (SEED_STABLE_UNTIL), и числа держатся до него;
+ * но на прогоне кто-то мог закрыть этап или сгенерировать рекомендации заново —
+ * и числа на главной разошлись бы с тем, что произносит докладчик.
  * Эта проверка ловит такое расхождение утром, а не перед жюри.
  */
 import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
@@ -129,7 +131,6 @@ interface CooperationRow {
 }
 
 interface CooperationCard {
-  createdAt: string
   stages: Array<{
     stageNumber: number
     status: string
@@ -160,15 +161,19 @@ async function main(): Promise<void> {
   const overview = (await manager.get<Overview>('/api/analytics/overview')).data
   const metric = (key: string) => overview.metrics.find((item) => item.key === key)?.value ?? null
 
-  check('активные связи', metric('activeCooperations'), 7)
-  check('вузы в работе', metric('universitiesInWork'), 4)
-  check('этапы в срок, %', metric('stagesOnTimePercent'), 89.1)
-  // 186: у СПбГУТ ИБ занятия идут два месяца — этапы 11–12 закрыты после их начала.
-  check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 186)
+  // Расширенный набор (решение 121): 50 связок, из них 40 в работе и черновиках.
+  check('активные связи', metric('activeCooperations'), 40)
+  check('вузы в работе', metric('universitiesInWork'), 14)
+  // Длительности этапов расширенного набора — логнормальные: часть этапов закрыта
+  // с опозданием, доля в срок ниже, чем в прежних десяти связках (89,1 %).
+  check('этапы в срок, %', metric('stagesOnTimePercent'), 80.2)
+  check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 187.3)
   // По одному этапу на связку: не начатые этапы с вышедшим сроком — «план
-  // сдвинут», а не просрочка, и в счётчик не идут (решение 84).
-  check('проблемных этапов всего', overview.problemStageTotal, 4)
-  check('из них показано на главной', overview.problemCooperations.length, 4)
+  // сдвинут», а не просрочка, и в счётчик не идут (решение 84). 4 просрочки
+  // сценария, 3 свежие (до недели) и 3 блокировки расширенного набора; будущие
+  // сроки сдвинуты за конец экспертизы — число держится до 14.10 (решение 121).
+  check('проблемных этапов всего', overview.problemStageTotal, 10)
+  check('из них показано на главной', overview.problemCooperations.length, 10)
   check('приоритетных действий', overview.priorityActions.length, 5)
   check(
     'верхнее действие',
@@ -176,8 +181,9 @@ async function main(): Promise<void> {
     // Самая давняя просрочка — подписание у СПбГУТ, та связка, что на шаге 3.
     'Просрочен этап 6: Подписание документов',
   )
-  check('покрытие навыков, %', overview.skillMatch.coveragePercent, 88.9)
-  check('критических дефицитов', overview.skillMatch.criticalGaps, 2)
+  check('покрытие навыков, %', overview.skillMatch.coveragePercent, 89.3)
+  // Kubernetes и PostgreSQL — как прежде, MLOps — третий (решение 121).
+  check('критических дефицитов', overview.skillMatch.criticalGaps, 3)
 
   // ── Шаг 2. Реестр вузов ──
   step('Шаг 2. Реестр вузов')
@@ -187,14 +193,29 @@ async function main(): Promise<void> {
     universities.map((item) => [item.name, shown(item.rating?.score)]),
     [
       // Рейтинг нормируется от нуля (решение 98): ноль — только у нуля заявок.
+      // Показатели программ расширенного набора не выше максимумов прежних —
+      // баллы вузов сценария не сдвинулись (решение 121).
+      ['Балтийский федеральный университет им. Иммануила Канта', 45.9],
+      ['Воронежский государственный университет', 60.3],
+      ['Дальневосточный федеральный университет', 43.3],
       ['Донской государственный технический университет', 36.6],
+      ['Иркутский национальный исследовательский технический университет', 46.7],
       ['Казанский национальный исследовательский технический университет', 47.7],
       ['Московский технический университет связи и информатики', 50.7],
+      ['Национальный исследовательский Нижегородский государственный университет им. Н. И. Лобачевского', 56.2],
       ['Новосибирский государственный технический университет', 47.6],
+      ['Омский государственный технический университет', 57.1],
+      ['Пермский национальный исследовательский политехнический университет', 49.1],
+      ['Поволжский государственный университет телекоммуникаций и информатики', 64.7],
       [SPBGUT, 85.7],
+      ['Сибирский федеральный университет', 45.3],
+      ['Университет Иннополис', 46.6],
       ['Уральский федеральный университет', null],
+      ['Уфимский университет науки и технологий', 58.4],
     ],
   )
+  const allCooperations = await manager.get<unknown[]>('/api/cooperations?pageSize=1')
+  check('связок всего', allCooperations.meta?.total ?? null, 50)
 
   // ── Шаг 3. Связка ──
   step('Шаг 3. Связка СПбГУТ — Программная инженерия')
@@ -217,19 +238,13 @@ async function main(): Promise<void> {
     check('чек-лист этапа 6: закрыто из обязательных', `${required.filter((task) => task.isDone).length} из ${required.length}`, '0 из 3')
     check('этап 7 не начат (отказ контрольной точки)', stage(7)?.status ?? null, 'NOT_STARTED')
 
-    const seededAt = new Date(card.createdAt)
-    const days = (Date.now() - seededAt.getTime()) / (24 * 60 * 60 * 1000)
-    console.log(
-      `  ${GREY}··   демо-данные залиты ${seededAt.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК, ` +
-        `${days.toFixed(1).replace('.', ',')} сут. назад; числа сценария держатся двое суток${RESET}`,
-    )
   }
 
   // ── Шаг 4. Рекомендации ──
   // Тот же запрос, что делает лента: иначе проверка видела бы не то, что жюри.
   step('Шаг 4. Рекомендации')
   const recommendations = (
-    await manager.get<Array<{ title: string; priority: string }>>(
+    await manager.get<Array<{ title: string; priority: string; createdAt?: string }>>(
       `/api/recommendations?sort=${RECOMMENDATION_SORT_MOST_IMPORTANT}&page=1&pageSize=20`,
     )
   ).data
@@ -251,6 +266,19 @@ async function main(): Promise<void> {
       'Дефицит навыка «PostgreSQL» закрывается нашим продуктом',
     ],
   )
+
+  // Когда залиты данные: рекомендации движок выдаёт в момент заливки. Карточка
+  // связки для этого не годится — её дата по сюжету, а не момент заливки (решение 85).
+  const newest = recommendations
+    .map((item) => (item.createdAt ? new Date(item.createdAt).getTime() : 0))
+    .reduce((latest, time) => Math.max(latest, time), 0)
+  if (newest > 0) {
+    const days = (Date.now() - newest) / (24 * 60 * 60 * 1000)
+    console.log(
+      `  ${GREY}··   демо-данные залиты ${new Date(newest).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК, ` +
+        `${days.toFixed(1).replace('.', ',')} сут. назад; сроки и встречи держатся до конца экспертизы (решение 121)${RESET}`,
+    )
+  }
 
   // ── Шаг 5. Представитель вуза ──
   step('Шаг 5. Кабинет представителя вуза')
