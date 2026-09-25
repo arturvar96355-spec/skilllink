@@ -1,0 +1,185 @@
+/*
+ * Вкладки администратора в «Настройках»: «Пользователи» и «Журнал действий».
+ * Строки — те же, что у остальных разделов (settings.module.css); здесь только
+ * фильтры над строками, окна и плашки предупреждений.
+ */
+
+.filters {
+  margin-bottom: var(--space-2);
+}
+
+.dates {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dates > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Подробности записи журнала и ссылка на объект. */
+.summary {
+  color: var(--text-tertiary);
+}
+
+.objectLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--accent-primary);
+  text-decoration: none;
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.objectLink:hover {
+  text-decoration: underline;
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* Плашки внутри окон: предупреждение и отказ. */
+.notice,
+.warning,
+.danger {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+.notice {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+}
+
+.warning {
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 32%, transparent);
+}
+
+.warning > svg:first-child {
+  flex: none;
+  color: var(--status-warning);
+}
+
+.danger {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+}
+
+.danger > svg:first-child {
+  flex: none;
+  color: var(--status-danger);
+}
+
+.notice p,
+.warning p,
+.danger p {
+  margin: 0;
+}
+
+/* Одноразовый пароль: крупно, моноширинно, выделяется целиком одним щелчком. */
+.password {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-accent);
+}
+
+.passwordValue {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--text-kpi-sm-size);
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.who strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Раздел «Доступ» в окне пользователя: действия с паролем и блокировкой. */
+.access {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-divider);
+}
+
+.accessTitle {
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.accessRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.accessText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.accessText strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.confirm {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 600px) {
+  .accessRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .password {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

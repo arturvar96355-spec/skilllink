@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as enums from './enums'
 import * as labels from './labels'
+import * as audit from './audit'
 
 /**
  * Подписи фронт берёт отсюда. Если у перечисления появится значение без подписи,
@@ -30,6 +31,8 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['RecommendationStatus (действия)', enums.RECOMMENDATION_STATUSES, labels.RECOMMENDATION_STATUS_ACTIONS],
   ['DataSourceType', enums.DATA_SOURCE_TYPES, labels.DATA_SOURCE_TYPE_LABELS],
   ['ApplicationStatus', enums.APPLICATION_STATUSES, labels.APPLICATION_STATUS_LABELS],
+  ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
+  ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
 ]
 
 describe('подписи к перечислениям', () => {

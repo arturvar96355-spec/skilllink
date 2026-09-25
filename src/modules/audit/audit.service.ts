@@ -26,6 +26,12 @@ export async function listAuditEntries(
   assertCan(user, 'ADMIN')
 
   const { rows, total } = await repo.findAuditEntries(query)
+  // Этап и пункт чек-листа открываются на странице своей связки: находим её
+  // одним запросом на страницу журнала, а не по записи.
+  const cooperationOf = await repo.findCooperationsOfObjects(
+    rows.filter((row) => row.objectType === 'WorkflowStage').map((row) => row.objectId),
+    rows.filter((row) => row.objectType === 'Task').map((row) => row.objectId),
+  )
   return {
     data: rows.map((row) => ({
       id: row.id,
@@ -34,6 +40,10 @@ export async function listAuditEntries(
       objectId: row.objectId,
       payload: (row.payload as Record<string, unknown> | null) ?? null,
       user: row.user,
+      cooperationId:
+        row.objectType === 'WorkflowStage' || row.objectType === 'Task'
+          ? (cooperationOf.get(row.objectId) ?? null)
+          : null,
       createdAt: toIsoRequired(row.createdAt),
     })),
     meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),

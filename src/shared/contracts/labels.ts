@@ -21,6 +21,7 @@ import type {
   UniversityStatus,
   UserRole,
 } from './enums'
+import type { AuditActionCode, AuditObjectType } from './audit'
 
 /**
  * Русские подписи к значениям перечислений.
@@ -237,3 +238,77 @@ export const METRIC_BASIS_LABELS = {
   estimate: 'Оценка',
   none: 'Нет данных',
 } as const
+
+/**
+ * Действие в журнале — словами (вкладка «Журнал действий» в настройках).
+ * Код действия (`stage.status.change`) нужен фильтру API, человеку — фраза.
+ */
+export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
+  'auth.login.success': 'Вход в систему',
+  'auth.login.failure': 'Неудачная попытка входа',
+  'auth.login.blocked': 'Вход закрыт после неудачных попыток',
+  'user.create': 'Заведён пользователь',
+  'user.update': 'Изменены данные пользователя',
+  'user.role.change': 'Изменена роль пользователя',
+  'user.block': 'Пользователь заблокирован',
+  'user.unblock': 'Пользователь разблокирован',
+  'user.password.reset': 'Выдан временный пароль',
+  'user.password.change': 'Пользователь сменил пароль',
+  'university.create': 'Создан вуз',
+  'university.update': 'Изменён вуз',
+  'university.archive': 'Вуз отправлен в архив',
+  'university.restore': 'Вуз возвращён из архива',
+  'contact.anonymize': 'Контакт вуза обезличен',
+  'program.create': 'Создана программа',
+  'program.update': 'Изменена программа',
+  'program.skills.replace': 'Изменены навыки программы',
+  'program.archive': 'Программа отправлена в архив',
+  'program.restore': 'Программа возвращена из архива',
+  'cooperation.create': 'Создана связка',
+  'cooperation.update': 'Изменена связка',
+  'stage.status.change': 'Изменён статус этапа',
+  'stage.fields.change': 'Изменены поля этапа',
+  'stage.auto.recompute': 'Статус этапа пересчитан автоматически',
+  'task.toggle': 'Отмечен пункт чек-листа',
+  'application.create': 'Подана заявка на обучение',
+  'recommendation.generate': 'Пересобраны рекомендации',
+  'recommendation.status.change': 'Изменён статус рекомендации',
+  'ai.draft': 'Черновик ИИ-помощника',
+  'document.create': 'Создан документ',
+  'document.update': 'Изменён документ',
+  'document.status.change': 'Изменён статус документа',
+  'document.version.create': 'Создана новая версия документа',
+  'document.package.generate': 'Собран пакет документов',
+  'meeting.create': 'Назначена встреча',
+  'meeting.update': 'Изменена встреча',
+  'portal.material.confirm': 'Вуз подтвердил получение материалов',
+  'portal.metrics.update': 'Вуз обновил показатели программы',
+  'datasource.sync': 'Загружены рыночные данные',
+  'product.create': 'Создан IT-продукт',
+  'product.update': 'Изменён IT-продукт',
+  'product.skills.replace': 'Изменены навыки IT-продукта',
+  'product.version.release': 'Выпущена версия IT-продукта',
+  'export.download': 'Выгрузка в CSV',
+  'audit.retention': 'Очистка журнала по сроку хранения',
+  'import.apply': 'Загрузка реестра из CSV',
+}
+
+/** Тип объекта записи журнала — словами, для фильтра и строки записи. */
+export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
+  User: 'Пользователь',
+  University: 'Вуз',
+  Contact: 'Контакт вуза',
+  EducationalProgram: 'Программа',
+  Cooperation: 'Связка',
+  WorkflowStage: 'Этап связки',
+  Task: 'Пункт чек-листа',
+  Document: 'Документ',
+  Meeting: 'Встреча',
+  Recommendation: 'Рекомендация',
+  Application: 'Заявка на обучение',
+  ITProduct: 'IT-продукт',
+  DataSource: 'Источник данных',
+  Export: 'Выгрузка',
+  Import: 'Загрузка',
+  AuditLog: 'Журнал действий',
+}

@@ -7,7 +7,12 @@ import { exportQuerySchema } from '@/modules/export/export.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
-import { userListQuerySchema } from '@/modules/auth/auth.schema'
+import {
+  changePasswordSchema,
+  createUserSchema,
+  updateUserSchema,
+  userListQuerySchema,
+} from '@/modules/auth/auth.schema'
 import {
   cooperationListQuerySchema,
   createCooperationSchema,
@@ -171,15 +176,79 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
   },
   {
+    method: 'post',
+    path: '/api/me/password',
+    tag: 'Пользователи',
+    summary: 'Сменить свой пароль',
+    description:
+      'Любая роль, только для себя. Новый пароль — не короче 10 символов, не длиннее 72 байт, ' +
+      'не совпадает с текущим и с почтой. Неверный текущий пароль — 422; проверка идёт ' +
+      'под тем же ограничением перебора, что и вход: после пяти неудач — 403 на 15 минут.',
+    body: changePasswordSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'VALIDATION_ERROR', 'INTERNAL'],
+  },
+  {
     method: 'get',
     path: '/api/users',
     tag: 'Пользователи',
     summary: 'Справочник пользователей',
-    description: 'Нужен для выбора ответственного и участников встреч.',
+    description:
+      'Нужен для выбора ответственного и участников встреч; администратору — для вкладки ' +
+      '«Пользователи» (фильтр isActive).',
     permission: 'ANALYTICS',
     query: userListQuerySchema,
     list: true,
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/users',
+    tag: 'Пользователи',
+    summary: 'Завести пользователя',
+    description:
+      'Почта уникальна и хранится в нижнем регистре; у UNIVERSITY_REP вуз обязателен, ' +
+      'у остальных запрещён. Сервер генерирует временный пароль и отдаёт его один раз ' +
+      'в ответе (temporaryPassword); в базе — только хеш bcrypt.',
+    body: createUserSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/users/{id}',
+    tag: 'Пользователи',
+    summary: 'Пользователь для администратора',
+    description: 'С числом открытых связок и этапов, где он ответственный, — для предупреждения о блокировке.',
+    permission: 'ADMIN',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/users/{id}',
+    tag: 'Пользователи',
+    summary: 'Изменить пользователя: ФИО, должность, роль, блокировка',
+    description:
+      'Себя нельзя заблокировать и лишить роли ADMIN; нельзя оставить систему без действующего ' +
+      'администратора; менеджера с открытыми связками или этапами нельзя перевести в роль, ' +
+      'которая не может быть ответственным, — всё это 409. Блокировка действует сразу, ' +
+      'в том числе на уже выданные сессии.',
+    body: updateUserSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/users/{id}/password-reset',
+    tag: 'Пользователи',
+    summary: 'Выдать новый временный пароль',
+    description:
+      'Пароль приходит один раз в ответе, старый перестаёт подходить сразу, блокировка входа ' +
+      'после неудачных попыток с учётной записи снимается. Свой пароль так не меняется — 409.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
   },
 
   // ── Университеты ──────────────────────────────────────────────────────────

@@ -1820,7 +1820,8 @@ curl -s -X POST http://localhost:3000/api/ai/today
     "id": "…", "email": "…", "fullName": "…", "position": "Менеджер по работе с вузами",
     "role": "MANAGER", "universityId": null, "universityName": null,
     "permissions": { "canWrite": true, "canSeeAnalytics": true,
-                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false }
+                     "canUsePortal": true, "canWritePortal": false, "isAdmin": false },
+    "passwordTemporary": false
   }
 }
 ```
@@ -1830,6 +1831,47 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 `canWritePortal` (с 25.09.2026) — может ли пользователь записывать в кабинете вуза:
 `true` только у `UNIVERSITY_REP`. У сотрудника кабинет открывается только для просмотра.
+
+`passwordTemporary` (с 25.09.2026, решение 99) — действующий пароль выдан администратором
+как временный: личный кабинет показывает плашку «смените временный пароль». Отдельного
+поля в базе нет: признак считается по журналу действий — последнее событие пароля
+пользователя (`user.create`, `user.password.reset` или `user.password.change`). Событий нет
+(демо-пользователи из `db:seed`) — `false`.
+
+### POST /api/me/password
+
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
+
+Авторизация: любая роль, включая `UNIVERSITY_REP`. **Только свой пароль**: пользователь
+берётся из сессии, идентификатора в запросе нет. С 25.09.2026, решение 99.
+
+```json
+{ "currentPassword": "…", "newPassword": "…" }
+```
+
+Ответ `200`: `{ "data": { "changedAt": "2026-09-25T12:00:00.000Z" } }`.
+
+Правила нового пароля: не короче 10 символов, не длиннее 72 байт (дальше bcrypt не читает;
+русская буква — два байта), не из одних пробелов, не совпадает с текущим и с адресом почты
+(без учёта регистра). Нарушение — `VALIDATION_ERROR` 422 с `details: [{ field: "newPassword", … }]`;
+проверяется до проверки текущего пароля. Повтор нового пароля сверяет форма — на сервер он не уходит.
+
+| Ответ | Когда |
+| --- | --- |
+| `422` `field: "currentPassword"` | «Текущий пароль введён неверно» |
+| `403` | «Слишком много неверных попыток. Смена пароля и вход закрыты ещё на N мин.» — текущий пароль проверяется под **тем же ограничением перебора, что и вход** (счётчик «учётная запись + адрес», пять неудач — 15 минут), и неудачи здесь и на входе складываются |
+
+В журнал пишется `user.password.change` — без пароля и хеша. Уже выданные сессии на других
+устройствах смена пароля не завершает (JWT, SECURITY_LIMITATIONS.md).
+
+```bash
+curl -X POST http://localhost:3000/api/me/password -H 'content-type: application/json' \
+  -H 'cookie: authjs.session-token=…' \
+  -d '{"currentPassword":"skilllink","newPassword":"мой-новый-пароль-2026"}'
+```
 
 ### GET /api/me/stats
 
@@ -1956,11 +1998,129 @@ curl -s -X POST http://localhost:3000/api/ai/today
 
 ### GET /api/users
 
-Право: `ANALYTICS`. Справочник для выбора ответственного и участников встреч.
-Параметры: `q`, `role[]`, `universityId`, `includeInactive`, пагинация.
+Право: `ANALYTICS`. Справочник для выбора ответственного и участников встреч; администратору —
+список вкладки «Настройки → Пользователи».
+Параметры: `q`, `role[]`, `universityId`, `includeInactive`, `isActive`, пагинация.
 
 `email` отдаётся только ADMIN и MANAGER; ANALYST и VIEWER получают `null`, и `q` у них
 по почте не ищет (с 25.09.2026).
+
+`isActive` (с 25.09.2026): `true` — только действующие, `false` — только заблокированные.
+Задан — важнее `includeInactive`; не задан — всё как раньше (без `includeInactive=true`
+только действующие). Ответы `/api/users/*` отдаются с `Cache-Control: no-store`.
+
+### Управление пользователями (право `ADMIN`)
+
+С 25.09.2026, решение 99. Всем остальным ролям — `FORBIDDEN` 403 на каждом маршруте ниже.
+`UserDto` — тот же, что в списке (`id`, `email`, `fullName`, `position`, `role`,
+`universityId`, `universityName`, `isActive`).
+
+**Правило вуза:** у `UNIVERSITY_REP` вуз обязателен (`VALIDATION_ERROR` 422 по полю
+`universityId`: «Выберите вуз представителя»), у остальных ролей запрещён (422: «Сотруднику
+ИТ-Школы вуз не назначается…»). Несуществующий или архивный вуз — 422. При смене роли
+с представителя на другую вуз снимается сам.
+
+**Временный пароль** генерирует сервер: 14 знаков из 54 без похожих (`0/O/o`, `1/l/I/i`),
+криптостойкий выбор, в пароле есть заглавная, строчная и цифра. В базе — только хеш bcrypt.
+Пароль приходит **один раз** — в ответе на заведение или сброс; получить его повторно нельзя,
+только выдать новый.
+
+#### POST /api/users
+
+```json
+{ "email": "Ivanova@Example.ru", "fullName": "Иванова Мария Сергеевна",
+  "position": "Аналитик", "role": "ANALYST", "universityId": null }
+```
+
+Почта приводится к нижнему регистру (так её ищет вход). Ответ `201`:
+
+```json
+{ "data": { "user": { "id": "…", "email": "ivanova@example.ru", "fullName": "Иванова Мария Сергеевна",
+                      "position": "Аналитик", "role": "ANALYST", "universityId": null,
+                      "universityName": null, "isActive": true },
+            "temporaryPassword": "E67TjYzg6CthKY" } }
+```
+
+Почта уже занята — `CONFLICT` 409 «Пользователь с такой почтой уже есть»,
+`details: [{ field: "email", … }]`. Журнал: `user.create` с `{ role, universityId }` — без почты,
+ФИО и пароля.
+
+```bash
+curl -X POST http://localhost:3000/api/users -H 'content-type: application/json' \
+  -H 'cookie: skilllink_user=<id администратора>' \
+  -d '{"email":"ivanova@example.ru","fullName":"Иванова Мария Сергеевна","role":"ANALYST"}'
+```
+
+#### GET /api/users/:id
+
+Пользователь для окна администратора: `UserDto` и сколько за ним открытой работы —
+чтобы до блокировки предупредить, что связки и этапы останутся за ним.
+
+```json
+{ "data": { "id": "…", "email": "manager@skilllink.demo", "fullName": "Кириллов Пётр Андреевич",
+            "position": "Менеджер партнёрств ИТ-Школы", "role": "MANAGER", "universityId": null,
+            "universityName": null, "isActive": true,
+            "openCooperations": 3, "openStages": 20, "createdAt": "…" } }
+```
+
+`openCooperations` — связки в статусах `DRAFT`, `ACTIVE`, `PAUSED`, где он ответственный;
+`openStages` — его этапы `NOT_STARTED`/`IN_PROGRESS`/`BLOCKED` в таких связках. Нет такого — 404.
+
+#### PATCH /api/users/:id
+
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
+
+Любое подмножество полей: `fullName`, `position`, `role`, `universityId`, `isActive`.
+Почта не меняется (это логин), пароль — отдельным маршрутом. Пустое тело — 422. Ответ — `UserDto`.
+
+```bash
+curl -X PATCH http://localhost:3000/api/users/<id> -H 'content-type: application/json' \
+  -H 'cookie: skilllink_user=<id администратора>' -d '{"isActive":false}'
+```
+
+**Блокировка** (`isActive: false`) действует сразу: `getCurrentUser()` читает пользователя
+из базы с `isActive: true` на каждый запрос, поэтому уже выданная сессия заблокированного
+перестаёт работать со следующего запроса, а вход по паролю не принимается.
+
+Отказы — `CONFLICT` 409 с понятным текстом:
+
+| Когда | Текст |
+| --- | --- |
+| администратор блокирует себя | «Нельзя заблокировать собственную учётную запись» |
+| администратор снимает с себя роль `ADMIN` | «Нельзя снять роль администратора с самого себя: это сделает другой администратор» |
+| изменение оставит систему без действующего администратора | «Это последний действующий администратор…» |
+| `MANAGER`/`ADMIN` с открытыми связками или этапами переводится в роль, которая не может быть ответственной | «Сначала передайте связки: сотрудник отвечает за 3 открытые связки и 20 незакрытых этапов…», `details: { openCooperations, openStages }` |
+
+Ответственного **можно заблокировать** — отказа нет, интерфейс предупреждает, сколько работы
+за ним останется. Правило «ответственный — только ADMIN/MANAGER» (`assertStaffResponsible`)
+действует при назначении, как и раньше. Проверки идут в транзакции с блокировкой строк
+действующих администраторов: две одновременные блокировки друг друга не оставят систему
+без администратора.
+
+Журнал: `user.role.change` с `{ from, to }`, `user.block`, `user.unblock`, `user.update`
+с `{ fields: [...] }` — только имена полей (ФИО, должность, вуз), без значений.
+
+#### POST /api/users/:id/password-reset
+
+**Общие демо-учётные записи** (`admin@skilllink.demo`, `manager@…`, `manager2@…`, `analyst@…`,
+`viewer@…`, `rep@spbgu.example.invalid` — `SHARED_DEMO_ACCOUNTS` в `auth.config.ts`): под ними
+входят все проверяющие стенда, поэтому их пароль, роль, данные и доступ не меняются —
+`409 CONFLICT` «Это общая демо-учётная запись…». Всё это проверяется на заведённом пользователе.
+
+Новый временный пароль. Тела нет. Ответ `200` — как у `POST /api/users`:
+`{ "data": { "user": { … }, "temporaryPassword": "…" } }`. Старый пароль перестаёт подходить
+сразу; блокировка входа после неудачных попыток с этой учётной записи снимается.
+
+Свой пароль так не меняется — 409 «Свой пароль меняйте в личном кабинете: там нужен текущий
+пароль» (`POST /api/me/password`). Журнал: `user.password.reset` — без пароля.
+
+```bash
+curl -X POST http://localhost:3000/api/users/<id>/password-reset \
+  -H 'cookie: skilllink_user=<id администратора>'
+```
 
 ---
 
@@ -1982,12 +2142,21 @@ curl -s -X POST http://localhost:3000/api/ai/today
         "reason": "Интеграция выключена: LMS_ENABLED=false", "isMock": true },
       { "key": "site", "name": "Сайт (демонстрационный режим)", "…": "…" }
     ],
+    "aiAssist": { "provider": "yandexgpt", "name": "YandexGPT", "ready": true,
+                  "model": "yandexgpt-lite", "reason": null },
     "checkedAt": "…"
   }
 }
 ```
 
 Наличие конкретных внутренних API заказчика не утверждается.
+
+`aiAssist` (с 25.09.2026, решение 99) — ИИ-помощник (решение 90): `provider` — `off`,
+`yandexgpt` или `gigachat` (`AI_ASSIST_PROVIDER`); `ready` — заданы ключ (и у YandexGPT
+каталог), связь с моделью не проверяется; `model` — из настройки, у выключенного `null`;
+`reason` — чего не хватает («Не задано: YANDEX_FOLDER_ID») или «Помощник выключен:
+AI_ASSIST_PROVIDER=off». **Ни ключей, ни их фрагментов, ни идентификатора каталога в ответе
+нет** — только имена недостающих переменных. Прежние поля ответа не менялись.
 
 ### POST /api/data-sources/sync
 
@@ -2171,6 +2340,16 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 ```
 
 `payload` — это разные поля у разных действий. Персональных данных в нём нет.
+
+`cooperationId` (с 25.09.2026, решение 99) — связка, к которой относится этап
+(`objectType: "WorkflowStage"`) или пункт чек-листа (`"Task"`): своей страницы у них нет,
+открываются они на странице связки. У остальных объектов — `null`.
+
+Коды действий и типов объектов — `AUDIT_ACTIONS` и `AUDIT_OBJECT_TYPES`
+в `shared/contracts/audit.ts`, подписи — `AUDIT_ACTION_LABELS` и `AUDIT_OBJECT_TYPE_LABELS`
+в `shared/contracts/labels.ts`. С 25.09.2026 добавлены действия `user.create`, `user.update`,
+`user.role.change`, `user.block`, `user.unblock`, `user.password.reset`, `user.password.change`
+(объект `User`, `objectId` — id пользователя). Ни пароль, ни хеш в журнал не пишутся.
 
 ---
 

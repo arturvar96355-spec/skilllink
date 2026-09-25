@@ -121,6 +121,9 @@ async function warmUp(): Promise<void> {
     '/api/workflow/overdue',
     '/api/workflow/blocked',
     '/api/audit?pageSize=1',
+    '/api/me/password',
+    '/api/users/warm-up',
+    '/api/users/warm-up/password-reset',
     '/api/data-sources',
     '/api/integrations/status',
     '/api/document-templates',
@@ -2854,6 +2857,258 @@ async function main(): Promise<void> {
         `${new Set(comparable).size} разных из ${expected.length}`,
       )
     }
+    actAs(null)
+  }
+
+  // ── Управление пользователями и смена пароля ──────────────────────────────
+  step('Пользователи: временный пароль, смена пароля, блокировка — и права администратора')
+
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+  } else {
+    /**
+     * Вход по паролю тем же путём, что у smoke.ts и у экрана входа: csrf-токен
+     * и форма в NextAuth. Возвращает cookie сессии или null, если вход не принят.
+     * Своё хранилище cookie на каждую попытку: демо-cookie пробника сюда не идёт.
+     */
+    const passwordLogin = async (email: string, password: string): Promise<string | null> => {
+      const csrf = await fetch(`${BASE_URL}/api/auth/csrf`)
+      const csrfCookie = (csrf.headers.getSetCookie?.() ?? []).map((line) => line.split(';')[0]).join('; ')
+      const { csrfToken } = (await csrf.json()) as { csrfToken: string }
+      const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: csrfCookie },
+        body: new URLSearchParams({ csrfToken, email, password }).toString(),
+      })
+      const session = (response.headers.getSetCookie?.() ?? [])
+        .map((line) => line.split(';')[0]!)
+        .find((pair) => /session-token=./.test(pair))
+      return session ?? null
+    }
+
+    /** Запрос под настоящей сессией, без демо-cookie. */
+    const asSession = async <T>(cookie: string, method: string, path: string, body?: unknown): Promise<Result<T>> => {
+      const response = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      })
+      const raw = await response.text()
+      let parsed: Result<T>['body'] = {}
+      try {
+        parsed = raw ? JSON.parse(raw) : {}
+      } catch {
+        parsed = {}
+      }
+      return { status: response.status, body: parsed, raw }
+    }
+
+    // Отказ всем, кроме администратора, — на каждом новом маршруте администратора.
+    const adminOnly: Array<[string, string, unknown]> = [
+      ['POST', '/api/users', { email: 'x@example.invalid', fullName: 'Проба Прав', role: 'VIEWER' }],
+      ['GET', `/api/users/${managerId}`, undefined],
+      ['PATCH', `/api/users/${managerId}`, { position: 'Проба прав' }],
+      ['POST', `/api/users/${managerId}/password-reset`, undefined],
+    ]
+    for (const actor of [managerId, rep.id]) {
+      actAs(actor)
+      for (const [method, path, body] of adminOnly) {
+        const result = await call(method, path, body)
+        check(
+          `${actor === managerId ? 'менеджеру' : 'представителю вуза'}: ${method} ${path.replace(managerId, ':id')} — 403`,
+          result.status === 403,
+          `статус ${result.status}`,
+        )
+      }
+    }
+
+    // Маршрут смены пароля представителю открыт (не 403), но демо-представитель — общая
+    // учётка стенда: её пароль не меняется (409), чтобы один проверяющий не закрыл вход другим.
+    actAs(rep.id)
+    const repChange = await call<unknown>('POST', '/api/me/password', {
+      currentPassword: 'заведомо-неверный-текущий',
+      newPassword: 'новый-пароль-представителя',
+    })
+    check(
+      'демо-представитель: пароль общей учётки не меняется — 409, а не 403',
+      repChange.status === 409 && repChange.raw.includes('общая демо-учётная запись'),
+      `статус ${repChange.status}`,
+    )
+
+    // Общие демо-учётки не меняет и администратор: ни пароль, ни доступ, ни данные.
+    actAs(adminId)
+    for (const [method, path, body] of [
+      ['POST', `/api/users/${managerId}/password-reset`, undefined],
+      ['PATCH', `/api/users/${managerId}`, { isActive: false }],
+      ['PATCH', `/api/users/${managerId}`, { position: 'Проба' }],
+    ] as Array<[string, string, unknown]>) {
+      const result = await call(method, path, body)
+      check(
+        `администратор: ${method} общей демо-учётки менеджера — 409`,
+        result.status === 409,
+        `статус ${result.status}`,
+      )
+    }
+
+    // Администратор заводит пользователя: пароль в ответе один раз, кэш запрещён.
+    actAs(adminId)
+    const email = `probe-user-${Date.now()}@example.invalid`
+    const createdResponse = await fetch(`${BASE_URL}/api/users`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: `skilllink_user=${adminId}` },
+      body: JSON.stringify({ email: email.toUpperCase(), fullName: 'Пробный Сотрудник Пробникович', role: 'VIEWER' }),
+    })
+    const created = (await createdResponse.json()) as {
+      data?: { user: { id: string; email: string | null }; temporaryPassword: string }
+    }
+    const newUser = created.data?.user
+    const temporary = created.data?.temporaryPassword ?? ''
+    check('администратор заводит пользователя — 201', createdResponse.status === 201, `статус ${createdResponse.status}`)
+    check('почта сохранена в нижнем регистре', newUser?.email === email, newUser?.email ?? '')
+    check(
+      'временный пароль — 14 знаков без похожих букв',
+      /^[A-HJKMNP-Za-hjkmnp-z2-9]{14}$/.test(temporary),
+      `${temporary.length} знаков`,
+    )
+    check('ответ с паролем не кэшируется', createdResponse.headers.get('cache-control') === 'no-store', createdResponse.headers.get('cache-control') ?? '')
+
+    const duplicate = await call('POST', '/api/users', { email, fullName: 'Дубль Дублевич', role: 'VIEWER' })
+    check('та же почта второй раз — 409', duplicate.status === 409, `статус ${duplicate.status}`)
+
+    if (newUser) {
+      const userAudit = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${newUser.id}`)
+      check(
+        'в журнале заведение есть, пароля и почты нет',
+        (userAudit.body.data ?? []).some((entry) => entry.action === 'user.create') &&
+          !userAudit.raw.includes(temporary) &&
+          !userAudit.raw.includes(email),
+      )
+
+      // Вход по временному паролю — тем же входом NextAuth.
+      const firstSession = await passwordLogin(email, temporary)
+      check('вход по временному паролю принят', firstSession !== null)
+      if (firstSession) {
+        const me = await asSession<{ id: string; passwordTemporary: boolean }>(firstSession, 'GET', '/api/me')
+        check('сессия — от имени нового пользователя', me.body.data?.id === newUser.id)
+        check('кабинет знает, что пароль временный', me.body.data?.passwordTemporary === true)
+
+        const wrong = await asSession(firstSession, 'POST', '/api/me/password', {
+          currentPassword: 'не-тот-пароль',
+          newPassword: 'собственный-пароль-1',
+        })
+        check('неверный текущий пароль — 422', wrong.status === 422, `статус ${wrong.status}`)
+        const asEmail = await asSession(firstSession, 'POST', '/api/me/password', {
+          currentPassword: temporary,
+          newPassword: email,
+        })
+        check('новый пароль, равный почте, — 422', asEmail.status === 422, `статус ${asEmail.status}`)
+        const short = await asSession(firstSession, 'POST', '/api/me/password', {
+          currentPassword: temporary,
+          newPassword: 'коротко',
+        })
+        check('новый пароль короче 10 символов — 422', short.status === 422, `статус ${short.status}`)
+
+        const OWN = 'собственный-пароль-1'
+        const changed = await asSession(firstSession, 'POST', '/api/me/password', {
+          currentPassword: temporary,
+          newPassword: OWN,
+        })
+        check('пароль сменён — 200', changed.status === 200, `статус ${changed.status}`)
+        const afterChange = await asSession<{ passwordTemporary: boolean }>(firstSession, 'GET', '/api/me')
+        check('после смены пароль больше не временный', afterChange.body.data?.passwordTemporary === false)
+        check('журнал без пароля', !(await call('GET', `/api/audit?objectId=${newUser.id}`)).raw.includes(OWN))
+
+        check('старый (временный) пароль больше не подходит', (await passwordLogin(email, temporary)) === null)
+        const ownSession = await passwordLogin(email, OWN)
+        check('новый пароль подходит', ownSession !== null)
+
+        // Блокировка: вход и уже выданная сессия перестают работать сразу.
+        const blocked = await call<{ isActive: boolean }>('PATCH', `/api/users/${newUser.id}`, { isActive: false })
+        check('администратор блокирует — 200', blocked.status === 200 && blocked.body.data?.isActive === false)
+        if (ownSession) {
+          // В демо-режиме запрос без действующей сессии уходит к демо-пользователю,
+          // поэтому проверяется не код ответа, а то, от чьего имени он дан.
+          const meBlocked = await asSession<{ id: string }>(ownSession, 'GET', '/api/me')
+          check(
+            'выданная сессия заблокированного больше не действует',
+            meBlocked.status === 401 || meBlocked.body.data?.id !== newUser.id,
+            `статус ${meBlocked.status}`,
+          )
+        }
+        check('заблокированный не входит и с верным паролем', (await passwordLogin(email, OWN)) === null)
+
+        const unblocked = await call<{ isActive: boolean }>('PATCH', `/api/users/${newUser.id}`, { isActive: true })
+        check('администратор разблокирует — 200', unblocked.status === 200 && unblocked.body.data?.isActive === true)
+        check('после разблокировки вход снова работает', (await passwordLogin(email, OWN)) !== null)
+
+        // Новый временный пароль: старый перестаёт подходить.
+        const reset = await call<{ temporaryPassword: string }>('POST', `/api/users/${newUser.id}/password-reset`)
+        const resetPassword = reset.body.data?.temporaryPassword ?? ''
+        check('новый временный пароль выдан — 200', reset.status === 200 && resetPassword.length === 14)
+        check('после сброса новый временный подходит', (await passwordLogin(email, resetPassword)) !== null)
+        check('после сброса прежний пароль не подходит', (await passwordLogin(email, OWN)) === null)
+
+        const roleAudit = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${newUser.id}&pageSize=50`)
+        const actions = new Set((roleAudit.body.data ?? []).map((entry) => entry.action))
+        check(
+          'журнал: заведение, смена пароля, блокировка, разблокировка, сброс',
+          ['user.create', 'user.password.change', 'user.block', 'user.unblock', 'user.password.reset'].every((action) =>
+            actions.has(action),
+          ),
+          [...actions].join(', '),
+        )
+      }
+    }
+
+    // Защиты администратора.
+    const selfBlock = await call('PATCH', `/api/users/${adminId}`, { isActive: false })
+    check('администратор не блокирует себя — 409', selfBlock.status === 409, `статус ${selfBlock.status}`)
+    const selfDemote = await call('PATCH', `/api/users/${adminId}`, { role: 'MANAGER' })
+    check('администратор не снимает с себя роль — 409', selfDemote.status === 409, `статус ${selfDemote.status}`)
+    // Правила смены роли — на заведённом менеджере: общие демо-учётки не меняются (409).
+    const handover = await call<{ user: { id: string } }>('POST', '/api/users', {
+      email: `probe-manager-${Date.now()}@example.invalid`,
+      fullName: 'Пробный Менеджер Передачи',
+      role: 'MANAGER',
+    })
+    const handoverId = handover.body.data?.user.id
+    const openCooperation = (
+      await call<Array<{ id: string }>>('GET', '/api/cooperations?status=ACTIVE&pageSize=1')
+    ).body.data?.[0]?.id
+    if (handoverId && openCooperation) {
+      const before = (
+        await call<{ responsible?: { id: string } | null }>('GET', `/api/cooperations/${openCooperation}`)
+      ).body.data?.responsible?.id
+      await call('PATCH', `/api/cooperations/${openCooperation}`, { responsibleId: handoverId })
+      const demote = await call<unknown>('PATCH', `/api/users/${handoverId}`, { role: 'ANALYST' })
+      check(
+        'менеджера с открытыми связками не перевести в аналитика — 409 «сначала передайте связки»',
+        demote.status === 409 && demote.raw.includes('Сначала передайте связки'),
+        `статус ${demote.status}`,
+      )
+      if (before) await call('PATCH', `/api/cooperations/${openCooperation}`, { responsibleId: before })
+      const repWithoutUniversity = await call('PATCH', `/api/users/${handoverId}`, { role: 'UNIVERSITY_REP' })
+      check('представитель без вуза — 422', repWithoutUniversity.status === 422, `статус ${repWithoutUniversity.status}`)
+    } else {
+      check('для проверки передачи связок есть менеджер и открытая связка', false, 'нужен npm run db:seed')
+    }
+
+    // Журнал: этап ведёт на свою связку; статус ИИ — без ключей.
+    const stageAudit = await call<Array<{ cooperationId: string | null }>>(
+      'GET',
+      '/api/audit?objectType=WorkflowStage&pageSize=5',
+    )
+    check(
+      'запись журнала об этапе знает свою связку',
+      (stageAudit.body.data ?? []).length > 0 && (stageAudit.body.data ?? []).every((entry) => entry.cooperationId),
+    )
+    const integrations = await call<{ aiAssist?: { provider: string; ready: boolean } }>('GET', '/api/integrations/status')
+    check(
+      'в состоянии интеграций есть ИИ-помощник',
+      typeof integrations.body.data?.aiAssist?.provider === 'string' &&
+        typeof integrations.body.data?.aiAssist?.ready === 'boolean',
+    )
     actAs(null)
   }
 
