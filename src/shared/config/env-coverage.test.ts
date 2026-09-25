@@ -54,6 +54,17 @@ function usedNames(): Set<string> {
     }
   }
 
+  // Скрипты сервера (scripts/deploy/*.sh) читают свои настройки из .env.cloud
+  // хелпером env_get (offsite-lib.sh). Приложение их не видит, но описаны они там же.
+  const deployDir = join(ROOT, 'scripts', 'deploy')
+  for (const entry of readdirSync(deployDir)) {
+    if (!entry.endsWith('.sh')) continue
+    const content = readFileSync(join(deployDir, entry), 'utf8')
+    for (const match of content.matchAll(/\benv_get ([A-Z_0-9]+)/g)) {
+      names.add(match[1]!)
+    }
+  }
+
   for (const runtime of RUNTIME) names.delete(runtime)
   return names
 }
