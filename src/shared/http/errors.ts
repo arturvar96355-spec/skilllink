@@ -9,6 +9,8 @@ export const ERROR_STATUS = {
   CONFLICT: 409,
   INVALID_TRANSITION: 409,
   INTEGRATION_ERROR: 502,
+  /** Превышен предел частоты запросов (решение 117). Ответ несёт `Retry-After`. */
+  RATE_LIMITED: 429,
   INTERNAL: 500,
 } as const
 

@@ -17,6 +17,7 @@ export type ApiErrorCode =
   | 'CONFLICT'
   | 'INVALID_TRANSITION'
   | 'INTEGRATION_ERROR'
+  | 'RATE_LIMITED'
   | 'INTERNAL'
 
 /** Происхождение показателя. Обязательно для всего, что считается системой (решение 8). */
