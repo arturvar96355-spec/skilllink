@@ -135,6 +135,8 @@ async function warmUp(): Promise<void> {
     '/api/workflow/overdue',
     '/api/workflow/blocked',
     '/api/audit?pageSize=1',
+    '/api/audit/verify',
+    '/api/audit/seals?pageSize=1',
     '/api/me/password',
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
@@ -147,6 +149,11 @@ async function warmUp(): Promise<void> {
     '/api/openapi.json',
     '/api/me/calendar',
     '/api/calendar/warm-up.ics',
+    '/api/admin/dsar/requests',
+    '/api/admin/dsar/users/warm-up/export',
+    '/api/admin/dsar/contacts/warm-up/export',
+    '/api/admin/dsar/users/warm-up/erase',
+    '/api/admin/dsar/contacts/warm-up/erase',
   ]
 
   await Promise.all(
@@ -996,6 +1003,56 @@ async function checkAuditAdminOnly(ctx: ProbeContext): Promise<void> {
     check('администратору журнал открыт', auditAsAdmin.status === 200)
     actAs(null)
   }
+}
+
+/**
+ * Журнал с защитой от подмены (решение 115): проверка цепочки и печати — только
+ * администратору; сама проверка пишется в журнал и продлевает цепочку.
+ * Подмену строк, удаление и гонку вставок проверяет chain.db.test.ts на временной схеме:
+ * пробник ходит только через API и настоящий журнал не портит.
+ */
+async function checkAuditChain(ctx: ProbeContext): Promise<void> {
+  step('5а. Журнал действий: цепочка хешей и печати')
+  const { adminId } = ctx
+
+  const verifyAsManager = await call('GET', '/api/audit/verify')
+  const sealsAsManager = await call('GET', '/api/audit/seals')
+  check(
+    'менеджеру проверка журнала и печати закрыты',
+    verifyAsManager.status === 403 && sealsAsManager.status === 403,
+    `статусы ${verifyAsManager.status}, ${sealsAsManager.status}`,
+  )
+  if (!adminId) return
+
+  type Verify = { ok: boolean; checked: number; headSeq: number; headHash: string | null; reason: string | null }
+  actAs(adminId)
+  const logged = async () =>
+    Number((await call<unknown[]>('GET', '/api/audit?action=audit.verify&pageSize=1')).body.meta?.total ?? -1)
+  const before = await logged()
+  const first = await call<Verify>('GET', '/api/audit/verify')
+  const data = first.body.data
+  check(
+    'администратору: цепочка журнала цела',
+    first.status === 200 && data?.ok === true && (data?.checked ?? 0) > 0,
+    `статус ${first.status}, ${data?.reason ?? `строк ${data?.checked}`}`,
+  )
+  check(
+    'голова цепочки — номер и SHA-256',
+    (data?.headSeq ?? 0) > 0 && /^[0-9a-f]{64}$/.test(data?.headHash ?? ''),
+    `№ ${data?.headSeq}`,
+  )
+  check('проверка записана в журнал', (await logged()) === before + 1)
+
+  const second = await call<Verify>('GET', '/api/audit/verify')
+  check(
+    'запись о проверке продлила цепочку, и она снова цела',
+    second.body.data?.ok === true && (second.body.data?.headSeq ?? 0) > (data?.headSeq ?? 0),
+    `№ ${data?.headSeq} → № ${second.body.data?.headSeq}`,
+  )
+
+  const seals = await call<unknown[]>('GET', '/api/audit/seals?pageSize=5')
+  check('печати открываются списком', seals.status === 200 && Array.isArray(seals.body.data), `статус ${seals.status}`)
+  actAs(null)
 }
 
 async function checkConcurrentStageChanges(ctx: ProbeContext): Promise<void> {
@@ -4460,6 +4517,325 @@ async function checkCalendarFeed(ctx: ProbeContext): Promise<void> {
 
 /** Итог прогона: число проверок и список провалившихся. */
 /**
+ * Общее ограничение частоты запросов к API (решение 117).
+ *
+ * Заголовки `RateLimit-*` проверяются всегда. Отказ 429 — через счёт пробника:
+ * сервер, запущенный с `RATE_LIMIT_TEST_OVERRIDE` в демо-режиме, даёт запросам
+ * с заголовком `X-Rate-Limit-Test` свой счёт с этим низким пределом. Тысячи
+ * запросов ради общего предела не нужны, и общий счёт адреса не расходуется.
+ */
+async function checkRateLimit(ctx: ProbeContext): Promise<void> {
+  step('Ограничение частоты запросов: заголовки и отказ 429')
+
+  actAs(ctx.managerId)
+  const headers = (response: Response) => ({
+    limit: Number(response.headers.get('ratelimit-limit')),
+    remaining: Number(response.headers.get('ratelimit-remaining')),
+    reset: Number(response.headers.get('ratelimit-reset')),
+    retryAfter: response.headers.get('retry-after'),
+  })
+  const get = (path: string, testKey?: string) =>
+    fetch(`${BASE_URL}${path}`, {
+      headers: {
+        ...(actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {}),
+        ...(testKey ? { 'x-rate-limit-test': testKey } : {}),
+      },
+    })
+
+  const plain = await get('/api/me')
+  const seen = headers(plain)
+  check('ответ API несёт RateLimit-Limit', Number.isInteger(seen.limit) && seen.limit > 0, `${seen.limit}`)
+  check(
+    'RateLimit-Remaining — число не больше предела',
+    Number.isInteger(seen.remaining) && seen.remaining >= 0 && seen.remaining < seen.limit,
+    `${seen.remaining} из ${seen.limit}`,
+  )
+  check('RateLimit-Reset — от 1 до 60 секунд', seen.reset >= 1 && seen.reset <= 60, `${seen.reset}`)
+  check('на обычном ответе Retry-After нет', seen.retryAfter === null)
+
+  const health = await fetch(`${BASE_URL}/api/health`)
+  check('проверка живости не ограничивается', health.headers.get('ratelimit-limit') === null)
+
+  const unauthenticated = await fetch(`${BASE_URL}/api/login-challenge`)
+  check(
+    'задача «не робот» считается в группе входа',
+    unauthenticated.headers.get('ratelimit-limit') !== null && headers(unauthenticated).limit !== seen.limit,
+    `предел ${headers(unauthenticated).limit}`,
+  )
+
+  const testKey = `probe-${Date.now().toString(36)}`
+  const first = await get('/api/me', testKey)
+  const limit = headers(first).limit
+  if (!(limit > 0 && limit <= 20)) {
+    console.log(
+      `  ${GREY}··   отказ 429 не проверен: сервер запущен без RATE_LIMIT_TEST_OVERRIDE ` +
+        `(или не в демо-режиме) — предел ${limit}${RESET}`,
+    )
+    actAs(null)
+    return
+  }
+
+  const statuses = [first.status]
+  const remaining = [headers(first).remaining]
+  for (let index = 1; index < limit; index += 1) {
+    const response = await get('/api/me', testKey)
+    statuses.push(response.status)
+    remaining.push(headers(response).remaining)
+  }
+  check(
+    `первые ${limit} запросов проходят, остаток убывает до нуля`,
+    statuses.every((status) => status === 200) && remaining.at(-1) === 0 && remaining[0] === limit - 1,
+    `статусы ${statuses.join(',')}; остаток ${remaining.join(',')}`,
+  )
+
+  const rejected = await get('/api/me', testKey)
+  const rejectedHeaders = headers(rejected)
+  const retryAfter = Number(rejectedHeaders.retryAfter)
+  let body: { error?: { code?: string; message?: string } } = {}
+  try {
+    body = (await rejected.json()) as typeof body
+  } catch {
+    body = {}
+  }
+  check('сверх предела — 429', rejected.status === 429, `статус ${rejected.status}`)
+  check(
+    'Retry-After — целое от 1 до 60',
+    Number.isInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 60,
+    `${rejectedHeaders.retryAfter}`,
+  )
+  check('на отказе RateLimit-Remaining: 0', rejectedHeaders.remaining === 0)
+  check(
+    'тело отказа — ошибка контракта RATE_LIMITED с русским текстом',
+    body.error?.code === 'RATE_LIMITED' && /[а-яё]/i.test(body.error?.message ?? ''),
+    `${body.error?.code}: ${body.error?.message}`,
+  )
+
+  const again = await get('/api/me', testKey)
+  check('отказы не засчитываются, но и не пропускают раньше срока', again.status === 429, `статус ${again.status}`)
+
+  const otherKey = await get('/api/me', `${testKey}-other`)
+  check('у другого счёта предел свой', otherKey.status === 200, `статус ${otherKey.status}`)
+  const general = await get('/api/me')
+  check('общий счёт того же адреса не задет', general.status === 200, `статус ${general.status}`)
+
+  if (ctx.adminId) {
+    actAs(ctx.adminId)
+    const journal = await call<Array<{ payload: Record<string, unknown> | null }>>(
+      'GET',
+      '/api/audit?action=api.rate-limit.exceeded&pageSize=5',
+    )
+    const entry = journal.body.data?.[0]
+    check(
+      'превышение записано в журнал действий — без адреса и пути',
+      journal.status === 200 &&
+        entry !== undefined &&
+        !JSON.stringify(entry).includes('/api/me') &&
+        !/\d+\.\d+\.\d+\.\d+/.test(JSON.stringify(entry.payload)),
+      `записей ${journal.body.data?.length ?? 0}`,
+    )
+  }
+  actAs(null)
+}
+
+/**
+ * «Всё о субъекте» по 152-ФЗ (решение 116): права, состав выгрузки, отсутствие секретов,
+ * реестр запросов со сроком, самостоятельная выгрузка с ограничением частоты и
+ * обезличивание по запросу. Субъекты — свои, заведённые пробником: демо-данные не трогаются.
+ */
+async function checkDsar(ctx: ProbeContext): Promise<void> {
+  step('Права субъекта ПД: выгрузка «всё о субъекте», реестр запросов, обезличивание (решение 116)')
+  const { rep, adminId, managerId } = ctx
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+    return
+  }
+
+  /** Пути ко всем ключам, похожим на секрет, — рекурсивно. */
+  const secretKeys = (value: unknown, path = ''): string[] => {
+    if (Array.isArray(value)) return value.flatMap((item, index) => secretKeys(item, `${path}[${index}]`))
+    if (value === null || typeof value !== 'object') return []
+    return Object.entries(value).flatMap(([key, nested]) => [
+      ...(/password|secret|token|hash/i.test(key) ? [`${path}.${key}`] : []),
+      ...secretKeys(nested, `${path}.${key}`),
+    ])
+  }
+  const REQUIRED_KEYS = [
+    'subject', 'generatedAt', 'operator', 'purposes', 'legalBasis', 'categories', 'sources',
+    'recipients', 'retention', 'data', 'auditTrail', 'counts',
+  ]
+
+  // Свои субъекты: пользователь-наблюдатель и контакт в своём пробном вузе.
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const email = `probe-dsar-${sfx}@example.invalid`
+  const createdUser = await call<{ user: { id: string } }>('POST', '/api/users', {
+    email,
+    fullName: `Пробный Субъект ${sfx}`,
+    role: 'VIEWER',
+  })
+  const subjectId = createdUser.body.data?.user.id
+  const contactName = `Пробный Контакт Субъекта ${sfx}`
+  const createdUniversity = await call<{ id: string; contacts: Array<{ id: string }> }>('POST', '/api/universities', {
+    name: `Пробный вуз прав субъекта ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+    contacts: [{ fullName: contactName, position: 'Методист', email: `probe-dsar-contact-${sfx}@example.invalid`, isPrimary: true }],
+  })
+  const contactId = createdUniversity.body.data?.contacts[0]?.id
+  check('заведены пробный пользователь и контакт', Boolean(subjectId && contactId))
+  if (!subjectId || !contactId) {
+    actAs(null)
+    return
+  }
+
+  // Права: всё администраторское — только ADMIN.
+  const adminOnly: Array<[string, string, unknown]> = [
+    ['GET', `/api/admin/dsar/users/${subjectId}/export`, undefined],
+    ['GET', `/api/admin/dsar/contacts/${contactId}/export`, undefined],
+    ['POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: email }],
+    ['POST', `/api/admin/dsar/contacts/${contactId}/erase`, { confirm: contactName }],
+    ['GET', '/api/admin/dsar/requests', undefined],
+    ['POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' }],
+  ]
+  for (const [label, actor] of [['менеджеру', managerId], ['представителю вуза', rep.id]] as const) {
+    actAs(actor)
+    for (const [method, path, body] of adminOnly) {
+      const result = await call(method, path, body)
+      check(`${label}: ${method} ${path.replace(subjectId, ':id').replace(contactId, ':id')} — 403`, result.status === 403, `статус ${result.status}`)
+    }
+  }
+
+  // Запрос по письму: срок — 10 рабочих дней, повтор — 409.
+  actAs(adminId)
+  type Request = { id: string; status: string; dueAt: string; requestedAt: string; overdue: boolean }
+  const registered = await call<Request>('POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' })
+  const dueDays = registered.body.data
+    ? (Date.parse(registered.body.data.dueAt) - Date.parse(registered.body.data.requestedAt)) / 86_400_000
+    : 0
+  check(
+    'запрос по письму зарегистрирован, срок 10 рабочих дней (14–25 календарных)',
+    registered.status === 201 && registered.body.data?.status === 'OPEN' && dueDays >= 13 && dueDays <= 26,
+    `статус ${registered.status}, дней до срока ${dueDays.toFixed(1)}`,
+  )
+  const duplicate = await call('POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' })
+  check('второй открытый запрос того же вида — 409', duplicate.status === 409, `статус ${duplicate.status}`)
+  const unknownSubject = await call('POST', '/api/admin/dsar/requests', { subjectType: 'CONTACT', subjectId: 'нет-такого', kind: 'ERASE' })
+  check('запрос о несуществующем субъекте — 422', unknownSubject.status === 422, `статус ${unknownSubject.status}`)
+
+  // Выгрузка администратором: заголовки, ключи, нет секретов, закрывает запрос.
+  const response = await fetch(`${BASE_URL}/api/admin/dsar/users/${subjectId}/export`, {
+    headers: { cookie: `skilllink_user=${adminId}` },
+  })
+  const raw = await response.text()
+  let exported: Record<string, unknown> = {}
+  try {
+    exported = (JSON.parse(raw) as { data: Record<string, unknown> }).data ?? {}
+  } catch {
+    exported = {}
+  }
+  check(
+    'выгрузка пользователя: 200, вложение, no-store',
+    response.status === 200 &&
+      (response.headers.get('content-disposition') ?? '').startsWith('attachment') &&
+      (response.headers.get('cache-control') ?? '').includes('no-store'),
+    `статус ${response.status}`,
+  )
+  const missingKeys = REQUIRED_KEYS.filter((key) => !(key in exported))
+  check('в выгрузке все сведения ч. 7 ст. 14 и данные', missingKeys.length === 0, missingKeys.join(', '))
+  const trail = exported.auditTrail as { byActor?: unknown; aboutSubject?: { total?: number } } | undefined
+  check('журнал: действия субъекта и действия над ним', Boolean(trail?.byActor) && (trail?.aboutSubject?.total ?? 0) >= 1)
+  const leaked = secretKeys(exported)
+  check('в выгрузке нет ключей password/secret/token/hash', leaked.length === 0, leaked.slice(0, 3).join(', '))
+  check('выгрузка содержит почту субъекта (это его данные)', raw.includes(email))
+  const closed = await call<Request[]>('GET', `/api/admin/dsar/requests?subjectType=USER&subjectId=${subjectId}`)
+  check(
+    'выгрузка закрыла запрос по письму',
+    (closed.body.data ?? []).some((item) => item.id === registered.body.data?.id && item.status === 'COMPLETED'),
+  )
+  const unknownExport = await call('GET', '/api/admin/dsar/users/нет-такого/export')
+  check('выгрузка несуществующего — 404', unknownExport.status === 404, `статус ${unknownExport.status}`)
+
+  const contactExport = await call<Record<string, unknown>>('GET', `/api/admin/dsar/contacts/${contactId}/export`)
+  const contactMissing = REQUIRED_KEYS.filter((key) => !(key in (contactExport.body.data ?? {})))
+  check(
+    'выгрузка контакта: все ключи, без секретов',
+    contactExport.status === 200 && contactMissing.length === 0 && secretKeys(contactExport.body.data).length === 0,
+    contactMissing.join(', '),
+  )
+
+  // Сам субъект: «Мои данные», второй раз подряд — 409.
+  actAs(subjectId)
+  const own = await call<{ subject: { id: string } }>('GET', '/api/me/data-export')
+  check('пользователь выгружает свои данные сам', own.status === 200 && own.body.data?.subject.id === subjectId, `статус ${own.status}`)
+  const again = await call('GET', '/api/me/data-export')
+  check('повтор раньше 10 минут — 409', again.status === 409, `статус ${again.status}`)
+
+  // Журнал: события DSAR без ПД.
+  actAs(adminId)
+  const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${subjectId}&pageSize=50`)
+  const actions = new Set((journal.body.data ?? []).map((entry) => entry.action))
+  check(
+    'журнал: dsar.requested и dsar.exported без почты субъекта',
+    actions.has('dsar.requested') && actions.has('dsar.exported') && !journal.raw.includes(email),
+  )
+
+  // Обезличивание: защита и результат.
+  const self = await call('POST', `/api/admin/dsar/users/${adminId}/erase`, { confirm: 'admin@skilllink.demo' })
+  check('обезличить себя — 409', self.status === 409, `статус ${self.status}`)
+  const shared = await call('POST', `/api/admin/dsar/users/${managerId}/erase`, { confirm: 'manager@skilllink.demo' })
+  check('обезличить общую демо-учётку — 409', shared.status === 409, `статус ${shared.status}`)
+  const wrong = await call('POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: 'чужой@example.invalid' })
+  check('неверное подтверждение — 422', wrong.status === 422, `статус ${wrong.status}`)
+  const erased = await call<{ alreadyErased: boolean; sections: Record<string, { rows: number }> }>(
+    'POST',
+    `/api/admin/dsar/users/${subjectId}/erase`,
+    { confirm: email.toUpperCase() },
+  )
+  check('обезличивание пользователя — 200', erased.status === 200 && erased.body.data?.alreadyErased === false, `статус ${erased.status}`)
+  const card = await call<{ fullName: string; email: string; isActive: boolean }>('GET', `/api/users/${subjectId}`)
+  check(
+    'после обезличивания: заглушка вместо ФИО и почты, учётная запись заблокирована',
+    card.body.data?.fullName === 'Пользователь удалён' && card.body.data.isActive === false && !card.raw.includes(email),
+  )
+  const repeat = await call<{ alreadyErased: boolean }>('POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: 'x' })
+  check('повтор обезличивания — 200 alreadyErased', repeat.status === 200 && repeat.body.data?.alreadyErased === true)
+  const afterExport = await call<{ subject: { erased: boolean } }>('GET', `/api/admin/dsar/users/${subjectId}/export`)
+  check(
+    'выгрузка после обезличивания: признак erased, прежней почты нет',
+    afterExport.body.data?.subject.erased === true && !afterExport.raw.includes(email),
+  )
+
+  const contactErase = await call<{ alreadyErased: boolean }>('POST', `/api/admin/dsar/contacts/${contactId}/erase`, {
+    confirm: contactName.toLowerCase(),
+  })
+  const universityCard = await call<{ contacts: Array<{ id: string; fullName: string; isAnonymized: boolean }> }>(
+    'GET',
+    `/api/universities/${createdUniversity.body.data?.id}`,
+  )
+  check(
+    'обезличивание контакта по запросу — тот же результат, что в карточке вуза',
+    contactErase.status === 200 &&
+      universityCard.body.data?.contacts.find((item) => item.id === contactId)?.isAnonymized === true,
+    `статус ${contactErase.status}`,
+  )
+  const overdue = await call<Request[]>('GET', '/api/admin/dsar/requests?overdue=true')
+  check('реестр: фильтр просроченных отвечает', overdue.status === 200 && Array.isArray(overdue.body.data))
+  actAs(null)
+}
+
+function printSummary(): void {
+  console.log(`\n${BOLD}Итог${RESET}`)
+  console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
+  if (failed > 0) {
+    console.log(`  ${RED}Найдено проблем: ${failed}${RESET}`)
+    for (const name of failures) console.log(`    ${RED}- ${name}${RESET}`)
+    process.exitCode = 1
+  } else {
+    console.log(`  ${GREEN}Проблем не найдено.${RESET}`)
+  }
+}
+
+/**
  * Аналитика этапов на статистике (решение 120): эндпоинты отвечают нужной формой,
  * некорректные параметры — 422, представителю вуза аналитика закрыта целиком
  * (решение 9: он не видит аналитику и чужие вузы — ни своих, ни чужих цифр здесь нет).
@@ -4616,18 +4992,6 @@ async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
-function printSummary(): void {
-  console.log(`\n${BOLD}Итог${RESET}`)
-  console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
-  if (failed > 0) {
-    console.log(`  ${RED}Найдено проблем: ${failed}${RESET}`)
-    for (const name of failures) console.log(`    ${RED}- ${name}${RESET}`)
-    process.exitCode = 1
-  } else {
-    console.log(`  ${GREEN}Проблем не найдено.${RESET}`)
-  }
-}
-
 async function main(): Promise<void> {
   console.log(`${BOLD}Пробник SkillLink${RESET}`)
   console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
@@ -4652,6 +5016,7 @@ async function main(): Promise<void> {
   await checkDoubleClick(ctx)
   await checkErrorContract()
   await checkAuditAdminOnly(ctx)
+  await checkAuditChain(ctx)
   await checkConcurrentStageChanges(ctx)
   await checkStageKeepsResultAndReason(ctx)
   await checkRecommendationReopens(ctx)
@@ -4690,6 +5055,8 @@ async function main(): Promise<void> {
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)
+  await checkDsar(ctx)
+  await checkRateLimit(ctx)
   await checkStageAnalytics(ctx)
 
   printSummary()

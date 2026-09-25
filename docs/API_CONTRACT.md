@@ -68,7 +68,26 @@
 | `CONFLICT` | 409 | Действие противоречит состоянию данных |
 | `INVALID_TRANSITION` | 409 | Недопустимый переход статуса этапа |
 | `INTEGRATION_ERROR` | 502 | Сбой внешнего сервиса |
+| `RATE_LIMITED` | 429 | Превышен предел частоты запросов (с 25.09.2026, решение 117). `details.retryAfterSeconds` и заголовок `Retry-After` — через сколько секунд повторить |
 | `INTERNAL` | 500 | Непредвиденная ошибка |
+
+**Ограничение частоты запросов** (решение 117). Все маршруты `/api/*`, кроме `/api/health`
+и `/api/telegram/webhook`, считают запросы скользящим окном в минуту и отвечают заголовками
+`RateLimit-Limit` (предел группы в минуту), `RateLimit-Remaining` (сколько осталось),
+`RateLimit-Reset` (через сколько секунд окно сдвинется). Сверх предела — `429` с кодом
+`RATE_LIMITED`, `Retry-After` от 1 до 60 секунд; отклонённые запросы не засчитываются.
+
+| Группа | Предел в минуту | Считается по | Маршруты |
+| --- | --- | --- | --- |
+| чтение | 300 | пользователю, без входа — адресу | `GET` |
+| запись | 60 | пользователю, без входа — адресу | `POST`, `PATCH`, `PUT`, `DELETE` |
+| тяжёлые | 10 | пользователю, без входа — адресу | `/api/export`, `/api/import`, `…/documents/generate`, `/api/recommendations/generate`, `/api/data-sources/sync`, `…/ai-summary`, `…/ai-letter`, выдача данных по запросу субъекта |
+| вход | 30 | адресу клиента | `GET /api/login-challenge`, `POST /api/auth/*` |
+| лента календаря | 60 | токену ленты | `GET /api/calendar/:feed` |
+
+Фронту: на `429` показать текст ошибки из ответа (он называет, сколько ждать) и не
+повторять запрос раньше `Retry-After`. В демо-режиме общий счёт только считает — заголовки
+есть, `429` нет.
 
 **Пределы базы проверяются на входе** (решение 52). Символ с кодом 0 в любом тексте
 тела или параметров запроса — `VALIDATION_ERROR` с именем поля, в пути — `NOT_FOUND`:
@@ -106,6 +125,7 @@ cookie пользователя. Серверные компоненты Next к
 | `credentials` | «Неверная почта или пароль». Какое из двух — не говорится намеренно |
 | `too_many_attempts` | «Слишком много попыток. Вход закрыт на 15 минут». После пяти неудач подряд — **даже с верным паролем**. Без этого сообщения человек решит, что забыл пароль |
 | `captcha_required` | Нужна проверка «не робот» (с 25.09.2026, решение 100). Пароль не проверялся, неудача не засчитана. Взять задачу `GET /api/login-challenge`, решить и повторить вход с полем `captcha` |
+| `rate_limited` | Слишком много запросов на вход с этого адреса (с 25.09.2026, решение 117). Пароль не проверялся. Ответ — `429`, ждать `Retry-After` секунд. **Экран входа пока показывает на него общее «Войти не удалось»** — задача фронта |
 
 **Проверка «не робот».** После трёх неудач подряд по учётной записи с одного адреса
 (или десяти по ней со всех адресов за час) вход ждёт решённую задачу: поле формы `captcha`
@@ -3014,6 +3034,79 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
 на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
+С 25.09.2026 (решение 115) — `audit.verify`: проверка целостности журнала, объект `AuditLog`,
+`objectId: "chain"`, `payload: { source: "api" | "script", ok, checked, headSeq, code?, brokenAt? }`
+— без хешей и содержимого строк.
+
+### GET /api/audit/verify
+
+Право: **`ADMIN`**. Остальным ролям — `FORBIDDEN` 403. Решение 115.
+
+Проверяет, что журнал не подменён: цепочку хешей записей (изменённая, удалённая,
+переставленная запись) и сверку с печатями (отрезанный хвост, пересчитанная история).
+Проверка идёт двумя независимыми путями — функцией в базе и кодом приложения; пройдена,
+только если оба согласны. Нарушение — это тоже ответ **200** с `ok: false`: запрос
+выполнен, результат — «журнал нарушен». Сам факт проверки пишется в журнал (`audit.verify`) —
+поэтому следующая проверка покажет `headSeq` на единицу больше.
+
+```json
+{
+  "data": {
+    "ok": true,
+    "checked": 412,
+    "code": null,
+    "brokenAt": null,
+    "brokenId": null,
+    "reason": null,
+    "headSeq": 412,
+    "headHash": "5b9801fee22a53fea6fa01c13457752a40b417cf867d38390fe32751db0c17f9",
+    "anchorSeq": 0,
+    "sealsChecked": 3,
+    "lastSeal": { "id": "3", "headSeq": 398, "headHash": "cdab…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" },
+    "verifiedAt": "2026-09-25T20:40:11.020Z"
+  }
+}
+```
+
+При нарушении:
+
+```json
+{ "data": { "ok": false, "checked": 2, "code": "rows_missing", "brokenAt": 4,
+  "brokenId": "cmub7a170008ftnrlc8cw4kr6", "reason": "Удалена строка № 3", "headSeq": 2, "…": "…" } }
+```
+
+| Поле | Описание |
+| --- | --- |
+| `ok` | журнал цел |
+| `checked` | сколько записей проверено до первого нарушения (или всего) |
+| `code` | `AUDIT_CHAIN_BREAK_CODES` в `shared/contracts/audit.ts`: `rows_missing`, `row_before_cut`, `link_broken`, `row_modified`, `row_unnumbered`, `tail_removed`, `history_rewritten`, `engines_disagree`; подписи для значка — `AUDIT_CHAIN_BREAK_LABELS` |
+| `brokenAt`, `brokenId` | номер записи в цепочке (`chain_seq`) и id записи журнала; у нарушений по печати `brokenId` — `null` |
+| `reason` | что не так, по-русски, готово к показу |
+| `headSeq`, `headHash` | номер и SHA-256 последней проверенной записи — их можно сверить с печатью, хранящейся вне системы |
+| `anchorSeq` | с какого номера цепочка законно начинается после чистки по сроку; `0` — чистки не было |
+| `sealsChecked`, `lastSeal` | сколько печатей сверено, последняя печать (`null` — не снимали) |
+
+Проверка читает весь журнал: на сотнях тысяч записей — секунды. Кнопку стоит блокировать
+до ответа.
+
+### GET /api/audit/seals
+
+Право: **`ADMIN`**. Решение 115. Печати журнала — голова цепочки на момент снятия,
+новые сверху. Параметры: `page`, `pageSize`. Печать снимает `npm run audit:seal`
+по расписанию, через API печать не создаётся.
+
+```json
+{
+  "data": [
+    { "id": "3", "headSeq": 398, "headHash": "cdabd190…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 3 }
+}
+```
+
+`headSeq: 0` и `headHash: null` — журнал был пуст. `count` меньше `headSeq` после чистки
+журнала по сроку.
+
 ---
 
 ## 15в. Групповая операция: выпуск версии продукта
@@ -3165,6 +3258,137 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 - `methodology` — документ репозитория и заголовок раздела; тест проверяет, что раздел есть.
 - `stages` — все 14 этапов: нормативный срок в днях от создания связки, контрольная точка,
   можно ли отменить как «не требуется», этап 14 — автоматический.
+
+## 15ж. Права субъекта ПД: «всё о субъекте», обезличивание, реестр запросов
+
+С 25.09.2026, решение 116. Субъекты ПД в системе — **пользователь** (`users`) и **контактное
+лицо вуза** (`contacts`). Что о них выгружается и что делает обезличивание, задаёт реестр
+`DSAR_REGISTRY` (`src/modules/dsar/dsar.registry.ts`). Право **`DSAR_MANAGE`** — только ADMIN;
+остальным ролям — `FORBIDDEN` 403 до обращения к базе. Ответы не кэшируются (`no-store`).
+
+### GET /api/me/data-export — «Мои данные»
+
+Любая роль, только о себе. Файл `application/json` вложением
+(`Content-Disposition: attachment; filename="skilllink-dsar-user-<id>-<дата>.json"`).
+**Не чаще раза в 10 минут** (TEMP, `DSAR_LIMITS.selfExportIntervalMinutes`): раньше —
+`CONFLICT` 409 с `details.retryAfterSeconds`. Каждая выгрузка — исполненный запрос в реестре
+(канал `SELF_SERVICE`, с адресом клиента) и запись `dsar.exported` в журнале.
+
+### GET /api/admin/dsar/users/:id/export, GET /api/admin/dsar/contacts/:id/export
+
+Выгрузка «всё о субъекте» для ответа по ст. 14. Неизвестный субъект — 404. Закрывает
+открытые запросы субъекта на сведения; если их нет — регистрирует исполненный (канал `ADMIN`).
+
+Тело файла — `{ "data": DsarExportDto }`:
+
+```json
+{
+  "data": {
+    "subject": { "type": "USER", "id": "…", "displayName": "Иванова Мария Сергеевна", "erased": false },
+    "generatedAt": "2026-09-26T09:00:00.000Z",
+    "generatedBy": { "id": "…", "role": "ADMIN", "self": false },
+    "requestId": "…",
+    "operator": { "name": "ИТ-Школа (заказчик SkillLink)", "address": null, "responsibleContact": null, "note": "…" },
+    "purposes": ["Ц2 — доступ к системе и разграничение прав", "…"],
+    "legalBasis": ["п. 2 и п. 5 ч. 1 ст. 6 152-ФЗ: трудовой договор …", "…"],
+    "categories": ["иные категории ПД; …"],
+    "sources": ["…"],
+    "processingMethods": "…",
+    "storageLocation": "Россия: …",
+    "recipients": [{ "recipient": "Yandex Cloud …", "what": "…", "crossBorder": false, "when": "всегда" }],
+    "retention": ["…"],
+    "rights": "…",
+    "data": {
+      "profile": {
+        "title": "Учётная запись", "model": "User", "total": 1, "returned": 1, "truncated": false,
+        "onErase": "redact", "reason": "…", "items": [{ "id": "…", "email": "…", "fullName": "…" }]
+      },
+      "stages": { "title": "Этапы: ответственный или завершил", "total": 70, "returned": 70, "…": "…" }
+    },
+    "auditTrail": { "byActor": { "total": 59, "items": ["…"] }, "aboutSubject": { "total": 3, "items": ["…"] } },
+    "counts": { "profile": 1, "stages": 70, "auditByActor": 59, "auditAboutSubject": 3 },
+    "notes": ["В каждом разделе не больше 500 записей …"]
+  }
+}
+```
+
+- Разделы пользователя: `profile`, `telegramLink`, `calendarFeed` (только факт и дата),
+  `cooperationsResponsible`, `stages`, `tasksDone`, `stageHistory`, `documents`,
+  `documentHistory`, `meetingsResponsible`, `meetingParticipations`, `recommendationsResolved`,
+  `applications`, `contactBasisChanges`, `dsarRequestsAbout`, `dsarRequestsRegistered`.
+  Контакта: `profile` (с основанием обработки и согласием), `basisHistory`,
+  `meetingParticipations`, `documentsMentioning` (ФИО в тексте документа), `dsarRequestsAbout`.
+- `auditTrail.byActor` — действия самого пользователя (у контакта — `null`);
+  `auditTrail.aboutSubject` — действия над субъектом: действовавший — `user: { id, role }`
+  без ФИО (п. 4 ч. 7 ст. 14), адрес клиента из `payload` вырезан.
+- В каждом разделе не больше **500** записей (TEMP), новые сверху; `total` — настоящее число,
+  `truncated: true` — показано не всё.
+- **Не выгружаются никогда:** `password_hash`, `token_hash`, токены и секреты (ключи
+  `password|secret|token|hash` проверяет пробник рекурсивно); свободный текст — комментарии,
+  результаты, заметки (в нём бывают ПД третьих лиц); текст документов.
+- Журнал: `dsar.exported`, объект `User` или `Contact`, `payload: { requestId, channel, sections }`.
+
+```bash
+curl -OJ http://localhost:3000/api/admin/dsar/users/<id>/export -H 'cookie: skilllink_user=<admin-id>'
+```
+
+### POST /api/admin/dsar/users/:id/erase — обезличить пользователя по запросу
+
+Тело `{ "confirm": "<логин (почта) пользователя>" }` — регистр и пробелы не важны; не совпало —
+`VALIDATION_ERROR` 422. В одной транзакции по реестру: ФИО → «Пользователь удалён», почта →
+`erased-<id>@erased.invalid`, должность и хеш пароля стёрты, `isActive = false`,
+`sessionVersion + 1` (выданные сессии отозваны), подписка на календарь и привязка Telegram
+удалены. Связки, этапы, история, документы, встречи и журнал остаются и ссылаются на
+обезличенную запись. `CONFLICT` 409: себя; последнего действующего администратора; общую
+демо-учётку; сотрудника, за которым открытые связки или этапы (`details.openCooperations`,
+`openStages` — сначала передать). Повтор — `200` с `alreadyErased: true`.
+
+```json
+{
+  "data": {
+    "subject": { "type": "USER", "id": "…" },
+    "alreadyErased": false,
+    "erasedAt": "2026-09-26T09:00:00.000Z",
+    "requestId": "…",
+    "sections": { "profile": { "action": "redact", "rows": 1 }, "calendarFeed": { "action": "delete", "rows": 1 }, "stages": { "action": "keep", "rows": 4 } }
+  }
+}
+```
+
+Журнал: `dsar.erased` (`payload: { requestId, rows }`), при необходимости `user.block`,
+`calendar.revoke`, `telegram.unlink` с причиной `dsar.erase` — без ФИО и почты.
+
+### POST /api/admin/dsar/contacts/:id/erase — обезличить контакт по запросу
+
+Тело `{ "confirm": "<ФИО контакта>" }`. Тот же набор полей, что у
+`POST /api/universities/:id/contacts/:contactId/anonymize`, плюс закрытие запроса в реестре.
+Ответ — как выше. Журнал: `contact.anonymize` с `reason: "dsar.erase"` и `dsar.erased`.
+
+### GET, POST /api/admin/dsar/requests — реестр запросов субъектов
+
+**`GET`** — список, новые сверху: `page`, `pageSize`, `status` (`OPEN`, `COMPLETED`),
+`kind` (`EXPORT`, `ERASE`), `subjectType` (`USER`, `CONTACT`), `subjectId`, `overdue=true`
+(открытые с прошедшим сроком).
+
+```json
+{
+  "data": [{
+    "id": "…", "subjectType": "CONTACT", "subjectId": "…", "kind": "ERASE", "channel": "LETTER",
+    "status": "OPEN", "requestedBy": { "id": "…", "fullName": "…", "role": "ADMIN" },
+    "requestedAt": "2026-09-25T07:00:00.000Z", "dueAt": "2026-10-06T20:59:59.999Z",
+    "completedAt": null, "overdue": false, "summary": null
+  }],
+  "meta": { "page": 1, "pageSize": 20, "total": 1 }
+}
+```
+
+**`POST`** — зарегистрировать запрос, пришедший письмом: `{ subjectType, subjectId, kind,
+receivedAt? }`. `receivedAt` — когда оператор получил запрос (по умолчанию сейчас; не в будущем
+и не старше 30 дней — иначе 422). Срок `dueAt` — конец рабочего дня по Москве: **+10 рабочих
+дней** на сведения (ч. 3 ст. 14, ч. 1 ст. 20 152-ФЗ), **+7** на уничтожение (ч. 3 ст. 20).
+Несуществующий субъект — 422; открытый запрос того же вида о том же субъекте — 409 с
+`details.requestId`. Ответ `201` — `DsarRequestDto`. Текст письма и ФИО не хранятся.
+Журнал: `dsar.requested`.
 
 ## 16. Чего ещё нет
 

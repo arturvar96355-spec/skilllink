@@ -5,6 +5,7 @@
  * выражается только через несколько строк или таблиц: у связки 14 этапов,
  * у завершённого этапа закрыты обязательные пункты, документ связки относится
  * к её вузу. Каждое правило — запрос, который ищет нарушения; норма — ноль строк.
+ * Последним — цепочка хешей журнала действий (решение 115).
  *
  * Только чтение: всё идёт в одной транзакции READ ONLY.
  *
@@ -24,8 +25,10 @@ import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.
 import type { StageStatus } from '@/shared/contracts/enums'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
+import { ERASED_USER_NAME } from '@/modules/dsar/dsar.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
 import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
+import { verifyChain } from '@/modules/audit/chain.service'
 
 /**
  * Пункты вуза из конфига (решение 103): пары «номер этапа — заголовок пункта».
@@ -206,6 +209,26 @@ const RULES: Rule[] = [
                      AND consent_withdrawn_at IS NOT NULL AND withdrawal_reference IS NOT NULL)`,
   },
   {
+    // Обезличивание по запросу субъекта (решение 116): доступа без сессии не остаётся.
+    name: 'Обезличенный пользователь заблокирован, без пароля, календаря и Telegram',
+    sql: `SELECT u.id FROM users u
+          WHERE u.full_name = '${ERASED_USER_NAME.replaceAll("'", "''")}'
+            AND (u.is_active OR u.password_hash IS NOT NULL
+                 OR u.email <> 'erased-' || u.id || '@erased.invalid'
+                 OR EXISTS (SELECT 1 FROM calendar_feeds f WHERE f.user_id = u.id)
+                 OR EXISTS (SELECT 1 FROM telegram_links t WHERE t.user_id = u.id))`,
+  },
+  {
+    // Реестр запросов субъектов: исполненный запрос не раньше запроса (CHECK держит порядок
+    // дат); здесь — что субъект запроса существует (внешнего ключа у subject_id нет).
+    name: 'Запрос субъекта ПД ссылается на существующего пользователя или контакт',
+    sql: `SELECT d.id FROM dsar_requests d
+          WHERE NOT CASE d.subject_type
+            WHEN 'USER' THEN EXISTS (SELECT 1 FROM users u WHERE u.id = d.subject_id)
+            WHEN 'CONTACT' THEN EXISTS (SELECT 1 FROM contacts c WHERE c.id = d.subject_id)
+          END`,
+  },
+  {
     name: 'Основание контакта совпадает с последней записью его истории',
     sql: `SELECT c.id FROM contacts c
           LEFT JOIN LATERAL (
@@ -305,6 +328,16 @@ async function main(): Promise<void> {
         report('Ключ названия навыка в базе совпадает с кодом (skillNameKey)', await skillKeyMismatches(tx), failures)
       },
       { timeout: 120_000 },
+    )
+
+    // Решение 115: цепочка хешей журнала действий — двумя независимыми проверками
+    // (функция в базе и код приложения) в своей транзакции REPEATABLE READ READ ONLY.
+    total += 1
+    const chain = await verifyChain(prisma)
+    report(
+      `Цепочка журнала действий цела (строк ${chain.checked}, печатей ${chain.sealsChecked})`,
+      chain.ok ? [] : [`${chain.code} на № ${chain.brokenSeq ?? '—'}: ${chain.reason}`],
+      failures,
     )
   } finally {
     await prisma.$disconnect()
