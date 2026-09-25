@@ -379,9 +379,12 @@ export async function loadGenerationInput() {
       where: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
       select: cooperationRuleSelect,
     }),
+    // Порядок задан явно: описание рекомендации о дефиците перечисляет первые три
+    // программы, и без порядка при каждой пересборке это были бы разные три.
     prisma.educationalProgram.findMany({
       where: ACTIVE_PROGRAM_WHERE,
       select: programRuleSelect,
+      orderBy: { id: 'asc' },
     }),
     prisma.marketDemand.findMany({
       where: { period: (await latestPeriod()) ?? undefined },
@@ -395,6 +398,7 @@ export async function loadGenerationInput() {
     prisma.programSkill.findMany({
       where: { program: ACTIVE_PROGRAM_WHERE },
       select: { programId: true, skillId: true, level: true },
+      orderBy: [{ programId: 'asc' }, { skillId: 'asc' }],
     }),
     prisma.productSkill.findMany({
       where: { product: { status: 'ACTIVE' } },
