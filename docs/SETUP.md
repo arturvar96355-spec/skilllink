@@ -439,6 +439,8 @@ npm run openapi
 | `YANDEX_GPT_API_KEY`, `YANDEX_FOLDER_ID`, `YANDEX_GPT_MODEL` | YandexGPT |
 | `GIGACHAT_AUTH_KEY`, `GIGACHAT_SCOPE`, `GIGACHAT_MODEL`, `GIGACHAT_CA_CERT_PATH` | GigaChat, запасной |
 | `AI_ASSIST_TIMEOUT_MS` | таймаут модели; не уложилась — шаблон |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`, `TELEGRAM_WEBHOOK_SECRET` | бот личных уведомлений — решение 102, подключение ниже; без любого из трёх выключен |
+| `TELEGRAM_API_BASE`, `TELEGRAM_API_IP` | база Bot API и запасной IP для сети, где `api.telegram.org` по имени недоступен |
 
 Загрузка рыночных данных активным источником:
 
@@ -452,3 +454,71 @@ curl -s -X POST http://localhost:3000/api/data-sources/sync -H 'content-type: ap
 
 Наличие конкретных внутренних API заказчика не утверждается: провайдер `future-rtk` честно
 сообщает, что спецификация не предоставлена.
+
+### Бот уведомлений в Telegram
+
+Сотрудник подключает в «Личном кабинете» → «Уведомления в Telegram» свой личный чат,
+и туда приходит сводка «что горит у меня»: просроченные и заблокированные этапы, близкие
+сроки, открытые рекомендации по его связкам (решение 102). Пока бот не настроен, блок
+пишет «Не настроено администратором», и больше ничего не меняется.
+
+**1. Создать бота.** В Telegram — @BotFather → `/newbot` → название (например,
+«SkillLink — уведомления») → имя, оканчивающееся на `bot`. BotFather выдаст токен
+вида `123456789:AA…` — это секрет: в git и в чаты его не вставлять. Там же полезно
+`/setcommands`:
+
+```
+today - Сводка «что горит у меня» сейчас
+stop - Отключить уведомления
+```
+
+**2. Переменные.** На сервере — в `~/skilllink/.env.cloud` (права 600), локально — в `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=<токен от BotFather>
+TELEGRAM_BOT_USERNAME=<имя бота без @>
+# Секрет вебхука: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+TELEGRAM_WEBHOOK_SECRET=<секрет>
+# Только на машине в Yandex Cloud: api.telegram.org оттуда по имени не отвечает
+TELEGRAM_API_IP=149.154.167.220
+```
+
+Перезапустить приложение (на сервере — как в docs/DEPLOY.md, «Как подключить YandexGPT»,
+шаг 2: переменные доходят до контейнера через `docker-compose.yml`).
+
+**3. Вебхук.** Telegram должен знать адрес и секрет. Адрес — публичный HTTPS стенда
+(Caddy уже выдаёт сертификат). С сервера в Yandex Cloud — через запасной IP,
+`--resolve` оставляет имя в TLS и заголовке Host:
+
+```bash
+set -a; . ~/skilllink/.env.cloud; set +a
+curl -s --resolve api.telegram.org:443:149.154.167.220 \
+  "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -d "url=https://<домен>/api/telegram/webhook" \
+  -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
+  -d 'allowed_updates=["message"]' -d drop_pending_updates=true
+# Проверить: getWebhookInfo — url, pending_update_count, last_error_message
+curl -s --resolve api.telegram.org:443:149.154.167.220 \
+  "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+```
+
+Ответ `{"ok":true,…}`. Вебхук без заголовка `X-Telegram-Bot-Api-Secret-Token` с этим
+секретом отвечает 403 — так и задумано.
+
+**4. Проверить.** Войти менеджером → «Личный кабинет» → «Подключить» → в Telegram
+«Старт»: бот ответит «Готово: уведомления SkillLink подключены», блок в кабинете
+сам покажет «Подключено». `/today` — сводка, `/stop` — отключить.
+
+**Рассылка по расписанию** — `npm run telegram:digest` (`-- --dry-run` — только напечатать);
+cron на сервере — docs/DEPLOY.md, «Сводка в Telegram по расписанию».
+
+**Без настоящего бота** (разработка): задать любые три значения, `TELEGRAM_API_BASE=http://localhost:9`
+(там никто не слушает — ответ бота не уйдёт, сбой будет строкой в журнале) и послать
+обновление вручную:
+
+```bash
+curl -s -X POST http://localhost:3000/api/telegram/webhook -H 'content-type: application/json' \
+  -H "x-telegram-bot-api-secret-token: $TELEGRAM_WEBHOOK_SECRET" \
+  -d '{"update_id":1,"message":{"chat":{"id":42,"type":"private"},"text":"/today"}}'
+```
+

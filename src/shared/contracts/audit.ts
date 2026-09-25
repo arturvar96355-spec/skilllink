@@ -51,6 +51,10 @@ export const AUDIT_ACTIONS = [
   'recommendation.status.change',
   /** Черновик ИИ-помощника: вид, объект, провайдер, модель или шаблон. Без текста. */
   'ai.draft',
+  /** Пользователь подключил личный чат Telegram (решение 102). Без идентификатора чата и ника. */
+  'telegram.link',
+  /** Чат отвязан: из личного кабинета или командой /stop. */
+  'telegram.unlink',
   'document.create',
   'document.update',
   'document.status.change',
