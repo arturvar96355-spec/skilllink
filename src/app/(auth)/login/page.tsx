@@ -1,6 +1,7 @@
 'use client'
 
 import { signIn } from 'next-auth/react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState, type CSSProperties, type FormEvent } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
@@ -8,7 +9,7 @@ import { ARRIVAL_KEY } from '@/ui/layout/arrival'
 import { Constellation, WARP_NAVIGATE_MS } from './Constellation'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { LOGIN_THROTTLE } from '@/shared/config/auth.config'
-import { Button, Icon, Input, Logo } from '@/ui'
+import { Button, Icon, Input, Logo, ROUTES } from '@/ui'
 import styles from './login.module.css'
 
 /**
@@ -163,6 +164,12 @@ function LoginForm() {
       <p className={styles.note}>
         После {LOGIN_THROTTLE.maxFailures} неудачных попыток подряд вход в учётную запись
         закрывается на {BLOCK_MINUTES} минут — это защита от подбора пароля.
+      </p>
+
+      <p className={styles.note}>
+        <Link href={ROUTES.privacy} className={styles.privacyLink}>
+          Политика обработки персональных данных
+        </Link>
       </p>
     </div>
   )

@@ -196,6 +196,23 @@ ssh skilllink@<адрес> "cd ~/skilllink/app && docker compose -p skilllink lo
 **Кончилось место.** `docker system prune -af` удаляет неиспользуемые образы
 и кеш сборки. Тома с данными эта команда не трогает.
 
+### Сроки хранения журнала (docs/PRIVACY.md, решение 88)
+
+Журнал действий хранится год, адрес клиента в нём — 90 дней. Применяет скрипт:
+
+```bash
+ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud \
+  --profile migrate run --rm migrate npm run db:retention'
+```
+
+Образ `migrate` — тот же, что у перезаливки (`reseed.sh`): в нём есть `scripts/` и `tsx`.
+
+Без флага он только показывает, что удалит и где сотрёт адрес. Применить — добавить
+`-- --apply`. **На демо-стенде до защиты не применять:** демо-набор начинается 400 дней
+назад, и журнал завершённой связки уйдёт — изменится «Операций на связку».
+Расписание (cron владельца сервера) пока не включено.
+
 ## 6. Чего в этом развёртывании нет
 
 Сказано честно, чтобы не выглядело промышленным контуром:
