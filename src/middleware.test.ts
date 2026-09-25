@@ -34,6 +34,10 @@ describe('middleware', () => {
     expect(redirectTarget(middleware(request('/privacy', true)))).toBeNull()
   })
 
+  it('манифест со значками браузер получает без входа', () => {
+    expect(redirectTarget(middleware(request('/manifest.webmanifest', false)))).toBeNull()
+  })
+
   it('похожий на политику адрес не открывается', () => {
     expect(redirectTarget(middleware(request('/privacy-admin', false)))).toContain('/login')
   })
