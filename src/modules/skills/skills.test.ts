@@ -9,8 +9,20 @@ import {
   directionGroup,
   isInProfile,
   outOfProfileNote,
+  combineProgramLinks,
+  combineRelevance,
+  duplicateSkillConflict,
+  findNameClash,
+  isSkillUsed,
+  planSkillMerge,
+  skillInUseMessage,
+  skillNameKey,
+  type DemandLink,
   type DirectionProfile,
+  type ProgramSkillLink,
+  type SkillLinks,
 } from './skills.rules'
+import { createSkillSchema, updateSkillSchema } from './skills.schema'
 
 describe('покрытие навыка программой', () => {
   it('без навыка покрытие равно нулю', () => {
@@ -167,5 +179,180 @@ describe('дефициты вне профиля программы (решен�
     expect(outOfProfileNote('DevOps', '02')).toContain('группы направлений 02')
     expect(outOfProfileNote('DevOps', '02')).toContain('«DevOps»')
     expect(outOfProfileNote('Языки программирования', '02')).toContain('этот язык')
+  })
+})
+
+describe('справочник навыков: уникальность названия (решение 107)', () => {
+  const existing = [
+    { id: 'ml', name: 'Machine Learning' },
+    { id: 'py', name: 'Python' },
+    { id: 'is', name: 'Информационная безопасность' },
+  ]
+
+  it('без учёта регистра и пробелов — в том числе внутри и неразрывных', () => {
+    expect(skillNameKey('Machine Learning')).toBe(skillNameKey('machine   learning'))
+    expect(skillNameKey('Machine Learning')).toBe(skillNameKey('MachineLearning'))
+    expect(skillNameKey('Machine\u00a0Learning')).toBe(skillNameKey('machine learning'))
+    expect(findNameClash('  PYTHON ', existing)?.id).toBe('py')
+    expect(findNameClash('информационная  БЕЗОПАСНОСТЬ', existing)?.id).toBe('is')
+  })
+
+  it('разные навыки не путаются', () => {
+    expect(findNameClash('Java', existing)).toBeNull()
+    expect(findNameClash('JavaScript', [{ id: 'j', name: 'Java' }])).toBeNull()
+  })
+
+  it('своё название в другом регистре при переименовании — не дубль', () => {
+    expect(findNameClash('python', existing, 'py')).toBeNull()
+    expect(findNameClash('python', existing, 'ml')?.id).toBe('py')
+  })
+
+  it('отказ — 409 с полем name и найденным названием', () => {
+    const error = duplicateSkillConflict('machine learning', 'Machine Learning')
+    expect(error.status).toBe(409)
+    expect(error.message).toContain('«Machine Learning»')
+    expect(error.details).toEqual([{ field: 'name', message: expect.stringContaining('Machine Learning') }])
+  })
+
+  it('схема обрезает края и сводит пробелы внутри; одна буква — законное название', () => {
+    const parsed = createSkillSchema.parse({ name: '  Machine    Learning ', category: ' Данные ' })
+    expect(parsed.name).toBe('Machine Learning')
+    expect(parsed.category).toBe('Данные')
+    expect(createSkillSchema.safeParse({ name: 'C', category: 'Языки программирования' }).success).toBe(true)
+    expect(createSkillSchema.safeParse({ name: '   ', category: 'Данные' }).success).toBe(false)
+    expect(updateSkillSchema.safeParse({}).success).toBe(false)
+  })
+})
+
+describe('объединение дубля: конфликты связей (решение 107)', () => {
+  const link = (over: Partial<ProgramSkillLink>): ProgramSkillLink => ({
+    id: 'x',
+    programId: 'p1',
+    level: 'BASIC',
+    importance: 'MEDIUM',
+    source: 'CURRICULUM',
+    confidence: null,
+    comment: null,
+    ...over,
+  })
+  const demand = (over: Partial<DemandLink>): DemandLink => ({
+    id: 'd',
+    period: '2026-Q1',
+    source: 'Демо',
+    region: 'Россия',
+    value: 100,
+    unit: 'vacancies',
+    confidence: 'LOW',
+    isMock: true,
+    dataSourceId: null,
+    ...over,
+  })
+  const empty = (): SkillLinks => ({ programs: [], products: [], demand: [], recommendations: [] })
+
+  it('программа учит обоим — остаются наибольшие уровень, важность и уверенность', () => {
+    const merged = combineProgramLinks(
+      link({ level: 'INTERMEDIATE', importance: 'CRITICAL', confidence: 'LOW', source: 'EXPERT', comment: null }),
+      link({ level: 'ADVANCED', importance: 'LOW', confidence: 'HIGH', source: 'CURRICULUM', comment: 'из дубля' }),
+    )
+    expect(merged).toEqual({
+      level: 'ADVANCED',
+      importance: 'CRITICAL',
+      confidence: 'HIGH',
+      // Происхождение — от связи с более высоким уровнем.
+      source: 'CURRICULUM',
+      comment: 'из дубля',
+    })
+  })
+
+  it('при равном уровне происхождение и комментарий — целевого; неизвестная уверенность не затирает известную', () => {
+    const merged = combineProgramLinks(
+      link({ level: 'BASIC', source: 'EXPERT', comment: 'целевой', confidence: null }),
+      link({ level: 'BASIC', source: 'IMPORT', comment: 'дубль', confidence: 'MEDIUM' }),
+    )
+    expect(merged.source).toBe('EXPERT')
+    expect(merged.comment).toBe('целевой')
+    expect(merged.confidence).toBe('MEDIUM')
+  })
+
+  it('продукт даёт оба — ключевой сильнее смежного и дополнительного', () => {
+    expect(combineRelevance('OPTIONAL', 'CORE')).toBe('CORE')
+    expect(combineRelevance('RELATED', 'OPTIONAL')).toBe('RELATED')
+  })
+
+  it('план: без совпадений всё переносится, совпадения объединяются, рыночный замер — максимум', () => {
+    const target: SkillLinks = {
+      programs: [link({ id: 't-p1', programId: 'p1', level: 'BASIC' })],
+      products: [{ id: 't-pr1', productId: 'pr1', relevance: 'OPTIONAL' }],
+      demand: [demand({ id: 't-d1', value: 500 }), demand({ id: 't-d2', region: 'Москва', value: 50 })],
+      recommendations: [{ id: 't-r1', ruleKey: 'skill.critical-gap-with-product' }],
+    }
+    const duplicate: SkillLinks = {
+      programs: [
+        link({ id: 'd-p1', programId: 'p1', level: 'ADVANCED' }),
+        link({ id: 'd-p2', programId: 'p2' }),
+      ],
+      products: [
+        { id: 'd-pr1', productId: 'pr1', relevance: 'CORE' },
+        { id: 'd-pr2', productId: 'pr2', relevance: 'RELATED' },
+      ],
+      demand: [
+        demand({ id: 'd-d1', value: 300 }),
+        demand({ id: 'd-d2', region: 'Москва', value: 80 }),
+        demand({ id: 'd-d3', period: '2025-Q4', value: 10 }),
+      ],
+      recommendations: [
+        { id: 'd-r1', ruleKey: 'skill.critical-gap-with-product' },
+        { id: 'd-r2', ruleKey: 'skill.other' },
+      ],
+    }
+
+    const plan = planSkillMerge(target, duplicate)
+
+    expect(plan.programs.move).toEqual(['d-p2'])
+    expect(plan.programs.combine).toHaveLength(1)
+    expect(plan.programs.combine[0]).toMatchObject({ targetId: 't-p1', duplicateId: 'd-p1' })
+    expect(plan.programs.combine[0]!.data.level).toBe('ADVANCED')
+
+    expect(plan.products.move).toEqual(['d-pr2'])
+    expect(plan.products.combine).toEqual([{ targetId: 't-pr1', duplicateId: 'd-pr1', relevance: 'CORE' }])
+
+    expect(plan.demand.move).toEqual(['d-d3'])
+    // Федеральный: у целевого 500 больше 300 — остаётся целевой. Москва: у дубля 80 больше 50 — его значение.
+    expect(plan.demand.combine).toEqual([
+      { targetId: 't-d1', duplicateId: 'd-d1', replaceWith: null },
+      { targetId: 't-d2', duplicateId: 'd-d2', replaceWith: expect.objectContaining({ value: 80 }) },
+    ])
+
+    expect(plan.recommendations).toEqual({ move: ['d-r2'], drop: ['d-r1'] })
+  })
+
+  it('объединение не снижает покрытие ни одной программы', () => {
+    const target: SkillLinks = { ...empty(), programs: [link({ id: 't', programId: 'p1', level: 'ADVANCED' })] }
+    const duplicate: SkillLinks = { ...empty(), programs: [link({ id: 'd', programId: 'p1', level: 'BASIC' })] }
+    const plan = planSkillMerge(target, duplicate)
+    expect(coverageByLevel(plan.programs.combine[0]!.data.level)).toBe(coverageByLevel('ADVANCED'))
+  })
+
+  it('у дубля нет связей — план пуст', () => {
+    const plan = planSkillMerge(empty(), empty())
+    expect(plan.programs.move.length + plan.demand.move.length + plan.recommendations.drop.length).toBe(0)
+  })
+})
+
+describe('удаление навыка: только неиспользуемый (решение 107)', () => {
+  it('любое использование запрещает удаление', () => {
+    expect(isSkillUsed({ programs: 0, products: 0, demand: 0, recommendations: 0 })).toBe(false)
+    expect(isSkillUsed({ programs: 0, products: 0, demand: 1, recommendations: 0 })).toBe(true)
+    expect(isSkillUsed({ programs: 0, products: 0, demand: 0, recommendations: 1 })).toBe(true)
+  })
+
+  it('объяснение называет, сколько где используется, с верным склонением', () => {
+    const message = skillInUseMessage('Python', { programs: 6, products: 1, demand: 2, recommendations: 0 })
+    expect(message).toContain('«Python»')
+    expect(message).toContain('в 6 программах')
+    expect(message).toContain('в 1 IT-продукте')
+    expect(message).toContain('в 2 рыночных показателях')
+    expect(message).not.toContain('рекомендац')
+    expect(message).toContain('объедините')
   })
 })
