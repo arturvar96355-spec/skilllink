@@ -241,10 +241,9 @@ export default function SettingsPage() {
   }
 
   const canSeeSources = user.permissions.canSeeAnalytics
-  // Синхронизация — право записи (контракт, POST /api/data-sources/sync). Кнопка
-  // показывалась только администратору, и менеджеру страница писала «запускает
-  // администратор», хотя сервер его запрос принимал.
-  const canSync = user.permissions.canWrite
+  // Синхронизация — работа с аналитикой (POST /api/data-sources/sync, решение 98):
+  // администратор, менеджер и аналитик. Кнопка у тех, чей запрос сервер примет.
+  const canSync = user.permissions.canWorkAnalytics
 
   const sources = useResource<DataSourceDto[]>(canSeeSources ? `/api/data-sources${SOURCES_QUERY}` : null)
   const integrations = useResource<IntegrationsStatusDto>(canSeeSources ? '/api/integrations/status' : null)
@@ -310,7 +309,7 @@ export default function SettingsPage() {
                   Синхронизировать
                 </Button>
               ) : (
-                <span className={styles.muted}>Запускает сотрудник с правом записи</span>
+                <span className={styles.muted}>Запускает администратор, менеджер или аналитик</span>
               )}
             </Row>
             <Row title="Состояние проверено" caption={formatDateTime(integrations.data.checkedAt)} />

@@ -39,6 +39,7 @@ function user(role: UserRole): CurrentUserDto {
     permissions: {
       canWrite: role === 'ADMIN' || role === 'MANAGER',
       canSeeAnalytics: role !== 'UNIVERSITY_REP',
+      canWorkAnalytics: role === 'ADMIN' || role === 'MANAGER' || role === 'ANALYST',
       canUsePortal: role === 'UNIVERSITY_REP',
       canWritePortal: role === 'UNIVERSITY_REP',
       isAdmin: role === 'ADMIN',

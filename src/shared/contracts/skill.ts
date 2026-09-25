@@ -41,5 +41,11 @@ export interface SkillGapDto {
   gap: number
   isCritical: boolean
   explanation: string
+  /**
+   * Дефицит вне профиля программы (решение 98): навык и его область не преподаёт
+   * ни одна программа той же группы направлений. Такой дефицит не критический
+   * и идёт после остальных. Только в разрезе одной программы (`programId`); иначе false.
+   */
+  outOfProfile: boolean
   isMock: boolean
 }

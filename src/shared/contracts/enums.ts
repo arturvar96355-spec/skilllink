@@ -138,6 +138,17 @@ export const RECOMMENDATION_STATUSES = [
 ] as const
 export type RecommendationStatus = (typeof RECOMMENDATION_STATUSES)[number]
 
+/**
+ * Статусы, с которыми работает человек (решение 98): Новая → В работе → Выполнена /
+ * Отклонена. `ACCEPTED` остался в типе ради базы, но в фильтрах и кнопках его нет.
+ */
+export const RECOMMENDATION_WORKFLOW_STATUSES = [
+  'NEW',
+  'IN_PROGRESS',
+  'DONE',
+  'DISMISSED',
+] as const satisfies readonly RecommendationStatus[]
+
 export const DATA_SOURCE_TYPES = ['MANUAL', 'CSV', 'EXTERNAL_API', 'LMS', 'SITE', 'MOCK'] as const
 export type DataSourceType = (typeof DATA_SOURCE_TYPES)[number]
 

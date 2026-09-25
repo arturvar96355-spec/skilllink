@@ -1,4 +1,4 @@
-import { SKILL_GAP } from '@/shared/config/analytics.config'
+import { SKILL_GAP, SKILL_PROFILE } from '@/shared/config/analytics.config'
 import type { SkillLevel } from '@/shared/contracts/enums'
 import { normalize, outOf100, range, round } from '@/shared/utils/number'
 
@@ -119,3 +119,42 @@ export function demandPerSkill<T extends { skillId: string; value: number; regio
   return [...bySkill.values()]
 }
 
+/** Что преподают программы одной укрупнённой группы направлений (решение 98). */
+export interface DirectionProfile {
+  /** Первые две цифры кода направления: «09». */
+  group: string
+  skillIds: ReadonlySet<string>
+  categories: ReadonlySet<string>
+}
+
+/** Укрупнённая группа направлений по коду «09.03.04» → «09». Нет кода — нет группы. */
+export function directionGroup(code: string | null | undefined): string | null {
+  const match = /^(\d{2})\./.exec(code?.trim() ?? '')
+  return match ? match[1]! : null
+}
+
+function isExactMatchCategory(category: string): boolean {
+  return (SKILL_PROFILE.exactMatchCategories as readonly string[]).includes(category)
+}
+
+/**
+ * Навык в профиле программы: его преподаёт кто-то из группы направлений, либо —
+ * кроме языков программирования — навыки той же области.
+ */
+export function isInProfile(
+  skill: { id: string; category: string },
+  profile: DirectionProfile,
+): boolean {
+  if (profile.skillIds.has(skill.id)) return true
+  if (isExactMatchCategory(skill.category)) return false
+  return profile.categories.has(skill.category)
+}
+
+/** Пояснение к дефициту вне профиля — дописывается к обычному объяснению. */
+export function outOfProfileNote(category: string, group: string): string {
+  const what = isExactMatchCategory(category) ? 'этот язык' : `навыки области «${category}»`
+  return (
+    `Вне профиля: ни одна программа группы направлений ${group} в системе не преподаёт ${what}, ` +
+    'дефицит может быть не про эту программу'
+  )
+}

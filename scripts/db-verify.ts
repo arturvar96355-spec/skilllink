@@ -138,6 +138,10 @@ const RULES: Rule[] = [
              OR (resolved_by_id IS NOT NULL AND resolved_at IS NULL)`,
   },
   {
+    name: 'Нет рекомендаций в упразднённом статусе «Принята»',
+    sql: `SELECT id FROM recommendations WHERE status = 'ACCEPTED'`,
+  },
+  {
     name: 'Рекомендация ссылается на существующий объект',
     sql: `SELECT r.id FROM recommendations r
           WHERE NOT CASE r.object_type

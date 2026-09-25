@@ -32,6 +32,8 @@ export interface CurrentUserDto {
   permissions: {
     canWrite: boolean
     canSeeAnalytics: boolean
+    /** Пересобрать рекомендации, вести их статусы, загрузить рыночные данные (решение 98). */
+    canWorkAnalytics: boolean
     canUsePortal: boolean
     /** Подтверждать материалы, вносить показатели и подавать заявки в кабинете вуза. */
     canWritePortal: boolean

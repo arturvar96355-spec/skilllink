@@ -28,9 +28,12 @@ export const RECOMMENDATION_SORT_MOST_IMPORTANT = '-priority'
  * это проверяет сервер отдельно от таблицы (CONFLICT).
  */
 export const RECOMMENDATION_TRANSITIONS: Record<RecommendationStatus, readonly RecommendationStatus[]> = {
-  NEW: ['IN_PROGRESS', 'ACCEPTED', 'DISMISSED'],
-  IN_PROGRESS: ['DONE', 'ACCEPTED', 'DISMISSED'],
-  ACCEPTED: ['DONE', 'DISMISSED'],
+  // Четыре статуса (решение 98): Новая → В работе → Выполнена / Отклонена.
+  NEW: ['IN_PROGRESS', 'DISMISSED'],
+  IN_PROGRESS: ['DONE', 'DISMISSED'],
+  // «Принята» упразднена; миграция перевела такие записи «В работу». Выход оставлен
+  // на случай записи, пришедшей из старой копии базы, — войти в статус нельзя.
+  ACCEPTED: ['IN_PROGRESS', 'DONE', 'DISMISSED'],
   DISMISSED: ['NEW'],
   DONE: [],
 }

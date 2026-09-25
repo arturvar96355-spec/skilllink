@@ -912,7 +912,7 @@ async function main(): Promise<void> {
     `было ${recommendations.total}, стало ${totalAfter}`,
   )
 
-  // Новая: переходы статусов проверяет сервер, и «Принять» есть только у открытой.
+  // Новая: переходы статусов проверяет сервер, и «В работу» есть только у открытой.
   // В базе после прошлых прогонов первой по времени может оказаться уже закрытая.
   const firstRec = recs.find((rec) => rec.status === 'NEW')
   check('есть новая рекомендация для проверки решения сотрудника', Boolean(firstRec))
@@ -922,29 +922,36 @@ async function main(): Promise<void> {
     })
     check('отклонение без основания отклоняется', dismissNoComment.status === 422)
 
-    const accepted = await call<{ status: string; resolvedAt: string | null }>(
+    // Четыре статуса (решение 98): «Принять» больше нет — сервер его не пускает.
+    const acceptedGone = await call('PATCH', `/api/recommendations/${firstRec.id}`, {
+      status: 'ACCEPTED',
+      comment: 'Принять',
+    })
+    check('статуса «Принята» больше нет — 409', acceptedGone.status === 409, `статус ${acceptedGone.status}`)
+
+    const taken = await call<{ status: string; resolvedAt: string | null }>(
       'PATCH',
       `/api/recommendations/${firstRec.id}`,
-      { status: 'ACCEPTED', comment: 'Взято в работу' },
+      { status: 'IN_PROGRESS', comment: 'Взято в работу' },
     )
-    check('рекомендация принимается', accepted.body.data?.status === 'ACCEPTED')
-    check('зафиксировано время решения', Boolean(accepted.body.data?.resolvedAt))
+    check('рекомендация берётся в работу', taken.body.data?.status === 'IN_PROGRESS')
+    check('в работе — ещё не закрыта, времени решения нет', taken.body.data?.resolvedAt === null)
 
-    const afterAccept = await call<{ status: string; justification: string }>(
+    const afterTake = await call<{ status: string; justification: string }>(
       'GET',
       `/api/recommendations/${firstRec.id}`,
     )
     check(
       'обоснование системы не переписано комментарием сотрудника',
-      afterAccept.body.data?.justification === firstRec.justification,
+      afterTake.body.data?.justification === firstRec.justification,
     )
 
-    // Пересборка не должна возвращать принятую рекомендацию в статус NEW.
+    // Пересборка не должна возвращать взятую в работу рекомендацию в статус NEW.
     await call('POST', '/api/recommendations/generate')
     const afterRerun = await call<{ status: string }>('GET', `/api/recommendations/${firstRec.id}`)
     check(
       'решение сотрудника переживает пересборку',
-      afterRerun.body.data?.status === 'ACCEPTED',
+      afterRerun.body.data?.status === 'IN_PROGRESS' || afterRerun.body.data?.status === 'DONE',
       `статус ${afterRerun.body.data?.status}`,
     )
   }
