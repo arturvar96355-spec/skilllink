@@ -5,7 +5,8 @@ import { prisma } from '@/shared/db/prisma'
 import { containsNul } from '@/shared/db/storable'
 import type { UserRole } from '@/shared/contracts/enums'
 import { writeAudit } from '@/shared/audit/audit'
-import { clientAddress, throttledAttempt } from './throttle'
+import { checkLogin, clientAddress, needsCaptcha, throttledAttempt } from './throttle'
+import { parseSolution, verifySolution } from './captcha'
 import { loginAuditEntries, type LoginOutcome } from './login-audit'
 
 /**
@@ -29,6 +30,15 @@ import { loginAuditEntries, type LoginOutcome } from './login-audit'
  */
 class LoginThrottledError extends CredentialsSignin {
   code = 'too_many_attempts'
+}
+
+/**
+ * Нужна проверка «не робот» (captcha.ts, решение 100): после нескольких неудач
+ * вход ждёт решённую задачу. Пароль при этом не проверяется и неудача
+ * не засчитывается — экран входа решает задачу и повторяет попытку сам.
+ */
+class CaptchaRequiredError extends CredentialsSignin {
+  code = 'captcha_required'
 }
 
 /** Данные, которые кладутся в токен: их хватает для проверки прав без запроса к базе. */
@@ -62,7 +72,7 @@ const TIMING_EQUALIZER_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8e.VhYQ3o8KJ1p7hSJ3
  * секрет нельзя: иначе `next build` не пройдёт ни в CI, ни при сборке образа, куда
  * секреты попадают только на запуске.
  */
-function resolveSecret(): string {
+export function resolveSecret(): string {
   const secret = process.env.AUTH_SECRET
   if (secret && secret.trim().length > 0) return secret
 
@@ -103,6 +113,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Электронная почта', type: 'email' },
         password: { label: 'Пароль', type: 'password' },
+        // Решение задачи «не робот» — только после нескольких неудач (captcha.ts).
+        captcha: { type: 'hidden' },
       },
       async authorize(credentials, request) {
         const email = typeof credentials?.email === 'string' ? credentials.email.trim() : ''
@@ -115,6 +127,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // стоить ни запроса, ни bcrypt. Неудача засчитывается сразу — иначе
         // одновременные попытки проходили проверку все разом (throttledAttempt).
         const source = { account: email.toLowerCase(), address: clientAddress(request.headers) }
+
+        // Проверка «не робот» — до перебора: без решённой задачи пароль не сравнивается
+        // и неудача не засчитывается. Закрытый вход проверку пропускает: человек
+        // должен узнать, что ждать 15 минут, а не решать задачу впустую.
+        // Всё синхронно, без `await`: решение помечается использованным тут же.
+        if (
+          !checkLogin(source).blocked &&
+          needsCaptcha(source) &&
+          !verifySolution(parseSolution(credentials?.captcha), resolveSecret())
+        ) {
+          throw new CaptchaRequiredError()
+        }
         // Для журнала: чья учётная запись, если она существует. Почта в журнал не идёт.
         let knownUserId: string | null = null
         const attempt = await throttledAttempt(source, async () => {
