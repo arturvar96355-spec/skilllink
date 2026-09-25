@@ -11,7 +11,6 @@ import {
 } from '@/modules/universities/universities.schema'
 
 export const EXPORT_DATASETS = ['universities', 'programs', 'cooperations', 'skill-gaps'] as const
-export type ExportDataset = (typeof EXPORT_DATASETS)[number]
 
 export const exportQuerySchema = z.object({
   dataset: z.enum(EXPORT_DATASETS),
@@ -27,8 +26,8 @@ export type ExportQuery = z.infer<typeof exportQuerySchema>
  *
  * Фильтры — те же параметры и та же схема, что у `GET /api/<раздел>`: кнопка
  * «Выгрузить» передаёт то, что стоит на экране, и в файл попадают ровно
- * отобранные строки. Раньше выгрузка знала только вуз, и человек, отобравший
- * заблокированные связки, получал в файле все.
+ * отобранные строки: человек, отобравший заблокированные связки, получает
+ * в файле только их, а не все.
  */
 export type ExportRequest =
   | { dataset: 'universities'; limit: number; filters: UniversityListQuery }
