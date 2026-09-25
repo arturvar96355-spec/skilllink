@@ -6,6 +6,9 @@
 
 .screen {
   min-height: 100vh;
+  /* Свой холст: тема страницы может быть светлой, экран входа — всегда тёмный. */
+  background: var(--canvas);
+  color: var(--text-primary);
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
   align-items: stretch;

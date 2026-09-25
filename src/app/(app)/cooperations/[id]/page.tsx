@@ -33,6 +33,8 @@ import {
   Skeleton,
   TableSkeleton,
   Tabs,
+  OPEN_RECOMMENDATION_STATUSES,
+  CLOSED_RECOMMENDATION_STATUSES,
   apiPost,
   buildQuery,
   documentHref,
@@ -109,10 +111,13 @@ function CooperationContent() {
    * и искать там нужную строку глазами. Ролям без аналитики раздел закрыт
    * на сервере, поэтому вкладки у них нет.
    */
+  // Как в общей ленте (решение 128): сначала открытые, закрытые — переключателем.
+  const [adviceScope, setAdviceScope] = useState<'open' | 'closed'>('open')
   const advice = useResource<RecommendationDto[]>(
     user.permissions.canSeeAnalytics && tab === 'recommendations'
       ? `/api/recommendations${buildQuery({
           cooperationId: params.id,
+          status: adviceScope === 'open' ? OPEN_RECOMMENDATION_STATUSES : CLOSED_RECOMMENDATION_STATUSES,
           sort: RECOMMENDATION_SORT_MOST_IMPORTANT,
           pageSize: 50,
         })}`
@@ -454,6 +459,14 @@ function CooperationContent() {
 
       {tab === 'recommendations' && (
         <Card>
+          <Tabs
+            items={[
+              { key: 'open', label: 'Открытые' },
+              { key: 'closed', label: 'Закрытые' },
+            ]}
+            active={adviceScope}
+            onChange={(key) => setAdviceScope(key === 'closed' ? 'closed' : 'open')}
+          />
           {advice.isLoading ? (
             <TableSkeleton rows={3} columns={2} />
           ) : advice.error ? (
@@ -461,8 +474,12 @@ function CooperationContent() {
           ) : (advice.data ?? []).length === 0 ? (
             <EmptyState
               icon="recommendation"
-              title="Предложений нет"
-              description="По этой связке система пока ничего не предлагает. Пересобрать их можно на странице рекомендаций."
+              title={adviceScope === 'open' ? 'Открытых предложений нет' : 'Закрытых предложений нет'}
+              description={
+                adviceScope === 'open'
+                  ? 'По этой связке система сейчас ничего не предлагает. Пересобрать предложения можно на странице рекомендаций.'
+                  : 'Выполненных и отклонённых предложений по этой связке пока нет.'
+              }
             />
           ) : (
             <div className={styles.adviceList}>

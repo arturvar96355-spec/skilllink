@@ -4,7 +4,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 500;
   color: var(--text-secondary);
   flex-wrap: wrap;
@@ -58,19 +58,19 @@
   color: var(--text-primary);
 }
 
-/* Страница объекта: название крупно и с засечками (A24, решение 79). */
+/* Страница объекта: название крупно (решение 79), тем же шрифтом, что всё приложение. */
 .titleDisplay {
-  font-family: Georgia, 'Times New Roman', serif;
+  /* Тот же шрифт, что во всём приложении (бриф v2, 1.1): засечки делали название
+     вуза «чужим» на фоне остальных заголовков. Крупный кегль и вес — без смены гарнитуры. */
   font-size: var(--text-object-title-size);
-  font-weight: 400;
+  font-weight: var(--text-h1-weight);
   line-height: 1.12;
   letter-spacing: -0.015em;
   overflow-wrap: anywhere;
 }
 
-/* Полное название под коротким — мельче и тише, теми же засечками. */
+/* Полное название под коротким — мельче и тише. */
 .subtitle {
-  font-family: Georgia, 'Times New Roman', serif;
   font-size: var(--text-body-lg-size);
   line-height: var(--text-body-lg-line);
   color: var(--text-secondary);
@@ -167,12 +167,26 @@
 }
 
 /* Вкладки раздела. */
+/*
+ * Ряд вкладок стоит на месте (бриф v2, 1.4). Одного overflow-x: auto мало:
+ * браузер тогда делает прокручиваемой и вертикаль, а индикатор выступал на
+ * пиксель вниз — ряд можно было дёрнуть вверх-вниз. Вертикаль закрыта,
+ * вбок ряд листается только на узком экране, без видимой полосы.
+ */
 .tabs {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  border-bottom: 1px solid var(--border-divider);
+  box-shadow: inset 0 -1px 0 var(--border-divider);
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -185,11 +199,35 @@
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
+  -webkit-user-drag: none;
+  user-select: none;
   transition: color var(--motion-micro) var(--ease-out);
 }
 
 .tab:hover {
   color: var(--text-primary);
+}
+
+/* Индикатор есть у каждой вкладки и проявляется у активной — переход плавный. */
+.tab::after {
+  content: '';
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: 0;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  opacity: 0;
+  transform: scaleX(0.4);
+  transition:
+    opacity var(--motion-surface) var(--ease-out),
+    transform var(--motion-surface) var(--ease-out);
+}
+
+.tab:hover::after {
+  opacity: 0.25;
+  transform: scaleX(0.7);
 }
 
 .tabActive {
@@ -198,15 +236,10 @@
 }
 
 /* Короткий аккуратный индикатор, не широкая цветная полоса (раздел 21). */
-.tabActive::after {
-  content: '';
-  position: absolute;
-  left: var(--space-4);
-  right: var(--space-4);
-  bottom: -1px;
-  height: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--text-primary);
+.tabActive::after,
+.tabActive:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
 }
 
 .tabCount {

@@ -61,8 +61,10 @@
     0 30px 60px rgba(0, 0, 0, 0.55);
 }
 
-/* Боковые бирки — чуть в тени: свет падает на центральную. */
+/* Боковые бирки — чуть в тени: свет падает на центральную.
+   Содержимое бирки щелчки не ловит: щелчок принимает сама бирка (решение 127). */
 .slot > * {
+  pointer-events: none;
   filter: brightness(0.78);
   transition: filter var(--motion-panel) var(--ease-out);
 }
@@ -154,7 +156,7 @@
   padding: 3px 10px;
   border-radius: var(--radius-pill);
   background: var(--text-primary);
-  color: var(--text-on-light);
+  color: var(--text-inverse);
   font-size: var(--text-caption-size);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -237,12 +239,12 @@
 
 .indexItemCurrent {
   background: var(--text-primary);
-  color: var(--text-on-light);
+  color: var(--text-inverse);
 }
 
 .indexItemCurrent:hover {
   background: var(--text-primary);
-  color: var(--text-on-light);
+  color: var(--text-inverse);
 }
 
 .indexNumber {

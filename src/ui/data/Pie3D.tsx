@@ -237,7 +237,10 @@ export function Pie3D({
       <path
         d={topFace(g, part.a0, part.a1, part.shift)}
         className={styles.top}
-        onPointerEnter={() => setActive(part.index)}
+        onPointerEnter={(event) => {
+          // Касание не «наводит»: иначе сектор оставался выдвинутым после тапа.
+          if (event.pointerType !== 'touch') setActive(part.index)
+        }}
         onPointerLeave={() => setActive((current) => (current === part.index ? null : current))}
       />
       <path d={topFace(g, part.a0, part.a1, part.shift)} fill={`url(#${id}-sheen)`} className={styles.sheen} />
@@ -256,6 +259,10 @@ export function Pie3D({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        // Сброс — по уходу со всей диаграммы, а не с грани: выдвинутая грань
+        // уезжает из-под курсора, и при быстром уходе её «уход» не приходил —
+        // сектор оставался смещённым (бриф v2, 1.2). idle → hover → idle.
+        onPointerLeave={() => setActive(null)}
       >
         <defs>
           {/* Блик на верхней грани: свет сверху слева — белым поверх цвета сектора.
@@ -327,7 +334,9 @@ export function Pie3D({
               type="button"
               className={[styles.legendItem, index === active ? styles.legendActive : ''].filter(Boolean).join(' ')}
               style={{ color: TONE_VAR[slice.tone] }}
-              onPointerEnter={() => setActive(index)}
+              onPointerEnter={(event) => {
+                if (event.pointerType !== 'touch') setActive(index)
+              }}
               onPointerLeave={() => setActive(null)}
               onFocus={() => setActive(index)}
               onBlur={() => setActive(null)}

@@ -24,7 +24,7 @@
 
 .axisText {
   fill: var(--text-tertiary);
-  font-size: 11px;
+  font-size: var(--text-caption-size);
   font-variant-numeric: tabular-nums;
 }
 
@@ -64,7 +64,7 @@
 
 .label {
   fill: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--text-label-size);
   font-weight: 600;
 }
 
@@ -74,7 +74,7 @@
 
 .value {
   fill: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-body-sm-size);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   animation: valueIn var(--motion-surface) var(--ease-out) both;

@@ -209,7 +209,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-card-sm);
   background: var(--surface-card-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-line);
   color: var(--text-secondary);

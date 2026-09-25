@@ -45,7 +45,7 @@
 
 .interactive:hover {
   background: var(--surface-hover);
-  transform: translateY(-1px);
+  transform: translateY(var(--hover-lift));
 }
 
 .interactive:active {

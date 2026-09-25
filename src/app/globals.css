@@ -7,9 +7,21 @@
  * из-за которой страницы начинают расходиться между собой.
  */
 
-:root {
+/*
+ * Тёмная тема — основная. Её же получает блок с data-force-dark: экран входа
+ * со звёздным 3D-фоном остаётся тёмным при любой теме (решение 122).
+ */
+:root,
+[data-force-dark] {
+  /* Цвет «чернил» для прозрачных линий и подсветок: rgb(var(--ink-rgb) / 0.06). В тёмной
+     теме это белый поверх тёмного, в светлой — тёмный поверх светлого. */
+  --ink-rgb: 255 255 255;
+  color-scheme: dark;
+
   /* Шрифт: переменную задаёт next/font в корневом макете, стек — запасной. */
   --font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Коды и идентификаторы (хеш документа, ключ записи журнала) — единственное место второй гарнитуры. */
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /*
    * Поверхности — четыре уровня (docs/design/07_Human_Crafted_Override.md, раздел 1).
@@ -115,6 +127,13 @@
   /* Подложка логотипов вузов на бирках (решение 77): чисто белая — логотипы
      с белым фоном (JPG) на ней не читаются отдельным прямоугольником. */
   --logo-plate: #ffffff;
+  /* Текст на «перевёрнутой» плашке с фоном --text-primary (решение 129). */
+  --text-inverse: #111116;
+  /* Бирка вуза — бумажная в обеих темах (решение 129): свои цвета, не из темы. */
+  --tag-paper: #f3f1ed;
+  --tag-accent: #6c4ce6;
+  --tag-stamp: #a8481a;
+  --tag-plate-dark: #1c1830;
 
   /* Размеры, которые типографика задаёт для конкретных мест интерфейса. */
   --text-label-size: 12px;
@@ -141,6 +160,16 @@
   --shadow-floating: 0 24px 64px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
 
   /*
+   * Единая система наведения (бриф v2, 4): карточка поднимается и мягко светится,
+   * а не уезжает вбок; сильнее — только крупные «живые» объекты. Свет — уровнями:
+   * обычный акцент для наведения, отдельный тревожный — для проблемных карточек.
+   */
+  --hover-lift: -2px;
+  --hover-lift-strong: -4px;
+  --glow-hover: 0 8px 24px rgba(142, 108, 255, 0.14), 0 0 0 1px rgba(142, 108, 255, 0.28);
+  --glow-hover-danger: 0 8px 24px rgba(240, 97, 111, 0.14), 0 0 0 1px rgba(240, 97, 111, 0.32);
+
+  /*
    * «Стекло» плашки входа — по образцу карточек AuthKit (решение 92): почти
    * непрозрачная тёмная плита, морозная кромка, свет изнутри сверху и тёмный
    * ореол снизу вместо обычной тени. Только экран входа.
@@ -154,6 +183,8 @@
     0 16px 32px rgba(0, 0, 0, 0.3), 0 24px 64px rgba(0, 0, 0, 0.35);
   /* Бегущая по кромке линия и точки в углах — фирменный лавандовый, а не голубой AuthKit. */
   --glass-line: #b9a6ff;
+  /* Окно поиска — стекло прозрачнее плашки входа: сквозь него видно страницу (бриф v2, 2.3). */
+  --glass-search: rgba(11, 9, 20, 0.72);
   /* Блик на стекле под курсором (решение 93). */
   --glass-glare: rgba(214, 204, 255, 0.1);
   --glass-focus-ring: 0 0 0 3px rgba(185, 166, 255, 0.14);
@@ -251,7 +282,16 @@
   --text-kpi-md-size: 24px;
   --text-kpi-sm-size: 18px;
 
-  /* Движение (07, раздел 16): непрерывность важнее зрелища. */
+  /*
+   * Движение (07, раздел 16): непрерывность важнее зрелища.
+   * Три уровня брифа v2 (раздел 3) — ими и пользоваться в новом коде:
+   *   --motion-fast     160 мс — наведение, иконка, граница, цвет;
+   *   --motion-normal   240 мс — карточки, выпадающие меню, поиск, вкладки, подсказки;
+   *   --motion-emphasis 520 мс — крупные элементы, появление секций, финал главной.
+   * Остальные имена ниже — прежние, они укладываются в те же три уровня.
+   */
+  --motion-normal: 240ms;
+  --motion-emphasis: 520ms;
   --motion-micro: 160ms;
   --motion-surface: 220ms;
   --motion-overlay: 300ms;
@@ -276,6 +316,114 @@
   --z-floating: 50;
   --z-overlay: 60;
   --z-toast: 70;
+
+  /* Кнопки: основная в тёмной теме — светлая (07, раздел 4). */
+  --button-primary-bg: #f1eee8;
+  --button-primary-fg: var(--text-on-light);
+  --button-primary-hover: #ffffff;
+  --button-accent-hover: #9d80ff;
+}
+
+/*
+ * Светлая тема (решение 122). Меняются только значения токенов: компоненты
+ * берут цвета из них. Холст — светлый лавандово-серый, поверхности — белые,
+ * текст — тёмный с контрастом не ниже 4,5:1, фирменные цвета чуть глубже, чтобы
+ * держать контраст на белом; тени — мягкие фиолетовые, а не чёрные.
+ */
+:root[data-theme='light'] {
+  --ink-rgb: 22 18 40;
+  color-scheme: light;
+
+  --canvas: #f5f4f9;
+  --surface-1: #ffffff;
+  --surface-2: #f1eff7;
+  --surface-3: #e8e5f1;
+  --surface-floating: rgba(255, 255, 255, 0.97);
+  --bg-sidebar: rgba(255, 255, 255, 0.94);
+  --bg-header: rgba(245, 244, 249, 0.8);
+  --bg-glow: rgba(124, 92, 240, 0.1);
+  --bg-glow-deep: rgba(124, 92, 240, 0.08);
+  --bg-haze-violet: rgba(124, 92, 240, 0.07);
+  --bg-haze-deep: rgba(92, 60, 200, 0.06);
+  --surface-card-muted: #faf9fd;
+  --surface-sunken: #efedf5;
+  --border-accent: rgba(108, 76, 230, 0.32);
+  --danger-surface: rgba(206, 43, 68, 0.08);
+  --danger-border: rgba(206, 43, 68, 0.3);
+  --success-border: rgba(22, 128, 120, 0.3);
+  --success-surface: rgba(22, 128, 120, 0.1);
+
+  --purple-900: #efedf5;
+  --purple-800: #f1eff7;
+  --purple-700: #ffffff;
+  --purple-600: #e8e5f1;
+  --purple-500: #6c4ce6;
+
+  --accent-violet: #6c4ce6;
+  --accent-pink: #c7307c;
+  --accent-orange: #c85a22;
+  --accent-cyan: #0e7a74;
+
+  --text-primary: #17141f;
+  --text-secondary: #474454;
+  --text-tertiary: #636070;
+  --text-disabled: #a6a3b3;
+  --text-accent: #5b3dd4;
+  --text-accent-soft: #6a4fe0;
+  --text-accent-pale: #4d31c4;
+  --text-danger-strong: #a81d33;
+  --text-danger-soft: #a81d33;
+  --text-warm: #a8491a;
+  --text-muted-cool: #474454;
+  --text-violet: #5b3dd4;
+  --text-on-light: #111116;
+  --logo-plate: #ffffff;
+  --text-inverse: #ffffff;
+
+  --line-subtle: rgba(22, 18, 40, 0.09);
+  --line-strong: rgba(22, 18, 40, 0.16);
+  --line-faint: rgba(22, 18, 40, 0.045);
+  --border-active: rgba(108, 76, 230, 0.55);
+  --border-divider: rgba(22, 18, 40, 0.08);
+
+  --shadow-base: 0 1px 2px rgba(40, 28, 90, 0.06);
+  --shadow-floating: 0 20px 48px rgba(40, 28, 90, 0.14), 0 2px 8px rgba(40, 28, 90, 0.08);
+  --glow-hover: 0 8px 24px rgba(108, 76, 230, 0.14), 0 0 0 1px rgba(108, 76, 230, 0.26);
+  --glow-hover-danger: 0 8px 24px rgba(206, 43, 68, 0.12), 0 0 0 1px rgba(206, 43, 68, 0.3);
+
+  --status-success: #0e7a74;
+  --status-warning: #8f5b0a;
+  --status-danger: #ce2b44;
+  --status-neutral: #636070;
+
+  --glass-plate: rgba(255, 255, 255, 0.94);
+  --glass-tint: rgba(108, 76, 230, 0.03);
+  --glass-edge: rgba(40, 28, 90, 0.1);
+  --glass-edge-strong: rgba(40, 28, 90, 0.2);
+  --glass-field: rgba(40, 28, 90, 0.04);
+  --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 16px 32px rgba(40, 28, 90, 0.1),
+    0 2px 6px rgba(40, 28, 90, 0.06);
+  --glass-line: #6c4ce6;
+  --glass-search: rgba(255, 255, 255, 0.76);
+  --glass-glare: rgba(255, 255, 255, 0.5);
+  --glass-focus-ring: 0 0 0 3px rgba(108, 76, 230, 0.18);
+  --glass-glow: 0 0 12px rgba(108, 76, 230, 0.3), 0 0 24px rgba(108, 76, 230, 0.18);
+
+  /* Кнопки: основная в светлой теме — тёмная (в тёмной — светлая). */
+  --button-primary-bg: #17141f;
+  --button-primary-fg: #ffffff;
+  --button-primary-hover: #2c2838;
+  --button-accent-hover: #5b3dd4;
+}
+
+/* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */
+html[data-theme-switch] *,
+html[data-theme-switch] *::before,
+html[data-theme-switch] *::after {
+  transition:
+    background-color var(--motion-surface) var(--ease-out),
+    color var(--motion-surface) var(--ease-out),
+    border-color var(--motion-surface) var(--ease-out) !important;
 }
 
 *,

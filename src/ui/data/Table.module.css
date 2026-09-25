@@ -307,7 +307,7 @@
 
 .table[data-morph] tbody tr[data-picked] {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 
 
@@ -532,14 +532,24 @@
   transition:
     background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
+    box-shadow var(--motion-surface) var(--ease-out),
+    transform var(--motion-surface) var(--ease-out);
 }
 
+/* Единое наведение (бриф v2, 4): карточка поднимается и мягко светится — текст стоит.
+   Только там, где есть наведение: на тач-экране подъём «залипал» после касания. */
 .list .clickable:hover {
   background: var(--surface-2);
   border-color: var(--line-strong);
-  box-shadow: inset 3px 0 0 var(--accent-violet);
-  transform: translateX(4px);
+}
+
+@media (hover: hover) {
+  .list .clickable:hover {
+    box-shadow:
+      inset 3px 0 0 var(--accent-violet),
+      var(--glow-hover);
+    transform: translateY(var(--hover-lift));
+  }
 }
 
 .list .selected {

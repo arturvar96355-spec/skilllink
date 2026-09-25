@@ -46,14 +46,14 @@
 }
 
 .accent {
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgb(var(--ink-rgb) / 0.07);
+  border-color: rgb(var(--ink-rgb) / 0.14);
   color: var(--text-accent);
 }
 
 .info {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: rgb(var(--ink-rgb) / 0.05);
+  border-color: rgb(var(--ink-rgb) / 0.14);
   color: var(--text-violet);
 }
 

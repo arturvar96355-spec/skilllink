@@ -329,7 +329,7 @@
   border-radius: var(--radius-input);
   background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-label-size);
   line-height: 1.5;
   color: var(--text-secondary);

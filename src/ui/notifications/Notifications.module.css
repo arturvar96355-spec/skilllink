@@ -34,7 +34,7 @@
   background: var(--surface-floating);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.096);
+  border: 1px solid rgb(var(--ink-rgb) / 0.096);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-floating);
   transform-origin: top right;
@@ -117,11 +117,11 @@
 }
 
 .item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 
 .unread {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 
 .icon {
@@ -146,7 +146,7 @@
 }
 
 .info {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgb(var(--ink-rgb) / 0.14);
   color: var(--text-accent-soft);
 }
 
@@ -198,4 +198,32 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-5);
+}
+
+/* Заголовок не разрывается: «7 новых» и «Отметить прочитанным» — одной строкой. */
+.title,
+.count,
+.head > :last-child {
+  white-space: nowrap;
+}
+
+/*
+ * Телефон (решение 129): панель, привязанная к колокольчику справа, уходила за
+ * левый край экрана. Здесь она встаёт под шапкой по ширине экрана с полями.
+ */
+@media (max-width: 720px) {
+  .panel {
+    position: fixed;
+    top: calc(var(--header-height) + var(--space-2));
+    right: var(--space-4);
+    left: var(--space-4);
+    width: auto;
+  }
+
+  /* Кнопка «Отметить прочитанным» не влезает рядом с заголовком — уходит строкой ниже. */
+  .head {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+  }
 }

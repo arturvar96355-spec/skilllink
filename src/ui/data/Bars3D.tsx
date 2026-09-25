@@ -145,7 +145,15 @@ export function Bars3D({ groups, label, unit }: { groups: Bars3DGroup[]; label: 
 
   return (
     <div ref={ref} className={styles.root}>
-      <svg viewBox={`0 0 ${width} ${HEIGHT + (tiltLabels ? TILT_ROOM : 0)}`} className={styles.svg} role="img" aria-label={label}>
+      <svg
+        viewBox={`0 0 ${width} ${HEIGHT + (tiltLabels ? TILT_ROOM : 0)}`}
+        className={styles.svg}
+        role="img"
+        aria-label={label}
+        // Сброс — по уходу со всего графика: при быстром уходе курсора «уход»
+        // с поднятой колонки мог не прийти (бриф v2, 1.2).
+        onPointerLeave={() => setActive(null)}
+      >
         {/* Пол: параллелограмм с линиями — колонки стоят на плоскости, а не висят. */}
         <path
           d={quad([
@@ -214,8 +222,11 @@ export function Bars3D({ groups, label, unit }: { groups: Bars3DGroup[]; label: 
           const body = (
             <g
               className={[styles.bar, lifted ? styles.lifted : ''].filter(Boolean).join(' ')}
-              onPointerEnter={() => setActive(index)}
-              onPointerLeave={() => setActive(null)}
+              onPointerEnter={(event) => {
+                // Касание не «наводит»: колонка не залипает поднятой после тапа.
+                if (event.pointerType !== 'touch') setActive(index)
+              }}
+              onPointerLeave={() => setActive((current) => (current === index ? null : current))}
               onFocus={() => setActive(index)}
               onBlur={() => setActive(null)}
             >
