@@ -29,6 +29,14 @@
 ссылки на объекты) — только для `ADMIN`; смена своего пароля в личном кабинете для любой
 роли; статус ИИ-помощника во вкладке «Интеграции». Схема базы не менялась.
 
+**Параметры расчётов и справочник навыков (25.09.2026, решение 107, ветка `feat/settings-api`,
+только API).** `GET /api/settings/parameters` — веса рейтинга, пороги дефицитов и профиль
+навыков, нормативы 14 этапов, пороги правил рекомендаций, ограничения входа, сроки хранения —
+из тех же констант, что считает код, с пометкой «рабочее значение» у TEMP и ссылкой на раздел
+методики; видят все, кому открыта аналитика. Справочник навыков для `ADMIN`: создание,
+правка, объединение дубля в другой навык одной транзакцией (остаётся более сильная связь)
+и удаление только неиспользуемого. Схема базы не менялась. Вкладки «Настроек» — задача фронта.
+
 **Подписка на календарь сроков (25.09.2026, решение 105, ветка `feat/calendar-ics`, только API).**
 Личная ссылка `GET /api/calendar/<токен>.ics` без входа: сроки незавершённых этапов, где
 сотрудник ответственный за этап или связку (весь день, пометка «[Просрочен]»), и его встречи.
@@ -148,7 +156,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 67 маршрутов, 85 операций
+### Модули и эндпоинты — 70 маршрутов, 90 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -156,7 +164,8 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
 | universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore` |
 | programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
-| skills | `GET /api/skills`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
+| skills | `GET`, `POST /api/skills`; `PATCH`, `DELETE /api/skills/:id`; `POST …/merge`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
+| settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
@@ -326,7 +335,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 66 путей, 85 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 69 путей, 90 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

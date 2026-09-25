@@ -1,10 +1,17 @@
-import { notFound } from '@/shared/http/errors'
+import { conflict, notFound, validationError } from '@/shared/http/errors'
+import { writeAudit } from '@/shared/audit/audit'
 import { pageMeta } from '@/shared/http/pagination'
 import { prisma } from '@/shared/db/prisma'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
-import type { SkillDemandDto, SkillDto, SkillGapDto } from '@/shared/contracts/skill'
+import type {
+  SkillDeletedDto,
+  SkillDemandDto,
+  SkillDto,
+  SkillGapDto,
+  SkillMergeResultDto,
+} from '@/shared/contracts/skill'
 import type { SkillLevel } from '@/shared/contracts/enums'
 import * as repo from './skills.repo'
 import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
@@ -13,11 +20,21 @@ import {
   demandNormalizer,
   demandPerSkill,
   directionGroup,
+  duplicateSkillConflict,
   isInProfile,
+  isSkillUsed,
   outOfProfileNote,
+  skillInUseMessage,
   type DirectionProfile,
 } from './skills.rules'
-import type { SkillDemandQuery, SkillGapQuery, SkillListQuery } from './skills.schema'
+import type {
+  CreateSkillInput,
+  MergeSkillInput,
+  SkillDemandQuery,
+  SkillGapQuery,
+  SkillListQuery,
+  UpdateSkillInput,
+} from './skills.schema'
 
 export async function list(
   user: CurrentUser,
@@ -26,15 +43,19 @@ export async function list(
   assertCan(user, 'READ')
   const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
-    data: rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      category: row.category,
-      description: row.description,
-      programCount: row._count.programs,
-      productCount: row._count.products,
-    })),
+    data: rows.map(toSkillDto),
     meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
+  }
+}
+
+function toSkillDto(row: repo.SkillRow): SkillDto {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    description: row.description,
+    programCount: row._count.programs,
+    productCount: row._count.products,
   }
 }
 
@@ -210,4 +231,117 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     programId: query.programId ?? null,
     isMock: demandRows.some((row) => row.isMock),
   }
+}
+
+// ── Справочник навыков: управление (решение 107, право ADMIN) ──────────────────
+// ТЗ, п. 5: «Администратор — настройка системы: пользователи, роли, справочники».
+// Название навыка — не персональные данные, в журнал пишется как есть: после
+// объединения или удаления навыка в базе его имени уже нет.
+
+export async function create(user: CurrentUser, input: CreateSkillInput): Promise<SkillDto> {
+  assertCan(user, 'ADMIN')
+  const result = await repo.createSkill(input)
+  if (!result.ok) throw duplicateSkillConflict(input.name, result.clash.name)
+
+  await writeAudit({
+    userId: user.id,
+    action: 'skill.create',
+    objectType: 'Skill',
+    objectId: result.row.id,
+    payload: { name: result.row.name, category: result.row.category },
+  })
+  return toSkillDto(result.row)
+}
+
+export async function update(user: CurrentUser, id: string, input: UpdateSkillInput): Promise<SkillDto> {
+  assertCan(user, 'ADMIN')
+  const before = await repo.findById(id)
+  if (!before) throw notFound('Навык не найден')
+
+  const result = await repo.updateSkill(id, input)
+  if (!result) throw notFound('Навык не найден')
+  if (!result.ok) throw duplicateSkillConflict(input.name ?? before.name, result.clash.name)
+
+  await writeAudit({
+    userId: user.id,
+    action: 'skill.update',
+    objectType: 'Skill',
+    objectId: id,
+    payload: {
+      fields: Object.keys(input),
+      ...(input.name !== undefined && input.name !== before.name ? { from: before.name, to: result.row.name } : {}),
+    },
+  })
+  return toSkillDto(result.row)
+}
+
+/**
+ * Объединить дубль (`id` из адреса) в целевой навык. Правила конфликтов —
+ * `planSkillMerge` в skills.rules.ts; всё в одной транзакции (skills.repo.ts).
+ */
+export async function merge(
+  user: CurrentUser,
+  id: string,
+  input: MergeSkillInput,
+): Promise<SkillMergeResultDto> {
+  assertCan(user, 'ADMIN')
+  if (input.targetId === id) {
+    throw validationError('Навык нельзя объединить сам с собой', [
+      { field: 'targetId', message: 'Выберите другой навык — тот, который останется' },
+    ])
+  }
+
+  const outcome = await repo.mergeInto(id, input.targetId)
+  if (outcome.status === 'not-found') {
+    if (outcome.which === 'source') throw notFound('Навык не найден')
+    throw validationError('Навык, в который объединить, не найден', [
+      { field: 'targetId', message: 'Такого навыка нет в справочнике' },
+    ])
+  }
+
+  const { plan } = outcome
+  const result: SkillMergeResultDto = {
+    target: toSkillDto(outcome.target),
+    removed: outcome.removed,
+    programs: { moved: plan.programs.move.length, combined: plan.programs.combine.length },
+    products: { moved: plan.products.move.length, combined: plan.products.combine.length },
+    demand: { moved: plan.demand.move.length, combined: plan.demand.combine.length },
+    recommendations: { moved: plan.recommendations.move.length, dropped: plan.recommendations.drop.length },
+  }
+
+  await writeAudit({
+    userId: user.id,
+    action: 'skill.merge',
+    objectType: 'Skill',
+    objectId: input.targetId,
+    payload: {
+      removedId: outcome.removed.id,
+      removedName: outcome.removed.name,
+      targetName: outcome.target.name,
+      programs: result.programs,
+      products: result.products,
+      demand: result.demand,
+      recommendations: result.recommendations,
+    },
+  })
+  return result
+}
+
+/** Удалить навык, который нигде не используется. Используемый — 409 со счётчиками. */
+export async function remove(user: CurrentUser, id: string): Promise<SkillDeletedDto> {
+  assertCan(user, 'ADMIN')
+  const outcome = await repo.deleteIfUnused(id, isSkillUsed)
+  if (!outcome) throw notFound('Навык не найден')
+  if ('usage' in outcome) {
+    throw conflict(skillInUseMessage(outcome.name, outcome.usage), { usage: outcome.usage })
+  }
+
+  await writeAudit({
+    userId: user.id,
+    action: 'skill.delete',
+    objectType: 'Skill',
+    objectId: id,
+    payload: { name: outcome.deleted.name },
+  })
+  return outcome.deleted
 }
