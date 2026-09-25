@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import {
   CONFIDENCE_LABELS,
   DATA_SOURCE_TYPE_LABELS,
@@ -26,18 +26,20 @@ import {
   useMutation,
   useResource,
   useToast,
-  useUiMode,
 } from '@/ui'
 import styles from './settings.module.css'
 
 /**
- * Настройки системы — плотным списком «параметр — значение — изменить»,
- * по разделам, как настройки в инструментах разработчика (ТЗ визуалу, п. 3).
+ * Настройки системы — как настройки Claude: слева колонка разделов, справа один
+ * раздел — заголовок и строки «название с короткой подписью — значение или
+ * действие» через тонкую линию (ТЗ визуалу, п. 3).
  *
- * Карточки с поясняющими абзацами заменены строками: пояснение раздела — за
- * значком (i) у заголовка, три значка интеграции — одним статусом, у источника
- * на виду три поля, остальное — по «Подробнее» (ТЗ фронту, задачи 6–9).
- * Ни одно сведение со страницы не убрано — только спрятано до запроса.
+ * Длинные пояснения разделов — за значком (i) у заголовка; у интеграции один
+ * статус вместо трёх значков; у источника на виду три поля, остальное — по
+ * «Подробнее» (ТЗ фронту, задачи 6–9). Ни одно сведение не убрано.
+ *
+ * Раздел хранится в адресе (`#integrations`): ссылка из подвала открывает его,
+ * «Назад» в браузере возвращает к предыдущему.
  *
  * Разделы, закрытые для роли, не рисуются вхолостую (раздел 32 шаблона страниц):
  * источники и интеграции требуют права на аналитику, без него — объяснение.
@@ -58,6 +60,21 @@ const PROVIDER_LABELS: Record<string, string> = {
   'future-rtk': 'источник РТК',
 }
 
+const SECTIONS = [
+  { key: 'interface', label: 'Интерфейс', icon: 'settings' },
+  { key: 'market', label: 'Рыночные данные', icon: 'analytics' },
+  { key: 'sources', label: 'Источники данных', icon: 'document' },
+  { key: 'integrations', label: 'Интеграции', icon: 'cooperation' },
+  { key: 'about', label: 'О системе', icon: 'info' },
+] as const
+
+type SectionKey = (typeof SECTIONS)[number]['key']
+
+function sectionFromHash(): SectionKey {
+  const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
+  return SECTIONS.find((section) => section.key === hash)?.key ?? 'interface'
+}
+
 type Integration = IntegrationsStatusDto['integrations'][number]
 
 /**
@@ -72,56 +89,38 @@ function integrationStatus(item: Integration): { label: string; tone: 'neutral' 
   return { label: item.isMock ? 'Подключена (демо)' : 'Подключена', tone: 'success' }
 }
 
-/** Раздел списка: заголовок, пояснение за (i), действие справа, строки. */
-function Group({
-  title,
-  hint,
-  action,
-  id,
-  children,
-}: {
-  title: string
-  hint?: string
-  action?: ReactNode
-  id?: string
-  children: ReactNode
-}) {
+function Hint({ text }: { text: string }) {
   return (
-    <section className={styles.group} id={id}>
-      <div className={styles.groupHead}>
-        <h2 className={styles.groupTitle}>
-          {title}
-          {hint && (
-            <Tooltip text={hint}>
-              <span className={styles.hint}>
-                <Icon name="info" size={16} />
-              </span>
-            </Tooltip>
-          )}
-        </h2>
-        {action}
-      </div>
-      <div className={styles.rows}>{children}</div>
-    </section>
+    <Tooltip text={text}>
+      <span className={styles.hint}>
+        <Icon name="info" size={16} />
+      </span>
+    </Tooltip>
   )
 }
 
-/** Строка «параметр — значение — изменить». */
-function Row({ label, hint, value, control }: { label: ReactNode; hint?: string; value?: ReactNode; control?: ReactNode }) {
+/** Строка: слева название и короткая подпись, справа значение или действие. */
+function Row({
+  title,
+  caption,
+  hint,
+  children,
+}: {
+  title: ReactNode
+  caption?: ReactNode
+  hint?: string
+  children?: ReactNode
+}) {
   return (
     <div className={styles.row}>
-      <span className={styles.label}>
-        {label}
-        {hint && (
-          <Tooltip text={hint}>
-            <span className={styles.hint}>
-              <Icon name="info" size={16} />
-            </span>
-          </Tooltip>
-        )}
-      </span>
-      <span className={styles.value}>{value}</span>
-      {control && <span className={styles.control}>{control}</span>}
+      <div className={styles.rowText}>
+        <span className={styles.rowTitle}>
+          {title}
+          {hint && <Hint text={hint} />}
+        </span>
+        {caption && <span className={styles.rowCaption}>{caption}</span>}
+      </div>
+      {children !== undefined && <div className={styles.rowSide}>{children}</div>}
     </div>
   )
 }
@@ -135,27 +134,26 @@ function SourceRow({ source }: { source: DataSourceDto }) {
   const detailsId = `source-${source.id}`
   return (
     <div className={styles.source}>
-      <div className={styles.row}>
-        <span className={styles.label}>
-          {source.name}
-          {source.isMock && <Badge tone="mock">демо</Badge>}
-        </span>
-        <span className={styles.value}>
-          {DATA_SOURCE_TYPE_LABELS[source.type]} · загружено {formatDateTime(source.updatedAt)}
-        </span>
-        <span className={styles.control}>
-          <button
-            type="button"
-            className={styles.disclosure}
-            aria-expanded={isOpen}
-            aria-controls={detailsId}
-            onClick={() => setIsOpen((open) => !open)}
-          >
-            Подробнее
-            <Icon name="chevronDown" size={16} className={styles.chevron} />
-          </button>
-        </span>
-      </div>
+      <Row
+        title={
+          <>
+            {source.name}
+            {source.isMock && <Badge tone="mock">демо</Badge>}
+          </>
+        }
+        caption={`${DATA_SOURCE_TYPE_LABELS[source.type]} · загружено ${formatDateTime(source.updatedAt)}`}
+      >
+        <button
+          type="button"
+          className={styles.disclosure}
+          aria-expanded={isOpen}
+          aria-controls={detailsId}
+          onClick={() => setIsOpen((open) => !open)}
+        >
+          Подробнее
+          <Icon name="chevronDown" size={16} className={styles.chevron} />
+        </button>
+      </Row>
       {isOpen && (
         <dl className={styles.details} id={detailsId}>
           <div>
@@ -181,7 +179,7 @@ function SourceRow({ source }: { source: DataSourceDto }) {
           {source.url && (
             <div>
               <dt>Адрес</dt>
-              <dd className={styles.url}>{source.url}</dd>
+              <dd className={styles.muted}>{source.url}</dd>
             </div>
           )}
         </dl>
@@ -190,14 +188,16 @@ function SourceRow({ source }: { source: DataSourceDto }) {
   )
 }
 
-/** Строки-заглушки на время загрузки: высота списка не прыгает. */
+/** Строки-заглушки на время загрузки: высота раздела не прыгает. */
 function RowsSkeleton({ count }: { count: number }) {
   return (
     <>
       {Array.from({ length: count }, (_, index) => (
         <div key={index} className={styles.row}>
-          <Skeleton width="40%" />
-          <Skeleton width="60%" />
+          <div className={styles.rowText}>
+            <Skeleton width="180px" />
+            <Skeleton width="260px" height="12px" />
+          </div>
         </div>
       ))}
     </>
@@ -206,16 +206,39 @@ function RowsSkeleton({ count }: { count: number }) {
 
 function Locked({ what }: { what: string }) {
   return (
-    <div className={styles.locked}>
-      <EmptyState icon="lock" title="Раздел недоступен" description={`${what} видны ролям с доступом к аналитике. У вашей роли его нет.`} />
-    </div>
+    <EmptyState
+      icon="lock"
+      title="Раздел недоступен"
+      description={`${what} видны ролям с доступом к аналитике. У вашей роли его нет.`}
+    />
   )
 }
 
 export default function SettingsPage() {
   const user = useCurrentUser()
   const toast = useToast()
-  const { isWork } = useUiMode()
+  const [active, setActive] = useState<SectionKey>('interface')
+
+  // Раздел из адреса — после монтирования: на сервере адреса с # нет.
+  useEffect(() => {
+    const sync = () => setActive(sectionFromHash())
+    sync()
+    window.addEventListener('hashchange', sync)
+    return () => window.removeEventListener('hashchange', sync)
+  }, [])
+
+  // На телефоне разделы — полосой с прокруткой: выбранный должен быть виден.
+  useEffect(() => {
+    document
+      .querySelector(`.${styles.nav} [aria-current='page']`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
+
+  function choose(key: SectionKey) {
+    setActive(key)
+    // Не прыгаем к якорю: раздел и так открыт сверху.
+    window.history.pushState(null, '', `#${key}`)
+  }
 
   const canSeeSources = user.permissions.canSeeAnalytics
   // Синхронизация — право записи (контракт, POST /api/data-sources/sync). Кнопка
@@ -248,65 +271,58 @@ export default function SettingsPage() {
     sources.reload()
   }
 
-  const syncControl = canSync ? (
-    <Button icon="refresh" onClick={onSync} isLoading={sync.isPending} variant="secondary" size="sm">
-      Синхронизировать
-    </Button>
-  ) : (
-    <span className={styles.muted}>Запускает сотрудник с правом записи</span>
-  )
+  const current = SECTIONS.find((section) => section.key === active)!
 
-  return (
-    <>
-      <PageHeader title="Настройки" />
+  const hints: Partial<Record<SectionKey, string>> = {
+    market:
+      'Записи об источниках создаются при загрузке рыночных данных. Какие источники включены, задаётся переменными окружения на сервере.',
+    integrations:
+      'Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения.',
+  }
 
-      <div className={styles.list}>
-        {/* Режим интерфейса (решение 80): выбор каждого человека, хранится в его браузере. */}
-        <Group title="Интерфейс">
+  function body(): ReactNode {
+    switch (active) {
+      case 'interface':
+        // Режим интерфейса (решение 80): выбор каждого человека, хранится в его браузере.
+        return (
           <Row
-            label="Режим"
-            hint="Рабочий — для ежедневной работы: реестры списком и сразу видно, что требует внимания. Презентационный — весь визуал для показа. Выбор запоминается в этом браузере."
-            value={isWork ? 'для ежедневной работы' : 'весь визуал для показа'}
-            control={<UiModeSwitch />}
-          />
-        </Group>
+            title="Режим интерфейса"
+            caption="Рабочий — реестры списком и сразу видно, что горит. Презентационный — весь визуал для показа."
+            hint="Выбор запоминается в этом браузере: на другом устройстве его нужно сделать заново."
+          >
+            <UiModeSwitch />
+          </Row>
+        )
 
-        <Group
-          title="Рыночные данные"
-          hint="Записи об источниках создаются при загрузке рыночных данных. Какие источники включены, задаётся переменными окружения на сервере."
-        >
-          {!canSeeSources ? (
-            <Locked what="Источники данных" />
-          ) : integrations.isLoading ? (
-            <RowsSkeleton count={2} />
-          ) : integrations.error ? (
-            <ErrorState error={integrations.error} onRetry={integrations.reload} />
-          ) : integrations.data ? (
-            <>
-              <Row
-                label="Активный источник"
-                value={PROVIDER_LABELS[integrations.data.marketDataProvider] ?? integrations.data.marketDataProvider}
-                control={syncControl}
-              />
-              <Row label="Состояние проверено" value={formatDateTime(integrations.data.checkedAt)} />
-            </>
-          ) : null}
-        </Group>
+      case 'market':
+        if (!canSeeSources) return <Locked what="Источники данных" />
+        if (integrations.isLoading) return <RowsSkeleton count={2} />
+        if (integrations.error) return <ErrorState error={integrations.error} onRetry={integrations.reload} />
+        if (!integrations.data) return null
+        return (
+          <>
+            <Row
+              title="Активный источник"
+              caption={PROVIDER_LABELS[integrations.data.marketDataProvider] ?? integrations.data.marketDataProvider}
+            >
+              {canSync ? (
+                <Button icon="refresh" onClick={onSync} isLoading={sync.isPending} variant="secondary" size="sm">
+                  Синхронизировать
+                </Button>
+              ) : (
+                <span className={styles.muted}>Запускает сотрудник с правом записи</span>
+              )}
+            </Row>
+            <Row title="Состояние проверено" caption={formatDateTime(integrations.data.checkedAt)} />
+          </>
+        )
 
-        <Group title="Источники данных">
-          {!canSeeSources ? (
-            <Locked what="Источники данных" />
-          ) : sources.isLoading ? (
-            <RowsSkeleton count={3} />
-          ) : sources.error ? (
-            <ErrorState error={sources.error} onRetry={sources.reload} />
-          ) : sources.data && sources.data.length > 0 ? (
-            <div className={sources.isRefreshing ? styles.refreshing : undefined}>
-              {sources.data.map((source) => (
-                <SourceRow key={source.id} source={source} />
-              ))}
-            </div>
-          ) : (
+      case 'sources':
+        if (!canSeeSources) return <Locked what="Источники данных" />
+        if (sources.isLoading) return <RowsSkeleton count={3} />
+        if (sources.error) return <ErrorState error={sources.error} onRetry={sources.reload} />
+        if (!sources.data || sources.data.length === 0) {
+          return (
             <EmptyState
               icon="analytics"
               title="Источников нет"
@@ -319,72 +335,93 @@ export default function SettingsPage() {
                 ) : undefined
               }
             />
-          )}
-        </Group>
+          )
+        }
+        return (
+          <div className={sources.isRefreshing ? styles.refreshing : undefined}>
+            {sources.data.map((source) => (
+              <SourceRow key={source.id} source={source} />
+            ))}
+          </div>
+        )
 
-        {/* Якорь: на него ведёт ссылка из подвала. */}
-        <Group
-          id="integrations"
-          title="Интеграции"
-          hint="Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения."
-        >
-          {!canSeeSources ? (
-            <Locked what="Интеграции" />
-          ) : integrations.isLoading ? (
-            <RowsSkeleton count={3} />
-          ) : integrations.error ? (
-            <ErrorState error={integrations.error} onRetry={integrations.reload} />
-          ) : integrations.data ? (
-            integrations.data.integrations.map((item) => {
-              const status = integrationStatus(item)
-              return (
-                <Row
-                  key={item.key}
-                  label={item.name}
-                  hint={item.reason ?? undefined}
-                  value={
-                    <Badge tone={status.tone} withDot>
-                      {status.label}
-                    </Badge>
-                  }
-                />
-              )
-            })
-          ) : null}
-        </Group>
+      case 'integrations':
+        if (!canSeeSources) return <Locked what="Интеграции" />
+        if (integrations.isLoading) return <RowsSkeleton count={3} />
+        if (integrations.error) return <ErrorState error={integrations.error} onRetry={integrations.reload} />
+        if (!integrations.data) return null
+        return integrations.data.integrations.map((item) => {
+          const status = integrationStatus(item)
+          return (
+            <Row key={item.key} title={item.name} caption={item.reason ?? undefined}>
+              <Badge tone={status.tone} withDot>
+                {status.label}
+              </Badge>
+            </Row>
+          )
+        })
 
-        <Group title="О системе">
-          <Row
-            label="Версия"
-            hint="Номер версии и сборки система не публикует — придумывать значение мы не стали."
-            value={<span className={styles.muted}>не публикуется</span>}
-          />
-          <Row
-            label="Демонстрационные данные"
-            value="помечены значком и за статистику не выдаются"
-          />
-          {/* Обычные ссылки, а не переходы внутри приложения: это ответы API. */}
-          <Row
-            label="Состояние системы"
-            value={<span className={styles.code}>/api/health</span>}
-            control={
+      case 'about':
+        return (
+          <>
+            <Row
+              title="Версия"
+              caption="Номер версии и сборки система не публикует — придумывать значение мы не стали."
+            />
+            <Row
+              title="Демонстрационные данные"
+              caption="Помечены значком и за подтверждённую статистику не выдаются."
+            >
+              <Badge tone="mock">Демонстрационные данные</Badge>
+            </Row>
+            {/* Обычные ссылки, а не переходы внутри приложения: это ответы API. */}
+            <Row title="Состояние системы" caption="/api/health">
               <a className={styles.link} href="/api/health" target="_blank" rel="noreferrer">
                 Открыть
                 <Icon name="external" size={16} />
               </a>
-            }
-          />
-          <Row
-            label="Спецификация OpenAPI"
-            value={<span className={styles.code}>/api/openapi.json</span>}
-            control={
+            </Row>
+            <Row title="Спецификация OpenAPI" caption="/api/openapi.json">
               <a className={styles.link} href="/api/openapi.json" target="_blank" rel="noreferrer">
                 Открыть
                 <Icon name="external" size={16} />
               </a>
-            }
-          />
-        </Group>
+            </Row>
+          </>
+        )
+    }
+  }
+
+  return (
+    <>
+      <PageHeader title="Настройки" />
+
+      <div className={styles.layout}>
+        <nav className={styles.nav} aria-label="Разделы настроек">
+          {SECTIONS.map((section) => (
+            <a
+              key={section.key}
+              href={`#${section.key}`}
+              className={styles.navItem}
+              aria-current={section.key === active ? 'page' : undefined}
+              onClick={(event) => {
+                event.preventDefault()
+                choose(section.key)
+              }}
+            >
+              <Icon name={section.icon} size={16} />
+              {section.label}
+            </a>
+          ))}
+        </nav>
+
+        <section className={styles.panel} id={active} aria-labelledby="settings-section-title">
+          <h2 className={styles.panelTitle} id="settings-section-title">
+            {current.label}
+            {hints[active] && <Hint text={hints[active]!} />}
+          </h2>
+          <div className={styles.rows}>{body()}</div>
+        </section>
       </div>
     </>
   )
