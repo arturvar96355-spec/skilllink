@@ -28,17 +28,14 @@ export interface StageRibbonProps {
 
 /**
  * Глубина этапа относительно текущего (07, раздел 8): текущий — ближе всех,
- * пройденные уходят назад, будущие — дальше и тише, но остаются читаемыми.
- * Проблемные не гаснут: просрочку и блокировку должно быть видно издалека.
+ * пройденные и будущие уходят назад в перспективе. Прозрачностью этапы больше
+ * не гасятся: на проекторе приглушённые номера не читались (ТЗ визуалу, п. 5).
  */
-function depthOf(stage: WorkflowStageDto, focus: number): { z: number; fade: number } {
+function depthOf(stage: WorkflowStageDto, focus: number): number {
   const distance = stage.stageNumber - focus
-  const problem = stage.isOverdue || stage.status === 'BLOCKED'
-  if (distance === 0) return { z: 22, fade: 1 }
-  if (distance < 0) {
-    return { z: Math.max(-84, distance * 16), fade: problem ? 0.9 : Math.max(0.66, 1 + distance * 0.07) }
-  }
-  return { z: Math.max(-64, -distance * 10), fade: problem ? 0.9 : Math.max(0.6, 1 - distance * 0.06) }
+  if (distance === 0) return 22
+  if (distance < 0) return Math.max(-84, distance * 16)
+  return Math.max(-64, -distance * 10)
 }
 
 /** Номер этапа в записи маршрута: «06 / 14». */
@@ -170,7 +167,7 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
               ]
                 .filter(Boolean)
                 .join(' ')}
-              style={{ '--z': `${depth.z}px`, '--fade': depth.fade } as CSSProperties}
+              style={{ '--z': `${depth}px` } as CSSProperties}
               onClick={() => onSelect(stage.id)}
               aria-label={
                 `Этап ${stage.stageNumber}: ${stage.title}. ` +
