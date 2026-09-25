@@ -35,6 +35,7 @@ import {
   useResource,
   type IconName,
 } from '@/ui'
+import { ChangePasswordModal } from './ChangePasswordModal'
 import { Orb } from './Orb'
 import styles from './profile.module.css'
 
@@ -85,6 +86,11 @@ export default function ProfilePage() {
   )
   const feed = useResource<NotificationFeedDto>(isRep ? null : '/api/notifications?limit=6')
   const [isLeaving, setIsLeaving] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  // Временный пароль от администратора (по журналу, GET /api/me): просим сменить.
+  // После смены плашка прячется сразу, не дожидаясь перезагрузки страницы.
+  const [passwordChanged, setPasswordChanged] = useState(false)
+  const showTemporaryNotice = user.passwordTemporary && !passwordChanged
 
   const data = stats.data
   const cooperations = mine.data ?? []
@@ -113,6 +119,21 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader title="Личный кабинет" meta={data?.containsMockData ? <MockBadge /> : undefined} />
+
+      {showTemporaryNotice && (
+        <div className={styles.tempPassword} role="status">
+          <div className={styles.tempPasswordText}>
+            <Icon name="lock" size={18} />
+            <p>
+              Вы вошли с временным паролем, который выдал администратор. Смените его на свой — временный
+              видел не только вы.
+            </p>
+          </div>
+          <Button variant="primary" size="sm" onClick={() => setIsChangingPassword(true)}>
+            Сменить пароль
+          </Button>
+        </div>
+      )}
 
       {/* Шапка: сфера-аватар с орбитой связок и сводка. */}
       <section className={styles.hero} aria-label="Профиль">
@@ -350,7 +371,7 @@ export default function ProfilePage() {
         <div className={styles.blockHead}>
           <h2 id="profile-settings" className={styles.blockTitle}>
             Настройки
-            <Tooltip text="ФИО, должность, роль, почту и привязку к вузу заводит администратор системы: изменить их из интерфейса нельзя — такого действия в API нет.">
+            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — это логин, она не меняется. Пароль вы меняете сами — здесь.">
               <span className={styles.hint}>
                 <Icon name="info" size={16} />
               </span>
@@ -362,6 +383,11 @@ export default function ProfilePage() {
           <Row title="Режим интерфейса" caption="Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.">
             <UiModeSwitch />
           </Row>
+          <Row title="Пароль" caption="Не короче 10 символов, не совпадает с текущим и с адресом почты.">
+            <Button variant="secondary" icon="lock" onClick={() => setIsChangingPassword(true)}>
+              Сменить пароль
+            </Button>
+          </Row>
           <Row title="Выход из системы" caption="Сессия закроется на этом устройстве, вход понадобится заново.">
             <Button variant="danger" icon="logout" onClick={onSignOut} isLoading={isLeaving} disabled={isLeaving}>
               Выйти
@@ -371,6 +397,10 @@ export default function ProfilePage() {
       </section>
 
       {data && <p className={styles.generated}>Показатели посчитаны: {formatDateTime(data.generatedAt)}</p>}
+
+      {isChangingPassword && (
+        <ChangePasswordModal onClose={() => setIsChangingPassword(false)} onChanged={() => setPasswordChanged(true)} />
+      )}
     </>
   )
 }

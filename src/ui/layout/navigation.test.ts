@@ -43,6 +43,7 @@ function user(role: UserRole): CurrentUserDto {
       canWritePortal: role === 'UNIVERSITY_REP',
       isAdmin: role === 'ADMIN',
     },
+    passwordTemporary: false,
   }
 }
 

@@ -9,6 +9,7 @@ import {
   recordFailure,
   recordSuccess,
   registerFailure,
+  releaseAccount,
   resetThrottle,
   secondsUntilUnblocked,
   throttledAttempt,
@@ -285,5 +286,36 @@ describe('одновременные попытки входа', () => {
     const success = await throttledAttempt(from('user@example.invalid'), async () => ({ id: 'u1' }))
     expect(success).toEqual({ blocked: false, result: { id: 'u1' }, triggered: [] })
     expect(checkLogin(from('user@example.invalid')).blocked).toBe(false)
+  })
+})
+
+describe('снятие блокировки с учётной записи', () => {
+  beforeEach(() => resetThrottle())
+
+  it('администратор выдал новый пароль — вход с любого адреса снова открыт', () => {
+    const first = from('victim@skilllink.demo', '203.0.113.1')
+    const second = from('victim@skilllink.demo', '203.0.113.2')
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailures; index += 1) {
+      recordFailure(first, NOW)
+      recordFailure(second, NOW)
+    }
+    expect(checkLogin(first, NOW).blocked).toBe(true)
+    expect(checkLogin(second, NOW).blocked).toBe(true)
+
+    releaseAccount('victim@skilllink.demo')
+
+    expect(checkLogin(first, NOW).blocked).toBe(false)
+    expect(checkLogin(second, NOW).blocked).toBe(false)
+  })
+
+  it('чужие учётные записи и счётчики адресов не трогаются', () => {
+    const other = from('other@skilllink.demo', '203.0.113.1')
+    for (let index = 0; index < LOGIN_THROTTLE.maxFailures; index += 1) recordFailure(other, NOW)
+    const before = trackedCounts()
+
+    releaseAccount('victim@skilllink.demo')
+
+    expect(checkLogin(other, NOW).blocked).toBe(true)
+    expect(trackedCounts().byAddress).toBe(before.byAddress)
   })
 })

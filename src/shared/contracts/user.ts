@@ -37,6 +37,13 @@ export interface CurrentUserDto {
     canWritePortal: boolean
     isAdmin: boolean
   }
+  /**
+   * Действующий пароль выдан администратором как временный (с 25.09.2026):
+   * личный кабинет просит его сменить. Определяется по журналу действий —
+   * последним событием пароля было заведение или сброс, а не смена самим
+   * пользователем. Отдельного поля в базе нет.
+   */
+  passwordTemporary: boolean
 }
 
 /**
@@ -62,4 +69,37 @@ export interface CurrentUserStatsDto {
   /** Есть ли среди связок демонстрационные — фронт обязан это показать. */
   containsMockData: boolean
   generatedAt: string
+}
+
+/**
+ * Пользователь глазами администратора — `GET /api/users/:id` (вкладка «Пользователи»).
+ *
+ * Сколько за ним открытой работы: перед блокировкой интерфейс предупреждает,
+ * что связки и этапы останутся за заблокированным, а смена роли менеджера
+ * с открытыми связками отклоняется, пока их не передадут.
+ */
+export interface ManagedUserDto extends UserDto {
+  /** Администратору почта видна всегда. */
+  email: string
+  /** Открытые связки (черновик, в работе, на паузе), где он ответственный. */
+  openCooperations: number
+  /** Незакрытые этапы открытых связок, где он ответственный. */
+  openStages: number
+  createdAt: string
+}
+
+/**
+ * Ответ на заведение пользователя и выдачу нового пароля.
+ *
+ * `temporaryPassword` приходит **один раз** — в этом ответе. В базе хранится только
+ * хеш bcrypt, повторно получить пароль нельзя: только выдать новый.
+ */
+export interface IssuedPasswordDto {
+  user: UserDto
+  temporaryPassword: string
+}
+
+/** Ответ на смену своего пароля — `POST /api/me/password`. */
+export interface PasswordChangedDto {
+  changedAt: string
 }
