@@ -2728,6 +2728,56 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Одно число связок ─────────────────────────────────────────────────────
+  step('Число связок на главной сходится с разбивкой и реестром')
+
+  {
+    /*
+     * Раньше меню говорило 8, шапка главной 7, фильтр 6, а блок «Связки
+     * в работе» молча обрезал список до шести (решение 86). Теперь разбивка
+     * одна: активные = в работе + черновики, воронка = активные + пауза +
+     * завершённые. Сверяем её с показателем и с реестром теми же фильтрами.
+     */
+    actAs(adminId)
+    const overview = await call<{
+      metrics: Array<{ key: string; value: number | null }>
+      cooperationCounts: {
+        active: number
+        inWork: number
+        drafts: number
+        paused: number
+        completed: number
+        total: number
+      }
+    }>('GET', '/api/analytics/overview')
+    const counts = overview.body.data?.cooperationCounts
+    const metricValue = overview.body.data?.metrics.find((item) => item.key === 'activeCooperations')?.value
+    const listed = async (query: string) =>
+      (await call<unknown[]>('GET', `/api/cooperations?${query}&pageSize=1`)).body.meta?.total ?? -1
+    const activeListed = await listed('status=DRAFT&status=ACTIVE')
+    const funnelListed = await listed('status=DRAFT&status=ACTIVE&status=PAUSED&status=COMPLETED')
+    check('разбивка связок есть в сводке главной', counts !== undefined)
+    if (counts) {
+      check(
+        'показатель «Активные связи» равен разбивке',
+        metricValue === counts.active,
+        `показатель ${metricValue}, разбивка ${counts.active}`,
+      )
+      check(
+        'активные = в работе + черновики',
+        counts.active === counts.inWork + counts.drafts,
+        `активных ${counts.active}, в работе ${counts.inWork}, черновиков ${counts.drafts}`,
+      )
+      check(
+        'в воронке = активные + на паузе + завершённые',
+        counts.total === counts.active + counts.paused + counts.completed,
+      )
+      check('активных столько же, сколько в реестре', counts.active === activeListed, `главная ${counts.active}, реестр ${activeListed}`)
+      check('в воронке столько же, сколько в реестре', counts.total === funnelListed, `главная ${counts.total}, реестр ${funnelListed}`)
+    }
+    actAs(null)
+  }
+
   // ── Лента рекомендаций — по важности ──────────────────────────────────────
   step('Лента рекомендаций — по важности, страницы устойчивы')
 
