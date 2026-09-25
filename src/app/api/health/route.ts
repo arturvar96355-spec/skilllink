@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { diagnoseDatabaseError } from './database-error'
+import { diagnoseDatabaseError } from '@/shared/db/database-error'
 import { publicHealth, type HealthReport } from './report'
 import { handle, ok } from '@/shared/http'
 
