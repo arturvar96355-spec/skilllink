@@ -67,7 +67,7 @@ services:
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
       LMS_ENABLED: ${LMS_ENABLED:-false}
       SITE_ENABLED: ${SITE_ENABLED:-false}
-      # ИИ-помощник (решение 84). По умолчанию выключен — черновики пишутся шаблоном.
+      # ИИ-помощник (решение 90). По умолчанию выключен — черновики пишутся шаблоном.
       # Ключи задаются только в .env.cloud на сервере: docs/DEPLOY.md,
       # раздел «Как подключить YandexGPT». В git их нет.
       AI_ASSIST_PROVIDER: ${AI_ASSIST_PROVIDER:-off}

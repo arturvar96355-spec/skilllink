@@ -33,7 +33,7 @@ function readProviderKind(): MarketDataProviderKind {
 }
 
 /**
- * Провайдер ИИ-помощника (решение 84). По умолчанию выключен: помощник отдаёт
+ * Провайдер ИИ-помощника (решение 90). По умолчанию выключен: помощник отдаёт
  * шаблонный текст из фактов правил, модель не вызывается.
  */
 export const AI_ASSIST_PROVIDERS = ['off', 'yandexgpt', 'gigachat'] as const

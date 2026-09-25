@@ -14,7 +14,12 @@ import type { UniversityRatingDto } from '@/shared/contracts/rating'
 import * as analyticsService from '@/modules/analytics/analytics.service'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './universities.repo'
-import { assertCanArchive, assertNotArchived } from './universities.rules'
+import {
+  ANONYMIZED_CONTACT_FIELDS,
+  assertCanArchive,
+  assertNotArchived,
+  isAnonymizedContact,
+} from './universities.rules'
 import {
   needsRating,
   ratingRequestedExplicitly,
@@ -39,6 +44,7 @@ function toContactDto(row: {
     email: row.email,
     phone: row.phone,
     isPrimary: row.isPrimary,
+    isAnonymized: isAnonymizedContact(row),
   }
 }
 
@@ -99,7 +105,11 @@ function toDetail(
     description: row.description,
     directionCount: row.directionCount,
     studentCount: row.studentCount,
-    primaryContact: contacts.find((contact) => contact.isPrimary) ?? contacts[0] ?? null,
+    // Обезличенный контакт основным не бывает — и запасным «первым попавшимся» тоже.
+    primaryContact:
+      contacts.find((contact) => contact.isPrimary) ??
+      contacts.find((contact) => !contact.isAnonymized) ??
+      null,
     contacts,
     createdAt: toIsoRequired(row.createdAt),
   }
@@ -314,4 +324,37 @@ export async function restore(user: CurrentUser, id: string): Promise<University
     : null
 
   return toDetail(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+}
+
+/**
+ * Обезличить контактное лицо вуза — право субъекта на удаление персональных данных
+ * (docs/PRIVACY.md, раздел «Права субъектов»). Только администратор: это необратимо.
+ *
+ * Запись остаётся ради связей (участники встреч) и истории; ФИО, должность, почта,
+ * телефон и заметки стираются, признак основного снимается. Архив вуза не мешает:
+ * право на удаление не кончается вместе с сотрудничеством.
+ *
+ * В журнал идёт факт и вуз — без ФИО и прежних значений: иначе журнал стал бы
+ * копией того, что просили удалить.
+ */
+export async function anonymizeContact(
+  user: CurrentUser,
+  universityId: string,
+  contactId: string,
+): Promise<ContactDto> {
+  assertCan(user, 'ADMIN')
+  const existing = await repo.findContact(universityId, contactId)
+  if (!existing) throw notFound('Контакт не найден')
+  // Повтор — не ошибка и не новая запись в журнале: результат тот же.
+  if (isAnonymizedContact(existing)) return toContactDto(existing)
+
+  const row = await repo.updateContact(contactId, { ...ANONYMIZED_CONTACT_FIELDS })
+  await writeAudit({
+    userId: user.id,
+    action: 'contact.anonymize',
+    objectType: 'Contact',
+    objectId: contactId,
+    payload: { universityId, wasPrimary: existing.isPrimary },
+  })
+  return toContactDto(row)
 }

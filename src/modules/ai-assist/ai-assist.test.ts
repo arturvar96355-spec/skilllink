@@ -31,7 +31,7 @@ import {
 } from './ai-assist.rules'
 
 /**
- * ИИ-помощник (решение 84). Сети здесь нет: провайдер модели подменён,
+ * ИИ-помощник (решение 90). Сети здесь нет: провайдер модели подменён,
  * сервисы и база — тоже. Проверяется главное: персональные данные в модель
  * не уходят, сбой модели даёт шаблон, а не ошибку, лимит и права соблюдаются.
  */
@@ -136,6 +136,7 @@ function stage(number: number, overrides: Partial<WorkflowStageDto> = {}): Workf
     responsible: { id: 'u-manager2', fullName: 'Савельева Ольга Дмитриевна', role: 'MANAGER' },
     deadline: null,
     isOverdue: false,
+    isPlanShifted: false,
     isDueSoon: false,
     daysToDeadline: null,
     comment: null,
@@ -197,6 +198,7 @@ function cooperationFixture(overrides: { stages?: WorkflowStageDto[] } = {}): Co
       status: 'IN_PROGRESS',
       deadline: '2026-07-30T09:00:00.000Z',
       isOverdue: true,
+      isPlanShifted: false,
       isDueSoon: false,
       daysToDeadline: -57,
     },

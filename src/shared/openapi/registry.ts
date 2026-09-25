@@ -237,6 +237,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: READ_ERRORS,
   },
   {
+    method: 'post',
+    path: '/api/universities/{id}/contacts/{contactId}/anonymize',
+    tag: 'Университеты',
+    summary: 'Обезличить контактное лицо вуза',
+    description:
+      'Право субъекта на удаление ПД (docs/PRIVACY.md): ФИО, должность, почта, телефон и заметки стираются, ' +
+      'запись остаётся ради связей. Необратимо; повтор возвращает тот же результат.',
+    permission: 'ADMIN',
+    errors: READ_ERRORS,
+  },
+  {
     method: 'get',
     path: '/api/universities/{id}/events',
     tag: 'Университеты',
@@ -602,7 +613,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
 
-  // ── ИИ-помощник (решение 84) ──────────────────────────────────────────────
+  // ── ИИ-помощник (решение 90) ──────────────────────────────────────────────
   {
     method: 'post',
     path: '/api/cooperations/{id}/ai-summary',

@@ -1056,6 +1056,117 @@ async function main(): Promise<void> {
   }
 
   // ── 17. Встречи ────────────────────────────────────────────────────────────
+  step('16a. Подписанные документы отмечают пункты этапа 6')
+
+  {
+    // Подпись вводилась дважды: статусом документа и галочками этапа 6 (решение 87).
+    // Своя связка на отдельной программе — чтобы не трогать связки шагов выше.
+    type SigningStage = {
+      id: string
+      stageNumber: number
+      tasks: Array<{ id: string; isRequired: boolean; isDone: boolean; doneBy: { id: string } | null }>
+    }
+    type SigningEffect = { stageNumber: number; marked: number; outcome: string }
+    const signingProgram = await call<Identified>('POST', '/api/programs', {
+      universityId,
+      name: `Проверочная программа подписания ${suffix}`,
+      level: 'BACHELOR',
+    })
+    const signingCooperation = await call<{ id: string; stages: SigningStage[] }>('POST', '/api/cooperations', {
+      universityId,
+      programId: signingProgram.body.data?.id,
+      productId,
+      responsibleId: managerId,
+      goal: 'Связка сквозного сценария для подписания документов',
+    })
+    check('связка для подписания создана', signingCooperation.status === 201, `статус ${signingCooperation.status}`)
+    const signingId = signingCooperation.body.data?.id
+    const signingStages = signingCooperation.body.data?.stages ?? []
+
+    /** Документ связки от черновика до «Подписан»; ответ последнего шага — с действием на этап 6. */
+    const signDocument = async (type: 'AGREEMENT' | 'LICENSE', title: string, upTo: 'REVIEW' | 'SIGNED') => {
+      const created = await call<Identified>('POST', '/api/documents', {
+        cooperationId: signingId,
+        type,
+        title,
+        fileReference: 'https://example.invalid/docs/signing.pdf',
+      })
+      const id = created.body.data?.id
+      let last = await call<{ status: string; stageChecklist?: SigningEffect }>(
+        'PATCH',
+        `/api/documents/${id}/status`,
+        { status: 'REVIEW' },
+      )
+      if (upTo === 'SIGNED') {
+        await call('PATCH', `/api/documents/${id}/status`, { status: 'APPROVED' })
+        last = await call('PATCH', `/api/documents/${id}/status`, { status: 'SIGNED' })
+      }
+      return { id, last }
+    }
+    const stage6 = async () =>
+      (await call<{ stages: SigningStage[] }>('GET', `/api/cooperations/${signingId}`)).body.data?.stages.find(
+        (stage) => stage.stageNumber === 6,
+      )
+
+    // Этапы 1–5 не закрыты: этап 6 за шлагбаумом, отметка не пройдёт.
+    const early = await signDocument('AGREEMENT', 'Договор до обмена документами', 'SIGNED')
+    check('договор подписан', early.last.body.data?.status === 'SIGNED', `статус ${early.last.status}`)
+    check(
+      'этап 6 за контрольной точкой — пункты не отмечены, и ответ это говорит',
+      early.last.body.data?.stageChecklist?.outcome === 'locked' &&
+        ((await stage6())?.tasks ?? []).every((task) => !task.isDone),
+      JSON.stringify(early.last.body.data?.stageChecklist),
+    )
+
+    for (const stage of signingStages.filter((item) => item.stageNumber < 6)) {
+      await call('PATCH', `/api/workflow/stages/${stage.id}`, {
+        status: 'CANCELLED',
+        comment: 'Не требуется для проверки подписания',
+      })
+    }
+
+    // Второй договор ещё на согласовании: подпись лицензии запускает проверку,
+    // но договоры подписаны не все — пункты ждут.
+    const annex = await signDocument('AGREEMENT', 'Дополнительное соглашение', 'REVIEW')
+    const license = await signDocument('LICENSE', 'Лицензия на продукт', 'SIGNED')
+    check(
+      'договор на согласовании — пункты ждут, ответ это говорит',
+      license.last.body.data?.stageChecklist?.outcome === 'pending-documents' &&
+        ((await stage6())?.tasks ?? []).every((task) => !task.isDone),
+      JSON.stringify(license.last.body.data?.stageChecklist),
+    )
+
+    await call('PATCH', `/api/documents/${annex.id}/status`, { status: 'APPROVED' })
+    const annexSigned = await call<{ stageChecklist?: SigningEffect }>(
+      'PATCH',
+      `/api/documents/${annex.id}/status`,
+      { status: 'SIGNED' },
+    )
+    const signedStage = await stage6()
+    const signingTasks = (signedStage?.tasks ?? []).filter((task) => task.isRequired)
+    check(
+      'договоры подписаны — пункты этапа 6 отмечены сами',
+      annexSigned.body.data?.stageChecklist?.outcome === 'marked' &&
+        signingTasks.length === 3 &&
+        signingTasks.every((task) => task.isDone),
+      JSON.stringify(annexSigned.body.data?.stageChecklist),
+    )
+    check(
+      'автор отметки — тот, кто подписал документ',
+      signingTasks.every((task) => task.doneBy !== null),
+    )
+
+    // Главное: этап 6 закрывается без повторного ввода подписи галочками.
+    if (signedStage) {
+      await call('PATCH', `/api/workflow/stages/${signedStage.id}`, { status: 'IN_PROGRESS' })
+      const closed = await call<{ status: string }>('PATCH', `/api/workflow/stages/${signedStage.id}`, {
+        status: 'COMPLETED',
+        result: 'Договор и лицензия подписаны',
+      })
+      check('этап 6 закрывается без ручных галочек', closed.body.data?.status === 'COMPLETED', `статус ${closed.status}`)
+    }
+  }
+
   step('17. Встречи: участники, результат, следующее действие')
   const meetings = await call<Array<{ id: string; participants: unknown[] }>>(
     'GET',

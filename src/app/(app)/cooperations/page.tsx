@@ -210,6 +210,7 @@ function CooperationsView() {
               <span className={styles.notation}>{stageNotation(row.currentStage.stageNumber)}</span>
               <DeadlineBadge
                 isOverdue={row.currentStage.isOverdue}
+                isPlanShifted={row.currentStage.isPlanShifted}
                 isDueSoon={row.currentStage.isDueSoon}
                 daysToDeadline={row.currentStage.daysToDeadline}
                 compact

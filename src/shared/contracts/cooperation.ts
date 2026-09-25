@@ -9,7 +9,10 @@ export interface CurrentStageDto {
   phase: StagePhase
   status: StageStatus
   deadline: string | null
+  /** Срок прошёл, а этап в работе или заблокирован. */
   isOverdue: boolean
+  /** Срок прошёл, а этап ещё не начат: план сдвинут, это не просрочка. */
+  isPlanShifted: boolean
   /** Срок ещё не вышел, но выйдет со дня на день. С `isOverdue` не пересекается. */
   isDueSoon: boolean
   /**

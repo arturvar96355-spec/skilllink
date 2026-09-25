@@ -86,7 +86,7 @@ function RecommendationsContent() {
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
   const [comment, setComment] = useState('')
-  // Черновик письма вузу: по нажатию, не при открытии страницы (решение 84).
+  // Черновик письма вузу: по нажатию, не при открытии страницы (решение 90).
   const [letter, setLetter] = useState<{ item: RecommendationDto; draft: AiDraftDto | null } | null>(null)
 
   const path = `/api/recommendations${buildQuery({

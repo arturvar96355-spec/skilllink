@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import type {
+  CooperationCountsDto,
   CooperationListItemDto,
   DashboardOverviewDto,
   NotificationFeedDto,
@@ -145,6 +146,27 @@ const FACTOR_SHORT: Record<string, string> = {
 const ROUTE_ROWS = 6
 
 /**
+ * «7 активных связей (6 в работе, 1 черновик)». Шапка, блок «Связки в работе»
+ * и воронка говорят одной разбивкой с сервера (решение 86): раньше меню
+ * показывало 8, шапка 7, фильтр 6, и ни одно число не объясняло другое.
+ */
+function activeBreakdown(counts: CooperationCountsDto): string {
+  const head = `${formatNumber(counts.active)} ${pluralize(counts.active, ['активная связь', 'активные связи', 'активных связей'])}`
+  if (counts.drafts === 0) return head
+  return `${head} (${formatNumber(counts.inWork)} в работе, ${formatNumber(counts.drafts)} ${pluralize(counts.drafts, ['черновик', 'черновика', 'черновиков'])})`
+}
+
+/** Из кого сложилась воронка: «8 связок в воронке: 7 активных, 1 завершённая». */
+function funnelComposition(counts: CooperationCountsDto): string {
+  const parts = [`${formatNumber(counts.active)} ${pluralize(counts.active, ['активная', 'активные', 'активных'])}`]
+  if (counts.paused > 0) parts.push(`${formatNumber(counts.paused)} на паузе`)
+  if (counts.completed > 0) {
+    parts.push(`${formatNumber(counts.completed)} ${pluralize(counts.completed, ['завершённая', 'завершённые', 'завершённых'])}`)
+  }
+  return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${parts.join(', ')}.`
+}
+
+/**
  * Главная страница.
  *
  * Отвечает на четыре вопроса раздела 25 шаблона: что происходит, где проблема,
@@ -268,7 +290,6 @@ export default function DashboardPage() {
     motion: RAIL_MOTION[metric.key],
   }))
 
-  const activeTotal = data?.metrics.find((metric) => metric.key === 'activeCooperations')?.value ?? null
 
   return (
     <>
@@ -277,7 +298,7 @@ export default function DashboardPage() {
         title={`${greeting()}, ${firstName}`}
         description={
           data
-            ? `Сегодня ${formatNumber(activeTotal)} ${pluralize(activeTotal ?? 0, ['активная связь', 'активные связи', 'активных связей'])} · ${formatNumber(data.problemStageTotal)} ${pluralize(data.problemStageTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`
+            ? `Сегодня ${activeBreakdown(data.cooperationCounts)} · ${formatNumber(data.problemStageTotal)} ${pluralize(data.problemStageTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`
             : 'Что требует внимания прямо сейчас и что система предлагает сделать.'
         }
         meta={data?.containsMockData ? <MockBadge /> : undefined}
@@ -494,6 +515,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <Funnel steps={funnelSteps} label="Воронка связок по фазам работы" />
+                  <p className={styles.funnelNote}>{funnelComposition(data.cooperationCounts)}</p>
                   {funnelTotal !== null && funnelTotal > funnelCounted && (
                     <p className={styles.funnelNote}>
                       Посчитано по {formatNumber(funnelCounted)} связкам из {formatNumber(funnelTotal)}.
@@ -552,6 +574,13 @@ export default function DashboardPage() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {/* Список обрезан — сказать, сколько всего, а не выдавать шесть за все. */}
+                {data.cooperationCounts.active > Math.min(ROUTE_ROWS, cooperations.length) && (
+                  <p className={styles.funnelNote}>
+                    Показаны {formatNumber(Math.min(ROUTE_ROWS, cooperations.length))} из{' '}
+                    {formatNumber(data.cooperationCounts.active)}, остальные — в реестре связок.
+                  </p>
                 )}
               </Section>
             </div>
