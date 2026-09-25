@@ -47,7 +47,7 @@ export interface ErrorStateProps {
  *
  * Он уже на русском и объясняет причину («Этап 7 — контрольная точка…»).
  * Подменять его своим «что-то пошло не так» нельзя: на отказах системы
- * держится весь показ (docs/DEMO.md).
+ * держится весь показ.
  */
 export function ErrorState({ error, onRetry }: ErrorStateProps) {
   const isAccessDenied = error.code === 'FORBIDDEN'
