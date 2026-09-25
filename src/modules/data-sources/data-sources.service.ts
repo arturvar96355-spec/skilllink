@@ -104,7 +104,7 @@ export async function syncMarketData(
   user: CurrentUser,
   input: SyncMarketDataInput,
 ): Promise<MarketDataSyncResultDto> {
-  assertCan(user, 'WRITE')
+  assertCan(user, 'ANALYTICS_WORK')
 
   const config = getIntegrationsConfig()
   const provider = getMarketDataProvider()

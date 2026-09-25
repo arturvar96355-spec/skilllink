@@ -119,6 +119,7 @@ const PERMISSION_NOTES: Record<string, string> = {
   READ: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP',
   WRITE: 'Роли: ADMIN, MANAGER',
   ANALYTICS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
+  ANALYTICS_WORK: 'Роли: ADMIN, MANAGER, ANALYST',
   ADMIN: 'Роль: ADMIN',
   UNIVERSITY_PORTAL: 'Роли: ADMIN, MANAGER, UNIVERSITY_REP',
   UNIVERSITY_PORTAL_WRITE: 'Роль: UNIVERSITY_REP. Сотрудник ИТ-Школы в кабинете вуза только просматривает',

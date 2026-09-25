@@ -8,7 +8,15 @@ import type { SkillDemandDto, SkillDto, SkillGapDto } from '@/shared/contracts/s
 import type { SkillLevel } from '@/shared/contracts/enums'
 import * as repo from './skills.repo'
 import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
-import { calculateGap, demandNormalizer, demandPerSkill } from './skills.rules'
+import {
+  calculateGap,
+  demandNormalizer,
+  demandPerSkill,
+  directionGroup,
+  isInProfile,
+  outOfProfileNote,
+  type DirectionProfile,
+} from './skills.rules'
 import type { SkillDemandQuery, SkillGapQuery, SkillListQuery } from './skills.schema'
 
 export async function list(
@@ -104,12 +112,26 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     }
   }
 
+  // Профиль — только в разрезе одной программы: у сводки по вузу или по всем
+  // программам своей группы направлений нет (решение 98).
+  let profile: DirectionProfile | null = null
   if (query.programId) {
     const program = await prisma.educationalProgram.findUnique({
       where: { id: query.programId },
-      select: { id: true },
+      select: { id: true, code: true },
     })
     if (!program) throw notFound('Образовательная программа не найдена')
+    const group = directionGroup(program.code)
+    if (group) {
+      const taught = await repo.findProgramSkills({
+        program: { ...ACTIVE_PROGRAM_WHERE, code: { startsWith: `${group}.` } },
+      })
+      profile = {
+        group,
+        skillIds: new Set(taught.map((row) => row.skillId)),
+        categories: new Set(taught.map((row) => row.skill.category)),
+      }
+    }
   }
 
   const demandRows = demandPerSkill(await repo.findDemandForPeriod(period))
@@ -142,6 +164,10 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
     const level = bestLevel.get(row.skillId) ?? null
     const demandNormalized = normalizeValue(row.value)
     const calculation = calculateGap(demandNormalized, level, row.skill.name)
+    const outOfProfile =
+      profile !== null &&
+      level === null &&
+      !isInProfile({ id: row.skillId, category: row.skill.category }, profile)
     return {
       skillId: row.skillId,
       name: row.skill.name,
@@ -152,8 +178,11 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
       level,
       importance: importanceBySkill.get(row.skillId) ?? null,
       gap: calculation.gap,
-      isCritical: calculation.isCritical,
-      explanation: calculation.explanation,
+      isCritical: calculation.isCritical && !outOfProfile,
+      explanation: outOfProfile
+        ? `${calculation.explanation}. ${outOfProfileNote(row.skill.category, profile!.group)}`
+        : calculation.explanation,
+      outOfProfile,
       isMock: row.isMock,
     }
   })
@@ -168,7 +197,8 @@ export async function gaps(user: CurrentUser, query: SkillGapQuery): Promise<Gap
   }
 
   const filtered = query.criticalOnly ? result.filter((row) => row.isCritical) : result
-  filtered.sort((a, b) => b.gap - a.gap)
+  // Дефициты вне профиля — после своих: наверху то, что про эту программу.
+  filtered.sort((a, b) => Number(a.outOfProfile) - Number(b.outOfProfile) || b.gap - a.gap)
 
   return {
     // `total` считается до обрезания: система, которая существует ради показа

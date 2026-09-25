@@ -8,7 +8,7 @@ import {
   RECOMMENDATION_PRIORITY_LABELS,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
   RECOMMENDATION_STATUS_ACTIONS,
-  RECOMMENDATION_STATUSES,
+  RECOMMENDATION_WORKFLOW_STATUSES,
   RECOMMENDATION_STATUS_LABELS,
   RECOMMENDATION_TRANSITIONS,
   RECOMMENDATION_TYPE_LABELS,
@@ -204,7 +204,7 @@ function RecommendationsContent() {
         title="Рекомендации"
         description="Что система предлагает сделать и почему. Правила разбирают данные системы: сроки, дефициты навыков, состояние связок."
         actions={
-          user.permissions.canWrite ? (
+          user.permissions.canWorkAnalytics ? (
             <Button icon="refresh" variant="secondary" onClick={onGenerate} isLoading={generate.isPending}>
               Пересобрать
             </Button>
@@ -228,7 +228,7 @@ function RecommendationsContent() {
             placeholder="Любой статус"
             value={status}
             onValueChange={(value) => changeFilter(() => setStatus(value))}
-            options={RECOMMENDATION_STATUSES.map((value) => ({
+            options={RECOMMENDATION_WORKFLOW_STATUSES.map((value) => ({
               value,
               label: RECOMMENDATION_STATUS_LABELS[value],
             }))}
@@ -264,7 +264,7 @@ function RecommendationsContent() {
                   : 'Система ещё не собирала предложения или все они закрыты.'
               }
               action={
-                user.permissions.canWrite ? (
+                user.permissions.canWorkAnalytics ? (
                   <Button icon="refresh" onClick={onGenerate} isLoading={generate.isPending}>
                     Собрать сейчас
                   </Button>
@@ -325,7 +325,7 @@ function RecommendationsContent() {
                     <span className={styles.status} data-status={item.status}>
                       {RECOMMENDATION_STATUS_LABELS[item.status]}
                     </span>
-                    {user.permissions.canWrite && RECOMMENDATION_TRANSITIONS[item.status].length > 0 && (
+                    {user.permissions.canWorkAnalytics && RECOMMENDATION_TRANSITIONS[item.status].length > 0 && (
                       <div className={styles.actions}>
                         {RECOMMENDATION_TRANSITIONS[item.status].map((next) => (
                           <Button

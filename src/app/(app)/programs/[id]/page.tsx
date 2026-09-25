@@ -109,7 +109,11 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function radarAxes(rows: SkillGapDto[]) {
   const byDemand = [...rows].sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
   const covered = byDemand.filter((row) => row.coverage > 0).slice(0, 4)
-  const rest = byDemand.filter((row) => !covered.includes(row)).slice(0, 8 - covered.length)
+  // Дефициты вне профиля (решение 98) на радар не выносятся: он подчёркивал бы,
+  // что магистратуре ИИ «не хватает» Java.
+  const rest = byDemand
+    .filter((row) => !covered.includes(row) && !row.outOfProfile)
+    .slice(0, 8 - covered.length)
   return [...covered, ...rest]
     .sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
     .map((row) => ({ key: row.skillId, label: row.name, values: [row.demandNormalized, row.coverage] }))
@@ -206,7 +210,20 @@ export default function ProgramPage() {
       title: 'Навык',
       render: (row) => (
         <span className={styles.cellStack}>
-          <span className={styles.cellTitle}>{row.name}</span>
+          <span className={styles.cellTitle}>
+            {row.name}
+            {row.outOfProfile && (
+              <>
+                {' '}
+                <Badge
+                  tone="neutral"
+                  title="Навык и его область не преподаёт ни одна программа той же группы направлений — дефицит может быть не про эту программу"
+                >
+                  вне профиля
+                </Badge>
+              </>
+            )}
+          </span>
           <span className={styles.cellMeta}>{row.category}</span>
         </span>
       ),
