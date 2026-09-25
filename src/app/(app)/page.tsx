@@ -1,9 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
+import { STAGE_PHASES, STAGE_PHASE_LABELS } from '@/shared/contracts'
 import type {
   CooperationListItemDto,
   DashboardOverviewDto,
@@ -19,10 +20,13 @@ import {
   Badge,
   Button,
   CardsSkeleton,
+  Bars3D,
+  CooperationPeek,
   DeadlineStrip,
   Funnel,
   GapBars,
-  Ring,
+  PeekProvider,
+  Pie3D,
   ScoreBar,
   ScoreLegend,
   StageBar,
@@ -54,7 +58,11 @@ import {
   useResource,
   useToast,
   useUiMode,
+  usePeek,
   startMorph,
+  type Bars3DGroup,
+  type Pie3DSlice,
+  type Pie3DTone,
 } from '@/ui'
 import styles from './dashboard.module.css'
 
@@ -161,7 +169,7 @@ const ROUTE_ROWS = 6
  * главным блоком первого экрана. Пять плиток одинакового веса занимали полэкрана
  * и прятали то, ради чего главную открывают: где горит.
  */
-export default function DashboardPage() {
+function Dashboard() {
   const user = useCurrentUser()
   const router = useRouter()
   const toast = useToast()
@@ -233,19 +241,17 @@ export default function DashboardPage() {
     return Math.round((list.filter((item) => item.progress.overdueStages === 0).length / list.length) * 1000) / 10
   }, [active.data])
 
-  // Презентационный режим (решение 87): графики вместо части списков и одна
-  // подсветка вуза на всю главную — наведение на вуз в любом блоке приглушает
-  // остальные. В рабочем режиме главная прежняя.
+  // Презентационный режим (решения 87, 88): графики и 3D вместо части списков,
+  // при наведении на связку — всплывающая карточка. В рабочем режиме главная прежняя.
   const showcase = !isWork
-  const [focus, setFocus] = useState<string | null>(null)
-  const onFocus = showcase ? setFocus : undefined
+  const peek = usePeek()
 
-  // У проблемного этапа нет id вуза — берём его из связок, которые главная уже
-  // загрузила; не нашлась — группируем по названию вуза.
-  const universityOf = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const item of [...(funnelSource.data ?? []), ...(active.data ?? [])]) map.set(item.id, item.universityId)
-    return (cooperationId: string, universityName: string) => map.get(cooperationId) ?? `name:${universityName}`
+  // Связки по id: у проблемного этапа на главной нет продукта и прогресса —
+  // карточке при наведении они берутся из уже загруженных связок.
+  const coopById = useMemo(() => {
+    const map = new Map<string, CooperationListItemDto>()
+    for (const item of [...(funnelSource.data ?? []), ...(active.data ?? [])]) map.set(item.id, item)
+    return map
   }, [funnelSource.data, active.data])
 
   // Самые большие дефициты навыков — только для показа, рядом с покрытием.
@@ -253,13 +259,79 @@ export default function DashboardPage() {
     showcase && user.permissions.canSeeAnalytics ? '/api/skills/gaps?limit=5' : null,
   )
 
-  /** Класс приглушения для строки чужого вуза, пока другой вуз подсвечен. */
-  const dimFor = (universityId: string) => (focus && focus !== universityId ? styles.dimmed : '')
-  /** Наведение на строку подсвечивает её вуз — только в презентационном режиме. */
-  const hoverProps = (universityId: string) =>
-    showcase
-      ? { onPointerEnter: () => setFocus(universityId), onPointerLeave: () => setFocus(null) }
-      : {}
+  // Где сейчас связки: фаза текущего этапа; без текущего этапа — все пройдены.
+  const phaseSlices: Pie3DSlice[] = useMemo(() => {
+    const list = funnelSource.data ?? []
+    const tones: Pie3DTone[] = ['violet', 'pink', 'orange', 'cyan', 'warning']
+    const slices: Pie3DSlice[] = STAGE_PHASES.map((phase, index) => ({
+      key: phase,
+      label: STAGE_PHASE_LABELS[phase],
+      value: list.filter((item) => item.currentStage?.phase === phase).length,
+      tone: tones[index] ?? 'muted',
+    }))
+    const finished = list.filter((item) => item.currentStage === null).length
+    if (finished > 0) slices.push({ key: 'done', label: 'Все этапы пройдены', value: finished, tone: 'success' })
+    return slices.filter((slice) => slice.value > 0)
+  }, [funnelSource.data])
+
+  // Связки по вузам: сколько идёт спокойно и сколько требует внимания.
+  const universityBars: Bars3DGroup[] = useMemo(() => {
+    const groups = new Map<string, { item: CooperationListItemDto; calm: number; stuck: number }>()
+    for (const item of funnelSource.data ?? []) {
+      const entry = groups.get(item.universityId) ?? { item, calm: 0, stuck: 0 }
+      if (item.progress.overdueStages > 0 || item.progress.blockedStages > 0) entry.stuck += 1
+      else entry.calm += 1
+      groups.set(item.universityId, entry)
+    }
+    return [...groups.values()]
+      .sort((a, b) => b.calm + b.stuck - (a.calm + a.stuck))
+      .slice(0, 8)
+      .map(({ item, calm, stuck }) => ({
+        key: item.universityId,
+        label: item.universityShortName ?? item.universityName.slice(0, 10),
+        title: item.universityName,
+        href: universityHref(item.universityId),
+        parts: [
+          { key: 'calm', label: 'Идут по плану', value: calm, tone: 'violet' as const },
+          { key: 'stuck', label: 'Требуют внимания', value: stuck, tone: 'danger' as const },
+        ],
+      }))
+  }, [funnelSource.data])
+
+  /** Всплывающая карточка связки для строки или точки. */
+  const coopPeek = (
+    cooperationId: string,
+    fallback: { university: string; program: string; stage: number | null; stageTitle: string | null },
+    daysOverdue: number | null | 'none',
+    reason?: string,
+  ) =>
+    peek(`coop:${cooperationId}:${fallback.stage ?? ''}`, () => {
+      const item = coopById.get(cooperationId)
+      const state = daysOverdue === 'none' ? (item && item.progress.overdueStages > 0 ? 'overdue' : item && item.progress.blockedStages > 0 ? 'blocked' : 'ok') : daysOverdue === null ? 'blocked' : 'overdue'
+      const status =
+        daysOverdue === 'none'
+          ? state === 'ok'
+            ? 'Идёт по плану'
+            : state === 'overdue'
+              ? `Просрочено этапов: ${item?.progress.overdueStages}`
+              : 'Этап заблокирован'
+          : daysOverdue === null
+            ? `Заблокирован${reason ? ` · ${reason}` : ''}`
+            : `Просрочен на ${formatNumber(daysOverdue)} ${pluralize(daysOverdue, ['день', 'дня', 'дней'])}`
+      return (
+        <CooperationPeek
+          university={fallback.university}
+          program={fallback.program}
+          product={item?.productName ?? null}
+          stage={fallback.stage}
+          stageTitle={fallback.stageTitle}
+          done={item ? item.progress.completedStages + item.progress.cancelledStages : null}
+          total={item?.progress.totalStages ?? 13}
+          state={state}
+          status={status}
+        />
+      )
+    })
 
   const regenerate = useMutation(async () => {
     const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')
@@ -345,68 +417,91 @@ export default function DashboardPage() {
             problemTotal={data.problemStageTotal}
             generatedAt={data.generatedAt}
             showcase={showcase}
-            focus={focus}
-            onFocus={onFocus}
           />
 
-          {/* Бенто: здоровье портфеля кольцами и вузы на карте (решение 79). Только в презентационном режиме. */}
-          {!isWork && (
-            <div className={styles.bento}>
-              <div
-                className={`${styles.reveal} ${styles.bentoCell}`}
-                data-assemble="left"
-                style={{ '--delay': '380ms' } as CSSProperties}
-              >
-                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану.">
-                  <div className={styles.rings}>
-                    <Ring
-                      value={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
-                      label="Этапы в срок"
+          {/*
+            Презентационный режим (решения 79, 88): здоровье портфеля — объёмными
+            кольцами, где сейчас связки — большим кольцом рядом с картой вузов.
+          */}
+          {showcase && (
+            <>
+              <div className={styles.reveal} data-assemble="center" style={{ '--delay': '380ms' } as CSSProperties}>
+                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Кольцо можно покрутить.">
+                  <div className={styles.health}>
+                    <HealthPie
+                      title="Этапы в срок"
+                      short="в срок"
                       caption="Закрыты до своего срока — из всех закрытых"
+                      share={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
+                      parts={[
+                        { key: 'ontime', label: 'В срок', tone: 'success' },
+                        { key: 'late', label: 'С опозданием', tone: 'danger' },
+                      ]}
                     />
-                    <Ring
-                      value={cleanShare}
-                      label="Связки без просрочек"
+                    <HealthPie
+                      title="Связки без просрочек"
+                      short="без просрочек"
                       caption={`Из ${formatNumber(cooperations.length)} связок в работе и черновиков`}
-                      tone="cyan"
-                      delay={0.15}
+                      share={cleanShare}
+                      counts={[
+                        cooperations.filter((item) => item.progress.overdueStages === 0).length,
+                        cooperations.filter((item) => item.progress.overdueStages > 0).length,
+                      ]}
+                      parts={[
+                        { key: 'clean', label: 'Без просрочек', tone: 'cyan' },
+                        { key: 'late', label: 'С просрочкой', tone: 'danger' },
+                      ]}
                     />
-                    <Ring
-                      value={data.skillMatch.coveragePercent}
-                      label="Покрытие навыков"
+                    <HealthPie
+                      title="Покрытие навыков"
+                      short="покрыто"
                       caption={`Востребованные рынком навыки в программах · ${data.skillMatch.period}`}
-                      tone="pink"
-                      delay={0.3}
+                      share={data.skillMatch.coveragePercent}
+                      counts={
+                        data.skillMatch.coveredSkills !== null && data.skillMatch.demandedSkills !== null
+                          ? [data.skillMatch.coveredSkills, Math.max(data.skillMatch.demandedSkills - data.skillMatch.coveredSkills, 0)]
+                          : undefined
+                      }
+                      parts={[
+                        { key: 'covered', label: 'Покрыто', tone: 'pink' },
+                        { key: 'gap', label: 'Дефицит', tone: 'muted' },
+                      ]}
                     />
                   </div>
                 </Section>
               </div>
-              <div
-                className={`${styles.reveal} ${styles.bentoCell}`}
-                data-assemble="right"
-                style={{ '--delay': '440ms' } as CSSProperties}
-              >
-                <Section
-                  title="Вузы на карте"
-                  description="Размер точки — число связок. Щелчок — страница вуза."
-                  action={
-                    <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                      Все вузы
-                    </Button>
-                  }
-                >
-                  <div className={styles.mapPanel}>
-                    <RussiaMap points={mapPoints} label="Вузы на карте России" />
-                  </div>
-                  {offMap > 0 && (
-                    <p className={styles.funnelNote}>
-                      Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
-                      нет координат.
-                    </p>
-                  )}
-                </Section>
+
+              <div className={styles.bento}>
+                <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
+                  <Section title="Где сейчас связки" description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись.">
+                    <div className={styles.panel3d}>
+                      <Pie3D slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
+                    </div>
+                  </Section>
+                </div>
+                <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="right" style={{ '--delay': '500ms' } as CSSProperties}>
+                  <Section
+                    title="Вузы на карте"
+                    description="Размер точки — число связок. Щелчок — страница вуза."
+                    action={
+                      <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                        Все вузы
+                      </Button>
+                    }
+                  >
+                    <div className={styles.mapPanel}>
+                      <RussiaMap points={mapPoints} label="Вузы на карте России" />
+                    </div>
+                    {offMap > 0 && (
+                      <p className={styles.funnelNote}>
+                        Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
+                        нет координат.
+                      </p>
+                    )}
+                  </Section>
+                </div>
               </div>
-            </div>
+            </>
           )}
 
           <div className={styles.focus}>
@@ -434,10 +529,23 @@ export default function DashboardPage() {
                         label: `${row.universityShortName ?? row.universityName} — ${row.programName}`,
                         daysOverdue: row.daysOverdue,
                         href: cooperationHref(row.cooperationId, row.stageId),
-                        group: universityOf(row.cooperationId, row.universityName),
                       }))}
-                      focus={focus}
-                      onFocus={setFocus}
+                      itemProps={(item) => {
+                        const row = data.problemCooperations.find(
+                          (candidate) => `${candidate.cooperationId}:${candidate.stageId ?? candidate.reason}` === item.key,
+                        )!
+                        return coopPeek(
+                          row.cooperationId,
+                          {
+                            university: row.universityShortName ?? row.universityName,
+                            program: row.programName,
+                            stage: row.stageNumber,
+                            stageTitle: row.stageTitle,
+                          },
+                          row.daysOverdue,
+                          row.reason,
+                        )
+                      }}
                     />
                   )}
                   {/* Лента событий, а не таблица в рамке (07, раздел 10.E): точка
@@ -446,8 +554,18 @@ export default function DashboardPage() {
                     {data.problemCooperations.map((row) => (
                       <li
                         key={`${row.cooperationId}:${row.stageId ?? row.reason}`}
-                        className={[styles.event, dimFor(universityOf(row.cooperationId, row.universityName))].filter(Boolean).join(' ')}
-                        {...hoverProps(universityOf(row.cooperationId, row.universityName))}
+                        className={styles.event}
+                        {...coopPeek(
+                          row.cooperationId,
+                          {
+                            university: row.universityShortName ?? row.universityName,
+                            program: row.programName,
+                            stage: row.stageNumber,
+                            stageTitle: row.stageTitle,
+                          },
+                          row.daysOverdue,
+                          row.reason,
+                        )}
                       >
                         <span
                           className={[styles.eventMark, row.daysOverdue === null ? styles.blocked : ''].filter(Boolean).join(' ')}
@@ -533,6 +651,19 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {showcase && universityBars.length > 0 && (
+            <div className={styles.reveal} data-assemble="center" style={{ '--delay': '520ms' } as CSSProperties}>
+              <Section
+                title="Связки по вузам"
+                description="Высота колонки — число связок вуза, красная часть — сколько из них требует внимания. Щелчок — страница вуза."
+              >
+                <div className={styles.panel3d}>
+                  <Bars3D groups={universityBars} label="Связки по вузам" unit={['связка', 'связки', 'связок']} />
+                </div>
+              </Section>
+            </div>
+          )}
+
           <div className={styles.reveal} data-assemble="center" style={{ '--delay': '540ms' } as CSSProperties}>
             <Section
               title="Воронка связок"
@@ -578,7 +709,19 @@ export default function DashboardPage() {
                 ) : (
                   <ul className={styles.routes}>
                     {cooperations.slice(0, ROUTE_ROWS).map((item, index) => (
-                      <li key={item.id} className={dimFor(item.universityId) || undefined} {...hoverProps(item.universityId)}>
+                      <li
+                        key={item.id}
+                        {...coopPeek(
+                          item.id,
+                          {
+                            university: item.universityShortName ?? item.universityName,
+                            program: item.programName,
+                            stage: item.currentStage?.stageNumber ?? null,
+                            stageTitle: item.currentStage?.title ?? null,
+                          },
+                          'none',
+                        )}
+                      >
                         <Link
                           className={styles.route}
                           href={cooperationHref(item.id)}
@@ -652,7 +795,7 @@ export default function DashboardPage() {
                           .map((factor) => `${FACTOR_SHORT[factor.key] ?? factor.title} ${formatNumber(factor.value)}`)
                           .join(' · ') || 'показатели не заполнены'
                       return (
-                        <li key={row.programId} className={dimFor(row.universityId) || undefined} {...hoverProps(row.universityId)}>
+                        <li key={row.programId}>
                           <Link
                             className={styles.rank}
                             href={programHref(row.programId)}
@@ -757,5 +900,59 @@ export default function DashboardPage() {
         </>
       ) : null}
     </>
+  )
+}
+
+/**
+ * Главная. В презентационном режиме всплывающие карточки при наведении
+ * (решение 88) живут в своём слое — он подключается здесь, над содержимым.
+ */
+export default function DashboardPage() {
+  const { isWork } = useUiMode()
+  return (
+    <PeekProvider enabled={!isWork}>
+      <Dashboard />
+    </PeekProvider>
+  )
+}
+
+/**
+ * Объёмное кольцо-доля для «Здоровья портфеля»: доля и остаток; если известны
+ * количества — сектора по ним (подсказка покажет штуки), иначе по процентам.
+ */
+function HealthPie({
+  title,
+  short,
+  caption,
+  share,
+  counts,
+  parts,
+}: {
+  title: string
+  /** Короткая подпись в центре кольца — должна уместиться в отверстие. */
+  short: string
+  caption: string
+  share: number | null
+  counts?: [number, number]
+  parts: [{ key: string; label: string; tone: Pie3DTone }, { key: string; label: string; tone: Pie3DTone }]
+}) {
+  const values: [number, number] =
+    counts ?? (share === null ? [0, 0] : [Math.round(share * 10) / 10, Math.round((100 - share) * 10) / 10])
+  return (
+    <figure className={styles.healthItem}>
+      <Pie3D
+        slices={parts.map((part, index) => ({ ...part, value: values[index] ?? 0 }))}
+        label={title}
+        centerLabel={short}
+        centerValue={share === null ? undefined : `${share.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`}
+        valueSuffix={counts ? '' : '%'}
+        size={220}
+        thickness={0.6}
+      />
+      <figcaption className={styles.healthCaption}>
+        <strong className={styles.healthTitle}>{title}</strong>
+        {caption}
+      </figcaption>
+    </figure>
   )
 }

@@ -1,0 +1,201 @@
+/* Всплывающая 3D-карточка при наведении (решение 88). */
+
+.card {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: var(--z-floating);
+  width: 380px;
+  padding: var(--space-4);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--glass-plate);
+  box-shadow: var(--glass-shadow);
+  pointer-events: none;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Морозная кромка, как у плашки входа. */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid var(--glass-edge);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Маршрут: три узла, связанные линиями, — сама суть связки. */
+.route {
+  display: grid;
+  grid-template-columns: auto minmax(12px, 1fr) auto minmax(12px, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.node {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  max-width: 15ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.missing {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.link {
+  height: 1px;
+  background: linear-gradient(90deg, var(--line-strong), var(--accent-violet), var(--line-strong));
+  transform-origin: left center;
+  animation: draw 420ms var(--ease-out) 80ms both;
+}
+
+.link:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Наклонная плоскость ленты этапов: смотрим на неё сверху под углом. */
+.floor {
+  height: 56px;
+  perspective: 420px;
+  perspective-origin: 50% 0%;
+}
+
+.plane {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+  transform: rotateX(56deg);
+  transform-origin: 50% 0%;
+  transform-style: preserve-3d;
+}
+
+.cell {
+  position: relative;
+  height: 22px;
+  border-radius: 3px;
+  background: var(--line-subtle);
+  transform-style: preserve-3d;
+  animation: cellIn 360ms var(--ease-out) calc(var(--c, 0) * 28ms) both;
+}
+
+@keyframes cellIn {
+  from {
+    opacity: 0;
+    transform: translateZ(-12px);
+  }
+}
+
+.done {
+  background: var(--status-success);
+  opacity: 0.75;
+}
+
+/* Цвет задан и текстом: им светится колонна (box-shadow берёт currentColor). */
+.ok {
+  color: var(--accent-violet);
+  background: var(--accent-violet);
+}
+
+.overdue {
+  color: var(--status-danger);
+  background: var(--status-danger);
+}
+
+.blocked {
+  color: var(--status-warning);
+  background: var(--status-warning);
+}
+
+/* Текущий этап — колонна: поднята над плоскостью, передняя грань — псевдоэлементом. */
+.pillar {
+  animation: pillarUp 620ms var(--ease-out) 360ms both;
+  transform: translateZ(22px);
+  box-shadow: 0 0 16px currentColor;
+}
+
+.pillar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 22px;
+  border-radius: 0 0 3px 3px;
+  background: inherit;
+  filter: brightness(0.6);
+  transform-origin: top center;
+  transform: rotateX(-90deg);
+}
+
+@keyframes pillarUp {
+  from {
+    transform: translateZ(0);
+  }
+}
+
+.stageLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.notation {
+  flex: none;
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  color: var(--text-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.stageTitle {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  width: fit-content;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+}
+
+.okText {
+  color: var(--text-accent);
+  background: var(--line-faint);
+}
+
+.overdueText {
+  color: var(--text-danger-strong);
+  background: var(--danger-surface);
+}
+
+.blockedText {
+  color: var(--status-warning);
+  background: var(--line-faint);
+}

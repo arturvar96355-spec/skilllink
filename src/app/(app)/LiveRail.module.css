@@ -425,13 +425,3 @@
   }
 }
 
-/* Подсветка вуза: чужие точки маршрута — в тень. */
-.dim {
-  opacity: 0.2;
-}
-
-.dot {
-  transition:
-    opacity var(--motion-surface) var(--ease-out),
-    transform var(--motion-micro) var(--ease-out);
-}

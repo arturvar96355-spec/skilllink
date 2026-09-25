@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, type CSSProperties } from 'react'
-import { useInView } from 'motion/react'
 import { formatNumber, formatScore } from '../lib/format'
+import { useReveal } from '../hooks/reveal'
 import styles from './ScoreBar.module.css'
 
 /**
@@ -29,7 +29,7 @@ const TONE: Record<string, string> = {
 
 export function ScoreBar({ parts, delay = 0 }: { parts: ScorePart[]; delay?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const inView = useInView(ref, { once: true, margin: '0px 0px -5% 0px' })
+  const inView = useReveal(ref)
 
   return (
     <span

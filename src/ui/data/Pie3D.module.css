@@ -1,0 +1,147 @@
+/* Объёмная кольцевая диаграмма (решение 88). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  /* Вертикальная прокрутка страницы пальцем остаётся, по горизонтали — вращение. */
+  touch-action: pan-y;
+}
+
+.root[data-spinnable] .svg {
+  cursor: grab;
+}
+
+.root[data-spinnable] .svg:active {
+  cursor: grabbing;
+}
+
+/* Грани: цвет сектора — currentColor, тени граней — затемнением поверх. */
+.top {
+  fill: currentColor;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 0.6;
+  transition: filter var(--motion-micro) var(--ease-out);
+}
+
+.slice:hover .top {
+  filter: brightness(1.18);
+}
+
+/* Блик лежит поверх грани и не мешает наводить на неё. */
+.sheen {
+  pointer-events: none;
+}
+
+.outerWall {
+  fill: currentColor;
+  filter: brightness(0.62);
+}
+
+.innerWall {
+  fill: currentColor;
+  filter: brightness(0.42);
+}
+
+.endFace {
+  fill: currentColor;
+  filter: brightness(0.5);
+}
+
+.empty {
+  fill: none;
+  stroke: var(--line-strong);
+  stroke-dasharray: 4 4;
+}
+
+.center {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  text-align: center;
+  /* Не шире отверстия кольца: подпись не заходит на грани. */
+  max-width: 34%;
+}
+
+.centerValue {
+  font-size: var(--text-kpi-md-size);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.centerLabel {
+  margin-top: 2px;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  line-height: 1.25;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: var(--text-caption-size);
+  cursor: default;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.legendActive,
+.legendItem:hover {
+  border-color: var(--line-subtle);
+  background: var(--surface-2);
+}
+
+.swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.legendLabel {
+  color: var(--text-secondary);
+}
+
+.legendValue {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

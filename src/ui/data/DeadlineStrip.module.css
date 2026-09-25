@@ -172,8 +172,3 @@
 .block:focus-visible {
   transform: scale(1.5);
 }
-
-/* Подсветка вуза: остальные точки уходят в тень, но не исчезают. */
-.strip .dim {
-  opacity: 0.18 !important;
-}

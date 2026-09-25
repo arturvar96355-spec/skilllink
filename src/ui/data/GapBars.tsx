@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, type CSSProperties } from 'react'
-import { useInView } from 'motion/react'
+import { useReveal } from '../hooks/reveal'
 import styles from './GapBars.module.css'
 
 /**
@@ -24,7 +24,7 @@ export interface GapRow {
 
 export function GapBars({ rows }: { rows: GapRow[] }) {
   const ref = useRef<HTMLUListElement>(null)
-  const inView = useInView(ref, { once: true, margin: '0px 0px -5% 0px' })
+  const inView = useReveal(ref)
 
   return (
     <ul ref={ref} className={styles.list} data-inview={inView || undefined}>

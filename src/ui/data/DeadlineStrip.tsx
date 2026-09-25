@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, type CSSProperties } from 'react'
-import { useInView } from 'motion/react'
-import { formatNumber, pluralize } from '../lib/format'
+import { useRef, type CSSProperties, type HTMLAttributes } from 'react'
+import { formatNumber } from '../lib/format'
+import { useReveal } from '../hooks/reveal'
 import styles from './DeadlineStrip.module.css'
 
 /**
@@ -13,7 +13,8 @@ import styles from './DeadlineStrip.module.css'
  * насколько всё плохо и где скопление, — то, что список из десяти строк прячет.
  *
  * Точки выезжают из «сегодня» на своё место, когда шкала доходит до экрана.
- * Наведение на точку подсвечивает её вуз во всей главной (`onFocus`).
+ * Что показать при наведении на точку, решает страница (`itemProps`) — на главной
+ * это всплывающая карточка связки.
  */
 
 export interface DeadlineItem {
@@ -23,8 +24,6 @@ export interface DeadlineItem {
   /** Сколько дней просрочен этап; `null` — заблокирован без просрочки. */
   daysOverdue: number | null
   href: string
-  /** Кого подсвечивать при наведении: вуз связки. */
-  group: string
 }
 
 /** Деления оси — «красивые» числа, чтобы подписи читались сразу. */
@@ -35,15 +34,14 @@ function niceMax(max: number): number {
 
 export function DeadlineStrip({
   items,
-  focus,
-  onFocus,
+  itemProps,
 }: {
   items: DeadlineItem[]
-  focus: string | null
-  onFocus: (group: string | null) => void
+  /** Обработчики для точки — например, всплывающая карточка при наведении. */
+  itemProps?: (item: DeadlineItem) => HTMLAttributes<HTMLElement>
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, margin: '0px 0px -10% 0px' })
+  const inView = useReveal(ref)
 
   const overdue = items.filter((item) => item.daysOverdue !== null)
   const blocked = items.filter((item) => item.daysOverdue === null)
@@ -85,14 +83,10 @@ export function DeadlineStrip({
           <Link
             key={item.key}
             href={item.href}
-            className={[styles.dot, focus && focus !== item.group ? styles.dim : ''].filter(Boolean).join(' ')}
+            className={styles.dot}
             style={{ '--at': `${at}%`, '--lane': lane, '--i': index } as CSSProperties}
-            title={`${item.label}\nПросрочен на ${formatNumber(item.daysOverdue)} ${pluralize(item.daysOverdue!, ['день', 'дня', 'дней'])}`}
             aria-label={`${item.label}: просрочен на ${formatNumber(item.daysOverdue)} дн.`}
-            onPointerEnter={() => onFocus(item.group)}
-            onPointerLeave={() => onFocus(null)}
-            onFocus={() => onFocus(item.group)}
-            onBlur={() => onFocus(null)}
+            {...itemProps?.(item)}
           />
         ))}
       </div>
@@ -103,14 +97,10 @@ export function DeadlineStrip({
             <Link
               key={item.key}
               href={item.href}
-              className={[styles.block, focus && focus !== item.group ? styles.dim : ''].filter(Boolean).join(' ')}
+              className={styles.block}
               style={{ '--i': placed.length + index } as CSSProperties}
-              title={`${item.label}\nЗаблокирован`}
               aria-label={`${item.label}: заблокирован`}
-              onPointerEnter={() => onFocus(item.group)}
-              onPointerLeave={() => onFocus(null)}
-              onFocus={() => onFocus(item.group)}
-              onBlur={() => onFocus(null)}
+              {...itemProps?.(item)}
             />
           ))}
           <span className={styles.tickLabel}>блок</span>

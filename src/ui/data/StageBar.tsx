@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, type CSSProperties } from 'react'
-import { useInView } from 'motion/react'
+import { useReveal } from '../hooks/reveal'
 import styles from './StageBar.module.css'
 
 /**
@@ -28,7 +28,7 @@ export function StageBar({
   delay?: number
 }) {
   const ref = useRef<HTMLSpanElement>(null)
-  const inView = useInView(ref, { once: true, margin: '0px 0px -5% 0px' })
+  const inView = useReveal(ref)
 
   return (
     <span
