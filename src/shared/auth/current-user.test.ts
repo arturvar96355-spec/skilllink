@@ -1,19 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { UserRole } from '@/shared/contracts/enums'
 
 /**
- * Проверяется сам порядок выбора демо-пользователя.
- * Раньше приоритет задавался списком в `role: { in: [...] }`, а сортировка шла по дате
- * создания — порядок элементов IN в SQL не сохраняется, и вместо менеджера система
- * подставляла того, кто был создан первым.
+ * Проверяется сам порядок выбора демо-пользователя — функция из `current-user.ts`.
+ * Порядок элементов IN в SQL не сохраняется, поэтому приоритет ролей задаётся в коде:
+ * без него вместо менеджера подставлялся бы тот, кто создан первым.
+ * База, NextAuth и cookie подменены: функция чистая, им здесь делать нечего.
  */
-const DEFAULT_ROLE_ORDER: UserRole[] = ['MANAGER', 'ADMIN', 'ANALYST', 'VIEWER']
+vi.mock('./auth', () => ({ auth: vi.fn() }))
+vi.mock('@/shared/db/prisma', () => ({ prisma: {} }))
+vi.mock('next/headers', () => ({ cookies: vi.fn() }))
 
-function pickDefault<T extends { role: UserRole }>(candidates: T[]): T | undefined {
-  return candidates
-    .slice()
-    .sort((a, b) => DEFAULT_ROLE_ORDER.indexOf(a.role) - DEFAULT_ROLE_ORDER.indexOf(b.role))[0]
-}
+const { pickDefault } = await import('./current-user')
 
 describe('пользователь по умолчанию', () => {
   it('выбирается менеджер, даже если администратор создан раньше', () => {

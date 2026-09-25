@@ -13,6 +13,12 @@ import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/reco
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
 import type { StageStatus } from '@/shared/contracts/enums'
+import {
+  PROGRAM_RATING_WEIGHTS,
+  RECOMMENDATION_RULES,
+  SKILL_GAP,
+} from '@/shared/config/analytics.config'
+import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -116,6 +122,9 @@ async function warmUp(): Promise<void> {
     '/api/meetings?pageSize=1',
     '/api/recommendations?pageSize=1',
     '/api/skills?pageSize=1',
+    '/api/skills/warm-up',
+    '/api/skills/warm-up/merge',
+    '/api/settings/parameters',
     '/api/skills/gaps',
     '/api/skills/demand',
     '/api/products?pageSize=1',
@@ -131,6 +140,8 @@ async function warmUp(): Promise<void> {
     '/api/export?dataset=universities&limit=1',
     '/api/portal/overview',
     '/api/openapi.json',
+    '/api/me/calendar',
+    '/api/calendar/warm-up.ics',
   ]
 
   await Promise.all(
@@ -3041,6 +3052,230 @@ async function main(): Promise<void> {
     actAs(null)
   }
 
+  // ── Параметры расчётов и справочник навыков (решение 107) ─────────────────
+  step('Параметры расчётов: значения из кода, права ролей')
+
+  {
+    const byRole = async (role: string) => {
+      const found = await call<Array<{ id: string }>>('GET', `/api/users?role=${role}&pageSize=1`)
+      return found.body.data?.[0]?.id ?? null
+    }
+    const analystId = await byRole('ANALYST')
+    const viewerId = await byRole('VIEWER')
+
+    type Parameters = {
+      groups: Array<{ id: string; parameters: Array<{ configKey: string; value: unknown; isTemporary: boolean }> }>
+      stages: Array<{ number: number; normativeDays: number; isControlPoint: boolean }>
+    }
+    actAs(analystId)
+    const asAnalyst = await call<Parameters>('GET', '/api/settings/parameters')
+    const values = new Map(
+      (asAnalyst.body.data?.groups ?? []).flatMap((group) => group.parameters.map((item) => [item.configKey, item])),
+    )
+    check('аналитик получает параметры: 200', asAnalyst.status === 200, `статус ${asAnalyst.status}`)
+    check(
+      'значения — те же константы, по которым считает код',
+      values.get('SKILL_GAP.demandThreshold')?.value === SKILL_GAP.demandThreshold &&
+        values.get('PROGRAM_RATING_WEIGHTS.applicationCount')?.value === PROGRAM_RATING_WEIGHTS.applicationCount &&
+        values.get('RECOMMENDATION_RULES.stalledDays')?.value === RECOMMENDATION_RULES.stalledDays &&
+        values.get('SKILL_GAP.demandThreshold')?.isTemporary === true,
+    )
+    const stages = asAnalyst.body.data?.stages ?? []
+    check(
+      '14 этапов с нормативами из workflow.config, контрольные точки отмечены',
+      stages.length === WORKFLOW_STAGES.length &&
+        stages.every((stage, index) => stage.normativeDays === WORKFLOW_STAGES[index]!.normativeDays) &&
+        stages.filter((stage) => stage.isControlPoint).map((stage) => stage.number).join() ===
+          CONTROL_POINT_STAGES.join(),
+      `этапов ${stages.length}`,
+    )
+    actAs(viewerId)
+    const asViewer = await call('GET', '/api/settings/parameters')
+    check('наблюдатель тоже видит (объяснение чисел аналитики): 200', asViewer.status === 200, `статус ${asViewer.status}`)
+    actAs(rep?.id ?? null)
+    const asRep = await call('GET', '/api/settings/parameters')
+    check('представителю вуза закрыто, как и аналитика: 403', asRep.status === 403, `статус ${asRep.status}`)
+    actAs(null)
+  }
+
+  step('Справочник навыков: права, дубли, объединение, удаление используемого')
+
+  if (!adminId || !managerId) {
+    check('демо-данные готовы (администратор и менеджер)', false, 'запустите npm run db:seed')
+  } else {
+    type Skill = { id: string; name: string; programCount: number; productCount: number }
+    type ProgramCard = {
+      id: string
+      skills: Array<{ skillId: string; level: string; importance: string; source: string; confidence: string | null; comment: string | null }>
+    }
+    type ProductCard = { id: string; skills: Array<{ skillId: string; relevance: string }> }
+    type Gap = { skillId: string; gap: number; isCritical: boolean }
+    const gapsDigest = async () => {
+      const result = await call<Gap[]>('GET', '/api/skills/gaps?limit=200')
+      return `${String(result.body.meta?.total)}:${JSON.stringify(
+        (result.body.data ?? []).map((row) => [row.skillId, row.gap, row.isCritical]),
+      )}`
+    }
+
+    const sfx = Date.now().toString().slice(-6)
+    const nameA = `Пробный навык ${sfx}`
+    const nameB = `Пробный навык-дубль ${sfx}`
+
+    // Не админ: 403 на каждое изменение.
+    actAs(managerId)
+    const managerCreate = await call('POST', '/api/skills', { name: nameA, category: 'Пробная' })
+    const managerPatch = await call('PATCH', '/api/skills/any', { category: 'Пробная' })
+    const managerMerge = await call('POST', '/api/skills/any/merge', { targetId: 'other' })
+    const managerDelete = await call('DELETE', '/api/skills/any')
+    check(
+      'менеджер не меняет справочник: 403 на создание, правку, объединение, удаление',
+      [managerCreate, managerPatch, managerMerge, managerDelete].every((result) => result.status === 403),
+      [managerCreate, managerPatch, managerMerge, managerDelete].map((result) => result.status).join(', '),
+    )
+
+    actAs(adminId)
+    const createdA = await call<Skill>('POST', '/api/skills', { name: nameA, category: 'Пробная' })
+    const createdB = await call<Skill>('POST', '/api/skills', { name: nameB, category: 'Пробная' })
+    const idA = createdA.body.data?.id
+    const idB = createdB.body.data?.id
+    check('администратор заводит навыки: 201', createdA.status === 201 && createdB.status === 201)
+
+    const dupCase = await call('POST', '/api/skills', { name: `  пробный   НАВЫК ${sfx} `, category: 'Пробная' })
+    const dupSpaces = await call('POST', '/api/skills', { name: `ПробныйНавык${sfx}`, category: 'Пробная' })
+    const dupRename = await call('PATCH', `/api/skills/${idB}`, { name: nameA.toUpperCase() })
+    check(
+      'дубль названия без учёта регистра и пробелов — 409 и при создании, и при переименовании',
+      dupCase.status === 409 && dupSpaces.status === 409 && dupRename.status === 409 &&
+        (dupCase.body.error?.message ?? '').includes(nameA),
+      [dupCase.status, dupSpaces.status, dupRename.status].join(', '),
+    )
+    const ownCase = await call<Skill>('PATCH', `/api/skills/${idA}`, { name: nameA.toLowerCase() })
+    await call('PATCH', `/api/skills/${idA}`, { name: nameA })
+    check('своё название в другом регистре — не дубль: 200', ownCase.status === 200, `статус ${ownCase.status}`)
+
+    // Навыки — в программе-черновике и запланированном продукте: в аналитику они не входят,
+    // и цифры сценария показа не сдвигаются.
+    const drafts = await call<Array<{ id: string }>>('GET', '/api/programs?status=DRAFT&pageSize=1')
+    const planned = await call<Array<{ id: string }>>('GET', '/api/products?status=PLANNED&pageSize=1')
+    const programId = drafts.body.data?.[0]?.id
+    const productId = planned.body.data?.[0]?.id
+
+    if (!idA || !idB || !programId || !productId) {
+      check('есть программа-черновик и запланированный продукт', false, 'запустите npm run db:seed')
+    } else {
+      const programBefore = (await call<ProgramCard>('GET', `/api/programs/${programId}`)).body.data?.skills ?? []
+      const productBefore = (await call<ProductCard>('GET', `/api/products/${productId}`)).body.data?.skills ?? []
+      const restoreProgram = programBefore.map(({ skillId, level, importance, source, confidence, comment }) => ({
+        skillId, level, importance, source, confidence, comment,
+      }))
+      const restoreProduct = productBefore.map(({ skillId, relevance }) => ({ skillId, relevance }))
+
+      const gapsBefore = await gapsDigest()
+      const overviewBefore = await call<{ skillMatch: { coveragePercent: number | null } }>('GET', '/api/analytics/overview')
+      const recsBefore = await call<unknown[]>('GET', '/api/recommendations?pageSize=1')
+
+      await call('PUT', `/api/programs/${programId}/skills`, {
+        skills: [
+          ...restoreProgram,
+          { skillId: idA, level: 'BASIC', importance: 'LOW' },
+          { skillId: idB, level: 'ADVANCED', importance: 'HIGH', comment: 'из дубля' },
+        ],
+      })
+      await call('PUT', `/api/products/${productId}/skills`, {
+        skills: [...restoreProduct, { skillId: idB, relevance: 'CORE' }],
+      })
+
+      const usedDelete = await call<unknown>('DELETE', `/api/skills/${idA}`)
+      const usage = (usedDelete.body.error?.details as { usage?: { programs: number } } | undefined)?.usage
+      check(
+        'удаление используемого навыка — 409 с объяснением, сколько где используется',
+        usedDelete.status === 409 && usage?.programs === 1 && (usedDelete.body.error?.message ?? '').includes('в 1 программе'),
+        `статус ${usedDelete.status}: ${usedDelete.body.error?.message ?? ''}`,
+      )
+
+      const self = await call('POST', `/api/skills/${idB}/merge`, { targetId: idB })
+      const missing = await call('POST', `/api/skills/${idB}/merge`, { targetId: 'no-such-skill' })
+      check('объединение с собой и с несуществующим — 422', self.status === 422 && missing.status === 422, `${self.status}, ${missing.status}`)
+
+      type Merge = {
+        target: Skill
+        removed: { id: string; name: string }
+        programs: { moved: number; combined: number }
+        products: { moved: number; combined: number }
+      }
+      const merged = await call<Merge>('POST', `/api/skills/${idB}/merge`, { targetId: idA })
+      check(
+        'объединение: 200, связь программы объединена, продукта — перенесена',
+        merged.status === 200 &&
+          merged.body.data?.removed.name === nameB &&
+          merged.body.data?.programs.combined === 1 &&
+          merged.body.data?.products.moved === 1 &&
+          merged.body.data?.target.programCount === 1 &&
+          merged.body.data?.target.productCount === 1,
+        `статус ${merged.status}: ${JSON.stringify(merged.body.data ?? merged.body.error)}`,
+      )
+
+      const programAfter = (await call<ProgramCard>('GET', `/api/programs/${programId}`)).body.data?.skills ?? []
+      const productAfter = (await call<ProductCard>('GET', `/api/products/${productId}`)).body.data?.skills ?? []
+      const linkA = programAfter.filter((row) => row.skillId === idA)
+      check(
+        'в программе одна связь — более сильная: продвинутый уровень, высокая важность',
+        linkA.length === 1 && linkA[0]!.level === 'ADVANCED' && linkA[0]!.importance === 'HIGH' &&
+          !programAfter.some((row) => row.skillId === idB),
+        JSON.stringify(linkA),
+      )
+      check(
+        'продукт даёт целевой навык со значимостью дубля, дубля нет',
+        productAfter.some((row) => row.skillId === idA && row.relevance === 'CORE') &&
+          !productAfter.some((row) => row.skillId === idB),
+      )
+      const goneB = await call('PATCH', `/api/skills/${idB}`, { category: 'Пробная' })
+      const listed = await call<Skill[]>('GET', `/api/skills?q=${encodeURIComponent(sfx)}`)
+      check(
+        'дубль удалён: правка — 404, в справочнике остался один навык',
+        goneB.status === 404 && (listed.body.data ?? []).map((row) => row.id).join() === idA,
+        `статус ${goneB.status}, найдено ${(listed.body.data ?? []).length}`,
+      )
+
+      const gapsAfter = await gapsDigest()
+      const gapsOfProgram = await call('GET', `/api/skills/gaps?programId=${programId}`)
+      const overviewAfter = await call<{ skillMatch: { coveragePercent: number | null } }>('GET', '/api/analytics/overview')
+      const recsAfter = await call<unknown[]>('GET', '/api/recommendations?pageSize=1')
+      check(
+        'аналитика после объединения не ломается: дефициты, покрытие и рекомендации те же',
+        gapsOfProgram.status === 200 &&
+          overviewAfter.status === 200 &&
+          recsAfter.status === 200 &&
+          gapsAfter === gapsBefore &&
+          overviewAfter.body.data?.skillMatch.coveragePercent === overviewBefore.body.data?.skillMatch.coveragePercent &&
+          recsAfter.body.meta?.total === recsBefore.body.meta?.total,
+        `дефицитов ${gapsBefore.split(':')[0]} → ${gapsAfter.split(':')[0]}, ` +
+          `рекомендаций ${String(recsBefore.body.meta?.total)} → ${String(recsAfter.body.meta?.total)}`,
+      )
+
+      const audit = await call<Array<{ action: string; objectId: string; payload: Record<string, unknown> | null }>>(
+        'GET',
+        `/api/audit?action=skill.merge&objectId=${idA}`,
+      )
+      check(
+        'объединение — в журнале, с названием удалённого дубля',
+        (audit.body.data ?? []).some((row) => row.payload?.removedName === nameB),
+      )
+
+      // Возврат программы и продукта к прежнему составу, затем удаление неиспользуемого.
+      await call('PUT', `/api/programs/${programId}/skills`, { skills: restoreProgram })
+      await call('PUT', `/api/products/${productId}/skills`, { skills: restoreProduct })
+      const unusedDelete = await call<{ id: string }>('DELETE', `/api/skills/${idA}`)
+      const afterDelete = await call<Skill[]>('GET', `/api/skills?q=${encodeURIComponent(sfx)}`)
+      check(
+        'неиспользуемый навык удаляется: 200, в справочнике его больше нет',
+        unusedDelete.status === 200 && unusedDelete.body.data?.id === idA && (afterDelete.body.data ?? []).length === 0,
+        `статус ${unusedDelete.status}`,
+      )
+    }
+    actAs(null)
+  }
+
   // ── Почта и телефон контактов вузов — только ADMIN и MANAGER (решение 106) ──
   step('Почта и телефон контактов вузов: аналитику и наблюдателю — «скрыто», поиском не достать')
 
@@ -3468,6 +3703,108 @@ async function main(): Promise<void> {
       secondSolved === 'credentials' && blocked === 'too_many_attempts',
       [secondSolved, blocked].join(', '),
     )
+  }
+
+  // ── Календарь (.ics, решение 105) ─────────────────────────────────────────
+  step('Календарь: ссылка — единственный доступ, отзыв закрывает её сразу')
+
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+  } else {
+    /** Лента без cookie — как её запрашивает календарное приложение. */
+    const feed = async (url: string) => {
+      // Адрес в ответе строится от AUTH_URL / APP_BASE_URL; пробник ходит на свой сервер.
+      const path = url.startsWith('http') ? new URL(url).pathname : url
+      const response = await fetch(`${BASE_URL}${path}`)
+      return {
+        status: response.status,
+        type: response.headers.get('content-type') ?? '',
+        cache: response.headers.get('cache-control') ?? '',
+        text: await response.text(),
+      }
+    }
+    const randomToken = () =>
+      Buffer.from(Array.from({ length: 32 }, () => Math.floor(Math.random() * 256))).toString('base64url')
+
+    const misses = await Promise.all(
+      ['/api/calendar/.ics', '/api/calendar/abc.ics', `/api/calendar/${randomToken()}.ics`, `/api/calendar/${randomToken()}`].map(feed),
+    )
+    check(
+      'без токена, кривой и чужой (неизвестный) токен — 404 без различий',
+      misses.every((miss) => miss.status === 404) && new Set(misses.slice(1).map((miss) => miss.text)).size === 1,
+      misses.map((miss) => miss.status).join(', '),
+    )
+
+    actAs(rep.id)
+    const repStatus = await call('GET', '/api/me/calendar')
+    const repIssue = await call('POST', '/api/me/calendar')
+    check('представителю вуза подписка закрыта — 403', repStatus.status === 403 && repIssue.status === 403, `${repStatus.status}, ${repIssue.status}`)
+
+    actAs(managerId)
+    const first = await call<{ url: string; webcalUrl: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const firstUrl = first.body.data?.url ?? ''
+    check('менеджер выпускает ссылку — 201, адрес вида …/api/calendar/<43 знака>.ics', first.status === 201 && /\/api\/calendar\/[A-Za-z0-9_-]{43}\.ics$/.test(firstUrl), `статус ${first.status}`)
+    const status = await call<{ active: boolean }>('GET', '/api/me/calendar')
+    const token = firstUrl.split('/').pop()?.replace('.ics', '') ?? '—'
+    check('статус подписки — без адреса ссылки', status.body.data?.active === true && !status.raw.includes(token))
+
+    const ok = await feed(firstUrl)
+    check('лента — 200, text/calendar и no-store', ok.status === 200 && ok.type.startsWith('text/calendar') && ok.cache.includes('no-store'), `${ok.status}, ${ok.type}, ${ok.cache}`)
+    check('лента — iCalendar с CRLF и строками не длиннее 75 октетов', ok.text.startsWith('BEGIN:VCALENDAR\r\n') && ok.text.endsWith('END:VCALENDAR\r\n') && ok.text.split('\r\n').every((line) => !line.includes('\n') && Buffer.byteLength(line) <= 75))
+    const unfolded = ok.text.replace(/\r\n[ \t]/g, '')
+    check('в ленте есть сроки этапов менеджера', /SUMMARY:(\[[^\]]+\] )?Срок: этап \d+ «/.test(unfolded))
+
+    // Почт и ФИО в ленте нет: ни контактов вузов, ни сотрудников.
+    const me = await call<{ fullName: string }>('GET', '/api/me')
+    const coopUniversities = [...new Set((cooperations.body.data ?? []).filter((item) => item.responsible.id === managerId).map((item) => item.universityId))]
+    const contactNames: string[] = []
+    for (const universityId of coopUniversities.slice(0, 5)) {
+      const card = await call<{ contacts: Array<{ fullName: string }> }>('GET', `/api/universities/${universityId}`)
+      contactNames.push(...(card.body.data?.contacts ?? []).map((contact) => contact.fullName))
+    }
+    check('в ленте нет почт', !/[\w.+-]+@[\w-]+\.[\w.-]+/.test(unfolded))
+    check(
+      'в ленте нет ФИО контактов вузов и сотрудника',
+      contactNames.length > 0 && contactNames.every((name) => !unfolded.includes(name)) && !unfolded.includes(me.body.data?.fullName ?? '—'),
+      `контактов проверено: ${contactNames.length}`,
+    )
+
+    const second = await call<{ url: string; replaced: boolean }>('POST', '/api/me/calendar')
+    const secondUrl = second.body.data?.url ?? ''
+    const afterReissueOld = await feed(firstUrl)
+    const afterReissueNew = await feed(secondUrl)
+    check('перевыпуск: старая ссылка — 404, новая — 200', second.body.data?.replaced === true && afterReissueOld.status === 404 && afterReissueNew.status === 200, `${afterReissueOld.status}, ${afterReissueNew.status}`)
+
+    const revoked = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    const afterRevoke = await feed(secondUrl)
+    const revokedAgain = await call<{ revoked: boolean }>('DELETE', '/api/me/calendar')
+    check('после отзыва старый адрес — 404, повторный отзыв — revoked=false', revoked.body.data?.revoked === true && afterRevoke.status === 404 && revokedAgain.body.data?.revoked === false, `${afterRevoke.status}`)
+
+    actAs(adminId)
+    const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${managerId}&pageSize=20`)
+    const actions = (journal.body.data ?? []).map((entry) => entry.action)
+    check('в журнале выпуск и отзыв, токена нет', actions.includes('calendar.issue') && actions.includes('calendar.revoke') && !journal.raw.includes(token) && !journal.raw.includes(secondUrl.split('/').pop() ?? '—'))
+
+    // Заблокированный пользователь: его лента — 404, как неизвестная.
+    const blockedEmail = `probe-calendar-${Date.now()}@example.invalid`
+    const createdUser = await call<{ user: { id: string } }>('POST', '/api/users', { email: blockedEmail, fullName: 'Пробный Календарь Пробникович', role: 'VIEWER' })
+    const blockedId = createdUser.body.data?.user.id
+    if (!blockedId) {
+      check('пробный пользователь для блокировки заведён', false, `статус ${createdUser.status}`)
+    } else {
+      actAs(blockedId)
+      const viewerFeed = await call<{ url: string }>('POST', '/api/me/calendar')
+      const viewerUrl = viewerFeed.body.data?.url ?? ''
+      const beforeBlock = await feed(viewerUrl)
+      actAs(adminId)
+      const block = await call('PATCH', `/api/users/${blockedId}`, { isActive: false })
+      const afterBlock = await feed(viewerUrl)
+      check(
+        'наблюдатель выпускает ссылку; после блокировки его лента — 404',
+        viewerFeed.status === 201 && beforeBlock.status === 200 && block.status === 200 && afterBlock.status === 404,
+        `${viewerFeed.status}, ${beforeBlock.status}, ${block.status}, ${afterBlock.status}`,
+      )
+    }
   }
 
   // ── Итог ───────────────────────────────────────────────────────────────────

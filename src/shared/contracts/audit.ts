@@ -21,6 +21,10 @@ export const AUDIT_ACTIONS = [
   'user.password.reset',
   /** Пользователь сменил свой пароль. */
   'user.password.change',
+  /** Выпущена или перевыпущена ссылка на календарь (решение 105). Без токена. */
+  'calendar.issue',
+  /** Ссылка на календарь отозвана. */
+  'calendar.revoke',
   'university.create',
   'university.update',
   'university.archive',
@@ -61,6 +65,12 @@ export const AUDIT_ACTIONS = [
   'product.update',
   'product.skills.replace',
   'product.version.release',
+  /** Справочник навыков (решение 107): в журнал пишется название — это не персональные данные. */
+  'skill.create',
+  'skill.update',
+  /** Дубль объединён в целевой навык: objectId — целевой, в payload — удалённый и счётчики. */
+  'skill.merge',
+  'skill.delete',
   'export.download',
   'audit.retention',
   'import.apply',
@@ -84,6 +94,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Recommendation',
   'Application',
   'ITProduct',
+  'Skill',
   'DataSource',
   'Export',
   'Import',
@@ -101,8 +112,8 @@ export interface AuditLogEntryDto {
   payload: Record<string, unknown> | null
   user: UserRefDto | null
   /**
-   * Связка, к которой относится объект, — для этапа и пункта чек-листа
-   * (с 25.09.2026): у них нет своей страницы, открываются они на странице связки.
+   * Связка, к которой относится объект, — для этапа и пункта чек-листа:
+   * у них нет своей страницы, открываются они на странице связки.
    * У остальных объектов — null.
    */
   cooperationId: string | null
