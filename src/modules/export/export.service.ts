@@ -14,7 +14,12 @@ import {
 import type { CooperationListQuery } from '@/modules/cooperation/cooperation.schema'
 import type { ProgramListQuery } from '@/modules/programs/programs.schema'
 import type { UniversityListQuery } from '@/modules/universities/universities.schema'
-import { computeProgressPercent, findCurrentStage, isAutoManaged } from '@/modules/workflow/workflow.rules'
+import {
+  computeProgressPercent,
+  findCurrentStage,
+  isAutoManaged,
+  isOverdue,
+} from '@/modules/workflow/workflow.rules'
 import * as analyticsService from '@/modules/analytics/analytics.service'
 import * as cooperationRepo from '@/modules/cooperation/cooperation.repo'
 import * as programsRepo from '@/modules/programs/programs.repo'
@@ -209,13 +214,9 @@ async function exportCooperations(
     rows: rows.map((row) => {
       const countable = row.stages.filter((stage) => !isAutoManaged(stage.stageNumber))
       const current = findCurrentStage(row.stages)
-      const overdue = countable.filter(
-        (stage) =>
-          stage.deadline !== null &&
-          stage.deadline < now &&
-          stage.status !== 'COMPLETED' &&
-          stage.status !== 'CANCELLED',
-      ).length
+      // То же правило, что у карточки связки: своя копия здесь считала
+      // просроченными и не начатые этапы (решение 84).
+      const overdue = countable.filter((stage) => isOverdue(stage.deadline, stage.status, now)).length
 
       return [
         row.university.name,

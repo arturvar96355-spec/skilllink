@@ -4,6 +4,7 @@ import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
 import { ACTIVE_UNIVERSITY_STATUSES } from '@/modules/universities/universities.rules'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { OVERDUE_STAGE_STATUSES } from '@/modules/workflow/workflow.rules'
 import { TIE_BREAKER } from '@/shared/http/pagination'
 
 /** Связки, которые сейчас в работе. */
@@ -147,7 +148,7 @@ export async function findProgramsForRating(scope: { universityId?: string }, li
 function problemStageWhere(scope: { universityId?: string }, now: Date) {
   return {
     OR: [
-      { deadline: { lt: now }, status: { notIn: ['COMPLETED' as const, 'CANCELLED' as const] } },
+      { deadline: { lt: now }, status: { in: [...OVERDUE_STAGE_STATUSES] } },
       { status: 'BLOCKED' as const },
     ],
     // Контрольный этап руками не меняется: он просрочен из-за незакрытых
@@ -327,7 +328,7 @@ export async function countOverdueStagesOf(userId: string, now: Date): Promise<n
     where: {
       responsibleId: userId,
       deadline: { lt: now },
-      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      status: { in: [...OVERDUE_STAGE_STATUSES] },
       stageNumber: { not: CONTROL_STAGE_NUMBER },
       cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
     },

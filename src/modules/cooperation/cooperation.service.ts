@@ -19,6 +19,7 @@ import {
   isAutoManaged,
   isDueSoon,
   isOverdue,
+  isPlanShifted,
 } from '@/modules/workflow/workflow.rules'
 import { toStageDto } from '@/modules/workflow/workflow.service'
 import * as workflowRepo from '@/modules/workflow/workflow.repo'
@@ -49,6 +50,7 @@ function toCurrentStage(stages: StageSummary[], now: Date): CurrentStageDto | nu
     status: current.status,
     deadline: toIso(current.deadline),
     isOverdue: isOverdue(current.deadline, current.status, now),
+    isPlanShifted: isPlanShifted(current.deadline, current.status, now),
     isDueSoon: isDueSoon(current.deadline, current.status, now),
     daysToDeadline: daysToDeadline(current.deadline, now),
   }

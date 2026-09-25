@@ -35,8 +35,13 @@ export interface WorkflowStageDto {
   status: StageStatus
   responsible: UserRefDto | null
   deadline: string | null
-  /** Дедлайн прошёл, а этап не закрыт и не отменён. */
+  /** Дедлайн прошёл, а этап в работе или заблокирован. */
   isOverdue: boolean
+  /**
+   * План сдвинут: дедлайн прошёл, а этап ещё не начат. Это не просрочка —
+   * в счётчики проблем не идёт. С `isOverdue` и `isDueSoon` не пересекается.
+   */
+  isPlanShifted: boolean
   /**
    * Срок ещё не вышел, но выйдет со дня на день. С `isOverdue` не пересекается:
    * этап либо просрочен, либо вот-вот просрочится, либо ни то ни другое.

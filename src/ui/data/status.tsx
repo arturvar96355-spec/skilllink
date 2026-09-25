@@ -135,19 +135,25 @@ export function RecommendationStatusBadge({ status }: { status: RecommendationSt
   return <Badge tone={RECOMMENDATION_TONES[status]}>{RECOMMENDATION_STATUS_LABELS[status]}</Badge>
 }
 
+/** Подсказка к пометке «план сдвинут»: дата в прошлом на не начатом этапе — не ошибка. */
+const PLAN_SHIFTED_HINT =
+  'Срок этапа прошёл, а этап ещё не начат: план сдвинулся из-за этапов до него. Это не просрочка.'
+
 /**
- * Срок этапа: просрочен, вот-вот истечёт или в порядке.
+ * Срок этапа: просрочен, план сдвинут, вот-вот истечёт или в порядке.
  *
  * В строке таблицы значок короткий — «−57 дн.»: полная фраза занимала полстолбца
  * и выталкивала название этапа. Полный текст остаётся в подсказке.
  */
 export function DeadlineBadge({
   isOverdue,
+  isPlanShifted = false,
   isDueSoon,
   daysToDeadline,
   compact = false,
 }: {
   isOverdue: boolean
+  isPlanShifted?: boolean
   isDueSoon: boolean
   daysToDeadline: number | null
   compact?: boolean
@@ -156,6 +162,13 @@ export function DeadlineBadge({
     return (
       <Badge tone="danger" withDot title={deadlineBadgeText('overdue', daysToDeadline)}>
         {deadlineBadgeText('overdue', daysToDeadline, compact)}
+      </Badge>
+    )
+  }
+  if (isPlanShifted) {
+    return (
+      <Badge tone="neutral" title={PLAN_SHIFTED_HINT}>
+        план сдвинут
       </Badge>
     )
   }
