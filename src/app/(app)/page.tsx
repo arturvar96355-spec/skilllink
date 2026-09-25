@@ -43,6 +43,7 @@ import {
   PageHeader,
   PriorityBadge,
   Progress,
+  ROUTES,
   Section,
   apiPost,
   buildQuery,
@@ -411,16 +412,22 @@ function Dashboard() {
         }
         meta={data?.containsMockData ? <MockBadge /> : undefined}
         actions={
-          user.permissions.canWorkAnalytics ? (
-            <Button
-              icon="refresh"
-              onClick={onRegenerate}
-              isLoading={regenerate.isPending}
-              variant="secondary"
-            >
-              Пересобрать рекомендации
+          <>
+            {user.permissions.canWorkAnalytics && (
+              <Button
+                icon="refresh"
+                onClick={onRegenerate}
+                isLoading={regenerate.isPending}
+                variant="secondary"
+              >
+                Пересобрать рекомендации
+              </Button>
+            )}
+            {/* Лист A4 для печати и PDF (решение 97) — всем, кому видна главная. */}
+            <Button href={ROUTES.managerReport} icon="document" variant="secondary">
+              Отчёт руководителю
             </Button>
-          ) : undefined
+          </>
         }
       />
 

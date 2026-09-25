@@ -1,0 +1,453 @@
+/*
+ * Отчёт руководителю (решение 97): лист A4.
+ *
+ * На экране — превью листа: светлая бумага посреди рабочей области, та же
+ * ширина строки, что на печати (210 мм минус поля по 14 мм), поэтому переносы
+ * совпадают. Цвета — токены бумаги из globals.css; значки дизайн-системы внутри
+ * листа получают «чернильные» оттенки через переопределённые переменные.
+ */
+
+.sheet {
+  --text-primary: var(--ink);
+  --text-secondary: var(--ink-secondary);
+  --text-tertiary: var(--ink-tertiary);
+  --text-muted-cool: var(--ink-secondary);
+  --text-accent: var(--ink-accent);
+  --text-violet: var(--ink-accent);
+  --text-warm: var(--ink-warm);
+  --status-success: var(--ink-success);
+  --status-warning: var(--ink-warning);
+  --status-danger: var(--ink-danger);
+
+  width: 100%;
+  max-width: 210mm;
+  margin: 0 auto;
+  padding: 14mm;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow-floating);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+}
+
+/* ── Шапка листа ─────────────────────────────────────────────────────────── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-4);
+  border-bottom: 2px solid var(--ink);
+}
+
+.kickerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.kicker {
+  font-size: var(--text-kicker-size);
+  font-weight: 600;
+  letter-spacing: var(--text-kicker-tracking);
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+.brand {
+  color: var(--ink-accent);
+  font-weight: 700;
+}
+
+.title {
+  font-size: var(--text-h1-size);
+  font-weight: var(--text-h1-weight);
+  line-height: var(--text-h1-line);
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-4);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--ink-secondary);
+}
+
+/* ── Блоки ───────────────────────────────────────────────────────────────── */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+}
+
+.blockTitle {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--ink);
+}
+
+.lead {
+  font-size: var(--text-body-size);
+  color: var(--ink);
+}
+
+.note {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--ink-secondary);
+}
+
+.detail {
+  display: block;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--ink-tertiary);
+}
+
+/* ── Ключевые показатели ─────────────────────────────────────────────────── */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.kpis dd {
+  margin: 0;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--paper-line);
+  border-radius: var(--radius-xs);
+}
+
+.kpiLabel {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  font-weight: var(--text-caption-weight);
+  color: var(--ink-tertiary);
+}
+
+.kpiValue {
+  font-size: var(--text-kpi-md-size);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.kpiEmpty {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--ink-tertiary);
+}
+
+.kpiNote {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  font-weight: 600;
+}
+
+.trendUp {
+  color: var(--ink-success);
+}
+
+.trendDown {
+  color: var(--ink-danger);
+}
+
+.trendFlat,
+.estimate {
+  color: var(--ink-tertiary);
+}
+
+/* ── Требует внимания ────────────────────────────────────────────────────── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.colUniversity {
+  width: 16%;
+}
+
+.colProgram {
+  width: 27%;
+}
+
+.colStage {
+  width: 27%;
+}
+
+.colReason {
+  width: 30%;
+}
+
+.table th {
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  border-bottom: 1px solid var(--paper-line);
+  text-align: left;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--ink-tertiary);
+}
+
+.table td {
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
+  border-bottom: 1px solid var(--paper-line-faint);
+  vertical-align: top;
+  overflow-wrap: break-word;
+  color: var(--ink);
+}
+
+.stageNo {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-tertiary);
+}
+
+.overdue {
+  font-weight: 600;
+  color: var(--ink-danger);
+}
+
+.blocked {
+  font-weight: 600;
+  color: var(--ink-warning);
+}
+
+/* ── Действия, рейтинг, навыки ──────────────────────────────────────────── */
+
+/* Действие: значок приоритета столбцом слева — приоритеты читаются сверху вниз одним взглядом. */
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action {
+  display: grid;
+  grid-template-columns: 7.5em minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--paper-line-faint);
+}
+
+.actionText {
+  min-width: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.actionTarget {
+  color: var(--ink-tertiary);
+}
+
+.itemTitle {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-6);
+}
+
+.rank {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-bottom: 1px solid var(--paper-line-faint);
+}
+
+.itemBody {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.rankNo {
+  flex: none;
+  min-width: 1.25em;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-tertiary);
+}
+
+.score {
+  flex: none;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Навыки — три факта столбиком: число и что оно значит. */
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.factValue {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.factLabel {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--ink-tertiary);
+}
+
+/* ── Низ листа ───────────────────────────────────────────────────────────── */
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--paper-line);
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--ink-tertiary);
+}
+
+/*
+ * Телефон: лист во всю ширину, показатели по два, колонки друг под другом.
+ * Строка таблицы — карточкой в две строки (вуз и программа, этап и причина):
+ * четыре столбца в 330 px рвали слова посередине. Только экран: печатная область
+ * A4 (182 мм, 688 px) тоже уже 720 px, и без `screen` лист печатался бы телефонным.
+ */
+@media screen and (max-width: 720px) {
+  .sheet {
+    padding: var(--space-4);
+  }
+
+  .table colgroup,
+  .table thead {
+    display: none;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+  }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--paper-line-faint);
+  }
+
+  .table td {
+    padding: 0;
+    border: 0;
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+  }
+}
+
+/*
+ * Печать. Поля A4 — у именованной страницы `report`: `@page` без имени действовал бы
+ * на печать любой страницы приложения, если стили отчёта остались подключены
+ * после перехода. Лист занимает всю печатную область. Строка таблицы, показатель,
+ * пункт списка и нижняя пара «программы — навыки» не рвутся между страницами,
+ * заголовок блока не остаётся внизу страницы без содержимого, шапка таблицы
+ * повторяется на следующей. Меню, шапку и кнопки скрывает globals.css.
+ */
+@page report {
+  size: A4;
+  margin: 14mm;
+}
+
+@media print {
+  .sheet {
+    page: report;
+    max-width: none;
+    padding: 0;
+    gap: var(--space-4);
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .head,
+  .kpi,
+  .action,
+  .rank,
+  .fact,
+  .columns,
+  .foot,
+  .table tr {
+    break-inside: avoid;
+  }
+
+  .blockHead,
+  .blockTitle {
+    break-after: avoid;
+  }
+
+  .table thead {
+    display: table-header-group;
+  }
+}
