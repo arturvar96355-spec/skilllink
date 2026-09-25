@@ -23,6 +23,9 @@ import {
   Card,
   Drawer,
   EmptyState,
+  ResetFilters,
+  OPEN_RECOMMENDATION_STATUSES,
+  CLOSED_RECOMMENDATION_STATUSES,
   ErrorState,
   Icon,
   Modal,
@@ -81,7 +84,8 @@ function RecommendationsContent() {
 
   const openedId = searchParams.get('recommendation')
   const [tab, setTab] = useState<string>('all')
-  const [status, setStatus] = useState('')
+  // По умолчанию — открытые: «Новая» и «В работе» (решение 109). «all» — все статусы.
+  const [status, setStatus] = useState<string>('open')
   const [priority, setPriority] = useState('')
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
@@ -91,7 +95,14 @@ function RecommendationsContent() {
 
   const path = `/api/recommendations${buildQuery({
     type: tab === 'all' ? undefined : tab,
-    status: status || undefined,
+    status:
+      status === 'open'
+        ? OPEN_RECOMMENDATION_STATUSES
+        : status === 'closed'
+          ? CLOSED_RECOMMENDATION_STATUSES
+          : status === 'all'
+            ? undefined
+            : status,
     priority: priority || undefined,
     sort: RECOMMENDATION_SORT_MOST_IMPORTANT,
     page,
@@ -198,6 +209,15 @@ function RecommendationsContent() {
     setPage(1)
   }
 
+  // «Сбросить фильтры» (решение 109): назад к открытым, любому приоритету, всем типам.
+  const hasFilters = status !== 'open' || priority !== '' || tab !== 'all'
+  function resetFilters() {
+    setStatus('open')
+    setPriority('')
+    setTab('all')
+    setPage(1)
+  }
+
   return (
     <>
       <PageHeader
@@ -221,17 +241,21 @@ function RecommendationsContent() {
 
       <Tabs items={TABS} active={tab} onChange={(key) => changeFilter(() => setTab(key))} />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarItem>
           <Select
             label="Статус"
-            placeholder="Любой статус"
             value={status}
-            onValueChange={(value) => changeFilter(() => setStatus(value))}
-            options={RECOMMENDATION_WORKFLOW_STATUSES.map((value) => ({
-              value,
-              label: RECOMMENDATION_STATUS_LABELS[value],
-            }))}
+            onValueChange={(value) => changeFilter(() => setStatus(value || 'open'))}
+            options={[
+              { value: 'open', label: 'Открытые' },
+              { value: 'closed', label: 'Закрытые' },
+              { value: 'all', label: 'Все статусы' },
+              ...RECOMMENDATION_WORKFLOW_STATUSES.map((value) => ({
+                value,
+                label: RECOMMENDATION_STATUS_LABELS[value],
+              })),
+            ]}
           />
         </ToolbarItem>
         <ToolbarItem>
@@ -259,12 +283,14 @@ function RecommendationsContent() {
               icon="recommendation"
               title="Рекомендаций нет"
               description={
-                status || priority || tab !== 'all'
+                hasFilters
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
-                  : 'Система ещё не собирала предложения или все они закрыты.'
+                  : 'Открытых предложений нет: система ещё не собирала их или все они закрыты. Закрытые — в фильтре «Статус».'
               }
               action={
-                user.permissions.canWorkAnalytics ? (
+                hasFilters ? (
+                  <ResetFilters active onReset={resetFilters} />
+                ) : user.permissions.canWorkAnalytics ? (
                   <Button icon="refresh" onClick={onGenerate} isLoading={generate.isPending}>
                     Собрать сейчас
                   </Button>

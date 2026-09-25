@@ -17,6 +17,8 @@ import {
   DataTable,
   DeadlineBadge,
   EmptyState,
+  ResetFilters,
+  useResetUrl,
   ErrorState,
   Input,
   MockBadge,
@@ -172,6 +174,18 @@ function CooperationsView() {
     setPage(1)
   }
 
+  // «Сбросить фильтры» (решение 109): и отбор по продукту из адреса (?productId=).
+  const resetUrl = useResetUrl()
+  const hasFilters = Boolean(search.trim() || status || onlyOverdue || onlyBlocked || productId)
+  function resetFilters() {
+    setSearch('')
+    setStatus('')
+    setOnlyOverdue(false)
+    setOnlyBlocked(false)
+    setPage(1)
+    resetUrl(['productId'])
+  }
+
   /*
    * Каждая ячейка — в одну строку. Раньше в строке было по два-три этажа:
    * вуз над программой, этап над сроком, полоса над счётчиками, — и на экран
@@ -300,7 +314,7 @@ function CooperationsView() {
         }
       />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -368,6 +382,7 @@ function CooperationsView() {
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
                   : 'Ни одной связки ещё не заведено.'
               }
+              action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
             />
           ) : (
             <>

@@ -18,6 +18,7 @@ import {
   Card,
   DataTable,
   EmptyState,
+  ResetFilters,
   ErrorState,
   Input,
   MetricCell,
@@ -123,7 +124,8 @@ export default function ProgramsPage() {
 
   const rows = programs.data ?? []
   const meta = programs.meta
-  const hasFilters = query !== '' || level !== '' || status !== '' || universityId !== ''
+  // Поиск — по введённому, а не по отложенному: кнопка сброса появляется сразу (решение 109).
+  const hasFilters = search.trim() !== '' || level !== '' || status !== '' || universityId !== ''
   const marks = mockMarks(rows)
 
   function resetFilters() {
@@ -260,7 +262,7 @@ export default function ProgramsPage() {
         }
       />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarItem>
           <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
             <Button
@@ -353,11 +355,7 @@ export default function ProgramsPage() {
                 : 'В реестре ещё нет ни одной образовательной программы.'
             }
             action={
-              hasFilters ? (
-                <Button icon="refresh" onClick={resetFilters}>
-                  Сбросить фильтры
-                </Button>
-              ) : undefined
+              hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined
             }
           />
         </Card>

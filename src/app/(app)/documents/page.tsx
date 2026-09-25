@@ -26,6 +26,7 @@ import {
   DocumentStatusBadge,
   Drawer,
   EmptyState,
+  ResetFilters,
   ErrorState,
   Icon,
   Input,
@@ -247,7 +248,24 @@ function DocumentsView() {
   ]
 
   const hasFilters =
-    query !== '' || type !== '' || status !== '' || universityId !== '' || programId !== '' || cooperationId !== ''
+    search.trim() !== '' ||
+    type !== '' ||
+    status !== '' ||
+    universityId !== '' ||
+    programId !== '' ||
+    cooperationId !== ''
+
+  // «Сбросить фильтры» (решение 109): все условия разом; открытый документ (?document=) не трогаем.
+  function resetFilters() {
+    changeFilter(() => {
+      setSearch('')
+      setType('')
+      setStatus('')
+      setUniversityId('')
+      setProgramId('')
+      setCooperationId('')
+    })
+  }
 
   return (
     <>
@@ -256,7 +274,7 @@ function DocumentsView() {
         description="Договоры, соглашения и приложения по связкам. В системе хранятся реквизиты, ссылка на внешний документ и текст, собранный из шаблона: файлы не загружаются."
       />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -354,6 +372,7 @@ function DocumentsView() {
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
                   : 'Ни одного документа ещё не заведено. Пакет по связке собирается на её странице.'
               }
+              action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
             />
           ) : (
             <>
