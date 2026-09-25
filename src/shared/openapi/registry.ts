@@ -93,6 +93,8 @@ export interface EndpointSpec {
   bodyOptional?: boolean
   /** Ответ — список с блоком meta. */
   list?: boolean
+  /** POST, который ничего не создаёт (черновик ИИ-помощника), отвечает 200, а не 201. */
+  returnsOk?: boolean
   errors: ErrorCode[]
 }
 
@@ -609,6 +611,46 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'WRITE',
     body: updateRecommendationSchema,
     errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
+  },
+
+  // ── ИИ-помощник (решение 90) ──────────────────────────────────────────────
+  {
+    method: 'post',
+    path: '/api/cooperations/{id}/ai-summary',
+    tag: 'ИИ-помощник',
+    summary: 'Сводка по связке: где она, что мешает, что сделать дальше',
+    description:
+      'Черновик текста. Факты — из карточки связки и её открытых рекомендаций, без персональных ' +
+      'данных; модель (YandexGPT или GigaChat) только формулирует. Модель выключена ' +
+      '(AI_ASSIST_PROVIDER=off, по умолчанию), не настроена, упала, не уложилась в таймаут ' +
+      'или лимит — тот же текст шаблоном, source: "template". Тело не нужно.',
+    permission: 'ANALYTICS',
+    returnsOk: true,
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/recommendations/{id}/ai-letter',
+    tag: 'ИИ-помощник',
+    summary: 'Черновик письма вузу по рекомендации',
+    description:
+      'Вежливое деловое письмо от лица ИТ-Школы РТК по фактам рекомендации: что нужно от вуза ' +
+      'и к какому сроку. Письмо не отправляется. Без модели — шаблон. Тело не нужно.',
+    permission: 'WRITE',
+    returnsOk: true,
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/ai/today',
+    tag: 'ИИ-помощник',
+    summary: 'Что сделать сегодня: 3–7 дел текущего пользователя',
+    description:
+      'Открытые рекомендации и проблемные этапы связок пользователя; порядок задают правила ' +
+      'рекомендаций, модель только формулирует. Без модели — шаблон. Тело не нужно.',
+    permission: 'ANALYTICS',
+    returnsOk: true,
+    errors: COMMON_ERRORS,
   },
 
   // ── Документы ─────────────────────────────────────────────────────────────

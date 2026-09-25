@@ -32,6 +32,42 @@ function readProviderKind(): MarketDataProviderKind {
     : 'mock'
 }
 
+/**
+ * Провайдер ИИ-помощника (решение 90). По умолчанию выключен: помощник отдаёт
+ * шаблонный текст из фактов правил, модель не вызывается.
+ */
+export const AI_ASSIST_PROVIDERS = ['off', 'yandexgpt', 'gigachat'] as const
+export type AiAssistProviderKind = (typeof AI_ASSIST_PROVIDERS)[number]
+
+function readAiAssistProvider(): AiAssistProviderKind {
+  const raw = readString('AI_ASSIST_PROVIDER') ?? 'off'
+  return (AI_ASSIST_PROVIDERS as readonly string[]).includes(raw)
+    ? (raw as AiAssistProviderKind)
+    : 'off'
+}
+
+export interface AiAssistConfig {
+  provider: AiAssistProviderKind
+  /**
+   * Свой таймаут, отдельно от INTEGRATION_TIMEOUT_MS: модель пишет текст секунды,
+   * а не миллисекунды. Повторов нет — человек ждёт у кнопки, и шаблон лучше второй
+   * попытки в полминуты.
+   */
+  timeoutMs: number
+  yandexGpt: {
+    apiKey: string | null
+    folderId: string | null
+    model: string
+  }
+  gigaChat: {
+    authKey: string | null
+    scope: string
+    model: string
+    /** Сертификат НУЦ Минцифры: без него TLS до GigaChat не проходит. */
+    caCertPath: string | null
+  }
+}
+
 export interface IntegrationCommonConfig {
   timeoutMs: number
   retries: number
@@ -55,6 +91,7 @@ export interface IntegrationsConfig {
   }
   lms: RemoteServiceConfig
   site: RemoteServiceConfig
+  aiAssist: AiAssistConfig
 }
 
 /**
@@ -83,6 +120,21 @@ export function getIntegrationsConfig(): IntegrationsConfig {
       enabled: readBoolean('SITE_ENABLED'),
       baseUrl: readString('SITE_API_URL'),
       token: readString('SITE_API_TOKEN'),
+    },
+    aiAssist: {
+      provider: readAiAssistProvider(),
+      timeoutMs: readNumber('AI_ASSIST_TIMEOUT_MS', 15000),
+      yandexGpt: {
+        apiKey: readString('YANDEX_GPT_API_KEY'),
+        folderId: readString('YANDEX_FOLDER_ID'),
+        model: readString('YANDEX_GPT_MODEL') ?? 'yandexgpt-lite',
+      },
+      gigaChat: {
+        authKey: readString('GIGACHAT_AUTH_KEY'),
+        scope: readString('GIGACHAT_SCOPE') ?? 'GIGACHAT_API_PERS',
+        model: readString('GIGACHAT_MODEL') ?? 'GigaChat',
+        caCertPath: readString('GIGACHAT_CA_CERT_PATH'),
+      },
     },
   }
 }
