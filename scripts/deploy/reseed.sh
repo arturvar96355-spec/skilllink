@@ -58,8 +58,8 @@ COMPOSE="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-clou
 echo "── Код на стенде: \$(cat DEPLOYED_COMMIT 2>/dev/null || echo неизвестен)"
 
 # Образ пересобирается, чтобы seed.ts был из того же коммита, что и приложение.
-# Если кэш сборки на месте — секунды; после чистки диска — до семи минут
-# (23.09.2026 вышло 6,5). Поэтому перезаливать заранее, а не за пять минут до показа.
+# Если кэш сборки на месте — секунды; после чистки диска — до семи минут.
+# Поэтому перезаливать заранее, а не за пять минут до показа.
 echo "── Собираю образ для заливки (до семи минут)"
 \$COMPOSE --profile migrate build migrate > /tmp/skilllink-reseed-build.log 2>&1 || {
   tail -30 /tmp/skilllink-reseed-build.log >&2
