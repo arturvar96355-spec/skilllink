@@ -83,6 +83,13 @@ export const AUDIT_ACTIONS = [
   'skill.merge',
   'skill.delete',
   'export.download',
+  /**
+   * Запросы субъектов ПД (решение 116). objectType — User или Contact, objectId — субъект;
+   * в payload — номер запроса, вид, канал и счётчики, без самих ПД.
+   */
+  'dsar.requested',
+  'dsar.exported',
+  'dsar.erased',
   'audit.retention',
   'import.apply',
 ] as const

@@ -49,6 +49,13 @@ export const PERMISSIONS = {
    * по своему вузу: это учёт оператора (ИТ-Школы), а не сведения вуза.
    */
   CONTACT_BASIS: ['ADMIN', 'MANAGER'],
+  /**
+   * Запросы субъектов ПД (решение 116): реестр запросов, выгрузка «всё о субъекте»
+   * по пользователю и контакту, обезличивание по запросу. Только администратор:
+   * по PRIVACY.md, раздел 6, запросы исполняет он. Свои данные выгружает любой
+   * пользователь сам — это право субъекта, а не право роли.
+   */
+  DSAR_MANAGE: ['ADMIN'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
