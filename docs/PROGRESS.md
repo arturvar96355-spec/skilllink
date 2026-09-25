@@ -4,6 +4,22 @@
 
 ## Состояние
 
+**Аналитика этапов на статистике (25.09.2026, решение 120, ветка `feat/stage-analytics`,
+только API).** Длительность каждого этапа по Каплану–Мейеру из истории этапов (с цензурой
+тех, кто ещё на этапе): медиана — «нормальное время этапа», p90 с 95% интервалом — порог
+«застряло»; правило «связка без движения» берёт порог через `getStalledThreshold(stage)`,
+пока истории мало (< 30 связок или < 15 переходов на этапе) — честно `insufficient_data`
+и ручные 14 дней. Предпросмотр порога «было → станет». Воронка по 14 этапам или 6 вехам
+с отвалившимися и разрезом, когорты «квартал старта × кварталы» по вехе «договор подписан».
+«Система заметила» — отклонения рядов (7 дней против 28, z и 15%) с разложением
+«вузы × интенсивность» и вкладами вузов, без ИИ. Пульс «Внимание / Сегодня / Решить /
+Успехи» — `GET /api/me/pulse` и сводка в Telegram. `npm run analytics:report` — цифры для
+слайда. Схема базы не менялась. Формулы и как объяснить — `docs/ANALYTICS_MODEL.md`.
+**Для фронта:** график кривой этапа с интервалом (`stage-durations`), воронка с
+«отвалившимися» и переключателем вех (`funnel`), таблица когорт (`cohorts`), блок
+«Система заметила» (`insights`), страница «Пульс» (`me/pulse`), предпросмотр порога
+в «Настройках» (`stalled-preview`) рядом с флагом «Порог застоя по данным».
+
 **Журнал действий с защитой от подмены (25.09.2026, решение 115, ветка `sec/audit-chain`,
 API, база и скрипты — без экрана).** Каждая запись журнала сцеплена с предыдущей: номер
 `chain_seq` без пропусков и SHA-256 от хеша предыдущей и самой записи; считает триггер
@@ -136,7 +152,7 @@ npm test            1604 теста проходят
 npm run build       собирается, 57 страниц и маршрутов
 npm run smoke       349 проверок проходят
 npm run probe       382 проверки, проблем не найдено
-npm run db:verify   27 правил целостности, с демо-набором 33 (CI и каждая перезаливка стенда)
+npm run db:verify   28 правил целостности, с демо-набором 34 (CI и каждая перезаливка стенда)
 npm run bench       самая медленная страница 26 мс на 1000 вузов (23.09, с русской сортировкой)
 npm run demo:check  стенд и запасной ноутбук совпадают со сценарием показа
 ```
@@ -235,7 +251,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 83 маршрута, 106 операций
+### Модули и эндпоинты — 89 маршрутов, 112 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -248,7 +264,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs` |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id` |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
@@ -416,7 +432,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 82 пути, 106 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 88 путей, 112 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

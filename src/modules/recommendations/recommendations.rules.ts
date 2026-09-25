@@ -20,6 +20,7 @@ import type {
   StageStatus,
 } from '@/shared/contracts/enums'
 import { daysBetween } from '@/shared/utils/date'
+import { getStalledThreshold, stalledThresholdText } from '@/modules/analytics/stalled-threshold'
 import { outOf100 } from '@/shared/utils/number'
 
 /**
@@ -241,7 +242,9 @@ export function ruleStalledCooperation(
   if (input.stageStatus === 'COMPLETED' || input.stageStatus === 'CANCELLED') return null
 
   const idleDays = daysBetween(input.lastActivityAt, now)
-  if (idleDays < RECOMMENDATION_RULES.stalledDays) return null
+  // Порог — по этапу: p90 его длительности по истории или ручной stalledDays (решение 120).
+  const threshold = getStalledThreshold(input.stageNumber)
+  if (idleDays < threshold.days) return null
 
   const { action, priority } = stalledAction(input.stageStatus, input.stageNumber, input.stageTitle)
 
@@ -257,12 +260,14 @@ export function ruleStalledCooperation(
       `Текущий этап ${input.stageNumber} в статусе «${STAGE_STATUS_LABELS[input.stageStatus]}», ` +
       `движения по связке — смены статуса этапа, отметки в чек-листе, правки связки — ` +
       `не было ${idleDays} дн. ` +
-      `Порог — ${RECOMMENDATION_RULES.stalledDays} дн.`,
+      stalledThresholdText(threshold),
     relatedData: {
       stageNumber: input.stageNumber,
       stageStatus: input.stageStatus,
       idleDays,
       lastActivityAt: input.lastActivityAt.toISOString(),
+      thresholdDays: threshold.days,
+      thresholdSource: threshold.source,
     },
     confidence: 'MEDIUM',
     cooperationId: input.cooperationId,

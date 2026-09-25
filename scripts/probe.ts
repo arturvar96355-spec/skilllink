@@ -113,6 +113,12 @@ async function warmUp(): Promise<void> {
     '/api/me',
     '/api/analytics/overview',
     '/api/analytics/programs',
+    '/api/analytics/stage-durations',
+    '/api/analytics/stalled-preview?days=14',
+    '/api/analytics/funnel',
+    '/api/analytics/cohorts',
+    '/api/analytics/insights',
+    '/api/me/pulse',
     '/api/universities?pageSize=1',
     '/api/programs?pageSize=1',
     '/api/cooperations?pageSize=1',
@@ -4829,6 +4835,163 @@ function printSummary(): void {
   }
 }
 
+/**
+ * Аналитика этапов на статистике (решение 120): эндпоинты отвечают нужной формой,
+ * некорректные параметры — 422, представителю вуза аналитика закрыта целиком
+ * (решение 9: он не видит аналитику и чужие вузы — ни своих, ни чужих цифр здесь нет).
+ */
+async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
+  step('Аналитика этапов: Каплан–Мейер, воронка, когорты, «Система заметила», пульс')
+  const { rep, managerId } = ctx
+  actAs(managerId)
+
+  type Interval = { low: number | null; high: number | null }
+  type Threshold = { days: number; source: string; n: number; events: number }
+  type StageDuration = {
+    stageNumber: number
+    status: string
+    n: number
+    events: number
+    censored: number
+    median: number | null
+    p90: number | null
+    ci: { median: Interval; p90: Interval }
+    curve: Array<{ day: number; F: number; lo: number; hi: number }>
+    threshold: Threshold
+  }
+  const durations = await call<{ stages: StageDuration[]; minObservations: number; isMock: boolean }>(
+    'GET',
+    '/api/analytics/stage-durations',
+  )
+  const stages = durations.body.data?.stages ?? []
+  check(
+    'длительность этапов: 13 этапов, n = переходы + цензура, кривая в [0, 1] и не убывает',
+    durations.status === 200 &&
+      stages.length === 13 &&
+      stages.every(
+        (stage) =>
+          stage.n === stage.events + stage.censored &&
+          ['ok', 'insufficient_data'].includes(stage.status) &&
+          ['km', 'manual'].includes(stage.threshold.source) &&
+          (stage.status === 'ok' || stage.threshold.source === 'manual') &&
+          stage.curve.every((point, index, curve) =>
+            point.lo <= point.F && point.F <= point.hi && point.lo >= 0 && point.hi <= 1 &&
+            (index === 0 || point.F >= curve[index - 1]!.F),
+          ),
+      ),
+    `статус ${durations.status}, этапов ${stages.length}`,
+  )
+  check(
+    'порог застоя: при нехватке данных — ручной stalledDays',
+    stages
+      .filter((stage) => stage.status === 'insufficient_data')
+      .every((stage) => stage.threshold.days === RECOMMENDATION_RULES.stalledDays),
+  )
+
+  const preview = await call<{
+    before: number
+    after: number
+    stages: Array<{ stageNumber: number; before: number; after: number; current: Threshold }>
+  }>('GET', '/api/analytics/stalled-preview?stage=6&days=10')
+  check(
+    'предпросмотр порога: было → станет по этапу 6',
+    preview.status === 200 &&
+      preview.body.data?.stages.length === 1 &&
+      preview.body.data.stages[0]!.stageNumber === 6 &&
+      typeof preview.body.data.before === 'number' &&
+      typeof preview.body.data.after === 'number',
+    `статус ${preview.status}`,
+  )
+  const badPreview = await call('GET', '/api/analytics/stalled-preview?stage=14&days=0')
+  const badFunnel = await call('GET', '/api/analytics/funnel?groupBy=nope')
+  check(
+    'кривые параметры аналитики — 422, а не 500',
+    badPreview.status === 422 && badFunnel.status === 422,
+    `предпросмотр ${badPreview.status}, воронка ${badFunnel.status}`,
+  )
+
+  type Step = { key: string; reached: number; dropped: Array<{ href: string }>; droppedCount: number }
+  const funnel = await call<{ total: number; steps: Step[]; groups: Array<{ total: number }> }>(
+    'GET',
+    '/api/analytics/funnel?milestones=true&groupBy=region',
+  )
+  const steps = funnel.body.data?.steps ?? []
+  check(
+    'воронка по вехам: 6 шагов, дошедшие не растут, отвалившиеся со ссылкой, разрез сходится с итогом',
+    funnel.status === 200 &&
+      steps.length === 6 &&
+      steps[0]!.reached === funnel.body.data!.total &&
+      steps.every((item, index) => index === 0 || item.reached <= steps[index - 1]!.reached) &&
+      steps.every((item) => item.dropped.every((row) => row.href.startsWith('/cooperations/'))) &&
+      (funnel.body.data?.groups ?? []).reduce((sum, group) => sum + group.total, 0) === funnel.body.data!.total,
+    `статус ${funnel.status}, шагов ${steps.length}`,
+  )
+
+  const cohorts = await call<{ milestone: { fromStage: number }; cohorts: Array<{ size: number; cells: Array<{ share: number | null }> }> }>(
+    'GET',
+    '/api/analytics/cohorts',
+  )
+  check(
+    'когорты: веха «договор подписан» (этап 7), доли в [0, 1]',
+    cohorts.status === 200 &&
+      cohorts.body.data?.milestone.fromStage === 7 &&
+      cohorts.body.data.cohorts.every((cohort) =>
+        cohort.cells.every((cell) => cell.share === null || (cell.share >= 0 && cell.share <= 1)),
+      ),
+    `статус ${cohorts.status}`,
+  )
+
+  const insights = await call<Array<{ code: string; severity: string; title: string; detail: string; facts: object; link: string | null }>>(
+    'GET',
+    '/api/analytics/insights',
+  )
+  check(
+    '«Система заметила»: список {code, severity, title, detail, facts, link}',
+    insights.status === 200 &&
+      Array.isArray(insights.body.data) &&
+      insights.body.data.every(
+        (item) =>
+          typeof item.code === 'string' &&
+          ['critical', 'warning', 'info'].includes(item.severity) &&
+          item.title.length > 0 &&
+          typeof item.facts === 'object',
+      ),
+    `статус ${insights.status}, инсайтов ${insights.body.data?.length ?? 0}`,
+  )
+
+  const pulse = await call<{ checkedRules: number; isCalm: boolean; sections: Array<{ key: string; total: number; items: unknown[] }> }>(
+    'GET',
+    '/api/me/pulse',
+  )
+  check(
+    'пульс: четыре раздела, потолок пунктов, счётчик проверенных правил',
+    pulse.status === 200 &&
+      pulse.body.data?.sections.map((section) => section.key).join(',') === 'attention,today,decide,wins' &&
+      pulse.body.data.sections.every((section) => section.items.length <= section.total) &&
+      pulse.body.data.checkedRules > 0,
+    `статус ${pulse.status}`,
+  )
+
+  if (rep) {
+    actAs(rep.id)
+    const paths = [
+      '/api/analytics/stage-durations',
+      '/api/analytics/stalled-preview?days=14',
+      '/api/analytics/funnel',
+      '/api/analytics/cohorts',
+      '/api/analytics/insights',
+      '/api/me/pulse',
+    ]
+    const statuses = await Promise.all(paths.map(async (path) => (await call('GET', path)).status))
+    check(
+      'представителю вуза аналитика этапов и пульс закрыты — 403',
+      statuses.every((status) => status === 403),
+      statuses.join(', '),
+    )
+  }
+  actAs(null)
+}
+
 async function main(): Promise<void> {
   console.log(`${BOLD}Пробник SkillLink${RESET}`)
   console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
@@ -4894,6 +5057,7 @@ async function main(): Promise<void> {
   await checkCalendarFeed(ctx)
   await checkDsar(ctx)
   await checkRateLimit(ctx)
+  await checkStageAnalytics(ctx)
 
   printSummary()
 }
