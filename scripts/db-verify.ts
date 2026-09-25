@@ -142,6 +142,14 @@ const RULES: Rule[] = [
     sql: `SELECT id FROM recommendations WHERE status = 'ACCEPTED'`,
   },
   {
+    // Решение 107: справочник держит это правило в коде (skillNameKey), база — только
+    // точное совпадение. lower() на колонке с ICU-сортировкой работает и для кириллицы.
+    name: 'Названия навыков не повторяются без учёта регистра и пробелов',
+    sql: `SELECT min(id) AS id FROM skills
+          GROUP BY lower(regexp_replace(normalize(name, NFKC), '\\s+', '', 'g'))
+          HAVING count(*) > 1`,
+  },
+  {
     name: 'Рекомендация ссылается на существующий объект',
     sql: `SELECT r.id FROM recommendations r
           WHERE NOT CASE r.object_type

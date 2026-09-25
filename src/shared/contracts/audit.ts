@@ -56,6 +56,12 @@ export const AUDIT_ACTIONS = [
   'product.update',
   'product.skills.replace',
   'product.version.release',
+  /** Справочник навыков (решение 107): в журнал пишется название — это не персональные данные. */
+  'skill.create',
+  'skill.update',
+  /** Дубль объединён в целевой навык: objectId — целевой, в payload — удалённый и счётчики. */
+  'skill.merge',
+  'skill.delete',
   'export.download',
   'audit.retention',
   'import.apply',
@@ -79,6 +85,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Recommendation',
   'Application',
   'ITProduct',
+  'Skill',
   'DataSource',
   'Export',
   'Import',
