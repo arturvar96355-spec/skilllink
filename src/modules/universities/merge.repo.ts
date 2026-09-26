@@ -212,7 +212,8 @@ export async function undoMerge(id: string, userId: string, now: Date): Promise<
     // Под блокировкой вузов — повторное чтение: две одновременные отмены не пройдут обе.
     await tx.$queryRaw`SELECT id FROM university_merges WHERE id = ${id} FOR UPDATE`
     const merge = await tx.universityMerge.findUniqueOrThrow({ where: { id }, select: mergeSelect })
-    assertCanUndo(merge, now)
+    const target = await tx.university.findUniqueOrThrow({ where: { id: merge.targetId }, select: universitySelect })
+    assertCanUndo(merge, target, now)
 
     const moved = merge.moved as unknown as MovedIds
     const before = merge.before as unknown as MergeBefore
@@ -255,7 +256,6 @@ export async function undoMerge(id: string, userId: string, now: Date): Promise<
       }
     }
 
-    const target = await tx.university.findUniqueOrThrow({ where: { id: targetId }, select: universitySelect })
     const undo = planUndoFields(entries, fieldsOf(target))
     if (Object.keys(undo.restore).length > 0) {
       await tx.university.update({ where: { id: targetId }, data: toUpdate(undo.restore) })

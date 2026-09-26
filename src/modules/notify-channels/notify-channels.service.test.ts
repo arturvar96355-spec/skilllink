@@ -64,6 +64,7 @@ vi.mock('@/integrations/max', () => ({ getMaxClient: () => ({ enabled: mocks.max
 vi.mock('@/integrations/vk', () => ({ getVkClient: () => ({ enabled: mocks.vk?.enabled ?? false, sendMessage: mocks.vkSend }) }))
 
 const service = await import('./notify-channels.service')
+const { captureLog } = await import('@/shared/log/logger')
 
 function maxConfig(overrides: Partial<MaxConfig> = {}): MaxConfig {
   return {
@@ -93,6 +94,9 @@ function vkConfig(overrides: Partial<VkConfig> = {}): VkConfig {
 const manager: CurrentUser = { id: 'u-manager', email: 'm@example.test', fullName: 'Менеджер', role: 'MANAGER', universityId: null }
 const rep: CurrentUser = { id: 'u-rep', email: 'r@example.test', fullName: 'Вуз', role: 'UNIVERSITY_REP', universityId: 'uni-1' }
 
+let logLines: string[] = []
+let restoreLog: () => void
+
 beforeEach(async () => {
   vi.clearAllMocks()
   mocks.max = null
@@ -101,9 +105,12 @@ beforeEach(async () => {
   mocks.getPrimaryChannel.mockResolvedValue(null)
   const { resetSpentLinkCodes } = await import('./notify-channels.link-token')
   resetSpentLinkCodes()
+  logLines = []
+  restoreLog = captureLog((_level, line) => logLines.push(line))
 })
 afterEach(() => {
   vi.restoreAllMocks()
+  restoreLog()
 })
 
 describe('getChannels', () => {
@@ -205,6 +212,30 @@ describe('handleInbound — привязка по коду', () => {
 
     expect(mocks.maxSend).toHaveBeenCalledWith('old-chat', expect.stringContaining('перенесены'))
     expect(mocks.maxSend).toHaveBeenCalledWith('new-chat', expect.stringContaining('Готово'))
+  })
+
+  it('прежний чат не отвечает (сбой отправки) — сбой попадает в журнал, привязка новым чатом не страдает (решение 187)', async () => {
+    // До исправления .catch(() => undefined) молча проглатывал сбой — ни строки
+    // в журнале, ни следа, что уведомление о переносе не дошло.
+    mocks.max = maxConfig()
+    const secret = 'secret'
+    const { createLinkCode } = await import('./notify-channels.link-token')
+    const now = new Date('2026-09-26T10:00:00Z')
+    const { code } = createLinkCode(secret, manager.id, 'max', now.getTime())
+    mocks.findActiveUser.mockResolvedValue(manager)
+    mocks.linkAltChannel.mockResolvedValue({ previousChatRef: 'old-chat' })
+    mocks.maxSend.mockImplementation(async (chatRef: string) =>
+      chatRef === 'old-chat' ? Promise.reject(new Error('чат недоступен')) : { ok: true },
+    )
+
+    await service.handleInbound('max', { chatRef: 'new-chat', code }, secret, now)
+    // Отправка старому чату не await-ится внутри handleInbound («перенос» не
+    // должен задерживать ответ новому) — даём микрозадачам её catch домотаться.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    // Поведение не изменилось: новый чат всё равно получает «Готово».
+    expect(mocks.maxSend).toHaveBeenCalledWith('new-chat', expect.stringContaining('Готово'))
+    expect(logLines.some((line) => line.includes('warn') && line.includes('не отправлено'))).toBe(true)
   })
 
   it('недействительный код — отвечает, что ссылка устарела, ничего не привязывает', async () => {

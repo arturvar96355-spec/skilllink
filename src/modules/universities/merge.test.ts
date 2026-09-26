@@ -185,14 +185,26 @@ describe('undoDeadline / assertCanUndo', () => {
 
   it('уже отменённое слияние отменить нельзя', () => {
     expect(() =>
-      assertCanUndo({ undoneAt: new Date(), undoUntil: new Date('2099-01-01') }, new Date()),
+      assertCanUndo(
+        { undoneAt: new Date(), undoUntil: new Date('2099-01-01') },
+        { mergedIntoId: null },
+        new Date(),
+      ),
     ).toThrow()
   })
 
   it('после дедлайна — нельзя, до — можно', () => {
     const merge = { undoneAt: null, undoUntil: new Date('2026-06-01T00:00:00Z') }
-    expect(() => assertCanUndo(merge, new Date('2026-07-01'))).toThrow()
-    expect(() => assertCanUndo(merge, new Date('2026-05-01'))).not.toThrow()
+    expect(() => assertCanUndo(merge, { mergedIntoId: null }, new Date('2026-07-01'))).toThrow()
+    expect(() => assertCanUndo(merge, { mergedIntoId: null }, new Date('2026-05-01'))).not.toThrow()
+  })
+
+  it('цель этого слияния сама уже слита дальше (A→B, затем B→E) — отмену A→B блокируем', () => {
+    const merge = { undoneAt: null, undoUntil: new Date('2099-01-01') }
+    expect(() => assertCanUndo(merge, { mergedIntoId: 'E' }, new Date('2026-02-01'))).toThrow(
+      expect.objectContaining({ status: 409 }),
+    )
+    expect(() => assertCanUndo(merge, { mergedIntoId: null }, new Date('2026-02-01'))).not.toThrow()
   })
 })
 
