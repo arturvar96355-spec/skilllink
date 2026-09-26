@@ -30,6 +30,12 @@ const mocks = vi.hoisted(() => ({
   findGroupStats: vi.fn(async () => null),
   recordGroupEvent: vi.fn(),
   create: vi.fn(),
+  listNoticeRecipientIds: vi.fn(async () => [] as string[]),
+  completeTask: vi.fn(),
+}))
+
+const notifyMocks = vi.hoisted(() => ({
+  sendToUser: vi.fn(async () => ({ sent: false as const, channel: null })),
 }))
 
 vi.mock('./inbound-letters.repo', () => mocks)
@@ -37,6 +43,7 @@ vi.mock('@/shared/audit/audit', () => ({ writeAudit: vi.fn() }))
 vi.mock('@/modules/ai-assist/ai-assist.repo', () => ({
   findRedactionContext: vi.fn(async () => ({ people: { staff: [], contacts: [] }, universityNames: [] as string[] })),
 }))
+vi.mock('@/modules/notify-channels/notify-channels.service', () => notifyMocks)
 
 const service = await import('./inbound-letters.service')
 
@@ -163,6 +170,49 @@ describe('права: разбор и решения (решение 170)', () =
     mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
     await expect(service.analyzeLetter(user('ADMIN'), 'letter-1')).resolves.toBeDefined()
     mocks.saveAnalysis.mockResolvedValue(undefined)
+  })
+})
+
+// ──────────────────────── Уведомление ADMIN/HEAD о новом письме (решение 183) ─────────────
+
+const EML_CRLF = '\r\n'
+function eml(): Uint8Array {
+  return new TextEncoder().encode(
+    [
+      'From: "Иванова Мария" <maria@university.example.invalid>',
+      'Subject: Вопрос по программе',
+      'Content-Type: text/plain; charset=utf-8',
+    ].join(EML_CRLF) +
+      EML_CRLF +
+      EML_CRLF +
+      'Уточните, пожалуйста, сроки начала занятий.',
+  )
+}
+
+describe('uploadEml: уведомление ADMIN/HEAD о новом обращении (решение 183)', () => {
+  it('шлёт только название вуза и группу — без ФИО, почты и текста письма', async () => {
+    mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW', group: 'MEETING' }))
+    mocks.saveAnalysis.mockResolvedValue(undefined)
+    mocks.listNoticeRecipientIds.mockResolvedValue(['admin-1', 'head-1'])
+
+    await service.uploadEml(user('ADMIN'), { name: 'l.eml', type: 'message/rfc822', size: 1, bytes: eml() })
+
+    expect(mocks.listNoticeRecipientIds).toHaveBeenCalledTimes(1)
+    expect(notifyMocks.sendToUser).toHaveBeenCalledTimes(2)
+    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('admin-1', 'Новое письмо от вуза СПбГУТ: Встреча')
+    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('head-1', 'Новое письмо от вуза СПбГУТ: Встреча')
+  })
+
+  it('сбой отправки не роняет загрузку письма', async () => {
+    mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.saveAnalysis.mockResolvedValue(undefined)
+    mocks.listNoticeRecipientIds.mockRejectedValue(new Error('база недоступна'))
+
+    await expect(
+      service.uploadEml(user('HEAD'), { name: 'l.eml', type: 'message/rfc822', size: 1, bytes: eml() }),
+    ).resolves.toBeDefined()
   })
 })
 
@@ -299,5 +349,75 @@ describe('статистика точности по группе', () => {
     expect(meeting.totalReviewed).toBe(4)
     expect(meeting.totalCorrect).toBe(3)
     expect(meeting.accuracy).toBeCloseTo(0.75, 5)
+  })
+})
+
+// ──────────────────────── «Задание выполнено» (решение 183) ──────────────────
+
+function letterWithTask(taskOverrides: Record<string, unknown> = {}, letterOverrides: Record<string, unknown> = {}) {
+  return letterRow({
+    task: {
+      id: 'task-1',
+      responsibleId: 'manager-1',
+      status: 'OPEN',
+      title: 'Письмо вуза: Встреча',
+      createdAt: new Date('2026-09-20T10:10:00.000Z'),
+      responsible: { fullName: 'Петров Пётр Петрович' },
+      ...taskOverrides,
+    },
+    ...letterOverrides,
+  })
+}
+
+describe('completeTask: «Задание выполнено» — ответственный или ADMIN/HEAD (решение 183)', () => {
+  it('письмо не найдено — NOT_FOUND', async () => {
+    mocks.findById.mockResolvedValue(null)
+    await expectRejectCode(service.completeTask(user('ADMIN'), 'missing'), 'NOT_FOUND')
+  })
+
+  it('у письма нет задания — NOT_FOUND', async () => {
+    mocks.findById.mockResolvedValue(letterRow({ task: null }))
+    await expectRejectCode(service.completeTask(user('ADMIN'), 'letter-1'), 'NOT_FOUND')
+  })
+
+  it('уже выполнено — CONFLICT', async () => {
+    mocks.findById.mockResolvedValue(letterWithTask({ status: 'DONE' }))
+    await expectRejectCode(service.completeTask(user('ADMIN'), 'letter-1'), 'CONFLICT')
+  })
+
+  it('MANAGER, не ответственный за это задание — FORBIDDEN', async () => {
+    mocks.findById.mockResolvedValue(letterWithTask({ responsibleId: 'manager-2' }))
+    mocks.isVisibleTo.mockResolvedValue(true)
+    await expectRejectCode(service.completeTask(user('MANAGER', { id: 'manager-1' }), 'letter-1'), 'FORBIDDEN')
+  })
+
+  it('MANAGER — ответственный за задание — отмечает выполненным', async () => {
+    mocks.findById.mockResolvedValue(letterWithTask({ responsibleId: 'manager-1' }))
+    mocks.isVisibleTo.mockResolvedValue(true)
+    mocks.completeTask.mockResolvedValue(letterWithTask({ responsibleId: 'manager-1', status: 'DONE' }))
+
+    const dto = await service.completeTask(user('MANAGER', { id: 'manager-1' }), 'letter-1')
+
+    expect(mocks.completeTask).toHaveBeenCalledWith('letter-1', expect.any(Date))
+    expect(dto.task?.status).toBe('DONE')
+  })
+
+  it('ADMIN и HEAD отмечают выполненным чужое задание', async () => {
+    mocks.findById.mockResolvedValue(letterWithTask({ responsibleId: 'manager-1' }))
+    mocks.completeTask.mockResolvedValue(letterWithTask({ responsibleId: 'manager-1', status: 'DONE' }))
+
+    for (const role of ['ADMIN', 'HEAD'] as const) {
+      const dto = await service.completeTask(user(role, { id: 'someone-else' }), 'letter-1')
+      expect(dto.task?.status).toBe('DONE')
+    }
+  })
+
+  it('задание без ответственного (null) — доступно только ADMIN/HEAD', async () => {
+    mocks.findById.mockResolvedValue(letterWithTask({ responsibleId: null }))
+    await expectRejectCode(service.completeTask(user('MANAGER'), 'letter-1'), 'FORBIDDEN')
+
+    mocks.completeTask.mockResolvedValue(letterWithTask({ responsibleId: null, status: 'DONE' }))
+    const dto = await service.completeTask(user('ADMIN'), 'letter-1')
+    expect(dto.task?.status).toBe('DONE')
   })
 })

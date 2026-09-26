@@ -204,6 +204,8 @@ export const AUDIT_ACTIONS = [
   'inbound_letter.reply_draft',
   /** Черновик ответа отредактирован вручную. */
   'inbound_letter.reply_draft.edit',
+  /** Задание по письму отмечено выполненным (решение 183) — ответственный или ADMIN/HEAD. */
+  'inbound_letter.task.done',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 

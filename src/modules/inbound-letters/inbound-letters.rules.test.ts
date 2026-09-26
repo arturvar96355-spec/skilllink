@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyPreview, classifyByRules, defaultActionFor, groupLabel } from './inbound-letters.rules'
+import { bodyPreview, classifyByRules, defaultActionFor, groupLabel, stripSignature } from './inbound-letters.rules'
 
 describe('classifyByRules: разбор письма без модели (решение 170)', () => {
   it('пауза/отказ — по ключевым словам', () => {
@@ -83,5 +83,40 @@ describe('bodyPreview', () => {
 
   it('лишние пробелы и переносы строк схлопываются', () => {
     expect(bodyPreview('Привет,\n\n  мир', 160)).toBe('Привет, мир')
+  })
+})
+
+describe('stripSignature: подпись незнакомого отправителя перед моделью (решение 183)', () => {
+  it('отрезает блок после «С уважением»', () => {
+    const body = [
+      'Добрый день!',
+      '',
+      'Просим перенести встречу на следующую неделю.',
+      '',
+      'С уважением,',
+      'Иван Петрович Сидоров',
+      'Декан факультета, +7 900 123-45-67',
+    ].join('\n')
+    expect(stripSignature(body)).toBe('Добрый день!\n\nПросим перенести встречу на следующую неделю.')
+  })
+
+  it('отрезает по строке-разделителю «--»', () => {
+    const body = 'Текст письма по существу.\n--\nМария Ивановна Кузнецова\nЗаведующая кафедрой'
+    expect(stripSignature(body)).toBe('Текст письма по существу.')
+  })
+
+  it('отрезает по английской формуле прощания', () => {
+    const body = 'Please review the attached document.\n\nBest regards,\nJohn Smith'
+    expect(stripSignature(body)).toBe('Please review the attached document.')
+  })
+
+  it('письмо без подписи не обрезается', () => {
+    const body = 'Просто короткий вопрос без подписи в конце.'
+    expect(stripSignature(body)).toBe(body)
+  })
+
+  it('подпись сразу в начале — отдаёт исходный текст, а не пустоту', () => {
+    const body = 'С уважением, коллектив приёмной комиссии.'
+    expect(stripSignature(body)).toBe(body)
   })
 })

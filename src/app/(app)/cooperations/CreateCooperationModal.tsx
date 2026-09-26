@@ -23,6 +23,7 @@ import {
   cooperationHref,
   dateInputToIso,
   fieldErrors,
+  useIdempotencyKey,
   useMutation,
   useResource,
   useToast,
@@ -56,8 +57,11 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
   const products = useResource<ProductListItemDto[]>('/api/products?pageSize=100&sort=name')
   const users = useResource<UserDto[]>('/api/users?pageSize=100')
 
+  // Один ключ на всё время, что эта модалка открыта (решение 183): повторная
+  // отправка — двойной щелчок, обрыв сети — не заведёт вторую связку.
+  const idempotency = useIdempotencyKey()
   const create = useMutation(async (body: Record<string, unknown>) => {
-    const result = await apiPost<CooperationDto>('/api/cooperations', body)
+    const result = await apiPost<CooperationDto>('/api/cooperations', body, { idempotencyKey: idempotency.key })
     return result.data
   })
 

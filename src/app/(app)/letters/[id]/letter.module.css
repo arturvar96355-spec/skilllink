@@ -107,6 +107,11 @@
   color: var(--text-secondary);
 }
 
+.taskDoneButton {
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
 .changesList {
   display: flex;
   flex-direction: column;
