@@ -104,9 +104,84 @@ const INBOUND_LETTER_TONES: Record<InboundLetterStatus, BadgeTone> = {
   DISMISSED: 'neutral',
 }
 
+/**
+ * Подсказки к бирке (решение 182, п. 1): бирка не ведёт никуда по щелчку —
+ * объяснение статуса даёт всплывающая подсказка браузера, а не сама форма
+ * (border+заливка+пилюля), которую раньше принимали за кнопку.
+ */
+const UNIVERSITY_STATUS_HINTS: Record<UniversityStatus, string> = {
+  NEW: 'Новый вуз: сотрудничество ещё не начато.',
+  IN_PROGRESS: 'Сотрудничество начато: связки и этапы уже заведены.',
+  ACTIVE: 'Активное сотрудничество, обучение идёт.',
+  PAUSED: 'Сотрудничество приостановлено.',
+  ARCHIVED: 'Вуз в архиве: сотрудничество завершено или отменено.',
+}
+
+const PROGRAM_STATUS_HINTS: Record<ProgramStatus, string> = {
+  DRAFT: 'Черновик: программа ещё не участвует в наборе.',
+  ACTIVE: 'Программа действует и участвует в наборе.',
+  SUSPENDED: 'Набор на программу приостановлен.',
+  ARCHIVED: 'Программа в архиве.',
+}
+
+const COOPERATION_STATUS_HINTS: Record<CooperationStatus, string> = {
+  DRAFT: 'Черновик связки: работа по этапам ещё не началась.',
+  ACTIVE: 'Связка активна, этапы идут.',
+  PAUSED: 'Связка приостановлена.',
+  COMPLETED: 'Связка завершена.',
+  CANCELLED: 'Связка отменена.',
+}
+
+const STAGE_STATUS_HINTS: Record<StageStatus, string> = {
+  NOT_STARTED: 'Этап ещё не начат.',
+  IN_PROGRESS: 'Этап в работе.',
+  BLOCKED: 'Этап заблокирован — причина указана ниже.',
+  COMPLETED: 'Этап завершён.',
+  CANCELLED: 'Этап отменён.',
+}
+
+const DOCUMENT_STATUS_HINTS: Record<DocumentStatus, string> = {
+  DRAFT: 'Черновик документа.',
+  REVIEW: 'Документ на согласовании.',
+  APPROVED: 'Документ согласован.',
+  SIGNED: 'Документ подписан.',
+  REJECTED: 'Документ отклонён.',
+  ARCHIVED: 'Документ в архиве.',
+}
+
+const PRIORITY_HINTS: Record<RecommendationPriority, string> = {
+  LOW: 'Низкий приоритет: можно заняться позже.',
+  MEDIUM: 'Средний приоритет.',
+  HIGH: 'Высокий приоритет: стоит заняться в первую очередь.',
+  CRITICAL: 'Критично: требует внимания незамедлительно.',
+}
+
+const RECOMMENDATION_STATUS_HINTS: Record<RecommendationStatus, string> = {
+  NEW: 'Новая рекомендация, ещё не рассмотрена.',
+  IN_PROGRESS: 'Рекомендация в работе.',
+  ACCEPTED: 'Рекомендация принята.',
+  DISMISSED: 'Рекомендация отклонена.',
+  DONE: 'Рекомендация выполнена.',
+}
+
+const TRANSFER_STATUS_HINTS: Record<TransferStatus, string> = {
+  NOT_TRANSFERRED: 'Программное обеспечение вузу ещё не передано.',
+  IN_PROGRESS: 'Передача программного обеспечения идёт.',
+  TRANSFERRED: 'Программное обеспечение передано вузу.',
+  REVOKED: 'Передача программного обеспечения отозвана.',
+}
+
+const INBOUND_LETTER_STATUS_HINTS: Record<InboundLetterStatus, string> = {
+  NEW: 'Письмо ещё не обработано.',
+  ANALYZED: 'Письмо разобрано автоматически.',
+  CONFIRMED: 'Данные письма подтверждены.',
+  CORRECTED: 'Данные письма исправлены вручную.',
+  DISMISSED: 'Письмо отклонено.',
+}
+
 export function UniversityStatusBadge({ status }: { status: UniversityStatus }) {
   return (
-    <Badge tone={UNIVERSITY_TONES[status]} withDot>
+    <Badge tone={UNIVERSITY_TONES[status]} withDot title={UNIVERSITY_STATUS_HINTS[status]}>
       {UNIVERSITY_STATUS_LABELS[status]}
     </Badge>
   )
@@ -114,7 +189,7 @@ export function UniversityStatusBadge({ status }: { status: UniversityStatus }) 
 
 export function ProgramStatusBadge({ status }: { status: ProgramStatus }) {
   return (
-    <Badge tone={PROGRAM_TONES[status]} withDot>
+    <Badge tone={PROGRAM_TONES[status]} withDot title={PROGRAM_STATUS_HINTS[status]}>
       {PROGRAM_STATUS_LABELS[status]}
     </Badge>
   )
@@ -122,7 +197,7 @@ export function ProgramStatusBadge({ status }: { status: ProgramStatus }) {
 
 export function CooperationStatusBadge({ status }: { status: CooperationStatus }) {
   return (
-    <Badge tone={COOPERATION_TONES[status]} withDot>
+    <Badge tone={COOPERATION_TONES[status]} withDot title={COOPERATION_STATUS_HINTS[status]}>
       {COOPERATION_STATUS_LABELS[status]}
     </Badge>
   )
@@ -130,7 +205,7 @@ export function CooperationStatusBadge({ status }: { status: CooperationStatus }
 
 export function StageStatusBadge({ status }: { status: StageStatus }) {
   return (
-    <Badge tone={STAGE_TONES[status]} withDot>
+    <Badge tone={STAGE_TONES[status]} withDot title={STAGE_STATUS_HINTS[status]}>
       {STAGE_STATUS_LABELS[status]}
     </Badge>
   )
@@ -138,7 +213,7 @@ export function StageStatusBadge({ status }: { status: StageStatus }) {
 
 export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
   return (
-    <Badge tone={DOCUMENT_TONES[status]} withDot>
+    <Badge tone={DOCUMENT_TONES[status]} withDot title={DOCUMENT_STATUS_HINTS[status]}>
       {DOCUMENT_STATUS_LABELS[status]}
     </Badge>
   )
@@ -146,19 +221,23 @@ export function DocumentStatusBadge({ status }: { status: DocumentStatus }) {
 
 export function PriorityBadge({ priority }: { priority: RecommendationPriority }) {
   return (
-    <Badge tone={PRIORITY_TONES[priority]} withDot>
+    <Badge tone={PRIORITY_TONES[priority]} withDot title={PRIORITY_HINTS[priority]}>
       {RECOMMENDATION_PRIORITY_LABELS[priority]}
     </Badge>
   )
 }
 
 export function RecommendationStatusBadge({ status }: { status: RecommendationStatus }) {
-  return <Badge tone={RECOMMENDATION_TONES[status]}>{RECOMMENDATION_STATUS_LABELS[status]}</Badge>
+  return (
+    <Badge tone={RECOMMENDATION_TONES[status]} title={RECOMMENDATION_STATUS_HINTS[status]}>
+      {RECOMMENDATION_STATUS_LABELS[status]}
+    </Badge>
+  )
 }
 
 export function TransferStatusBadge({ status }: { status: TransferStatus }) {
   return (
-    <Badge tone={TRANSFER_TONES[status]} withDot>
+    <Badge tone={TRANSFER_TONES[status]} withDot title={TRANSFER_STATUS_HINTS[status]}>
       {TRANSFER_STATUS_LABELS[status]}
     </Badge>
   )
@@ -166,7 +245,7 @@ export function TransferStatusBadge({ status }: { status: TransferStatus }) {
 
 export function InboundLetterStatusBadge({ status }: { status: InboundLetterStatus }) {
   return (
-    <Badge tone={INBOUND_LETTER_TONES[status]} withDot>
+    <Badge tone={INBOUND_LETTER_TONES[status]} withDot title={INBOUND_LETTER_STATUS_HINTS[status]}>
       {INBOUND_LETTER_STATUS_LABELS[status]}
     </Badge>
   )

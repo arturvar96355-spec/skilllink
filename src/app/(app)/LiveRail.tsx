@@ -43,6 +43,8 @@ export interface RailNumber {
    * а не выборка записей), поля нет — плитка остаётся текстом.
    */
   href?: string
+  /** Знаменатель доли, готовой строкой: «из 92 этапов» (решение 180, п. 2). */
+  denominatorLabel?: string
 }
 
 /** Длина шкалы метки «времени до занятий»: год. */
@@ -233,10 +235,13 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
       <span className={styles.label}>{number.label}</span>
       {/* Сравнение — в строке пометок, а не отдельной строкой: ряд чисел выровнен
           по нижнему краю, и лишняя строка поднимала бы свою колонку над соседними. */}
-      {(number.note || number.isMock || (showTrend && number.trend)) && (
+      {(number.note || number.denominatorLabel || number.isMock || (showTrend && number.trend)) && (
         <span className={styles.note}>
           {showTrend && number.trend && <RailTrend trend={number.trend} isShare={number.isShare ?? false} />}
           {number.note}
+          {/* Знаменатель доли — прямо под числом, а не только в подсказке при
+              наведении (решение 180, п. 2): «68% из 92 этапов», а не голое «68%». */}
+          {number.denominatorLabel}
           {number.isMock && <span className={styles.mock}>демо</span>}
         </span>
       )}

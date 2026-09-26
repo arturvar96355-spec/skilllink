@@ -1,5 +1,5 @@
 // SkillLink — схема базы данных.
-// Источник истины: docs/DATABASE_SCHEMA.md и раздел 11 ТЗ продукта (docs/tz/skilllink-tz.md).
+// Источник истины: docs/DATABASE_SCHEMA.md и раздел 11 ТЗ продукта (docs/tz/skilllink-team-tz.md).
 // JSON наружу — camelCase, в базе snake_case через @map / @@map.
 // Схема меняется только новой миграцией в prisma/migrations.
 

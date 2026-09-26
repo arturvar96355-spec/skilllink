@@ -201,7 +201,15 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
   })
 }
 
-/** Открытые рекомендации с наибольшим приоритетом — блок приоритетных действий. */
+/**
+ * Открытые рекомендации с наибольшим приоритетом — блок приоритетных действий.
+ *
+ * `stage.overdue` сюда не берётся (решение 180, п. 2): та же самая просрочка
+ * уже названа в соседнем блоке «Требует внимания» (`findProblemStages`) —
+ * этап, вуз и срок совпадали слово в слово, только формулировки отличались.
+ * Здесь остаётся то, чего в «Требует внимания» нет: связка без движения,
+ * критический дефицит навыка, связка без метрик программы, связка без продукта.
+ */
 export async function findPriorityRecommendations(
   scope: { universityId?: string },
   limit: number,
@@ -209,6 +217,7 @@ export async function findPriorityRecommendations(
   return prisma.recommendation.findMany({
     where: {
       status: { in: ['NEW', 'IN_PROGRESS'] },
+      ruleKey: { not: 'stage.overdue' },
       ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
     },
     // Приоритет — перечисление, Prisma сортирует по порядку объявления:

@@ -55,6 +55,10 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
     { href: ROUTES.programs, label: 'Программы', icon: 'program' },
     { href: ROUTES.recommendations, label: 'Рекомендации', icon: 'recommendation' },
     { href: ROUTES.cooperations, label: 'Связки', icon: 'cooperation' },
+    // Отчёты — в первой группе меню (решение 180, п. 4): ресерч отметил, что
+    // пункт терялся во второй группе «Инструменты» рядом с настройками,
+    // а именно отчёт за период эксперт должен найти быстро.
+    { href: ROUTES.reports, label: 'Отчёты', icon: 'report' },
   ]
   // «Письма вузов» (решение 170/171): читают ADMIN, HEAD и MANAGER (право
   // INBOUND_READ) — тот же список ролей, что и у охранника раздела ниже.
@@ -70,9 +74,6 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
     tools.push({ href: ROUTES.analytics, label: 'Аналитика', icon: 'analytics' })
     tools.push({ href: ROUTES.dataQuality, label: 'Качество данных', icon: 'check' })
   }
-  // Отчёт руководителю, отчёт и каталог по ТЗ живут под одним общим адресом
-  // (решение 150) — пункт меню ведёт на раздел, подсвечивается на любой его странице.
-  tools.push({ href: ROUTES.reports, label: 'Отчёты', icon: 'report' })
   tools.push({ href: ROUTES.documents, label: 'Документы', icon: 'document' })
   tools.push({ href: ROUTES.products, label: 'IT-продукты', icon: 'product' })
   // Вендоры — то же право, что у аналитики (VENDORS = ANALYTICS по составу ролей).

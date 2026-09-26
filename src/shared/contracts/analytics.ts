@@ -26,6 +26,12 @@ export interface DashboardMetricDto extends Metric {
    * `null` — сравнить не с чем (например, 30 дней назад закрытых этапов ещё не было).
    */
   trend?: MetricTrendDto | null
+  /**
+   * Знаменатель доли, готовой строкой (решение 180, п. 2): «из 92 этапов» —
+   * у «Этапов в срок» это число завершённых этапов, сколько раз доля
+   * посчитана. У показателей, которые не доля, поля нет.
+   */
+  denominatorLabel?: string | null
 }
 
 export interface ProblemCooperationDto {
