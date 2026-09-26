@@ -37,6 +37,7 @@
     "recs:experiment-sim": "tsx scripts/recs-experiment-sim.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts",
+    "recs:simulate": "tsx scripts/recs-simulate.ts",
     "analytics:report": "tsx scripts/analytics-report.ts"
   },
   "prisma": {

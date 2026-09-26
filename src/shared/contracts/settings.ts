@@ -60,6 +60,7 @@ export type CalculationParameterGroupId =
   | 'workflow'
   | 'recommendations'
   | 'recommendationExperiment'
+  | 'recommendationLearning'
   | 'login'
   | 'retention'
 

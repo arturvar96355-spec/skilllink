@@ -47,6 +47,8 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `contacts_basis_reference_check` | документ-основание и дата фиксации — ровно при заданном основании |
 | `contact_basis_history_consent_status_check` | в истории: статус согласия не `NONE` ровно при `to_basis = CONSENT` |
 | `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
+| `recommendation_rule_stats_scope_type_check` | уровень статистики — `global`, `university` или `manager` (миграция `20260926120000_recommendation_learning`, решение 119) |
+| `recommendation_rule_stats_counts_check` | счётчики ≥ 0, успехов не больше показов: `successes ≤ trials`, `successes_eff ≤ trials_eff` |
 | `audit_log_chain_check` | у записи журнала есть номер цепочки > 0 и SHA-256; `prev_hash` нет ровно у № 1 (миграция `20260926000000_audit_hash_chain`, решение 115) |
 | `audit_seals_head_check` | хеш печати есть ровно у непустой цепочки, 32 байта |
 | `audit_chain_cuts_check` | точка чистки — номер > 0, хеш 32 байта, удалено > 0 строк |
@@ -71,7 +73,9 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 `skills_name_key_ci` считает ключ названия навыка так же, как `skillNameKey` в коде
 (решение 110); у полученного согласия есть дата и форма, отозванное согласие — у
 обезличенного контакта с датой и документом отзыва, основание контакта совпадает
-с последней записью его истории (решение 111). Последнее правило — цепочка хешей
+с последней записью его истории (решение 111); в статистике правил рекомендаций
+`successes_eff ≤ trials_eff` и успехов не больше показов, успех засчитан только показанной
+рекомендации, балл — в [0..1] (решение 119). Последнее правило — цепочка хешей
 журнала действий цела и сходится с печатями: проверка функцией в базе и независимо кодом
 приложения, в своей транзакции REPEATABLE READ READ ONLY (решение 115). С `--demo` — ещё
 пометка `is_mock` у всего демо-набора.
@@ -392,6 +396,24 @@ CHECK `recommendation_signals_assigned_by_check` — `assigned_by` из закр
 Персональных данных в таблице нет: правило, объект (связка, программа, навык), время,
 группа и исход движения. Подробности сбора и оценки — [RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md).
 
+**Решение 119** (миграция `20260926120000_recommendation_learning`): `score?` (double, 0..1),
+`score_breakdown?` (jsonb — разбор балла), `reasons?` (jsonb — `[{code, pass, label, detail, facts}]`),
+`is_deferred` (bool, по умолчанию false), `shown_at?` — последний показ (создана или открыта снова),
+`success_at?` — когда показ засчитан полезным. Индекс по `score` — лента `sort=-score`.
+Записи, созданные до миграции, остаются без показа и балла до первой пересборки.
+
+### recommendation_rule_stats — статистика правил рекомендаций (решение 119)
+
+`rule_type`, `scope_type` (`global` | `university` | `manager`), `scope_id` (`all` для общего
+уровня, иначе id вуза или пользователя — без внешнего ключа: строка статистики переживает
+архив вуза и увольнение), `trials`, `successes` (int, полные), `trials_eff`, `successes_eff`
+(double, с затуханием, не округляются), `eff_updated_at` (timestamptz).
+
+PK: (`rule_type`, `scope_type`, `scope_id`). Пишется только одним
+`INSERT … ON CONFLICT DO UPDATE` с затуханием в SQL (`recommendations.stats.repo.ts`) —
+параллельные события не теряются. Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
+Персональных данных нет: id менеджера — ссылка, не ФИО.
+
 ### data_sources
 
 `name` UNIQUE, `type` (MANUAL, CSV, EXTERNAL_API, LMS, SITE, MOCK), `url?`, `collection_date?`,
@@ -535,6 +557,7 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | `skills_name_key_ci` — уникальный индекс по выражению | Уникальность названия навыка без учёта регистра и пробелов держит база, а не блокировка в коде (решение 110). Если в базе уже есть дубли, миграция падает с их списком и ничего не меняет | `20260925230100_skill_name_key_unique` |
 | `users.session_version` | Отзыв выданных JWT-сессий при смене и сбросе пароля, блокировке и смене роли (решение 109). Существующим строкам — 0, токен без версии тоже считается 0: выкладка никого не разлогинивает. Добавление колонки с константным DEFAULT таблицу не переписывает. Откат — в комментарии миграции | `20260925230000_user_session_version` |
 | Основание обработки ПД у `contacts` (8 колонок, 3 перечисления, 4 CHECK), таблица `contact_basis_history` | Учёт оснований и согласий контактов вузов (152-ФЗ, решение 111). **Ждёт согласования с Тиграном** | `20260925230200_contact_legal_basis` |
+| 6 колонок `recommendations`, таблица `recommendation_rule_stats` (2 CHECK) | Рекомендации учатся на решениях сотрудников и объясняют себя (решение 119). **Ждёт согласования с Тиграном.** Откат: `DROP TABLE "recommendation_rule_stats"; ALTER TABLE "recommendations" DROP COLUMN "score", DROP COLUMN "score_breakdown", DROP COLUMN "reasons", DROP COLUMN "is_deferred", DROP COLUMN "shown_at", DROP COLUMN "success_at";` | `20260926120000_recommendation_learning` |
 | Цепочка хешей `audit_log` (3 колонки, CHECK, триггеры, функции), таблицы `audit_seals`, `audit_chain_cuts`, FK автора журнала — RESTRICT | Журнал только дописывается и защищён от подмены (решение 115). Таблица на время миграции закрыта на запись; заполнение существующих строк — один проход. Откат — в комментарии миграции. **Ждёт согласования с Тиграном** | `20260926000000_audit_hash_chain` |
 | Таблица `dsar_requests`, 4 перечисления, 4 CHECK, триггер `dsar_requests_guard` | Реестр запросов субъектов ПД со сроком ответа (решение 116). **Ждёт согласования с Тиграном** | `20260926011600_dsar_requests` |
 
