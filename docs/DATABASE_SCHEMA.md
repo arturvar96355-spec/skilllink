@@ -267,7 +267,54 @@ UNIQUE: (`skill_id`, `period`, `source`, `region`). Индексы: `period`, `d
 ### it_products
 
 `name` UNIQUE, `category`, `description?`, `documentation_url?`, `version?`,
-`status` (PLANNED, ACTIVE, DEPRECATED), `is_mock`.
+`status` (PLANNED, ACTIVE, DEPRECATED), `is_mock`. С решения 132 — `vendor_id?` (SET NULL):
+продукт до решения 132 или без известного вендора — NULL, обратная совместимость.
+
+### vendors, vendor_contacts, vendor_contact_products — вендоры (решение 132)
+
+Компания-вендор IT-продукта (ООО «Базис», ПАО «Ростелеком» и другие компании группы) и её
+контактные лица. Загружаются файлом организаторов (`Вендоры.xlsx`) — `POST /api/import/vendors`.
+
+| Таблица | Поле | Тип | Примечание |
+| --- | --- | --- | --- |
+| `vendors` | `name` | text | как в файле |
+| | `name_key` | text UNIQUE | ключ названия — `catalogNameKey`, тот же принцип, что `skillNameKey` (решение 110): NFKC, нижний регистр, без кавычек-ёлочек и пробелов. **Колонка, не индекс по выражению** — считает только код (`db:verify` сверяет), в отличие от навыков, где уникальность держит база (решение 110) |
+| `vendor_contacts` | `vendor_id` | text FK (CASCADE) | контакт без вендора не имеет смысла |
+| | `full_name`, `email?`, `phone?` | text | телефон `+7XXXXXXXXXX`, почта в нижнем регистре |
+| | `preferred_channels` | `VendorContactChannel[]` | `EMAIL`, `TELEGRAM`, `PHONE` |
+| | `legal_basis` | `ContactLegalBasis` | по умолчанию `LEGITIMATE_INTEREST` — деловой контакт (docs/PRIVACY.md, раздел 3); без учёта согласия/отзыва — не физлицо-контрагент, решение 111 не распространяется |
+| | `basis_reference?` | text | где лежит основание — файл вендора, письмо, договор |
+| `vendor_contact_products` | `contact_id`, `product_id` | text FK (CASCADE) | составной PK — за какие продукты вендора отвечает контакт (в файле контакт указан у строки продукта) |
+
+Индексы: `vendor_contacts.vendor_id`, `vendor_contact_products.product_id`,
+`it_products.vendor_id`. `db:verify` — контакт вендора отвечает только за продукты своего
+вендора (иначе внешние ключи не держат).
+
+### school_courses, course_streams, site_orders — набор ИТ-Школы (решение 132)
+
+Заказы на курсы ИТ-Школы с сайта → LMS, с минимизацией ПД слушателей (docs/PRIVACY.md,
+раздел 2.4). Курс — отдельная сущность от `educational_programs`: заказ делает частный
+слушатель, а не вуз, и в рейтинг программ (решения 9, 22) не входит.
+
+| Таблица | Поле | Тип | Примечание |
+| --- | --- | --- | --- |
+| `school_courses` | `name`, `name_key` UNIQUE | text | тот же `catalogNameKey`, что у вендоров |
+| | `product_id?` | text? FK (SET NULL) | курс «на базе продукта» — необязательно |
+| `course_streams` | `course_id` | text FK (CASCADE) | поток без курса не имеет смысла |
+| | `number` | int | «Номер потока» из заказа; CHECK `number >= 1`; UNIQUE(`course_id`, `number`) |
+| | `starts_at?` | timestamptz? | не приходит в заказе — заполняется отдельно |
+| `site_orders` | `order_no` UNIQUE | text | `ORD-ГГГГММДДЧЧММСС-XXXXXX` — ключ повторной загрузки |
+| | `course_id` | text FK (RESTRICT) | заказ без известного курса не загружается (ошибка предпросмотра, не создание) |
+| | `stream_id?` | text? FK (SET NULL) | поток известен не всегда |
+| | `email_hash?`, `phone_hash?` | text? | HMAC-SHA256 нормализованных почты/телефона, ключ `ORDERS_HMAC_KEY` вне базы — **не ФИО, не почта, не телефон** (docs/PRIVACY.md, раздел 2.4); CHECK — 64 шестнадцатеричных знака, хотя бы один задан |
+| | `ordered_at?` | timestamptz? | дата из номера заявки; NULL — номер битый (месяц 17, секунды 69, 15 цифр) |
+| | `import_batch_id` | text | какой загрузкой создан |
+| | `imported_by_id?` | text? FK → users (SET NULL) | кто загрузил |
+| | `lms_exported_at?` | timestamptz? | когда ушёл в файл для LMS; NULL — ещё не уходил |
+
+Индексы: `course_id`, `stream_id`, `email_hash`, `phone_hash`, `import_batch_id`,
+`imported_by_id`. `db:verify` — поток заказа относится к курсу заказа (иначе внешние ключи
+не держат: `stream_id` и `course_id` — независимые FK).
 
 ### cooperations — связка «вуз — программа — продукт»
 
@@ -572,6 +619,13 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | university → universities (merged_into_id) | SET NULL | по умолчанию Prisma для необязательной самоссылки; на практике не наступает — слитый вуз не удаляется |
 | user → duplicate_dismissals, university_merges (merged_by) | RESTRICT | автор отметки/слияния — доказательство, как в `stage_history` |
 | user → university_merges (undone_by) | SET NULL | увольнение сотрудника не стирает факт отмены слияния |
+| vendor → it_products | SET NULL | продукт остаётся, если вендора убрали (обратная совместимость, решение 132) |
+| vendor → vendor_contacts | CASCADE | контакт без вендора не имеет смысла |
+| vendor_contact / it_products → vendor_contact_products | CASCADE | связка контакта с продуктом — часть одной сущности |
+| it_product → school_courses | SET NULL | курс остаётся, если продукт убрали |
+| school_course → course_streams, site_orders | RESTRICT (заказы), CASCADE (потоки) | заказы нельзя потерять молча — курс с заказами не удаляется; потоки без курса не нужны |
+| course_stream → site_orders | SET NULL | заказ не привязан к потоку жёстко — поток можно убрать |
+| user → site_orders (imported_by_id) | SET NULL | увольнение не удаляет историю загрузок |
 
 ## Согласованные изменения после первой версии
 
@@ -587,6 +641,7 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | Таблица `dsar_requests`, 4 перечисления, 4 CHECK, триггер `dsar_requests_guard` | Реестр запросов субъектов ПД со сроком ответа (решение 116). **Ждёт согласования с Тиграном** | `20260926011600_dsar_requests` |
 | 6 колонок `recommendations`, таблица `recommendation_rule_stats` (2 CHECK) | Рекомендации учатся на решениях сотрудников и объясняют себя (решение 119). **Ждёт согласования с Тиграном.** Откат: `DROP TABLE "recommendation_rule_stats"; ALTER TABLE "recommendations" DROP COLUMN "score", DROP COLUMN "score_breakdown", DROP COLUMN "reasons", DROP COLUMN "is_deferred", DROP COLUMN "shown_at", DROP COLUMN "success_at";` | `20260926120000_recommendation_learning` |
 | `universities.inn`, `.ogrn`, `.merged_into_id`; таблицы `duplicate_dismissals`, `university_merges`; расширение `pg_trgm`; GIN-индексы по названиям (вузы, программы, навыки, IT-продукты) | Поиск дублей, слияние вузов, ИНН/ОГРН (решение 134). **Ждёт согласования с Тиграном** | `20260926090000_data_quality` |
+| Таблицы `vendors`, `vendor_contacts`, `vendor_contact_products`, `school_courses`, `course_streams`, `site_orders`; `it_products.vendor_id` | Вендоры IT-продуктов и набор на курсы ИТ-Школы с минимизацией ПД слушателей — заказы с сайта хранят только HMAC-хеш (решение 132). **Ждёт согласования с Тиграном** | `20260926122000_vendors_site_orders` |
 
 ## Что обсудить с Тиграном
 
@@ -624,3 +679,12 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
    `university_merges` персональных данных не хранят (только идентификаторы и поля
    вуза по значению). `universities.merged_into_id` — самоссылка с `ON DELETE SET NULL`,
    на практике не срабатывает: слитый вуз архивируется, а не удаляется.
+7. **Вендоры и заказы с сайта** — миграция `20260926122000_vendors_site_orders` (решение 132),
+   на согласование. Шесть новых таблиц и `it_products.vendor_id` (SET NULL, обратная
+   совместимость с продуктами до решения 132). `vendors.name_key` и `school_courses.name_key`
+   уникальны как обычная колонка (проверяется кодом при записи и `db:verify`), а не индексом
+   по выражению, как `skills_name_key_ci`, — расходиться не с чем, потому что на них нет
+   отдельного пути записи в обход сервиса (в отличие от навыков, где решение 110 обсуждает
+   именно этот риск). CHECK на `course_streams.number >= 1` и на формат/непустоту хешей
+   `site_orders` — в теле миграции, не отдельным списком общих CHECK (решение 24.09.2026),
+   потому что специфичны только этим двум таблицам.

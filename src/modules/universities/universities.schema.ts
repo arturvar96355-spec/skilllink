@@ -1,3 +1,4 @@
+import { CONTACT_REVEAL } from '@/shared/config/contacts.config'
 import { countSchema, webUrlSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
 import { legalEntityInnSchema, legalEntityOgrnSchema } from '@/shared/validation/inn-ogrn'
@@ -165,6 +166,15 @@ export const setContactBasisSchema = z.object({
   ),
   consentObtainedAt: isoDate.nullish(),
   consentForm: z.enum(CONSENT_FORMS).nullish(),
+  /** Решение 123: редакция политики обработки ПД; не передана — действующая. */
+  policyVersion: z.string().trim().min(1).max(50).nullish(),
+  /**
+   * Решение 123: текст подписанного бланка согласия. Хранится только его SHA-256;
+   * не передан — хешируется бланк по умолчанию (consent.config.ts).
+   */
+  consentText: z.string().trim().min(1).max(20_000).nullish(),
+  /** Решение 123: где получено согласие («встреча в вузе 12.09», «при подписании соглашения»). Без ФИО. */
+  consentContext: z.string().trim().min(1).max(200).nullish(),
 })
 
 export type SetContactBasisBody = z.infer<typeof setContactBasisSchema>
@@ -180,3 +190,15 @@ export const withdrawConsentSchema = z.object({
 export type WithdrawConsentBody = z.infer<typeof withdrawConsentSchema>
 
 export const contactBasisHistoryQuerySchema = paginationSchema
+
+/** POST /api/contacts/:id/reveal (решение 133): какие поля и зачем. */
+export const revealContactSchema = z.object({
+  /** Какие поля раскрыть; не передано — оба. */
+  fields: z.array(z.enum(['email', 'phone'])).min(1).max(2).optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(CONTACT_REVEAL.reasonMinLength, `Опишите причину — не короче ${CONTACT_REVEAL.reasonMinLength} символов`)
+    .max(CONTACT_REVEAL.reasonMaxLength),
+})
+export type RevealContactBody = z.infer<typeof revealContactSchema>
