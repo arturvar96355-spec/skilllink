@@ -1,5 +1,5 @@
 /**
- * Демо-данные решения 122: вендоры, их продукты и контакты, курсы ИТ-Школы, потоки
+ * Демо-данные решения 132: вендоры, их продукты и контакты, курсы ИТ-Школы, потоки
  * и заказы с сайта. Отдельным файлом — чтобы общий сид (prisma/seed.ts) менялся
  * тремя строками и не конфликтовал с параллельной правкой демо-набора.
  *
@@ -13,7 +13,7 @@ import { catalogNameKey } from '@/shared/utils/contacts'
 import { ORDER_NUMBER_UTC_OFFSET_MINUTES, resolveOrdersHmacKey } from '@/shared/config/enrollment.config'
 import { contactHash } from '@/modules/enrollment/enrollment.rules'
 
-/** Удаляет данные решения 122 — до удаления продуктов в общем `clean()`. */
+/** Удаляет данные решения 132 — до удаления продуктов в общем `clean()`. */
 export async function cleanVendorData(prisma: PrismaClient): Promise<void> {
   await prisma.siteOrder.deleteMany()
   await prisma.courseStream.deleteMany()

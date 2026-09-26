@@ -2,7 +2,7 @@ import { validationError } from '@/shared/http/errors'
 import { readZip, writeZip, type ZipEntry } from './zip'
 
 /**
- * Минимальное чтение и запись книг Excel (.xlsx) без зависимостей (решение 122).
+ * Минимальное чтение и запись книг Excel (.xlsx) без зависимостей (решение 132).
  *
  * Чтение: листы по порядку книги, ячейки как текст — общие строки (sharedStrings),
  * строки прямо в ячейке (inlineStr), числа, логические значения, значения формул.

@@ -30,9 +30,12 @@
     "volume": "tsx scripts/volume.ts",
     "db:verify": "tsx scripts/db-verify.ts",
     "db:retention": "tsx scripts/retention.ts",
+    "audit:verify": "tsx scripts/audit-chain.ts verify",
+    "audit:seal": "tsx scripts/audit-chain.ts seal",
     "telegram:digest": "tsx scripts/telegram-digest.ts",
     "bench": "tsx scripts/bench.ts",
-    "demo:check": "tsx scripts/demo-check.ts"
+    "demo:check": "tsx scripts/demo-check.ts",
+    "analytics:report": "tsx scripts/analytics-report.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

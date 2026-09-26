@@ -79,7 +79,7 @@ if [ ! -f "\$ENV_FILE" ]; then
     echo "DOCKER_DEMO_AUTH_ENABLED=false"
   } > "\$ENV_FILE"
 fi
-# Ключ HMAC заказов с сайта (решение 122) — дописывается и в уже созданный файл,
+# Ключ HMAC заказов с сайта (решение 132) — дописывается и в уже созданный файл,
 # один раз: смена ключа ломает сравнение с прошлыми загрузками.
 if ! grep -q '^DOCKER_ORDERS_HMAC_KEY=' "\$ENV_FILE"; then
   umask 077

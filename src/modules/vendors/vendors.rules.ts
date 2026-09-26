@@ -2,7 +2,7 @@ import type { VendorContactChannel } from '@/shared/contracts/enums'
 import { catalogNameKey, stripOuterQuotes } from '@/shared/utils/contacts'
 
 /**
- * Правила загрузки вендоров (решение 122): разбор ячеек файла организаторов.
+ * Правила загрузки вендоров (решение 132): разбор ячеек файла организаторов.
  */
 
 /** Колонки файла вендоров — как в файле организаторов. */

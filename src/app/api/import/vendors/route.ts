@@ -8,7 +8,7 @@ import { vendorImportQuerySchema } from '@/modules/vendors/vendors.schema'
 const MAX_BODY_BYTES = 2 * 1024 * 1024
 
 /**
- * Загрузка вендоров, продуктов и контактов (решение 122). Тело — сам файл:
+ * Загрузка вендоров, продуктов и контактов (решение 132). Тело — сам файл:
  * книга Excel (.xlsx) или CSV. По умолчанию предпросмотр, запись — `mode=apply`.
  */
 export const POST = handle(async (request) => {

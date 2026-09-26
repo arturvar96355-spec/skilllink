@@ -3,7 +3,7 @@ import { handle, okList, parseQuery } from '@/shared/http'
 import * as service from '@/modules/vendors/vendors.service'
 import { vendorListQuerySchema } from '@/modules/vendors/vendors.schema'
 
-/** Реестр вендоров (решение 122). */
+/** Реестр вендоров (решение 132). */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()
   const query = parseQuery(request, vendorListQuerySchema)

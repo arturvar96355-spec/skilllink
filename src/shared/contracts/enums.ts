@@ -177,6 +177,6 @@ export type ConsentStatus = (typeof CONSENT_STATUSES)[number]
 export const CONSENT_FORMS = ['WRITTEN', 'ELECTRONIC', 'ORAL_CONFIRMED_BY_EMAIL'] as const
 export type ConsentForm = (typeof CONSENT_FORMS)[number]
 
-/** Предпочтительный канал связи с контактом вендора (решение 122): «Способ связи» в файле вендоров. */
+/** Предпочтительный канал связи с контактом вендора (решение 132): «Способ связи» в файле вендоров. */
 export const VENDOR_CONTACT_CHANNELS = ['EMAIL', 'TELEGRAM', 'PHONE'] as const
 export type VendorContactChannel = (typeof VENDOR_CONTACT_CHANNELS)[number]

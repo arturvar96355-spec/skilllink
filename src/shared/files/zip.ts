@@ -2,7 +2,7 @@ import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import { validationError } from '@/shared/http/errors'
 
 /**
- * Минимальный ZIP для файлов Excel (решение 122).
+ * Минимальный ZIP для файлов Excel (решение 132).
  *
  * Файл .xlsx — это ZIP-архив с XML внутри. Библиотека ради этого была бы новой
  * зависимостью (CLAUDE.md: только с объяснением), а нужно немного: записать

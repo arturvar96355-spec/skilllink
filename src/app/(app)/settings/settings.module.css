@@ -243,6 +243,8 @@
     position: static;
     flex-direction: row;
     overflow-x: auto;
+    /* Только вбок: без этого ряд разделов можно было дёрнуть вверх-вниз (бриф v2, 1.4). */
+    overflow-y: hidden;
     scrollbar-width: none;
     margin: 0 calc(var(--space-4) * -1);
     padding: 0 var(--space-4);

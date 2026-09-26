@@ -3,7 +3,7 @@ import { created, handle, okList, parseBody, parseQuery } from '@/shared/http'
 import * as service from '@/modules/enrollment/enrollment.service'
 import { createSchoolCourseSchema, schoolCourseListQuerySchema } from '@/modules/enrollment/enrollment.schema'
 
-/** Курсы ИТ-Школы с показателями набора: заявки, слушатели, группы (решение 122). */
+/** Курсы ИТ-Школы с показателями набора: заявки, слушатели, группы (решение 132). */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()
   const query = parseQuery(request, schoolCourseListQuerySchema)

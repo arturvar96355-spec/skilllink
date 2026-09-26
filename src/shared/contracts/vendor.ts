@@ -1,7 +1,7 @@
 import type { ContactLegalBasis, CooperationStatus, ProductStatus, VendorContactChannel } from './enums'
 import type { ImportIssueDto } from './enrollment'
 
-/** Вендор в реестре (решение 122). */
+/** Вендор в реестре (решение 132). */
 export interface VendorListItemDto {
   id: string
   name: string

@@ -4,7 +4,7 @@ import * as service from '@/modules/vendors/vendors.service'
 
 type Context = { params: Promise<{ id: string }> }
 
-/** Карточка вендора: продукты, контакты, связки через продукты, курсы (решение 122). */
+/** Карточка вендора: продукты, контакты, связки через продукты, курсы (решение 132). */
 export const GET = handle<Context>(async (_request, context) => {
   const user = await getCurrentUser()
   const { id } = await context.params
