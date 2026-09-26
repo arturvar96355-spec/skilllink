@@ -38,6 +38,7 @@ import {
   Textarea,
   Toolbar,
   ToolbarItem,
+  Tooltip,
   apiPatch,
   apiPost,
   buildQuery,
@@ -45,6 +46,7 @@ import {
   formatDate,
   recommendationTargetHref,
   useCurrentUser,
+  useIsTruncated,
   useMutation,
   useResource,
   useToast,
@@ -67,6 +69,39 @@ const TABS: TabItem[] = [
 /** Сквозной номер строки на всех страницах списка: 01, 02 … 21. */
 function rowNumber(page: number, index: number): string {
   return String((page - 1) * PAGE_SIZE + index + 1).padStart(2, '0')
+}
+
+/**
+ * Описание рекомендации, обрезанное до двух строк.
+ *
+ * Подсказка с полным текстом — только когда обрезка правда есть: иначе на
+ * телефоне и на узкой колонке она просто закрывала бы следующую строку
+ * карточки, не показывая ничего нового (решение 140, п. 7).
+ */
+function RecommendationDescription({ text }: { text: string }) {
+  const [ref, isTruncated] = useIsTruncated<HTMLParagraphElement>([text])
+  return (
+    <Tooltip text={text} disabled={!isTruncated} interactive={false}>
+      <p ref={ref} className={styles.description}>
+        {text}
+      </p>
+    </Tooltip>
+  )
+}
+
+/** Обоснование рекомендации — та же обрезка и то же условие подсказки, что у описания. */
+function RecommendationJustification({ text }: { text: string }) {
+  const [ref, isTruncated] = useIsTruncated<HTMLSpanElement>([text])
+  return (
+    <p className={styles.why}>
+      <span className={styles.whyLabel}>Почему</span>
+      <Tooltip text={text} disabled={!isTruncated} interactive={false}>
+        <span ref={ref} className={styles.whyText}>
+          {text}
+        </span>
+      </Tooltip>
+    </p>
+  )
 }
 
 /**
@@ -317,18 +352,13 @@ function RecommendationsContent() {
                     <a className={styles.title} href={`/recommendations?recommendation=${item.id}`}>
                       {item.title}
                     </a>
-                    <p className={styles.description} title={item.description}>
-                      {item.description}
-                    </p>
+                    <RecommendationDescription text={item.description} />
 
                     {/*
                       Обоснование показывается всегда: без него рекомендация — «машина так решила».
                       В ленте — две строки, полностью — в подсказке и в панели рекомендации.
                     */}
-                    <p className={styles.why} title={item.justification}>
-                      <span className={styles.whyLabel}>Почему</span>
-                      <span className={styles.whyText}>{item.justification}</span>
-                    </p>
+                    <RecommendationJustification text={item.justification} />
 
                     {item.resolutionComment && (
                       <p className={styles.resolution}>Комментарий: {item.resolutionComment}</p>

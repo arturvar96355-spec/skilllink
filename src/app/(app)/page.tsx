@@ -34,6 +34,7 @@ import {
   StageBar,
   RussiaMap,
   Ticker,
+  Tooltip,
   notificationHref,
   universityHref,
   type MapPoint,
@@ -57,6 +58,7 @@ import {
   programHref,
   recommendationHref,
   useCurrentUser,
+  useIsTruncated,
   useMutation,
   useResource,
   useToast,
@@ -180,6 +182,26 @@ function funnelComposition(counts: CooperationCountsDto): string {
     parts.push(`${formatNumber(counts.completed)} ${pluralize(counts.completed, ['завершённая', 'завершённые', 'завершённых'])}`)
   }
   return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${parts.join(', ')}.`
+}
+
+/**
+ * Обоснование в «Приоритетных действиях» — обрезано до одной строки.
+ *
+ * Подсказка с полным текстом — только когда обрезка правда есть, и без своей
+ * точки фокуса: строка лежит внутри ссылки-плашки действия, и вложенный
+ * интерактивный элемент был бы второй лишней остановкой Tab на то же самое
+ * место (решение 140, п. 7). Раньше подсказка с `title` закрывала строку
+ * с названием вуза и программы под ней.
+ */
+function ActionJustification({ text }: { text: string }) {
+  const [ref, isTruncated] = useIsTruncated<HTMLSpanElement>([text])
+  return (
+    <Tooltip text={text} disabled={!isTruncated} interactive={false}>
+      <span ref={ref} className={styles.actionWhy}>
+        {text}
+      </span>
+    </Tooltip>
+  )
 }
 
 /**
@@ -671,9 +693,7 @@ function Dashboard() {
                             <span className={styles.actionTitle}>{action.title}</span>
                             <PriorityBadge priority={action.priority} />
                           </span>
-                          <span className={styles.actionWhy} title={action.justification}>
-                            {action.justification}
-                          </span>
+                          <ActionJustification text={action.justification} />
                           <span className={styles.actionTarget}>{action.target.label}</span>
                         </a>
                       </li>
