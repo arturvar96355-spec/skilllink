@@ -1,6 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  COOPERATION_STATUSES,
+  COOPERATION_STATUS_LABELS,
+  type ProductListItemDto,
+  type ProgramListItemDto,
+  type UniversityListItemDto,
+  type UserDto,
+} from '@/shared/contracts'
 import {
   ApiRequestError,
   Button,
@@ -8,20 +17,33 @@ import {
   DownloadButton,
   EmptyState,
   ErrorState,
+  Input,
   PageHeader,
+  RemoteSelect,
+  ResetFilters,
   ROUTES,
+  Select,
+  TableSkeleton,
+  Toolbar,
+  ToolbarItem,
   apiGetRaw,
-  buildQuery,
+  programWithUniversityOption,
+  universityShortOption,
+  useResource,
 } from '@/ui'
 import { leaveToLogin } from '@/ui/lib/session'
 import {
   REPORT_FORMATS,
   REPORT_FORMAT_LABELS,
+  hasReportFilters,
   reportCellText,
   reportFileHref,
+  reportFiltersLine,
   reportGeneratedLine,
+  reportPreviewPath,
   reportPrintTitle,
   reportRowsSummary,
+  type ReportFilterValues,
   type ReportJsonPayload,
 } from './report-table'
 import styles from './report-table.module.css'
@@ -43,6 +65,7 @@ function useReportPreview(path: string) {
 
   useEffect(() => {
     const controller = new AbortController()
+    setData(null)
     setError(null)
     apiGetRaw<ReportJsonPayload>(path, controller.signal)
       .then((result) => {
@@ -70,6 +93,8 @@ function useReportPreview(path: string) {
   }
 }
 
+const STATUS_OPTIONS = COOPERATION_STATUSES.map((value) => ({ value, label: COOPERATION_STATUS_LABELS[value] }))
+
 export interface ReportTablePageProps {
   title: string
   breadcrumbLabel: string
@@ -87,10 +112,83 @@ export interface ReportTablePageProps {
  * сессия идёт тем же cookie, как у кнопки «Выгрузить» реестра связок).
  * «Печать / PDF» печатает лист ниже — тем же приёмом, что у отчёта
  * руководителю (`/reports/portfolio`, решение 97).
+ *
+ * Фильтры (решение 172, ТЗ заказчика — «отчёты формируются с фильтрами по периоду,
+ * вузу, ИТ-направлению, ИТ-продукту и ответственному») живут в адресе страницы:
+ * ссылку на отфильтрованный отчёт можно передать коллеге, обновление страницы
+ * их не теряет. `useSearchParams` требует границы `Suspense`.
  */
-export function ReportTablePage({ title, breadcrumbLabel, description, endpoint }: ReportTablePageProps) {
-  const report = useReportPreview(`${endpoint}${buildQuery({ format: 'json' })}`)
+export function ReportTablePage(props: ReportTablePageProps) {
+  return (
+    <Suspense fallback={<TableSkeleton rows={8} columns={5} />}>
+      <ReportTableView {...props} />
+    </Suspense>
+  )
+}
+
+function ReportTableView({ title, breadcrumbLabel, description, endpoint }: ReportTablePageProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+
+  const filters: ReportFilterValues = {
+    dateFrom: params.get('dateFrom') ?? '',
+    dateTo: params.get('dateTo') ?? '',
+    universityId: params.get('universityId') ?? '',
+    programId: params.get('programId') ?? '',
+    productId: params.get('productId') ?? '',
+    responsibleId: params.get('responsibleId') ?? '',
+    status: params.get('status') ?? '',
+  }
+
+  /** Меняет параметры фильтров в адресе, не трогая остальные (их здесь и нет). */
+  function setParams(changes: Partial<Record<keyof ReportFilterValues, string | null>>) {
+    const next = new URLSearchParams(params.toString())
+    for (const [key, value] of Object.entries(changes)) {
+      if (!value) next.delete(key)
+      else next.set(key, value)
+    }
+    const rest = next.toString()
+    router.replace(rest === '' ? pathname : `${pathname}?${rest}`, { scroll: false })
+  }
+
+  function resetFilters() {
+    setParams({
+      dateFrom: null,
+      dateTo: null,
+      universityId: null,
+      programId: null,
+      productId: null,
+      responsibleId: null,
+      status: null,
+    })
+  }
+
+  const report = useReportPreview(reportPreviewPath(endpoint, filters))
   const data = report.data
+
+  // Имена вуза/программы/продукта/ответственного для шапки печати и подписи под
+  // заголовком листа — по тем же id, что и в фильтре (карточка вуза уже знает
+  // имя, второй раз резолвить на сервере не нужно).
+  const university = useResource<UniversityListItemDto>(
+    filters.universityId ? `/api/universities/${encodeURIComponent(filters.universityId)}` : null,
+  )
+  const program = useResource<ProgramListItemDto>(
+    filters.programId ? `/api/programs/${encodeURIComponent(filters.programId)}` : null,
+  )
+  const product = useResource<ProductListItemDto>(
+    filters.productId ? `/api/products/${encodeURIComponent(filters.productId)}` : null,
+  )
+  const responsible = useResource<UserDto>(
+    filters.responsibleId ? `/api/users/${encodeURIComponent(filters.responsibleId)}` : null,
+  )
+  const filtersLine = reportFiltersLine(filters, {
+    universityName: university.data?.shortName ?? university.data?.name,
+    programName: program.data?.name,
+    productName: product.data?.name,
+    responsibleName: responsible.data?.fullName,
+    statusLabel: filters.status ? COOPERATION_STATUS_LABELS[filters.status as (typeof COOPERATION_STATUSES)[number]] : undefined,
+  })
 
   useEffect(() => {
     if (!data) return
@@ -100,6 +198,8 @@ export function ReportTablePage({ title, breadcrumbLabel, description, endpoint 
       document.title = previous
     }
   }, [data, title])
+
+  const filtersActive = hasReportFilters(filters)
 
   return (
     <>
@@ -116,13 +216,98 @@ export function ReportTablePage({ title, breadcrumbLabel, description, endpoint 
         }
       />
 
+      <Toolbar
+        note="Фильтры действуют и на превью ниже, и на выгрузку — CSV, XLSX и JSON скачиваются уже отфильтрованными."
+        actions={filtersActive ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
+        <ToolbarItem>
+          <div className={styles.dates}>
+            <Input
+              label="С даты"
+              type="date"
+              title="Связки, действующие в периоде — с даты (по Москве)"
+              value={filters.dateFrom}
+              max={filters.dateTo || undefined}
+              onChange={(event) => setParams({ dateFrom: event.target.value || null })}
+            />
+            <Input
+              label="По дату"
+              type="date"
+              title="Связки, действующие в периоде — по дату включительно (по Москве)"
+              value={filters.dateTo}
+              min={filters.dateFrom || undefined}
+              onChange={(event) => setParams({ dateTo: event.target.value || null })}
+            />
+          </div>
+        </ToolbarItem>
+        <ToolbarItem>
+          <RemoteSelect<UniversityListItemDto>
+            label="Вуз"
+            endpoint="/api/universities"
+            params={{ withRating: 'false', sort: 'name' }}
+            toOption={universityShortOption}
+            placeholder="Все вузы"
+            value={filters.universityId}
+            onValueChange={(value) =>
+              // Программа принадлежит вузу: после его смены прежний выбор
+              // программы дал бы заведомо пустой отчёт.
+              setParams({ universityId: value || null, programId: null })
+            }
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <RemoteSelect<ProgramListItemDto>
+            label="ИТ-направление"
+            endpoint="/api/programs"
+            params={{ universityId: filters.universityId || undefined, sort: 'name' }}
+            toOption={
+              filters.universityId ? (row) => ({ value: row.id, label: row.name }) : programWithUniversityOption
+            }
+            placeholder="Все направления"
+            value={filters.programId}
+            onValueChange={(value) => setParams({ programId: value || null })}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <RemoteSelect<ProductListItemDto>
+            label="ИТ-продукт"
+            endpoint="/api/products"
+            params={{ sort: 'name' }}
+            toOption={(row) => ({ value: row.id, label: row.name })}
+            placeholder="Все продукты"
+            value={filters.productId}
+            onValueChange={(value) => setParams({ productId: value || null })}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <RemoteSelect<UserDto>
+            label="Ответственный"
+            endpoint="/api/users"
+            toOption={(row) => ({ value: row.id, label: row.fullName })}
+            searchPlaceholder="ФИО"
+            placeholder="Любой ответственный"
+            value={filters.responsibleId}
+            onValueChange={(value) => setParams({ responsibleId: value || null })}
+          />
+        </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Статус"
+            placeholder="Любой статус"
+            value={filters.status}
+            onValueChange={(value) => setParams({ status: value || null })}
+            options={STATUS_OPTIONS}
+          />
+        </ToolbarItem>
+      </Toolbar>
+
       <div className={styles.actions}>
         {REPORT_FORMATS.map((format) => (
           <DownloadButton
             key={format}
-            href={reportFileHref(endpoint, format)}
+            href={reportFileHref(endpoint, format, filters)}
             fallbackName={`report.${format}`}
-            title={`${title} файлом ${REPORT_FORMAT_LABELS[format]}`}
+            title={`${title} файлом ${REPORT_FORMAT_LABELS[format]}${filtersActive ? ' с текущими фильтрами' : ''}`}
           >
             Скачать {REPORT_FORMAT_LABELS[format]}
           </DownloadButton>
@@ -134,13 +319,23 @@ export function ReportTablePage({ title, breadcrumbLabel, description, endpoint 
       ) : report.error ? (
         <ErrorState error={report.error} onRetry={report.reload} />
       ) : data ? (
-        <ReportSheet title={title} data={data} />
+        <ReportSheet title={title} data={data} filtersActive={filtersActive} filtersLine={filtersLine} />
       ) : null}
     </>
   )
 }
 
-function ReportSheet({ title, data }: { title: string; data: ReportJsonPayload }) {
+function ReportSheet({
+  title,
+  data,
+  filtersActive,
+  filtersLine,
+}: {
+  title: string
+  data: ReportJsonPayload
+  filtersActive: boolean
+  filtersLine: string | null
+}) {
   return (
     <article className={styles.sheet} data-print-document aria-label={title}>
       <div className={styles.head}>
@@ -152,10 +347,20 @@ function ReportSheet({ title, data }: { title: string; data: ReportJsonPayload }
             <span>Показаны первые {REPORT_ROW_LIMIT} строк — предел размера отчёта.</span>
           )}
         </p>
+        {/* Показывается и на экране, и на печати: получивший распечатку видит,
+            что это не весь набор данных, а срез по фильтрам. */}
+        {filtersLine && <p className={styles.filtersLine}>{filtersLine}</p>}
       </div>
 
       {data.rows.length === 0 ? (
-        <EmptyState title="Данных пока нет" description="По текущим связкам строк для этого отчёта не нашлось." />
+        <EmptyState
+          title="Данных пока нет"
+          description={
+            filtersActive
+              ? 'По выбранным фильтрам ни одной связки не нашлось. Снимите часть фильтров.'
+              : 'По текущим связкам строк для этого отчёта не нашлось.'
+          }
+        />
       ) : (
         <div className={styles.tableWrapper}>
           <table className={styles.table}>

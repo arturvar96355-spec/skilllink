@@ -1,17 +1,76 @@
 import { describe, expect, it } from 'vitest'
 import {
+  EMPTY_REPORT_FILTERS,
+  hasReportFilters,
   reportCellText,
   reportFileHref,
+  reportFiltersLine,
   reportGeneratedLine,
+  reportPreviewPath,
   reportPrintTitle,
   reportRowsSummary,
+  type ReportFilterValues,
 } from './report-table'
 
 describe('reportFileHref', () => {
-  it('собирает ссылку на файл отчёта с выбранным форматом', () => {
-    expect(reportFileHref('/api/reports/tz', 'csv')).toBe('/api/reports/tz?format=csv')
-    expect(reportFileHref('/api/reports/catalog', 'xlsx')).toBe('/api/reports/catalog?format=xlsx')
-    expect(reportFileHref('/api/reports/tz', 'json')).toBe('/api/reports/tz?format=json')
+  it('без фильтров — только формат', () => {
+    expect(reportFileHref('/api/reports/tz', 'csv', EMPTY_REPORT_FILTERS)).toBe('/api/reports/tz?format=csv')
+    expect(reportFileHref('/api/reports/catalog', 'xlsx', EMPTY_REPORT_FILTERS)).toBe(
+      '/api/reports/catalog?format=xlsx',
+    )
+    expect(reportFileHref('/api/reports/tz', 'json', EMPTY_REPORT_FILTERS)).toBe('/api/reports/tz?format=json')
+  })
+
+  it('с фильтрами — они уходят параметрами запроса вместе с форматом', () => {
+    const filters: ReportFilterValues = {
+      ...EMPTY_REPORT_FILTERS,
+      dateFrom: '2026-01-01',
+      dateTo: '2026-06-30',
+      status: 'ACTIVE',
+    }
+    const href = reportFileHref('/api/reports/tz', 'xlsx', filters)
+    expect(href).toContain('format=xlsx')
+    expect(href).toContain('dateFrom=2026-01-01')
+    expect(href).toContain('dateTo=2026-06-30')
+    expect(href).toContain('status=ACTIVE')
+  })
+})
+
+describe('reportPreviewPath', () => {
+  it('всегда просит json — вне зависимости от того, что скачивают кнопки', () => {
+    expect(reportPreviewPath('/api/reports/tz', EMPTY_REPORT_FILTERS)).toBe('/api/reports/tz?format=json')
+    expect(reportPreviewPath('/api/reports/tz', { ...EMPTY_REPORT_FILTERS, universityId: 'u1' })).toBe(
+      '/api/reports/tz?universityId=u1&format=json',
+    )
+  })
+})
+
+describe('hasReportFilters', () => {
+  it('без фильтров — false', () => {
+    expect(hasReportFilters(EMPTY_REPORT_FILTERS)).toBe(false)
+  })
+
+  it('хоть один фильтр задан — true', () => {
+    expect(hasReportFilters({ ...EMPTY_REPORT_FILTERS, status: 'ACTIVE' })).toBe(true)
+  })
+})
+
+describe('reportFiltersLine', () => {
+  it('без фильтров — null', () => {
+    expect(reportFiltersLine(EMPTY_REPORT_FILTERS, {})).toBeNull()
+  })
+
+  it('период, вуз по имени, статус по подписи', () => {
+    const line = reportFiltersLine(
+      { ...EMPTY_REPORT_FILTERS, dateFrom: '2026-01-01', dateTo: '2026-06-30', universityId: 'u1', status: 'ACTIVE' },
+      { universityName: 'СПбГУТ', statusLabel: 'В работе' },
+    )
+    expect(line).toBe('Фильтры: период 01.01.2026 — 30.06.2026 · вуз «СПбГУТ» · статус «В работе»')
+  })
+
+  it('имя ещё не загрузилось — многоточие вместо пустой строки', () => {
+    const line = reportFiltersLine({ ...EMPTY_REPORT_FILTERS, universityId: 'u1' }, {})
+    expect(line).toBe('Фильтры: вуз «…»')
   })
 })
 
