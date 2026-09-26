@@ -16,6 +16,7 @@ import type {
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
+import { ExpertStartHere } from './ExpertStartHere'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
 import { usePrintBlock } from './print-block'
@@ -484,6 +485,8 @@ function Dashboard() {
           </>
         }
       />
+
+      {user.isReviewer && user.role !== 'UNIVERSITY_REP' && <ExpertStartHere />}
 
       {overview.isLoading ? (
         <CardsSkeleton count={3} />

@@ -162,6 +162,38 @@
   text-overflow: ellipsis;
 }
 
+/* ── «С чего начать»: маршрут эксперта хакатона (решение 180) ────────────── */
+
+.expertStart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.expertStep {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-card-sm);
+}
+
+.expertStepNo {
+  flex: none;
+  min-width: 1.4em;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.expertStepText {
+  color: var(--text-secondary);
+}
+
 /* ── Приоритетные действия: строки, не карточки ──────────────────────────── */
 
 .actions {
