@@ -36,6 +36,10 @@ export const OWNER_ALERT_EVENTS = {
   'user.blocked': { title: 'Пользователь заблокирован', severity: 'info' },
   'user.role.admin': { title: 'Выдана роль администратора', severity: 'warning' },
   'export.bulk': { title: 'Массовая выгрузка данных', severity: 'warning' },
+  /** Вебхук Telegram перестал отвечать — процесс сам перешёл на long polling (решение 142). */
+  'telegram.auto-switched-to-polling': { title: 'Бот Telegram: авто-переход на приём без вебхука', severity: 'warning' },
+  /** Токен бота сменён или бот отключён через админку (решение 142). */
+  'telegram.token-changed': { title: 'Бот Telegram: сменён или отключён токен', severity: 'info' },
 } as const satisfies Record<string, { title: string; severity: OwnerAlertSeverity }>
 
 export type OwnerAlertEvent = keyof typeof OWNER_ALERT_EVENTS
@@ -89,6 +93,8 @@ const LABELS: Record<string, string> = {
   rows: 'строк',
   count: 'сколько раз',
   windowMinutes: 'за минут',
+  reason: 'причина',
+  mode: 'режим',
 }
 
 function maskValue(field: string, value: string): string {
