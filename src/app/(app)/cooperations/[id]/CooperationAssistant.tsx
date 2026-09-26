@@ -156,8 +156,7 @@ function ProposalPayloadView({ payload }: { payload: AiProposalDto['payload'] })
         {meeting.agenda.length > 0 && (
           <ul className={styles.agenda}>
             {meeting.agenda.map((item, index) => (
-              // eslint-disable-next-line react/no-array-index-key
-              <li key={index}>{item}</li>
+              <li key={`${index}-${item}`}>{item}</li>
             ))}
           </ul>
         )}
