@@ -41,7 +41,14 @@ function recommendation(overrides: Partial<RecommendationSource>): Recommendatio
 }
 
 function sources(overrides: Partial<FeedSources> = {}): FeedSources {
-  return { deadlines: [], stageChanges: [], documentChanges: [], recommendations: [], ...overrides }
+  return {
+    deadlines: [],
+    stageChanges: [],
+    documentChanges: [],
+    recommendations: [],
+    responsibleAssignments: [],
+    ...overrides,
+  }
 }
 
 describe('лента уведомлений', () => {

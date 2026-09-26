@@ -93,6 +93,7 @@ import {
   revealContactSchema,
   createUniversitySchema,
   setContactBasisSchema,
+  setUniversityResponsibleSchema,
   universityListQuerySchema,
   updateUniversitySchema,
   withdrawConsentSchema,
@@ -107,6 +108,7 @@ import {
   updateStageSchema,
   updateTaskSchema,
 } from '@/modules/workflow/workflow.schema'
+import { patchWorkflowStageTemplateSchema } from '@/modules/workflow/workflow-templates.schema'
 
 /**
  * Реестр эндпоинтов для сборки спецификации OpenAPI.
@@ -600,6 +602,20 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Изменить университет',
     permission: 'WRITE',
     body: updateUniversitySchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'patch',
+    path: '/api/universities/{id}/responsible',
+    tag: 'Университеты',
+    summary: 'Назначить, сменить или снять ответственного за вуз',
+    description:
+      'Роль «Руководитель» из ТЗ (решение 146): право переставлять ответственных за вузы, ' +
+      'которого нет у обычного менеджера. `responsibleId: null` снимает ответственного — ' +
+      'у вуза он необязателен, в отличие от связки. Действие пишется в журнал ' +
+      '(`university.responsible.set`) и попадает в ленту уведомлений нового ответственного.',
+    permission: 'ASSIGN_RESPONSIBLE',
+    body: setUniversityResponsibleSchema,
     errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
@@ -1787,6 +1803,33 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'у каждой — ссылка на раздел методики.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/settings/workflow',
+    tag: 'Настройки',
+    summary: 'Хранимый шаблон 14 этапов workflow',
+    description:
+      'ТЗ, функц. требования пп. 6, 9 (решение 146). Только ADMIN. Значения — источник для этапов ' +
+      'НОВЫХ связок (buildStages); у уже заведённых связок этапы не меняются, если явно не попросить ' +
+      '`applyToUnfinishedStages` при правке. `isControlPoint` — только чтение, с объяснением в каждом пункте.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/settings/workflow/stages/{number}',
+    tag: 'Настройки',
+    summary: 'Переименовать этап шаблона или изменить нормативный срок',
+    description:
+      'Только ADMIN, только `title` и `normativeDays`. `isControlPoint` в теле отклоняется с объяснением ' +
+      '(решения 5/28) до разбора остальных полей — признак завязан на код и через настройки не меняется. ' +
+      '`applyToUnfinishedStages: true` пересчитывает срок и/или название у незавершённых этапов уже ' +
+      'заведённых связок (каждой — от её собственной даты старта); без флага существующие связки не меняются.',
+    permission: 'ADMIN',
+    body: patchWorkflowStageTemplateSchema,
+    pathParams: { number: 'Номер этапа, 1–14' },
+    errors: WRITE_ERRORS,
   },
   // ── Безопасность, волна 2 (решение 133) ──────────────────────────────────
   {

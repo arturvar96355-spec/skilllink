@@ -35,7 +35,13 @@ function manager(): CurrentUser {
   }
 }
 
-const EMPTY_SOURCES = { deadlines: [], stageChanges: [], documentChanges: [], recommendations: [] }
+const EMPTY_SOURCES = {
+  deadlines: [],
+  stageChanges: [],
+  documentChanges: [],
+  recommendations: [],
+  responsibleAssignments: [],
+}
 
 beforeEach(() => {
   vi.clearAllMocks()

@@ -38,7 +38,13 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
     user.role === 'UNIVERSITY_REP'
       ? user.universityId
         ? repo.loadForUniversity(user.universityId, user.id, windowStart)
-        : Promise.resolve({ deadlines: [], stageChanges: [], documentChanges: [], recommendations: [] })
+        : Promise.resolve({
+            deadlines: [],
+            stageChanges: [],
+            documentChanges: [],
+            recommendations: [],
+            responsibleAssignments: [],
+          })
       : repo.loadForStaff(user.id, windowStart, can(user, 'ANALYTICS')),
     repo.getSeenAt(user.id),
   ])

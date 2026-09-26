@@ -14,13 +14,16 @@ datasource db {
 
 // ─────────────────────────────── Перечисления ───────────────────────────────
 
-/// Роли из раздела 5 ТЗ плюс UNIVERSITY_REP из концепции (кабинет вуза, P1).
+/// Роли из раздела 5 ТЗ плюс UNIVERSITY_REP из концепции (кабинет вуза, P1)
+/// и HEAD — роль «Руководитель» из ТЗ (решение 146): права менеджера плюс
+/// право переназначать ответственного за вуз (permissions.ts, ASSIGN_RESPONSIBLE).
 enum UserRole {
   ADMIN
   MANAGER
   ANALYST
   VIEWER
   UNIVERSITY_REP
+  HEAD
 }
 
 /// Перечень статусов взаимодействия с вузом — решение команды (PM) от 26.09.2026.
@@ -309,6 +312,9 @@ model User {
   approvalsRejected      Approval[]            @relation("ApprovalRejectedBy")
   idempotencyKeys        IdempotencyKey[]
   dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
+  /// Вузы, где этот пользователь назначен ответственным (решение 146, роль «Руководитель»).
+  responsibleForUniversities University[]      @relation("UniversityResponsible")
+  workflowTemplatesEdited    WorkflowStageTemplate[] @relation("WorkflowStageTemplateUpdatedBy")
 
   @@index([role])
   @@index([universityId])
@@ -344,10 +350,16 @@ model University {
   mergedIntoId   String?          @map("merged_into_id")
   /// Демонстрационная запись. Фронт обязан показывать пометку.
   isMock         Boolean          @default(false) @map("is_mock")
+  /// Ответственный за вуз (ТЗ — роль «Руководитель», решение 146): назначает,
+  /// меняет и снимает ADMIN/HEAD (`PATCH /api/universities/:id/responsible`).
+  /// Nullable: у вуза может не быть назначенного ответственного, и это не ошибка
+  /// настройки, в отличие от связки, где ответственный обязателен.
+  responsibleId  String?          @map("responsible_user_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   archivedAt     DateTime?        @map("archived_at")
 
+  responsible  User?                @relation("UniversityResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
   mergedInto   University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
   mergedFrom   University[]         @relation("UniversityMergedInto")
   contacts     Contact[]
@@ -365,6 +377,7 @@ model University {
   @@index([city])
   @@index([mergedIntoId])
   @@index([inn])
+  @@index([responsibleId])
   /// Поиск дублей по названию (решение 124): кандидатов отбирает оператор `%` расширения pg_trgm.
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "universities_name_trgm")
   @@map("universities")
@@ -845,6 +858,39 @@ model WorkflowStage {
   @@index([responsibleId])
   @@index([completedById])
   @@map("workflow_stages")
+}
+
+/// Хранимый шаблон 14 этапов конвейера (ТЗ, функц. требования пп. 6, 9; решение 146).
+/// Заполняется миграцией/сидом из shared/config/workflow.config.ts. Источник истины
+/// для НОВЫХ связок: `buildStages` в cooperation.rules.ts берёт отсюда title и
+/// normativeDays по номеру этапа, а при отсутствующей строке (пустая таблица до сида)
+/// подставляет значение по умолчанию из конфига. У СУЩЕСТВУЮЩИХ связок этапы (WorkflowStage)
+/// не меняются: title там — своя копия, не ссылка на шаблон.
+/// API: `GET/PATCH /api/settings/workflow[...]`, только ADMIN.
+model WorkflowStageTemplate {
+  id            String     @id @default(cuid())
+  /// 1..14, как WorkflowStage.stageNumber. CHECK в базе: 1–14.
+  stageNumber   Int        @unique @map("stage_number")
+  title         String
+  phase         StagePhase
+  normativeDays Int        @map("normative_days")
+  /// Контрольная точка (решения 5/28) — через API только чтение с объяснением:
+  /// правила порядка этапов (workflow.rules.ts, CONTROL_POINT_STAGES) завязаны на
+  /// список номеров в коде, и снятие признака здесь молча сломало бы их.
+  isControlPoint Boolean   @default(false) @map("is_control_point")
+  /// Пункты чек-листа по умолчанию — снимок TaskDefinition[] из конфига на момент
+  /// заполнения, только для отображения в настройках (решение 146: полноценная
+  /// правка состава пунктов — пункт дорожной карты, не этой версии).
+  defaultTasks  Json       @map("default_tasks")
+  /// Кто последним менял название или срок. Правки признака контрольной точки нет,
+  /// поэтому это не «кто последний менял шаблон» в общем смысле.
+  updatedById   String?    @map("updated_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("WorkflowStageTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("workflow_stage_templates")
 }
 
 /// Пункт чек-листа этапа. Состав пунктов по этапам — в src/shared/config/workflow.config.ts.

@@ -66,11 +66,24 @@ export interface RecommendationSource {
   cooperationId: string | null
 }
 
+/**
+ * Пользователя назначили или сняли ответственным за вуз (решение 146).
+ * `assigned: false` — сняли (ответственным стал кто-то другой или никто).
+ */
+export interface ResponsibleAssignedSource {
+  auditLogId: string
+  universityId: string
+  universityName: string
+  assigned: boolean
+  changedAt: Date
+}
+
 export interface FeedSources {
   deadlines: StageDeadlineSource[]
   stageChanges: StageChangeSource[]
   documentChanges: DocumentChangeSource[]
   recommendations: RecommendationSource[]
+  responsibleAssignments: ResponsibleAssignedSource[]
 }
 
 function where(universityName: string, programName: string): string {
@@ -205,6 +218,25 @@ export function buildFeed(
         type: 'recommendation',
         id: recommendation.id,
         cooperationId: recommendation.cooperationId,
+        stageId: null,
+      },
+    })
+  }
+
+  for (const change of sources.responsibleAssignments) {
+    items.push({
+      id: `responsible:${change.auditLogId}`,
+      kind: 'university.responsible-changed',
+      severity: 'info',
+      title: change.assigned
+        ? `Вы назначены ответственным за вуз «${change.universityName}»`
+        : `Вы больше не ответственный за вуз «${change.universityName}»`,
+      description: null,
+      occurredAt: change.changedAt.toISOString(),
+      target: {
+        type: 'university',
+        id: change.universityId,
+        cooperationId: null,
         stageId: null,
       },
     })

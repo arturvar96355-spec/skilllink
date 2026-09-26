@@ -4,6 +4,7 @@ import { conflict, forbidden, notFound } from '@/shared/http/errors'
 import { pageMeta, type Pagination } from '@/shared/http/pagination'
 import { assertCan, can, canSeeContactDetails as canSeeContactDetailsByRole, universityScope } from '@/shared/auth/permissions'
 import { contactRevealRequired } from '@/shared/config/contacts.config'
+import { assertStaffResponsible } from '@/shared/links/entity-links'
 import { redactString } from '@/shared/log/redact'
 import { maskEmailForDisplay, maskPhoneForDisplay } from '@/shared/utils/mask'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -162,6 +163,7 @@ function toListItem(
     cooperationCount: row._count.cooperations,
     activeCooperationCount: activeCooperations,
     isMock: row.isMock,
+    responsible: row.responsible,
     rating,
     updatedAt: toIsoRequired(row.updatedAt),
     archivedAt: toIso(row.archivedAt),
@@ -412,6 +414,48 @@ export async function restore(user: CurrentUser, id: string): Promise<University
 }
 
 /**
+ * Назначить, сменить или снять ответственного за вуз (ТЗ — роль «Руководитель»,
+ * решение 146): `PATCH /api/universities/:id/responsible`, `{ responsibleId: string | null }`.
+ *
+ * Только право `ASSIGN_RESPONSIBLE` (ADMIN, HEAD) — обычный менеджер ведёт свои
+ * связки, но чужого ответственного за вуз не переставляет: это и есть та привилегия,
+ * которую ТЗ прямо называет для «Руководителя».
+ *
+ * Уведомление новому ответственному — минимально, через существующую ленту
+ * уведомлений (решение 139): запись в журнале действий ищется по действию
+ * `university.responsible.set` и полю `responsibleId` в payload
+ * (modules/notifications/notifications.repo.ts).
+ */
+export async function setResponsible(
+  user: CurrentUser,
+  id: string,
+  input: { responsibleId: string | null },
+): Promise<UniversityDto> {
+  assertCan(user, 'ASSIGN_RESPONSIBLE')
+  const existing = await repo.findById(id, universityScope(user))
+  if (!existing) throw notFound('Вуз не найден')
+
+  if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
+
+  const row = await repo.update(id, {
+    responsible: input.responsibleId ? { connect: { id: input.responsibleId } } : { disconnect: true },
+  })
+  await writeAudit({
+    userId: user.id,
+    action: 'university.responsible.set',
+    objectType: 'University',
+    objectId: id,
+    payload: { responsibleId: input.responsibleId, previousResponsibleId: existing.responsibleId },
+  })
+
+  const activeByUniversity = await repo.countActiveCooperations([row.id])
+  const ratings = can(user, 'ANALYTICS')
+    ? await analyticsService.universityRatingsForPage(user, [row.id])
+    : null
+  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+}
+
+/**
  * Обезличить контактное лицо вуза — право субъекта на удаление персональных данных
  * (docs/PRIVACY.md, раздел «Права субъектов»). Только администратор: это необратимо.
  *
@@ -586,7 +630,7 @@ export async function revealContact(
 ): Promise<ContactRevealDto> {
   assertCan(user, 'READ')
   if (!can(user, 'CONTACT_DETAILS') && user.role !== 'UNIVERSITY_REP') {
-    throw forbidden('Почту и телефон контактов видят менеджер и администратор')
+    throw forbidden('Почту и телефон контактов видят менеджер, руководитель и администратор')
   }
   const row = await repo.findContactById(contactId)
   if (!row || !canSeeContactDetailsByRole(user, row.universityId)) throw notFound('Контакт не найден')
