@@ -817,9 +817,9 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 `docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
 
-`docs/openapi.json` и `GET /api/openapi.json` — 151 пути, 183 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 151 путь, 183 операции. Собирается из тех же
 
-`docs/openapi.json` и `GET /api/openapi.json` — 151 пути, 183 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 151 путь, 183 операции. Собирается из тех же
 
 `docs/openapi.json` и `GET /api/openapi.json` — 151 путь, 183 операции. Собирается из тех же
 
