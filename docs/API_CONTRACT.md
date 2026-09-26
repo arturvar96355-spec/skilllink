@@ -3188,8 +3188,8 @@ curl -X POST http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<i
 curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
 ```
 
-Затрагивает фронт: новая строка в «Настройках» личного кабинета (`TelegramRow.tsx`),
-в `src/ui/lib/api.ts` добавлен `apiDelete`.
+Затрагивает фронт: новая строка в «Настройках» личного кабинета (решение 144 объединил её
+с MAX и VK в `ChannelsBlock.tsx` — см. следующий раздел), в `src/ui/lib/api.ts` добавлен `apiDelete`.
 
 ### GET/PUT /api/me/channels, POST /api/me/channels/:id/connect, DELETE /api/me/channels/:id
 

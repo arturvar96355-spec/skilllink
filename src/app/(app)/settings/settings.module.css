@@ -125,6 +125,12 @@
   justify-content: flex-end;
 }
 
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .hint {
   display: inline-flex;
   color: var(--text-tertiary);

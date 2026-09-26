@@ -28,6 +28,7 @@ import {
   useResource,
   useToast,
 } from '@/ui'
+import { AdminChannelsSection } from './AdminChannelsSection'
 import { AuditSection } from './AuditSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
 import { UsersSection } from './UsersSection'
@@ -366,6 +367,8 @@ export default function SettingsPage() {
                 </Row>
               )
             })()}
+            {/* Каналы уведомлений (решение 144): Telegram, MAX, VK — только администратору. */}
+            {isAdmin ? <AdminChannelsSection /> : null}
           </>
         )
 
