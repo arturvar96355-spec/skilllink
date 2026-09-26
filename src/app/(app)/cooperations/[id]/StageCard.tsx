@@ -6,6 +6,7 @@ import {
   CONFIRMATION_NOTE_MIN,
   STAGE_PHASE_LABELS,
   STAGE_STATUS_LABELS,
+  type CooperationDto,
   type DocumentListItemDto,
   type StageHistoryEntryDto,
   type StageStatus,
@@ -23,15 +24,18 @@ import {
   NAV_TRANSITION_ATTRIBUTE,
   StageStatusBadge,
   Textarea,
+  apiGet,
   apiPatch,
+  ApiRequestError,
   formatDate,
   formatDateTime,
   useMutation,
   useResource,
   useToast,
-  type ApiRequestError,
 } from '@/ui'
 import { Attachments } from '../../Attachments'
+import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { StageDeadlineModal } from './StageDeadlineModal'
 import styles from './cooperation.module.css'
 
 /**
@@ -129,6 +133,10 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
   const [text, setText] = useState('')
   const [refusal, setRefusal] = useState<ApiRequestError | null>(null)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
+  // Срок и ответственный этапа (пробел ТЗ, решение 153) — своими окнами, а не
+  // формой ACTION_FORMS: это правка полей без смены статуса, у неё нет комментария.
+  const [isDeadlineOpen, setIsDeadlineOpen] = useState(false)
+  const [isResponsibleOpen, setIsResponsibleOpen] = useState(false)
   // Пункт вуза без представителя отмечается с пометкой «чем подтверждено» (решение 103).
   const [noteTaskId, setNoteTaskId] = useState<string | null>(null)
   const [noteText, setNoteText] = useState('')
@@ -243,6 +251,26 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
     if (noteTaskId === null) return
     const ok = await onToggleTask(noteTaskId, true, noteText.trim())
     if (ok) closeNote()
+  }
+
+  /**
+   * `ChangeResponsibleModal` (решение 151) сам не отдаёт обновлённый этап — только
+   * признак «сохранено». `onStageChanged` выше по контракту ждёт настоящий свежий
+   * `WorkflowStageDto` (см. `patchedStages` в карточке связки: без него правка
+   * зависла бы в состоянии до перезагрузки). Свежую запись этапа берём тем же
+   * маршрутом, что и перезагрузка связки на странице, — отдельного GET на один
+   * этап в API нет и заводить его ради одной кнопки незачем.
+   */
+  async function onResponsibleChanged(changed: boolean) {
+    setIsResponsibleOpen(false)
+    if (!changed) return
+    try {
+      const result = await apiGet<CooperationDto>(`/api/cooperations/${stage.cooperationId}`)
+      const fresh = result.data.stages.find((item) => item.id === stage.id)
+      if (fresh) onStageChanged(fresh)
+    } catch (error) {
+      toast.error(error instanceof ApiRequestError ? error.message : 'Не удалось обновить этап')
+    }
   }
 
   const isDone = stage.status === 'COMPLETED'
@@ -449,6 +477,16 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                       Отменить
                     </Button>
                   )}
+                  {/*
+                    Срок и ответственный — правка полей без смены статуса (решение 153),
+                    поэтому доступны в любом статусе этапа, а не только «в работе».
+                  */}
+                  <Button variant="ghost" size="sm" icon="calendar" onClick={() => setIsDeadlineOpen(true)}>
+                    Изменить срок
+                  </Button>
+                  <Button variant="ghost" size="sm" icon="user" onClick={() => setIsResponsibleOpen(true)}>
+                    Сменить ответственного
+                  </Button>
                 </>
               ) : null}
 
@@ -557,6 +595,28 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
 
       {isHistoryOpen && (
         <StageHistoryDrawer stageId={stage.id} stageTitle={stage.title} onClose={() => setIsHistoryOpen(false)} />
+      )}
+
+      {isDeadlineOpen && (
+        <StageDeadlineModal
+          stage={stage}
+          onClose={(updated) => {
+            setIsDeadlineOpen(false)
+            if (updated) onStageChanged(updated)
+          }}
+        />
+      )}
+
+      {isResponsibleOpen && (
+        <ChangeResponsibleModal
+          title={`Ответственный этапа ${stage.stageNumber}`}
+          description={`«${stage.title}»`}
+          endpoint={`/api/workflow/stages/${stage.id}`}
+          currentResponsibleId={stage.responsible?.id ?? null}
+          currentResponsibleName={stage.responsible?.fullName ?? null}
+          allowNone
+          onClose={onResponsibleChanged}
+        />
       )}
     </div>
   )
