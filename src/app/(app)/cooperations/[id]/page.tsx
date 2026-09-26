@@ -10,6 +10,7 @@ import {
   type DocumentListItemDto,
   type DocumentPackageResultDto,
   type MeetingDto,
+  type ProductDto,
   type RecommendationDto,
   type WorkflowStageDto,
 } from '@/shared/contracts'
@@ -25,6 +26,7 @@ import {
   Icon,
   MockBadge,
   Modal,
+  NO_DATA,
   PageHeader,
   PriorityBadge,
   Progress,
@@ -33,6 +35,7 @@ import {
   Skeleton,
   TableSkeleton,
   Tabs,
+  TransferStatusBadge,
   OPEN_RECOMMENDATION_STATUSES,
   CLOSED_RECOMMENDATION_STATUSES,
   apiPost,
@@ -53,6 +56,8 @@ import {
 import { AiAssistCard } from '../../AiDraft'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
+import { LicenseModal } from './LicenseModal'
+import { licenseTermYearsText } from './license'
 import { StageCard } from './StageCard'
 import { StageRibbon } from './StageRibbon'
 import styles from './cooperation.module.css'
@@ -73,6 +78,7 @@ function CooperationContent() {
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
   const [isMeetingOpen, setIsMeetingOpen] = useState(false)
+  const [isLicenseOpen, setIsLicenseOpen] = useState(false)
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
@@ -86,6 +92,11 @@ function CooperationContent() {
   }, [highlightedStageId])
 
   const cooperation = useResource<CooperationDto>(`/api/cooperations/${params.id}`)
+  // Вендор продукта — только для блока «Лицензия и передача ПО»: у связки
+  // (решение 145) есть только `productId`/`productName`, вендор — поле продукта.
+  const product = useResource<ProductDto>(
+    cooperation.data?.productId ? `/api/products/${cooperation.data.productId}` : null,
+  )
 
   // Документы и встречи связки грузятся только при открытии своей вкладки.
   const documents = useResource<DocumentListItemDto[]>(
@@ -324,6 +335,60 @@ function CooperationContent() {
           </div>
         </Card>
       </div>
+
+      <Section
+        title="Лицензия и передача ПО"
+        description="Реквизиты договора и статус передачи продукта вузу — колонки «Каталога по ТЗ». Вендор и ПО показаны по выбранному продукту связки."
+        action={
+          user.permissions.canWrite ? (
+            <Button variant="secondary" size="sm" onClick={() => setIsLicenseOpen(true)}>
+              Изменить
+            </Button>
+          ) : undefined
+        }
+      >
+        <Card>
+          <div className={styles.facts}>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>Вендор</span>
+              <span className={styles.factValue}>{product.data?.vendor?.name ?? NO_DATA}</span>
+            </span>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>ПО</span>
+              <span className={styles.factValue}>{data.productName ?? NO_DATA}</span>
+            </span>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>Номер договора</span>
+              <span className={styles.factValue}>{data.contractNumber ?? NO_DATA}</span>
+            </span>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>Подписание лицензии</span>
+              <span className={styles.factValue}>{formatDate(data.licenseSignedAt)}</span>
+            </span>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>Срок действия лицензии</span>
+              <span className={styles.factValue}>{licenseTermYearsText(data.licenseTermYears)}</span>
+            </span>
+            <span className={styles.fact}>
+              <span className={styles.factLabel}>Статус по передаче</span>
+              <span className={styles.factValue}>
+                {data.transferStatus ? <TransferStatusBadge status={data.transferStatus} /> : NO_DATA}
+              </span>
+            </span>
+          </div>
+          {data.comment && <p className={styles.goal}>{data.comment}</p>}
+        </Card>
+      </Section>
+
+      {isLicenseOpen && (
+        <LicenseModal
+          cooperation={data}
+          onClose={(updated) => {
+            setIsLicenseOpen(false)
+            if (updated) cooperation.reload()
+          }}
+        />
+      )}
 
       <Section
         title="Ход работы"

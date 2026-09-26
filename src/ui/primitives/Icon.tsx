@@ -54,6 +54,7 @@ const PATHS = {
   spark: ['M12 4v4M12 16v4M4 12h4M16 12h4', 'm6.5 6.5 2.8 2.8M14.7 14.7l2.8 2.8M17.5 6.5l-2.8 2.8M9.3 14.7l-2.8 2.8'],
   trendUp: ['M4 16.5 10 10l3.5 3.5L20 6.5', 'M15 6.5h5v5'],
   trendDown: ['M4 7.5 10 14l3.5-3.5L20 17.5', 'M15 17.5h5v-5'],
+  report: ['M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5z', 'M13.5 3v5.5H19', 'M8.5 17v-2.5M11.5 17v-4.5M14.5 17v-3'],
 } as const
 
 export type IconName = keyof typeof PATHS
