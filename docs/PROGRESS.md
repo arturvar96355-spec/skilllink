@@ -12,6 +12,18 @@
 ГПСЧ) и не меняющий ни одного сценарного объекта. Подробности — раздел
 «Демонстрационные данные» и решение 131 в `docs/TECHNICAL_DECISIONS.md`.
 
+**Рекомендации учатся на решениях менеджеров и объясняют себя (26.09.2026, решение 119,
+ветка `feat/rec-learning`).** У каждого правила — статистика «показано / полезно» с забыванием
+(полураспад 30 дн.) по уровням общий / вуз / менеджер; вес правила — среднее Beta с частичным
+пулингом; балл рекомендации `0,5·p + 0,35·ценность + 0,15·приоритет`, лента `sort=-score`.
+У рекомендации `reasons` из фактов и разбор балла; `GET /api/recommendations/why-not` отвечает
+теми же проверками, что правило; `GET /api/recommendations/rules/stats` — веса правил с интервалом.
+Пауза 30 дн. после отклонения, «отложено» при перегрузке менеджера. Сид пишет 90-дневную
+историю: «связка без движения» весит ≈ 0,12. `npm run recs:simulate` — цифры для слайда.
+Лента по умолчанию прежняя (`-priority`), переключение на балл — решение фронта.
+Новая таблица `recommendation_rule_stats` и 6 колонок `recommendations` — на согласование
+с Тиграном. Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
+
 **Эксплуатация «как в продакшене» (25.09.2026, решение 118, ветка `ops/owner-alerts`).**
 `/api/health` — живость без базы (healthcheck контейнера), новый `/api/ready` — база
 и миграции против кода с `latencyMs`. Проверка после выкладки в `remote-up.sh`, `deploy.sh`
@@ -183,11 +195,11 @@ API, база и скрипты — без экрана).** Каждая зап�
 ```
 npm run typecheck   без ошибок
 npm run lint        0 ошибок, 3 предупреждения (решение 113)
-npm test            1604 теста проходят
+npm test            1963 теста проходят
 npm run build       собирается, 57 страниц и маршрутов
 npm run smoke       349 проверок проходят
-npm run probe       382 проверки, проблем не найдено
-npm run db:verify   28 правил целостности, с демо-набором 34 (CI и каждая перезаливка стенда)
+npm run probe       512 проверок, проблем не найдено
+npm run db:verify   33 правила целостности, с демо-набором 39 (CI и каждая перезаливка стенда)
 npm run bench       самая медленная страница 26 мс на 1000 вузов (23.09, с русской сортировкой)
 npm run demo:check  стенд и запасной ноутбук совпадают со сценарием показа
 ```
@@ -286,7 +298,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 90 маршрутов, 113 операций
+### Модули и эндпоинты — 92 маршрута, 115 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -300,7 +312,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
-| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id` |
+| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
@@ -467,7 +479,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 89 путей, 113 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 91 путь, 115 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.
