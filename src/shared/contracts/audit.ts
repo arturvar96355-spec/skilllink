@@ -91,6 +91,10 @@ export const AUDIT_ACTIONS = [
   'telegram.link',
   /** Чат отвязан: из личного кабинета или командой /stop. */
   'telegram.unlink',
+  /** Пользователь подключил канал уведомлений MAX или VK (решение 144). Без идентификатора чата и ника. */
+  'channel.link',
+  /** Канал отвязан: из личного кабинета или командой «стоп». */
+  'channel.unlink',
   'document.create',
   'document.update',
   'document.status.change',

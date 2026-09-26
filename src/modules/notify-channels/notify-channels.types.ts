@@ -11,6 +11,13 @@ export type ChannelId = 'telegram' | 'max' | 'vk'
 /** Каналы со своей общей моделью привязки (notification_channel_links) — все, кроме Telegram. */
 export type AltChannelId = ChannelId
 
+/** Порядок — приоритет по умолчанию (решение 144): Telegram первым, он работает дольше всех. */
+export const CHANNEL_IDS: readonly ChannelId[] = ['telegram', 'max', 'vk']
+
+export function isChannelId(value: string): value is ChannelId {
+  return (CHANNEL_IDS as readonly string[]).includes(value)
+}
+
 export type ChannelSendResult =
   | { ok: true }
   | {

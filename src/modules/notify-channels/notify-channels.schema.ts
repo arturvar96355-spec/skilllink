@@ -78,3 +78,8 @@ export const vkCallbackEventSchema = z.object({
 })
 
 export type VkCallbackEvent = z.infer<typeof vkCallbackEventSchema>
+
+/** PUT /api/me/channels: тело запроса — основной канал (null — снова автоматически). */
+export const setPrimaryChannelSchema = z.object({
+  primary: z.enum(['telegram', 'max', 'vk']).nullable(),
+})

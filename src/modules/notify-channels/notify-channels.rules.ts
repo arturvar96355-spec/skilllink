@@ -16,5 +16,5 @@ export function parseChannelCommand(text: string | null | undefined): 'today' | 
 /** `/start <код>` в тексте сообщения — запасной путь, если платформа не передала код отдельным полем. */
 export function extractStartCode(text: string | null | undefined): string | null {
   const match = /^\/start[@\w]*\s+(\S+)/.exec((text ?? '').trim())
-  return match ? match[1] : null
+  return match?.[1] ?? null
 }

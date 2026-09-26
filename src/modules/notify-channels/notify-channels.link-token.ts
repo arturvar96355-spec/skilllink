@@ -74,6 +74,7 @@ export function verifyLinkCode(secret: string, code: string, now = Date.now()): 
   if (expiresAtMs > now + CHANNEL_LINK.ttlMs + 60_000) return null
 
   const tagByte = bytes[EXPIRY_BYTES + MAC_BYTES]
+  if (tagByte === undefined) return null
   const tag = TAG_CHANNEL[tagByte]
   if (!tag) return null
   const userId = bytes.subarray(EXPIRY_BYTES + MAC_BYTES + CHANNEL_BYTES).toString('utf8')
