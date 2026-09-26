@@ -837,7 +837,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -889,7 +890,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -1136,7 +1138,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -1188,7 +1191,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -3962,7 +3966,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4011,7 +4016,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4063,7 +4069,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4140,7 +4147,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4189,7 +4197,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4238,7 +4247,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4287,7 +4297,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4339,7 +4350,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4459,7 +4471,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4508,7 +4521,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4557,7 +4571,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4609,7 +4624,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4658,7 +4674,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4748,7 +4765,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4797,7 +4815,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4846,7 +4865,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -4898,7 +4918,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -42963,7 +42984,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43012,7 +43034,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43064,7 +43087,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43143,7 +43167,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43192,7 +43217,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43241,7 +43267,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43290,7 +43317,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43342,7 +43370,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43391,7 +43420,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43489,7 +43519,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43538,7 +43569,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43590,7 +43622,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43669,7 +43702,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43718,7 +43752,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43767,7 +43802,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43816,7 +43852,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43868,7 +43905,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -43917,7 +43955,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44019,7 +44058,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44068,7 +44108,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44120,7 +44161,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44169,7 +44211,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44248,7 +44291,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44297,7 +44341,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44349,7 +44394,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44439,7 +44485,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44488,7 +44535,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44537,7 +44585,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
@@ -44589,7 +44638,8 @@
                             "INVALID_TRANSITION",
                             "INTEGRATION_ERROR",
                             "RATE_LIMITED",
-                            "INTERNAL"
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
                           ]
                         },
                         "message": {
