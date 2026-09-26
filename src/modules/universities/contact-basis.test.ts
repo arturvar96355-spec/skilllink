@@ -89,7 +89,7 @@ const CONSENT_OBTAINED = {
   basisReference: REFERENCE,
   withdrawalReference: null,
   basisUpdatedAt: new Date(OBTAINED_AT),
-  // Согласие записано до решения 123: редакции и хеша у него нет.
+  // Согласие записано до решения 133: редакции и хеша у него нет.
   consentPolicyVersion: null,
   consentTextHash: null,
   consentContext: null,
@@ -210,7 +210,7 @@ describe('правило: зафиксировать основание', () => 
     ).toThrowError(expect.objectContaining({ code: 'VALIDATION_ERROR' }))
   })
 
-  it('запись согласия (решение 123): редакция политики, хеш текста и где получено — снимком в историю', () => {
+  it('запись согласия (решение 133): редакция политики, хеш текста и где получено — снимком в историю', () => {
     const text = 'Я, Ветрова И. П., согласна на обработку…'
     const plan = planBasisChange(
       live(),

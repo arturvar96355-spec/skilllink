@@ -1,5 +1,6 @@
 import { z } from '@/shared/zod'
 import { ERROR_STATUS, type ErrorCode } from '@/shared/http/errors'
+import { rateLimitGroup } from '@/shared/http/rate-limit'
 import { ENDPOINTS, type EndpointSpec } from './registry'
 
 /**
@@ -64,7 +65,7 @@ const ERROR_SCHEMA: JsonSchema = {
         },
         requestId: {
           type: 'string',
-          description: 'Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 123)',
+          description: 'Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)',
         },
       },
     },
@@ -116,6 +117,30 @@ function errorResponses(errors: readonly ErrorCode[]): Record<string, JsonSchema
     }
   }
   return responses
+}
+
+/** Заголовки ответа 429 (решение 117). `RateLimit-*` приходят и в остальных ответах. */
+const RATE_LIMIT_HEADERS: JsonSchema = {
+  'Retry-After': {
+    description: 'Через сколько секунд повторить запрос (1–60)',
+    schema: { type: 'integer' },
+  },
+  'RateLimit-Limit': { description: 'Предел запросов группы за минуту', schema: { type: 'integer' } },
+  'RateLimit-Remaining': { description: 'Сколько запросов осталось', schema: { type: 'integer' } },
+  'RateLimit-Reset': { description: 'Через сколько секунд окно сдвинется', schema: { type: 'integer' } },
+}
+
+/** Общий ответ 429: у всех маршрутов он одинаковый, и в операциях — только ссылка на него. */
+const RATE_LIMITED_RESPONSE: JsonSchema = {
+  description: 'RATE_LIMITED — превышен предел частоты запросов (решение 117)',
+  headers: RATE_LIMIT_HEADERS,
+  content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } },
+}
+
+/** Маршрут под общим ограничением частоты отвечает и 429 — это дописывается само. */
+function rateLimitResponse(spec: EndpointSpec): Record<string, JsonSchema> {
+  if (rateLimitGroup(spec.method, spec.path) === null) return {}
+  return { [String(ERROR_STATUS.RATE_LIMITED)]: { $ref: '#/components/responses/RateLimited' } }
 }
 
 const PERMISSION_NOTES: Record<string, string> = {
@@ -173,6 +198,7 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
           : { 'application/json': { schema: successSchema(spec) } },
       },
       ...errorResponses(spec.errors),
+      ...rateLimitResponse(spec),
     },
     // Открытый маршрут: схема авторизации документа по умолчанию к нему не относится.
     ...(spec.public ? { security: [] } : {}),
@@ -228,6 +254,7 @@ export function buildOpenApiDocument(baseUrl = 'http://localhost:3000'): JsonSch
         },
       },
       schemas: { Error: ERROR_SCHEMA },
+      responses: { RateLimited: RATE_LIMITED_RESPONSE },
     },
     security: [{ sessionCookie: [] }],
   }

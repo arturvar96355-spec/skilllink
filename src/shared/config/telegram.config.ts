@@ -20,7 +20,7 @@ export const TELEGRAM_WEBHOOK = {
   maxBodyBytes: 256 * 1024,
   /**
    * Сколько суток помнить обработанный update_id (таблица telegram_updates_seen,
-   * решение 123). Telegram повторяет недоставленное обновление не дольше суток —
+   * решение 133). Telegram повторяет недоставленное обновление не дольше суток —
    * неделя с запасом.
    */
   seenRetentionDays: 7,
@@ -28,7 +28,7 @@ export const TELEGRAM_WEBHOOK = {
   purgeEveryInserts: 100,
 } as const
 
-/** Имя записи в system_secrets для секрета вебхука (решение 123). */
+/** Имя записи в system_secrets для секрета вебхука (решение 133). */
 export const TELEGRAM_WEBHOOK_SECRET_NAME = 'telegram.webhook'
 
 /** Сводка «что горит у меня». */

@@ -133,7 +133,7 @@ export interface UniversityDto extends UniversityListItemDto {
 }
 
 /**
- * POST /api/contacts/:id/reveal (решение 123): раскрытые почта и телефон контакта.
+ * POST /api/contacts/:id/reveal (решение 133): раскрытые почта и телефон контакта.
  * Каждое раскрытие — запись `contact.revealed` в журнале с перечнем полей и причиной.
  * Не кэшировать и не сохранять на клиенте дольше, чем нужно для показа.
  */

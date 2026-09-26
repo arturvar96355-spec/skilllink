@@ -184,7 +184,7 @@ export type WithdrawConsentBody = z.infer<typeof withdrawConsentSchema>
 
 export const contactBasisHistoryQuerySchema = paginationSchema
 
-/** POST /api/contacts/:id/reveal (решение 123): какие поля и зачем. */
+/** POST /api/contacts/:id/reveal (решение 133): какие поля и зачем. */
 export const revealContactSchema = z.object({
   /** Какие поля раскрыть; не передано — оба. */
   fields: z.array(z.enum(['email', 'phone'])).min(1).max(2).optional(),

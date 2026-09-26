@@ -16,7 +16,7 @@ export const GET = handle(async (request) => {
 
 /**
  * Создание связки сразу порождает все 14 этапов с чек-листами.
- * С заголовком Idempotency-Key повтор не создаёт вторую связку (решение 123).
+ * С заголовком Idempotency-Key повтор не создаёт вторую связку (решение 133).
  */
 export const POST = handle(async (request) => {
   const user = await getCurrentUser()

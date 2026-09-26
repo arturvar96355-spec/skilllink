@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type CSSProperties } from 'react'
 import { Icon } from '../primitives/Icon'
+import { useEscape } from '../hooks/dom'
 import { Logo } from './Logo'
 import { isActiveItem, type NavGroup } from './navigation'
 import { NavPreview, hasPreview } from './NavPreview'
@@ -42,6 +43,9 @@ export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
   const [closedByClick, setClosedByClick] = useState<string | null>(null)
   /** Мини-сводка раздела у пункта под курсором (решение 79); только с мышью. */
   const [preview, setPreview] = useState<{ href: string; anchor: DOMRect } | null>(null)
+
+  // Открытое на узком экране меню закрывается по Escape, как любое всплывающее окно.
+  useEscape(onClose, isOpen)
 
   // Переход на другую страницу закрывает меню на узком экране.
   useEffect(() => {

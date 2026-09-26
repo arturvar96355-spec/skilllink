@@ -133,6 +133,9 @@ DEMO_PASSWORD=<пароль> scripts/deploy/check.sh https://<домен>
 
 - приложение видит базу и миграции применены;
 - вход без пароля выключен (`/api/me` без сессии отвечает 401);
+- ответы API несут заголовки ограничения частоты `RateLimit-*` (решение 117) — один
+  запрос, предел не исчерпывается. Caddyfile для этого не менялся, перезапуск Caddy
+  не нужен;
 - защитные заголовки на месте;
 - у страниц полная Content-Security-Policy: скрипты только по nonce, без `unsafe-eval`,
   за HTTPS — с `upgrade-insecure-requests` (решение 112);
@@ -172,7 +175,7 @@ ssh skilllink@<адрес> "ss -tlnp | grep -E '3000|5432'"
 | `database: database-missing` | Сервер отвечает, базы с таким именем нет | Проверьте `POSTGRES_DB` |
 | `schema: missing` | Миграции не применены | Повторите развёртывание |
 | `status: misconfigured` | Не задан `AUTH_SECRET` или `DATABASE_URL` | Проверьте `~/skilllink/.env.cloud` |
-| Приложение не отвечает совсем, `/api/health` недоступен | С 26.09.2026 (решение 123) слабый `AUTH_SECRET` или отсутствующий `DATABASE_URL` останавливают процесс при старте, до первого ответа — раздел 10 | `docker compose -p skilllink logs --tail 50 app`: строка `[env] сервер не запущен: ошибка настройки` |
+| Приложение не отвечает совсем, `/api/health` недоступен | С 26.09.2026 (решение 133) слабый `AUTH_SECRET` или отсутствующий `DATABASE_URL` останавливают процесс при старте, до первого ответа — раздел 10 | `docker compose -p skilllink logs --tail 50 app`: строка `[env] сервер не запущен: ошибка настройки` |
 
 Журналы:
 
@@ -246,10 +249,60 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 
 Образ `migrate` — тот же, что у перезаливки (`reseed.sh`): в нём есть `scripts/` и `tsx`.
 
+С решения 115 чистка удаляет только начало цепочки хешей журнала и записывает точку чистки
+(`audit_chain_cuts`) — проверка цепочки после неё проходит без пересчёта.
+
 Без флага он только показывает, что удалит и где сотрёт адрес. Применить — добавить
 `-- --apply`. **На демо-стенде до защиты не применять:** демо-набор начинается 400 дней
 назад, и журнал завершённой связки уйдёт — изменится «Операций на связку».
 Расписание (cron владельца сервера) пока не включено.
+
+### Журнал действий: проверка и печати (решение 115)
+
+Журнал только дописывается и защищён цепочкой хешей. После выкладки миграции
+`20260926000000_audit_hash_chain` **один раз перезапустить `create-app-role.sql`**
+(раздел «Роль базы для приложения»): права по умолчанию дали роли приложения UPDATE
+и DELETE на новые таблицы печатей и точек чистки, скрипт их снимает. Миграция на время
+заполнения закрывает журнал на запись — на стенде это доли секунды.
+
+Проверить цепочку (код 1 — нарушение, 2 — не удалось проверить; stdout — одна строка JSON):
+
+```bash
+ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f docker-compose.yml \
+  -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud \
+  --profile migrate run --rm -T migrate npm run -s audit:verify'
+```
+
+Снять печать (`{"id","headSeq","headHash","count","at"}` на stdout) — её нужно сохранить
+**вне сервера**: отправка владельцу в Telegram — отдельная задача (owner-alerts):
+
+```bash
+... --profile migrate run --rm -T migrate npm run -s audit:seal
+```
+
+Сверить журнал с печатью из сообщения (например, после подозрения на взлом сервера —
+печати в базе злоумышленник мог удалить вместе с хвостом журнала):
+
+```bash
+... --profile migrate run --rm -T migrate npm run -s audit:verify -- --expect-seq 398 --expect-hash cdabd190…2e0b
+```
+
+В рабочем образе приложения нет ни `scripts/`, ни `tsx` — поэтому через `migrate`, как
+сроки хранения и сводка. `docker compose exec app npm run …` **не сработает**. Если печать
+снимает само приложение (из кода, `auditSeal()` в `src/modules/audit/chain.service.ts`),
+роли приложения на это хватает прав.
+
+Строки для cron владельца сервера (пока **не поставлены**): печать — раз в сутки, чем чаще,
+тем меньше окно, в которое удаление хвоста журнала не видно; проверка — следом:
+
+```cron
+50 2 * * * cd ~/skilllink/app && flock -n /tmp/skilllink-audit.lock docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud --profile migrate run --rm -T migrate npm run -s audit:verify >> ~/skilllink/audit-chain.log 2>&1
+55 2 * * * cd ~/skilllink/app && flock -n /tmp/skilllink-audit.lock docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud --profile migrate run --rm -T migrate npm run -s audit:seal >> ~/skilllink/audit-seals.log 2>&1
+```
+
+Файл `audit-seals.log` лежит на том же сервере — от владельца сервера он не защищает;
+защищает только копия вне сервера. Перезаливка демо (`reseed.sh`) начинает журнал
+заново с № 1 и удаляет печати — печати, снятые до неё, больше не сверяются.
 
 ### Сводка в Telegram по расписанию (решение 102)
 
@@ -652,7 +705,7 @@ pg_restore -l skilllink-2026-09-25.dump | head
 отказы (оборванная, пустая, устаревшая копия, чужой пароль, испорченный объект,
 недоступное хранилище, рабочая база как цель) и отсутствие секретов в журнале.
 
-## 10. Безопасность, волна 2 (решение 123)
+## 10. Безопасность, волна 2 (решение 133)
 
 **Сервер отказывается стартовать со слабой настройкой.** С 26.09.2026 `src/instrumentation.ts`
 проверяет окружение при подъёме процесса (только `NODE_ENV=production`, `next build` это

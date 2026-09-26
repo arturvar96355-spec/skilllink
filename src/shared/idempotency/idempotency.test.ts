@@ -69,7 +69,7 @@ async function codeOf(promise: Promise<Response>): Promise<number | string> {
   }
 }
 
-describe('ключ идемпотентности (решение 123)', () => {
+describe('ключ идемпотентности (решение 133)', () => {
   it('гонка: 10 одновременных запросов с одним ключом — создан ровно один объект', async () => {
     const store = memoryStore()
     const { run, count } = creator()

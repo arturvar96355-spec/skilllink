@@ -38,7 +38,7 @@ export async function writeAudit(entry: AuditEntry, client: Client = prisma): Pr
     })
   } catch (error) {
     // Ошибка — через общий журнал: текст Prisma с payload (в нём бывают ФИО и контакты)
-    // урезается до причины, почта и телефоны маскируются (решение 123).
+    // урезается до причины, почта и телефоны маскируются (решение 133).
     log.error('[AUDIT] не удалось записать действие', { action: entry.action, err: error })
   }
 }

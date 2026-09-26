@@ -239,7 +239,7 @@ describe('изменение пользователя', () => {
     )
   })
 
-  describe('«четыре глаза» (решение 123, APPROVALS_REQUIRED=true)', () => {
+  describe('«четыре глаза» (решение 133, APPROVALS_REQUIRED=true)', () => {
     beforeEach(() => vi.stubEnv('APPROVALS_REQUIRED', 'true'))
     afterEach(() => vi.unstubAllEnvs())
 

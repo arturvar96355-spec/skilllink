@@ -4,7 +4,7 @@ import { authSecretProblem, checkEnvironment, shouldCheckEnvironment } from './e
 const GOOD_SECRET = 'q7Zr1bVx0pLm3Ns8Tt5Yw2Ke9Hd4Gf6Aa1Bc2De3Ff='
 const DB = 'postgresql://skilllink:pw@localhost:5432/skilllink?schema=public'
 
-describe('проверка окружения при старте (решение 123)', () => {
+describe('проверка окружения при старте (решение 133)', () => {
   it('годное окружение — без ошибок', () => {
     expect(checkEnvironment({ AUTH_SECRET: GOOD_SECRET, DATABASE_URL: DB, AUTH_URL: 'https://x.test' })).toEqual({
       errors: [],
@@ -16,7 +16,7 @@ describe('проверка окружения при старте (решени�
     expect(authSecretProblem(undefined)).toMatch(/не задан/)
     expect(authSecretProblem('   ')).toMatch(/не задан/)
     expect(authSecretProblem('short-secret')).toMatch(/короче 32/)
-    // Значение из CI до решения 123 — короткое, в промышленном режиме не годится.
+    // Значение из CI до решения 133 — короткое, в промышленном режиме не годится.
     expect(authSecretProblem('ci-secret-not-for-production')).toMatch(/короче/)
     expect(authSecretProblem('skilllink-dev-secret-not-for-production')).toMatch(/запасным значением/)
     expect(authSecretProblem('ab'.repeat(20))).toMatch(/повторяющихся/)

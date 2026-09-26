@@ -271,6 +271,104 @@ describe('сводка «что горит у меня»', () => {
     expect(result.text.split('\n').filter((line) => line.startsWith('• '))).toHaveLength(TELEGRAM_DIGEST.perSection)
   })
 
+  it('пульс (решение 120): «Внимание», «Сегодня», «Решить», «Успехи» и счётчик правил', () => {
+    const extras = {
+      stalled: [
+        {
+          cooperationId: 'c-5',
+          stageNumber: 6,
+          stageTitle: 'Подписание документов',
+          universityName: 'УрФУ',
+          programName: 'Безопасность',
+          idleDays: 40,
+          thresholdDays: 21,
+          thresholdSource: 'km' as const,
+        },
+      ],
+      meetingsWithoutResult: [],
+      meetingsToday: [
+        {
+          meetingId: 'm-1',
+          topic: 'Согласование договора',
+          date: new Date(now + 60 * 60 * 1000),
+          nextAction: null,
+          nextActionDueAt: null,
+          cooperationId: 'c-5',
+          label: 'УрФУ — Безопасность',
+        },
+      ],
+      actionsToday: [],
+      completions: [
+        {
+          stageId: 's-9',
+          stageNumber: 3,
+          stageTitle: 'Организация встречи',
+          cooperationId: 'c-9',
+          universityName: 'МТУСИ',
+          programName: 'Анализ данных',
+          at: new Date(now - 60 * 60 * 1000),
+        },
+      ],
+      insights: [
+        {
+          code: 'anomaly.stage_transitions.down',
+          severity: 'warning' as const,
+          title: 'Переходы этапов: за 7 дней на 60% меньше обычного',
+          detail: '',
+          facts: {},
+          link: '/analytics?tab=insights',
+        },
+      ],
+      insightChecks: 8,
+    }
+    const result = digest({
+      recommendations: [
+        recommendation({ status: 'NEW', createdAt: new Date(now - 9 * DAY) }),
+        recommendation({ id: 'r-dup', ruleKey: 'cooperation.stalled', cooperationId: 'c-5', status: 'NEW', createdAt: new Date(now - 9 * DAY) }),
+      ],
+      extras,
+    })
+    expect(result.isEmpty).toBe(false)
+    expect(result.text).toContain('проверено 19 правил')
+    expect(result.text).toContain('ВНИМАНИЕ')
+    expect(result.text).toContain('Застряло дольше обычного — 1')
+    expect(result.text).toContain('Система заметила — 1')
+    expect(result.text).toContain('СЕГОДНЯ')
+    expect(result.text).toContain('Встречи сегодня — 1')
+    expect(result.text).toContain('Ждут решения больше 7 дней — 1')
+    expect(result.text).not.toContain('recommendation=r-dup')
+    expect(result.text).toContain('УСПЕХИ')
+    expect(result.text).toContain('Закрыты этапы за сутки — 1')
+    expect(result.counts.recommendations).toBe(1)
+  })
+
+  it('только успехи — сводка уходит, но «внимания ничего не требует»', () => {
+    const result = digest({
+      extras: {
+        stalled: [],
+        meetingsWithoutResult: [],
+        meetingsToday: [],
+        actionsToday: [],
+        completions: [
+          {
+            stageId: 's-1',
+            stageNumber: 2,
+            stageTitle: 'Связь',
+            cooperationId: 'c-1',
+            universityName: 'СПбГУТ',
+            programName: 'ПИ',
+            at: new Date(now),
+          },
+        ],
+        insights: [],
+        insightChecks: 0,
+      },
+    })
+    expect(result.isEmpty).toBe(false)
+    expect(result.text).toContain('Внимания ничего не требует.')
+    expect(result.text).toContain('Закрыты этапы за сутки — 1')
+  })
+
   it('в тексте нет почт и телефонов — только названия и сроки', () => {
     const result = digest({ stages: [stage({})], recommendations: [recommendation({})] })
     expect(result.text).not.toMatch(/@|\+7|\d{3}-\d{2}-\d{2}/)

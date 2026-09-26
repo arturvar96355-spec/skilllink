@@ -5,7 +5,7 @@ import * as service from '@/modules/approvals/approvals.service'
 type Context = { params: Promise<{ id: string }> }
 
 /**
- * Одобрить запрос (решение 123): только другой администратор, не автор; ждущий и не истёкший.
+ * Одобрить запрос (решение 133): только другой администратор, не автор; ждущий и не истёкший.
  * Тело не нужно.
  */
 export const POST = handle<Context>(async (_request, context) => {

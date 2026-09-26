@@ -4,6 +4,7 @@ import { log } from '@/shared/log/logger'
 import { runWithRequestId } from '@/shared/log/request-context'
 import { AppError, fromZod, notFound } from './errors'
 import { assertSameOrigin } from './origin'
+import { withRateLimit } from './rate-limit-guard'
 import { REQUEST_ID_HEADER, resolveRequestId } from './request-id'
 import { fail } from './response'
 
@@ -96,9 +97,12 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
 
 /**
  * Единая обёртка обработчика маршрута: ловит всё и отдаёт ответ в формате контракта.
+ * Первым делом — ограничение частоты запросов (rate-limit-guard.ts, решение 117):
+ * отказ 429 обходится без запроса к базе и без самого обработчика, остальные ответы
+ * получают заголовки `RateLimit-*`.
  * Изменяющие запросы с чужим `Origin` отклоняет (origin.ts).
  * Никакие подробности внутренней ошибки наружу не уходят — ни клиенту, ни в журнал
- * вместе с данными запроса (shared/log, решение 123).
+ * вместе с данными запроса (shared/log, решение 133).
  *
  * Номер запроса (`x-request-id`, его ставит middleware; нет — выдаётся здесь) виден
  * журналу на всю глубину вызова и уходит в заголовок ответа; ответ 500 несёт его
@@ -107,7 +111,7 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
 export function handle<Ctx>(
   fn: (request: Request, context: Ctx) => Promise<Response>,
 ): (request: Request, context: Ctx) => Promise<Response> {
-  return async (request, context) => {
+  return withRateLimit(async (request: Request, context: Ctx) => {
     const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
     const response = await runWithRequestId(requestId, async () => {
       try {
@@ -129,7 +133,7 @@ export function handle<Ctx>(
     })
     trySetHeader(response, REQUEST_ID_HEADER, requestId)
     return response
-  }
+  })
 }
 
 /** Ответ 500: без подробностей, но с номером запроса для обращения в поддержку. */

@@ -3,7 +3,7 @@ import { created, handle, okList, parseBody, parseQuery } from '@/shared/http'
 import * as service from '@/modules/approvals/approvals.service'
 import { approvalListQuerySchema, createApprovalSchema } from '@/modules/approvals/approvals.schema'
 
-/** Запросы на одобрение опасных операций (решение 123). Только администратор. */
+/** Запросы на одобрение опасных операций (решение 133). Только администратор. */
 export const GET = handle(async (request) => {
   const user = await getCurrentUser()
   const query = parseQuery(request, approvalListQuerySchema)

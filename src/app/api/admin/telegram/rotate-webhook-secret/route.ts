@@ -3,7 +3,7 @@ import { handle, ok } from '@/shared/http'
 import * as service from '@/modules/telegram/telegram.service'
 
 /**
- * Смена секрета вебхука Telegram (решение 123). Только администратор.
+ * Смена секрета вебхука Telegram (решение 133). Только администратор.
  * Сначала setWebhook у Telegram с новым секретом, при успехе — хеш в базу;
  * отказ Telegram — 502, прежний секрет продолжает действовать. Секрета нет
  * ни в ответе, ни в журнале. Тело не нужно.

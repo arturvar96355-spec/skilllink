@@ -13,7 +13,7 @@
   border-radius: 12px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 30%),
-    var(--text-primary);
+    var(--tag-paper);
   color: var(--text-on-light);
   box-shadow:
     0 30px 60px rgba(0, 0, 0, 0.55),
@@ -57,7 +57,7 @@
   height: 26px;
   border-radius: 4px;
   background: var(--text-on-light);
-  color: var(--text-primary);
+  color: var(--tag-paper);
   font-size: var(--text-caption-size);
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -71,8 +71,8 @@
 .status {
   padding: 2px 8px;
   border-radius: var(--radius-pill);
-  background: var(--accent-violet);
-  color: var(--text-primary);
+  background: var(--tag-accent);
+  color: var(--tag-paper);
   font-size: var(--text-caption-size);
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -85,15 +85,14 @@
   top: 232px;
   right: 16px;
   padding: 1px 6px;
-  border: 2px solid var(--accent-orange);
+  border: 2px solid var(--tag-stamp);
   border-radius: 4px;
-  color: var(--accent-orange);
+  color: var(--tag-stamp);
   font-size: var(--text-caption-size);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   transform: rotate(-8deg);
-  opacity: 0.85;
 }
 
 .label {
@@ -201,7 +200,7 @@
 
 /* Белый логотип (СПбГУТ) — на тёмной фирменной подложке. */
 .logoPlateDark {
-  background: var(--surface-2);
+  background: var(--tag-plate-dark);
 }
 
 .logo {

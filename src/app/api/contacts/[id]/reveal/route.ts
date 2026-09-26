@@ -7,7 +7,7 @@ import { revealContactSchema } from '@/modules/universities/universities.schema'
 type Context = { params: Promise<{ id: string }> }
 
 /**
- * Раскрыть почту и/или телефон контакта вуза с причиной (решение 123).
+ * Раскрыть почту и/или телефон контакта вуза с причиной (решение 133).
  * ADMIN, MANAGER; представитель вуза — контакты своего вуза. Каждое раскрытие —
  * запись `contact.revealed` в журнале. Ответ не кэшируется.
  */

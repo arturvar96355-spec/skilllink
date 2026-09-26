@@ -189,7 +189,7 @@ export async function loadUniversityEvents(universityId: string, limit: number) 
   return { cooperations, stageHistory, documentHistory, meetings, applications }
 }
 
-// ─────────────── Выгрузка для внешней системы сбора событий (решение 123) ───────────────
+// ─────────────── Выгрузка для внешней системы сбора событий (решение 133) ───────────────
 
 /**
  * Записи журнала после `afterId` в порядке (время, id) — все колонки модели,

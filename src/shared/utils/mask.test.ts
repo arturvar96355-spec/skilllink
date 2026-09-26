@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { maskEmailForDisplay, maskPhoneForDisplay } from './mask'
 
-describe('маски почты и телефона для ответов (решение 123)', () => {
+describe('маски почты и телефона для ответов (решение 133)', () => {
   it('почта: первая буква и домен', () => {
     expect(maskEmailForDisplay('ivanov@x.ru')).toBe('i***@x.ru')
     expect(maskEmailForDisplay('  a.b@univ.example.ru ')).toBe('a***@univ.example.ru')

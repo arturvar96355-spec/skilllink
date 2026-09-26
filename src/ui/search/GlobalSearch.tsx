@@ -9,6 +9,7 @@ import { useResource } from '../hooks/useResource'
 import { useDebounced, useEscape } from '../hooks/dom'
 import { buildQuery } from '../lib/api'
 import { searchItemHref } from '../lib/links'
+import { OPEN_SEARCH_EVENT } from './search-events'
 import styles from './Search.module.css'
 
 const TYPE_ICONS: Record<SearchEntityType, IconName> = {
@@ -50,6 +51,8 @@ export function GlobalSearch() {
   const [position, setPosition] = useState<Position | null>(null)
   const windowRef = useRef<HTMLDivElement | null>(null)
   const fabRef = useRef<HTMLButtonElement | null>(null)
+  /** Откуда открыли: кнопка в шапке или плавающая кнопка — окно растёт из неё. */
+  const originRef = useRef<HTMLElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
   const dragOffset = useRef<Position | null>(null)
 
@@ -67,6 +70,16 @@ export function GlobalSearch() {
     if (isOpen) close()
     else setIsOpen(true)
   }, [isOpen, close])
+
+  // Открытие из шапки и меню (search-events): окно растёт из нажатой кнопки.
+  useEffect(() => {
+    function handle(event: Event) {
+      originRef.current = (event as CustomEvent<{ from: HTMLElement | null }>).detail?.from ?? null
+      setIsOpen(true)
+    }
+    window.addEventListener(OPEN_SEARCH_EVENT, handle)
+    return () => window.removeEventListener(OPEN_SEARCH_EVENT, handle)
+  }, [])
 
   // Ctrl + K — привычное сочетание для поиска; на macOS то же самое с ⌘.
   useEffect(() => {
@@ -88,7 +101,10 @@ export function GlobalSearch() {
   useLayoutEffect(() => {
     if (!isOpen) return
     const node = windowRef.current
-    const fab = fabRef.current
+    // Из видимой кнопки: плавающая на десктопе скрыта — тогда из кнопки в шапке.
+    const candidates = [originRef.current, fabRef.current, document.querySelector<HTMLElement>('[data-search-trigger]')]
+    const fab = candidates.find((element) => element && element.getBoundingClientRect().width > 0) ?? null
+    originRef.current = null
     if (!node || !fab || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const from = fab.getBoundingClientRect()
     const to = node.getBoundingClientRect()

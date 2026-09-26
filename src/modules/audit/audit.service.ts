@@ -149,7 +149,7 @@ export async function universityEvents(
   return { events: events.slice(0, query.limit), hasMore: events.length > query.limit }
 }
 
-// ─────────────── Выгрузка для внешней системы сбора событий (решение 123) ───────────────
+// ─────────────── Выгрузка для внешней системы сбора событий (решение 133) ───────────────
 
 /** BigInt (номер в цепочке журнала) — строкой: в JSON чисел больше 2^53 нет. */
 function ndjsonReplacer(_key: string, value: unknown): unknown {

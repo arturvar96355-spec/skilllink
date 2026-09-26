@@ -121,7 +121,7 @@ export function resetSpentLinkTokens(): void {
  */
 const WEBHOOK_SECRET_PATTERN = /^[A-Za-z0-9_-]{1,256}$/
 
-/** SHA-256 секрета вебхука в hex — в таком виде он хранится в system_secrets (решение 123). */
+/** SHA-256 секрета вебхука в hex — в таком виде он хранится в system_secrets (решение 133). */
 export function webhookSecretHash(secret: string): string {
   return createHash('sha256').update(secret, 'utf8').digest('hex')
 }

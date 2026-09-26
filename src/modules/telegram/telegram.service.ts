@@ -12,7 +12,7 @@ import { forbidden, integrationError } from '@/shared/http/errors'
 import { addDays } from '@/shared/utils/date'
 import { getIntegrationsConfig, type TelegramConfig } from '@/integrations/config'
 import { TelegramClient } from '@/integrations/telegram'
-import * as recommendationsService from '@/modules/recommendations/recommendations.service'
+import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
 import {
   consumeLinkToken,
@@ -20,7 +20,7 @@ import {
   matchesWebhookSecretHash,
   webhookSecretHash,
 } from './telegram.link-token'
-import { BOT_REPLIES, buildDigest, parseCommand, type Digest, type DigestRecommendationSource } from './telegram.rules'
+import { BOT_REPLIES, buildDigest, parseCommand, type Digest } from './telegram.rules'
 import type { TelegramUpdate } from './telegram.schema'
 import { log } from '@/shared/log/logger'
 
@@ -107,33 +107,13 @@ export async function disconnect(user: CurrentUser): Promise<TelegramStatusDto> 
 
 // ─────────────────────────────── Сводка ─────────────────────────────────────
 
-function relatedStageNumber(relatedData: Record<string, unknown> | null): number | null {
-  const value = relatedData?.stageNumber
-  return typeof value === 'number' ? value : null
-}
-
 /**
- * Сводка «что горит у меня»: этапы связок пользователя и открытые рекомендации
- * по ним. Право — как у рекомендаций (аналитика): представителю вуза сводки нет.
+ * Сводка «что горит у меня» — текст пульса (решение 120): этапы связок пользователя,
+ * открытые рекомендации по ним и расширения пульса. Право — как у рекомендаций
+ * (аналитика): представителю вуза сводки нет.
  */
 export async function digestFor(user: CurrentUser, now = new Date()): Promise<Digest> {
-  assertCan(user, 'ANALYTICS')
-  const [stages, recommendationRows] = await Promise.all([
-    repo.findDigestStages(user.id, now, TELEGRAM_DIGEST.stagesFetch),
-    repo.findOpenRecommendationsOf(user.id, TELEGRAM_DIGEST.recommendationsFetch),
-  ])
-  const recommendations = (await recommendationsService.toRecommendationDtos(recommendationRows)).map(
-    (item): DigestRecommendationSource => ({
-      id: item.id,
-      ruleKey: item.ruleKey,
-      stageNumber: relatedStageNumber(item.relatedData),
-      title: item.title,
-      label: item.target.label,
-      priority: item.priority,
-      cooperationId: item.cooperationId,
-    }),
-  )
-  return buildDigest({ stages, recommendations }, { now, baseUrl: publicBaseUrl() })
+  return buildDigest(await pulseSourcesFor(user, now), { now, baseUrl: publicBaseUrl() })
 }
 
 export interface DigestRunSummary {
@@ -211,7 +191,7 @@ export async function sendDigests(options: {
 
 /**
  * SHA-256 действующего секрета вебхука. Сменённый администратором (system_secrets,
- * решение 123) главнее TELEGRAM_WEBHOOK_SECRET: переменная окружения статична,
+ * решение 133) главнее TELEGRAM_WEBHOOK_SECRET: переменная окружения статична,
  * а после смены Telegram присылает уже новый секрет. Ни того ни другого — null,
  * вебхук закрыт для всех.
  */
@@ -234,7 +214,7 @@ export async function assertWebhookSecret(received: string | null): Promise<void
 let insertsSincePurge = 0
 
 /**
- * Принять обновление к выполнению: true — впервые, false — повтор (решение 123).
+ * Принять обновление к выполнению: true — впервые, false — повтор (решение 133).
  *
  * Отметка — в базе (telegram_updates_seen), а не в памяти: Telegram повторяет
  * обновление, не дождавшись ответа, и повтор после перезапуска процесса больше
@@ -261,7 +241,7 @@ export function resetSeenUpdates(): void {
   insertsSincePurge = 0
 }
 
-// ─────────────────────── Смена секрета вебхука (решение 123) ───────────────────────
+// ─────────────────────── Смена секрета вебхука (решение 133) ───────────────────────
 
 /** Одна смена за раз: две одновременные оставили бы в базе не тот секрет, что у Telegram. */
 let rotation: Promise<unknown> = Promise.resolve()

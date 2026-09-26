@@ -18,7 +18,7 @@ import {
 import type { ApprovalListQuery, CreateApprovalInput } from './approvals.schema'
 
 /**
- * «Четыре глаза» для опасных операций (решение 123).
+ * «Четыре глаза» для опасных операций (решение 133).
  *
  * Поток: администратор A запрашивает операцию (`request`) → администратор B,
  * не A, одобряет (`approve`) → A выполняет операцию, передав `approvalId`,
@@ -160,7 +160,7 @@ export function approvalRequiredError(action: ApprovalAction, message: string): 
 }
 
 /**
- * Потребовать одобрение операции (решение 123). Выключено (APPROVALS_REQUIRED
+ * Потребовать одобрение операции (решение 133). Выключено (APPROVALS_REQUIRED
  * не true) — ничего не делает и возвращает false.
  *
  * Включено: без `approvalId` — 403 `{ approvalRequired: true, action }`; с ним —

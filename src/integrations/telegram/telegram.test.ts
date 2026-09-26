@@ -116,7 +116,7 @@ describe('sendMessage', () => {
   it('токен не попадает в журнал, даже если он есть в тексте ошибки', async () => {
     const { transport } = scripted([new Error(`connect ECONNREFUSED /bot${TOKEN}/sendMessage`)])
     await new TelegramClient(config(), { transport, wait: noWait }).sendMessage('42', 'секретный текст')
-    // Строки журнала — JSON (решение 123); время в них может содержать «42», его не смотрим.
+    // Строки журнала — JSON (решение 133); время в них может содержать «42», его не смотрим.
     const logged = warn.mock.calls
       .flat()
       .map((line: unknown) => String(line).replace(/"ts":"[^"]*"/, ''))

@@ -202,7 +202,7 @@ describe('GET /api/universities/:id — контакты по ролям', () =>
   })
 })
 
-describe('раскрытие почты и телефона с журналом (решение 123)', () => {
+describe('раскрытие почты и телефона с журналом (решение 133)', () => {
   const REASON = 'Согласовать дату подписания соглашения, пишите ivanov@univ.ru'
   beforeEach(() => {
     audit.writeAudit.mockReset()

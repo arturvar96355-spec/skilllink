@@ -190,7 +190,7 @@ export async function createUser(user: CurrentUser, input: CreateUserInput): Pro
 
   const assignment = resolveRoleAssignment(null, input)
   await assertUniversityForRep(assignment.universityId)
-  // «Четыре глаза» (решение 123): одобрение выдаётся на существующего пользователя,
+  // «Четыре глаза» (решение 133): одобрение выдаётся на существующего пользователя,
   // поэтому администратора заводят в два шага — с другой ролью, затем назначают.
   if (assignment.role === 'ADMIN' && approvalsRequired()) {
     throw approvalRequiredError(
@@ -270,7 +270,7 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
         : {}),
     }
   }, async (tx, { before, after }) => {
-    // «Четыре глаза» (решение 123): назначение администратором и блокировка
+    // «Четыре глаза» (решение 133): назначение администратором и блокировка
     // администратора — только по одобрению другого администратора, если оно
     // включено. В той же транзакции: не подошло одобрение — изменение откатится.
     for (const action of userChangeApprovals(before, after)) {

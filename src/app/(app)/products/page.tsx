@@ -17,6 +17,7 @@ import {
   DataTable,
   Drawer,
   EmptyState,
+  ResetFilters,
   ErrorState,
   Icon,
   Input,
@@ -110,7 +111,7 @@ function ProductsView() {
 
   const rows = products.data ?? []
   const meta = products.meta
-  const hasFilters = query !== '' || status !== ''
+  const hasFilters = search.trim() !== '' || status !== ''
   const marks = mockMarks(rows)
 
   function closeProduct() {
@@ -204,7 +205,7 @@ function ProductsView() {
         }
       />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -247,9 +248,7 @@ function ProductsView() {
             }
             action={
               hasFilters ? (
-                <Button icon="refresh" onClick={resetFilters}>
-                  Сбросить фильтры
-                </Button>
+                <ResetFilters active onReset={resetFilters} />
               ) : user.permissions.canWrite ? (
                 <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                   Добавить продукт

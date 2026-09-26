@@ -48,6 +48,9 @@ vi.mock('@/modules/recommendations/recommendations.service', () => ({
   toRecommendationDtos: mocks.toRecommendationDtos,
 }))
 vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))
+// Расширения пульса (решение 120) — застой, встречи, «Система заметила» — ходят в базу;
+// здесь проверяется бот, поэтому сводка собирается из этапов и рекомендаций, как раньше.
+vi.mock('@/modules/analytics/pulse.extras', () => ({ loadPulseExtras: async () => null }))
 vi.mock('@/integrations/config', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/integrations/config')>()
   return {
@@ -232,7 +235,7 @@ describe('вебхук', () => {
     expect(mocks.writeAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'telegram.unlink' }))
   })
 
-  it('повтор того же update_id: отметка в базе, второй раз — false (решение 123)', async () => {
+  it('повтор того же update_id: отметка в базе, второй раз — false (решение 133)', async () => {
     expect(await service.acceptUpdate(9001)).toBe(true)
     expect(await service.acceptUpdate(9001)).toBe(false)
     expect(await service.acceptUpdate(9002)).toBe(true)
@@ -267,7 +270,7 @@ describe('вебхук', () => {
   })
 })
 
-describe('смена секрета вебхука (решение 123)', () => {
+describe('смена секрета вебхука (решение 133)', () => {
   const admin: CurrentUser = { ...manager, id: 'cmuser0admin00000000000000', role: 'ADMIN' }
 
   /** Клиент, чей setWebhook запоминает секрет вместо отправки в Telegram. */

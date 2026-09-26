@@ -4,7 +4,7 @@ import { APPROVAL_ACTIONS, type ApprovalAction } from '@/shared/contracts/approv
 import type { UserRole } from '@/shared/contracts/enums'
 
 /**
- * Правила «четырёх глаз» (решение 123) — чистые функции без базы.
+ * Правила «четырёх глаз» (решение 133) — чистые функции без базы.
  */
 
 const idSchema = z.string().trim().min(1).max(64)

@@ -196,7 +196,7 @@ export function planBasisChange(
     consentWithdrawnAt: null,
     basisReference: input.documentReference,
     withdrawalReference: null,
-    // Запись согласия (решение 123): редакция политики и хеш текста на момент получения.
+    // Запись согласия (решение 133): редакция политики и хеш текста на момент получения.
     consentPolicyVersion: isConsent ? (input.policyVersion ?? CONSENT_RECORD.policyVersion) : null,
     consentTextHash: isConsent ? consentTextHash(input.consentText ?? CONSENT_RECORD.consentText) : null,
     consentContext: isConsent ? (input.consentContext ?? null) : null,
@@ -281,7 +281,7 @@ export function planConsentWithdrawal(
       consentWithdrawnAt: withdrawnAt,
       basisReference: current.basisReference,
       withdrawalReference: input.withdrawalReference,
-      // Запись согласия остаётся: это основание акта (решение 123).
+      // Запись согласия остаётся: это основание акта (решение 133).
       consentPolicyVersion: current.consentPolicyVersion,
       consentTextHash: current.consentTextHash,
       consentContext: current.consentContext,

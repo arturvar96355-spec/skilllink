@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { auditExportQuerySchema } from './audit.schema'
 
-/** Выгрузка журнала для внешней системы (решение 123): NDJSON, курсор, запись о выгрузке. */
+/** Выгрузка журнала для внешней системы (решение 133): NDJSON, курсор, запись о выгрузке. */
 const mocks = vi.hoisted(() => ({ findAuditPageAfter: vi.fn(), writeAudit: vi.fn() }))
 vi.mock('./audit.repo', () => ({ findAuditPageAfter: mocks.findAuditPageAfter }))
 vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))

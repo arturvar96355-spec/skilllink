@@ -4,7 +4,7 @@ import type { ApprovalStatus } from '@/shared/contracts/approval'
 import { approvalPayloadHash, canonicalJson, userChangeApprovals } from './approvals.rules'
 
 /**
- * «Четыре глаза» (решение 123). Таблица одобрений — в памяти теста с той же
+ * «Четыре глаза» (решение 133). Таблица одобрений — в памяти теста с той же
  * семантикой условных UPDATE, что в approvals.repo.ts: одна строка меняется,
  * только если выполнено всё условие.
  */

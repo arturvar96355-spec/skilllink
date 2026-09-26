@@ -2,7 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 
 /**
- * Доступ к таблице idempotency_keys (решение 123). Захват ключа — одна вставка
+ * Доступ к таблице idempotency_keys (решение 133). Захват ключа — одна вставка
  * `ON CONFLICT DO NOTHING`: из одновременных запросов с одним ключом вставит
  * только один, остальные увидят его запись.
  */

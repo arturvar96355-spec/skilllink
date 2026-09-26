@@ -27,7 +27,7 @@ export interface TelegramConnectDto {
 }
 
 /**
- * POST /api/admin/telegram/rotate-webhook-secret (решение 123): секрет вебхука сменён.
+ * POST /api/admin/telegram/rotate-webhook-secret (решение 133): секрет вебхука сменён.
  * Самого секрета в ответе нет — его знает только Telegram, у нас хранится хеш.
  */
 export interface TelegramWebhookSecretRotatedDto {

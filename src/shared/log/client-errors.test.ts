@@ -3,7 +3,7 @@ import { POST } from '@/app/api/client-errors/route'
 import { captureLog } from './logger'
 import { CLIENT_ERRORS, ClientErrorLimiter, sanitizeClientError, stripQuery } from './client-errors'
 
-describe('ошибки фронтенда (решение 123)', () => {
+describe('ошибки фронтенда (решение 133)', () => {
   let restore: () => void = () => {}
   afterEach(() => restore())
 

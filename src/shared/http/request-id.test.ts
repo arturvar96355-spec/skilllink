@@ -6,7 +6,7 @@ import { handle } from './handle'
 import { notFound } from './errors'
 import { isValidRequestId, resolveRequestId } from './request-id'
 
-describe('номер запроса x-request-id (решение 123)', () => {
+describe('номер запроса x-request-id (решение 133)', () => {
   it('допустимый входящий принимается, недопустимый заменяется своим', () => {
     expect(resolveRequestId('abc-123')).toBe('abc-123')
     expect(isValidRequestId('a'.repeat(64))).toBe(true)

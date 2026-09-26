@@ -9,8 +9,8 @@ import {
   type UserDto,
 } from '@/shared/contracts'
 import {
-  Button,
   EmptyState,
+  ResetFilters,
   ErrorState,
   Icon,
   Input,
@@ -126,11 +126,7 @@ export function AuditSection() {
             hasFilters ? 'По выбранным условиям действий не найдено. Снимите часть фильтров.' : 'В журнале пока пусто.'
           }
           action={
-            hasFilters ? (
-              <Button variant="secondary" onClick={reset}>
-                Сбросить фильтры
-              </Button>
-            ) : undefined
+            hasFilters ? <ResetFilters active onReset={reset} /> : undefined
           }
         />
       )
@@ -148,13 +144,7 @@ export function AuditSection() {
     <>
       <div className={styles.filters}>
         <Toolbar
-          actions={
-            hasFilters ? (
-              <Button variant="ghost" size="sm" onClick={reset}>
-                Сбросить
-              </Button>
-            ) : undefined
-          }
+          actions={hasFilters ? <ResetFilters active onReset={reset} /> : undefined}
         >
           <ToolbarItem>
             <RemoteSelect<UserDto>

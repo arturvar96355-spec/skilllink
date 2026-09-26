@@ -43,7 +43,7 @@ import {
 
 /**
  * Почта и телефон прямо в карточке (решение 106) — если роль вправе их видеть
- * и не включён строгий режим раскрытия (CONTACT_REVEAL_REQUIRED, решение 123):
+ * и не включён строгий режим раскрытия (CONTACT_REVEAL_REQUIRED, решение 133):
  * тогда в карточке только маски, а значения — через раскрытие с журналом.
  */
 function canSeeContactDetails(user: CurrentUser, universityId?: string): boolean {
@@ -115,7 +115,7 @@ export function toContactDto(
     isAnonymized,
     // У обезличенного скрывать нечего — там «нет данных», а не «скрыто».
     contactDetailsHidden: !showDetails && !isAnonymized,
-    // Маски — всем, кто видит контакт (решение 123): вместо «скрыто» видно, что есть.
+    // Маски — всем, кто видит контакт (решение 133): вместо «скрыто» видно, что есть.
     emailMasked: isAnonymized ? null : maskEmailForDisplay(row.email),
     phoneMasked: isAnonymized ? null : maskPhoneForDisplay(row.phone),
     basisRecorded: row.legalBasis !== null,
@@ -557,7 +557,7 @@ export async function contactBasisHistory(
   return { data: rows.map(toBasisHistoryEntry), meta: pageMeta(pagination, total) }
 }
 
-// ─────────────── Раскрытие почты и телефона с журналом (решение 123) ───────────────
+// ─────────────── Раскрытие почты и телефона с журналом (решение 133) ───────────────
 
 /**
  * Раскрыть почту и/или телефон контакта с обязательной причиной. Каждое раскрытие —

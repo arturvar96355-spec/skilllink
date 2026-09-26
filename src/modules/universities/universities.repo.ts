@@ -216,7 +216,7 @@ export async function findContact(universityId: string, contactId: string): Prom
   return prisma.contact.findFirst({ where: { id: contactId, universityId }, select: contactSelect })
 }
 
-/** Контакт по одному идентификатору — для раскрытия (решение 123); вуз проверяет сервис. */
+/** Контакт по одному идентификатору — для раскрытия (решение 133); вуз проверяет сервис. */
 export async function findContactById(contactId: string): Promise<ContactRow | null> {
   return prisma.contact.findUnique({ where: { id: contactId }, select: contactSelect })
 }
