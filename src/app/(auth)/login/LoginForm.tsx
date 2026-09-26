@@ -255,7 +255,7 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
           </Button>
         </form>
 
-        {expertQuickLoginEnabled && (
+        {expertQuickLoginEnabled ? (
           <div className={styles.expertLogin}>
             <p className={styles.expertLoginTitle}>Вход для экспертов хакатона</p>
             <div className={styles.expertLoginButtons}>
@@ -275,6 +275,12 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
             </div>
             <p className={styles.note}>Только просмотр и выгрузки: изменения данных недоступны.</p>
           </div>
+        ) : (
+          // Кнопок нет (переменная EXPERT_QUICK_LOGIN выключена) — учётные записи
+          // экспертов по-прежнему есть (решение 147), вход в них — обычной формой выше.
+          <p className={styles.note}>
+            Экспертам хакатона: учётные записи — в описании решения на платформе конкурса.
+          </p>
         )}
 
         <p className={styles.note}>
