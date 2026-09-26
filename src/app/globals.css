@@ -341,8 +341,8 @@
   --surface-floating: rgba(255, 255, 255, 0.97);
   --bg-sidebar: rgba(255, 255, 255, 0.94);
   --bg-header: rgba(245, 244, 249, 0.8);
-  --bg-glow: rgba(124, 92, 240, 0.1);
-  --bg-glow-deep: rgba(124, 92, 240, 0.08);
+  --bg-glow: rgba(124, 92, 240, 0.2);
+  --bg-glow-deep: rgba(124, 92, 240, 0.13);
   --bg-haze-violet: rgba(124, 92, 240, 0.07);
   --bg-haze-deep: rgba(92, 60, 200, 0.06);
   --surface-card-muted: #faf9fd;
