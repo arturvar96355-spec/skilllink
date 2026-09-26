@@ -155,6 +155,19 @@ export const AUDIT_ACTIONS = [
   'approval.consumed',
   /** Выгрузка журнала для внешней системы сбора событий: курсор, число строк, последний id. */
   'audit.export',
+  /**
+   * Файлы к документам и этапам (решение 145): загрузка и удаление. В payload —
+   * владелец (тип и id), расширение, размер и sha256 — не оригинальное имя
+   * файла и не его содержимое.
+   */
+  'file.uploaded',
+  'file.deleted',
+  /**
+   * Приём данных извне (решение 145, ТЗ функц. п.5): что создано/обновлено —
+   * вуз, программа, связка — по внешнему идентификатору и источнику. Без ПД
+   * ответственных (только число писем-строк).
+   */
+  'import.external',
   // ── Решение 142: админка бота Telegram ──
   /** Токен бота сменён администратором. objectId — 'telegram.bot_token'; без самого токена. */
   'telegram.token_changed',
@@ -195,6 +208,7 @@ export const AUDIT_OBJECT_TYPES = [
   'SchoolCourse',
   'SystemSecret',
   'Approval',
+  'Attachment',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 
