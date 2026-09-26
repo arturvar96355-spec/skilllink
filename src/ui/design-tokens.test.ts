@@ -91,3 +91,29 @@ describe('переменные оформления', () => {
     expect(missing, `нет таких переменных: ${missing.join(', ')}`).toEqual([])
   })
 })
+
+/*
+ * Единая шкала шрифтов и в самой дизайн-системе (бриф v2, 1.1): кегль числом
+ * в компоненте — это второй, «почти такой же» размер. Исключения — инициалы
+ * в аватаре (привязаны к диаметру кружка) и подписи внутри SVG карты, где
+ * размер задаётся в единицах рисунка.
+ */
+describe('шрифты дизайн-системы', () => {
+  const EXEMPT = new Set(['src/ui/primitives/Avatar.module.css', 'src/ui/data/RussiaMap.module.css'])
+  const files = globSync('src/ui/**/*.module.css', { cwd: ROOT }).filter((file) => !EXEMPT.has(file))
+
+  it.each(files)('%s берёт размер шрифта из шкалы', (file) => {
+    const css = readFileSync(join(ROOT, file), 'utf8')
+    const sizes = (css.match(/font-size:\s*[^;]+;/g) ?? []).filter((rule) => !rule.includes('var(--'))
+    expect(sizes, `размеры — из шкалы типографики: ${sizes.join(' ')}`).toEqual([])
+  })
+
+  it.each(files)('%s не заводит свою гарнитуру', (file) => {
+    const css = readFileSync(join(ROOT, file), 'utf8')
+    // inherit — это основная гарнитура от родителя, а не своя.
+    const families = (css.match(/font-family:\s*[^;]+;/g) ?? []).filter(
+      (rule) => !rule.includes('var(--') && !/font-family:\s*inherit;/.test(rule),
+    )
+    expect(families, `гарнитура — только --font-family или --font-mono: ${families.join(' ')}`).toEqual([])
+  })
+})

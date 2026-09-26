@@ -301,46 +301,78 @@ curl -X POST http://localhost:3000/api/telegram/webhook \
 
 ### GET /api/health
 
-Проверка живости приложения. Авторизация не требуется.
-
-Проверяется не только соединение, но и то, что миграции применены: пустая база отвечает
-на `SELECT 1` как ни в чём не бывало, и контейнер рапортовал бы «здоров», пока приложение
-на деле неработоспособно.
+Проверка **живости**: процесс жив и настроен. Авторизация не требуется. **Базу не
+проверяет** (с 25.09.2026, решение 118): на неё смотрит healthcheck контейнера, и падение
+базы не должно делать приложение «нездоровым» — оно само вернётся в строй вместе с базой.
+Базу и миграции проверяет `GET /api/ready`.
 
 ```bash
 curl -s http://localhost:3000/api/health
 ```
 
 ```json
-{ "data": { "status": "ok", "database": "connected", "schema": "ready",
-            "time": "2026-09-21T07:24:47.059Z" } }
+{ "data": { "status": "ok", "uptimeSeconds": 5321, "time": "2026-09-25T20:35:05.744Z" } }
 ```
 
-Если миграции не применены — **503** и подсказка:
+`uptimeSeconds` — сколько работает процесс: после падения и перезапуска — снова с нуля.
+Не задан `AUTH_SECRET` (в промышленном режиме) или `DATABASE_URL` — **503**,
+`status: "misconfigured"` и `hint` с тем, что делать.
+
+### GET /api/ready
+
+Проверка **готовности**: можно ли обслуживать запросы. Авторизация не требуется.
+На неё смотрят проверка после выкладки (`remote-up.sh`, `check.sh`), сторож
+(`scripts/ops/watchdog.sh`) и «Стенд жив» (решение 118).
+
+- база отвечает на `SELECT 1` — время ответа в `latencyMs`;
+- последняя применённая миграция совпадает с последней в `prisma/migrations` запущенного
+  образа, и нет начатой и не законченной: пустая база отвечает на `SELECT 1` как ни в чём
+  не бывало, и без этой сверки стенд рапортовал бы «готов», пока приложение неработоспособно.
+
+```bash
+curl -s http://localhost:3000/api/ready
+```
 
 ```json
-{ "data": { "status": "degraded", "database": "connected", "schema": "missing",
-            "hint": "Примените миграции: npm run db:deploy", "time": "…" } }
+{ "data": { "status": "ok", "database": "connected", "schema": "ready",
+            "migration": { "applied": "20260925230200_contact_legal_basis",
+                           "expected": "20260925230200_contact_legal_basis" },
+            "latencyMs": 1.4, "time": "2026-09-25T20:36:07.035Z" } }
 ```
+
+Не готово — **503**, `status: "degraded"` и код причины `reason`:
+
+| `reason` | Когда | `schema` |
+| --- | --- | --- |
+| `database-unavailable` | база не ответила на `SELECT 1` | `unknown` |
+| `migrations-missing` | таблицы миграций нет — база пустая | `missing` |
+| `migrations-pending` | в коде есть миграции новее применённой | `mismatch` |
+| `migration-failed` | миграция начата и не закончена | `mismatch` |
+| `misconfigured` | не задан `AUTH_SECRET` или `DATABASE_URL` | `unknown` |
+
+В базе миграция **новее**, чем в коде (код откатили на версию до неё), — **200** со
+`schema: "ahead"`: откат кода — штатная операция, и 503 сделал бы его невозможным (проверка
+после выкладки отвергла бы откат). Сторож присылает об этом предупреждение.
 
 Поле `database` называет причину, а не просто «не работает»:
 
-| `database` | Когда | `status` |
-| --- | --- | --- |
-| `connected` | база отвечает | `ok`, либо `degraded`, если не применены миграции |
-| `unreachable` | сервер не отвечает: не запущен, не тот адрес или порт | `degraded` |
-| `auth-failed` | база отвергла пароль. `POSTGRES_PASSWORD` меняет пароль только при создании базы — существующему тому он ничего не меняет | `degraded` |
-| `database-missing` | сервер отвечает, но базы с таким именем нет | `degraded` |
-| `not-configured` | не задан `DATABASE_URL` | `misconfigured` |
-| `unknown` | до базы не дошло: не задан `AUTH_SECRET` в промышленном режиме | `misconfigured` |
+| `database` | Когда |
+| --- | --- |
+| `connected` | база отвечает |
+| `unreachable` | сервер не отвечает: не запущен, не тот адрес или порт |
+| `auth-failed` | база отвергла пароль. `POSTGRES_PASSWORD` меняет пароль только при создании базы — существующему тому он ничего не меняет |
+| `database-missing` | сервер отвечает, но базы с таким именем нет |
+| `not-configured` | не задан `DATABASE_URL` |
+| `unknown` | до базы не дошло: не задан `AUTH_SECRET` в промышленном режиме |
 
 Полная ошибка пишется в журнал приложения (`docker compose logs app`): подсказка
 отвечает на «что делать», а разбираться в неожиданном сбое нужно по ней.
 
 **В продакшене (`NODE_ENV=production`) подробностей нет** (с 25.09.2026): поля `hint` нет,
 `database` — только `connected`, `unknown` или `unavailable`, `status` — `ok` или `degraded`
-(вместо `misconfigured`). Подсказка пишется в журнал приложения. `status` и `schema`
-значат то же, что и вне продакшена: на них смотрят `scripts/deploy/check.sh` и Docker.
+(вместо `misconfigured`). Подсказка пишется в журнал приложения. `status`, `reason`,
+`schema`, `migration` и `latencyMs` значат то же, что и вне продакшена: на них смотрят
+проверки и сторож. Имена миграций секрета не составляют — они лежат в открытом репозитории.
 
 ### GET /api/metrics
 
@@ -1532,6 +1564,164 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
 одного запроса. Программы без данных не выбрасываются: они уходят в конец со `score: null`
 и `basis: "none"`.
 
+### Аналитика этапов на статистике (решение 120)
+
+Право: `ANALYTICS` (представителю вуза — 403). Формулы — `docs/ANALYTICS_MODEL.md`.
+Доли — числа 0..1 (до четырёх знаков), дни — целые. `isMock` — есть демонстрационные записи.
+
+#### GET /api/analytics/stage-durations
+
+Длительность этапов 1–13 по Каплану–Мейеру и порог застоя, который сейчас берёт правило
+рекомендаций.
+
+```bash
+curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-durations
+```
+
+```json
+{
+  "data": {
+    "stages": [
+      {
+        "stageNumber": 6, "title": "Подписание документов", "status": "ok",
+        "n": 66, "events": 58, "censored": 8,
+        "median": 15, "p90": 62,
+        "ci": { "median": { "low": 12, "high": 16 }, "p90": { "low": 17, "high": 93 } },
+        "curve": [ { "day": 0, "F": 0, "lo": 0, "hi": 0 }, { "day": 5, "F": 0.0455, "lo": 0, "hi": 0.0957 } ],
+        "threshold": { "days": 62, "source": "km", "ci": { "low": 17, "high": 93 }, "n": 66, "events": 58, "reason": null }
+      }
+    ],
+    "minObservations": 30, "minEvents": 15, "quantile": 0.9, "fromData": true,
+    "generatedAt": "…", "isMock": true, "source": "История этапов и записи системы"
+  }
+}
+```
+
+- `n` — связок, входивших в этап; `events` — перешли дальше; `censored` — ещё на этапе,
+  на паузе или отменены на нём. `n = events + censored`.
+- `curve` — доля прошедших этап к дню `day` (`F`) с 95% интервалом `lo`..`hi`; ступенчатая,
+  начинается с дня 0.
+- `median`, `p90` — `null`, если кривая до 0,5 или 0,9 не дошла. В `ci` `high: null` —
+  «больше наблюдаемого».
+- `status: "insufficient_data"` — меньше `minObservations` наблюдений или `minEvents`
+  переходов: кривую можно показать с пометкой «данных мало», порог застоя ручной
+  (`threshold.source: "manual"`, `reason: "insufficient_data"`). Другие `reason`:
+  `disabled` (флаг выключен), `quantile_not_reached`, `not_computed`.
+
+#### GET /api/analytics/stalled-preview?stage=6&days=10
+
+Сколько открытых связок станут или перестанут быть «застрявшими», если порог этапа сделать
+`days` дней. Ничего не меняет. `stage` — 1..13, без него — все этапы (в ответе — только
+этапы, на которых есть открытые связки); `days` — 1..365. Некорректно — 422.
+
+```json
+{
+  "data": {
+    "proposedDays": 10, "before": 1, "after": 2, "suppressedByOverdue": 1, "isMock": true,
+    "stages": [
+      {
+        "stageNumber": 6, "title": "Подписание документов", "open": 2,
+        "current": { "days": 14, "source": "manual", "ci": null, "n": 6, "events": 4, "reason": "insufficient_data" },
+        "proposedDays": 10, "before": 1, "after": 2,
+        "becomeStalled": [ { "cooperationId": "…", "title": "УрФУ — Компьютерная безопасность",
+                             "stageNumber": 6, "idleDays": 12, "href": "/cooperations/…" } ],
+        "stopBeingStalled": []
+      }
+    ]
+  }
+}
+```
+
+`before` — сработавшее сейчас правило застоя (текущим порогом, тем же правилом, что
+у рекомендаций); `after` — дней без движения ≥ `days`. Связки с просрочкой в обоих не
+считаются: о застое при просрочке правило не говорит, их число — `suppressedByOverdue`.
+
+#### GET /api/analytics/funnel
+
+Параметры: `from`, `to` — дата начала связки (`ГГГГ-ММ-ДД` или ISO 8601; `from` включительно,
+`to` — нет); `groupBy` — `region` | `city` | `university` | `product` | `programLevel`;
+`milestones=true` — шесть вех вместо 14 этапов. Черновики не входят.
+
+```json
+{
+  "data": {
+    "milestones": true, "groupBy": "region", "from": null, "to": null, "total": 9,
+    "steps": [
+      { "key": "signed", "title": "Договор подписан", "fromStage": 7, "reached": 4,
+        "conversionFromPrevious": 0.5, "conversionFromStart": 0.4444, "medianDaysFromPrevious": 42,
+        "inProgress": 1, "droppedCount": 1,
+        "dropped": [ { "cooperationId": "…", "title": "ДГТУ — Информационные технологии и управление",
+                       "status": "PAUSED", "href": "/cooperations/…" } ] }
+    ],
+    "groups": [ { "key": "Москва", "label": "Москва", "total": 2,
+                  "steps": [ { "key": "start", "reached": 2, "conversionFromStart": 1 } ] } ],
+    "isMock": true
+  }
+}
+```
+
+Шаги идут по порядку этапов; `reached` не растёт от шага к шагу. `dropped` — отменённые
+и приостановленные, дальше шага не прошедшие (до 20; всего — `droppedCount`).
+`medianDaysFromPrevious` — медиана дней от предыдущего шага среди дошедших.
+Ключи вех: `start`, `meeting-done`, `signed`, `implemented`, `classes-done`, `done`;
+этапов — `stage-1` … `stage-14`.
+
+#### GET /api/analytics/cohorts
+
+Квартал старта × кварталы с начала → доля связок когорты с подписанным договором
+(закрыт этап 6) к концу квартала, накопительно.
+
+```json
+{
+  "data": {
+    "milestone": { "key": "signed", "title": "Договор подписан", "fromStage": 7 },
+    "cohorts": [
+      { "cohort": "2026-Q1", "size": 2,
+        "cells": [ { "offset": 0, "reached": 0, "share": 0, "complete": true },
+                   { "offset": 1, "reached": 2, "share": 1, "complete": true },
+                   { "offset": 2, "reached": 2, "share": 1, "complete": false } ] }
+    ],
+    "isMock": true
+  }
+}
+```
+
+`complete: false` — квартал ещё идёт, доля «пока». Будущих кварталов нет.
+
+#### GET /api/analytics/insights
+
+«Система заметила» — отклонения рядов (новые связки, закрытые этапы, встречи, отклонённые
+рекомендации; в целом и по вузам) и выводы по этапам. Тексты — по шаблонам, без ИИ;
+каждое число из текста есть в `facts`.
+
+```json
+{
+  "data": [
+    {
+      "code": "anomaly.stage_transitions.down", "severity": "warning",
+      "title": "Переходы этапов: за 7 дней на 80% меньше обычного",
+      "detail": "В среднем 1 в день против 5 за 28 дней до этого (z = −4). Активных вузов 2 → 1 …",
+      "facts": { "metric": "stage_transitions", "window": "day", "meanRecent": 1, "meanBase": 5, "z": -4,
+                 "countEffect": -1.5, "intensityEffect": -2.5,
+                 "slices": [ { "key": "…", "label": "УрФУ", "delta": -3, "share": 0.75 } ] },
+      "link": "/analytics?tab=insights"
+    },
+    {
+      "code": "stages.insufficient_data", "severity": "info",
+      "title": "Порог застоя пока ручной: истории этапов мало",
+      "detail": "…", "facts": { "minObservations": 30, "minEvents": 15, "manualDays": 14 },
+      "link": "/analytics?tab=stages"
+    }
+  ]
+}
+```
+
+`severity`: `critical` (|z| > 3), `warning`, `info`. Коды: `anomaly.<ряд>.up|down`,
+`anomaly.<ряд>.weekly.up|down`, `anomaly.university.<ряд>.up|down`, `stages.insufficient_data`,
+`stage.slowest`, `cooperations.stalled`, `funnel.bottleneck`; ряды — `new_cooperations`,
+`stage_transitions`, `meetings`, `dismissed_recommendations`. `link` — страница интерфейса
+(адреса `/analytics?tab=…` — предложение фронту).
+
 ---
 
 ## 10. Рекомендации
@@ -1550,7 +1740,7 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
 | --- | --- | --- |
 | `NEW`, `IN_PROGRESS`, `ACCEPTED` | обновляется текст, статус прежний | закрывается системой: `DONE`, `resolvedById` пуст |
 | `DONE` | открывается снова: `NEW` (кроме дефицита навыка, закрытого человеком) | без изменений |
-| `DISMISSED` | **без изменений** — решение человека с основанием | без изменений |
+| `DISMISSED` | **без изменений**, пока идёт пауза после отклонения (30 дн., решение 119); после паузы — открывается снова: `NEW` | без изменений |
 
 Закрытую человеком рекомендацию по дефициту навыка (`skill.critical-gap-with-product`)
 пересборка не открывает: её действие — предложить продукт вузам, а дефицит после этого
@@ -1563,6 +1753,12 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
 не выдаёт давно известное за новое.
 
 `created` в ответе — созданные и открытые заново, `closed` — закрытые системой.
+
+**Обучение (решение 119).** Каждая созданная или открытая заново запись — «показ» в
+статистике своего правила; закрытая системой при действующем объекте и выполненная
+человеком — «успех». После пересборки у всех открытых пересчитываются `score`,
+`scoreBreakdown`, `reasons` и `isDeferred` (см. `GET /api/recommendations`).
+Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
 
 **Смена статуса или срока этапа и отметка в чек-листе** сразу сверяют открытые
 рекомендации этой связки (`stage.overdue`, `cooperation.stalled`, `cooperation.no-product`):
@@ -1584,7 +1780,7 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 | `ruleKey` | Когда срабатывает | Приоритет |
 | --- | --- | --- |
 | `stage.overdue` | Срок этапа прошёл, этап не закрыт и может быть начат (не стоит не начатым за незавершённой контрольной точкой) | MEDIUM → HIGH (7 дн.) → CRITICAL (21 дн.) |
-| `cooperation.stalled` | По связке нет изменений 14 дн., текущий этап не закрыт | MEDIUM, для `BLOCKED` — HIGH |
+| `cooperation.stalled` | По связке нет изменений дольше порога этапа, текущий этап не закрыт. Порог — p90 длительности этапа по истории, пока её мало — 14 дн. (решение 120); в `relatedData` — `thresholdDays`, `thresholdSource` (`km` \| `manual`) | MEDIUM, для `BLOCKED` — HIGH |
 | `cooperation.no-product` | Связка дошла до этапа 4, продукт не выбран | HIGH |
 | `program.missing-metrics` | У программы с начатым сотрудничеством не заполнены показатели набора | MEDIUM, HIGH если пусто всё |
 | `skill.critical-gap-with-product` | Навык востребован, отсутствует во всех программах, и есть продукт, который его даёт | HIGH |
@@ -1603,7 +1799,14 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 Право: `ANALYTICS`. Представителю вуза недоступно.
 
 Параметры: `type[]`, `status[]`, `priority[]`, `cooperationId`, `region`,
-`sort` (`priority`, `createdAt`, `updatedAt`), пагинация.
+`deferred` (`true` / `false`, решение 119), `sort` (`priority`, `createdAt`, `updatedAt`, `score`), пагинация.
+
+**Лента по баллу — `sort=-score`** (решение 119, `RECOMMENDATION_SORT_BY_SCORE`): сверху то,
+что с наибольшей вероятностью окажется полезным. Отложенные защитой от перегрузки
+(`isDeferred: true`) — в конце, записи без балла (созданные до решения 119 и ещё не
+пересчитанные) — после оценённых. Сценарий показа (`demo:check`) держится на `-priority`,
+поэтому `RECOMMENDATION_SORT_MOST_IMPORTANT` не менялся: переключить ленту на балл — решение
+фронта и Артура.
 
 **Лента «сначала важное» — `sort=-priority`**, с минусом: приоритет —
 перечисление `LOW < MEDIUM < HIGH < CRITICAL`, и `sort=priority` ставит сверху
@@ -1629,9 +1832,112 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
   "resolutionComment": null,
   "target": { "objectType": "Skill", "objectId": "…", "label": "…" },
   "cooperationId": null,
-  "createdAt": "…", "updatedAt": "…", "resolvedAt": null
+  "createdAt": "…", "updatedAt": "…", "resolvedAt": null,
+  "score": 0.636,
+  "scoreBreakdown": {
+    "p": 0.647, "pSource": "global", "pLevel": "global", "sampling": "mean",
+    "trialsEff": 28.4, "successesEff": 18.7,
+    "value": 77, "valueLabel": "спрос на навык из 100", "valueAnchor": 50, "valueScore": 0.606,
+    "priority": 0.667, "weights": { "rule": 0.5, "value": 0.35, "priority": 0.15 },
+    "score": 0.636
+  },
+  "reasons": [
+    { "code": "demand_above_threshold", "pass": true, "label": "Спрос выше порога",
+      "detail": "Навык Kubernetes нужен рынку на 77 из 100 при пороге 50 (1840 в замере)",
+      "facts": { "skillName": "Kubernetes", "demand": 77, "threshold": 50, "vacancies": 1840 } },
+    { "code": "skill_not_taught", "pass": true, "label": "Навыка нет в программах", "detail": "…", "facts": {} },
+    { "code": "product_available", "pass": true, "label": "Есть наш продукт", "detail": "…", "facts": {} },
+    { "code": "gap_in_top", "pass": true, "label": "В числе самых востребованных", "detail": "…", "facts": {} },
+    { "code": "rule_weight_low", "pass": true, "label": "Вес правила",
+      "detail": "Вес правила 0,65: по решениям сотрудников рекомендации «Критичный дефицит и наш продукт» полезны примерно в 65 % случаев",
+      "facts": { "p": 0.647, "threshold": 0.35 } }
+  ],
+  "isDeferred": false
 }
 ```
+
+**Новые поля (решение 119), прежние не менялись:**
+
+- `score` — балл 0..1 или `null` (запись ещё не пересчитана);
+- `scoreBreakdown` — «почему эта выше»: `score = weights.rule·p + weights.value·valueScore + weights.priority·priority`;
+  `p` — вероятность полезности правила, `pSource` — `global` (своих данных нет), `pooled` (мало, смешаны
+  с общей оценкой), `local` (достаточно); `pLevel` — чьи счётчики: общий, вуз или менеджер;
+- `reasons` — проверки правила (все `pass: true`, раз рекомендация есть) и пометки обучения:
+  `rule_weight_low` (вес правила ниже 0,35 — `pass: false`), `manager_overloaded`
+  (рекомендация отложена — `pass: false`). Коды — `<предмет>_<состояние>`, тексты — из фактов,
+  словарь один: `recommendations.reasons.ts`;
+- `isDeferred` — отложена защитой от перегрузки: у ответственного за 30 дней не меньше 15 показов
+  и выполнено меньше 10 %, а балл ниже 0,6. Запись не удаляется.
+
+### GET /api/recommendations/why-not
+
+Право: `ANALYTICS`. Решение 119. Почему по объекту нет рекомендации — **те же функции
+проверок, что у правила при пересборке** (`evaluateCooperation`, `evaluateProgram`,
+`evaluateSkillGaps`), плюс общие: правило включено, объект в работе, пауза после отклонения.
+
+Параметры: `entity` — `program` | `cooperation` | `skill`, `id`, необязательный `rule` —
+одно правило (иначе все правила этого вида объекта). Неизвестный вид — 422, объект
+не найден или правило не того вида — 404.
+
+```bash
+curl -s 'http://localhost:3000/api/recommendations/why-not?entity=program&id=<id>'
+```
+
+```json
+{ "data": {
+  "entity": "program", "id": "…", "label": "Технологии разработки компьютерных игр · УрФУ",
+  "rules": [ {
+    "ruleKey": "program.missing-metrics", "ruleLabel": "Нет данных по программе",
+    "wouldRecommend": false,
+    "checks": [
+      { "ruleKey": "program.missing-metrics", "check": "rule_enabled", "pass": true, "label": "Правило включено", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "program_active", "pass": true, "label": "Программа действует", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "program_cooperation_exists", "pass": false, "label": "Есть сотрудничество",
+        "detail": "У программы «…» 0 действующих сотрудничеств — запрашивать показатели не у кого",
+        "facts": { "programName": "…", "cooperations": 0 } },
+      { "ruleKey": "program.missing-metrics", "check": "metrics_missing", "pass": true, "label": "Не заполнены показатели", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "dismissed_recently", "pass": true, "label": "Пауза после отклонения",
+        "detail": "Рекомендацию по этому объекту не отклоняли", "facts": {} }
+    ],
+    "recommendation": null
+  } ],
+  "checks": [ "…все проверки всех правил подряд…" ],
+  "checkedAt": "…"
+} }
+```
+
+Коды проверок: `rule_enabled`, `dismissed_recently`; связка — `cooperation_open`, `stage_overdue`,
+`stage_unlocked`, `overdue_absent`, `stage_open`, `cooperation_stalled`, `product_missing`,
+`stage_needs_product`; программа — `program_active`, `program_cooperation_exists`, `metrics_missing`;
+навык — `demand_above_threshold`, `skill_not_taught`, `product_available`, `gap_in_top`.
+По объекту с открытой рекомендацией все проверки её правила — `pass: true` (проверяет пробник).
+
+### GET /api/recommendations/rules/stats
+
+Право: `ANALYTICS`. Решение 119. Вес каждого правила — для графика «как у отклоняемого
+правила падает вес».
+
+```json
+{ "data": {
+  "rules": [ {
+    "ruleKey": "cooperation.stalled", "ruleLabel": "Связка без движения", "enabled": true,
+    "scopeType": "global", "scopeId": "all", "scopeLabel": null,
+    "p": 0.121, "pSource": "global", "ci90": [0.017, 0.291],
+    "trials": 28, "successes": 3, "trialsEff": 10.95, "successesEff": 0.6,
+    "updatedAt": "…",
+    "scopes": [ { "scopeType": "university", "scopeId": "…", "scopeLabel": "СПбГУТ", "p": 0.2, "…": "…" } ]
+  } ],
+  "halfLifeDays": 30, "poolingStrength": 5, "sampling": "mean", "isMock": true, "computedAt": "…"
+} }
+```
+
+`isMock: true` — в базе демо-набор, и история решений в нём смоделирована сидом
+(`seedRecommendationStats`), а не накоплена: фронт показывает пометку, как у остальной аналитики.
+
+`p` — среднее Beta по эффективным (с затуханием) счётчикам на момент запроса, `ci90` —
+квантили 5 % и 95 % того же распределения (численно), `trials`/`successes` — полные
+счётчики без затухания. Уровни вузов и менеджеров пулятся с уровнем выше.
+Истории весов по дням сервер не хранит — ряды для графика даёт `npm run recs:simulate -- --json`.
 
 ### GET /api/recommendations/:id
 
@@ -1690,6 +1996,11 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 
 Комментарий сотрудника пишется в `resolutionComment`; `justification` — обоснование системы —
 не переписывается.
+
+**Решение 119.** `DONE` — успех правила в статистике (один раз на показ), вес правила
+и балл открытых рекомендаций пересчитываются сразу. `DISMISSED` — отдельного события нет:
+показ уже учтён при создании, успеха нет. После отклонения то же правило по тому же
+объекту молчит 30 дней (пауза), потом пересборка может открыть запись снова.
 
 ---
 
@@ -2325,6 +2636,35 @@ curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=
 этапов со сроком. Не ноль. У представителя вуза и наблюдателя связок нет — нули
 здесь настоящие.
 
+### GET /api/me/pulse
+
+Право: `ANALYTICS` (представителю вуза — 403). Пульс по связкам текущего пользователя —
+то же содержимое, что сводка в Telegram (решение 120).
+
+```json
+{
+  "data": {
+    "generatedAt": "…", "checkedRules": 27, "isCalm": false, "calmText": null,
+    "sections": [
+      { "key": "attention", "title": "Внимание", "total": 4, "items": [
+        { "kind": "cooperation.stalled", "group": "Застряло дольше обычного", "severity": "warning",
+          "text": "Этап 7 «Передача учебных материалов…», ДГТУ — … Без движения 138 дней при пороге 14 (ручной порог)",
+          "href": "/cooperations/…", "cooperationId": "…" } ] },
+      { "key": "today", "title": "Сегодня", "total": 0, "items": [] },
+      { "key": "decide", "title": "Решить", "total": 3, "items": [ … ] },
+      { "key": "wins", "title": "Успехи", "total": 1, "items": [ … ] }
+    ]
+  }
+}
+```
+
+Разделы всегда четыре и в этом порядке; `items` — не больше 10, `total` — сколько всего.
+`kind`: `stage.overdue`, `stage.blocked`, `cooperation.stalled`, `meeting.no-result`,
+`insight` (Внимание); `meeting.today`, `meeting.action-due`, `stage.due-soon` (Сегодня);
+`recommendation.stale` («Новая» дольше 7 дней), `recommendation.open` (Решить);
+`stage.completed` (Успехи, за сутки). `isCalm` — пусто во «Внимании», «Сегодня» и «Решить»;
+тогда `calmText` — «Всё спокойно: проверено N правил…».
+
 ### GET, POST, DELETE /api/me/calendar — подписка на календарь
 
 С 25.09.2026, решение 105. Право **`CALENDAR`**: ADMIN, MANAGER, ANALYST, VIEWER.
@@ -2873,6 +3213,79 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 С 25.09.2026 (решение 105) — `calendar.issue` и `calendar.revoke`: выпуск и отзыв ссылки
 на календарь, объект `User`; ни токен, ни его хеш в журнал не пишутся.
 
+С 25.09.2026 (решение 115) — `audit.verify`: проверка целостности журнала, объект `AuditLog`,
+`objectId: "chain"`, `payload: { source: "api" | "script", ok, checked, headSeq, code?, brokenAt? }`
+— без хешей и содержимого строк.
+
+### GET /api/audit/verify
+
+Право: **`ADMIN`**. Остальным ролям — `FORBIDDEN` 403. Решение 115.
+
+Проверяет, что журнал не подменён: цепочку хешей записей (изменённая, удалённая,
+переставленная запись) и сверку с печатями (отрезанный хвост, пересчитанная история).
+Проверка идёт двумя независимыми путями — функцией в базе и кодом приложения; пройдена,
+только если оба согласны. Нарушение — это тоже ответ **200** с `ok: false`: запрос
+выполнен, результат — «журнал нарушен». Сам факт проверки пишется в журнал (`audit.verify`) —
+поэтому следующая проверка покажет `headSeq` на единицу больше.
+
+```json
+{
+  "data": {
+    "ok": true,
+    "checked": 412,
+    "code": null,
+    "brokenAt": null,
+    "brokenId": null,
+    "reason": null,
+    "headSeq": 412,
+    "headHash": "5b9801fee22a53fea6fa01c13457752a40b417cf867d38390fe32751db0c17f9",
+    "anchorSeq": 0,
+    "sealsChecked": 3,
+    "lastSeal": { "id": "3", "headSeq": 398, "headHash": "cdab…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" },
+    "verifiedAt": "2026-09-25T20:40:11.020Z"
+  }
+}
+```
+
+При нарушении:
+
+```json
+{ "data": { "ok": false, "checked": 2, "code": "rows_missing", "brokenAt": 4,
+  "brokenId": "cmub7a170008ftnrlc8cw4kr6", "reason": "Удалена строка № 3", "headSeq": 2, "…": "…" } }
+```
+
+| Поле | Описание |
+| --- | --- |
+| `ok` | журнал цел |
+| `checked` | сколько записей проверено до первого нарушения (или всего) |
+| `code` | `AUDIT_CHAIN_BREAK_CODES` в `shared/contracts/audit.ts`: `rows_missing`, `row_before_cut`, `link_broken`, `row_modified`, `row_unnumbered`, `tail_removed`, `history_rewritten`, `engines_disagree`; подписи для значка — `AUDIT_CHAIN_BREAK_LABELS` |
+| `brokenAt`, `brokenId` | номер записи в цепочке (`chain_seq`) и id записи журнала; у нарушений по печати `brokenId` — `null` |
+| `reason` | что не так, по-русски, готово к показу |
+| `headSeq`, `headHash` | номер и SHA-256 последней проверенной записи — их можно сверить с печатью, хранящейся вне системы |
+| `anchorSeq` | с какого номера цепочка законно начинается после чистки по сроку; `0` — чистки не было |
+| `sealsChecked`, `lastSeal` | сколько печатей сверено, последняя печать (`null` — не снимали) |
+
+Проверка читает весь журнал: на сотнях тысяч записей — секунды. Кнопку стоит блокировать
+до ответа.
+
+### GET /api/audit/seals
+
+Право: **`ADMIN`**. Решение 115. Печати журнала — голова цепочки на момент снятия,
+новые сверху. Параметры: `page`, `pageSize`. Печать снимает `npm run audit:seal`
+по расписанию, через API печать не создаётся.
+
+```json
+{
+  "data": [
+    { "id": "3", "headSeq": 398, "headHash": "cdabd190…2e0b", "count": 398, "at": "2026-09-25T20:30:03.556Z" }
+  ],
+  "meta": { "page": 1, "pageSize": 20, "total": 3 }
+}
+```
+
+`headSeq: 0` и `headHash: null` — журнал был пуст. `count` меньше `headSeq` после чистки
+журнала по сроку.
+
 ---
 
 ## 15в. Групповая операция: выпуск версии продукта
@@ -3006,14 +3419,16 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
       { "number": 6, "title": "Подписание документов", "phase": "FORMALIZATION", "phaseLabel": "Оформление",
         "normativeDays": 63, "isControlPoint": true, "isOptional": false, "isAutomatic": false,
         "requiredTaskCount": 3, "taskCount": 3, "isTemporary": true } ],
-    "temporaryCount": 43 } }
+    "temporaryCount": 42 } }
 ```
 
 - **Группы** (`id`): `programRating` — веса рейтинга, минимум показателей, шкала, способ
   рейтинга вуза; `skillGap` — порог востребованности и покрытие по уровням; `skillProfile` —
   области, где навыки сравниваются поимённо (`SKILL_PROFILE`); `workflow` — предупреждение
   о сроке и контрольные точки; `recommendations` — пороги правил (просрочка, застой, этап без
-  продукта, лимит дефицитов); `login` — попытки, окна, блокировка, проверка «не робот», длина
+  продукта, лимит дефицитов); `recommendationLearning` — обучение рекомендаций (решение 119):
+  полураспад, пулинг, веса балла, пауза после отклонения, защита от перегрузки, якоря ценности,
+  выключенные правила; `login` — попытки, окна, блокировка, проверка «не робот», длина
   пароля; `retention` — сроки хранения журнала и IP-адреса.
 - `value` — число, `true`/`false`, строка или массив; `unit` — `weight`, `share` (доля 0..1),
   `days`, `minutes`, `count`, `points`, `stage`, `flag`, `list`, `choice`. Для `choice`
@@ -3024,6 +3439,137 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 - `methodology` — документ репозитория и заголовок раздела; тест проверяет, что раздел есть.
 - `stages` — все 14 этапов: нормативный срок в днях от создания связки, контрольная точка,
   можно ли отменить как «не требуется», этап 14 — автоматический.
+
+## 15ж. Права субъекта ПД: «всё о субъекте», обезличивание, реестр запросов
+
+С 25.09.2026, решение 116. Субъекты ПД в системе — **пользователь** (`users`) и **контактное
+лицо вуза** (`contacts`). Что о них выгружается и что делает обезличивание, задаёт реестр
+`DSAR_REGISTRY` (`src/modules/dsar/dsar.registry.ts`). Право **`DSAR_MANAGE`** — только ADMIN;
+остальным ролям — `FORBIDDEN` 403 до обращения к базе. Ответы не кэшируются (`no-store`).
+
+### GET /api/me/data-export — «Мои данные»
+
+Любая роль, только о себе. Файл `application/json` вложением
+(`Content-Disposition: attachment; filename="skilllink-dsar-user-<id>-<дата>.json"`).
+**Не чаще раза в 10 минут** (TEMP, `DSAR_LIMITS.selfExportIntervalMinutes`): раньше —
+`CONFLICT` 409 с `details.retryAfterSeconds`. Каждая выгрузка — исполненный запрос в реестре
+(канал `SELF_SERVICE`, с адресом клиента) и запись `dsar.exported` в журнале.
+
+### GET /api/admin/dsar/users/:id/export, GET /api/admin/dsar/contacts/:id/export
+
+Выгрузка «всё о субъекте» для ответа по ст. 14. Неизвестный субъект — 404. Закрывает
+открытые запросы субъекта на сведения; если их нет — регистрирует исполненный (канал `ADMIN`).
+
+Тело файла — `{ "data": DsarExportDto }`:
+
+```json
+{
+  "data": {
+    "subject": { "type": "USER", "id": "…", "displayName": "Иванова Мария Сергеевна", "erased": false },
+    "generatedAt": "2026-09-26T09:00:00.000Z",
+    "generatedBy": { "id": "…", "role": "ADMIN", "self": false },
+    "requestId": "…",
+    "operator": { "name": "ИТ-Школа (заказчик SkillLink)", "address": null, "responsibleContact": null, "note": "…" },
+    "purposes": ["Ц2 — доступ к системе и разграничение прав", "…"],
+    "legalBasis": ["п. 2 и п. 5 ч. 1 ст. 6 152-ФЗ: трудовой договор …", "…"],
+    "categories": ["иные категории ПД; …"],
+    "sources": ["…"],
+    "processingMethods": "…",
+    "storageLocation": "Россия: …",
+    "recipients": [{ "recipient": "Yandex Cloud …", "what": "…", "crossBorder": false, "when": "всегда" }],
+    "retention": ["…"],
+    "rights": "…",
+    "data": {
+      "profile": {
+        "title": "Учётная запись", "model": "User", "total": 1, "returned": 1, "truncated": false,
+        "onErase": "redact", "reason": "…", "items": [{ "id": "…", "email": "…", "fullName": "…" }]
+      },
+      "stages": { "title": "Этапы: ответственный или завершил", "total": 70, "returned": 70, "…": "…" }
+    },
+    "auditTrail": { "byActor": { "total": 59, "items": ["…"] }, "aboutSubject": { "total": 3, "items": ["…"] } },
+    "counts": { "profile": 1, "stages": 70, "auditByActor": 59, "auditAboutSubject": 3 },
+    "notes": ["В каждом разделе не больше 500 записей …"]
+  }
+}
+```
+
+- Разделы пользователя: `profile`, `telegramLink`, `calendarFeed` (только факт и дата),
+  `cooperationsResponsible`, `stages`, `tasksDone`, `stageHistory`, `documents`,
+  `documentHistory`, `meetingsResponsible`, `meetingParticipations`, `recommendationsResolved`,
+  `applications`, `contactBasisChanges`, `dsarRequestsAbout`, `dsarRequestsRegistered`.
+  Контакта: `profile` (с основанием обработки и согласием), `basisHistory`,
+  `meetingParticipations`, `documentsMentioning` (ФИО в тексте документа), `dsarRequestsAbout`.
+- `auditTrail.byActor` — действия самого пользователя (у контакта — `null`);
+  `auditTrail.aboutSubject` — действия над субъектом: действовавший — `user: { id, role }`
+  без ФИО (п. 4 ч. 7 ст. 14), адрес клиента из `payload` вырезан.
+- В каждом разделе не больше **500** записей (TEMP), новые сверху; `total` — настоящее число,
+  `truncated: true` — показано не всё.
+- **Не выгружаются никогда:** `password_hash`, `token_hash`, токены и секреты (ключи
+  `password|secret|token|hash` проверяет пробник рекурсивно); свободный текст — комментарии,
+  результаты, заметки (в нём бывают ПД третьих лиц); текст документов.
+- Журнал: `dsar.exported`, объект `User` или `Contact`, `payload: { requestId, channel, sections }`.
+
+```bash
+curl -OJ http://localhost:3000/api/admin/dsar/users/<id>/export -H 'cookie: skilllink_user=<admin-id>'
+```
+
+### POST /api/admin/dsar/users/:id/erase — обезличить пользователя по запросу
+
+Тело `{ "confirm": "<логин (почта) пользователя>" }` — регистр и пробелы не важны; не совпало —
+`VALIDATION_ERROR` 422. В одной транзакции по реестру: ФИО → «Пользователь удалён», почта →
+`erased-<id>@erased.invalid`, должность и хеш пароля стёрты, `isActive = false`,
+`sessionVersion + 1` (выданные сессии отозваны), подписка на календарь и привязка Telegram
+удалены. Связки, этапы, история, документы, встречи и журнал остаются и ссылаются на
+обезличенную запись. `CONFLICT` 409: себя; последнего действующего администратора; общую
+демо-учётку; сотрудника, за которым открытые связки или этапы (`details.openCooperations`,
+`openStages` — сначала передать). Повтор — `200` с `alreadyErased: true`.
+
+```json
+{
+  "data": {
+    "subject": { "type": "USER", "id": "…" },
+    "alreadyErased": false,
+    "erasedAt": "2026-09-26T09:00:00.000Z",
+    "requestId": "…",
+    "sections": { "profile": { "action": "redact", "rows": 1 }, "calendarFeed": { "action": "delete", "rows": 1 }, "stages": { "action": "keep", "rows": 4 } }
+  }
+}
+```
+
+Журнал: `dsar.erased` (`payload: { requestId, rows }`), при необходимости `user.block`,
+`calendar.revoke`, `telegram.unlink` с причиной `dsar.erase` — без ФИО и почты.
+
+### POST /api/admin/dsar/contacts/:id/erase — обезличить контакт по запросу
+
+Тело `{ "confirm": "<ФИО контакта>" }`. Тот же набор полей, что у
+`POST /api/universities/:id/contacts/:contactId/anonymize`, плюс закрытие запроса в реестре.
+Ответ — как выше. Журнал: `contact.anonymize` с `reason: "dsar.erase"` и `dsar.erased`.
+
+### GET, POST /api/admin/dsar/requests — реестр запросов субъектов
+
+**`GET`** — список, новые сверху: `page`, `pageSize`, `status` (`OPEN`, `COMPLETED`),
+`kind` (`EXPORT`, `ERASE`), `subjectType` (`USER`, `CONTACT`), `subjectId`, `overdue=true`
+(открытые с прошедшим сроком).
+
+```json
+{
+  "data": [{
+    "id": "…", "subjectType": "CONTACT", "subjectId": "…", "kind": "ERASE", "channel": "LETTER",
+    "status": "OPEN", "requestedBy": { "id": "…", "fullName": "…", "role": "ADMIN" },
+    "requestedAt": "2026-09-25T07:00:00.000Z", "dueAt": "2026-10-06T20:59:59.999Z",
+    "completedAt": null, "overdue": false, "summary": null
+  }],
+  "meta": { "page": 1, "pageSize": 20, "total": 1 }
+}
+```
+
+**`POST`** — зарегистрировать запрос, пришедший письмом: `{ subjectType, subjectId, kind,
+receivedAt? }`. `receivedAt` — когда оператор получил запрос (по умолчанию сейчас; не в будущем
+и не старше 30 дней — иначе 422). Срок `dueAt` — конец рабочего дня по Москве: **+10 рабочих
+дней** на сведения (ч. 3 ст. 14, ч. 1 ст. 20 152-ФЗ), **+7** на уничтожение (ч. 3 ст. 20).
+Несуществующий субъект — 422; открытый запрос того же вида о том же субъекте — 409 с
+`details.requestId`. Ответ `201` — `DsarRequestDto`. Текст письма и ФИО не хранятся.
+Журнал: `dsar.requested`.
 
 ## 16. Чего ещё нет
 

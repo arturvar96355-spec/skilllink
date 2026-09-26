@@ -10,6 +10,7 @@ import { parseSolution, verifySolution } from './captcha'
 import { loginAuditEntries, type LoginOutcome } from './login-audit'
 import { renewedSessionVersion, tokenSessionVersion } from './session-version'
 import { countSafely } from '@/shared/metrics/app-metrics'
+import { alertAdminLogin, alertLoginBlocked, noteCaptchaRequired } from '@/shared/ops/security-alerts'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -145,10 +146,13 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           !verifySolution(parseSolution(credentials?.captcha), resolveSecret())
         ) {
           countSafely((metrics) => metrics.captchaRequired.inc())
+          // Массовое включение проверки — повод сообщить владельцу (решение 118).
+          noteCaptchaRequired()
           throw new CaptchaRequiredError()
         }
         // Для журнала: чья учётная запись, если она существует. Почта в журнал не идёт.
         let knownUserId: string | null = null
+        const loginAt = new Date()
         const attempt = await throttledAttempt(source, async () => {
           // Адреса с символом кода 0 в базе нет и быть не может, а запрос с ним падает —
           // и вход ответил бы «ошибка конфигурации». Такой адрес — просто неизвестный.
@@ -198,6 +202,10 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           ? { kind: 'success', userId: user.id, address: source.address }
           : { kind: 'failure', userId: knownUserId, address: source.address, triggered: attempt.triggered }
         for (const entry of loginAuditEntries(outcome)) await writeAudit(entry)
+
+        // Оповещения владельцу (решение 118): в фоне, вход их не ждёт.
+        if (!user) alertLoginBlocked(source.account, source.address, attempt.triggered)
+        else if (user.role === 'ADMIN') alertAdminLogin(user.id, source.address, loginAt)
 
         if (!user) return null
 

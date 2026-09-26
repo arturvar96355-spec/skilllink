@@ -7,10 +7,10 @@ import { describeForLog } from '@/shared/db/log'
 import { forbidden, integrationError } from '@/shared/http/errors'
 import { getIntegrationsConfig, type TelegramConfig } from '@/integrations/config'
 import { TelegramClient } from '@/integrations/telegram'
-import * as recommendationsService from '@/modules/recommendations/recommendations.service'
+import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
 import { consumeLinkToken, createLinkToken, isWebhookSecretValid } from './telegram.link-token'
-import { BOT_REPLIES, buildDigest, parseCommand, type Digest, type DigestRecommendationSource } from './telegram.rules'
+import { BOT_REPLIES, buildDigest, parseCommand, type Digest } from './telegram.rules'
 import type { TelegramUpdate } from './telegram.schema'
 
 /**
@@ -96,33 +96,13 @@ export async function disconnect(user: CurrentUser): Promise<TelegramStatusDto> 
 
 // ─────────────────────────────── Сводка ─────────────────────────────────────
 
-function relatedStageNumber(relatedData: Record<string, unknown> | null): number | null {
-  const value = relatedData?.stageNumber
-  return typeof value === 'number' ? value : null
-}
-
 /**
- * Сводка «что горит у меня»: этапы связок пользователя и открытые рекомендации
- * по ним. Право — как у рекомендаций (аналитика): представителю вуза сводки нет.
+ * Сводка «что горит у меня» — текст пульса (решение 120): этапы связок пользователя,
+ * открытые рекомендации по ним и расширения пульса. Право — как у рекомендаций
+ * (аналитика): представителю вуза сводки нет.
  */
 export async function digestFor(user: CurrentUser, now = new Date()): Promise<Digest> {
-  assertCan(user, 'ANALYTICS')
-  const [stages, recommendationRows] = await Promise.all([
-    repo.findDigestStages(user.id, now, TELEGRAM_DIGEST.stagesFetch),
-    repo.findOpenRecommendationsOf(user.id, TELEGRAM_DIGEST.recommendationsFetch),
-  ])
-  const recommendations = (await recommendationsService.toRecommendationDtos(recommendationRows)).map(
-    (item): DigestRecommendationSource => ({
-      id: item.id,
-      ruleKey: item.ruleKey,
-      stageNumber: relatedStageNumber(item.relatedData),
-      title: item.title,
-      label: item.target.label,
-      priority: item.priority,
-      cooperationId: item.cooperationId,
-    }),
-  )
-  return buildDigest({ stages, recommendations }, { now, baseUrl: publicBaseUrl() })
+  return buildDigest(await pulseSourcesFor(user, now), { now, baseUrl: publicBaseUrl() })
 }
 
 export interface DigestRunSummary {

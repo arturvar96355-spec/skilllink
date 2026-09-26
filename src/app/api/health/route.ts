@@ -1,47 +1,38 @@
-import { prisma } from '@/shared/db/prisma'
-import { diagnoseDatabaseError } from '@/shared/db/database-error'
-import { publicHealth, type HealthReport } from './report'
+import { publicLiveness, type LivenessReport } from './report'
 import { handle, ok } from '@/shared/http'
 
 /**
- * Проверка живости приложения.
+ * Проверка живости: процесс жив и настроен. **Базу не трогает** (решение 118).
  *
- * Сюда смотрят, когда что-то не работает, — значит, ответ обязан называть причину,
- * а не сообщать «внутренняя ошибка». Различаются три состояния, и у каждого свой
- * совет: не задана настройка, база недоступна, схема не применена.
+ * На неё смотрит healthcheck контейнера (Dockerfile). Пока проверка живости ходила
+ * в базу, остановка базы делала приложение «нездоровым», хотя оно само заработает,
+ * как только база вернётся, — а Caddy при пересоздании ждёт здорового приложения
+ * и не поднялся бы вовсе. Базу и миграции проверяет `/api/ready`.
  *
- * Схема проверяется отдельно от соединения: пустая база отвечает на `SELECT 1`
- * как ни в чём не бывало, и контейнер рапортовал бы «здоров», пока приложение
- * на деле неработоспособно.
+ * Настройка проверяется и здесь: без секрета подписи приложение стартует, но каждый
+ * запрос падает на проверке прав, — такой процесс живым не считается.
  *
- * В продакшене совет наружу не уходит, только в журнал (report.ts): по нему
- * прохожий узнал бы, что именно сломано в настройке стенда.
+ * В продакшене совет наружу не уходит, только в журнал (report.ts).
  */
+export const dynamic = 'force-dynamic'
+
 export const GET = handle(async () => {
   const production = process.env.NODE_ENV === 'production'
-  const now = () => new Date().toISOString()
+  const base = { uptimeSeconds: Math.round(process.uptime()), time: new Date().toISOString() }
 
-  const respond = (report: HealthReport, status: number) => {
+  const respond = (report: LivenessReport, status: number) => {
     if (report.hint && production) console.error('Проверка живости:', report.hint)
-    return ok(publicHealth(report, production), status)
+    return ok(publicLiveness(report, production), status)
   }
 
-  // Приложение без секрета подписи стартует, но каждый запрос падает на проверке
-  // прав: сессию не прочитать. Проверка живости обязана это видеть — иначе
-  // контейнер считается здоровым, оркестратор пускает на него трафик,
-  // а пользователь получает 500 на всём, кроме самой проверки живости.
-  const secretMissing = production && !process.env.AUTH_SECRET?.trim()
-
-  if (secretMissing) {
+  if (production && !process.env.AUTH_SECRET?.trim()) {
     return respond(
       {
         status: 'misconfigured',
-        database: 'unknown',
-        schema: 'unknown',
+        ...base,
         hint:
           'Не задан AUTH_SECRET — приложение не сможет обслуживать запросы. Сгенерируйте: ' +
           'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"',
-        time: now(),
       },
       503,
     )
@@ -51,42 +42,12 @@ export const GET = handle(async () => {
     return respond(
       {
         status: 'misconfigured',
-        database: 'not-configured',
-        schema: 'unknown',
+        ...base,
         hint: 'Не задана переменная DATABASE_URL. Скопируйте .env.example в .env и укажите строку подключения.',
-        time: now(),
       },
       503,
     )
   }
 
-  try {
-    await prisma.$queryRaw`SELECT 1`
-  } catch (error) {
-    // В журнал — целиком: подсказка отвечает на «что делать», а разбираться
-    // в неожиданном сбое всё равно придётся по настоящей ошибке.
-    console.error('Проверка живости: база не ответила', error)
-    const { database, hint } = diagnoseDatabaseError(error)
-    return respond({ status: 'degraded', database, schema: 'unknown', hint, time: now() }, 503)
-  }
-
-  let schemaReady = true
-  try {
-    // Любая таблица из миграций: если её нет, миграции не применены.
-    await prisma.user.count()
-  } catch {
-    schemaReady = false
-  }
-
-  return respond(
-    {
-      status: schemaReady ? 'ok' : 'degraded',
-      database: 'connected',
-      schema: schemaReady ? 'ready' : 'missing',
-      ...(schemaReady ? {} : { hint: 'Примените миграции: npm run db:deploy' }),
-      time: now(),
-    },
-    // Неприменённые миграции — это не «здоров»: пусть оркестратор видит проблему.
-    schemaReady ? 200 : 503,
-  )
+  return respond({ status: 'ok', ...base }, 200)
 })

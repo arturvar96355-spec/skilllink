@@ -9,19 +9,29 @@ set -euo pipefail
 
 ENV_FILE=${ENV_FILE:?не задан ENV_FILE}
 SEED=${SEED:-0}
-COMPOSE="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file $ENV_FILE"
+# Имя проекта, дополнительный файл compose и имена контейнеров меняются только для
+# локальной копии стенда (scripts/ops/compose.local.yml, docs/OPERATIONS_TESTS.md).
+COMPOSE_PROJECT=${COMPOSE_PROJECT:-skilllink}
+PG_CONTAINER=${PG_CONTAINER:-skilllink-postgres}
+APP_CONTAINER=${APP_CONTAINER:-skilllink-app}
+COMPOSE="docker compose -p $COMPOSE_PROJECT -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml ${EXTRA_COMPOSE_FILE:+-f $EXTRA_COMPOSE_FILE} --env-file $ENV_FILE"
+
+# shellcheck source=scripts/deploy/http-check-lib.sh
+. "$(dirname "$0")/http-check-lib.sh"
+# Значение из файла настроек (без исполнения файла).
+setting() { grep -E "^$1=" "$ENV_FILE" | tail -n 1 | cut -d= -f2- || true; }
 
 echo "── Поднимаю базу"
 $COMPOSE up -d postgres
 
 printf '   жду готовности базы'
 for _ in $(seq 1 60); do
-  state=$(docker inspect -f '{{.State.Health.Status}}' skilllink-postgres 2>/dev/null || echo starting)
+  state=$(docker inspect -f '{{.State.Health.Status}}' "$PG_CONTAINER" 2>/dev/null || echo starting)
   [ "$state" = healthy ] && break
   printf '.'
   sleep 2
 done
-echo " $(docker inspect -f '{{.State.Health.Status}}' skilllink-postgres 2>/dev/null || echo '?')"
+echo " $(docker inspect -f '{{.State.Health.Status}}' "$PG_CONTAINER" 2>/dev/null || echo '?')"
 
 # Образ для миграций и демо-данных собирается заново при каждом развёртывании.
 # `compose run` сам его не пересобирает — берёт тот, что уже есть: старый образ
@@ -65,7 +75,7 @@ if ! run_migrations; then
     echo "   база отвергла пароль — привожу её к паролю из $ENV_FILE"
     PASSWORD=$(grep '^POSTGRES_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)
     USER_NAME=$(grep '^POSTGRES_USER=' "$ENV_FILE" | cut -d= -f2- || true)
-    docker exec -i skilllink-postgres psql -U "${USER_NAME:-skilllink}" -d postgres \
+    docker exec -i "$PG_CONTAINER" psql -U "${USER_NAME:-skilllink}" -d postgres \
       -c "ALTER USER \"${USER_NAME:-skilllink}\" PASSWORD '$PASSWORD'" > /dev/null
     echo "   повторяю миграции"
     run_migrations
@@ -111,22 +121,69 @@ $COMPOSE --profile app up -d --build
 
 printf '   жду готовности приложения'
 for _ in $(seq 1 60); do
-  state=$(docker inspect -f '{{.State.Health.Status}}' skilllink-app 2>/dev/null || echo starting)
+  state=$(docker inspect -f '{{.State.Health.Status}}' "$APP_CONTAINER" 2>/dev/null || echo starting)
   [ "$state" = healthy ] && break
   printf '.'
   sleep 2
 done
-state=$(docker inspect -f '{{.State.Health.Status}}' skilllink-app 2>/dev/null || echo '?')
+state=$(docker inspect -f '{{.State.Health.Status}}' "$APP_CONTAINER" 2>/dev/null || echo '?')
 echo " $state"
 
 if [ "$state" != healthy ]; then
   echo "   приложение не здорово. Что оно само говорит о причине:" >&2
-  docker exec skilllink-app node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>r.text()).then(t=>console.log(t))" 2>&1 | tail -2 >&2
-  docker compose -p skilllink logs --tail 20 app >&2 || true
+  docker exec "$APP_CONTAINER" node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>r.text()).then(t=>console.log(t))" 2>&1 | tail -2 >&2
+  docker exec "$APP_CONTAINER" node -e "fetch('http://127.0.0.1:3000/api/ready').then(r=>r.text()).then(t=>console.log(t))" 2>&1 | tail -2 >&2
+  docker compose -p "$COMPOSE_PROJECT" logs --tail 20 app >&2 || true
   exit 1
 fi
 
 echo "── Стенд поднят"
+
+# ── Проверка после выкладки (решение 118) ───────────────────────────────────
+#
+# «Контейнер здоров» значит только, что процесс жив (/api/health не ходит в базу).
+# Готов ли стенд к пользователям — видно по ответам: приложение напрямую и через
+# Caddy так, как их увидит браузер. Защищённый API без cookie обязан ответить
+# ровно 401: так отвечает только само приложение, а значит, прокси до него доходит
+# (502 — Caddy не видит приложение, 200 — открыт вход без пароля).
+echo "── Проверяю стенд после выкладки"
+APP_PORT=$(setting APP_PORT)
+APP_URL="http://127.0.0.1:${APP_PORT:-3000}"
+wait_http "$APP_URL/api/health" 200 "приложение живо (/api/health)" || true
+wait_http "$APP_URL/api/ready" 200 "приложение готово: база и миграции (/api/ready)" || true
+
+SITE_ADDRESS=$(setting SITE_ADDRESS)
+case "$SITE_ADDRESS" in
+  :*)
+    HTTP_PORT=$(setting HTTP_PORT)
+    PROXY_URL="http://127.0.0.1:${HTTP_PORT:-80}"
+    ;;
+  *)
+    # Домен: соединяемся с Caddy на этой же машине, но с настоящим именем —
+    # проверяется и сертификат. Снаружи то же самое проверит check.sh.
+    HTTPS_PORT=$(setting HTTPS_PORT)
+    PROXY_URL="https://$SITE_ADDRESS:${HTTPS_PORT:-443}"
+    export WAIT_HTTP_RESOLVE="$SITE_ADDRESS:${HTTPS_PORT:-443}:127.0.0.1"
+    ;;
+esac
+wait_http "$PROXY_URL/api/ready" 200 "через Caddy: /api/ready" || true
+wait_http "$PROXY_URL/" 307 "через Caddy: главная без входа → /login (307)" || true
+wait_http "$PROXY_URL/login" 200 "через Caddy: страница входа" || true
+wait_http "$PROXY_URL/api/universities" 401 "через Caddy: API без cookie → 401" || true
+unset WAIT_HTTP_RESOLVE
+
+HERE=$(pwd)
+PARENT=$(dirname "$HERE")
+if [ -d "$PARENT/app.old" ] && [ "$(basename "$HERE")" = app ]; then
+  ROLLBACK_HINT="  cd $PARENT && rm -rf app.failed && mv app app.failed && mv app.old app && \\
+    cd app && ENV_FILE=$ENV_FILE bash scripts/deploy/remote-up.sh
+  Миграции откат не отменяет: если новая версия их принесла, /api/ready старой версии
+  ответит 200 со schema: ahead — это ожидаемо, данные целы (docs/DEPLOY.md, «Откат»)."
+fi
+if ! http_fails_report; then
+  docker compose -p "$COMPOSE_PROJECT" logs --tail 20 app >&2 || true
+  exit 1
+fi
 
 # ── Место на диске ──────────────────────────────────────────────────────────
 #
@@ -137,6 +194,12 @@ echo "── Стенд поднят"
 #
 # Кэш моложе суток не трогаем: следующая сборка должна попасть в него,
 # иначе каждое обновление стенда будет собирать всё заново.
+# PRUNE=0 — не чистить: локальная копия стенда на машине разработчика, где кэш
+# сборки нужен и другим проектам.
+if [ "${PRUNE:-1}" = "0" ]; then
+  echo "── Чистку пропускаю (PRUNE=0)"
+  exit 0
+fi
 echo "── Чищу за собой"
 docker image prune -f > /dev/null 2>&1 || true
 docker builder prune -f --keep-storage 2g > /dev/null 2>&1 ||

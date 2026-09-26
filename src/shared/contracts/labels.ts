@@ -1,4 +1,10 @@
 import type {
+  DsarRequestChannel,
+  DsarRequestKind,
+  DsarRequestStatus,
+  DsarSubjectType,
+} from './dsar'
+import type {
   ApplicationStatus,
   ConfidenceLevel,
   ConsentForm,
@@ -24,7 +30,7 @@ import type {
   UniversityStatus,
   UserRole,
 } from './enums'
-import type { AuditActionCode, AuditObjectType } from './audit'
+import type { AuditActionCode, AuditChainBreakCode, AuditObjectType } from './audit'
 
 /**
  * Русские подписи к значениям перечислений.
@@ -324,7 +330,11 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'skill.merge': 'Навык-дубль объединён с другим',
   'skill.delete': 'Удалён навык',
   'export.download': 'Выгрузка в CSV',
+  'dsar.requested': 'Зарегистрирован запрос субъекта ПД',
+  'dsar.exported': 'Выгрузка «всё о субъекте» ПД',
+  'dsar.erased': 'Обезличивание по запросу субъекта ПД',
   'audit.retention': 'Очистка журнала по сроку хранения',
+  'audit.verify': 'Проверка целостности журнала',
   'import.apply': 'Загрузка реестра из CSV',
 }
 
@@ -347,4 +357,41 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+}
+
+/**
+ * Нарушение цепочки журнала — коротко, для значка рядом с кнопкой проверки
+ * (решение 115). Подробность с номерами строк — в `reason` ответа.
+ */
+export const AUDIT_CHAIN_BREAK_LABELS: Record<AuditChainBreakCode, string> = {
+  rows_missing: 'Удалены записи',
+  row_before_cut: 'Запись из вычищенной части',
+  link_broken: 'Разрыв цепочки',
+  row_modified: 'Запись изменена',
+  row_unnumbered: 'Запись в обход цепочки',
+  tail_removed: 'Удалены последние записи',
+  history_rewritten: 'История переписана',
+  engines_disagree: 'Проверки разошлись',
+}
+
+/** Запросы субъектов ПД (решение 116). */
+export const DSAR_SUBJECT_TYPE_LABELS: Record<DsarSubjectType, string> = {
+  USER: 'Пользователь системы',
+  CONTACT: 'Контактное лицо вуза',
+}
+
+export const DSAR_REQUEST_KIND_LABELS: Record<DsarRequestKind, string> = {
+  EXPORT: 'Сведения о ПД (ст. 14)',
+  ERASE: 'Уничтожение ПД (ст. 20, 21)',
+}
+
+export const DSAR_REQUEST_STATUS_LABELS: Record<DsarRequestStatus, string> = {
+  OPEN: 'Открыт',
+  COMPLETED: 'Исполнен',
+}
+
+export const DSAR_REQUEST_CHANNEL_LABELS: Record<DsarRequestChannel, string> = {
+  SELF_SERVICE: 'Сам в личном кабинете',
+  LETTER: 'Письмо субъекта',
+  ADMIN: 'Администратор без письма',
 }

@@ -121,11 +121,19 @@ jobs:
           npm run db:seed
           npm run db:verify -- --demo
 
+      # Цепочка журнала на настоящей базе (решение 115): подмена и удаление строк,
+      # отрезанный хвост, чистка по сроку, 20 параллельных вставок. Во временной схеме —
+      # журнал демо-набора не трогается. Без TEST_DATABASE_URL `npm test` этот набор пропускает.
+      - name: Цепочка журнала на базе
+        run: npx vitest run src/modules/audit/chain.db.test.ts
+        env:
+          TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - name: Запуск приложения
         run: |
           npm start &
           for i in $(seq 1 60); do
-            curl -sf http://localhost:3000/api/health && break
+            curl -sf http://localhost:3000/api/ready && break
             sleep 2
           done
 

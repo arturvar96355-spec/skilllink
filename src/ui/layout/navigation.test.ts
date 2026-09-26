@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { CurrentUserDto, UserRole } from '@/shared/contracts'
 import { ROUTES } from '../lib/links'
 import { navigationFor, serviceLinksFor } from './navigation'
+import { API_CONTRACT_URL } from '../lib/links'
 
 /**
  * Пункт меню обязан вести на существующую страницу.
@@ -110,5 +111,12 @@ describe('подвал', () => {
     for (const link of serviceLinksFor(user(role)).filter((item) => !item.external)) {
       expect(pageExists(link.href.replace(/#.*$/, '')), `${link.label} → ${link.href}`).toBe(true)
     }
+  })
+
+  it.each(ROLES)('у роли %s служебные ссылки не ведут на сырой JSON', (role) => {
+    const hrefs = serviceLinksFor(user(role)).map((link) => link.href)
+    expect(hrefs.some((href) => href.startsWith('/api/'))).toBe(false)
+    expect(hrefs).toContain(ROUTES.status)
+    expect(hrefs).toContain(API_CONTRACT_URL)
   })
 })

@@ -32,6 +32,11 @@ services:
       dockerfile: Dockerfile
     container_name: skilllink-app
     restart: unless-stopped
+    # Остановка (выкладка, docker stop) — сначала SIGTERM: Next перестаёт принимать
+    # соединения и дожидается начатых запросов, потом выходит сам. По умолчанию Docker
+    # ждёт 10 с и добивает SIGKILL — долгая выгрузка оборвалась бы на середине.
+    # Фоновых задач внутри процесса нет (решение 118): сводки и копии — cron владельца.
+    stop_grace_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -86,6 +91,9 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # Оповещения владельцу о событиях безопасности (решение 118): кроме администраторов
+      # с привязанным Telegram — ещё этот чат. Пусто — только администраторам.
+      TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
       # Метрики сервера (решение 137). Токен пуст — читает только сама машина
       # приложения; BACKUP_STATUS_FILE пуст — метрик копии нет (нечего копировать
       # локально). APP_COMMIT задаёт развёртывание (remote-up.sh), не человек.
