@@ -275,6 +275,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
 
   const isDone = stage.status === 'COMPLETED'
   const isCancelled = stage.status === 'CANCELLED'
+  const isStageOpen = !isDone && !isCancelled
   const numberClass = [
     styles.stageNumber,
     isDone ? styles.stageNumberDone : '',
@@ -309,8 +310,29 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
             <span className={styles.stageTitle}>{stage.title}</span>
             <span className={styles.stageMeta}>
               <span>{STAGE_PHASE_LABELS[stage.phase]}</span>
-              {stage.deadline && <span>срок {formatDate(stage.deadline)}</span>}
-              {stage.responsible && <span>{stage.responsible.fullName}</span>}
+              {/* У открытого этапа срок и ответственный — на виду: просрочка красным,
+                  близкий срок жёлтым, «не назначен» — жёлтым (ТЗ дизайна 26–29.09, п. 3.3).
+                  У закрытого — прежней тихой подписью: там это уже история. */}
+              {stage.deadline && (
+                <span
+                  className={
+                    isStageOpen && stage.isOverdue
+                      ? styles.metaOverdue
+                      : isStageOpen && stage.isDueSoon
+                        ? styles.metaDueSoon
+                        : undefined
+                  }
+                >
+                  срок {formatDate(stage.deadline)}
+                </span>
+              )}
+              {stage.responsible ? (
+                <span className={isStageOpen ? styles.metaResponsible : undefined}>
+                  {stage.responsible.fullName}
+                </span>
+              ) : (
+                isStageOpen && <span className={styles.metaDueSoon}>ответственный не назначен</span>
+              )}
               {stage.requiredTasksTotal > 0 && (
                 <span>
                   чек-лист {stage.requiredTasksDone}/{stage.requiredTasksTotal}
@@ -612,6 +634,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
           title={`Ответственный этапа ${stage.stageNumber}`}
           description={`«${stage.title}»`}
           endpoint={`/api/workflow/stages/${stage.id}`}
+          consequence="Смена попадёт в историю этапа — с автором и временем."
           currentResponsibleId={stage.responsible?.id ?? null}
           currentResponsibleName={stage.responsible?.fullName ?? null}
           allowNone
