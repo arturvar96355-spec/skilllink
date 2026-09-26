@@ -4971,8 +4971,11 @@ curl -s "http://localhost:3000/api/inbound-letters?q=перенести+встр
 зависимостей: `From` (имя и адрес, включая кодированные слова RFC 2047), `Subject`,
 `Date`, `Message-ID`; текст письма — `text/plain`, а если его нет в `multipart/alternative`
 — `text/html` с вырезанной разметкой. Не удалось определить отправителя (нет адреса
-в `From`) — `VALIDATION_ERROR` 422. Создаёт обращение (`source: "EML_UPLOAD"`) и сразу
-разбирает его — ответ 201 уже с разбором, тот же контракт, что у `POST …/:id/analyze`.
+в `From`) — `VALIDATION_ERROR` 422. Письмо с тем же `Message-ID` от того же отправителя
+уже загружено — `CONFLICT` 409, «Это письмо уже загружено», `details.letterId` — id
+существующего обращения (решение 187); пустой `Message-ID` не проверяется. Создаёт
+обращение (`source: "EML_UPLOAD"`) и сразу разбирает его — ответ 201 уже с разбором,
+тот же контракт, что у `POST …/:id/analyze`.
 
 ```bash
 curl -s -X POST http://localhost:3000/api/inbound-letters/upload -F file=@letter.eml

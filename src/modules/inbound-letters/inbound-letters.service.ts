@@ -251,6 +251,17 @@ export async function uploadEml(user: CurrentUser, file: UploadedFile): Promise<
     throw validationError('Не удалось определить отправителя письма', [{ field: 'file', message: 'В заголовке From нет адреса' }])
   }
 
+  // Повторная загрузка того же .eml (решение 187): без этой проверки заводились
+  // второе письмо и вторая задача менеджеру на то же самое обращение. Пустой
+  // messageId (в письме не было заголовка Message-ID) не проверяем — пустое
+  // значение не отличает одно письмо от другого.
+  if (parsed.messageId) {
+    const duplicate = await repo.findByMessageId(parsed.messageId, parsed.from.email)
+    if (duplicate) {
+      throw conflict('Это письмо уже загружено', { letterId: duplicate.id })
+    }
+  }
+
   const row = await repo.create({
     senderEmail: parsed.from.email,
     senderName: parsed.from.name,

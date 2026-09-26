@@ -12,6 +12,7 @@ import type { InboundLetterGroup, InboundLetterStatus, UserRole } from '@/shared
 
 const mocks = vi.hoisted(() => ({
   findById: vi.fn(),
+  findByMessageId: vi.fn(),
   findMany: vi.fn(),
   managerScope: vi.fn((userId: string) => ({ managerScope: userId })),
   isVisibleTo: vi.fn(),
@@ -103,6 +104,7 @@ beforeEach(() => {
   mocks.findLabeledExamples.mockResolvedValue([])
   mocks.findUniversityDomains.mockResolvedValue([])
   mocks.findActiveCooperation.mockResolvedValue(null)
+  mocks.findByMessageId.mockResolvedValue(null)
 })
 
 // ────────────────────────────────── Права ────────────────────────────────────
@@ -176,12 +178,13 @@ describe('права: разбор и решения (решение 170)', () =
 // ──────────────────────── Уведомление ADMIN/HEAD о новом письме (решение 183) ─────────────
 
 const EML_CRLF = '\r\n'
-function eml(): Uint8Array {
+function eml(headers: string[] = []): Uint8Array {
   return new TextEncoder().encode(
     [
       'From: "Иванова Мария" <maria@university.example.invalid>',
       'Subject: Вопрос по программе',
       'Content-Type: text/plain; charset=utf-8',
+      ...headers,
     ].join(EML_CRLF) +
       EML_CRLF +
       EML_CRLF +
@@ -213,6 +216,56 @@ describe('uploadEml: уведомление ADMIN/HEAD о новом обращ�
     await expect(
       service.uploadEml(user('HEAD'), { name: 'l.eml', type: 'message/rfc822', size: 1, bytes: eml() }),
     ).resolves.toBeDefined()
+  })
+})
+
+describe('uploadEml: повторная загрузка того же .eml (решение 187)', () => {
+  it('тот же messageId и тот же отправитель уже загружены — конфликт, второе письмо не заводится', async () => {
+    mocks.findByMessageId.mockResolvedValue(letterRow({ id: 'letter-existing' }))
+
+    await expectRejectCode(
+      service.uploadEml(user('ADMIN'), {
+        name: 'l.eml',
+        type: 'message/rfc822',
+        size: 1,
+        bytes: eml(['Message-ID: <abc123@university.example.invalid>']),
+      }),
+      'CONFLICT',
+    )
+    expect(mocks.findByMessageId).toHaveBeenCalledWith(
+      'abc123@university.example.invalid',
+      'maria@university.example.invalid',
+    )
+    expect(mocks.create).not.toHaveBeenCalled()
+  })
+
+  it('другой messageId — загружается как обычно', async () => {
+    mocks.findByMessageId.mockResolvedValue(null)
+    mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.saveAnalysis.mockResolvedValue(undefined)
+
+    await expect(
+      service.uploadEml(user('ADMIN'), {
+        name: 'l.eml',
+        type: 'message/rfc822',
+        size: 1,
+        bytes: eml(['Message-ID: <new-one@university.example.invalid>']),
+      }),
+    ).resolves.toBeDefined()
+    expect(mocks.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('в письме нет заголовка Message-ID — проверка на дубль не выполняется', async () => {
+    mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    mocks.saveAnalysis.mockResolvedValue(undefined)
+
+    await expect(
+      service.uploadEml(user('ADMIN'), { name: 'l.eml', type: 'message/rfc822', size: 1, bytes: eml() }),
+    ).resolves.toBeDefined()
+    expect(mocks.findByMessageId).not.toHaveBeenCalled()
+    expect(mocks.create).toHaveBeenCalledTimes(1)
   })
 })
 
