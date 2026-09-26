@@ -233,6 +233,11 @@ export async function findPriorityRecommendations(
       createdAt: true,
       updatedAt: true,
       resolvedAt: true,
+      // Решение 119: балл и причины — в той же карточке рекомендации, что и в ленте.
+      score: true,
+      scoreBreakdown: true,
+      reasons: true,
+      isDeferred: true,
     },
   })
 }

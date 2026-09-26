@@ -34,7 +34,12 @@ import {
 } from './stalled-threshold'
 import { buildInsights, dailyWindows, type InsightContext, type SeriesPoint } from './insights'
 import { buildPulse, toPulseDto } from './pulse.rules'
-import { ruleStalledCooperation } from '@/modules/recommendations/recommendations.rules'
+import {
+  evaluateCooperation,
+  ruleStalledCooperation,
+  stalledDaysThreshold,
+  type CooperationRuleInput,
+} from '@/modules/recommendations/recommendations.rules'
 
 /**
  * Аналитика этапов (решение 120): формулы проверяются на примерах, посчитанных
@@ -548,6 +553,68 @@ describe('порог застоя: одна точка подмены', () => {
     const draft = ruleStalledCooperation(input, later)
     expect(draft?.relatedData).toMatchObject({ thresholdSource: 'km', thresholdDays: withData.p90.day })
     expect(draft?.justification).toContain('проходят 90% связок')
+  })
+
+  it('«почему нет рекомендации» видит тот же порог по данным, что и правило (решения 119 + 120)', () => {
+    const coopInput: CooperationRuleInput = {
+      id: 'coop-why-not',
+      productId: 'product-1',
+      updatedAt: new Date('2026-09-01T09:00:00Z'),
+      university: { name: 'Вуз' },
+      program: { name: 'Программа' },
+      stages: Array.from({ length: 14 }, (_, index) => {
+        const stageNumber = index + 1
+        return {
+          stageNumber,
+          title: `Этап ${stageNumber}`,
+          status: stageNumber < 6 ? 'COMPLETED' : stageNumber === 6 ? 'IN_PROGRESS' : 'NOT_STARTED',
+          deadline: null,
+          responsible: null,
+          history: [],
+          tasks: [],
+        }
+      }),
+    }
+    const now = new Date('2026-09-21T09:00:00Z') // 20 дней без движения
+
+    // Ручной порог 14 дней: связка без движения 20 дней — застой уже виден и правилу, и why-not.
+    expect(stalledDaysThreshold(6)).toBe(RECOMMENDATION_RULES.stalledDays)
+    const manualCheck = evaluateCooperation(coopInput, now)
+      .find((item) => item.ruleKey === 'cooperation.stalled')!
+      .checks.find((item) => item.code === 'cooperation_stalled')!
+    expect(manualCheck.facts.threshold).toBe(RECOMMENDATION_RULES.stalledDays)
+    expect(ruleStalledCooperation(
+      { cooperationId: coopInput.id, universityName: 'Вуз', programName: 'Программа', stageNumber: 6, stageTitle: 'Этап 6', stageStatus: 'IN_PROGRESS', lastActivityAt: coopInput.updatedAt },
+      now,
+    )?.relatedData.thresholdDays).toBe(manualCheck.facts.threshold)
+
+    // Порог по данным p90 этапа 6 — 20 дней ещё не застой ни для правила, ни для why-not.
+    setStageDurations(new Map([[6, withData]]))
+    expect(stalledDaysThreshold(6)).toBe(withData.p90.day)
+    const dataCheck = evaluateCooperation(coopInput, now)
+      .find((item) => item.ruleKey === 'cooperation.stalled')!
+      .checks.find((item) => item.code === 'cooperation_stalled')!
+    expect(dataCheck.pass).toBe(false)
+    expect(dataCheck.facts.threshold).toBe(withData.p90.day)
+    expect(
+      ruleStalledCooperation(
+        { cooperationId: coopInput.id, universityName: 'Вуз', programName: 'Программа', stageNumber: 6, stageTitle: 'Этап 6', stageStatus: 'IN_PROGRESS', lastActivityAt: coopInput.updatedAt },
+        now,
+      ),
+    ).toBeNull()
+
+    // Дальше порога по данным — застой виден и правилу, и why-not, с одним и тем же числом.
+    const later = new Date(now.getTime() + 30 * DAY)
+    const laterCheck = evaluateCooperation(coopInput, later)
+      .find((item) => item.ruleKey === 'cooperation.stalled')!
+      .checks.find((item) => item.code === 'cooperation_stalled')!
+    expect(laterCheck.pass).toBe(true)
+    expect(laterCheck.facts.threshold).toBe(withData.p90.day)
+    const laterDraft = ruleStalledCooperation(
+      { cooperationId: coopInput.id, universityName: 'Вуз', programName: 'Программа', stageNumber: 6, stageTitle: 'Этап 6', stageStatus: 'IN_PROGRESS', lastActivityAt: coopInput.updatedAt },
+      later,
+    )
+    expect(laterDraft?.relatedData.thresholdDays).toBe(laterCheck.facts.threshold)
   })
 
   it('мало данных — ручной с причиной; флаг выключен — ручной всегда', () => {

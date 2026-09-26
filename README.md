@@ -85,6 +85,7 @@ npm run db:verify                    # правила целостности д�
 npm run audit:verify                 # цепочка хешей журнала действий и печати (решение 115); audit:seal — снять печать
 TEST_DATABASE_URL=… npx vitest run src/modules/audit/chain.db.test.ts   # цепочка журнала на настоящей базе
 npm run demo:check -- <адрес>        # сверка стенда со сценарием показа (только чтение)
+npm run recs:simulate                # как рекомендации учатся: 90 дней решений, веса правил (решение 119)
 npm run analytics:report             # длительность этапов, воронка, «Система заметила» — цифры для слайда
 ```
 

@@ -248,6 +248,10 @@ function recommendation(overrides: Partial<RecommendationDto> = {}): Recommendat
     createdAt: NOW.toISOString(),
     updatedAt: NOW.toISOString(),
     resolvedAt: null,
+    score: null,
+    scoreBreakdown: null,
+    reasons: [],
+    isDeferred: false,
     ...overrides,
   }
 }

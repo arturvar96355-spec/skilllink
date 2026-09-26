@@ -9,7 +9,8 @@ import {
 const multi = <S extends z.ZodType>(schema: S) =>
   z.union([schema, z.array(schema)]).transform((value) => (Array.isArray(value) ? value : [value]))
 
-export const RECOMMENDATION_SORT_FIELDS = ['priority', 'createdAt', 'updatedAt'] as const
+/** `score` — балл рекомендации (решение 119); `-score` — сначала самые полезные. */
+export const RECOMMENDATION_SORT_FIELDS = ['priority', 'createdAt', 'updatedAt', 'score'] as const
 
 export const recommendationListQuerySchema = paginationSchema.extend({
   type: multi(z.enum(RECOMMENDATION_TYPES)).optional(),
@@ -18,6 +19,11 @@ export const recommendationListQuerySchema = paginationSchema.extend({
   cooperationId: z.string().trim().min(1).optional(),
   /** Фильтр раздела рекомендаций по региону вуза (пункт 7.5 ТЗ). */
   region: z.string().trim().min(1).max(120).optional(),
+  /** Решение 119: `false` — без отложенных защитой от перегрузки, `true` — только они. */
+  deferred: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((value) => value === 'true')
+    .optional(),
   sort: z.string().optional(),
 })
 
@@ -38,3 +44,17 @@ export const updateRecommendationSchema = z
   })
 
 export type UpdateRecommendationInput = z.infer<typeof updateRecommendationSchema>
+
+/**
+ * «Почему нет рекомендации» (решение 119): объект, по которому прогнать правила.
+ * `rule` — одно правило; без него — все правила этого вида объекта.
+ */
+export const WHY_NOT_ENTITIES = ['program', 'cooperation', 'skill'] as const
+
+export const whyNotQuerySchema = z.object({
+  entity: z.enum(WHY_NOT_ENTITIES),
+  id: z.string().trim().min(1).max(64),
+  rule: z.string().trim().min(1).max(80).optional(),
+})
+
+export type WhyNotQuery = z.infer<typeof whyNotQuerySchema>
