@@ -86,7 +86,12 @@ async function sendRequest(path: string, init?: RequestInit): Promise<{ response
         // Тело формы (загрузка файла, решение 145/149) браузер отправляет сам,
         // с границей (boundary) в заголовке — проставленный вручную
         // Content-Type: application/json сломал бы разбор multipart на сервере.
-        ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+        // Файл целиком как тело (импорт реестров и вендоров, решение 177) — по той же
+        // причине: `/api/import*` читает сырые байты и сам решает кодировку/формат,
+        // навязанный application/json тут просто неверен.
+        ...(init?.body && !(init.body instanceof FormData) && !(init.body instanceof Blob)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...init?.headers,
       },
       // Куки сессии идут с каждым запросом: без них сервер ответит 401.
@@ -222,4 +227,14 @@ export function apiUpload<T>(path: string, file: File): Promise<ApiResult<T>> {
   const body = new FormData()
   body.append('file', file)
   return request<T>(path, { method: 'POST', body })
+}
+
+/**
+ * Загрузка файла как есть, без `multipart/form-data` (решение 177): тот же
+ * контракт, что у `POST /api/import`, `/api/import/vendors`, `/api/import/site-orders` —
+ * тело запроса это сам файл (CSV, книга Excel или JSON-массив), сервер читает его байты
+ * потоково (`readBodyBytes`) и сам решает, что в них: кодировку CSV, лист книги, JSON.
+ */
+export function apiUploadRaw<T>(path: string, file: File | Blob): Promise<ApiResult<T>> {
+  return request<T>(path, { method: 'POST', body: file })
 }
