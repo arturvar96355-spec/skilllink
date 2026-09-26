@@ -29,7 +29,7 @@ import { coolDown } from '@/modules/recommendations/recommendations.learning'
 import * as repo from './inbound-letters.repo'
 import { parseEml } from './inbound-letters.eml'
 import { matchUniversityByDomain } from './inbound-letters.match'
-import { classifyByRules, bodyPreview, groupLabel, type RuleClassification } from './inbound-letters.rules'
+import { classifyByRules, bodyPreview, groupLabel, stripSignature, type RuleClassification } from './inbound-letters.rules'
 import { findSimilar } from './inbound-letters.similarity'
 import { buildAnalysisPrompt, buildReplyDraftPrompt, tryParseAnalysis, type AnalysisExample } from './inbound-letters.prompts'
 import type {
@@ -291,7 +291,9 @@ export async function analyzeLetter(user: CurrentUser, id: string, now: Date = n
   const prompt = buildAnalysisPrompt(
     {
       subject: existing.subject,
-      body: existing.bodyText,
+      // Подпись — отдельно от разбора правилами (`rulesResult` выше): модели её
+      // видеть не нужно, а незнакомого отправителя редактор не распознает как ФИО.
+      body: stripSignature(existing.bodyText),
       universityName: knownUniversityName,
       stageInfo: stageNumber ? `этап ${stageNumber}` : null,
       examples,

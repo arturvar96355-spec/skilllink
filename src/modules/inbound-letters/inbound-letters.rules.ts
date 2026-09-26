@@ -145,3 +145,34 @@ export function bodyPreview(text: string, maxLength: number): string {
   const lastSpace = cut.lastIndexOf(' ')
   return `${lastSpace > maxLength * 0.6 ? cut.slice(0, lastSpace) : cut}…`
 }
+
+/**
+ * Подпись незнакомого отправителя перед моделью (решение 183): в письме вуза
+ * бывает подпись с ФИО, должностью и телефоном, которых нет ни в контактах, ни
+ * в сотрудниках, — редактор (`ai-assist.privacy.ts`) их не знает и не вырежет.
+ * Надёжнее отрезать блок подписи целиком, до формул прощания или разделителя.
+ *
+ * Берётся самая ранняя из отметок — письмо может начинаться коротким приветствием
+ * и заканчиваться подписью сразу после сути; всё после отметки для модели не нужно.
+ */
+const SIGNATURE_MARKERS: readonly RegExp[] = [
+  /^[-–—]{2,}\s*$/m, // отдельная строка-разделитель почтового клиента
+  /С\s+уважением[,!.]?/i,
+  /С\s+наилучшими\s+пожеланиями/i,
+  /Искренне\s+ва(?:ш|ша)/i,
+  /Best\s+regards/i,
+  /Kind\s+regards/i,
+  /Sincerely/i,
+]
+
+export function stripSignature(body: string): string {
+  let cutAt = body.length
+  for (const marker of SIGNATURE_MARKERS) {
+    const match = marker.exec(body)
+    if (match && match.index < cutAt) cutAt = match.index
+  }
+  const cut = body.slice(0, cutAt).trimEnd()
+  // Отметка нашлась в самом начале (письмо — сплошная подпись) — лучше отдать
+  // модели весь текст, чем пустоту: редактор ниже по конвейеру всё равно уберёт ФИО.
+  return cut.length > 0 ? cut : body.trim()
+}

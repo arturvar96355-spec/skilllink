@@ -89,12 +89,16 @@ export const INITIALS_WITH_SURNAME = new RegExp(
 )
 
 /**
- * Отчество на «-вич» (мужское), «-вна» или «-ична» (женское) — с падежным окончанием
- * до трёх букв («Петровича», «Петровичу», «Ивановны», «Ильиничне»). Опорное слово для
- * ФИО в прямом порядке ниже: почти не встречается ни в чём, кроме отчества, поэтому
- * не путается с названиями вузов и программ.
+ * Отчество на «-вич» (мужское) или «-вна»/«-ична» (женское) в любом падеже. Мужское
+ * склоняется добавлением букв после «вич» («Петрович» → «Петровича», «Петровичу») —
+ * литеральный кусок «вич» переживает все падежи. Женское склоняется заменой последней
+ * буквы («Ивановна» → «Ивановны», «Ивановне», «Ивановну», «Ивановной») — переживает
+ * только более короткая опора «овн»/«евн» (и «ичн» у «Ильинична» и его пары), поэтому
+ * для женского берётся она, а не буквы «на» целиком. Опорные буквосочетания почти
+ * не встречаются ни в чём, кроме отчества, поэтому не путаются с названиями вузов
+ * и программ, если те не разбиты по словам искусственно.
  */
-const PATRONYMIC = `[А-ЯЁ][а-яё]*(?:вич|вна|чна)[а-яё]{0,3}`
+const PATRONYMIC = `[А-ЯЁ][а-яё]*(?:вич|(?:ов|ев)н|ичн)[а-яё]{0,3}`
 
 /** «Иван Петрович Сидоров» — ФИО в прямом порядке, без инициалов, любой падеж. */
 export const FULL_NAME_DIRECT = new RegExp(
@@ -176,12 +180,17 @@ export function createRedactor(people: KnownPeople, keep: readonly string[] = []
 
     result = result.replace(RESPONSIBLE_CLAUSE, '')
     result = result.replace(EMAIL, EMAIL_PLACEHOLDER)
+    // Паспорт и СНИЛС — раньше телефона: те же 10–11 цифр иначе ушли бы с чужой пометкой.
+    result = result.replace(PASSPORT_CANDIDATE, PASSPORT_PLACEHOLDER)
+    result = result.replace(SNILS_CANDIDATE, SNILS_PLACEHOLDER)
     result = redactPhones(result)
+    result = result.replace(NICKNAME, NICK_PLACEHOLDER)
     if (staff) result = result.replace(staff, STAFF_PLACEHOLDER)
     if (contacts) result = result.replace(contacts, CONTACT_PLACEHOLDER)
     result = collapse(collapse(result, STAFF_PLACEHOLDER), CONTACT_PLACEHOLDER)
     result = result.replace(SURNAME_WITH_INITIALS, STAFF_PLACEHOLDER)
     result = result.replace(INITIALS_WITH_SURNAME, STAFF_PLACEHOLDER)
+    result = result.replace(FULL_NAME_DIRECT, STAFF_PLACEHOLDER)
     result = collapse(result, STAFF_PLACEHOLDER)
 
     result = result.replace(/\uE000(\d+)\uE001/g, (_match, index: string) => protectedNames[Number(index)]!)
