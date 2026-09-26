@@ -1,7 +1,7 @@
 'use client'
 
-import { useRef, useState, type ChangeEvent } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useRef, useState, type ChangeEvent } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   INBOUND_LETTER_GROUP_LABELS,
   type InboundLetterDto,
@@ -17,6 +17,7 @@ import {
   EmptyState,
   ErrorState,
   InboundLetterStatusBadge,
+  Input,
   ListTitle,
   NO_DATA,
   PageHeader,
@@ -28,12 +29,14 @@ import {
   TableSkeleton,
   Toolbar,
   ToolbarItem,
+  ToolbarSearch,
   ResetFilters,
   apiUpload,
   buildQuery,
   formatDateTime,
   letterHref,
   useCurrentUser,
+  useDebounced,
   useMutation,
   useResource,
   usePageInRange,
@@ -47,6 +50,12 @@ import styles from './letters.module.css'
 
 const PAGE_SIZE = 20
 
+/** Меньше двух символов ищет что попало — по образцу остальных реестров с поиском. */
+const MIN_QUERY_LENGTH = 2
+
+/** Фильтры реестра писем в адресе страницы (решение 184, по образцу отчётов — решение 172). */
+type LettersUrlFilter = 'status' | 'group' | 'universityId' | 'q'
+
 /**
  * Реестр «Письма вузов» (решение 170/171).
  *
@@ -56,20 +65,41 @@ const PAGE_SIZE = 20
  * кнопка загрузки не показывается вовсе (раздел 5 задачи).
  */
 export default function LettersPage() {
+  return (
+    // useSearchParams требует границы Suspense: без неё страница не пройдёт сборку.
+    <Suspense fallback={<TableSkeleton rows={8} columns={7} />}>
+      <LettersView />
+    </Suspense>
+  )
+}
+
+function LettersView() {
   const user = useCurrentUser()
   const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
 
-  const [status, setStatus] = useState('')
-  const [group, setGroup] = useState('')
-  const [universityId, setUniversityId] = useState('')
+  /**
+   * Фильтры и поиск — в адресе страницы (решение 184): ссылку на отфильтрованный
+   * список можно передать коллеге, обновление страницы их не теряет. Страница
+   * и сорт остаются локальными — это не фильтр, а положение в уже отфильтрованном
+   * списке.
+   */
+  const status = params.get('status') ?? ''
+  const group = params.get('group') ?? ''
+  const universityId = params.get('universityId') ?? ''
+  const q = params.get('q') ?? ''
   const [sort, setSort] = useState('-receivedAt')
   const [page, setPage] = useState(1)
+
+  const debouncedQuery = useDebounced(q.trim(), 300)
 
   const query = buildLettersFilterQuery({
     status,
     group,
     universityId,
     cooperationId: '',
+    q: debouncedQuery.length >= MIN_QUERY_LENGTH ? debouncedQuery : '',
     sort,
     page,
     pageSize: PAGE_SIZE,
@@ -82,19 +112,26 @@ export default function LettersPage() {
   const stats = useResource<InboundLetterStatsDto>('/api/inbound-letters/stats')
 
   const rows = letters.data ?? []
-  const hasFilters = status !== '' || group !== '' || universityId !== ''
+  const hasFilters = status !== '' || group !== '' || universityId !== '' || q.trim() !== ''
 
-  function changeFilter(apply: () => void) {
-    apply()
+  /** Меняет параметры фильтров в адресе, не трогая остальные (сорт там не живёт). */
+  function setParams(changes: Partial<Record<LettersUrlFilter, string | null>>) {
+    const next = new URLSearchParams(params.toString())
+    for (const [key, value] of Object.entries(changes)) {
+      if (!value) next.delete(key)
+      else next.set(key, value)
+    }
+    const rest = next.toString()
+    router.replace(rest === '' ? pathname : `${pathname}?${rest}`, { scroll: false })
+  }
+
+  function changeFilter(changes: Partial<Record<LettersUrlFilter, string | null>>) {
+    setParams(changes)
     setPage(1)
   }
 
   function resetFilters() {
-    changeFilter(() => {
-      setStatus('')
-      setGroup('')
-      setUniversityId('')
-    })
+    changeFilter({ status: null, group: null, universityId: null, q: null })
   }
 
   const columns: Column<InboundLetterListItemDto>[] = [
@@ -195,12 +232,21 @@ export default function LettersPage() {
       </Section>
 
       <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+        <ToolbarSearch>
+          <Input
+            label="Поиск"
+            placeholder="Тема, текст, отправитель, вуз"
+            icon="search"
+            value={q}
+            onChange={(event) => changeFilter({ q: event.target.value || null })}
+          />
+        </ToolbarSearch>
         <ToolbarItem>
           <Select
             label="Статус"
             placeholder="Любой статус"
             value={status}
-            onValueChange={(value) => changeFilter(() => setStatus(value))}
+            onValueChange={(value) => changeFilter({ status: value || null })}
             options={INBOUND_LETTER_STATUS_OPTIONS}
           />
         </ToolbarItem>
@@ -209,7 +255,7 @@ export default function LettersPage() {
             label="Группа"
             placeholder="Любая группа"
             value={group}
-            onValueChange={(value) => changeFilter(() => setGroup(value))}
+            onValueChange={(value) => changeFilter({ group: value || null })}
             options={INBOUND_LETTER_GROUP_OPTIONS}
           />
         </ToolbarItem>
@@ -221,7 +267,7 @@ export default function LettersPage() {
             toOption={universityShortOption}
             placeholder="Любой вуз"
             value={universityId}
-            onValueChange={(value) => changeFilter(() => setUniversityId(value))}
+            onValueChange={(value) => changeFilter({ universityId: value || null })}
           />
         </ToolbarItem>
       </Toolbar>
@@ -252,7 +298,10 @@ export default function LettersPage() {
                 getRowHref={(row) => letterHref(row.id)}
                 appearance="list"
                 sort={sort}
-                onSortChange={(next) => changeFilter(() => setSort(next))}
+                onSortChange={(next) => {
+                  setSort(next)
+                  setPage(1)
+                }}
                 isRefreshing={letters.isRefreshing}
                 caption="Реестр писем вузов"
               />
