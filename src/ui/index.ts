@@ -100,6 +100,7 @@ export {
   ApiRequestError,
 } from './lib/api'
 export { apiDownload, filenameFromDisposition } from './lib/api'
+export { reportClientError } from './lib/report-error'
 export { ATTACHMENT_ACCEPT, ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_MB } from './lib/attachments'
 export {
   NO_DATA,
