@@ -93,6 +93,15 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
   const index = mapHeaders(header, UNIVERSITY_COLUMNS.required, UNIVERSITY_COLUMNS.optional)
   const plans: RowPlan[] = []
 
+  // Существующие вузы загружаются одним запросом по всем названиям файла —
+  // раньше на каждую строку шёл отдельный запрос к базе (решение 190, N+1).
+  const namesInFile: string[] = []
+  for (let i = 1; i < rows.length; i += 1) {
+    const name = cell(rows[i] as CsvRow, index, 'Название')
+    if (name) namesInFile.push(name)
+  }
+  const existingByName = await repo.findUniversitiesByNames(namesInFile)
+
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i] as CsvRow
     const line = i + 1
@@ -142,7 +151,7 @@ async function planUniversities(rows: CsvRow[]): Promise<RowPlan[]> {
     seenNames.set(name.toLowerCase(), line)
 
     // Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
-    const existing = await repo.findUniversityByName(name)
+    const existing = existingByName.get(name.toLowerCase())
 
     // Архивный вуз через файл не меняется — как и через карточку (assertNotArchived).
     if (existing?.archivedAt) {
@@ -216,6 +225,27 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
   /** Программы, уже встреченные в этом файле: строка, где встретилась впервые. */
   const seen = new Map<string, number>()
 
+  // Вузы файла — одним запросом (решение 190, N+1), как в planUniversities.
+  const universityNamesInFile: string[] = []
+  for (let i = 1; i < rows.length; i += 1) {
+    const universityName = cell(rows[i] as CsvRow, index, 'Вуз')
+    if (universityName) universityNamesInFile.push(universityName)
+  }
+  const universityByName = await repo.findUniversityRefsByNames(universityNamesInFile)
+
+  // Существующие программы этих вузов — тоже одним запросом, не на каждую строку.
+  const programPairs: Array<{ universityId: string; name: string }> = []
+  for (let i = 1; i < rows.length; i += 1) {
+    const row = rows[i] as CsvRow
+    const universityName = cell(row, index, 'Вуз')
+    const name = cell(row, index, 'Программа')
+    if (!universityName || !name) continue
+    const university = universityByName.get(universityName.toLowerCase())
+    if (!university || university.archivedAt) continue
+    programPairs.push({ universityId: university.id, name })
+  }
+  const existingProgramsByKey = await repo.findProgramsByNames(programPairs)
+
   for (let i = 1; i < rows.length; i += 1) {
     const row = rows[i] as CsvRow
     const line = i + 1
@@ -243,7 +273,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
       continue
     }
 
-    const university = await repo.findUniversityRefByName(universityName)
+    const university = universityByName.get(universityName.toLowerCase())
     if (!university) {
       plans.push({
         result: {
@@ -303,7 +333,7 @@ async function planPrograms(rows: CsvRow[]): Promise<RowPlan[]> {
 
     const fields = { level, ...optional }
 
-    const existing = await repo.findProgramByName(university.id, name)
+    const existing = existingProgramsByKey.get(`${university.id}::${name.toLowerCase()}`)
 
     if (existing?.archivedAt) {
       plans.push({

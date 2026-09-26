@@ -411,6 +411,20 @@ model University {
   @@index([responsibleId])
   /// Поиск дублей по названию (решение 124): кандидатов отбирает оператор `%` расширения pg_trgm.
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "universities_name_trgm")
+  /**
+   * Индекс по выражению `universities_name_lower_idx` — точный поиск при импорте
+   * без учёта регистра (решение 190, ревью базы 26.09.2026,
+   * миграция `20260926230717_review_indexes`) — `findUniversitiesByNames`/
+   * `findUniversityRefsByNames` (import.repo.ts) грузят вузы файла одним запросом
+   * `name: { in: […], mode: 'insensitive' }`, что Prisma переводит в
+   * `lower(name) IN (…)`. Обычный B-tree по `name` для этого бесполезен: одиночный
+   * поиск `equals + mode: 'insensitive'` Prisma переводит в `name ILIKE $1` без
+   * шаблонных символов, а Postgres по такому условию B-tree не использует —
+   * проверено `EXPLAIN` на 5000 строк. Поэтому вместо обычного индекса —
+   * индекс по выражению `lower(name)`: он покрывает именно `IN`-запрос импорта.
+   * Индексы по выражению Prisma не описывает — создан в миграции вручную,
+   * `prisma migrate diff` его не видит и не предложит удалить.
+   */
   @@map("universities")
 }
 
@@ -867,6 +881,10 @@ model Cooperation {
   @@index([productId])
   @@index([status])
   @@index([responsibleId])
+  /// Связки, открытые на дату `at` (решение 190, ревью базы 26.09.2026):
+  /// `countCooperationsOpenAt` (analytics.repo.ts) фильтрует по status <> PAUSED
+  /// и createdAt <= at — индекс покрывает оба поля запроса тренда дашборда.
+  @@index([status, createdAt])
   @@map("cooperations")
 }
 
@@ -1376,6 +1394,9 @@ model AuditLog {
   @@index([objectType, objectId])
   @@index([createdAt])
   @@index([userId])
+  /// Выборка журнала по действию за период (решение 190, ревью базы 26.09.2026):
+  /// `action` — частый фильтр отдельно от `objectType`/`objectId`, `createdAt` — сортировка.
+  @@index([action, createdAt])
   @@map("audit_log")
 }
 

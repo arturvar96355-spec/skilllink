@@ -51,13 +51,21 @@ const repo = vi.hoisted(() => ({
   markExportedToLms: vi.fn(async (numbers: string[], at: Date) => {
     for (const order of store.orders) if (numbers.includes(order.orderNo)) order.lmsExportedAt = at
   }),
+  findCourses: vi.fn(async () => ({ rows: [], total: 0 })),
+  findAllOrderHashes: vi.fn(async () =>
+    store.orders.map((order) => ({ emailHash: order.emailHash, phoneHash: order.phoneHash })),
+  ),
+  countOrders: vi.fn(async () => store.orders.length),
+  countStreams: vi.fn(async () => 0),
 }))
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }))
 
 vi.mock('./enrollment.repo', () => repo)
 vi.mock('@/shared/audit/audit', () => audit)
 
-const { importSiteOrders, buildLmsFile, parseOrdersBody, assertCanImportOrders } = await import('./enrollment.service')
+const { importSiteOrders, buildLmsFile, parseOrdersBody, assertCanImportOrders, listCourses } = await import(
+  './enrollment.service'
+)
 
 const RAW = readFileSync(join(process.cwd(), 'tests/fixtures/site-orders.sample.json'))
 const ITEMS = parseOrdersBody(RAW)
@@ -196,5 +204,29 @@ describe('файл «Загрузка пользователей» для LMS', 
     expect(file.rows).toBe(1)
     const [sheet] = readXlsx(file.file)
     expect(sheet!.rows[1]!.slice(0, 2)).toEqual(['Тестова', 'Алла'])
+  })
+})
+
+/**
+ * Курсы и показатели набора (решение 190, ревью базы): totals.orderCount раньше
+ * приходил из hashes.length — то есть только чтобы посчитать длину массива,
+ * repo.findAllOrderHashes выгружал ВСЮ таблицу заказов. Теперь orderCount —
+ * отдельный COUNT (repo.countOrders), а полная выгрузка хешей остаётся только
+ * для listenerCount — дедупликации людей, которую агрегатом СУБД не посчитать.
+ */
+describe('курсы ИТ-Школы: totals.orderCount — через COUNT, а не длину выгрузки хешей', () => {
+  it('orderCount берётся из repo.countOrders, а не из количества строк repo.findAllOrderHashes', async () => {
+    await importSiteOrders(user('MANAGER'), { mode: 'apply' }, ITEMS)
+    // Подменяем countOrders на заведомо другое число — если бы orderCount всё ещё
+    // читался из hashes.length, эта подмена никак не отразилась бы на ответе.
+    repo.countOrders.mockResolvedValueOnce(999)
+
+    const result = await listCourses(user('MANAGER'), { page: 1, pageSize: 20 })
+
+    expect(repo.countOrders).toHaveBeenCalledTimes(1)
+    expect(repo.findAllOrderHashes).toHaveBeenCalledTimes(1)
+    expect(result.meta.totals.orderCount).toBe(999)
+    // listenerCount по-прежнему считается по выгруженным хешам (дедупликация).
+    expect(result.meta.totals.listenerCount).toBeGreaterThan(0)
   })
 })

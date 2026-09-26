@@ -249,21 +249,33 @@ export async function loadOutcomeFacts(
   return { stageClosures, programEvents }
 }
 
-/** Записывает решённые исходы. Ожидающие не пишутся: их пересчитает следующий раз. */
+/**
+ * Записывает решённые исходы. Ожидающие не пишутся: их пересчитает следующий раз.
+ *
+ * Один пакет (`$transaction`), а не последовательный цикл `await` на каждую запись
+ * (решение 190, ревью базы) — обновлений может быть столько же, сколько сигналов
+ * ждало исхода, и раньше каждое было отдельным круговым обращением к базе.
+ * `updateMany` по каждой записи сохранён как есть (условие `outcomeAt: null` —
+ * то же самое, что и было): без разбора текстом Prisma `$transaction` от массива
+ * запросов и так отправляет их одной пачкой.
+ */
 export async function saveOutcomes(updates: ReadonlyArray<{ id: string; outcome: Outcome; evaluatedAt: Date }>) {
-  for (const { id, outcome, evaluatedAt } of updates) {
-    await prisma.recommendationSignal.updateMany({
-      where: { id, outcomeAt: null },
-      data: {
-        outcomeAt: outcome.at,
-        outcome: {
-          state: outcome.state,
-          days: outcome.days,
-          event: outcome.event,
-          at: outcome.at?.toISOString() ?? null,
-          evaluatedAt: evaluatedAt.toISOString(),
+  if (updates.length === 0) return
+  await prisma.$transaction(
+    updates.map(({ id, outcome, evaluatedAt }) =>
+      prisma.recommendationSignal.updateMany({
+        where: { id, outcomeAt: null },
+        data: {
+          outcomeAt: outcome.at,
+          outcome: {
+            state: outcome.state,
+            days: outcome.days,
+            event: outcome.event,
+            at: outcome.at?.toISOString() ?? null,
+            evaluatedAt: evaluatedAt.toISOString(),
+          },
         },
-      },
-    })
-  }
+      }),
+    ),
+  )
 }
