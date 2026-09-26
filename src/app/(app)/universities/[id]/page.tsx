@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   ContactDto,
   CooperationListItemDto,
@@ -10,13 +10,14 @@ import type {
   MeetingDto,
   ProgramListItemDto,
   SkillGapDto,
+  TimelineEventDto,
+  TimelineEventType,
   UniversityDto,
-  UniversityEventDto,
 } from '@/shared/contracts'
 import {
   MEETING_FORMAT_LABELS,
   PROGRAM_LEVEL_LABELS,
-  UNIVERSITY_EVENTS_MAX_LIMIT,
+  TIMELINE_EVENT_TYPES,
   USER_ROLE_LABELS,
 } from '@/shared/contracts'
 import {
@@ -38,6 +39,7 @@ import {
   Progress,
   ProgramStatusBadge,
   Section,
+  Select,
   Skeleton,
   TableSkeleton,
   Tabs,
@@ -63,6 +65,7 @@ import {
   formatDemand,
   formatPlace,
 } from '@/ui'
+import { mergeTimelinePage } from './timeline-merge'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
@@ -78,12 +81,32 @@ type TabKey =
   | 'meetings'
   | 'history'
 
-const EVENT_ICONS: Record<UniversityEventDto['kind'], 'cooperation' | 'document' | 'calendar' | 'user'> = {
-  'cooperation.created': 'cooperation',
-  'stage.status': 'cooperation',
-  'document.status': 'document',
+/**
+ * Лента 360 (решение 182, п. 3): подписи и значки по крупному типу события
+ * (`TimelineEventType`), а не по свободной строке `kind` — типов уточнения
+ * («stage.status», «university.merge»…) больше, чем стоит заводить под них
+ * отдельные значки.
+ */
+const TIMELINE_TYPE_LABELS: Record<TimelineEventType, string> = {
+  cooperation: 'Связки',
+  stage: 'Этапы',
+  meeting: 'Встречи',
+  document: 'Документы',
+  application: 'Заявки',
+  recommendation: 'Рекомендации',
+  contact: 'Контакты',
+  audit: 'Изменения записи',
+}
+
+const TIMELINE_TYPE_ICONS: Record<TimelineEventType, 'cooperation' | 'document' | 'calendar' | 'user' | 'recommendation' | 'settings'> = {
+  cooperation: 'cooperation',
+  stage: 'cooperation',
   meeting: 'calendar',
+  document: 'document',
   application: 'user',
+  recommendation: 'recommendation',
+  contact: 'user',
+  audit: 'settings',
 }
 
 /**
@@ -214,11 +237,38 @@ export default function UniversityPage() {
   )
   const gapMarks = mockMarks(gaps.data ?? [])
 
-  const [eventsLimit, setEventsLimit] = useState(20)
-  const events = useResource<UniversityEventDto[]>(
-    tab === 'history' ? `/api/universities/${id}/events${buildQuery({ limit: eventsLimit })}` : null,
+  /**
+   * Лента 360 (решение 182, п. 3, `GET /api/universities/:id/timeline`) — курсорная
+   * пагинация: сервер отдаёт страницу и `nextCursor`, а не общий счётчик. Фронт
+   * копит показанные страницы сам (`timelineItems`) — `useResource` меняет данные
+   * целиком при смене адреса, а «Показать ещё» здесь должно дописывать, а не
+   * подменять список.
+   */
+  const [timelineType, setTimelineType] = useState<TimelineEventType | ''>('')
+  const [timelineCursor, setTimelineCursor] = useState<string | null>(null)
+  const [timelineItems, setTimelineItems] = useState<TimelineEventDto[]>([])
+  const timeline = useResource<TimelineEventDto[]>(
+    tab === 'history'
+      ? `/api/universities/${id}/timeline${buildQuery({
+          limit: 20,
+          cursor: timelineCursor ?? undefined,
+          types: timelineType || undefined,
+        })}`
+      : null,
     { keepPreviousData: true },
   )
+  const timelineMeta = timeline.meta as { nextCursor?: string | null; hasMore?: boolean } | null
+
+  useEffect(() => {
+    if (!timeline.data) return
+    setTimelineItems((previous) => mergeTimelinePage(previous, timeline.data!, timelineCursor))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.data])
+
+  function onTimelineTypeChange(value: string) {
+    setTimelineType(value as TimelineEventType | '')
+    setTimelineCursor(null)
+  }
 
   if (university.isLoading) {
     return (
@@ -784,27 +834,41 @@ export default function UniversityPage() {
 
       {tab === 'history' && (
         <Card>
-          {events.isLoading ? (
+          <div className={styles.timelineFilter}>
+            <Select
+              label="Тип события"
+              hideLabel
+              placeholder="Все типы"
+              value={timelineType}
+              onValueChange={onTimelineTypeChange}
+              options={TIMELINE_EVENT_TYPES.map((type) => ({ value: type, label: TIMELINE_TYPE_LABELS[type] }))}
+            />
+          </div>
+          {timelineItems.length === 0 && timeline.isLoading ? (
             <TableSkeleton rows={5} columns={2} />
-          ) : events.error ? (
-            <ErrorState error={events.error} onRetry={events.reload} />
-          ) : (events.data ?? []).length === 0 ? (
-            <EmptyState icon="clock" title="Событий нет" description="По вузу ещё ничего не происходило." />
+          ) : timelineItems.length === 0 && timeline.error ? (
+            <ErrorState error={timeline.error} onRetry={timeline.reload} />
+          ) : timelineItems.length === 0 ? (
+            <EmptyState
+              icon="clock"
+              title="Событий нет"
+              description={
+                timelineType
+                  ? `Событий типа «${TIMELINE_TYPE_LABELS[timelineType]}» по вузу не найдено.`
+                  : 'По вузу ещё ничего не происходило.'
+              }
+            />
           ) : (
             <>
               <div className={styles.events}>
-                {(events.data ?? []).map((event) => (
+                {timelineItems.map((event) => (
                   <span key={event.id} className={styles.event}>
                     <span className={styles.eventIcon}>
-                      <Icon name={EVENT_ICONS[event.kind]} size={16} />
+                      <Icon name={TIMELINE_TYPE_ICONS[event.type]} size={16} />
                     </span>
                     <span className={styles.eventText}>
                       <span className={styles.eventTitle}>
-                        {event.cooperationId ? (
-                          <Link href={cooperationHref(event.cooperationId)}>{event.title}</Link>
-                        ) : (
-                          event.title
-                        )}
+                        {event.href ? <Link href={event.href}>{event.title}</Link> : event.title}
                       </span>
                       {event.details && <span className={styles.eventDetails}>{event.details}</span>}
                       <span className={styles.eventMeta}>
@@ -816,25 +880,24 @@ export default function UniversityPage() {
                   </span>
                 ))}
               </div>
-              {/* `hasMore` приходит в meta ленты: пока он есть, показываем «ещё» — до предела запроса. */}
-              {(events.meta as { hasMore?: boolean } | null)?.hasMore &&
-                (eventsLimit < UNIVERSITY_EVENTS_MAX_LIMIT ? (
-                  <div className={styles.center}>
-                    <Button
-                      variant="secondary"
-                      icon="chevronDown"
-                      onClick={() =>
-                        setEventsLimit((value) => Math.min(value + 20, UNIVERSITY_EVENTS_MAX_LIMIT))
-                      }
-                    >
-                      Показать ещё
-                    </Button>
-                  </div>
-                ) : (
-                  <p className={styles.rowMeta}>
-                    Показаны последние {UNIVERSITY_EVENTS_MAX_LIMIT} событий.
-                  </p>
-                ))}
+              {timeline.error && <p className={styles.rowMeta}>{timeline.error.message}</p>}
+              {timelineMeta?.hasMore ? (
+                <div className={styles.center}>
+                  <Button
+                    variant="secondary"
+                    icon="chevronDown"
+                    onClick={() => setTimelineCursor(timelineMeta.nextCursor ?? null)}
+                    isLoading={timeline.isRefreshing}
+                    disabled={timeline.isRefreshing}
+                  >
+                    Показать ещё
+                  </Button>
+                </div>
+              ) : (
+                <p className={styles.rowMeta}>
+                  Показаны все события{timelineType ? ` типа «${TIMELINE_TYPE_LABELS[timelineType]}»` : ''}.
+                </p>
+              )}
             </>
           )}
         </Card>
