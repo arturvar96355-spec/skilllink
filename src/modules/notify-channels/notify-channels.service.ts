@@ -1,9 +1,11 @@
+import { timingSafeEqual } from 'node:crypto'
 import { assertCan, can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { writeAudit } from '@/shared/audit/audit'
 import { forbidden, integrationError, notFound } from '@/shared/http/errors'
 import { addDays } from '@/shared/utils/date'
 import { log } from '@/shared/log/logger'
+import { getIntegrationsConfig } from '@/integrations/config'
 import {
   connect as telegramConnect,
   disconnect as telegramDisconnect,
@@ -108,6 +110,40 @@ export async function setPrimary(user: CurrentUser, channel: ChannelId | null): 
   assertCan(user, 'READ')
   await repo.setPrimaryChannel(user.id, channel)
   return getChannels(user)
+}
+
+// ───────────────────────── Подлинность входящих MAX/VK ─────────────────────────
+
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8')
+  const bufB = Buffer.from(b, 'utf8')
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB)
+}
+
+/**
+ * Заголовок X-Max-Bot-Api-Secret против MAX_WEBHOOK_SECRET. Секрет не задан —
+ * вебхук закрыт для всех (как Telegram без TELEGRAM_WEBHOOK_SECRET, решение 102):
+ * отправка сообщений при этом продолжает работать, входящие — нет.
+ */
+export function assertMaxWebhookSecret(received: string | null): void {
+  const expected = getIntegrationsConfig().max.webhookSecret
+  if (!expected || received === null || !timingSafeStringEqual(received, expected)) {
+    throw forbidden('Запрос не от MAX')
+  }
+}
+
+/**
+ * Callback API VK сверяется не заголовком, а полем `secret` в теле каждого события —
+ * так устроен сам Callback API (dev.vk.com/ru/api/bots/getting-started).
+ */
+export function vkSecretMatches(received: string | undefined): boolean {
+  const expected = getIntegrationsConfig().vk.secret
+  return expected !== null && received !== undefined && timingSafeStringEqual(received, expected)
+}
+
+/** Строка, которую VK ждёт в ответ на событие `confirmation` — открытым текстом, не JSON. */
+export function vkConfirmationCode(): string | null {
+  return getIntegrationsConfig().vk.confirmationCode
 }
 
 // ─────────────────────────────── Входящие MAX/VK ───────────────────────────────
