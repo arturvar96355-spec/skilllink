@@ -254,6 +254,18 @@
   color: var(--text-primary);
 }
 
+/* Телефон: бирка и число занимают всю ячейку — стрелку убираем, ячейка и так целиком ссылка. */
+@media (max-width: 480px) {
+  .priorityRow {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .priorityRow > svg {
+    display: none;
+  }
+}
+
 .actionHead {
   display: flex;
   align-items: flex-start;

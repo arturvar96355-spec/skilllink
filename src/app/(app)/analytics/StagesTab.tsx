@@ -212,10 +212,10 @@ export function StagesTab() {
 
       <KpiStrip
         items={[
-          { key: 'now', label: 'Связок на этапах сейчас', value: inProgress, unit: 'связок' },
-          { key: 'overdue', label: 'Этапов с просрочкой', value: overdue.meta?.total ?? null, unit: 'этапов' },
-          { key: 'blocked', label: 'Заблокированных этапов', value: blocked.meta?.total ?? null, unit: 'этапов' },
-          { key: 'dropped', label: 'Выбыли на этапах', value: dropped, unit: 'связок', explanation: 'Отменённые и приостановленные связки, не прошедшие этап' },
+          { key: 'now', label: 'На этапах сейчас', value: inProgress, unit: 'связок' },
+          { key: 'overdue', label: 'С просрочкой', value: overdue.meta?.total ?? null, unit: 'этапов' },
+          { key: 'blocked', label: 'Заблокировано', value: blocked.meta?.total ?? null, unit: 'этапов' },
+          { key: 'dropped', label: 'Выбыли', value: dropped, unit: 'связок', explanation: 'Отменённые и приостановленные связки, не прошедшие этап' },
         ]}
       />
       <div className={styles.jump}>
