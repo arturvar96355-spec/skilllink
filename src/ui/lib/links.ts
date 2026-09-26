@@ -21,8 +21,14 @@ export const ROUTES = {
   settings: '/settings',
   profile: '/profile',
   portal: '/portal',
+  /** Раздел отчётов: отчёт руководителю, отчёт и каталог по ТЗ (решение 150). */
+  reports: '/reports',
   /** Отчёт руководителю: лист A4 для печати и PDF (решение 97). */
   managerReport: '/reports/portfolio',
+  /** Отчёт по ТЗ РТК: пять колонок дословно по заданию (решение 150). */
+  tzReport: '/reports/tz',
+  /** Каталог по ТЗ РТК: реквизиты лицензии и передачи ПО (решение 150). */
+  catalogReport: '/reports/catalog',
   login: '/login',
   /** Политика обработки персональных данных — открыта без входа. */
   privacy: '/privacy',

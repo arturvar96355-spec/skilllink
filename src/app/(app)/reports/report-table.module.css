@@ -1,0 +1,123 @@
+/*
+ * Отчёт по ТЗ и Каталог по ТЗ (решение 150) — один и тот же экран для обоих:
+ * ссылки на выгрузку сверху, лист с таблицей-превью ниже. Лист печатается
+ * тем же приёмом `[data-print-document]`, что и отчёт руководителю
+ * (globals.css, решение 97): на печати остаётся только он.
+ */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface-1);
+  border-radius: var(--radius-panel);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.title {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--text-primary);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+/* Узкий экран не листает страницу вбок — вбок листается только таблица внутри. */
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.table th {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.table td {
+  color: var(--text-primary);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/*
+ * Печать: та же именованная страница-приём, что у отчёта руководителю, но
+ * альбомная — колонок в обоих отчётах (5 и 10) больше, чем в книжный лист A4
+ * помещается без переноса.
+ */
+@page report-table {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  .sheet {
+    page: report-table;
+    padding: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .tableWrapper {
+    overflow: visible;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .table th,
+  .table td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .table tr {
+    break-inside: avoid;
+  }
+
+  .table thead {
+    display: table-header-group;
+  }
+}
