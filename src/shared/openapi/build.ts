@@ -157,9 +157,11 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
   const parameters = [...pathParameters(spec.path, spec.pathParams)]
   if (spec.query) parameters.push(...queryParameters(spec.query))
 
-  const access = spec.public
-    ? 'Право доступа: без входа — доступ даёт сам адрес.'
-    : `Право доступа: ${PERMISSION_NOTES[spec.permission]}.`
+  const access =
+    spec.accessNote ??
+    (spec.public
+      ? 'Право доступа: без входа — доступ даёт сам адрес.'
+      : `Право доступа: ${PERMISSION_NOTES[spec.permission]}.`)
   const description = [spec.description, access]
     .filter((part): part is string => typeof part === 'string' && part.length > 0)
     .join('\n\n')

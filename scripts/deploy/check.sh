@@ -104,6 +104,27 @@ case "$URL" in
   https://*) check "CSP: upgrade-insecure-requests за HTTPS" "$(echo "$CSP" | grep -q 'upgrade-insecure-requests' && echo 1 || echo 0)" ;;
 esac
 
+# ── Лимит тела запроса (решение 137) ────────────────────────────────────────
+#
+# Caddy режет тело раньше приложения (Caddyfile, request_body max_size) —
+# запасом над самым большим пределом приложения (2 МиБ, импорт CSV,
+# src/app/api/import/route.ts). Чуть меньше предела Caddy — запрос доходит до
+# приложения (какой угодно ответ, лишь бы не 413 — дальше решает уже сама
+# ручка); чуть больше — ровно 413, а не обрыв соединения. Число ниже должно
+# совпадать с max_size в Caddyfile — это проверяет отдельный тест vitest
+# (src/shared/config/deploy-consistency.test.ts).
+CADDY_BODY_LIMIT=3145728
+UNDER=$(head -c $((CADDY_BODY_LIMIT - 1024)) /dev/urandom 2>/dev/null |
+  curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 30 \
+    -X POST --data-binary @- -H 'Content-Type: text/csv' "$URL/api/import")
+UNDER_OK=$([ "$UNDER" != "413" ] && [ "$UNDER" != "000" ] && echo 1 || echo 0)
+check "тело чуть меньше предела доходит до приложения" "$UNDER_OK" "код $UNDER (не 413 — дошло)"
+
+OVER=$(head -c $((CADDY_BODY_LIMIT + 1024)) /dev/urandom 2>/dev/null |
+  curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 30 \
+    -X POST --data-binary @- -H 'Content-Type: text/csv' "$URL/api/import")
+check "тело больше предела — ровно 413, а не обрыв" "$(yes_no "$OVER" 413)" "код $OVER"
+
 # ── Устаревшая сессия не запирает вход ──────────────────────────────────────
 #
 # После перезаливки демо-данных cookie в браузере указывает на пользователя,

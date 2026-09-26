@@ -287,11 +287,16 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 Сказано честно, чтобы не выглядело промышленным контуром:
 
 - **Резервные копии — на той же машине.** С 25.09.2026 cron владельца сервера
-  каждую ночь в 03:15 МСК кладёт копию в `~/backups` и удаляет копии старше 14 суток:
+  каждую ночь в 03:15 МСК кладёт копию в `~/backups` и удаляет копии старше 14 суток;
+  с решения 137 следом пишет отметку `~/backups/last.json` для метрик
+  (`backup_last_success_timestamp_seconds`, `backup_last_size_bytes` — раздел 10):
 
   ```bash
-  15 3 * * * cd ~/skilllink/app && docker compose -p skilllink exec -T postgres pg_dump -Fc -U skilllink skilllink > ~/backups/skilllink-$(date +\%F).dump 2>>~/backups/errors.log && find ~/backups -name "skilllink-*.dump" -mtime +14 -delete
+  15 3 * * * cd ~/skilllink/app && docker compose -p skilllink exec -T postgres pg_dump -Fc -U skilllink skilllink > ~/backups/skilllink-$(date +\%F).dump 2>>~/backups/errors.log && find ~/backups -name "skilllink-*.dump" -mtime +14 -delete && printf '{"timestamp": %s, "sizeBytes": %s}' "$(date +\%s)" "$(stat -c%s ~/backups/skilllink-$(date +\%F).dump)" > ~/backups/last.json
   ```
+
+  **На уже развёрнутом стенде эту строку нужно переставить владельцу вручную**
+  (`crontab -e`) — правка файла в git существующий `crontab` сама не трогает.
 
   От ошибки и порчи данных копии спасают, от потери всей машины — нет. Копирование
   вне сервера (Object Storage) подготовлено, включает владелец — раздел 9
@@ -334,8 +339,11 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 
   Без этого пять проверок входа падают так, будто сломалась авторизация.
 
-- **Мониторинга и оповещений нет.** Есть только `/api/health` и перезапуск
-  контейнера при падении.
+- **Метрики и правила оповещений есть (решение 137, раздел 10), Prometheus и
+  Grafana на стенде не включены.** `GET /api/metrics` и правила
+  (`deploy/monitoring/alert-rules.yml`) готовы; кто их читает и куда шлёт
+  оповещения при срабатывании — решает владелец, включив профиль `monitoring`.
+  До этого — по-прежнему только `/api/health` и перезапуск контейнера при падении.
 - **Машина одна.** Её перезагрузка — простой стенда; контейнеры поднимутся сами.
 - **Соответствие 152-ФЗ и приказу ФСТЭК № 117 не заявляется** — см.
   [SECURITY_LIMITATIONS.md](SECURITY_LIMITATIONS.md).
@@ -653,3 +661,55 @@ pg_restore -l skilllink-2026-09-25.dump | head
 локальными `pg_restore` и `psql`: загрузка, восстановление со сверкой строк всех таблиц,
 отказы (оборванная, пустая, устаревшая копия, чужой пароль, испорченный объект,
 недоступное хранилище, рабочая база как цель) и отсутствие секретов в журнале.
+
+## 10. Метрики, мониторинг и ворота выкладки (решение 137)
+
+### Метрики сервера
+
+`GET /api/metrics` — формат Prometheus 0.0.4, список метрик и доступ —
+docs/API_CONTRACT.md. Токен — переменная `METRICS_TOKEN` (задать в `.env.cloud` на
+сервере тем же способом, что и остальные секреты; сгенерировать:
+`node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"`); без него
+метрики читает только сама машина приложения (`docker exec`, `next start` локально).
+
+**Снаружи `/api/metrics` закрыт в Caddy** (`deploy/yandex-cloud/Caddyfile`,
+`respond 404`). Caddyfile лежит в томе `caddy-data`/образе, а не перечитывается на
+лету — **после правки этого файла на сервере нужен `docker restart skilllink-caddy`**
+(или обычное развёртывание — оно пересоздаёт контейнер Caddy и подхватывает файл сам).
+
+### Мониторинг: Prometheus и Grafana
+
+Подробности, как включить и проверить — `deploy/monitoring/README.md`. Коротко:
+профиль docker-compose `monitoring` (Prometheus + Grafana с готовым дашбордом) **по
+умолчанию выключен** — машина рассчитана на 2 ГБ, и оба контейнера съедят заметную
+часть. Включает владелец осознанно:
+
+```bash
+export GRAFANA_ADMIN_PASSWORD=$(openssl rand -hex 12)
+cp deploy/monitoring/metrics-token.example deploy/monitoring/metrics-token
+# впишите в metrics-token то же значение, что METRICS_TOKEN
+docker compose --profile app --profile monitoring up -d
+```
+
+Правила оповещений — `deploy/monitoring/alert-rules.yml`: доля 5xx, время ответа,
+живость базы, свежесть ночной копии, всплески отказов 429 и неудачных входов,
+задержка цикла событий. У каждого правила — что посмотреть первым делом. Само
+срабатывание правил никуда не шлётся, пока владелец не подключит получателя
+(Alertmanager или любой другой) — это следующий шаг, не часть решения 137.
+
+### Ворота выкладки: схема и миграции
+
+CI (`ci.yml`) отклоняет пуш, если `schema.prisma` разошлась с `prisma/migrations`
+(`prisma migrate diff --exit-code`). `scripts/deploy/deploy.sh` повторяет ту же
+проверку локально перед тем, как код уйдёт на сервер — быстрее увидеть ошибку, чем
+через несколько минут сборки; `scripts/deploy/remote-up.sh` на сервере проверяет
+`prisma migrate status` перед накатом (останавливается на «failed» или изменённой
+после применения миграции) и `_prisma_migrations` после — что накатилась именно
+последняя папка. Подробности и причины — docs/TECHNICAL_DECISIONS.md, решение 137.
+
+### Лимит тела запроса
+
+Caddy режет тело раньше приложения — `deploy/yandex-cloud/Caddyfile`,
+`request_body { max_size … }`, с запасом над самым большим пределом кода (2 МиБ,
+импорт CSV). `scripts/deploy/check.sh` проверяет границу на развёрнутом стенде: чуть
+меньше — обычный ответ, чуть больше — ровно 413.

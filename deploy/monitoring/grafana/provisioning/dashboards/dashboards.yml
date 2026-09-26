@@ -1,0 +1,12 @@
+# Провайдер дашбордов Grafana: подхватывает deploy/monitoring/grafana/skilllink.json
+# из смонтированного каталога (решение 137).
+apiVersion: 1
+
+providers:
+  - name: SkillLink
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/skilllink-dashboards

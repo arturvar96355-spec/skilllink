@@ -3,6 +3,7 @@ import { describeForLog } from '@/shared/db/log'
 import { findNul } from '@/shared/db/storable'
 import { AppError, fromZod, notFound } from './errors'
 import { assertSameOrigin } from './origin'
+import { withMetrics } from './metrics-guard'
 import { withRateLimit } from './rate-limit-guard'
 import { fail } from './response'
 
@@ -97,7 +98,8 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
  * Единая обёртка обработчика маршрута: ловит всё и отдаёт ответ в формате контракта.
  * Первым делом — ограничение частоты запросов (rate-limit-guard.ts, решение 117):
  * отказ 429 обходится без запроса к базе и без самого обработчика, остальные ответы
- * получают заголовки `RateLimit-*`.
+ * получают заголовки `RateLimit-*`. Снаружи всего — учёт в метриках (metrics-guard.ts,
+ * решение 137): число и время ответов, включая отказы 429.
  * Изменяющие запросы с чужим `Origin` отклоняет (origin.ts).
  * Никакие подробности внутренней ошибки наружу не уходят — ни клиенту, ни в журнал
  * вместе с данными запроса (shared/db/log.ts).
@@ -105,7 +107,7 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
 export function handle<Ctx>(
   fn: (request: Request, context: Ctx) => Promise<Response>,
 ): (request: Request, context: Ctx) => Promise<Response> {
-  return withRateLimit(async (request: Request, context: Ctx) => {
+  return withMetrics(withRateLimit(async (request: Request, context: Ctx) => {
     try {
       // Изменяющий запрос со страницы чужого сайта отклоняется до всего остального.
       assertSameOrigin(request)
@@ -118,5 +120,5 @@ export function handle<Ctx>(
       console.error('[INTERNAL]', describeForLog(error))
       return fail(new AppError('INTERNAL', 'Внутренняя ошибка сервера'))
     }
-  })
+  }))
 }

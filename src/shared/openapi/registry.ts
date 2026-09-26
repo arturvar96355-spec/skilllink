@@ -109,6 +109,8 @@ export interface EndpointSpec {
   returnsOk?: boolean
   /** Без входа: доступ даёт не cookie сессии, а сам адрес (лента календаря). */
   public?: boolean
+  /** Своё описание доступа вместо строки по праву — когда доступ даёт не сессия. */
+  accessNote?: string
   /** Успешный ответ — не JSON `{ data }`, а файл этого типа. */
   fileContentType?: string
   /** Описания параметров пути, если это не идентификатор записи. */
@@ -137,6 +139,24 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Спецификация OpenAPI этого API',
     permission: 'ANY',
     errors: ['INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/metrics',
+    tag: 'Служебное',
+    summary: 'Метрики сервера в текстовом формате Prometheus',
+    description:
+      'Не для фронта: его опрашивает Prometheus (решение 137). Ответ — text/plain; version=0.0.4: ' +
+      'запросы и время ответа по шаблону маршрута, отказы 429, неудачные входы, память, ' +
+      'задержка цикла событий, доступность базы, отметка ночной копии. На стенде снаружи ' +
+      'закрыт в Caddy (404). Не ограничивается по частоте и сам в метрики не попадает.',
+    permission: 'ANY',
+    public: true,
+    accessNote:
+      'Право доступа: заголовок Authorization: Bearer <METRICS_TOKEN> или запрос с самой машины ' +
+      'приложения. Токен не задан — 404, задан, но не предъявлен или неверен — 401.',
+    fileContentType: 'text/plain',
+    errors: ['UNAUTHORIZED', 'NOT_FOUND', 'INTERNAL'],
   },
   {
     method: 'get',
