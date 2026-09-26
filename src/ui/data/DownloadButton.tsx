@@ -21,6 +21,9 @@ export function DownloadButton({
   variant = 'secondary',
   size,
   title,
+  method,
+  body,
+  disabled,
 }: {
   href: string
   /** Имя файла, если сервер его не прислал. */
@@ -29,6 +32,10 @@ export function DownloadButton({
   variant?: ButtonProps['variant']
   size?: ButtonProps['size']
   title?: string
+  /** По умолчанию `GET`. `POST` — когда серверу нужно тело запроса (файл для LMS, решение 182). */
+  method?: 'GET' | 'POST'
+  body?: BodyInit
+  disabled?: boolean
 }) {
   const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
@@ -37,7 +44,7 @@ export function DownloadButton({
     if (isLoading) return
     setIsLoading(true)
     try {
-      const { filename } = await apiDownload(href, fallbackName)
+      const { filename } = await apiDownload(href, fallbackName, method || body ? { method, body } : undefined)
       toast.success(`Файл «${filename}» скачан`)
     } catch (error) {
       toast.error(error instanceof ApiRequestError ? error.message : 'Не удалось скачать файл. Попробуйте ещё раз.')
@@ -47,7 +54,15 @@ export function DownloadButton({
   }
 
   return (
-    <Button variant={variant} size={size} icon="download" onClick={onClick} isLoading={isLoading} title={title}>
+    <Button
+      variant={variant}
+      size={size}
+      icon="download"
+      onClick={onClick}
+      isLoading={isLoading}
+      disabled={disabled}
+      title={title}
+    >
       {children}
     </Button>
   )

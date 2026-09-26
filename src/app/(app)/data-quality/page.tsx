@@ -30,6 +30,7 @@ import {
   useToast,
 } from '@/ui'
 import { QUALITY_LEVEL_LABELS, groupIssues, scoreLevel, type LeveledIssue, type QualityLevel } from './quality-view'
+import { MergeUniversitiesModal } from './MergeUniversitiesModal'
 import styles from './quality.module.css'
 
 /** Сколько записей проблемы показать сразу; остальные — «и ещё N». */
@@ -250,6 +251,7 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
   const dismiss = useMutation(async (pair: DuplicatePairDto) =>
     (await apiPost('/api/data-quality/duplicates/dismiss', { entity, firstId: pair.a.id, secondId: pair.b.id })).data,
   )
+  const [merging, setMerging] = useState<DuplicatePairDto | null>(null)
 
   async function onDismiss(pair: DuplicatePairDto) {
     const result = await dismiss.run(pair)
@@ -267,37 +269,55 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
   if (rows.length === 0) return <p className={styles.none}>Пар не осталось.</p>
 
   return (
-    <ul className={styles.pairs}>
-      {rows.map((pair) => (
-        <li key={`${pair.a.id}:${pair.b.id}`} className={styles.pair}>
-          <div className={styles.pairNames}>
-            <Link className={styles.item} href={pair.a.href}>
-              {pair.a.name}
-            </Link>
-            <span className={styles.pairAnd}>и</span>
-            <Link className={styles.item} href={pair.b.href}>
-              {pair.b.name}
-            </Link>
-            <Badge tone="neutral">сходство {Math.round(pair.score * 100)}%</Badge>
-          </div>
-          <ul className={styles.reasons}>
-            {pair.reasons.map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-          {user.permissions.canWrite && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void onDismiss(pair)}
-              isLoading={dismiss.isPending}
-              disabled={dismiss.isPending}
-            >
-              Это разные записи
-            </Button>
-          )}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className={styles.pairs}>
+        {rows.map((pair) => (
+          <li key={`${pair.a.id}:${pair.b.id}`} className={styles.pair}>
+            <div className={styles.pairNames}>
+              <Link className={styles.item} href={pair.a.href}>
+                {pair.a.name}
+              </Link>
+              <span className={styles.pairAnd}>и</span>
+              <Link className={styles.item} href={pair.b.href}>
+                {pair.b.name}
+              </Link>
+              <Badge tone="neutral">сходство {Math.round(pair.score * 100)}%</Badge>
+            </div>
+            <ul className={styles.reasons}>
+              {pair.reasons.map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+            <div className={styles.pairActions}>
+              {user.permissions.canWrite && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void onDismiss(pair)}
+                  isLoading={dismiss.isPending}
+                  disabled={dismiss.isPending}
+                >
+                  Это разные записи
+                </Button>
+              )}
+              {/* Слияние переносит связки, документы и учётные записи представителей —
+                  необратимая по объёму операция, поэтому только ADMIN (решение 134). */}
+              {entity === 'university' && user.permissions.isAdmin && (
+                <Button variant="secondary" size="sm" onClick={() => setMerging(pair)}>
+                  Слить
+                </Button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {merging && (
+        <MergeUniversitiesModal
+          pair={merging}
+          onClose={() => setMerging(null)}
+          onMerged={() => pairs.reload()}
+        />
+      )}
+    </>
   )
 }
