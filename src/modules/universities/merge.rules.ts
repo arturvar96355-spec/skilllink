@@ -117,12 +117,24 @@ export function undoDeadline(mergedAt: Date): Date {
   return new Date(mergedAt.getTime() + UNIVERSITY_MERGE.undoDays * 24 * 60 * 60 * 1000)
 }
 
-export function assertCanUndo(merge: { undoneAt: Date | null; undoUntil: Date }, now: Date): void {
+export function assertCanUndo(
+  merge: { undoneAt: Date | null; undoUntil: Date },
+  target: { mergedIntoId: string | null },
+  now: Date,
+): void {
   if (merge.undoneAt) throw conflict('Это слияние уже отменено.')
   if (now.getTime() > merge.undoUntil.getTime()) {
     throw conflict(
       `Срок отмены слияния истёк (${UNIVERSITY_MERGE.undoDays} дней). Разделить вузы теперь можно только вручную.`,
     )
+  }
+  // Цель этого слияния сама уже слита с кем-то дальше (A→B, затем B→E): вернуть A
+  // сюда сейчас нельзя — поиск объектов по B ничего не найдёт, они уже у E, а
+  // отмена всё равно пометит слияние отменённым и молча вернёт пустой источник.
+  if (target.mergedIntoId) {
+    throw conflict('Сначала отмените более позднее слияние — вуз, в который слили этот, сам уже слит с другим.', {
+      mergedIntoId: target.mergedIntoId,
+    })
   }
 }
 

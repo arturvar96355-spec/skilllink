@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { isExpertQuickLoginEnabled } from '@/shared/auth/expert-quick-login'
+import { isKeycloakEnabled } from '@/shared/auth/keycloak'
 import { Constellation } from './Constellation'
 import { DepthLayer, DepthScene } from './Depth'
 import { LoginForm } from './LoginForm'
@@ -11,11 +12,14 @@ import styles from './login.module.css'
  *
  * Серверный компонент: единственное, что ему нужно решить на сервере, —
  * показывать ли блок «Вход для экспертов хакатона» (решение 176, переменная
- * `EXPERT_QUICK_LOGIN`). Сама форма и её интерактивность — в `LoginForm.tsx`
- * (клиентский компонент, там же useSearchParams и вся логика `signIn`).
+ * `EXPERT_QUICK_LOGIN`) и кнопку единого входа через Keycloak (решение 188,
+ * `isKeycloakEnabled()` — все три переменные `KEYCLOAK_*` заданы). Сама форма
+ * и её интерактивность — в `LoginForm.tsx` (клиентский компонент, там же
+ * useSearchParams и вся логика `signIn`).
  */
 export default function LoginPage() {
   const expertQuickLoginEnabled = isExpertQuickLoginEnabled()
+  const keycloakEnabled = isKeycloakEnabled()
 
   return (
     <DepthScene>
@@ -79,7 +83,7 @@ export default function LoginPage() {
         </section>
 
         <section className={styles.formSide}>
-          <LoginForm expertQuickLoginEnabled={expertQuickLoginEnabled} />
+          <LoginForm expertQuickLoginEnabled={expertQuickLoginEnabled} keycloakEnabled={keycloakEnabled} />
         </section>
       </div>
     </DepthScene>

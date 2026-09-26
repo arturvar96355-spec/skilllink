@@ -117,10 +117,23 @@ export interface ReportFilterLabels {
  *
  * Вуз вне области видимости представителя не резолвится — то же правило,
  * что у самого фильтра: наличие чужой записи не раскрывается.
+ *
+ * Программа и продукт — тоже только в границах области видимости (решение 187,
+ * находка ревью 27.09): без этой проверки представитель вуза мог подставить в
+ * `?programId=`/`?productId=` чужой id и получить в шапке файла название
+ * программы или продукта другого вуза, хотя сама выборка строк по этому
+ * фильтру для него всё равно пуста (см. `buildReportWhere`) — только id
+ * оставался непроверенным.
+ *
+ * ФИО ответственного — только тем, кому доступен справочник пользователей
+ * (`canSeeResponsibleName`, то же право `ANALYTICS`, что закрывает
+ * `GET /api/users`): иначе представитель вуза через `?responsibleId=<любой>`
+ * получал бы в шапке файла ФИО произвольного сотрудника.
  */
 export async function resolveFilterLabels(
   filters: ReportFilters,
   scope: { universityId?: string },
+  canSeeResponsibleName: boolean,
 ): Promise<ReportFilterLabels> {
   if (buildReportWhere(filters, scope) === null) return {}
 
@@ -129,12 +142,21 @@ export async function resolveFilterLabels(
       ? prisma.university.findUnique({ where: { id: filters.universityId }, select: { name: true } })
       : null,
     filters.programId
-      ? prisma.educationalProgram.findUnique({ where: { id: filters.programId }, select: { name: true } })
+      ? prisma.educationalProgram.findFirst({
+          where: { id: filters.programId, ...(scope.universityId ? { universityId: scope.universityId } : {}) },
+          select: { name: true },
+        })
       : null,
     filters.productId
-      ? prisma.iTProduct.findUnique({ where: { id: filters.productId }, select: { name: true } })
+      ? prisma.iTProduct.findFirst({
+          where: {
+            id: filters.productId,
+            ...(scope.universityId ? { cooperations: { some: { universityId: scope.universityId } } } : {}),
+          },
+          select: { name: true },
+        })
       : null,
-    filters.responsibleId
+    filters.responsibleId && canSeeResponsibleName
       ? prisma.user.findUnique({ where: { id: filters.responsibleId }, select: { fullName: true } })
       : null,
   ])

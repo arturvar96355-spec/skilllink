@@ -19,6 +19,8 @@ import {
   pluralize,
   dateTimeInputToIso,
   dateToDateTimeInput,
+  dateInputToIso,
+  isoToDateInput,
 } from './format'
 
 function metric(value: number | null, unit: string, basis: Metric['basis'] = 'actual'): Metric {
@@ -154,6 +156,26 @@ describe('поле «дата и время» — по Москве, в како
 
   it('пустое поле — нет даты', () => {
     expect(dateTimeInputToIso('')).toBeNull()
+  })
+})
+
+describe('поле «дата» (срок этапа) — по московским суткам, не по срезу UTC', () => {
+  it('срок хранится как 01:00 по Москве 1 октября (22:00 UTC 30 сентября) — поле показывает 1 октября', () => {
+    // До исправления `isoToDateInput` резал ISO по UTC (`toISOString().slice(0,10)`)
+    // и подставлял в поле 30 сентября — днём раньше настоящего московского срока.
+    expect(isoToDateInput('2026-09-30T22:00:00.000Z')).toBe('2026-10-01')
+  })
+
+  it('открыл срок и сохранил без изменений — дата не сдвигается', () => {
+    const stored = '2026-09-30T22:00:00.000Z'
+    const inField = isoToDateInput(stored)
+    const savedBack = dateInputToIso(inField)
+    expect(isoToDateInput(savedBack)).toBe(inField)
+  })
+
+  it('пустой срок — пустое поле', () => {
+    expect(isoToDateInput(null)).toBe('')
+    expect(isoToDateInput(undefined)).toBe('')
   })
 })
 

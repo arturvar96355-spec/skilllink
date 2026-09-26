@@ -1,5 +1,5 @@
 import { prisma } from '@/shared/db/prisma'
-import { notFound, validationError } from '@/shared/http/errors'
+import { conflict, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, canSeeInternalNotes, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
@@ -264,14 +264,11 @@ export async function update(
 
   const data = {
     ...(input.status !== undefined ? { status: input.status } : {}),
-    ...(input.responsibleId
-      ? { responsible: { connect: { id: input.responsibleId } } }
-      : {}),
-    ...(input.productId !== undefined
-      ? input.productId
-        ? { product: { connect: { id: input.productId } } }
-        : { product: { disconnect: true } }
-      : {}),
+    // Скаляр FK, а не связь (`connect`/`disconnect`): условное обновление ниже
+    // идёт через `updateMany` (по прочитанному статусу), а Prisma не принимает
+    // `connect`/`disconnect` в мутации `updateMany` — только плоские поля.
+    ...(input.responsibleId ? { responsibleId: input.responsibleId } : {}),
+    ...(input.productId !== undefined ? { productId: input.productId ?? null } : {}),
     ...(input.goal !== undefined ? { goal: input.goal } : {}),
     ...(input.notes !== undefined ? { notes: input.notes } : {}),
     ...(input.firstContactAt !== undefined
@@ -294,15 +291,18 @@ export async function update(
     ...(input.licenseTermYears !== undefined ? { licenseTermYears: input.licenseTermYears } : {}),
     ...(input.transferStatus !== undefined ? { transferStatus: input.transferStatus } : {}),
     ...(input.comment !== undefined ? { comment: input.comment } : {}),
-  } satisfies Parameters<typeof repo.update>[1]
+  } satisfies Parameters<typeof repo.update>[2]
 
   // Правка тоже может дать дубль: смена продукта на тот, что уже в соседней незакрытой
   // связке, или переоткрытие, когда такую же успели завести заново. Правило то же,
   // что при создании, и в той же очереди программы.
   const productChanges =
     input.productId !== undefined && (input.productId ?? null) !== existing.productId
+  // Условное обновление (как у этапов, workflow.service.ts): пишет, только если
+  // статус связки всё ещё тот, что прочитан выше, — иначе 0 изменённых строк.
+  let changedCount: number
   if (!isClosedStatus(input.status ?? existing.status) && (reopening || productChanges)) {
-    await prisma.$transaction(async (tx) => {
+    changedCount = await prisma.$transaction(async (tx) => {
       await repo.lockProgram(tx, existing.programId)
       assertNoDuplicateCooperation(
         await repo.findOpenDuplicate(tx, {
@@ -312,10 +312,15 @@ export async function update(
           excludeId: id,
         }),
       )
-      await repo.update(id, data, tx)
+      return repo.update(id, existing.status, data, tx)
     })
   } else {
-    await repo.update(id, data)
+    changedCount = await repo.update(id, existing.status, data)
+  }
+  if (changedCount === 0) {
+    throw conflict('Связка уже изменена другим пользователем. Обновите страницу и повторите действие.', {
+      expectedStatus: existing.status,
+    })
   }
 
   await writeAudit({

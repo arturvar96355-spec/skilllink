@@ -30,6 +30,18 @@ describe('журнал входа', () => {
     expect(JSON.stringify(entry)).not.toContain('@')
   })
 
+  it('удачный вход через Keycloak несёт пометку sso — отличить от входа паролем', () => {
+    expect(loginAuditEntries({ kind: 'success', userId: 'u1', address: 'unknown', sso: true })).toEqual([
+      {
+        userId: 'u1',
+        action: 'auth.login.success',
+        objectType: 'User',
+        objectId: 'u1',
+        payload: { address: 'unknown', sso: true },
+      },
+    ])
+  })
+
   it('блокировка пишется отдельной записью в момент, когда наступила', () => {
     const entries = loginAuditEntries({
       kind: 'failure',

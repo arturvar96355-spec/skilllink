@@ -1,0 +1,128 @@
+{
+  "realm": "skilllink",
+  "displayName": "SkillLink",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "permanentLockout": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 28800,
+  "ssoSessionMaxLifespan": 28800,
+  "clients": [
+    {
+      "clientId": "skilllink-web",
+      "name": "SkillLink (веб-приложение)",
+      "description": "Единый вход SkillLink через Keycloak (ТЗ, функц. 10; решение 188). Секрет клиента НЕ хранится здесь — задаётся отдельно scripts/deploy/keycloak-users.sh после старта контейнера, из переменной окружения KEYCLOAK_CLIENT_SECRET.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": true,
+      "redirectUris": [
+        "https://skilllink.site/api/auth/callback/keycloak",
+        "http://localhost:3000/api/auth/callback/keycloak"
+      ],
+      "webOrigins": [
+        "https://skilllink.site",
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://skilllink.site/login##http://localhost:3000/login"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@skilllink.demo",
+      "email": "admin@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Анна Сергеевна",
+      "lastName": "Демидова",
+      "credentials": []
+    },
+    {
+      "username": "manager@skilllink.demo",
+      "email": "manager@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Пётр Андреевич",
+      "lastName": "Кириллов",
+      "credentials": []
+    },
+    {
+      "username": "manager2@skilllink.demo",
+      "email": "manager2@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ольга Дмитриевна",
+      "lastName": "Савельева",
+      "credentials": []
+    },
+    {
+      "username": "analyst@skilllink.demo",
+      "email": "analyst@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Михаил Юрьевич",
+      "lastName": "Орлов",
+      "credentials": []
+    },
+    {
+      "username": "viewer@skilllink.demo",
+      "email": "viewer@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Анна Сергеевна",
+      "lastName": "Лебедева",
+      "credentials": []
+    },
+    {
+      "username": "admin2@skilllink.demo",
+      "email": "admin2@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Марина Дмитриевна",
+      "lastName": "Соловьёва",
+      "credentials": []
+    },
+    {
+      "username": "head@skilllink.demo",
+      "email": "head@skilllink.demo",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Аркадий Семёнович",
+      "lastName": "Тимофеев",
+      "credentials": []
+    },
+    {
+      "username": "rep@spbgu.example.invalid",
+      "email": "rep@spbgu.example.invalid",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Ирина Павловна",
+      "lastName": "Ветрова",
+      "credentials": []
+    }
+  ],
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "ru"
+  ],
+  "defaultLocale": "ru"
+}
