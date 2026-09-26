@@ -4,6 +4,8 @@ import {
   TZ_REPORT_HEADERS,
   readReportXlsxRows,
   reportCsv,
+  reportFileNameSuffix,
+  reportFiltersSummary,
   reportJsonBody,
   reportXlsx,
   type ReportPayload,
@@ -100,5 +102,68 @@ describe('json — схема generatedAt/filters/columns/rows (ТЗ, требо
     expect(body.filters).toEqual({ format: 'json' })
     expect(body.columns).toEqual(TZ_REPORT_HEADERS)
     expect(body.rows).toEqual(payload.rows)
+  })
+})
+
+describe('фильтры отчётов в файле (решение 172)', () => {
+  it('без фильтров — csv/xlsx выглядят так же, как раньше', () => {
+    expect(reportCsv(payload)).toBe(reportCsv(payload, null))
+    expect(readReportXlsxRows(reportXlsx(payload))).toEqual(readReportXlsxRows(reportXlsx(payload, undefined, null)))
+  })
+
+  it('со строкой-заголовком — csv несёт её первой строкой перед колонками', () => {
+    const csv = reportCsv(payload, 'Фильтры: период 01.01.2026 — 30.06.2026 · статус «В работе»')
+    const lines = csv.replace('﻿', '').split('\r\n')
+    expect(lines[0]).toBe('Фильтры: период 01.01.2026 — 30.06.2026 · статус «В работе»')
+    expect(lines[1]).toBe('Наименование вуза;ИТ-направление;ИТ-продукт;Статус работы с вузом;Ответственный')
+  })
+
+  it('со строкой-заголовком — xlsx несёт её первой строкой, колонки — второй', () => {
+    const rows = readReportXlsxRows(reportXlsx(payload, new Date('2026-09-26T00:00:00.000Z'), 'Фильтры: статус «В работе»'))
+    expect(rows[0]).toEqual(['Фильтры: статус «В работе»'])
+    expect(rows[1]).toEqual([...TZ_REPORT_HEADERS])
+    expect(rows[2]).toEqual(payload.rows[0])
+  })
+
+  it('reportFiltersSummary: без фильтров — null', () => {
+    expect(reportFiltersSummary({}, {})).toBeNull()
+  })
+
+  it('reportFiltersSummary: период, вуз (без резолвнутого имени — id), статус', () => {
+    const summary = reportFiltersSummary(
+      {
+        dateFrom: '2026-01-01T00:00:00.000+03:00',
+        dateTo: '2026-06-30T23:59:59.999+03:00',
+        universityId: 'u1',
+        status: 'ACTIVE',
+      },
+      {},
+    )
+    expect(summary).toBe('Фильтры: период 01.01.2026 — 30.06.2026 · вуз «u1» · статус «В работе»')
+  })
+
+  it('reportFiltersSummary: имя вуза берётся из резолвнутых labels, когда есть', () => {
+    const summary = reportFiltersSummary({ universityId: 'u1' }, { universityName: 'СПбГУТ' })
+    expect(summary).toBe('Фильтры: вуз «СПбГУТ»')
+  })
+
+  it('reportFileNameSuffix: без фильтров — пустая строка', () => {
+    expect(reportFileNameSuffix({})).toBe('')
+  })
+
+  it('reportFileNameSuffix: период и статус — читаемый хвост имени файла', () => {
+    expect(
+      reportFileNameSuffix({
+        dateFrom: '2026-01-01T00:00:00.000+03:00',
+        dateTo: '2026-06-30T23:59:59.999+03:00',
+        status: 'ACTIVE',
+      }),
+    ).toBe('_from-2026-01-01_to-2026-06-30_status-active')
+  })
+
+  it('reportFileNameSuffix: вуз/программа/продукт/ответственный не попадают в имя файла', () => {
+    expect(reportFileNameSuffix({ universityId: 'u1', programId: 'p1', productId: 'pr1', responsibleId: 'r1' })).toBe(
+      '',
+    )
   })
 })
