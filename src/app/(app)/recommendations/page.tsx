@@ -121,7 +121,12 @@ function RecommendationsContent() {
   const [tab, setTab] = useState<string>('all')
   // По умолчанию — открытые: «Новая» и «В работе» (решение 128). «all» — все статусы.
   const [status, setStatus] = useState<string>('open')
-  const [priority, setPriority] = useState('')
+  // Приоритет может прийти в адресе — с главной, из сводки «Открытые рекомендации»
+  // (ТЗ дизайна 26–29.09, п. 3.5). Неизвестное значение — без фильтра.
+  const [priority, setPriority] = useState(() => {
+    const fromUrl = searchParams.get('priority')
+    return fromUrl && (RECOMMENDATION_PRIORITIES as readonly string[]).includes(fromUrl) ? fromUrl : ''
+  })
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
   const [comment, setComment] = useState('')
