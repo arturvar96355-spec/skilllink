@@ -2,6 +2,7 @@ import { z } from '@/shared/zod'
 import { findNul } from '@/shared/db/storable'
 import { log } from '@/shared/log/logger'
 import { runWithRequestId } from '@/shared/log/request-context'
+import { ensureTelegramRuntimeStarted } from '@/shared/ops/telegram-bootstrap'
 import { AppError, fromZod, notFound } from './errors'
 import { assertSameOrigin } from './origin'
 import { withMetrics } from './metrics-guard'
@@ -114,6 +115,9 @@ export function handle<Ctx>(
   fn: (request: Request, context: Ctx) => Promise<Response>,
 ): (request: Request, context: Ctx) => Promise<Response> {
   return withMetrics(withRateLimit(async (request: Request, context: Ctx) => {
+    // Один раз за время жизни процесса (решение 142): здесь, не в instrumentation.ts —
+    // см. shared/ops/telegram-bootstrap.ts, почему. Ничего не ждёт, ничего не бросает.
+    ensureTelegramRuntimeStarted()
     const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
     const response = await runWithRequestId(requestId, async () => {
       try {

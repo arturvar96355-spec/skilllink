@@ -65,6 +65,12 @@ export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/
 export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   /^\/api\/export(?:\/|$)/,
   /^\/api\/import(?:\/|$)/,
+  /^\/api\/reports\/(?:tz|catalog)(?:\/|$)/,
+  // Загрузка, список и скачивание файлов документов и этапов (решение 145):
+  // чтение и запись на диск, а не только в базу.
+  /^\/api\/documents\/[^/]+\/files(?:\/|$)/,
+  /^\/api\/workflow\/stages\/[^/]+\/files(?:\/|$)/,
+  /^\/api\/files\/[^/]+$/,
   /^\/api\/cooperations\/[^/]+\/documents\/generate$/,
   /^\/api\/recommendations\/generate$/,
   /^\/api\/data-sources\/sync$/,
@@ -76,6 +82,14 @@ export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   // модели, что у ИИ-помощника, — обращение к ней или пересчёт по нескольким связкам.
   /\/(?:universities|cooperations)\/[^/]+\/story$/,
   /\/cooperations\/[^/]+\/proposals(?:\/|$)/,
+  /**
+   * Админка бота Telegram (решение 142): каждый запрос — обращение к внешнему
+   * Bot API (getWebhookInfo, getMe, setWebhook, sendMessage), а не к своей базе.
+   * `rotate-webhook-secret` (решение 133) сюда не входит: он был заведён раньше
+   * и остаётся в общей группе `write`, менять его классификацию здесь не просили.
+   */
+  /^\/api\/admin\/telegram$/,
+  /^\/api\/admin\/telegram\/(?:token|test|mode)$/,
 ]
 
 /** Хранилище счётчиков в памяти процесса. */

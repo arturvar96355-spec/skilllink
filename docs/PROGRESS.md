@@ -25,6 +25,51 @@ Keycloak»), код не менялся, честно «не реализова�
 поле «Ответственный» у вуза, раздел настроек «Workflow» — экраны не делались (кроме
 `/api-docs`), только API.
 
+**Соответствие ТЗ РТК: файлы, приём извне, отчёт (26.09.2026, решение 145, ветка
+`feat/tz-files-import-reports`).** Приоритет 1 аудита разрывов с официальным ТЗ — пункты
+2, 3, 7, 8, 10. Модель `Attachment` и `POST`/`GET /api/documents/:id/files`,
+`POST`/`GET /api/workflow/stages/:id/files`, `GET`/`DELETE /api/files/:id`: форматы строго
+по ТЗ (png, jpeg, pdf, zip, gzip, rar, doc, docx, xls, xlsx), проверка расширения И
+сигнатуры (magic bytes), хранение на диске (том `UPLOADS_DIR`), права — как у изменения
+документа/этапа, DSAR (`keep`, обосновано в реестре). `POST /api/import/external` —
+приём данных извне (сайт/LMS), авторизация токеном (`INTEGRATION_TOKEN`), идемпотентно
+по (source, externalId). Каталог связки (решение 132) дополнен полями ТЗ (номер договора,
+лицензия, статус передачи, комментарий — все `nullable`). `GET /api/reports/tz` и
+`GET /api/reports/catalog` — колонки дословно из ТЗ, форматы `csv`/`xlsx`/`json` (xlsx —
+свой писатель без новой зависимости, json — вложением со схемой generatedAt/filters/columns/rows).
+Подробности — [TECHNICAL_DECISIONS.md, решение 145](TECHNICAL_DECISIONS.md).
+
+**Каналы уведомлений: Telegram, MAX, VK (26.09.2026, решение 144, ветка
+`feat/notify-channels`).** Владелец хочет выбор канала, как в корпоративных CDP: кроме
+Telegram — ещё MAX (мессенджер VK) и VK (бот сообщества). Общий слой `src/modules/notify-channels`
+(интерфейс канала, три адаптера, привязка по одноразовому коду — тот же приём, что у
+Telegram, перепривязка с уведомлением старого чата, команды «сегодня»/«стоп») собран
+рядом с `src/modules/telegram`, не трогая его — параллельно шла работа над админкой
+Telegram-бота в другой ветке (решение 142). Сводка «что горит у меня» и оповещения
+владельцу переведены на общий выбор канала (`sendToUser`/`sendToOwners`) минимальной
+правкой `owner-alert.ts` и `scripts/telegram-digest.ts` — Telegram-путь ведёт себя как
+раньше. Блок «Каналы уведомлений» в личном кабинете (`ChannelsBlock.tsx`, заменил
+`TelegramRow.tsx`), статус для администратора в «Настройки → Интеграции»
+(`AdminChannelsSection.tsx`, рядом с подробной админкой бота решения 142). **Решение
+владельца: боевых токенов MAX и VK на этом хакатоне не будет** — оба канала честно
+показывают «Не настроено администратором» и работают на моках в тестах; подключение
+по-настоящему описано в `docs/SETUP.md`. Подробности — `docs/TECHNICAL_DECISIONS.md`,
+решение 144.
+
+**Бот Telegram: админка, перепривязка, приём без вебхука (26.09.2026, решение 142,
+ветка `feat/telegram-admin`).** Три независимые доработки бота уведомлений. (1)
+Перепривязка: `/start` в чате, уже привязанном к **другому** сотруднику, теперь отвечает
+понятным отказом вместо тихого захвата чата; кнопка «Перепривязать» в личном кабинете
+переносит уведомления на новый чат и шлёт в прежний одно сообщение об этом. (2) Приём
+без вебхука — `TELEGRAM_MODE=webhook|polling|auto`: в `polling` и в `auto` (после того как
+вебхук перестал отвечать — на стенде это уже случалось, `last_error_message: Connection
+timed out`) процесс сам держит цикл `getUpdates`, той же обработкой и той же
+дедупликацией, что у вебхука; аккуратная остановка по `SIGTERM`, ограничение — один
+экземпляр приложения. (3) Админка бота — «Настройки → Интеграции», только `ADMIN`:
+статус, смена и удаление токена (проверяется у Telegram, хранится в базе зашифрованным),
+переключатель режима, секрет вебхука, проверочное сообщение. Подробности —
+`docs/TECHNICAL_DECISIONS.md`, решение 142.
+
 **Ревью схемы: таблицы решений 115–139 (26.09.2026, решение 143, ветка
 `db/review-new-tables`).** Владелец решил, что схему согласует сама команда, а не Тигран
 со стороны, и заказал полное ревью того, что копилось «на согласование». Разобраны первичные
@@ -52,7 +97,13 @@ Keycloak»), код не менялся, честно «не реализова�
 `OPERATOR_ADDRESS`, `OPERATOR_CONTACT` с понятной заглушкой вместо `TODO: PM DECISION`;
 числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (43 модели, 26 миграций — считая
 `20260926200000_schema_review`, решение 143, 127 маршрутов, 152 операции), `docs-counts.test.ts`
+
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (46 модели, 29 миграций — считая
+`20260926200000_schema_review`, решение 143, 141 маршрут, 171 операция), `docs-counts.test.ts`
 расширен на модели и миграции; README —
+
+`20260926170000_notify_channels` и `20260926200000_schema_review`, решения 144 и 143,
+141 маршрут, 171 операция), `docs-counts.test.ts` расширен на модели и миграции; README —
 разделы «Проверить за 10 минут», «Как мы работали», «Что не вошло и почему», «Масштаб
 на 29.09»; демо-сид «почти дублей» для качества данных — под флагом `SEED_DQ_CASES=1`,
 по умолчанию выключен (без экрана слияния во фронте это был мусор в реестре без способа
@@ -414,7 +465,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### База данных
 
-Раздел 11 ТЗ требовал 20 таблиц; сейчас в схеме 43 модели (сверено 26.09.2026,
+Раздел 11 ТЗ требовал 20 таблиц; сейчас в схеме 46 модели (сверено 26.09.2026,
 `prisma/schema.prisma`) — расширения вроде `contacts` и `resolution_comment`
 в рекомендациях, а также решения 90–138 (ИИ-помощник, журнал, DSAR, вендоры, прогноз
 связки и др.) описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md); с 26.09.2026 схему
@@ -423,7 +474,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### Модули и эндпоинты
 
-### Модули и эндпоинты — 127 маршрутов, 152 операции
+### Модули и эндпоинты — 141 маршрут, 171 операция
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -435,7 +486,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
-| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
+| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked`; `GET`, `POST /api/workflow/stages/:id/files` — файлы этапа, решение 145 |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
 
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
@@ -444,13 +495,15 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
 | data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
-| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
+| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate`; `GET`, `POST /api/documents/:id/files` — файлы документа, решение 145 |
+| files | `GET`, `DELETE /api/files/:id` — скачивание и удаление файла к документу/этапу, решение 145 |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
 | data-sources | `GET /api/data-sources`; `POST /api/data-sources/sync`; `GET /api/integrations/status` |
 | audit | `GET /api/audit`; `GET /api/audit/verify`, `GET /api/audit/seals` — цепочка и печати (решение 115); `GET /api/universities/:id/events` |
 | export | `GET /api/export` — выгрузка реестров в CSV |
-| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром |
+| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром; `POST /api/import/external` — приём данных извне (сайт/LMS), решение 145 |
+| reports | `GET /api/reports/tz`, `GET /api/reports/catalog` — отчёты по колонкам ТЗ, форматы csv/xlsx/json, решение 145 |
 | products (групповые операции) | `GET`, `POST /api/products/:id/release` |
 | ai-assist | `POST /api/cooperations/:id/ai-summary`; `POST /api/recommendations/:id/ai-letter`; `POST /api/ai/today` — черновики ИИ-помощника, решение 90 |
 | ai-story | `GET /api/cooperations/:id/story`, `GET /api/universities/:id/story` — история сотрудничества; `GET /api/cooperations/:id/blockers` — что мешает; `POST …/proposals`, `POST …/proposals/:proposalId/apply` — предложить и применить план (решение 138) |
@@ -462,6 +515,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | contacts | `POST /api/contacts/:id/reveal` — раскрытие почты и телефона контакта с причиной, решение 133 |
 | client-errors | `POST /api/client-errors` — приём ошибок фронтенда, без входа, решение 133 |
 | admin (безопасность) | `POST /api/admin/telegram/rotate-webhook-secret`; `GET`, `POST /api/admin/approvals`; `POST …/:id/approve`, `POST …/:id/reject`; `GET /api/admin/audit/export` — решение 133 |
+| admin (бот Telegram) | `GET /api/admin/telegram` — статус; `PUT`, `DELETE /api/admin/telegram/token`; `PUT /api/admin/telegram/mode`; `POST /api/admin/telegram/test` — админка бота, перепривязка сотрудником, приём без вебхука, решение 142 |
 | dsar | `GET /api/me/data-export`; `GET /api/admin/dsar/users/:id/export`, `GET /api/admin/dsar/contacts/:id/export`; `POST /api/admin/dsar/users/:id/erase`, `POST /api/admin/dsar/contacts/:id/erase`; `GET`, `POST /api/admin/dsar/requests` — права субъекта ПД, решение 116 |
 
 ### Workflow
@@ -619,7 +673,9 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 `docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
 
-`docs/openapi.json` и `GET /api/openapi.json` — 126 путей, 152 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 140 путей, 171 операция. Собирается из тех же
+
+`docs/openapi.json` и `GET /api/openapi.json` — 140 путей, 171 операция. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.
@@ -692,6 +748,17 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
 3 «застревающих» на этапе 6 вуза, 1 «уходящий» вуз, сезонное затишье в январе и августе
 и выброс спроса на киберполигон за последнюю неделю — детектор аномалий и Каплан–Мейер
 на этом объёме уже находят, что искать (`npm run analytics:report`).
+
+**Полнота демо-данных (26.09.2026, решение 141).** Было 61 программа и 50 связок
+(2–3 на вуз); стало 89 программ и 89 связок (4–7 на вуз, кроме СПбГУТ — его
+2 связки не тронуты) — сеть общих направлений ФГОС на 3–9 вузов вместо звезды
+уникальных названий, справочник навыков вырос с 28 до 50, рыночный спрос
+закрывает пять кварталов (2025-Q3…2026-Q3) вместо трёх. Ранее пустые таблицы
+получили примеры через настоящие сервисные функции: `dsar_requests` (3),
+`approvals` (2), `forecast_models` (2), `duplicate_dismissals` (1),
+`university_merges` (1, с отменой), `audit_seals` (2), `data_sources` (2 → 5).
+`npm run demo:coverage` держит зелёным «ни одной пустой содержательной
+таблицы» по всем 46 моделям. Заливка — 2,3–2,4 с.
 
 ## Найдено и исправлено при реализации
 

@@ -126,6 +126,11 @@ export async function getById(user: CurrentUser, id: string): Promise<Cooperatio
     closedAt: toIso(row.closedAt),
     createdAt: toIsoRequired(row.createdAt),
     stages: stages.map((stage) => toStageDto(stage, now, { hideInternalNotes })),
+    contractNumber: row.contractNumber,
+    licenseSignedAt: toIso(row.licenseSignedAt),
+    licenseTermYears: row.licenseTermYears,
+    transferStatus: row.transferStatus,
+    comment: row.comment,
   }
 }
 
@@ -280,6 +285,15 @@ export async function update(
       : {}),
     ...(closing ? { closedAt: new Date() } : {}),
     ...(reopening ? { closedAt: null } : {}),
+    // Каталог по ТЗ (решение 145): те же поля, что и остальные необязательные —
+    // передано явно (в том числе null) — меняется, не передано — не трогается.
+    ...(input.contractNumber !== undefined ? { contractNumber: input.contractNumber } : {}),
+    ...(input.licenseSignedAt !== undefined
+      ? { licenseSignedAt: input.licenseSignedAt ? new Date(input.licenseSignedAt) : null }
+      : {}),
+    ...(input.licenseTermYears !== undefined ? { licenseTermYears: input.licenseTermYears } : {}),
+    ...(input.transferStatus !== undefined ? { transferStatus: input.transferStatus } : {}),
+    ...(input.comment !== undefined ? { comment: input.comment } : {}),
   } satisfies Parameters<typeof repo.update>[1]
 
   // Правка тоже может дать дубль: смена продукта на тот, что уже в соседней незакрытой

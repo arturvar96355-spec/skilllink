@@ -28,6 +28,7 @@ import type {
   SkillLevel,
   StagePhase,
   StageStatus,
+  TransferStatus,
   UniversityStatus,
   UserRole,
   VendorContactChannel,
@@ -137,6 +138,14 @@ export const COOPERATION_STATUS_LABELS: Record<CooperationStatus, string> = {
   PAUSED: 'Приостановлена',
   COMPLETED: 'Завершена',
   CANCELLED: 'Отменена',
+}
+
+/** Статус передачи ПО вузу — «Каталог по ТЗ» (решение 145). Подписи дословно по ТЗ. */
+export const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
+  NOT_TRANSFERRED: 'Не передано',
+  IN_PROGRESS: 'Передаётся',
+  TRANSFERRED: 'Передано',
+  REVOKED: 'Отозвано',
 }
 
 export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
@@ -328,6 +337,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'ai.proposal.applied': 'План применён',
   'telegram.link': 'Подключены уведомления в Telegram',
   'telegram.unlink': 'Отключены уведомления в Telegram',
+  'channel.link': 'Подключён канал уведомлений (MAX/VK)',
+  'channel.unlink': 'Отключён канал уведомлений (MAX/VK)',
   'document.create': 'Создан документ',
   'document.update': 'Изменён документ',
   'document.status.change': 'Изменён статус документа',
@@ -367,6 +378,12 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'audit.export': 'Выгрузка журнала для внешней системы',
   'university.responsible.set': 'Изменён ответственный за вуз',
   'workflow_template.update': 'Изменён шаблон этапа workflow',
+  'file.uploaded': 'Загружен файл',
+  'file.deleted': 'Удалён файл',
+  'import.external': 'Приём данных извне (сайт/LMS)',
+  'telegram.token_changed': 'Сменён токен бота Telegram',
+  'telegram.token_removed': 'Бот Telegram отключён (токен удалён)',
+  'telegram.mode_switched': 'Изменён режим приёма обновлений Telegram',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -394,6 +411,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   SystemSecret: 'Секрет системы',
   Approval: 'Одобрение операции',
   WorkflowStageTemplate: 'Шаблон этапа workflow',
+  Attachment: 'Файл',
 }
 
 /** Статус запроса на одобрение (решение 133). */

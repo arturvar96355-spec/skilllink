@@ -20,9 +20,11 @@ Enum-ами остались статус (`StageStatus`) и фаза (`StagePha
 
 ## Миграции
 
-В [prisma/migrations](../prisma/migrations) 26 миграций, от `20260921070318_init`
+В [prisma/migrations](../prisma/migrations) 29 миграций, от `20260921070318_init`
 до `20260926200000_schema_review` (решение 143: ревью схемы, точечные CHECK и тип одной
-колонки — без потери данных); схема меняется только ими, `db push` не используется.
+колонки — без потери данных; решения 142 и 144 — `20260926160000_telegram_admin` и
+`20260926170000_notify_channels`, обе раньше ревью схемы); схема меняется только ими,
+`db push` не используется.
 Применяются `prisma migrate deploy` (`npm run db:deploy`): в CI перед сидом
 ([ci.yml](../.github/workflows/ci.yml)), на стенде — отдельным сервисом `migrate`
 до запуска приложения ([docker-compose.yml](../docker-compose.yml),

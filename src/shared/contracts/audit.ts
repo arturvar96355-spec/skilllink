@@ -91,6 +91,10 @@ export const AUDIT_ACTIONS = [
   'telegram.link',
   /** Чат отвязан: из личного кабинета или командой /stop. */
   'telegram.unlink',
+  /** Пользователь подключил канал уведомлений MAX или VK (решение 144). Без идентификатора чата и ника. */
+  'channel.link',
+  /** Канал отвязан: из личного кабинета или командой «стоп». */
+  'channel.unlink',
   'document.create',
   'document.update',
   'document.status.change',
@@ -164,6 +168,29 @@ export const AUDIT_ACTIONS = [
    * точки правкой не затрагивается — он только для чтения.
    */
   'workflow_template.update',
+  /**
+   * Файлы к документам и этапам (решение 145): загрузка и удаление. В payload —
+   * владелец (тип и id), расширение, размер и sha256 — не оригинальное имя
+   * файла и не его содержимое.
+   */
+  'file.uploaded',
+  'file.deleted',
+  /**
+   * Приём данных извне (решение 145, ТЗ функц. п.5): что создано/обновлено —
+   * вуз, программа, связка — по внешнему идентификатору и источнику. Без ПД
+   * ответственных (только число писем-строк).
+   */
+  'import.external',
+  // ── Решение 142: админка бота Telegram ──
+  /** Токен бота сменён администратором. objectId — 'telegram.bot_token'; без самого токена. */
+  'telegram.token_changed',
+  /** Токен бота отключён администратором (удалён из базы). */
+  'telegram.token_removed',
+  /**
+   * Режим приёма обновлений (webhook/polling/auto) изменён — вручную администратором
+   * или автоматически (payload.by: 'admin' | 'auto'), когда вебхук перестал отвечать.
+   */
+  'telegram.mode_switched',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -195,6 +222,7 @@ export const AUDIT_OBJECT_TYPES = [
   'SystemSecret',
   'Approval',
   'WorkflowStageTemplate',
+  'Attachment',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

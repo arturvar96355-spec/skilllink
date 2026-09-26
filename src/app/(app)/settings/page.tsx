@@ -28,8 +28,10 @@ import {
   useResource,
   useToast,
 } from '@/ui'
+import { AdminChannelsSection } from './AdminChannelsSection'
 import { AuditSection } from './AuditSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
+import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
 import styles from './settings.module.css'
 
@@ -366,6 +368,10 @@ export default function SettingsPage() {
                 </Row>
               )
             })()}
+            {/* Бот Telegram (решение 142) — подробный блок: токен, режим приёма, вебхук. */}
+            {isAdmin && <TelegramBotAdminSection />}
+            {/* Остальные каналы уведомлений (решение 144): MAX, VK — Telegram уже выше. */}
+            {isAdmin ? <AdminChannelsSection /> : null}
           </>
         )
 

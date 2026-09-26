@@ -4,6 +4,10 @@ out/
 build/
 dist/
 src/generated/
+
+# Файлы к документам и этапам (решение 145) — локальное хранилище загрузок,
+# путь по умолчанию из UPLOADS_DIR (.env.example).
+.uploads/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -23,3 +27,7 @@ coverage/
 # Токен, которым Prometheus читает /api/metrics (решение 137) — тот же секрет,
 # что METRICS_TOKEN. Пример без значения — deploy/monitoring/metrics-token.example.
 deploy/monitoring/metrics-token
+
+# Рабочие заметки и одноразовые скрипты сессии (решение 141) — не часть репозитория.
+.demo141-todo.md
+scripts/_tmp_*.ts

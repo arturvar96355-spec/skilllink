@@ -21,6 +21,7 @@ function config(overrides: Partial<TelegramConfig> = {}): TelegramConfig {
     apiIp: null,
     timeoutMs: 1000,
     enabled: true,
+    mode: 'webhook',
     ...overrides,
   }
 }
@@ -156,6 +157,93 @@ describe('sendMessage', () => {
     expect(calls[0]!.connectAddress).toBe('149.154.167.220')
     // Адрес в запросе — по имени: из него берутся SNI и Host.
     expect(calls[0]!.url.startsWith('https://api.telegram.org/')).toBe(true)
+  })
+})
+
+describe('getMe, deleteWebhook, getWebhookInfo, getUpdates (решение 142)', () => {
+  it('getMe: токен верный — отдаёт имя бота', async () => {
+    const { transport } = scripted([{ status: 200, body: '{"ok":true,"result":{"username":"skilllink_bot"}}' }])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).getMe()
+    expect(result).toEqual({ ok: true, username: 'skilllink_bot' })
+  })
+
+  it('getMe: токен неверный — failed, без токена — disabled', async () => {
+    const { transport } = scripted([{ status: 401, body: '{"ok":false,"description":"Unauthorized"}' }])
+    expect(await new TelegramClient(config(), { transport, wait: noWait }).getMe()).toMatchObject({
+      ok: false,
+      reason: 'failed',
+      status: 401,
+    })
+    expect(await new TelegramClient(config({ botToken: null }), { transport, wait: noWait }).getMe()).toEqual({
+      ok: false,
+      reason: 'disabled',
+      status: null,
+      description: null,
+    })
+  })
+
+  it('deleteWebhook: POST на /deleteWebhook, ok:true — успех', async () => {
+    const { transport, calls } = scripted([{ status: 200, body: '{"ok":true,"result":true}' }])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).deleteWebhook()
+    expect(result).toEqual({ ok: true })
+    expect(calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/deleteWebhook`)
+  })
+
+  it('getWebhookInfo: разбирает адрес, число необработанных и последнюю ошибку', async () => {
+    const body = JSON.stringify({
+      ok: true,
+      result: {
+        url: 'https://skilllink.site/api/telegram/webhook',
+        pending_update_count: 3,
+        last_error_date: 1_700_000_000,
+        last_error_message: 'Connection timed out',
+      },
+    })
+    const { transport } = scripted([{ status: 200, body }])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).getWebhookInfo()
+    expect(result).toEqual({
+      ok: true,
+      info: {
+        url: 'https://skilllink.site/api/telegram/webhook',
+        pendingUpdateCount: 3,
+        lastErrorDate: new Date(1_700_000_000 * 1000),
+        lastErrorMessage: 'Connection timed out',
+      },
+    })
+  })
+
+  it('getWebhookInfo: без вебхука (url пустой), ошибок нет', async () => {
+    const body = JSON.stringify({ ok: true, result: { url: '', pending_update_count: 0 } })
+    const { transport } = scripted([{ status: 200, body }])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).getWebhookInfo()
+    expect(result).toEqual({
+      ok: true,
+      info: { url: '', pendingUpdateCount: 0, lastErrorDate: null, lastErrorMessage: null },
+    })
+  })
+
+  it('getUpdates: offset и timeout уходят в тело, разбирает массив обновлений', async () => {
+    const body = JSON.stringify({ ok: true, result: [{ update_id: 5, message: { chat: { id: 1, type: 'private' } } }] })
+    const { transport, calls } = scripted([{ status: 200, body }])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).getUpdates({ offset: 5, timeoutSec: 25 })
+    expect(result).toEqual({ ok: true, updates: [{ update_id: 5, message: { chat: { id: 1, type: 'private' } } }] })
+    expect(JSON.parse(calls[0]!.body)).toEqual({ offset: 5, timeout: 25, allowed_updates: ['message'] })
+    // Локальный таймаут — с запасом поверх long-poll timeout, иначе транспорт обрывал бы раньше Telegram.
+    expect(calls[0]!.timeoutMs).toBe(35_000)
+  })
+
+  it('getUpdates: сигнал прерывания — aborted, а не failed', async () => {
+    const controller = new AbortController()
+    const transport: HttpsTransport = async (request) => {
+      request.signal?.addEventListener('abort', () => {})
+      controller.abort()
+      throw new Error('Запрос прерван')
+    }
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).getUpdates({
+      timeoutSec: 25,
+      signal: controller.signal,
+    })
+    expect(result).toEqual({ ok: false, reason: 'aborted', status: null, description: null })
   })
 })
 

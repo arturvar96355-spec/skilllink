@@ -24,6 +24,12 @@ export interface HttpsPostRequest {
    * остаётся в SNI и Host, сертификат сверяется с ним. Не задан — обычный DNS.
    */
   connectAddress?: string | null
+  /**
+   * Прервать запрос досрочно (long polling `getUpdates`, решение 142): сигнал
+   * сработал — запрос обрывается сразу, не дожидаясь `timeoutMs`. Без него —
+   * обычный запрос, как раньше.
+   */
+  signal?: AbortSignal
 }
 
 export interface HttpsPostResponse {
@@ -92,10 +98,17 @@ export function createHttpsTransport(requestFn: RequestFn = httpsRequest): Https
         request.destroy(new Error(`Таймаут запроса: ${input.timeoutMs} мс`))
       }, input.timeoutMs)
 
+      const onAbort = (): void => {
+        request.destroy(new Error('Запрос прерван'))
+      }
+      input.signal?.addEventListener('abort', onAbort, { once: true })
+
       request.on('error', (error) => {
         clearTimeout(timer)
+        input.signal?.removeEventListener('abort', onAbort)
         reject(error)
       })
+      request.on('close', () => input.signal?.removeEventListener('abort', onAbort))
       request.end(input.body)
     })
 }
