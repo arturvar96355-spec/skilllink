@@ -435,9 +435,9 @@ describe('проверки правила — те же, что у пересб�
       .find((item) => item.ruleKey === 'cooperation.stalled')!
       .checks.find((item) => item.code === 'cooperation_stalled')!
     expect(check.pass).toBe(false)
-    expect(check.facts.threshold).toBe(stalledDaysThreshold())
-    expect(stalledDaysThreshold()).toBe(RECOMMENDATION_RULES.stalledDays)
-    expect(check.detail).toBe(`Последнее движение 3 дн. назад — меньше порога ${stalledDaysThreshold()} дн.`)
+    expect(check.facts.threshold).toBe(stalledDaysThreshold(4))
+    expect(stalledDaysThreshold(4)).toBe(RECOMMENDATION_RULES.stalledDays)
+    expect(check.detail).toBe(`Последнее движение 3 дн. назад — меньше порога ${stalledDaysThreshold(4)} дн.`)
   })
 
   it('отклонённая недавно: «почему нет» называет паузу и дату её конца', () => {

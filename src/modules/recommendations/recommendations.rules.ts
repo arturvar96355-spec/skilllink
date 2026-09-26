@@ -22,6 +22,7 @@ import type {
 import type { RecommendationReasonDto } from '@/shared/contracts/recommendation'
 import type { SkillLevel } from '@/shared/contracts/enums'
 import { daysBetween } from '@/shared/utils/date'
+import { getStalledThreshold, stalledThresholdText } from '@/modules/analytics/stalled-threshold'
 import { outOf100 } from '@/shared/utils/number'
 import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
 import { allPass, reason } from './recommendations.reasons'
@@ -75,12 +76,14 @@ function evaluation(
 }
 
 /**
- * Порог «связка без движения», дней. Единственная точка чтения параметра:
- * правило, текст, проверки и ценность случая берут его отсюда, чтобы порог
- * можно было заменить (например, вычисляемым по данным) в одном месте.
+ * Порог «связка без движения», дней, для этапа `stage`. Единственная точка чтения
+ * параметра: правило, текст, проверки и «почему нет рекомендации» берут его отсюда,
+ * поэтому подмена порога происходит в одном месте. С решения 120 сам порог считает
+ * `getStalledThreshold` (`analytics/stalled-threshold.ts`) — по данным (p90 длительности
+ * этапа) или ручной `RECOMMENDATION_RULES.stalledDays`, если данных недостаточно.
  */
-export function stalledDaysThreshold(): number {
-  return RECOMMENDATION_RULES.stalledDays
+export function stalledDaysThreshold(stage: number): number {
+  return getStalledThreshold(stage).days
 }
 
 // ─────────────────────────── Порядок ленты ──────────────────────────────────
@@ -283,8 +286,9 @@ export function ruleStalledCooperation(
   if (input.stageStatus === 'COMPLETED' || input.stageStatus === 'CANCELLED') return null
 
   const idleDays = daysBetween(input.lastActivityAt, now)
-  const threshold = stalledDaysThreshold()
-  if (idleDays < threshold) return null
+  // Порог — по этапу: p90 его длительности по истории или ручной stalledDays (решение 120).
+  const threshold = getStalledThreshold(input.stageNumber)
+  if (idleDays < threshold.days) return null
 
   const { action, priority } = stalledAction(input.stageStatus, input.stageNumber, input.stageTitle)
 
@@ -300,12 +304,14 @@ export function ruleStalledCooperation(
       `Текущий этап ${input.stageNumber} в статусе «${STAGE_STATUS_LABELS[input.stageStatus]}», ` +
       `движения по связке — смены статуса этапа, отметки в чек-листе, правки связки — ` +
       `не было ${idleDays} дн. ` +
-      `Порог — ${threshold} дн.`,
+      stalledThresholdText(threshold),
     relatedData: {
       stageNumber: input.stageNumber,
       stageStatus: input.stageStatus,
       idleDays,
       lastActivityAt: input.lastActivityAt.toISOString(),
+      thresholdDays: threshold.days,
+      thresholdSource: threshold.source,
     },
     confidence: 'MEDIUM',
     cooperationId: input.cooperationId,
@@ -647,10 +653,11 @@ export function evaluateCooperation(cooperation: CooperationRuleInput, now: Date
   const lastActivityAt = lastCooperationActivity(cooperation)
   if (current) {
     const idleDays = daysBetween(lastActivityAt, now)
+    const threshold = stalledDaysThreshold(current.stageNumber)
     stalledChecks.push(
-      reason('cooperation_stalled', idleDays >= stalledDaysThreshold(), {
+      reason('cooperation_stalled', idleDays >= threshold, {
         idleDays,
-        threshold: stalledDaysThreshold(),
+        threshold,
         lastActivityAt: lastActivityAt.toISOString(),
       }),
     )

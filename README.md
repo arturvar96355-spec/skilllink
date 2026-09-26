@@ -82,8 +82,11 @@ npm run check:docs                   # только сверка докумен�
 npm run smoke                        # сквозной сценарий против запущенного сервера
 npm run probe                        # пробник: изоляция ролей, противоречивые состояния, кривой ввод
 npm run db:verify                    # правила целостности данных в базе
+npm run audit:verify                 # цепочка хешей журнала действий и печати (решение 115); audit:seal — снять печать
+TEST_DATABASE_URL=… npx vitest run src/modules/audit/chain.db.test.ts   # цепочка журнала на настоящей базе
 npm run demo:check -- <адрес>        # сверка стенда со сценарием показа (только чтение)
 npm run recs:simulate                # как рекомендации учатся: 90 дней решений, веса правил (решение 119)
+npm run analytics:report             # длительность этапов, воронка, «Система заметила» — цифры для слайда
 ```
 
 Всё это, плюс сборка и сверка OpenAPI со спецификацией, идёт в CI на каждый PR;
@@ -96,7 +99,8 @@ npm run recs:simulate                # как рекомендации учат�
   сервисе; представитель вуза видит только свой вуз.
 - Изменяющие запросы с чужим `Origin` отклоняются, защитные заголовки, HTTPS с HSTS.
 - Приложение ходит в базу ролью без прав суперпользователя; журнал действий оно может
-  только читать и дописывать.
+  только читать и дописывать. Журнал защищён от подмены цепочкой хешей и печатями:
+  изменённая, удалённая или переставленная запись видна проверкой (решение 115).
 - Политика обработки ПД — `/privacy` (открыта без входа); опись данных, сроки хранения,
   меры и модель угроз — [docs/PRIVACY.md](docs/PRIVACY.md).
 - Соответствие 152-ФЗ и приказам ФСТЭК не заявляется: это оценка разработчиков,
@@ -113,9 +117,11 @@ npm run recs:simulate                # как рекомендации учат�
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы |
 | [docs/DATABASE_ANSWERS.md](docs/DATABASE_ANSWERS.md) | База данных: короткие ответы экспертам |
 | [docs/ANALYTICS_METHODOLOGY.md](docs/ANALYTICS_METHODOLOGY.md) | Формулы и коэффициенты аналитики |
+| [docs/ANALYTICS_MODEL.md](docs/ANALYTICS_MODEL.md) | Аналитика этапов на статистике: Каплан–Мейер, порог застоя, воронка, «Система заметила» |
 | [docs/PRIVACY.md](docs/PRIVACY.md) | Персональные данные и 152-ФЗ |
 | [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md) | Безопасность: что сделано, чего нет |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Интерфейс и дизайн-система |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md) | Словарь терминов: как называть вещи в интерфейсе |
 | [docs/TECHNICAL_DECISIONS.md](docs/TECHNICAL_DECISIONS.md) | Журнал технических решений |
 | [docs/PROGRESS.md](docs/PROGRESS.md) | Состояние, риски, что дальше |
 

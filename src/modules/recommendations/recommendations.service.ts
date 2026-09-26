@@ -16,6 +16,7 @@ import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { findCurrentStage } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import * as statsRepo from './recommendations.stats.repo'
+import { ensureStageDurations } from '@/modules/analytics/stage-analytics.service'
 import {
   assertRecommendationTransition,
   compareDraftsByImportance,
@@ -149,6 +150,8 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   assertCan(user, 'ANALYTICS_WORK')
 
   const now = new Date()
+  // Порог застоя по истории этапов (решение 120): правило берёт его из памяти.
+  await ensureStageDurations(now)
   const input = await repo.loadGenerationInput()
   const evaluations: RuleEvaluation[] = []
 
@@ -229,6 +232,7 @@ async function currentDraft(
   now: Date,
 ): Promise<RecommendationDraft | null> {
   if (row.objectType === 'Cooperation') {
+    await ensureStageDurations(now)
     const cooperation = await repo.loadCooperationForRules(row.objectId)
     if (!cooperation) return null
     return draftsForCooperation(cooperation, now).find((draft) => draft.ruleKey === row.ruleKey) ?? null
@@ -312,6 +316,7 @@ export async function updateStatus(
 export async function syncCooperation(cooperationId: string): Promise<void> {
   try {
     const now = new Date()
+    await ensureStageDurations(now)
     // Кандидаты на бонус — до сверки: сверка переписывает их данные на сегодняшние
     // (просрочка переходит на следующий этап), а сравнивать надо с тем, что было.
     const candidates = await repo.findProgressCandidates(

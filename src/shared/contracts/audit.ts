@@ -11,6 +11,11 @@ export const AUDIT_ACTIONS = [
   'auth.login.success',
   'auth.login.failure',
   'auth.login.blocked',
+  /**
+   * Превышен предел частоты запросов к API (решение 117): одна запись на ключ
+   * в минуту. В payload — группа, предел и вид субъекта; адреса и пути нет.
+   */
+  'api.rate-limit.exceeded',
   'user.create',
   /** ФИО, должность или вуз представителя. В журнале — только имена полей. */
   'user.update',
@@ -83,7 +88,19 @@ export const AUDIT_ACTIONS = [
   'skill.merge',
   'skill.delete',
   'export.download',
+  /**
+   * Запросы субъектов ПД (решение 116). objectType — User или Contact, objectId — субъект;
+   * в payload — номер запроса, вид, канал и счётчики, без самих ПД.
+   */
+  'dsar.requested',
+  'dsar.exported',
+  'dsar.erased',
   'audit.retention',
+  /**
+   * Проверка целостности журнала (решение 115): итог, число строк, номер головы,
+   * место и код нарушения. Хешей и содержимого строк в записи нет.
+   */
+  'audit.verify',
   'import.apply',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
@@ -129,6 +146,66 @@ export interface AuditLogEntryDto {
    */
   cooperationId: string | null
   createdAt: string
+}
+
+/**
+ * Нарушения цепочки журнала (решение 115) — `code` в ответе проверки.
+ * Подписи — AUDIT_CHAIN_BREAK_LABELS в labels.ts; подробность — в `reason`.
+ */
+export const AUDIT_CHAIN_BREAK_CODES = [
+  /** Пропуск номеров: строки удалены. */
+  'rows_missing',
+  /** Строка с номером из части, вычищенной по сроку. */
+  'row_before_cut',
+  /** Строка не ссылается на предыдущую: та удалена, переставлена или пересчитана. */
+  'link_broken',
+  /** Содержимое строки не сходится с её хешем: строка изменена. */
+  'row_modified',
+  /** Строка без номера или хеша: вставлена в обход триггера. */
+  'row_unnumbered',
+  /** Печать видела строку дальше нынешней головы: отрезан хвост журнала. */
+  'tail_removed',
+  /** Хеш строки печати другой: история переписана и пересчитана. */
+  'history_rewritten',
+  /** Проверка в базе и в приложении разошлись: функцию проверки в базе могли подменить. */
+  'engines_disagree',
+] as const
+export type AuditChainBreakCode = (typeof AUDIT_CHAIN_BREAK_CODES)[number]
+
+/** Печать журнала: голова цепочки на момент снятия (решение 115). */
+export interface AuditSealDto {
+  id: string
+  /** Номер последней строки журнала; 0 — журнал был пуст. */
+  headSeq: number
+  /** SHA-256 этой строки, 64 шестнадцатеричных знака; null — журнал был пуст. */
+  headHash: string | null
+  /** Сколько строк было в журнале (после чистки по сроку меньше headSeq). */
+  count: number
+  at: string
+}
+
+/** Итог проверки цепочки журнала (`GET /api/audit/verify`, решение 115). */
+export interface AuditChainVerifyDto {
+  ok: boolean
+  /** Сколько строк проверено до первого нарушения (или всего). */
+  checked: number
+  code: AuditChainBreakCode | null
+  /** Номер строки (chain_seq), на которой найдено нарушение. */
+  brokenAt: number | null
+  /** id записи журнала с нарушением; у нарушений по печати — null. */
+  brokenId: string | null
+  /** Что не так — по-русски, готово к показу. */
+  reason: string | null
+  /** Номер и хеш последней проверенной строки — их можно сверить с печатью вне системы. */
+  headSeq: number
+  headHash: string | null
+  /** С какого номера цепочка законно начинается после чистки по сроку; 0 — чистки не было. */
+  anchorSeq: number
+  /** Сколько печатей сверено. */
+  sealsChecked: number
+  /** Последняя печать; null — печатей ещё не снимали. */
+  lastSeal: AuditSealDto | null
+  verifiedAt: string
 }
 
 export type UniversityEventKind =

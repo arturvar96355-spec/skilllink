@@ -3,11 +3,18 @@ import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
+import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
+import {
+  createDsarRequestSchema,
+  dsarRequestListQuerySchema,
+  eraseSubjectSchema,
+} from '@/modules/dsar/dsar.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
 import {
   changePasswordSchema,
   createUserSchema,
@@ -189,6 +196,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'и просроченные — по связкам и этапам, где текущий пользователь ответственный.',
     permission: 'ANY',
     errors: ['UNAUTHORIZED', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/me/pulse',
+    tag: 'Пользователи',
+    summary: 'Пульс: «Внимание», «Сегодня», «Решить», «Успехи» по моим связкам',
+    description:
+      'Решение 120. То же содержимое, что сводка в Telegram. Разделы с потолком пунктов, total — ' +
+      'сколько всего; checkedRules — сколько правил проверено; пустой пульс — isCalm и calmText.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
   },
   {
     method: 'get',
@@ -375,6 +393,100 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ADMIN',
     returnsOk: true,
     errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+
+  // ── Права субъекта ПД (решение 116) ──────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/me/data-export',
+    tag: 'Права субъекта ПД',
+    summary: 'Мои данные: выгрузить всё, что система знает обо мне',
+    description:
+      'Ст. 14 152-ФЗ. Любая роль, только о себе. JSON вложением (Content-Disposition: attachment, ' +
+      'Cache-Control: no-store): сведения ч. 7 ст. 14, данные по разделам реестра DSAR и журнал — ' +
+      'мои действия и действия надо мной. Не чаще раза в 10 минут — иначе 409 с details.retryAfterSeconds. ' +
+      'Регистрируется в реестре запросов исполненным (канал SELF_SERVICE), в журнал — dsar.exported.',
+    permission: 'ANY',
+    fileContentType: 'application/json',
+    errors: ['UNAUTHORIZED', 'CONFLICT', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/users/{id}/export',
+    tag: 'Права субъекта ПД',
+    summary: 'Всё о субъекте: выгрузка по пользователю системы',
+    description:
+      'Ст. 14 152-ФЗ. JSON вложением, без сохранения в браузере: subject, operator, purposes, legalBasis, categories, sources, ' +
+      'recipients, retention, data (по разделам с total и пределом 500), auditTrail.byActor и aboutSubject, counts. ' +
+      'Паролей, хешей и токенов нет. Закрывает открытый запрос на сведения, иначе регистрирует исполненный.',
+    permission: 'DSAR_MANAGE',
+    fileContentType: 'application/json',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/contacts/{id}/export',
+    tag: 'Права субъекта ПД',
+    summary: 'Всё о субъекте: выгрузка по контактному лицу вуза',
+    description:
+      'Как выгрузка по пользователю: карточка контакта с основанием обработки и согласием, история основания, ' +
+      'встречи, документы с упоминанием ФИО, журнал действий над контактом.',
+    permission: 'DSAR_MANAGE',
+    fileContentType: 'application/json',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/users/{id}/erase',
+    tag: 'Права субъекта ПД',
+    summary: 'Обезличить пользователя по запросу субъекта',
+    description:
+      'Ст. 20, 21 152-ФЗ. Тело { confirm: почта для входа }. В одной транзакции по реестру: ФИО, почта, должность — заглушка, ' +
+      'пароль стёрт, блокировка, версия сессий +1, ссылка календаря и привязка Telegram удалены; ссылки и журнал ' +
+      'остаются. Себя, последнего администратора, общую демо-учётку и сотрудника с открытой работой — 409. ' +
+      'Необратимо; повтор — 200 с alreadyErased.',
+    permission: 'DSAR_MANAGE',
+    body: eraseSubjectSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/contacts/{id}/erase',
+    tag: 'Права субъекта ПД',
+    summary: 'Обезличить контактное лицо вуза по запросу субъекта',
+    description:
+      'Тот же набор полей, что у обезличивания в карточке вуза, и закрытие запроса в реестре. ' +
+      'Тело { confirm: ФИО контакта }. Необратимо; повтор — 200 с alreadyErased.',
+    permission: 'DSAR_MANAGE',
+    body: eraseSubjectSchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/admin/dsar/requests',
+    tag: 'Права субъекта ПД',
+    summary: 'Реестр запросов субъектов ПД',
+    description:
+      'Новые сверху; фильтры status, kind, subjectType, subjectId, overdue=true (открытые с прошедшим сроком). ' +
+      'Срок: 10 рабочих дней на сведения (ч. 3 ст. 14), 7 — на уничтожение (ч. 3 ст. 20).',
+    permission: 'DSAR_MANAGE',
+    query: dsarRequestListQuerySchema,
+    list: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/dsar/requests',
+    tag: 'Права субъекта ПД',
+    summary: 'Зарегистрировать запрос субъекта, пришедший письмом',
+    description:
+      'Срок ответа — от receivedAt (не в будущем, не старше 30 дней). Открытый запрос того же вида о том же ' +
+      'субъекте — 409 с details.requestId. Текст письма и ФИО не хранятся. В журнал — dsar.requested.',
+    permission: 'DSAR_MANAGE',
+    body: createDsarRequestSchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR', 'CONFLICT'],
   },
 
   // ── Университеты ──────────────────────────────────────────────────────────
@@ -861,6 +973,63 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
   },
+  {
+    method: 'get',
+    path: '/api/analytics/stage-durations',
+    tag: 'Аналитика',
+    summary: 'Длительность этапов по Каплану–Мейеру и порог застоя',
+    description:
+      'Решение 120. По каждому этапу 1–13: n (входили в этап), events (перешли дальше), censored ' +
+      '(ещё на этапе, пауза, отмена), median и p90 в днях с 95% интервалом (ci), кривая ' +
+      'curve [{day, F, lo, hi}] — доля прошедших этап к дню. status insufficient_data — меньше ' +
+      'minObservations наблюдений или minEvents переходов: порог застоя тогда ручной (threshold.source manual).',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/stalled-preview',
+    tag: 'Аналитика',
+    summary: 'Предпросмотр порога застоя: сколько связок станут или перестанут быть застрявшими',
+    description:
+      'Решение 120. Было (текущий порог правила) → станет (порог days) по открытым связкам, у которых ' +
+      'этап stage текущий; без stage — по всем этапам. Ничего не меняет.',
+    permission: 'ANALYTICS',
+    query: stalledPreviewQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/funnel',
+    tag: 'Аналитика',
+    summary: 'Воронка по этапам или вехам с отвалившимися и разрезом',
+    description:
+      'Решение 120. Для каждого шага: дошли, конверсия от предыдущего и от начала, медиана дней ' +
+      'перехода, в работе, отвалившиеся (отменены или на паузе) со ссылками. milestones=true — ' +
+      'шесть вех вместо 14 этапов; groupBy — разрез.',
+    permission: 'ANALYTICS',
+    query: funnelQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/cohorts',
+    tag: 'Аналитика',
+    summary: 'Когорты: квартал старта × кварталы с начала → доля с подписанным договором',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/insights',
+    tag: 'Аналитика',
+    summary: '«Система заметила»: отклонения рядов и выводы по этапам',
+    description:
+      'Решение 120. [{code, severity, title, detail, facts, link}] — детерминированные тексты по ' +
+      'шаблонам, каждое число из текста есть в facts. Без ИИ.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
 
   // ── Рекомендации ──────────────────────────────────────────────────────────
   {
@@ -1224,6 +1393,31 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description: 'Доступен только администратору.',
     permission: 'ADMIN',
     query: auditListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/audit/verify',
+    tag: 'Журнал',
+    summary: 'Проверка целостности журнала: цепочка хешей и печати',
+    description:
+      'Решение 115. Проверяет цепочку хешей журнала двумя независимыми путями (функцией в базе ' +
+      'и кодом приложения) и сверяет её с сохранёнными печатями. Ответ 200 и при нарушении: ' +
+      'ok=false, code, brokenAt, reason. Факт проверки пишется в журнал (audit.verify).',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/audit/seals',
+    tag: 'Журнал',
+    summary: 'Печати журнала: голова цепочки на момент снятия',
+    description:
+      'Решение 115. Новые сверху. Печать снимает npm run audit:seal по расписанию; ' +
+      'её копия вне базы ловит удаление хвоста журнала.',
+    permission: 'ADMIN',
+    query: paginationSchema,
     list: true,
     errors: COMMON_ERRORS,
   },
