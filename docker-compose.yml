@@ -70,7 +70,7 @@ services:
       # next-auth считает его незаданным (проверено).
       AUTH_URL: ${DOCKER_AUTH_URL:-}
       # Ключ HMAC для почты и телефона слушателей в заказах с сайта (решение 132).
-      # Пустой — загрузка заказов отвечает «не задан ORDERS_HMAC_KEY», остальное работает.
+      # Пустой — ключ выводится из AUTH_SECRET (решение 132), отдельный задавать необязательно.
       # На стенде создаётся развёртыванием в .env.cloud (scripts/deploy/deploy.sh).
       ORDERS_HMAC_KEY: ${DOCKER_ORDERS_HMAC_KEY:-}
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}

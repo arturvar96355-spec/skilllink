@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto'
+
 /**
  * Набор на курсы ИТ-Школы: заказы с сайта → файл для LMS (решение 132).
  */
@@ -16,7 +18,8 @@ export const MIN_ORDERS_HMAC_KEY_LENGTH = 32
  * утёкшая копия базы раскрыла бы, кто учился. С ключом, который лежит вне базы
  * (переменная окружения), копия базы без него — набор случайных строк.
  *
- * В продакшене отсутствие или слишком короткий ключ — ошибка при первом обращении,
+ * Если ORDERS_HMAC_KEY не задан, ключ выводится из AUTH_SECRET (HMAC с отдельной меткой).
+ * В продакшене слишком короткий ключ или отсутствие обоих — ошибка при первом обращении,
  * а не тихая работа с известным значением. Смена ключа делает старые хеши
  * несравнимыми с новыми: дубли со старыми загрузками перестанут находиться
  * (docs/PRIVACY.md) — ключ меняют только вместе с очисткой `site_orders`.
@@ -32,9 +35,16 @@ export function resolveOrdersHmacKey(): string {
     }
     return key
   }
+  // Без отдельного ключа — производный от AUTH_SECRET: он в продакшене обязателен и тоже
+  // лежит вне базы. Отдельная метка не даёт ключу совпасть с ключом подписи сессий.
+  // Смена AUTH_SECRET тогда тоже делает старые хеши несравнимыми (см. выше).
+  const authSecret = process.env.AUTH_SECRET?.trim()
+  if (authSecret && authSecret.length >= MIN_ORDERS_HMAC_KEY_LENGTH) {
+    return createHmac('sha256', authSecret).update('skilllink:site-orders:hmac:v1').digest('base64')
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
-      'Не задана переменная окружения ORDERS_HMAC_KEY — без неё заказы с сайта не загружаются. ' +
+      'Не задан ни ORDERS_HMAC_KEY, ни достаточно длинный AUTH_SECRET — заказы с сайта не загружаются. ' +
         'Сгенерируйте ключ командой:\n' +
         '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"',
     )
