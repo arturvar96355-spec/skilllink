@@ -200,6 +200,25 @@ export function formatDeadlineDistance(days: number | null): string | null {
   return `остал${days % 10 === 1 && days % 100 !== 11 ? 'ся' : 'ось'} ${days} ${pluralize(days, ['день', 'дня', 'дней'])}`
 }
 
+const ATTACHMENT_SIZE_UNITS = ['Б', 'КБ', 'МБ', 'ГБ'] as const
+
+/**
+ * Размер файла человеку: «340 Б», «2,0 КБ», «18 МБ» (вложения к документам
+ * и этапам, решение 145/149). До 10 в текущей единице — один знак после
+ * запятой, от 10 — целое число: доля мегабайта у файла на 18 МБ никому не нужна.
+ */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return NO_DATA
+  let value = bytes
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < ATTACHMENT_SIZE_UNITS.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  const text = unitIndex === 0 || value >= 10 ? numberFormat.format(Math.round(value)) : scoreFormat.format(value)
+  return `${text} ${ATTACHMENT_SIZE_UNITS[unitIndex]}`
+}
+
 /** Инициалы для аватара: «Иванов Иван Иванович» → «ИИ». */
 export function initials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean)
