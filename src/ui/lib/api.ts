@@ -78,7 +78,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
       ...init,
       headers: {
         Accept: 'application/json',
-        ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        // Тело формы (загрузка файла, решение 145/149) браузер отправляет сам,
+        // с границей (boundary) в заголовке — проставленный вручную
+        // Content-Type: application/json сломал бы разбор multipart на сервере.
+        ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...init?.headers,
       },
       // Куки сессии идут с каждым запросом: без них сервер ответит 401.
@@ -133,4 +136,14 @@ export function apiPut<T>(path: string, body: unknown): Promise<ApiResult<T>> {
 
 export function apiDelete<T>(path: string): Promise<ApiResult<T>> {
   return request<T>(path, { method: 'DELETE' })
+}
+
+/**
+ * Загрузка файла (решение 145/149): `multipart/form-data`, поле `file` — тот же
+ * контракт, что у `POST /api/documents/:id/files` и `POST /api/workflow/stages/:id/files`.
+ */
+export function apiUpload<T>(path: string, file: File): Promise<ApiResult<T>> {
+  const body = new FormData()
+  body.append('file', file)
+  return request<T>(path, { method: 'POST', body })
 }

@@ -83,7 +83,8 @@ export { useTheme, setTheme } from './hooks/theme'
 export { ThemeToggle } from './layout/ThemeToggle'
 export { UI_MODE_LABELS, type UiMode } from './lib/ui-mode'
 
-export { apiDelete, apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
+export { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
+export { ATTACHMENT_ACCEPT, ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_MB } from './lib/attachments'
 export {
   NO_DATA,
   formatNumber,
@@ -96,6 +97,7 @@ export {
   formatDate,
   formatDateTime,
   formatDayMonth,
+  formatFileSize,
   formatRelative,
   formatCount,
   deadlineBadgeText,
