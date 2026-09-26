@@ -10,8 +10,8 @@ import type {
 } from '@/shared/contracts/telegram'
 import { forbidden, integrationError } from '@/shared/http/errors'
 import { addDays } from '@/shared/utils/date'
-import { getIntegrationsConfig, type TelegramConfig } from '@/integrations/config'
-import { TelegramClient } from '@/integrations/telegram'
+import type { TelegramConfig } from '@/integrations/config'
+import { effectiveTelegramConfig, TelegramClient } from '@/integrations/telegram'
 import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
 import {
@@ -37,7 +37,7 @@ import { log } from '@/shared/log/logger'
  */
 
 function telegramConfig(): TelegramConfig {
-  return getIntegrationsConfig().telegram
+  return effectiveTelegramConfig()
 }
 
 /**
@@ -316,6 +316,11 @@ async function replyTo(
       const user = verified ? await repo.findActiveUser(verified.userId) : null
       // Заблокированному, сменившему роль и с чужой ссылкой — один ответ: подробности не нужны.
       if (!user || !can(user, 'ANALYTICS')) return BOT_REPLIES.invalidToken
+      // Чат уже привязан к активному сотруднику — не другому этому же (перепривязка
+      // своего чата — обычное дело), а именно другому: не отбираем чат молча,
+      // владелец чата должен сам отключиться (/stop) или обратиться к администратору.
+      const chatOwner = await repo.findActiveUserByChat(chatId)
+      if (chatOwner && chatOwner.id !== user.id) return BOT_REPLIES.chatTakenByOther
       await repo.linkChat(user.id, chatId, message.from?.username ?? null)
       await writeAudit({
         userId: user.id,

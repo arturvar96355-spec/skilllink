@@ -80,6 +80,7 @@ function enabledConfig(overrides: Partial<TelegramConfig> = {}): TelegramConfig 
     apiIp: null,
     timeoutMs: 1000,
     enabled: true,
+    mode: 'webhook',
     ...overrides,
   }
 }
@@ -183,6 +184,28 @@ describe('вебхук', () => {
     const audit = mocks.writeAudit.mock.calls[0]![0] as { action: string; payload: unknown }
     expect(audit.action).toBe('telegram.link')
     expect(JSON.stringify(audit)).not.toMatch(/777|ivan/)
+  })
+
+  it('/start в чате, уже привязанном к другому сотруднику, — понятный отказ, чат не отбирается', async () => {
+    mocks.findActiveUser.mockResolvedValue(manager)
+    mocks.findActiveUserByChat.mockResolvedValue(rep)
+    const { token } = createLinkToken(SECRET, manager.id)
+    const { client, sent } = recordingClient()
+    await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
+
+    expect(mocks.linkChat).not.toHaveBeenCalled()
+    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.chatTakenByOther }])
+  })
+
+  it('/start повторной ссылкой в СВОЁМ уже привязанном чате — перепривязка проходит', async () => {
+    mocks.findActiveUser.mockResolvedValue(manager)
+    mocks.findActiveUserByChat.mockResolvedValue(manager)
+    const { token } = createLinkToken(SECRET, manager.id)
+    const { client, sent } = recordingClient()
+    await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
+
+    expect(mocks.linkChat).toHaveBeenCalledWith(manager.id, '777', 'ivan')
+    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
   })
 
   it('та же ссылка второй раз не срабатывает', async () => {
