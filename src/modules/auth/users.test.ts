@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   auditLog: { findFirst: vi.fn() },
   calendarFeed: { deleteMany: vi.fn() },
   telegramLink: { deleteMany: vi.fn() },
+  notificationChannelLink: { findMany: vi.fn(), deleteMany: vi.fn() },
   queryRaw: vi.fn(),
   executeRaw: vi.fn(),
   writeAudit: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('@/shared/db/prisma', () => {
     auditLog: mocks.auditLog,
     calendarFeed: mocks.calendarFeed,
     telegramLink: mocks.telegramLink,
+    notificationChannelLink: mocks.notificationChannelLink,
     $queryRaw: mocks.queryRaw,
     $executeRaw: mocks.executeRaw,
   }
@@ -82,6 +84,8 @@ beforeEach(() => {
   mocks.queryRaw.mockResolvedValue([])
   mocks.calendarFeed.deleteMany.mockResolvedValue({ count: 0 })
   mocks.telegramLink.deleteMany.mockResolvedValue({ count: 0 })
+  mocks.notificationChannelLink.findMany.mockResolvedValue([])
+  mocks.notificationChannelLink.deleteMany.mockResolvedValue({ count: 0 })
 })
 
 describe('права: управление пользователями — только администратор', () => {
@@ -503,6 +507,33 @@ describe('отзыв сессий (решение 109): версия растё�
     const unlinkCall = mocks.writeAudit.mock.calls.find(([entry]) => entry.action === 'telegram.unlink')
     expect(unlinkCall?.[0]).toMatchObject({ objectType: 'User', objectId: 'target', payload: { source: 'user.block' } })
     expect(unlinkCall?.[1]).toBeDefined()
+  })
+
+  it('блокировка: привязки к MAX/VK сняты в той же транзакции, запись в журнале по каждому каналу', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    mocks.notificationChannelLink.findMany.mockResolvedValue([{ channel: 'MAX' }, { channel: 'VK' }])
+
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+
+    expect(mocks.notificationChannelLink.deleteMany).toHaveBeenCalledWith({ where: { userId: 'target' } })
+    const unlinkCalls = mocks.writeAudit.mock.calls.filter(([entry]) => entry.action === 'channel.unlink')
+    expect(unlinkCalls.map(([entry]) => entry.payload.channel).sort()).toEqual(['max', 'vk'])
+    for (const [entry, tx] of unlinkCalls) {
+      expect(entry).toMatchObject({ objectType: 'User', objectId: 'target', payload: { source: 'user.block' } })
+      expect(tx).toBeDefined()
+    }
+  })
+
+  it('блокировка без привязок MAX/VK — удалять нечего, записи в журнале нет', async () => {
+    mocks.user.findUnique.mockResolvedValue(row())
+    mocks.user.update.mockResolvedValue(row({ isActive: false }))
+    mocks.notificationChannelLink.findMany.mockResolvedValue([])
+
+    await service.updateUser(as('ADMIN'), 'target', { isActive: false })
+
+    expect(mocks.notificationChannelLink.deleteMany).not.toHaveBeenCalled()
+    expect(mocks.writeAudit.mock.calls.some(([entry]) => entry.action === 'channel.unlink')).toBe(false)
   })
 
   it('смена роли привязку к Telegram не трогает', async () => {

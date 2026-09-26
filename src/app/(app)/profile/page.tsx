@@ -38,7 +38,7 @@ import {
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { Orb } from './Orb'
-import { TelegramRow } from './TelegramRow'
+import { ChannelsBlock } from './ChannelsBlock'
 import styles from './profile.module.css'
 
 /**
@@ -399,8 +399,9 @@ export default function ProfilePage() {
               </Button>
             </Row>
           )}
-          {/* Личные уведомления в Telegram (решение 102): без настроенного бота — «Не настроено администратором». */}
-          <TelegramRow />
+          {/* Каналы уведомлений (решение 144): Telegram (решение 102), MAX и VK рядом — без
+              настроенного бота каждый честно пишет «Не настроено администратором». */}
+          <ChannelsBlock />
           <Row title="Выход из системы" caption="Сессия закроется на этом устройстве, вход понадобится заново.">
             <Button variant="danger" icon="logout" onClick={onSignOut} isLoading={isLeaving} disabled={isLeaving}>
               Выйти

@@ -93,13 +93,13 @@ describe('отправка владельцу', () => {
     expect(sent).toHaveLength(3)
   })
 
-  it('бот не настроен — строка в журнале, отправки нет, не падает', async () => {
+  it('ни один канал не настроен — строка в журнале, отправки нет, не падает', async () => {
     const send = vi.fn()
     const { notifier, lines } = harness({ enabled: () => false, send })
     notifier.notify('export.bulk', { key: 'x' })
     await notifier.settled()
     expect(send).not.toHaveBeenCalled()
-    expect(lines).toEqual(['[owner-alert] export.bulk: бот не настроен (TELEGRAM_BOT_TOKEN) — не отправлено'])
+    expect(lines).toEqual(['[owner-alert] export.bulk: ни один канал не настроен (Telegram/MAX/VK) — не отправлено'])
   })
 
   it('никогда не бросает: ни сбой базы получателей, ни сбой отправки', async () => {

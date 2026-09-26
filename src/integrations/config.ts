@@ -147,6 +147,84 @@ function readTelegramConfig(timeoutMs: number): TelegramConfig {
   }
 }
 
+/**
+ * Бот уведомлений в MAX (мессенджер VK, решение 144). Как и Telegram — выключен,
+ * пока не задан токен и имя бота: канал в блоке «Каналы уведомлений» пишет
+ * «Не настроено администратором». Секрет вебхука — свой, MAX_WEBHOOK_SECRET:
+ * в отличие от Telegram, платформа не выдаёт его сама при подписке (POST
+ * /subscriptions передаёт secret, который задаёт сам оператор бота), поэтому
+ * без него входящие обновления MAX не принимаются (403), а отправка работает.
+ */
+export interface MaxConfig {
+  /** Токен бота MAX (создаётся в личном кабинете разработчика MAX). */
+  botToken: string | null
+  /** Имя бота без @ — для диплинка https://max.ru/<имя>/start/<код>. */
+  botUsername: string | null
+  /** Значение заголовка X-Max-Bot-Api-Secret, заданное при подписке на вебхук. */
+  webhookSecret: string | null
+  /** База Bot API MAX. */
+  apiBase: string
+  timeoutMs: number
+  /** Можно отправлять сообщения: есть и токен, и имя бота. */
+  enabled: boolean
+}
+
+export const MAX_DEFAULT_API_BASE = 'https://platform-api2.max.ru'
+
+function readMaxConfig(timeoutMs: number): MaxConfig {
+  const botToken = readString('MAX_BOT_TOKEN')
+  const botUsername = readString('MAX_BOT_USERNAME')?.replace(/^@/, '') ?? null
+  return {
+    botToken,
+    botUsername,
+    webhookSecret: readString('MAX_WEBHOOK_SECRET'),
+    apiBase: readString('MAX_API_BASE') ?? MAX_DEFAULT_API_BASE,
+    timeoutMs,
+    enabled: botToken !== null && botUsername !== null,
+  }
+}
+
+/**
+ * Бот сообщества VK (решение 144): рассылка через messages.send. Подлинность
+ * входящих Callback API — код подтверждения (показывает VK при включении Callback
+ * API) и секретная строка `secret` в теле каждого события (не заголовок, как у
+ * Telegram и MAX, — так устроен Callback API VK).
+ */
+export interface VkConfig {
+  /** Токен сообщества с правом messages (Управление сообществом → Работа с API). */
+  groupToken: string | null
+  /** id сообщества (число, без минуса) — для vk.me/public<id> и messages.send. */
+  groupId: string | null
+  /** Строка, которую VK Callback API ждёт в ответ на event type=confirmation. */
+  confirmationCode: string | null
+  /** Секрет из настроек Callback API — сверяется с полем `secret` каждого события. */
+  secret: string | null
+  apiBase: string
+  /** Версия VK API (параметр v). */
+  apiVersion: string
+  timeoutMs: number
+  /** Можно отправлять сообщения: есть и токен сообщества, и его id. */
+  enabled: boolean
+}
+
+export const VK_DEFAULT_API_BASE = 'https://api.vk.com/method'
+export const VK_DEFAULT_API_VERSION = '5.199'
+
+function readVkConfig(timeoutMs: number): VkConfig {
+  const groupToken = readString('VK_GROUP_TOKEN')
+  const groupId = readString('VK_GROUP_ID')
+  return {
+    groupToken,
+    groupId,
+    confirmationCode: readString('VK_CONFIRMATION_CODE'),
+    secret: readString('VK_SECRET'),
+    apiBase: readString('VK_API_BASE') ?? VK_DEFAULT_API_BASE,
+    apiVersion: readString('VK_API_VERSION') ?? VK_DEFAULT_API_VERSION,
+    timeoutMs,
+    enabled: groupToken !== null && groupId !== null,
+  }
+}
+
 export interface IntegrationCommonConfig {
   timeoutMs: number
   retries: number
@@ -172,6 +250,8 @@ export interface IntegrationsConfig {
   site: RemoteServiceConfig
   aiAssist: AiAssistConfig
   telegram: TelegramConfig
+  max: MaxConfig
+  vk: VkConfig
 }
 
 /**
@@ -218,5 +298,7 @@ export function getIntegrationsConfig(): IntegrationsConfig {
       },
     },
     telegram: readTelegramConfig(common.timeoutMs),
+    max: readMaxConfig(common.timeoutMs),
+    vk: readVkConfig(common.timeoutMs),
   }
 }

@@ -186,7 +186,7 @@ describe('записи реестра согласованы со схемой',
 
   it('обезличивание пользователя удаляет доступ без сессии и не удаляет рабочие записи', () => {
     const deleted = DSAR_REGISTRY.USER.filter((entry) => entry.erase === 'delete').map((entry) => entry.model).sort()
-    expect(deleted).toEqual(['CalendarFeed', 'TelegramLink'])
+    expect(deleted).toEqual(['CalendarFeed', 'NotificationChannelLink', 'TelegramLink'])
     expect(DSAR_REGISTRY.CONTACT.filter((entry) => entry.erase === 'delete')).toEqual([])
   })
 })
