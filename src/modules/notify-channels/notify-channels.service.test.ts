@@ -336,3 +336,41 @@ describe('adminStatus / testChannel', () => {
     await expect(service.testChannel(admin, 'max')).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })
+
+describe('sendDigests', () => {
+  it('получатель с привязкой MAX и без роли ANALYTICS — пропущен, не отправлено', async () => {
+    mocks.listDigestRecipients.mockResolvedValueOnce([{ user: rep }]).mockResolvedValueOnce([])
+    const summary = await service.sendDigests({ dryRun: false })
+    expect(summary).toEqual({ recipients: 1, sent: 0, empty: 0, skipped: 1, failed: 0 })
+    expect(mocks.digestFor).not.toHaveBeenCalled()
+  })
+
+  it('пустая сводка не отправляется', async () => {
+    mocks.listDigestRecipients.mockResolvedValueOnce([{ user: manager }]).mockResolvedValueOnce([])
+    mocks.digestFor.mockResolvedValue({ text: '', isEmpty: true })
+    const summary = await service.sendDigests({ dryRun: false })
+    expect(summary).toEqual({ recipients: 1, sent: 0, empty: 1, skipped: 0, failed: 0 })
+  })
+
+  it('непустая сводка уходит через sendToUser (основной канал получателя)', async () => {
+    mocks.max = maxConfig()
+    mocks.listDigestRecipients.mockResolvedValueOnce([{ user: manager }]).mockResolvedValueOnce([])
+    mocks.digestFor.mockResolvedValue({ text: 'Просрочен этап 3', isEmpty: false })
+    mocks.findLinksByUser.mockResolvedValue([{ channel: 'max', chatRef: '1', username: null, linkedAt: new Date() }])
+    mocks.maxSend.mockResolvedValue({ ok: true })
+    const summary = await service.sendDigests({ dryRun: false })
+    expect(summary).toEqual({ recipients: 1, sent: 1, empty: 0, skipped: 0, failed: 0 })
+    expect(mocks.maxSend).toHaveBeenCalledWith('1', 'Просрочен этап 3')
+  })
+
+  it('dry-run печатает и считает как отправленное, никуда не шлёт', async () => {
+    mocks.listDigestRecipients.mockResolvedValueOnce([{ user: manager }]).mockResolvedValueOnce([])
+    mocks.digestFor.mockResolvedValue({ text: 'Просрочен этап 3', isEmpty: false })
+    const printed: string[] = []
+    const summary = await service.sendDigests({ dryRun: true, print: (line) => printed.push(line) })
+    expect(summary.sent).toBe(1)
+    expect(printed.join('\n')).toContain('Просрочен этап 3')
+    expect(mocks.maxSend).not.toHaveBeenCalled()
+    expect(mocks.vkSend).not.toHaveBeenCalled()
+  })
+})
