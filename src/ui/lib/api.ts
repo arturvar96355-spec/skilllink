@@ -100,20 +100,71 @@ async function sendRequest(path: string, init?: RequestInit): Promise<{ response
 
   const payload: unknown = await response.json().catch(() => null)
 
-  if (!response.ok) {
-    const error =
-      payload !== null && typeof payload === 'object' && 'error' in payload
-        ? (payload as { error: { code: ApiErrorCode; message: string; details?: unknown } }).error
-        : null
-    throw new ApiRequestError(
-      error?.message ?? `Запрос не выполнен (${response.status})`,
-      error?.code ?? 'INTERNAL',
-      response.status,
-      error?.details,
-    )
-  }
+  if (!response.ok) throw toApiError(response, payload)
 
   return { response, payload }
+}
+
+/** Ответ с ошибкой → `ApiRequestError` с русским текстом сервера. */
+function toApiError(response: Response, payload: unknown): ApiRequestError {
+  const error =
+    payload !== null && typeof payload === 'object' && 'error' in payload
+      ? (payload as { error: { code: ApiErrorCode; message: string; details?: unknown } }).error
+      : null
+  return new ApiRequestError(
+    error?.message ?? `Запрос не выполнен (${response.status})`,
+    error?.code ?? 'INTERNAL',
+    response.status,
+    error?.details,
+  )
+}
+
+/**
+ * Имя файла из `content-disposition`: сначала `filename*=UTF-8''…` (русские
+ * имена приходят так), затем обычное `filename="…"`.
+ */
+export function filenameFromDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback
+  const encoded = /filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i.exec(header)?.[1]
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim().replace(/^"|"$/g, ''))
+    } catch {
+      // Кривая кодировка — берём обычное имя ниже.
+    }
+  }
+  const plain = /filename\s*=\s*"?([^";]+)"?/i.exec(header)?.[1]
+  return plain?.trim() || fallback
+}
+
+/**
+ * Скачивание файла выгрузки (ТЗ дизайна 26–29.09, п. 2.2): файл забирается
+ * запросом, а не переходом по ссылке, — так у кнопки есть «готовим», «готово»
+ * и русский текст ошибки вместо JSON на пустой вкладке.
+ */
+export async function apiDownload(path: string, fallbackName: string): Promise<{ filename: string }> {
+  let response: Response
+  try {
+    response = await fetch(path, { credentials: 'same-origin' })
+  } catch {
+    throw new ApiRequestError('Нет связи с сервером. Проверьте подключение.', 'NETWORK', 0)
+  }
+  if (!response.ok) throw toApiError(response, await response.json().catch(() => null))
+
+  const filename = filenameFromDisposition(response.headers.get('content-disposition'), fallbackName)
+  const url = URL.createObjectURL(await response.blob())
+  try {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.append(link)
+    link.click()
+    link.remove()
+  } finally {
+    // Отзыв — после того как браузер успел начать скачивание.
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
+  return { filename }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {

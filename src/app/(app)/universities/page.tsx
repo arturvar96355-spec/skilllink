@@ -41,6 +41,7 @@ import {
   type Column,
   ListTitle,
   formatPlace,
+  DownloadButton,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
 import { UniversityTag } from './UniversityTag'
@@ -263,15 +264,13 @@ export default function UniversitiesPage() {
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же вузы, что в реестре. */}
-            <Button
-              variant="secondary"
-              icon="download"
+            <DownloadButton
               href={`/api/export${buildQuery({ dataset: 'universities', ...listFilters })}`}
-              external
+              fallbackName="universities.csv"
               title="Вузы с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
-            </Button>
+            </DownloadButton>
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Добавить вуз
