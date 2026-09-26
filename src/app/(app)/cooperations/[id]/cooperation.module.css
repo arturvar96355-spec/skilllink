@@ -42,6 +42,14 @@
   color: var(--text-accent);
 }
 
+/* Ответственный связки (ТЗ — роль «Руководитель», решение 146): имя и кнопка смены рядом. */
+.responsibleValue {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .goal {
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);

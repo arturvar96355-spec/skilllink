@@ -39,6 +39,7 @@ import {
   Skeleton,
   TableSkeleton,
   Tabs,
+  apiPatch,
   apiPost,
   useMutation,
   useToast,
@@ -60,6 +61,7 @@ import {
   formatDemand,
   formatPlace,
 } from '@/ui'
+import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { UniversityGraph } from '../UniversityGraph'
 import styles from './university.module.css'
 
@@ -119,6 +121,31 @@ export default function UniversityPage() {
     setAnonymizing(null)
     university.reload()
   }
+
+  /**
+   * Ответственный за вуз (ТЗ — роль «Руководитель», решение 146). Кнопка видна
+   * только с правом `ASSIGN_RESPONSIBLE` (ADMIN, HEAD) — обычный менеджер её
+   * не вызовет, сервер и так откажет `403`, но незачем показывать действие,
+   * которое всё равно отклонят.
+   */
+  const [changingResponsible, setChangingResponsible] = useState(false)
+  const removeResponsible = useMutation(async () => {
+    const result = await apiPatch<UniversityDto>(`/api/universities/${id}/responsible`, {
+      responsibleId: null,
+    })
+    return result.data
+  })
+
+  async function onRemoveResponsible() {
+    const result = await removeResponsible.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Ответственный снят')
+    university.reload()
+  }
+
   // Соседи по реестру — для «Следующего вуза» внизу (решение 79).
   const programs = useResource<ProgramListItemDto[]>(
     tab === 'programs' ? `/api/programs${buildQuery({ universityId: id, pageSize: 50 })}` : null,
@@ -528,6 +555,30 @@ export default function UniversityPage() {
                   </span>
                 )}
               </div>
+
+              <div className={styles.responsibleRow}>
+                <span className={styles.factLabel}>Ответственный</span>
+                <span className={styles.factValue}>
+                  {data.responsible ? data.responsible.fullName : 'Не назначен'}
+                </span>
+                {user.permissions.canAssignResponsible && (
+                  <span className={styles.responsibleActions}>
+                    <Button size="sm" variant="secondary" onClick={() => setChangingResponsible(true)}>
+                      {data.responsible ? 'Сменить ответственного' : 'Назначить ответственного'}
+                    </Button>
+                    {data.responsible && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={onRemoveResponsible}
+                        isLoading={removeResponsible.isPending}
+                      >
+                        Снять ответственного
+                      </Button>
+                    )}
+                  </span>
+                )}
+              </div>
             </Section>
           </Card>
         </div>
@@ -724,6 +775,20 @@ export default function UniversityPage() {
             <span>Рейтинг вуза скрыт для вашей роли.</span>
           </Tooltip>
         </p>
+      )}
+      {changingResponsible && (
+        <ChangeResponsibleModal
+          title={data.responsible ? 'Сменить ответственного за вуз' : 'Назначить ответственного за вуз'}
+          description="Ответственный за вуз — сотрудник, который ведёт работу с ним в целом, отдельно от ответственных по конкретным связкам."
+          endpoint={`/api/universities/${id}/responsible`}
+          currentResponsibleId={data.responsible?.id ?? null}
+          currentResponsibleName={data.responsible?.fullName ?? null}
+          allowNone
+          onClose={(changed) => {
+            setChangingResponsible(false)
+            if (changed) university.reload()
+          }}
+        />
       )}
       {anonymizing && (
         <Modal

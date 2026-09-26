@@ -33,6 +33,7 @@ import { AuditSection } from './AuditSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
+import { WorkflowStagesSection } from './WorkflowStagesSection'
 import styles from './settings.module.css'
 
 /**
@@ -75,6 +76,7 @@ const SECTIONS = [
   { key: 'sources', label: 'Источники данных', icon: 'document', adminOnly: false },
   { key: 'integrations', label: 'Интеграции', icon: 'cooperation', adminOnly: false },
   { key: 'users', label: 'Пользователи', icon: 'user', adminOnly: true },
+  { key: 'workflow', label: 'Этапы работы', icon: 'calendar', adminOnly: true },
   { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
   { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
 ] as const
@@ -83,7 +85,7 @@ type SectionKey = (typeof SECTIONS)[number]['key']
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
-const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'audit']
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'audit']
 
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
@@ -268,6 +270,8 @@ export default function SettingsPage() {
       'Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения.',
     users:
       'Сотрудники ИТ-Школы и представители вузов. Пароль нового пользователя система придумывает сама и показывает один раз; блокировка действует сразу, в том числе на открытые сессии.',
+    workflow:
+      'Шаблон 14 этапов, по которому заводятся новые связки. Правка названия и срока касается только новых связок — уже заведённые остаются как есть, если явно не попросить пересчитать.',
     audit:
       'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
   }
@@ -377,6 +381,9 @@ export default function SettingsPage() {
 
       case 'users':
         return isAdmin ? <UsersSection /> : null
+
+      case 'workflow':
+        return isAdmin ? <WorkflowStagesSection /> : null
 
       case 'audit':
         return isAdmin ? <AuditSection /> : null

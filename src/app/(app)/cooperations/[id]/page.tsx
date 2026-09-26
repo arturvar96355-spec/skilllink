@@ -51,6 +51,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard } from '../../AiDraft'
+import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { StageCard } from './StageCard'
@@ -73,6 +74,9 @@ function CooperationContent() {
 
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
   const [isMeetingOpen, setIsMeetingOpen] = useState(false)
+  // Смена ответственного связки (ТЗ — роль «Руководитель», решение 146):
+  // кнопка видна только с правом ASSIGN_RESPONSIBLE (ADMIN, HEAD).
+  const [changingResponsible, setChangingResponsible] = useState(false)
   // Этап, к которому нужно перейти: приходит ссылкой из уведомления
   // или выбирается щелчком по ленте.
   const [focusStageId, setFocusStageId] = useState<string | null>(highlightedStageId)
@@ -277,7 +281,14 @@ function CooperationContent() {
           <div className={styles.facts}>
             <span className={styles.fact}>
               <span className={styles.factLabel}>Ответственный</span>
-              <span className={styles.factValue}>{data.responsible.fullName}</span>
+              <span className={[styles.factValue, styles.responsibleValue].join(' ')}>
+                {data.responsible.fullName}
+                {user.permissions.canAssignResponsible && (
+                  <Button size="sm" variant="ghost" onClick={() => setChangingResponsible(true)}>
+                    Сменить
+                  </Button>
+                )}
+              </span>
             </span>
             <span className={styles.fact}>
               <span className={styles.factLabel}>Первый контакт</span>
@@ -443,6 +454,20 @@ function CooperationContent() {
           onClose={(created) => {
             setIsMeetingOpen(false)
             if (created) meetings.reload()
+          }}
+        />
+      )}
+
+      {changingResponsible && (
+        <ChangeResponsibleModal
+          title="Сменить ответственного связки"
+          description="У связки всегда есть ответственный — снять его нельзя, только назначить другого."
+          endpoint={`/api/cooperations/${params.id}`}
+          currentResponsibleId={data.responsible.id}
+          currentResponsibleName={data.responsible.fullName}
+          onClose={(changed) => {
+            setChangingResponsible(false)
+            if (changed) cooperation.reload()
           }}
         />
       )}
