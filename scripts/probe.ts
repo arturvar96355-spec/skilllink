@@ -4682,6 +4682,112 @@ async function checkTelegram(ctx: ProbeContext): Promise<void> {
   }
 }
 
+async function checkChannels(ctx: ProbeContext): Promise<void> {
+  step('Каналы уведомлений: MAX и VK честно «не настроены», вебхуки закрыты без секрета')
+  const { managerId, adminId, rep } = ctx
+
+  interface ChannelStatus {
+    id: string
+    title: string
+    configured: boolean
+    linked: boolean
+    primary: boolean
+  }
+
+  actAs(managerId)
+  const list = await call<ChannelStatus[]>('GET', '/api/me/channels')
+  const ids = (list.body.data ?? []).map((row) => row.id).sort()
+  check(
+    'три канала в порядке telegram, max, vk',
+    list.status === 200 && ids.join(',') === 'max,telegram,vk',
+    `статус ${list.status}, каналы ${ids.join(',')}`,
+  )
+  // Настоящих токенов MAX/VK у пробника нет и не будет (решение владельца, решение 144) —
+  // оба канала должны честно оставаться «не настроены», без привязки и без основного.
+  const max = list.body.data?.find((row) => row.id === 'max')
+  const vk = list.body.data?.find((row) => row.id === 'vk')
+  check(
+    'MAX и VK не настроены администратором — привязки и основного канала нет',
+    max?.configured === false && !max?.linked && !max?.primary && vk?.configured === false && !vk?.linked && !vk?.primary,
+    `max ${JSON.stringify(max)}, vk ${JSON.stringify(vk)}`,
+  )
+
+  const connect = await call('POST', '/api/me/channels/max/connect')
+  check(
+    'подключить не настроенный канал — 502 «не настроен администратором»',
+    connect.status === 502 && connect.body.error?.code === 'INTEGRATION_ERROR',
+    `статус ${connect.status}`,
+  )
+
+  const disconnect = await call<ChannelStatus[]>('DELETE', '/api/me/channels/vk')
+  check(
+    'отключить не привязанный канал — не ошибка, 200',
+    disconnect.status === 200 && Array.isArray(disconnect.body.data),
+    `статус ${disconnect.status}`,
+  )
+
+  const unknown = await call('POST', '/api/me/channels/discord/connect')
+  check('неизвестный канал в адресе — 404', unknown.status === 404, `статус ${unknown.status}`)
+
+  const primary = await call<ChannelStatus[]>('PUT', '/api/me/channels', { primary: null })
+  check('выбор основного канала (сброс на автоматический) принимается', primary.status === 200, `статус ${primary.status}`)
+
+  if (rep) {
+    actAs(rep.id)
+    const repConnect = await call('POST', '/api/me/channels/max/connect')
+    check('представителю вуза подключить канал нельзя — 403', repConnect.status === 403, `статус ${repConnect.status}`)
+  }
+
+  if (adminId) {
+    actAs(adminId)
+    const admin = await call<Array<{ id: string; configured: boolean; linkedCount: number }>>('GET', '/api/admin/channels')
+    const adminIds = (admin.body.data ?? []).map((row) => row.id).sort()
+    check(
+      'администратору — статус всех трёх каналов, MAX/VK без токена и без привязанных',
+      admin.status === 200 &&
+        adminIds.join(',') === 'max,telegram,vk' &&
+        (admin.body.data ?? []).every((row) => row.id === 'telegram' || (row.configured === false && row.linkedCount === 0)),
+      `статус ${admin.status}, ${JSON.stringify(admin.body.data)}`,
+    )
+    const test = await call<{ ok: boolean; reason?: string }>('POST', '/api/admin/channels/max/test')
+    check(
+      '«Проверить» не настроенный канал — {ok:false}, не ошибка запроса',
+      test.status === 200 && test.body.data?.ok === false,
+      `статус ${test.status}, ${JSON.stringify(test.body.data)}`,
+    )
+    actAs(managerId)
+    const forbidden = await call('GET', '/api/admin/channels')
+    check('менеджеру статус каналов недоступен — 403', forbidden.status === 403, `статус ${forbidden.status}`)
+  }
+  actAs(null)
+
+  // Вебхуки — без входа, как у Telegram; без секрета (в пробнике он не задан) закрыты для всех.
+  const maxWebhook = await fetch(`${BASE_URL}/api/channels/max/webhook`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ update_type: 'message_created', message: { sender: { user_id: 1 }, body: { text: 'сегодня' } } }),
+  })
+  check('вебхук MAX без секрета — 403', maxWebhook.status === 403, `статус ${maxWebhook.status}`)
+
+  const vkConfirm = await fetch(`${BASE_URL}/api/channels/vk/callback`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'confirmation', group_id: 1 }),
+  })
+  check(
+    'Callback API VK без VK_CONFIRMATION_CODE — 403 на confirmation',
+    vkConfirm.status === 403,
+    `статус ${vkConfirm.status}`,
+  )
+
+  const vkMessage = await fetch(`${BASE_URL}/api/channels/vk/callback`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ type: 'message_new', secret: 'что-угодно', event_id: '1', object: { message: { from_id: 1, text: 'сегодня' } } }),
+  })
+  check('Callback API VK с чужим secret — 403', vkMessage.status === 403, `статус ${vkMessage.status}`)
+}
+
 async function checkStaleSession(): Promise<void> {
   step('Устаревшая сессия не запирает вход')
 
@@ -5889,6 +5995,7 @@ async function main(): Promise<void> {
   await checkUserManagement(ctx)
   await checkSessionRevocation(ctx)
   await checkTelegram(ctx)
+  await checkChannels(ctx)
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)

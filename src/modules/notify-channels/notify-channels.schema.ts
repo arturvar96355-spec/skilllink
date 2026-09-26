@@ -12,7 +12,7 @@ import { z } from '@/shared/zod'
  */
 export const maxUpdateSchema = z.object({
   update_type: z.string().max(64),
-  timestamp: z.number().int().optional(),
+  timestamp: z.number().int().max(Number.MAX_SAFE_INTEGER).optional(),
   /** Событие «пользователь запустил бота» — по диплинку с кодом привязки. */
   chat_id: z.union([z.number().int(), z.string().max(64)]).optional(),
   user: z
@@ -57,7 +57,7 @@ export type MaxUpdate = z.infer<typeof maxUpdateSchema>
  */
 export const vkCallbackEventSchema = z.object({
   type: z.string().max(64),
-  group_id: z.number().int().optional(),
+  group_id: z.number().int().max(Number.MAX_SAFE_INTEGER).optional(),
   /** Идентификатор события — для дедупликации повторов (channel_updates_seen). */
   event_id: z.string().max(128).optional(),
   secret: z.string().max(256).optional(),
@@ -65,7 +65,7 @@ export const vkCallbackEventSchema = z.object({
     .object({
       message: z
         .object({
-          id: z.number().int().optional(),
+          id: z.number().int().max(Number.MAX_SAFE_INTEGER).optional(),
           from_id: z.union([z.number().int(), z.string().max(64)]),
           peer_id: z.union([z.number().int(), z.string().max(64)]).optional(),
           text: z.string().max(4096).nullish(),
