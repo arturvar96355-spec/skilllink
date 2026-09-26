@@ -11,6 +11,22 @@
   gap: var(--space-2);
 }
 
+/* Период — два поля рядом, как у фильтра дат в журнале действий (settings/admin.module.css). */
+.dates {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.dates > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.filtersLine {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
 .sheet {
   display: flex;
   flex-direction: column;

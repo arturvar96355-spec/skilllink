@@ -632,3 +632,15 @@
   justify-content: center;
   padding: var(--space-5);
 }
+
+/*
+ * Несколько действий в шапке блока (решение 172): «Печать / PDF» диаграммы
+ * рядом с обычной ссылкой раздела — своя группа, а не второй элемент прямо
+ * в `sectionHead`, иначе `justify-content: space-between` развело бы кнопки
+ * по разным краям вместо пары рядом.
+ */
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

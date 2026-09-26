@@ -18,6 +18,7 @@ import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
+import { usePrintBlock } from './print-block'
 import {
   Badge,
   Button,
@@ -242,6 +243,13 @@ function Dashboard() {
   // Рабочий режим (решение 80): без бегущей строки, колец и карты — «Требует
   // внимания» и «Приоритетные действия» сразу под полосой «Активно сейчас».
   const { isWork } = useUiMode()
+
+  // Печать одной диаграммы (решение 172, ТЗ — выгрузка диаграмм в png/pdf):
+  // каждый блок ниже печатается независимо от остальных.
+  const phasePiePrint = usePrintBlock<HTMLDivElement>()
+  const universityMapPrint = usePrintBlock<HTMLDivElement>()
+  const universityBarsPrint = usePrintBlock<HTMLDivElement>()
+  const funnelPrint = usePrintBlock<HTMLDivElement>()
 
   // Представителю вуза аналитика закрыта — у него свой кабинет.
   useEffect(() => {
@@ -545,8 +553,16 @@ function Dashboard() {
 
               <div className={styles.bento}>
                 <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
-                  <Section title="Где сейчас связки" description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись.">
-                    <div className={styles.panel3d}>
+                  <Section
+                    title="Где сейчас связки"
+                    description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись."
+                    action={
+                      <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
+                        Печать / PDF
+                      </Button>
+                    }
+                  >
+                    <div className={styles.panel3d} ref={phasePiePrint.ref}>
                       <Pie3D slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
                     </div>
                   </Section>
@@ -556,12 +572,17 @@ function Dashboard() {
                     title="Вузы на карте"
                     description="Размер точки — число связок. Щелчок — страница вуза."
                     action={
-                      <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                        Все вузы
-                      </Button>
+                      <div className={styles.sectionActions}>
+                        <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                          Все вузы
+                        </Button>
+                        <Button variant="secondary" size="sm" icon="download" onClick={universityMapPrint.print}>
+                          Печать / PDF
+                        </Button>
+                      </div>
                     }
                   >
-                    <div className={styles.mapPanel}>
+                    <div className={styles.mapPanel} ref={universityMapPrint.ref}>
                       {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
                       <RussiaMap
                         points={mapPoints}
@@ -730,8 +751,13 @@ function Dashboard() {
               <Section
                 title="Связки по вузам"
                 description="Высота колонки — число связок вуза, красная часть — сколько из них требует внимания. Щелчок — страница вуза."
+                action={
+                  <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
+                    Печать / PDF
+                  </Button>
+                }
               >
-                <div className={styles.panel3d}>
+                <div className={styles.panel3d} ref={universityBarsPrint.ref}>
                   <Bars3D groups={universityBars} label="Связки по вузам" unit={['связка', 'связки', 'связок']} />
                 </div>
               </Section>
@@ -743,9 +769,14 @@ function Dashboard() {
               title="Воронка связок"
               description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы. Отменённые не входят."
               action={
-                <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                  Все связки
-                </Button>
+                <div className={styles.sectionActions}>
+                  <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                    Все связки
+                  </Button>
+                  <Button variant="secondary" size="sm" icon="download" onClick={funnelPrint.print}>
+                    Печать / PDF
+                  </Button>
+                </div>
               }
             >
               {funnelSource.isLoading ? (
@@ -755,7 +786,7 @@ function Dashboard() {
               ) : funnelCounted === 0 ? (
                 <EmptyState title="Связок пока нет" description="Воронка появится, когда будет заведена первая связка." />
               ) : (
-                <>
+                <div ref={funnelPrint.ref}>
                   <Funnel steps={funnelSteps} label="Воронка связок по фазам работы" />
                   <p className={styles.funnelNote}>{funnelComposition(data.cooperationCounts)}</p>
                   {funnelTotal !== null && funnelTotal > funnelCounted && (
@@ -763,7 +794,7 @@ function Dashboard() {
                       Посчитано по {formatNumber(funnelCounted)} связкам из {formatNumber(funnelTotal)}.
                     </p>
                   )}
-                </>
+                </div>
               )}
             </Section>
           </div>
