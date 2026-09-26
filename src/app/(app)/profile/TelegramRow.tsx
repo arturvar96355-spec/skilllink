@@ -19,17 +19,24 @@ import styles from './profile.module.css'
 const POLL_MS = 4000
 
 /**
- * Строка настроек «Уведомления в Telegram» (решение 102).
+ * Строка настроек «Уведомления в Telegram» (решение 102, перепривязка — решение 142).
  *
- * «Подключить» просит у сервера ссылку t.me/<бот>?start=<токен> и открывает её;
- * привязка появляется, когда человек нажмёт «Старт» в Telegram. Пока ссылка
- * жива, строка сама переспрашивает состояние — перезагружать страницу не нужно.
+ * «Подключить» и «Перепривязать» просят у сервера одну и ту же ссылку
+ * t.me/<бот>?start=<токен> (POST работает и при уже существующей привязке) и
+ * открывают её; привязка появляется или переносится, когда человек нажмёт
+ * «Старт» в Telegram — в том числе под другим аккаунтом. Пока ссылка жива,
+ * строка сама переспрашивает состояние — перезагружать страницу не нужно.
+ * Перепривязку от обычного подключения отличает `intent`: у обеих один и тот
+ * же ответ сервера, но у перепривязки готовность видна по смене `linkedAt`
+ * (сам факт «linked» уже был true), а не по появлению привязки.
  * Бот не настроен — «Не настроено администратором», кнопок нет.
  */
 export function TelegramRow() {
   const toast = useToast()
   const status = useResource<TelegramStatusDto>('/api/me/telegram')
   const [link, setLink] = useState<TelegramConnectDto | null>(null)
+  const [intent, setIntent] = useState<'connect' | 'relink' | null>(null)
+  const [relinkFromLinkedAt, setRelinkFromLinkedAt] = useState<string | null>(null)
   const [override, setOverride] = useState<TelegramStatusDto | null>(null)
 
   const connect = useMutation(async () => (await apiPost<TelegramConnectDto>('/api/me/telegram')).data)
@@ -37,38 +44,52 @@ export function TelegramRow() {
 
   const data = override ?? status.data
   const { reload } = status
+  const relinkDone = intent === 'relink' && data?.linked && data.linkedAt !== relinkFromLinkedAt
+  const connectDone = intent === 'connect' && data?.linked
 
   useEffect(() => {
-    if (!link || data?.linked) return
+    if (!link || connectDone || relinkDone) return
     const timer = setInterval(() => {
       if (Date.now() > Date.parse(link.expiresAt)) {
         setLink(null)
+        setIntent(null)
         return
       }
       setOverride(null)
       reload()
     }, POLL_MS)
     return () => clearInterval(timer)
-  }, [link, data?.linked, reload])
+  }, [link, connectDone, relinkDone, reload])
 
   useEffect(() => {
-    if (link && data?.linked) {
+    if (!link) return
+    if (connectDone) {
       setLink(null)
+      setIntent(null)
       toast.success('Telegram подключён: сводка будет приходить в личные сообщения')
+    } else if (relinkDone) {
+      setLink(null)
+      setIntent(null)
+      toast.success('Уведомления перенесены на новый чат Telegram; из прежнего чата пришло сообщение об этом')
     }
-  }, [link, data?.linked, toast])
+  }, [link, connectDone, relinkDone, toast])
 
-  async function onConnect() {
+  async function requestLink(nextIntent: 'connect' | 'relink') {
+    setRelinkFromLinkedAt(nextIntent === 'relink' ? (data?.linkedAt ?? null) : null)
     const result = await connect.run(undefined)
     if (!result.ok) {
       toast.error(result.error.message)
       return
     }
+    setIntent(nextIntent)
     setLink(result.data)
     // Новая вкладка сразу после ответа сервера; если браузер её не дал — остаётся
     // кнопка «Открыть Telegram» ниже.
     window.open(result.data.url, '_blank', 'noopener,noreferrer')
   }
+
+  const onConnect = () => requestLink('connect')
+  const onRelink = () => requestLink('relink')
 
   async function onDisconnect() {
     const result = await disconnect.run(undefined)
@@ -76,6 +97,8 @@ export function TelegramRow() {
       toast.error(result.error.message)
       return
     }
+    setLink(null)
+    setIntent(null)
     setOverride(result.data)
     toast.success('Уведомления в Telegram отключены')
   }
@@ -88,17 +111,29 @@ export function TelegramRow() {
     side = status.isLoading ? <Skeleton width="120px" /> : null
   } else if (!data.configured) {
     caption = 'Не настроено администратором.'
+  } else if (data.linked && link && intent === 'relink') {
+    caption =
+      'Откройте ссылку в Telegram под нужным аккаунтом и нажмите «Старт»: уведомления перенесутся туда, ' +
+      'а в прежний чат придёт одно сообщение о переносе. Ссылка действует 15 минут и срабатывает один раз.'
+    side = (
+      <Button variant="secondary" href={link.url} external>
+        Открыть Telegram
+      </Button>
+    )
   } else if (data.linked) {
     const who = data.username ? ` как @${data.username}` : ''
     const since = data.linkedAt ? ` · с ${formatDateTime(data.linkedAt)}` : ''
     caption =
       `Подключено${who}${since}. По расписанию приходит сводка «что горит у меня»; ` +
-      'в чате с ботом — /today и /stop.'
+      'в чате с ботом — /today и /stop. «Перепривязать» — перенести уведомления в другой чат или аккаунт.'
     side = (
       <div className={styles.rowActions}>
         <Badge tone="success" withDot>
           Подключено
         </Badge>
+        <Button variant="secondary" onClick={onRelink} isLoading={connect.isPending}>
+          Перепривязать
+        </Button>
         <Button variant="secondary" onClick={onDisconnect} isLoading={disconnect.isPending}>
           Отключить
         </Button>

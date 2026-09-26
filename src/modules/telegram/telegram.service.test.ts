@@ -208,6 +208,32 @@ describe('вебхук', () => {
     expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
   })
 
+  it('перепривязка на ДРУГОЙ чат того же сотрудника — старый чат получает уведомление о переносе', async () => {
+    mocks.findActiveUser.mockResolvedValue(manager)
+    mocks.findActiveUserByChat.mockResolvedValue(null) // новый чат (888) ничей
+    mocks.findLinkByUser.mockResolvedValue({ chatId: '777', username: 'ivan', linkedAt: new Date() })
+    const { token } = createLinkToken(SECRET, manager.id)
+    const { client, sent } = recordingClient()
+    await service.handleUpdate(update(`/start ${token}`, { id: 888, type: 'private' }), { secret: SECRET, client })
+
+    expect(mocks.linkChat).toHaveBeenCalledWith(manager.id, '888', 'ivan')
+    expect(sent).toEqual([
+      { chatId: '777', text: BOT_REPLIES.movedElsewhere },
+      { chatId: '888', text: BOT_REPLIES.linked },
+    ])
+  })
+
+  it('перепривязка в ТОТ ЖЕ чат — уведомление о переносе не отправляется', async () => {
+    mocks.findActiveUser.mockResolvedValue(manager)
+    mocks.findActiveUserByChat.mockResolvedValue(manager)
+    mocks.findLinkByUser.mockResolvedValue({ chatId: '777', username: 'ivan', linkedAt: new Date() })
+    const { token } = createLinkToken(SECRET, manager.id)
+    const { client, sent } = recordingClient()
+    await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
+
+    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
+  })
+
   it('та же ссылка второй раз не срабатывает', async () => {
     mocks.findActiveUser.mockResolvedValue(manager)
     const { token } = createLinkToken(SECRET, manager.id)

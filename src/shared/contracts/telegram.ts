@@ -13,12 +13,18 @@ export interface TelegramStatusDto {
    */
   available: boolean
   linked: boolean
-  /** Ник в Telegram без @, если он есть, — чтобы человек узнал свой аккаунт. */
+  /** Ник в Telegram без @, если он есть, — к какому аккаунту привязано сейчас. */
   username: string | null
   linkedAt: string | null
 }
 
-/** POST /api/me/telegram: ссылка на бота с одноразовым токеном привязки. */
+/**
+ * POST /api/me/telegram: ссылка на бота с одноразовым токеном привязки.
+ *
+ * Работает и при уже существующей привязке — тогда это «Перепривязать» (решение 142):
+ * человек открывает ту же ссылку под другим аккаунтом Telegram, `/start` переносит
+ * привязку на новый чат, а в прежний уходит одно сообщение о переносе.
+ */
 export interface TelegramConnectDto {
   /** https://t.me/<бот>?start=<токен>. Открывать в новой вкладке или в приложении Telegram. */
   url: string

@@ -300,6 +300,7 @@ async function replyTo(
   config: TelegramConfig,
   secret: string,
   now: Date,
+  client: TelegramClient,
 ): Promise<string | null> {
   const message = update.message
   if (!message || message.text === undefined) return null
@@ -321,13 +322,20 @@ async function replyTo(
       // владелец чата должен сам отключиться (/stop) или обратиться к администратору.
       const chatOwner = await repo.findActiveUserByChat(chatId)
       if (chatOwner && chatOwner.id !== user.id) return BOT_REPLIES.chatTakenByOther
+      // Перепривязка на другой чат («Перепривязать» в личном кабинете — новая ссылка
+      // работает и при уже существующей привязке): прежний чат узнаётся ДО upsert,
+      // чтобы после переноса отправить туда одно уведомление. Доставка недоступна
+      // (человек мог сам остановить бота там) — не страшно, sendMessage не бросает исключений.
+      const previousLink = (await repo.findLinkByUser(user.id)) ?? null
+      const relinked = previousLink !== null && previousLink.chatId !== chatId
       await repo.linkChat(user.id, chatId, message.from?.username ?? null)
+      if (relinked) await client.sendMessage(previousLink.chatId, BOT_REPLIES.movedElsewhere)
       await writeAudit({
         userId: user.id,
         action: 'telegram.link',
         objectType: 'User',
         objectId: user.id,
-        payload: { source: 'telegram' },
+        payload: { source: 'telegram', relinked },
       })
       return BOT_REPLIES.linked
     }
@@ -371,7 +379,7 @@ export async function handleUpdate(
 
   let reply: string | null
   try {
-    reply = await replyTo(update, config, options.secret, now)
+    reply = await replyTo(update, config, options.secret, now, client)
   } catch (error) {
     log.error('[telegram] обновление не обработано', { updateId: update.update_id, err: error })
     reply = BOT_REPLIES.unavailable
