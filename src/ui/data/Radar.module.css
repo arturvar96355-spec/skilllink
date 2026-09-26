@@ -37,7 +37,7 @@
 
 .axisLabel {
   fill: var(--text-tertiary);
-  font-size: 12px;
+  font-size: var(--text-label-size);
   font-weight: 600;
 }
 

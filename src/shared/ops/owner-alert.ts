@@ -72,13 +72,12 @@ export function maskAddress(value: string): string {
   return value === 'unknown' ? value : '***'
 }
 
-const EMAIL_FIELDS = new Set(['account', 'email', 'login'])
+const EMAIL_FIELDS = new Set(['account', 'email'])
 const ADDRESS_FIELDS = new Set(['address', 'ip'])
 
 const LABELS: Record<string, string> = {
   account: 'учётная запись',
   email: 'почта',
-  login: 'логин',
   address: 'адрес',
   ip: 'адрес',
   counters: 'счётчики',

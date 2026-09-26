@@ -90,7 +90,7 @@
   padding: 2px 10px;
   border-radius: var(--radius-pill);
   background: var(--text-primary);
-  color: var(--text-on-light);
+  color: var(--text-inverse);
   font-size: var(--text-label-size);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

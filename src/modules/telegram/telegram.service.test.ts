@@ -40,6 +40,9 @@ vi.mock('@/modules/recommendations/recommendations.service', () => ({
   toRecommendationDtos: mocks.toRecommendationDtos,
 }))
 vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))
+// Расширения пульса (решение 120) — застой, встречи, «Система заметила» — ходят в базу;
+// здесь проверяется бот, поэтому сводка собирается из этапов и рекомендаций, как раньше.
+vi.mock('@/modules/analytics/pulse.extras', () => ({ loadPulseExtras: async () => null }))
 vi.mock('@/integrations/config', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/integrations/config')>()
   return {
