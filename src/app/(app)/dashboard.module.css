@@ -611,14 +611,6 @@
   color: var(--text-tertiary);
 }
 
-/* Бенто: кольца и карта (решение 79). */
-.bento {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: var(--space-8);
-  align-items: stretch;
-}
-
 .bentoCell {
   min-width: 0;
 }
@@ -641,12 +633,6 @@
   background:
     radial-gradient(ellipse at 50% 40%, var(--bg-haze-violet), transparent 70%),
     var(--surface-sunken);
-}
-
-@media (max-width: 1080px) {
-  .bento {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Презентационный режим (решения 94, 95): графики внутри строк. */
@@ -724,8 +710,8 @@
 }
 
 /*
- * Бенто «Где сейчас связки» и «Вузы на карте» (бриф v2, 1.6): одинаковой высоты,
- * одинаковые отступы; карта крупнее и по центру своего блока.
+ * «Вузы на карте» (бриф v2, 1.6; решение 180, п. 2 — соседнюю «Где сейчас
+ * связки» убрали: то же самое уже показывает воронка ниже, без второй карты рядом).
  */
 .bentoCell {
   display: flex;
@@ -736,7 +722,6 @@
   flex: 1;
 }
 
-.bentoCell .panel3d,
 .bentoCell .mapPanel {
   flex: 1;
   display: flex;
