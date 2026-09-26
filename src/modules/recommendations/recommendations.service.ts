@@ -14,6 +14,7 @@ import type {
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { findCurrentStage } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
+import { withControlGroup } from './experiment/experiment.service'
 import { log } from '@/shared/log/logger'
 import * as statsRepo from './recommendations.stats.repo'
 import { ensureStageDurations } from '@/modules/analytics/stage-analytics.service'
@@ -181,7 +182,11 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   // В порядке ленты: новые записи получают время создания по этому порядку,
   // и при равной важности лента и главная показывают их одинаково всегда.
   drafts.sort(compareDraftsByImportance)
-  const { created, updated, keys, shown } = await repo.upsertDrafts(drafts, now)
+  // Контрольная группа (решение 136): сигнал пишется в журнал всегда, рекомендация
+  // из контроля не создаётся. Ключи контроля остаются среди актуальных — не закрываются.
+  const { created, updated, keys, shown } = await withControlGroup(drafts, now, (routed) =>
+    repo.upsertDrafts(routed, now),
+  )
   const stillActualKeys = [
     ...keys,
     ...gaps.deferred.map(recommendationKey),

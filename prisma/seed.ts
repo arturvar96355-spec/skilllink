@@ -83,6 +83,7 @@ async function clean(): Promise<void> {
   await prisma.document.deleteMany()
   await prisma.meetingParticipant.deleteMany()
   await prisma.meeting.deleteMany()
+  await prisma.recommendationSignal.deleteMany()
   await prisma.recommendation.deleteMany()
   await prisma.application.deleteMany()
   await prisma.cooperation.deleteMany()
