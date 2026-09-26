@@ -52,18 +52,21 @@ import {
   formatShare,
   ListTitle,
 } from '@/ui'
+import { StagesTab } from './StagesTab'
 import styles from './analytics.module.css'
 
 const TABS: TabItem[] = [
   { key: 'rating', label: 'Рейтинг программ' },
   { key: 'skills', label: 'Навыки и дефициты' },
   { key: 'demand', label: 'Спрос рынка' },
+  // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
+  { key: 'stages', label: 'Этапы' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand'
+type TabKey = 'rating' | 'skills' | 'demand' | 'stages'
 
 function isTabKey(value: string | null): value is TabKey {
-  return value === 'rating' || value === 'skills' || value === 'demand'
+  return value === 'rating' || value === 'skills' || value === 'demand' || value === 'stages'
 }
 
 /** Период замера: `2026-Q1` или `2026-03` — та же проверка, что в схеме модуля навыков. */
@@ -134,6 +137,7 @@ function AnalyticsView() {
         />
       )}
       {tab === 'demand' && <DemandTab />}
+      {tab === 'stages' && <StagesTab />}
     </>
   )
 }

@@ -1,0 +1,223 @@
+/* Аналитика этапов (ТЗ дизайна 26–29.09, п. 4.2). */
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.lead {
+  max-width: 760px;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-8);
+}
+
+.stageCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.stageNo {
+  flex: none;
+  width: 24px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.stageTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.problemCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Полоска: доля от самого проблемного этапа — видно, где пик, без чтения чисел. */
+.problemBar {
+  display: flex;
+  flex: 1;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--line-subtle);
+  overflow: hidden;
+}
+
+.problemOverdue,
+.problemBlocked {
+  flex-basis: 0;
+}
+
+.problemOverdue,
+.legendOverdue {
+  background: var(--status-danger);
+}
+
+.problemBlocked,
+.legendBlocked {
+  background: var(--status-warning);
+}
+
+.problemText {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.durationCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.muted {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legendOverdue,
+.legendBlocked {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+}
+
+.legendBlocked {
+  margin-left: var(--space-3);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-8);
+  align-items: start;
+  margin-top: var(--space-8);
+}
+
+.people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+}
+
+.person .muted {
+  grid-column: 1 / -1;
+}
+
+.personName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.personUnassigned {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--status-warning);
+}
+
+.personCounts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.late {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px var(--space-3);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.late:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.late:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.lateTitle {
+  grid-column: 1;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.lateMeta {
+  grid-column: 1;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.late > :last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+@media (max-width: 900px) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .head {
+    flex-direction: column;
+  }
+}
