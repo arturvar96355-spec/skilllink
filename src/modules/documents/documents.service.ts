@@ -35,7 +35,7 @@ import * as repo from './documents.repo'
 import { lockCooperation } from '@/modules/workflow/workflow.repo'
 import { markTasksBySignedDocuments } from '@/modules/workflow/workflow.service'
 import { SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
-import { describeForLog } from '@/shared/db/log'
+import { log } from '@/shared/log/logger'
 import {
   assertDocumentEditable,
   assertDocumentHasContent,
@@ -268,7 +268,7 @@ async function markSigningStage(
     }
     return await markTasksBySignedDocuments(cooperationId, userId, documentId)
   } catch (error) {
-    console.error('[DOCUMENTS] не удалось отметить пункты этапа подписания', describeForLog(error))
+    log.error('[DOCUMENTS] не удалось отметить пункты этапа подписания', { cooperationId, documentId, err: error })
     return null
   }
 }

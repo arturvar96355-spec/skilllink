@@ -2,6 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import { diagnoseDatabaseError } from '@/shared/db/database-error'
 import { publicHealth, type HealthReport } from './report'
 import { handle, ok } from '@/shared/http'
+import { log } from '@/shared/log/logger'
 
 /**
  * Проверка живости приложения.
@@ -22,7 +23,7 @@ export const GET = handle(async () => {
   const now = () => new Date().toISOString()
 
   const respond = (report: HealthReport, status: number) => {
-    if (report.hint && production) console.error('Проверка живости:', report.hint)
+    if (report.hint && production) log.error('Проверка живости: стенд не готов', { hint: report.hint })
     return ok(publicHealth(report, production), status)
   }
 
@@ -63,9 +64,9 @@ export const GET = handle(async () => {
   try {
     await prisma.$queryRaw`SELECT 1`
   } catch (error) {
-    // В журнал — целиком: подсказка отвечает на «что делать», а разбираться
-    // в неожиданном сбое всё равно придётся по настоящей ошибке.
-    console.error('Проверка живости: база не ответила', error)
+    // В журнал — сама ошибка (имя, код, причина, стек): подсказка отвечает на
+    // «что делать», а разбираться в неожиданном сбое придётся по настоящей ошибке.
+    log.error('Проверка живости: база не ответила', { err: error })
     const { database, hint } = diagnoseDatabaseError(error)
     return respond({ status: 'degraded', database, schema: 'unknown', hint, time: now() }, 503)
   }

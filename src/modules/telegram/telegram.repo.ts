@@ -153,3 +153,39 @@ export async function findDigestStages(userId: string, now: Date, limit: number)
     siblings: row.cooperation.stages,
   }))
 }
+
+// ─────────────── Повторы обновлений и секрет вебхука (решение 123) ───────────────
+
+/**
+ * Отметить обновление как обработанное. true — впервые; false — повтор: запись
+ * с этим update_id уже есть. Одна вставка без чтения — два одновременных повтора
+ * не пройдут оба (первичный ключ).
+ */
+export async function markUpdateSeen(updateId: number): Promise<boolean> {
+  const inserted = await prisma.$executeRaw`
+    INSERT INTO telegram_updates_seen (update_id) VALUES (${BigInt(updateId)})
+    ON CONFLICT (update_id) DO NOTHING`
+  return inserted === 1
+}
+
+/** Удалить отметки старше `before`. Возвращает число удалённых. */
+export async function purgeSeenUpdates(before: Date): Promise<number> {
+  const { count } = await prisma.telegramUpdateSeen.deleteMany({ where: { seenAt: { lt: before } } })
+  return count
+}
+
+/** SHA-256 действующего секрета из system_secrets, если его сменяли. */
+export async function findSecretHash(name: string): Promise<string | null> {
+  const row = await prisma.systemSecret.findUnique({ where: { name }, select: { valueHash: true } })
+  return row?.valueHash ?? null
+}
+
+export async function saveSecretHash(name: string, valueHash: string, rotatedById: string): Promise<Date> {
+  const row = await prisma.systemSecret.upsert({
+    where: { name },
+    create: { name, valueHash, rotatedById },
+    update: { valueHash, rotatedById, rotatedAt: new Date() },
+    select: { rotatedAt: true },
+  })
+  return row.rotatedAt
+}

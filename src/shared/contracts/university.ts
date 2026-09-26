@@ -21,6 +21,15 @@ export interface ContactLegalBasisDto {
   withdrawalReference: string | null
   /** Когда основание фиксировали в последний раз; кто — в истории. */
   updatedAt: string
+  /**
+   * Решение 123: редакция политики обработки ПД на момент согласия. Только при
+   * согласии; у согласий, записанных до 26.09.2026, — null.
+   */
+  policyVersion: string | null
+  /** Решение 123: SHA-256 (hex) текста подписанного согласия; сам текст не хранится. */
+  consentTextHash: string | null
+  /** Решение 123: где получено согласие. */
+  consentContext: string | null
 }
 
 export interface ContactDto {
@@ -42,6 +51,14 @@ export interface ContactDto {
    * менеджеру», а не «не указано».
    */
   contactDetailsHidden: boolean
+  /**
+   * Решение 123: маска почты (`i***@univ.ru`) — всем, кто видит контакт, в том числе
+   * при `contactDetailsHidden`: видно, что почта есть и какого она домена. null —
+   * почты нет или контакт обезличен. Полное значение — POST /api/contacts/:id/reveal.
+   */
+  emailMasked: string | null
+  /** Решение 123: маска телефона (`+7******71`) — как `emailMasked`. */
+  phoneMasked: string | null
   /**
    * Правовое основание обработки ПД зафиксировано (решение 111). Приходит всем,
    * кто видит контакт: это признак, а не сведения о человеке.
@@ -73,6 +90,9 @@ export interface ContactBasisHistoryEntryDto {
   referenceChanged: boolean
   /** Изменение повлекло обезличивание контакта. */
   anonymized: boolean
+  /** Решение 123: редакция политики и хеш текста согласия на момент записи (null — не согласие или запись до 26.09.2026). */
+  policyVersion: string | null
+  consentTextHash: string | null
   changedBy: UserRefDto
   changedAt: string
 }
@@ -110,4 +130,20 @@ export interface UniversityDto extends UniversityListItemDto {
   primaryContact: ContactDto | null
   contacts: ContactDto[]
   createdAt: string
+}
+
+/**
+ * POST /api/contacts/:id/reveal (решение 123): раскрытые почта и телефон контакта.
+ * Каждое раскрытие — запись `contact.revealed` в журнале с перечнем полей и причиной.
+ * Не кэшировать и не сохранять на клиенте дольше, чем нужно для показа.
+ */
+export interface ContactRevealDto {
+  id: string
+  universityId: string
+  /** Запрошено и есть — значение; не запрошено или нет — null. */
+  email: string | null
+  phone: string | null
+  /** Какие поля раскрыты (есть значение и были запрошены). */
+  revealedFields: Array<'email' | 'phone'>
+  revealedAt: string
 }

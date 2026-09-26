@@ -76,7 +76,14 @@ export const updateUserSchema = z
     isActive: z.boolean(),
   })
   .partial()
-  .refine((value) => Object.keys(value).length > 0, {
+  .extend({
+    /**
+     * Одобрение второго администратора (решение 123) — для назначения администратором
+     * и блокировки администратора, когда включён APPROVALS_REQUIRED.
+     */
+    approvalId: z.string().trim().min(1).max(64).optional(),
+  })
+  .refine((value) => Object.keys(value).some((key) => key !== 'approvalId'), {
     message: 'Не передано ни одного поля для изменения',
   })
 

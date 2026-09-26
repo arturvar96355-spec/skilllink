@@ -20,3 +20,13 @@ export const universityEventsQuerySchema = z.object({
 })
 
 export type UniversityEventsQuery = z.infer<typeof universityEventsQuerySchema>
+
+/** Выгрузка журнала для внешней системы (решение 123): курсор и размер страницы. */
+export const AUDIT_EXPORT_MAX_LIMIT = 5000
+
+export const auditExportQuerySchema = z.object({
+  after_id: z.string().trim().min(1).max(64).optional(),
+  limit: z.coerce.number().int().min(1).max(AUDIT_EXPORT_MAX_LIMIT).default(1000),
+})
+
+export type AuditExportQuery = z.infer<typeof auditExportQuerySchema>

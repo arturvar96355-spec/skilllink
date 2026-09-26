@@ -18,9 +18,18 @@ export const TELEGRAM_LINK = {
 /** Вебхук: Telegram присылает одно обновление, это килобайты. */
 export const TELEGRAM_WEBHOOK = {
   maxBodyBytes: 256 * 1024,
-  /** Сколько последних update_id помнить, чтобы повтор Telegram не выполнился дважды. */
-  rememberedUpdates: 1000,
+  /**
+   * Сколько суток помнить обработанный update_id (таблица telegram_updates_seen,
+   * решение 123). Telegram повторяет недоставленное обновление не дольше суток —
+   * неделя с запасом.
+   */
+  seenRetentionDays: 7,
+  /** Старые отметки чистятся при каждой N-й вставке — без отдельного расписания. */
+  purgeEveryInserts: 100,
 } as const
+
+/** Имя записи в system_secrets для секрета вебхука (решение 123). */
+export const TELEGRAM_WEBHOOK_SECRET_NAME = 'telegram.webhook'
 
 /** Сводка «что горит у меня». */
 export const TELEGRAM_DIGEST = {

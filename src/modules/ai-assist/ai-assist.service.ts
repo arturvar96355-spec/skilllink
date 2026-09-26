@@ -16,6 +16,7 @@ import { OPEN_RECOMMENDATION_STATUSES } from '@/modules/recommendations/recommen
 import * as repo from './ai-assist.repo'
 import { cacheKey, readCache, takeGeneration, writeCache } from './ai-assist.limits'
 import { createRedactor, type Redact } from './ai-assist.privacy'
+import { log } from '@/shared/log/logger'
 import {
   buildLetterPrompt,
   buildSummaryPrompt,
@@ -95,7 +96,7 @@ export async function compose(
   } catch (error) {
     const failure = llmFailureKind(error)
     // Без текста промпта и ответа: в журнал попадает только вид сбоя.
-    console.warn(`[AI] ${source}: модель не дала черновик (${failure}), отдан шаблон`)
+    log.warn('[AI] модель не дала черновик, отдан шаблон', { provider: source, failure })
     return template(failure === 'timeout' ? 'timeout' : failure === 'empty' ? 'empty' : 'failed')
   }
 }

@@ -20,6 +20,9 @@ import type {
 } from '@/shared/contracts/user'
 import { toIsoRequired } from '@/shared/utils/date'
 import * as calendarRepo from '@/modules/calendar/calendar.repo'
+import { approvalRequiredError, requireApproval } from '@/modules/approvals/approvals.service'
+import { userChangeApprovals } from '@/modules/approvals/approvals.rules'
+import { approvalsRequired } from '@/shared/config/approvals.config'
 import * as telegramRepo from '@/modules/telegram/telegram.repo'
 import * as repo from './auth.repo'
 import {
@@ -187,6 +190,14 @@ export async function createUser(user: CurrentUser, input: CreateUserInput): Pro
 
   const assignment = resolveRoleAssignment(null, input)
   await assertUniversityForRep(assignment.universityId)
+  // «Четыре глаза» (решение 123): одобрение выдаётся на существующего пользователя,
+  // поэтому администратора заводят в два шага — с другой ролью, затем назначают.
+  if (assignment.role === 'ADMIN' && approvalsRequired()) {
+    throw approvalRequiredError(
+      'user.grant_admin',
+      'Администратора заводят в два шага: заведите пользователя с другой ролью, затем назначьте администратором с одобрением второго администратора',
+    )
+  }
 
   if (await repo.findByEmail(input.email)) {
     throw conflict('Пользователь с такой почтой уже есть', [
@@ -259,6 +270,12 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
         : {}),
     }
   }, async (tx, { before, after }) => {
+    // «Четыре глаза» (решение 123): назначение администратором и блокировка
+    // администратора — только по одобрению другого администратора, если оно
+    // включено. В той же транзакции: не подошло одобрение — изменение откатится.
+    for (const action of userChangeApprovals(before, after)) {
+      await requireApproval(action, { userId: id }, { actor: user, approvalId: input.approvalId }, tx)
+    }
     if (!(before.isActive && !after.isActive)) return
     // Всё, что работает без сессии, закрывается при блокировке: лента календаря
     // и сводки в Telegram (решения 105 и 102).

@@ -60,6 +60,7 @@ async function clean(): Promise<void> {
   await prisma.dataSource.deleteMany()
   await prisma.user.updateMany({ data: { universityId: null } })
   await prisma.university.deleteMany()
+  await prisma.approval.deleteMany()
   await prisma.user.deleteMany()
 }
 

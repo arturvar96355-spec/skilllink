@@ -1,5 +1,4 @@
 import { conflict, notFound } from '@/shared/http/errors'
-import { describeForLog } from '@/shared/db/log'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
@@ -15,6 +14,7 @@ import type { SkillLevel } from '@/shared/contracts/enums'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
 import * as repo from './recommendations.repo'
+import { log } from '@/shared/log/logger'
 import {
   assertRecommendationTransition,
   compareDraftsByImportance,
@@ -327,6 +327,6 @@ export async function syncCooperation(cooperationId: string): Promise<void> {
     const drafts = cooperation ? draftsForCooperation(cooperation, new Date()) : []
     await repo.syncCooperation(cooperationId, drafts)
   } catch (error) {
-    console.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', describeForLog(error))
+    log.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', { cooperationId, err: error })
   }
 }

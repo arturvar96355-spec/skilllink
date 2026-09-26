@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { UserRole } from '@/shared/contracts/enums'
+import { CONSENT_RECORD, consentTextHash } from '@/shared/config/consent.config'
 import {
   ANONYMIZED_CONTACT_FIELDS,
   ANONYMIZED_CONTACT_NAME,
@@ -74,6 +75,9 @@ const NO_BASIS = {
   basisReference: null,
   withdrawalReference: null,
   basisUpdatedAt: null,
+  consentPolicyVersion: null,
+  consentTextHash: null,
+  consentContext: null,
 } as const
 
 const CONSENT_OBTAINED = {
@@ -85,6 +89,10 @@ const CONSENT_OBTAINED = {
   basisReference: REFERENCE,
   withdrawalReference: null,
   basisUpdatedAt: new Date(OBTAINED_AT),
+  // Согласие записано до решения 123: редакции и хеша у него нет.
+  consentPolicyVersion: null,
+  consentTextHash: null,
+  consentContext: null,
 } as const
 
 type Row = typeof PERSON & {
@@ -96,6 +104,9 @@ type Row = typeof PERSON & {
   basisReference: string | null
   withdrawalReference: string | null
   basisUpdatedAt: Date | null
+  consentPolicyVersion: string | null
+  consentTextHash: string | null
+  consentContext: string | null
 }
 
 const live = (basis: Partial<Row> = {}): Row => ({ ...PERSON, ...NO_BASIS, ...basis })
@@ -147,6 +158,8 @@ describe('правило: зафиксировать основание', () => 
       consentWithdrawnAt: null,
       referenceChanged: true,
       anonymized: false,
+      policyVersion: null,
+      consentTextHash: null,
     })
   })
 
@@ -197,10 +210,61 @@ describe('правило: зафиксировать основание', () => 
     ).toThrowError(expect.objectContaining({ code: 'VALIDATION_ERROR' }))
   })
 
+  it('запись согласия (решение 123): редакция политики, хеш текста и где получено — снимком в историю', () => {
+    const text = 'Я, Ветрова И. П., согласна на обработку…'
+    const plan = planBasisChange(
+      live(),
+      {
+        basis: 'CONSENT',
+        documentReference: REFERENCE,
+        consentObtainedAt: OBTAINED_AT,
+        consentForm: 'WRITTEN',
+        consentText: text,
+        consentContext: 'встреча в вузе 01.09',
+      },
+      NOW,
+    )
+    expect(plan?.data).toMatchObject({
+      consentPolicyVersion: CONSENT_RECORD.policyVersion,
+      consentTextHash: consentTextHash(text),
+      consentContext: 'встреча в вузе 01.09',
+    })
+    expect(plan?.data.consentTextHash).toMatch(/^[0-9a-f]{64}$/)
+    // Текст не хранится ни в карточке, ни в истории.
+    expect(JSON.stringify(plan)).not.toContain('Ветрова И. П.')
+    expect(plan?.history).toMatchObject({ policyVersion: CONSENT_RECORD.policyVersion, consentTextHash: consentTextHash(text) })
+
+    // Без своего текста — хеш бланка по умолчанию; переводы строк и пробелы по краям хеш не меняют.
+    const byDefault = planBasisChange(
+      live(),
+      { basis: 'CONSENT', documentReference: REFERENCE, consentObtainedAt: OBTAINED_AT, consentForm: 'WRITTEN' },
+      NOW,
+    )
+    expect(byDefault?.data.consentTextHash).toBe(consentTextHash(CONSENT_RECORD.consentText))
+    expect(consentTextHash('a\r\nb ')).toBe(consentTextHash('a\nb'))
+  })
+
+  it('сведения о согласии при другом основании — 422', () => {
+    expect(() =>
+      planBasisChange(live(), { basis: 'LEGITIMATE_INTEREST', documentReference: REFERENCE, consentText: 'x', consentContext: 'y' }, NOW),
+    ).toThrow(expect.objectContaining({ code: 'VALIDATION_ERROR' }))
+  })
+
+  it('отзыв сохраняет запись согласия в карточке и в истории', () => {
+    const recorded = live({ ...CONSENT_OBTAINED, consentPolicyVersion: 'v1', consentTextHash: 'a'.repeat(64), consentContext: 'письмо' })
+    const plan = planConsentWithdrawal(recorded, { withdrawalReference: WITHDRAWAL }, NOW)
+    expect(plan?.data).toMatchObject({ consentPolicyVersion: 'v1', consentTextHash: 'a'.repeat(64), consentContext: 'письмо' })
+    expect(plan?.history).toMatchObject({ policyVersion: 'v1', consentTextHash: 'a'.repeat(64) })
+  })
+
   it('та же форма повторно — null: ни истории, ни журнала', () => {
     expect(
       planBasisChange(
-        live(CONSENT_OBTAINED),
+        live({
+          ...CONSENT_OBTAINED,
+          consentPolicyVersion: CONSENT_RECORD.policyVersion,
+          consentTextHash: consentTextHash(CONSENT_RECORD.consentText),
+        }),
         { basis: 'CONSENT', documentReference: REFERENCE, consentObtainedAt: OBTAINED_AT, consentForm: 'WRITTEN' },
         NOW,
       ),

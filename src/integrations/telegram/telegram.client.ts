@@ -2,6 +2,7 @@ import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import type { TelegramConfig } from '../config'
 import { createHttpsTransport, type HttpsTransport } from '../https-transport'
+import { log } from '@/shared/log/logger'
 
 /**
  * Отправка сообщений через Telegram Bot API (решение 102).
@@ -32,8 +33,14 @@ export type TelegramSendResult =
 interface BotApiReply {
   ok?: unknown
   error_code?: unknown
+  description?: unknown
   parameters?: { retry_after?: unknown }
 }
+
+/** Итог setWebhook: без повторов — его вызывает администратор и видит результат сразу. */
+export type TelegramSetWebhookResult =
+  | { ok: true }
+  | { ok: false; reason: 'disabled' | 'failed'; status: number | null; description: string | null }
 
 /** Одна повторная попытка: сводка раз в день, долго биться незачем. */
 const ATTEMPTS = 2
@@ -93,7 +100,7 @@ export class TelegramClient {
 
   private log(attempt: number, what: string): void {
     // Без текста сообщения, идентификатора чата и токена — только что случилось.
-    console.warn(`[integration:telegram] sendMessage, попытка ${attempt}/${ATTEMPTS}: ${this.redact(what)}`)
+    log.warn('[integration:telegram] sendMessage не удался', { attempt, attempts: ATTEMPTS, reason: this.redact(what) })
   }
 
   async sendMessage(chatId: string, text: string): Promise<TelegramSendResult> {
@@ -136,5 +143,36 @@ export class TelegramClient {
       if (attempt < ATTEMPTS) await this.wait(pause)
     }
     return { ok: false, reason: 'failed', status: lastStatus }
+  }
+
+  /**
+   * Назначить адрес вебхука и секрет заголовка (решение 123, смена секрета).
+   * Секрет уходит только в теле запроса к Telegram; ни в журнал, ни в результат
+   * он не попадает. Остальные настройки вебхука (allowed_updates и др.) Telegram
+   * сохраняет прежними — их мы не передаём.
+   */
+  async setWebhook(url: string, secretToken: string): Promise<TelegramSetWebhookResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null, description: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/setWebhook`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({ url, secret_token: secretToken }),
+        timeoutMs: this.config.timeoutMs,
+        ca: null,
+        connectAddress: this.config.apiIp,
+      })
+      const reply = parseReply(response.body)
+      if (response.status === 200 && reply.ok === true) return { ok: true }
+      const description =
+        typeof reply.description === 'string' ? this.redact(reply.description).split(secretToken).join('[скрыто]').slice(0, 200) : null
+      log.warn('[integration:telegram] setWebhook отклонён', { status: response.status, description })
+      return { ok: false, reason: 'failed', status: response.status, description }
+    } catch (error) {
+      const reason = error instanceof Error ? this.redact(error.message) : 'неизвестная ошибка'
+      log.warn('[integration:telegram] setWebhook не выполнен', { reason })
+      return { ok: false, reason: 'failed', status: null, description: null }
+    }
   }
 }

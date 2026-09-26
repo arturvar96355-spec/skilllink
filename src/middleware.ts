@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import { NONCE_HEADER, buildContentSecurityPolicy, createNonce } from '@/shared/http/csp'
+import { REQUEST_ID_HEADER, resolveRequestId } from '@/shared/http/request-id'
 
 /**
  * Неавторизованного посетителя страницы отправляют на вход.
@@ -45,7 +46,7 @@ function matches(paths: readonly string[], pathname: string): boolean {
  * макет для встроенных скриптов. Пришедшие от клиента одноимённые заголовки
  * перезаписываются: nonce задаёт только сервер.
  */
-function pass(request: NextRequest): NextResponse {
+function pass(request: NextRequest, requestId: string): NextResponse {
   const nonce = createNonce()
   const policy = buildContentSecurityPolicy({
     nonce,
@@ -57,15 +58,37 @@ function pass(request: NextRequest): NextResponse {
   const headers = new Headers(request.headers)
   headers.set(NONCE_HEADER, nonce)
   headers.set('content-security-policy', policy)
+  headers.set(REQUEST_ID_HEADER, requestId)
   const response = NextResponse.next({ request: { headers } })
   response.headers.set('content-security-policy', policy)
+  response.headers.set(REQUEST_ID_HEADER, requestId)
   return response
+}
+
+/**
+ * Запрос к API: только номер запроса (решение 123). Ни перенаправления на вход
+ * (API отвечает 401 сам), ни политики с nonce (у ответов API — общая часть
+ * из next.config.ts). Присланный номер принимается, если он допустим, иначе
+ * выдаётся свой — одинаково в запрос к обработчику и в ответ.
+ */
+function passApi(request: NextRequest, requestId: string): NextResponse {
+  const headers = new Headers(request.headers)
+  headers.set(REQUEST_ID_HEADER, requestId)
+  const response = NextResponse.next({ request: { headers } })
+  response.headers.set(REQUEST_ID_HEADER, requestId)
+  return response
+}
+
+function isApi(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/')
 }
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl
+  const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
 
-  if (matches(OPEN_PATHS, pathname)) return pass(request)
+  if (isApi(pathname)) return passApi(request, requestId)
+  if (matches(OPEN_PATHS, pathname)) return pass(request, requestId)
 
   const hasSession = SESSION_COOKIES.some((name) => request.cookies.has(name))
   const isPublic = matches(PUBLIC_PATHS, pathname)
@@ -75,7 +98,7 @@ export function middleware(request: NextRequest) {
     url.pathname = '/login'
     // Куда пользователь шёл: после входа возвращаем именно туда.
     url.search = pathname === '/' ? '' : `?from=${encodeURIComponent(pathname + search)}`
-    return NextResponse.redirect(url)
+    return withRequestId(NextResponse.redirect(url), requestId)
   }
 
   // Вошедшему на странице входа делать нечего — если только сервер его сессию
@@ -86,17 +109,22 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     url.search = ''
-    return NextResponse.redirect(url)
+    return withRequestId(NextResponse.redirect(url), requestId)
   }
 
-  return pass(request)
+  return pass(request, requestId)
+}
+
+function withRequestId(response: NextResponse, requestId: string): NextResponse {
+  response.headers.set(REQUEST_ID_HEADER, requestId)
+  return response
 }
 
 export const config = {
   /**
-   * Маршруты API сюда не попадают: они отвечают кодом 401, а не перенаправлением —
-   * редирект на HTML-страницу входа сломал бы любой запрос из интерфейса.
-   * Статика и служебные файлы тоже исключены.
+   * Маршруты API сюда попадают только ради номера запроса (решение 123): они отвечают
+   * кодом 401, а не перенаправлением — редирект на HTML-страницу входа сломал бы
+   * любой запрос из интерфейса (`passApi`). Статика и служебные файлы исключены.
    */
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)'],
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { compare, hash } from 'bcryptjs'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { UserRole } from '@/shared/contracts/enums'
@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   calendarFeed: { deleteMany: vi.fn() },
   telegramLink: { deleteMany: vi.fn() },
   queryRaw: vi.fn(),
+  executeRaw: vi.fn(),
   writeAudit: vi.fn(),
 }))
 
@@ -37,6 +38,7 @@ vi.mock('@/shared/db/prisma', () => {
     calendarFeed: mocks.calendarFeed,
     telegramLink: mocks.telegramLink,
     $queryRaw: mocks.queryRaw,
+    $executeRaw: mocks.executeRaw,
   }
   return { prisma: { ...client, $transaction: (fn: (tx: typeof client) => unknown) => fn(client) } }
 })
@@ -235,6 +237,62 @@ describe('изменение пользователя', () => {
     expect(mocks.writeAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'user.role.change', payload: { from: 'VIEWER', to: 'ANALYST' } }),
     )
+  })
+
+  describe('«четыре глаза» (решение 123, APPROVALS_REQUIRED=true)', () => {
+    beforeEach(() => vi.stubEnv('APPROVALS_REQUIRED', 'true'))
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('назначить администратором без одобрения — 403 approvalRequired, одобрение не тратится', async () => {
+      mocks.user.findUnique.mockResolvedValue(row({ role: 'MANAGER' }))
+      mocks.user.update.mockResolvedValue(row({ role: 'ADMIN' }))
+      await expect(service.updateUser(as('ADMIN'), 'target', { role: 'ADMIN' })).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+        details: { approvalRequired: true, action: 'user.grant_admin' },
+      })
+      expect(mocks.executeRaw).not.toHaveBeenCalled()
+      expect(mocks.writeAudit).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'user.role.change' }))
+    })
+
+    it('заблокировать администратора с неподходящим одобрением — 403, журнала блокировки нет', async () => {
+      mocks.user.findUnique.mockResolvedValue(row({ id: 'other-admin', role: 'ADMIN' }))
+      mocks.user.update.mockResolvedValue(row({ id: 'other-admin', role: 'ADMIN', isActive: false }))
+      mocks.executeRaw.mockResolvedValue(0)
+      await expect(
+        service.updateUser(as('ADMIN'), 'other-admin', { isActive: false, approvalId: 'appr-1' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', details: { action: 'user.block_admin' } })
+      expect(mocks.writeAudit).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'user.block' }))
+    })
+
+    it('с подходящим одобрением — проходит, одобрение использовано в той же транзакции', async () => {
+      mocks.user.findUnique.mockResolvedValue(row({ role: 'MANAGER' }))
+      mocks.user.update.mockResolvedValue(row({ role: 'ADMIN' }))
+      mocks.executeRaw.mockResolvedValue(1)
+      const result = await service.updateUser(as('ADMIN'), 'target', { role: 'ADMIN', approvalId: 'appr-1' })
+      expect(result.role).toBe('ADMIN')
+      expect(mocks.executeRaw).toHaveBeenCalledTimes(1)
+      expect(mocks.writeAudit).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'approval.consumed', objectId: 'appr-1' }),
+        expect.anything(),
+      )
+    })
+
+    it('обычные изменения одобрения не требуют; заведение администратора — в два шага', async () => {
+      mocks.user.findUnique.mockResolvedValue(row({ role: 'VIEWER' }))
+      mocks.user.update.mockResolvedValue(row({ role: 'ANALYST' }))
+      await expect(service.updateUser(as('ADMIN'), 'target', { role: 'ANALYST' })).resolves.toBeDefined()
+      expect(mocks.executeRaw).not.toHaveBeenCalled()
+      await expect(
+        service.createUser(as('ADMIN'), { email: 'boss@skilllink.demo', fullName: 'Новый Админ Админович', role: 'ADMIN' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN', details: { approvalRequired: true } })
+    })
+  })
+
+  it('без APPROVALS_REQUIRED назначение администратором — как раньше, без одобрения', async () => {
+    mocks.user.findUnique.mockResolvedValue(row({ role: 'MANAGER' }))
+    mocks.user.update.mockResolvedValue(row({ role: 'ADMIN' }))
+    await expect(service.updateUser(as('ADMIN'), 'target', { role: 'ADMIN' })).resolves.toMatchObject({ role: 'ADMIN' })
+    expect(mocks.executeRaw).not.toHaveBeenCalled()
   })
 
   it('несуществующий пользователь — 404', async () => {
