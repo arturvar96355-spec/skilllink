@@ -12,6 +12,7 @@ import { renewedSessionVersion, tokenSessionVersion } from './session-version'
 import { countSafely } from '@/shared/metrics/app-metrics'
 import { alertAdminLogin, alertLoginBlocked, noteCaptchaRequired } from '@/shared/ops/security-alerts'
 import { resolveSecret } from './secret'
+import { attemptExpertQuickLogin, isExpertQuickLoginEnabled } from './expert-quick-login'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -200,6 +201,46 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
         }
       },
     }),
+    /**
+     * Быстрый вход экспертов хакатона (решение 176): кнопки на экране входа,
+     * без пароля, только в учётные записи с `is_reviewer = true` — проверка
+     * идёт в базе на каждый клик (`attemptExpertQuickLogin`,
+     * `shared/auth/expert-quick-login.ts`), список кнопок в браузере ничего
+     * не решает. Провайдер регистрируется, только пока включена переменная
+     * `EXPERT_QUICK_LOGIN`: выключено — его нет вовсе, как если бы кнопок
+     * никогда не было (маршрут `/api/auth/{signin,callback}/expert` при этом
+     * отвечает 404 — `route.ts` рядом с `[...nextauth]`).
+     */
+    ...(isExpertQuickLoginEnabled()
+      ? [
+          Credentials({
+            id: 'expert',
+            name: 'Быстрый вход эксперта',
+            credentials: {
+              // Ключ кнопки (`manager` | `admin` | `rep`), не почта и не пароль.
+              account: { type: 'hidden' },
+            },
+            async authorize(credentials, request) {
+              const key = typeof credentials?.account === 'string' ? credentials.account : ''
+              const result = await attemptExpertQuickLogin(key, clientAddress(request.headers))
+
+              if (result.outcome === 'blocked') throw new LoginThrottledError()
+              if (result.outcome === 'denied') return null
+
+              const { user } = result
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.fullName,
+                fullName: user.fullName,
+                role: user.role,
+                universityId: user.universityId,
+                sessionVersion: user.sessionVersion,
+              }
+            },
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     jwt({ token, user, trigger, session }) {
