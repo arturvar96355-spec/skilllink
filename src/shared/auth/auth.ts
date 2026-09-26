@@ -1,5 +1,6 @@
 import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import Keycloak from 'next-auth/providers/keycloak'
 import { compare } from 'bcryptjs'
 import { prisma } from '@/shared/db/prisma'
 import { containsNul } from '@/shared/db/storable'
@@ -13,6 +14,7 @@ import { countSafely } from '@/shared/metrics/app-metrics'
 import { alertAdminLogin, alertLoginBlocked, noteCaptchaRequired } from '@/shared/ops/security-alerts'
 import { resolveSecret } from './secret'
 import { attemptExpertQuickLogin, isExpertQuickLoginEnabled } from './expert-quick-login'
+import { auditKeycloakLogin, isKeycloakEnabled, resolveKeycloakLoginUser } from './keycloak'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -241,9 +243,65 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           }),
         ]
       : []),
+    /**
+     * Единый вход через Keycloak (ТЗ, функц. 10; решение 188) — только если заданы
+     * все три переменные (`isKeycloakEnabled`). Не заданы — провайдера нет вовсе,
+     * как если бы этой возможности никогда не было: это и есть откат без единой
+     * правки кода, кроме удаления переменных из окружения.
+     *
+     * Поставщик подтверждает личность (пароль, защита от перебора —
+     * `bruteForceProtected` в реалме, docs/ARCHITECTURE.md), а не право доступа
+     * к SkillLink: кто может войти и с какой ролью, решает `callbacks.signIn`
+     * ниже — сопоставлением по email с записью `users` (`shared/auth/keycloak.ts`),
+     * той же, что использует Credentials.
+     */
+    ...(isKeycloakEnabled()
+      ? [
+          Keycloak({
+            clientId: process.env.KEYCLOAK_CLIENT_ID!,
+            clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
+            issuer: process.env.KEYCLOAK_ISSUER,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
-    jwt({ token, user, trigger, session }) {
+    /**
+     * Вратарь единого входа (решение 188): только для провайдера `keycloak`.
+     * Credentials и `expert` сюда не заходят вовсе — они сами решают, пускать
+     * или нет, внутри `authorize()`, и возвращают `null` для отказа.
+     *
+     * Неизвестный email или заблокированная запись (`isActive: false`) получают
+     * отказ `AccessDenied` (страница входа — `pages.error`, тот же `/login`) и
+     * запись `auth.login.failure` в журнал — как у Credentials. Учётная запись
+     * ищется в базе заново, а не берётся из токена Keycloak: то, что Keycloak
+     * счёл вход успешным, не значит, что доступ к SkillLink не отозван.
+     */
+    async signIn({ account, profile }) {
+      if (account?.provider !== 'keycloak') return true
+      const result = await resolveKeycloakLoginUser(profile?.email as string | undefined)
+      await auditKeycloakLogin(result)
+      return result.outcome === 'ok'
+    },
+    async jwt({ token, user, trigger, session, account, profile }) {
+      if (account?.provider === 'keycloak') {
+        // Сопоставление повторяется, а не наследуется из signIn(): callbacks
+        // независимы, и токен должен нести те же данные, что и решение о допуске,
+        // а не доверять переданному Keycloak профилю напрямую.
+        const result = await resolveKeycloakLoginUser(profile?.email as string | undefined)
+        if (result.outcome !== 'ok') {
+          // Практически недостижимо: signIn() выше уже отказал бы раньше.
+          // Явная ошибка — а не токен без роли, с которым остальной код не знает, что делать.
+          throw new Error('Единый вход: пользователь Keycloak не сопоставлен с учётной записью')
+        }
+        token.id = result.user.id
+        token.email = result.user.email
+        token.fullName = result.user.fullName
+        token.role = result.user.role
+        token.universityId = result.user.universityId
+        token.sessionVersion = result.user.sessionVersion
+        return token
+      }
       if (user) {
         const authorized = user as unknown as SessionUser
         token.id = authorized.id

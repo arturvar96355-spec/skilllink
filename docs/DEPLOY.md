@@ -1072,3 +1072,110 @@ gh workflow disable deploy-frontend.yml
 Обратно — `gh workflow enable deploy-frontend.yml`, но лучше после того, как команда
 явно решит, что заморозка снята (не автоматически по дате: константа в workflow не
 запрещает включить его раньше срока экспертизы, если решение принято осознанно).
+
+## 14. Единый вход через Keycloak (решение 188)
+
+ТЗ прямо требует Keycloak (функц. требование 10) — [ARCHITECTURE.md](ARCHITECTURE.md),
+раздел «Авторизация и Keycloak», объясняет, что уже было закрыто без него и что даёт
+это решение сверх. Здесь — только команды включения на стенде. Включать до защиты
+(29.09) осмысленно лишь если это не рискует стендом: профиль `keycloak` — отдельный
+сервис под своим docker-compose профилем, выключен по умолчанию, ничего не меняет
+в уже работающем входе (Credentials и быстрый вход экспертов), пока не заданы три
+переменные `KEYCLOAK_*` в `.env.cloud` приложения.
+
+**Память.** Сервер — 2 ядра, 4 ГБ (раздел 1). Postgres, приложение и Caddy уже
+расписаны; свободно ориентировочно ~2,5 ГБ. Контейнер Keycloak — предел 900 МиБ
+(`mem_limit`), куча Java 256–512 МБ (`JAVA_OPTS_APPEND` в docker-compose.yml).
+Живая проверка задачи (локально, тот же образ и настройки) показала около 480 МиБ
+в простое — с запасом внутри предела.
+
+### Шаг 1. Отдельная база (один раз, до первого запуска профиля)
+
+**На стенде база приложения уже существует с данными — этот шаг её не трогает и не
+пересоздаёт том.** `CREATE DATABASE` добавляет вторую базу рядом, в тот же кластер
+PostgreSQL (`skilllink-pgdata`):
+
+```bash
+ssh skilllink@<адрес>
+cd ~/skilllink/app
+C="docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml --env-file ~/skilllink/.env.cloud"
+$C exec -T postgres psql -U skilllink -d skilllink < deploy/yandex-cloud/create-keycloak-db.sql
+```
+
+Скрипт идемпотентен — повторный запуск ничего не ломает, если база уже есть.
+
+### Шаг 2. Переменные в `.env.cloud`
+
+```bash
+cat >> ~/skilllink/.env.cloud <<'EOF'
+KEYCLOAK_HOSTNAME="https://skilllink.site/auth"
+KEYCLOAK_ADMIN_USER="admin"
+KEYCLOAK_ADMIN_PASSWORD="<сгенерировать: openssl rand -hex 24>"
+KEYCLOAK_CLIENT_SECRET="<сгенерировать: openssl rand -hex 32>"
+KEYCLOAK_ISSUER="https://skilllink.site/auth/realms/skilllink"
+KEYCLOAK_CLIENT_ID="skilllink-web"
+EOF
+```
+
+**`KEYCLOAK_HOSTNAME` обязательно со схемой и с путём `/auth` целиком** —
+`https://skilllink.site/auth`, не просто домен. Без пути `/auth` в имени хоста
+адрес выпуска токена (`iss`) не совпадёт с фактическими адресами запросов, и
+NextAuth откажет всем входам ошибкой `issuer does not match` (проверено живой
+проверкой задачи). `KEYCLOAK_ISSUER` (настройка самого приложения, не Keycloak) —
+тот же адрес плюс `/realms/skilllink`.
+
+### Шаг 3. Поднять Keycloak, задать пароли и секрет клиента
+
+```bash
+$C --profile keycloak up -d keycloak
+# Дождаться healthy (полминуты-минуту на первый импорт реалма):
+docker compose -p skilllink -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml ps keycloak
+
+ENV_FILE=~/skilllink/.env.cloud scripts/deploy/keycloak-users.sh
+```
+
+Реалм `skilllink` и клиент `skilllink-web` заводятся импортом при старте
+(`deploy/keycloak/skilllink-realm.json`) — без паролей и без секрета клиента: Keycloak
+26 не подставляет переменные окружения внутри JSON импорта реалма (проверено живой
+проверкой задачи — попытка положить туда даже произвольное поле-комментарий сразу
+роняет импорт ошибкой `Unrecognized field`, тем более он не разворачивает `${VAR}`
+внутри значений). `scripts/deploy/keycloak-users.sh` входит в Keycloak администратором
+(`KEYCLOAK_ADMIN_USER`/`PASSWORD`), задаёт демо-пользователям реалма тот же пароль,
+что у демо-пользователей самой базы SkillLink (`SEED_DEMO_PASSWORD`), и переносит
+`KEYCLOAK_CLIENT_SECRET` в клиента `skilllink-web` (`kcadm.sh`) — ни один секрет
+не лежит в репозитории и не проходит через файл импорта.
+
+### Шаг 4. Перезапустить приложение и Caddy
+
+```bash
+$C up -d app caddy
+```
+
+Приложение подхватывает три переменные `KEYCLOAK_*` и подключает провайдер — на
+`/login` появляется кнопка «Войти через Keycloak (единый вход)». Caddy — маршрут
+`/auth/*` на `keycloak:8080` (`deploy/yandex-cloud/Caddyfile`) уже в конфиге, менять
+файл и перезапускать Caddy для этого не нужно.
+
+### Проверка
+
+```bash
+curl -s https://skilllink.site/auth/realms/skilllink/.well-known/openid-configuration | head -c 200
+```
+
+Открыть `https://skilllink.site/login`, нажать «Войти через Keycloak», войти
+`manager@skilllink.demo` (или другим демо-адресом из `prisma/seed.ts`) с паролем
+стенда (`SEED_DEMO_PASSWORD`) — попасть на главную под своей ролью, как при входе
+паролем. Неверный пароль в самом Keycloak — его собственный экран ошибки (Keycloak
+проверяет пароль сам); email, которого нет в базе SkillLink, — отказ на `/login`
+с понятным текстом и записью `auth.login.failure` в журнал.
+
+### Откатить
+
+Убрать (или очистить) три переменные `KEYCLOAK_ISSUER`, `KEYCLOAK_CLIENT_ID`,
+`KEYCLOAK_CLIENT_SECRET` из `~/skilllink/.env.cloud`, `$C up -d app` — провайдер
+пропадает из NextAuth, кнопка с `/login` исчезает, вход паролем и быстрый вход
+экспертов не затронуты. Сам контейнер Keycloak можно остановить
+(`$C stop keycloak`) или оставить работающим — до следующего включения. Полностью
+убрать возможность: `$C down keycloak` и не запускать профиль `keycloak` снова; база
+`keycloak` и её данные при этом остаются в PostgreSQL (реалм не нужно будет
+импортировать заново при повторном включении).
