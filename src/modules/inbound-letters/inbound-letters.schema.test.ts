@@ -71,4 +71,16 @@ describe('inboundLetterListQuerySchema', () => {
   it('неизвестный статус отклоняется', () => {
     expect(inboundLetterListQuerySchema.safeParse({ status: 'DELETED' }).success).toBe(false)
   })
+
+  it('поиск: строка обрезается и проходит', () => {
+    expect(inboundLetterListQuerySchema.parse({ q: '  спбгут  ' }).q).toBe('спбгут')
+  })
+
+  it('поиск: пустая строка недопустима — фильтр просто не задан', () => {
+    expect(inboundLetterListQuerySchema.safeParse({ q: '' }).success).toBe(false)
+  })
+
+  it('поиск: слишком длинный запрос отклоняется', () => {
+    expect(inboundLetterListQuerySchema.safeParse({ q: 'а'.repeat(201) }).success).toBe(false)
+  })
 })

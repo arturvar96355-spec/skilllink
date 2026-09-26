@@ -5414,9 +5414,11 @@ async function checkDsar(ctx: ProbeContext): Promise<void> {
   const dueDays = registered.body.data
     ? (Date.parse(registered.body.data.dueAt) - Date.parse(registered.body.data.requestedAt)) / 86_400_000
     : 0
+  // Нижняя граница зависит от дня недели запуска: из воскресенья 10 рабочих
+  // дней — это 12 календарных с небольшим (пробник упал ночью на 27.09 с 12,96).
   check(
-    'запрос по письму зарегистрирован, срок 10 рабочих дней (14–25 календарных)',
-    registered.status === 201 && registered.body.data?.status === 'OPEN' && dueDays >= 13 && dueDays <= 26,
+    'запрос по письму зарегистрирован, срок 10 рабочих дней (12–25 календарных)',
+    registered.status === 201 && registered.body.data?.status === 'OPEN' && dueDays >= 11.5 && dueDays <= 26,
     `статус ${registered.status}, дней до срока ${dueDays.toFixed(1)}`,
   )
   const duplicate = await call('POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' })

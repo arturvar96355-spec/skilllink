@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import type { AiDraftSource } from '@/shared/contracts/ai-assist'
+import { everyWordInSomeField } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { findCurrentStage } from '@/modules/workflow/workflow.rules'
@@ -74,15 +75,41 @@ export function managerScope(userId: string): Prisma.InboundLetterWhereInput {
   return { OR: [{ university: { responsibleId: userId } }, { cooperation: { responsibleId: userId } }] }
 }
 
-export async function findMany(
+/**
+ * Условие выборки писем — отдельно от запроса к базе, чтобы поиск по ключевым
+ * словам (решение 184) проверялся тестом на самом объекте условия, а не через
+ * поднятую базу.
+ */
+export function buildWhere(
   query: InboundLetterListQuery,
   scope: Prisma.InboundLetterWhereInput,
-): Promise<{ rows: LetterRow[]; total: number }> {
+): Prisma.InboundLetterWhereInput {
   const where: Prisma.InboundLetterWhereInput = { ...scope }
   if (query.status?.length) where.status = { in: query.status }
   if (query.group?.length) where.group = { in: query.group }
   if (query.universityId) where.universityId = query.universityId
   if (query.cooperationId) where.cooperationId = query.cooperationId
+
+  if (query.q) {
+    // Ищут так, как письмо узнают на глаз: по теме, тексту, адресу и имени
+    // отправителя или по названию вуза — так, как просил владелец (решение 184).
+    where.AND = everyWordInSomeField(query.q, (contains) => [
+      { subject: contains },
+      { bodyText: contains },
+      { senderEmail: contains },
+      { senderName: contains },
+      { university: { name: contains } },
+    ])
+  }
+
+  return where
+}
+
+export async function findMany(
+  query: InboundLetterListQuery,
+  scope: Prisma.InboundLetterWhereInput,
+): Promise<{ rows: LetterRow[]; total: number }> {
+  const where = buildWhere(query, scope)
 
   const sort = parseSort(query.sort, INBOUND_LETTER_SORT_FIELDS, { field: 'receivedAt', direction: 'desc' })
   const { skip, take } = toSkipTake(query)
@@ -345,6 +372,28 @@ export async function findResponsible(
   }
   const university = await prisma.university.findUnique({ where: { id: universityId }, select: { responsibleId: true } })
   return university?.responsibleId ?? null
+}
+
+// ─────────────────────────── Уведомление о новом письме ──────────────────────
+
+/** ADMIN и HEAD активные — получатели уведомления о новом обращении (решение 183). */
+export async function listNoticeRecipientIds(): Promise<string[]> {
+  const rows = await prisma.user.findMany({
+    where: { role: { in: ['ADMIN', 'HEAD'] }, isActive: true },
+    select: { id: true },
+  })
+  return rows.map((row) => row.id)
+}
+
+// ──────────────────────────────── Задание по письму ───────────────────────────
+
+/** «Задание выполнено» (решение 183) — у письма ровно одно задание, обновление по `letterId`. */
+export async function completeTask(letterId: string, now: Date): Promise<LetterRow> {
+  await prisma.inboundLetterTask.update({
+    where: { letterId },
+    data: { status: 'DONE', updatedAt: now },
+  })
+  return (await findById(letterId))!
 }
 
 // ────────────────────────────── Отклонение (спам) ────────────────────────────

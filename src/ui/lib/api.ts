@@ -1,4 +1,6 @@
 import type { ApiErrorCode, PageMeta } from '@/shared/contracts'
+import { IDEMPOTENCY_HEADER } from '@/shared/config/idempotency.config'
+import { REQUEST_ID_HEADER, isValidRequestId } from '@/shared/http/request-id'
 
 /**
  * Обращения к собственному API.
@@ -21,13 +23,26 @@ export class ApiRequestError extends Error {
   readonly code: ApiErrorCode | 'NETWORK'
   readonly status: number
   readonly details?: unknown
+  /** Только у 500 (`INTERNAL`) — номер запроса, чтобы назвать его в поддержке (решение 183). */
+  readonly requestId: string | null
+  /** Только у 429 (`RATE_LIMITED`) — секунды до повтора, из заголовка `Retry-After` (решение 183). */
+  readonly retryAfterSeconds: number | null
 
-  constructor(message: string, code: ApiErrorCode | 'NETWORK', status: number, details?: unknown) {
+  constructor(
+    message: string,
+    code: ApiErrorCode | 'NETWORK',
+    status: number,
+    details?: unknown,
+    requestId: string | null = null,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message)
     this.name = 'ApiRequestError'
     this.code = code
     this.status = status
     this.details = details
+    this.requestId = requestId
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -110,17 +125,75 @@ async function sendRequest(path: string, init?: RequestInit): Promise<{ response
   return { response, payload }
 }
 
+interface ErrorPayload {
+  code: ApiErrorCode
+  message: string
+  details?: unknown
+  /** Только у 500 — тот же номер, что в журнале сервера (`internalError()`, handle.ts). */
+  requestId?: string
+}
+
+/** Номер запроса: из тела 500-го ответа, иначе из заголовка, который есть у любого ответа. */
+function readRequestId(response: Response, error: ErrorPayload | null): string | null {
+  if (isValidRequestId(error?.requestId)) return error.requestId
+  const header = response.headers.get(REQUEST_ID_HEADER)
+  return isValidRequestId(header) ? header : null
+}
+
+/** Секунды до повтора у 429: заголовок `Retry-After` (RFC 9110) — тот же счёт, что в `details`. */
+function readRetryAfterSeconds(response: Response, error: ErrorPayload | null): number | null {
+  const raw = response.headers.get('retry-after')
+  const header = raw === null ? NaN : Number(raw)
+  if (Number.isFinite(header) && header >= 0) return header
+  const details = error?.details
+  const fromDetails =
+    details !== null && typeof details === 'object' && 'retryAfterSeconds' in details
+      ? Number((details as { retryAfterSeconds: unknown }).retryAfterSeconds)
+      : NaN
+  return Number.isFinite(fromDetails) && fromDetails >= 0 ? fromDetails : null
+}
+
+/**
+ * Понятный текст для двух ошибок, за которыми не стоит объяснимая причина отказа
+ * (решение 183): 429 — не «Слишком много запросов. Подождите…», а то же самое
+ * с числом, гарантированно взятым из заголовка, а не только из текста; 500 — не
+ * «Внутренняя ошибка сервера» без единой зацепки, а с номером запроса, который
+ * можно назвать в поддержке. Остальные коды — правило FRONTEND.md №5: текст
+ * с сервера выводится как есть.
+ */
+function friendlyMessage(
+  serverMessage: string | undefined,
+  code: ApiErrorCode,
+  status: number,
+  requestId: string | null,
+  retryAfterSeconds: number | null,
+): string {
+  if (code === 'RATE_LIMITED' && retryAfterSeconds !== null) {
+    return `Слишком много запросов, повторите через ${retryAfterSeconds} с`
+  }
+  if (code === 'INTERNAL' && requestId) {
+    return `Ошибка сервера. Номер запроса: ${requestId}`
+  }
+  return serverMessage ?? `Запрос не выполнен (${status})`
+}
+
 /** Ответ с ошибкой → `ApiRequestError` с русским текстом сервера. */
 function toApiError(response: Response, payload: unknown): ApiRequestError {
   const error =
     payload !== null && typeof payload === 'object' && 'error' in payload
-      ? (payload as { error: { code: ApiErrorCode; message: string; details?: unknown } }).error
+      ? (payload as { error: ErrorPayload }).error
       : null
+  const code = error?.code ?? 'INTERNAL'
+  const requestId = readRequestId(response, error)
+  const retryAfterSeconds = code === 'RATE_LIMITED' ? readRetryAfterSeconds(response, error) : null
+
   return new ApiRequestError(
-    error?.message ?? `Запрос не выполнен (${response.status})`,
-    error?.code ?? 'INTERNAL',
+    friendlyMessage(error?.message, code, response.status, requestId, retryAfterSeconds),
+    code,
     response.status,
     error?.details,
+    requestId,
+    retryAfterSeconds,
   )
 }
 
@@ -211,10 +284,17 @@ export function apiGet<T>(path: string, signal?: AbortSignal): Promise<ApiResult
   return request<T>(path, { method: 'GET', signal })
 }
 
-export function apiPost<T>(path: string, body?: unknown): Promise<ApiResult<T>> {
+/**
+ * `idempotencyKey` (решение 133/183) — только у запросов создания, где сервер
+ * его принимает (`withIdempotency`, `shared/idempotency/idempotency.ts`):
+ * повтор того же ключа и того же тела не создаёт вторую запись. Ключ на форму
+ * даёт `useIdempotencyKey()` — один на открытие формы, а не на каждый вызов.
+ */
+export function apiPost<T>(path: string, body?: unknown, options?: { idempotencyKey?: string }): Promise<ApiResult<T>> {
   return request<T>(path, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
+    headers: options?.idempotencyKey ? { [IDEMPOTENCY_HEADER]: options.idempotencyKey } : undefined,
   })
 }
 

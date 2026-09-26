@@ -21,6 +21,7 @@ import {
   dateToDateTimeInput,
   fieldErrors,
   useCurrentUser,
+  useIdempotencyKey,
   useMutation,
   useResource,
   useToast,
@@ -54,8 +55,11 @@ export function CreateMeetingModal({
 
   const users = useResource<UserDto[]>('/api/users?pageSize=100')
 
+  // Один ключ на всё время, что эта модалка открыта (решение 183): повторная
+  // отправка — двойной щелчок, обрыв сети — не заведёт вторую встречу.
+  const idempotency = useIdempotencyKey()
   const create = useMutation(async (body: Record<string, unknown>) => {
-    const response = await apiPost<MeetingDto>('/api/meetings', body)
+    const response = await apiPost<MeetingDto>('/api/meetings', body, { idempotencyKey: idempotency.key })
     return response.data
   })
 
