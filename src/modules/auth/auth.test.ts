@@ -30,6 +30,7 @@ const row = {
   role: 'MANAGER' as const,
   universityId: null,
   isActive: true,
+  isReviewer: false,
   university: null,
 }
 
@@ -66,6 +67,19 @@ describe('справочник пользователей', () => {
 
   it('представителю вуза справочник закрыт', async () => {
     await expect(listUsers(as('UNIVERSITY_REP'), query)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
+  it('обычный менеджер помечен как подходящий ответственный', async () => {
+    const { data } = await listUsers(as('ADMIN'), query)
+    expect(data[0]).toMatchObject({ isReviewer: false, canBeResponsible: true })
+  })
+
+  it('эксперт хакатона в справочнике виден, но не годится в ответственные, даже с ролью ADMIN', async () => {
+    // Замечание фронтендера 26.09: список пользователей для выбора ответственного
+    // показывал экспертов, потому что в UserDto не было флага isReviewer.
+    mocks.findMany.mockResolvedValue([{ ...row, id: 'expert-1', role: 'ADMIN', isReviewer: true }])
+    const { data } = await listUsers(as('ADMIN'), query)
+    expect(data[0]).toMatchObject({ isReviewer: true, canBeResponsible: false })
   })
 })
 

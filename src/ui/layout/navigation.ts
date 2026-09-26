@@ -51,10 +51,10 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
 
   const workspace: NavItem[] = [
     { href: ROUTES.dashboard, label: 'Главная', icon: 'home' },
-    { href: ROUTES.universities, label: 'Университеты', icon: 'university' },
+    { href: ROUTES.universities, label: 'Вузы', icon: 'university' },
     { href: ROUTES.programs, label: 'Программы', icon: 'program' },
     { href: ROUTES.recommendations, label: 'Рекомендации', icon: 'recommendation' },
-    { href: ROUTES.cooperations, label: 'Сотрудничество', icon: 'cooperation' },
+    { href: ROUTES.cooperations, label: 'Связки', icon: 'cooperation' },
   ]
   // «Письма вузов» (решение 170/171): читают ADMIN, HEAD и MANAGER (право
   // INBOUND_READ) — тот же список ролей, что и у охранника раздела ниже.

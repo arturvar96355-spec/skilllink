@@ -205,7 +205,7 @@ export function CreateUserModal({
         type="email"
         autoComplete="off"
         placeholder="ivanova@example.ru"
-        hint="Это логин. Изменить её потом нельзя"
+        hint="По ней человек входит в систему. Изменить её потом нельзя"
         value={email}
         onChange={(event) => setEmail(event.target.value)}
         error={detailFor(error, 'email')}

@@ -13,6 +13,7 @@ const userSelect = {
   role: true,
   universityId: true,
   isActive: true,
+  isReviewer: true,
   university: { select: { name: true } },
 } satisfies Prisma.UserSelect
 

@@ -420,7 +420,7 @@ export default function UniversityPage() {
         variant="display"
         title={data.shortName ?? data.name}
         subtitle={data.shortName ? data.name : undefined}
-        breadcrumbs={[{ label: 'Университеты', href: '/universities' }, { label: data.shortName ?? data.name }]}
+        breadcrumbs={[{ label: 'Вузы', href: '/universities' }, { label: data.shortName ?? data.name }]}
         meta={
           <>
             <UniversityStatusBadge status={data.status} />

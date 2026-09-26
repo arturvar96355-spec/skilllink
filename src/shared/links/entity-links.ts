@@ -96,22 +96,30 @@ export async function resolveEntityLinks(
  * становились аналитик и наблюдатель, которые запись изменить не могут.
  * Несуществующий id отклоняется здесь же: иначе он превращался в «Запись не
  * найдена» — будто не найден сам документ.
+ *
+ * Учётная запись эксперта хакатона (`isReviewer`, решение 147) сюда тоже не
+ * годится, даже нося роль ADMIN или HEAD: замечание фронтендера 26.09 — список
+ * `/api/users` для выбора ответственного показывал экспертов, а сервер принимал
+ * их назначение. Единая проверка здесь закрывает её сразу для вуза, связки,
+ * этапа, встречи и документа — везде, где вызывается `assertStaffResponsible`.
  */
 export async function assertStaffResponsible(responsibleId: string): Promise<void> {
   const responsible = await prisma.user.findFirst({
     where: { id: responsibleId, isActive: true },
-    select: { role: true },
+    select: { role: true, isReviewer: true },
   })
   if (!responsible) {
     throw validationError('Указан несуществующий ответственный', [
       { field: 'responsibleId', message: 'Сотрудник не найден' },
     ])
   }
-  if (!canBeResponsible(responsible.role)) {
+  if (!canBeResponsible(responsible.role) || responsible.isReviewer) {
     throw validationError('Этого пользователя нельзя назначить ответственным', [
       {
         field: 'responsibleId',
-        message: 'Ответственным может быть только менеджер, руководитель или администратор ИТ-Школы',
+        message: responsible.isReviewer
+          ? 'Учётная запись эксперта хакатона: ответственным быть не может'
+          : 'Ответственным может быть только менеджер, руководитель или администратор ИТ-Школы',
       },
     ])
   }

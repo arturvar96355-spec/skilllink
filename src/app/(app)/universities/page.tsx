@@ -169,7 +169,7 @@ export default function UniversitiesPage() {
   const columns: Column<UniversityListItemDto>[] = [
     {
       key: 'name',
-      title: 'Университет',
+      title: 'Вуз',
       sortField: 'name',
       render: (row) => (
         // Лента: название и одна строка пояснения — сокращение, город с регионом, связки.
@@ -263,7 +263,7 @@ export default function UniversitiesPage() {
   return (
     <>
       <PageHeader
-        title="Университеты"
+        title="Вузы"
         description="Реестр вузов, с которыми ведётся работа. Балл сравнивает вузы между собой."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={

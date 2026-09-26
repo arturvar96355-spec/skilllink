@@ -302,7 +302,7 @@ function CooperationsView() {
   return (
     <>
       <PageHeader
-        title="Сотрудничество"
+        title="Связки"
         description="Связки «вуз — программа — IT-продукт». Каждая проходит четырнадцать этапов."
         meta={containsMock ? <MockBadge /> : undefined}
         actions={

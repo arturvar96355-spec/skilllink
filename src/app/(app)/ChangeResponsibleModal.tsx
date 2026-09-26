@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { RESPONSIBLE_ROLES, USER_ROLE_LABELS, canBeResponsible, type UserDto } from '@/shared/contracts'
+import { RESPONSIBLE_ROLES, USER_ROLE_LABELS, type UserDto } from '@/shared/contracts'
 import { Button, Modal, Select, apiPatch, fieldErrors, useMutation, useResource, useToast } from '@/ui'
 import styles from './ChangeResponsibleModal.module.css'
 
@@ -77,8 +77,10 @@ export function ChangeResponsibleModal({
   }
 
   const options = (users.data ?? [])
-    // Сервер примет только ADMIN, MANAGER или HEAD (RESPONSIBLE_ROLES).
-    .filter((row) => canBeResponsible(row.role))
+    // Сервер примет только ADMIN, MANAGER или HEAD (RESPONSIBLE_ROLES) и не эксперта
+    // хакатона (isReviewer) — считается на сервере в `UserDto.canBeResponsible`,
+    // чтобы список не показывал учётки экспертов как выбираемых.
+    .filter((row) => row.canBeResponsible)
     .map((row) => ({ value: row.id, label: `${row.fullName} — ${USER_ROLE_LABELS[row.role]}` }))
 
   return (

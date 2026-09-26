@@ -71,17 +71,15 @@ interface Allowed {
   reason: string
 }
 
-const FRONTEND_TODO = 'заменить на фронте (список фронту)'
-
 /**
  * Исключения. У каждого — причина. Исключение, которое больше ничего не
  * прикрывает, — ошибка: его пора убрать.
+ *
+ * Три записи итогового списка Серёже (26.09, раздел 3.7) — «Почта — это логин»,
+ * «Это логин», подпись журнала «из кэша» — заменены в коде (profile/page.tsx,
+ * settings/UserModals.tsx, settings/audit-view.ts) и убраны отсюда.
  */
-const ALLOW: readonly Allowed[] = [
-  { file: 'src/app/(app)/profile/page.tsx', match: 'логин', reason: `«Почта — это логин» → «Почта — адрес для входа»; ${FRONTEND_TODO}` },
-  { file: 'src/app/(app)/settings/UserModals.tsx', match: 'логин', reason: `«Это логин» → «По ней человек входит в систему»; ${FRONTEND_TODO}` },
-  { file: 'src/app/(app)/settings/audit-view.ts', match: 'кэш', reason: `подпись поля журнала «из кэша» → «готовый ответ» или «повторно»; ${FRONTEND_TODO}` },
-]
+const ALLOW: readonly Allowed[] = []
 
 interface Finding {
   file: string

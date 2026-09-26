@@ -75,7 +75,7 @@ export async function search(user: CurrentUser, query: SearchQuery): Promise<Sea
   const groups: SearchGroupDto[] = [
     group(
       'university',
-      'Университеты',
+      'Вузы',
       u.meta.total,
       u.data.map((row) => ({
         type: 'university',
