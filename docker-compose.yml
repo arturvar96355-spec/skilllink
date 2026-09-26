@@ -164,8 +164,11 @@ services:
     restart: unless-stopped
     depends_on:
       - prometheus
+    # Пароль проверяется при запуске контейнера, а не при разборе файла: иначе
+    # compose требует его и при выключенном профиле monitoring, и выкладка стенда падает.
+    entrypoint: ['sh', '-c', '[ -n "$$GF_SECURITY_ADMIN_PASSWORD" ] || { echo "задайте GRAFANA_ADMIN_PASSWORD" >&2; exit 1; }; exec /run.sh']
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?задайте GRAFANA_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
       GF_USERS_ALLOW_SIGN_UP: 'false'
     volumes:
