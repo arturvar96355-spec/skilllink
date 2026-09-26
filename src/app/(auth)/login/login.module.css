@@ -455,6 +455,37 @@
 }
 
 /*
+ * Единый вход через Keycloak (решение 188): кнопка над формой пароля, в том же
+ * стекле, что и панель, со своей границей снизу — Keycloak сам проверяет
+ * пароль и защиту от перебора, форма пароля остаётся вторым способом входа,
+ * а не заменяется. Пунктирный разделитель «или» — обычная граница между
+ * двумя способами входа, не часть ни одного из них.
+ */
+.ssoLogin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+.ssoDivider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.ssoDivider::before,
+.ssoDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--glass-edge);
+}
+
+/*
  * Быстрый вход экспертов хакатона (решение 176): отдельный блок под формой,
  * в том же стекле, что и панель, но со своей границей сверху — не часть формы,
  * второй способ входа. Кнопки оборачиваются на телефоне (375 px): три подписи

@@ -80,6 +80,13 @@ services:
       # только для учётных записей is_reviewer = true (решение 147). По умолчанию
       # выключено — на стенде включает владелец перед показом.
       EXPERT_QUICK_LOGIN: ${EXPERT_QUICK_LOGIN:-false}
+      # Единый вход через Keycloak (ТЗ, функц. 10; решение 188): провайдер
+      # NextAuth подключается, только если заданы все три переменные
+      # (shared/auth/keycloak.ts) — не заданы, вход как сейчас, паролем.
+      # На стенде включает владелец (docs/DEPLOY.md, «Единый вход через Keycloak»).
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-}
       # ИИ-помощник (решение 90). По умолчанию выключен — черновики пишутся шаблоном.
       # Ключи задаются только в .env.cloud на сервере: docs/DEPLOY.md,
       # раздел «Как подключить YandexGPT». В git их нет.
@@ -184,6 +191,96 @@ services:
       AUTH_URL: ${DOCKER_AUTH_URL:-}
     command: ['npx', 'prisma', 'migrate', 'deploy']
     restart: 'no'
+
+  # Единый вход через Keycloak (ТЗ, функц. 10; решение 188) — под своим профилем:
+  #   docker compose --profile keycloak up -d
+  # Без профиля не запускается вовсе — локальная разработка и CI не меняются.
+  # docs/ARCHITECTURE.md, раздел «Авторизация и Keycloak»; docs/DEPLOY.md,
+  # раздел «Единый вход через Keycloak» — как включить на стенде и как откатить.
+  #
+  # Отдельная база `keycloak` в ТОМ ЖЕ контейнере PostgreSQL, не в базе приложения —
+  # создаётся один раз вручную (deploy/yandex-cloud/create-keycloak-db.sql), а не
+  # самим Keycloak: на стенде база приложения уже существует с данными, том
+  # `skilllink-pgdata` пересоздавать нельзя.
+  #
+  # За обратным прокси (Caddy на стенде, `/auth/*`, deploy/yandex-cloud/Caddyfile):
+  # относительный путь — KC_HTTP_RELATIVE_PATH, доверие заголовкам X-Forwarded-* —
+  # KC_PROXY_HEADERS, сам Keycloak слушает только http (TLS снимает Caddy,
+  # KC_HTTP_ENABLED). Локально без Caddy — тот же путь `/auth`, адрес по
+  # умолчанию http://localhost:8081/auth.
+  #
+  # Реалм `skilllink` и клиент `skilllink-web` заводятся импортом при старте
+  # (--import-realm, deploy/keycloak/skilllink-realm.json), без паролей и без
+  # секрета клиента — Keycloak 26 не подставляет переменные окружения внутри
+  # JSON импорта реалма (проверено живой проверкой задачи, решение 188). Пароли
+  # демо-пользователей и секрет клиента задаёт после старта
+  # scripts/deploy/keycloak-users.sh (kcadm.sh) — из SEED_DEMO_PASSWORD и
+  # KEYCLOAK_CLIENT_SECRET, ни один секрет не лежит в репозитории.
+  #
+  # Память (docs/DEPLOY.md: сервер 4 ГБ, свободно ~2,5 ГБ после Postgres и
+  # приложения): куча Java 256–512 МБ (JAVA_OPTS_APPEND — переменная, которую
+  # реально читает образ Keycloak; распространённое в интернете имя
+  # JAVA_OPTS_KC_HEAP образ не поддерживает — проверено живой проверкой задачи),
+  # предел контейнера 900 МБ с запасом на код Quarkus вне кучи.
+  keycloak:
+    profiles: ['keycloak']
+    # Закреплённая версия 26.x — не latest, чтобы обновление образа не подменяло
+    # поведение стенда без ведома.
+    image: quay.io/keycloak/keycloak:26.0.7
+    container_name: skilllink-keycloak
+    restart: unless-stopped
+    mem_limit: 900m
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # start (не dev): dev-режим — в памяти, без базы, с ослабленными проверками;
+    # для стенда, куда возвращаются те же пользователи, годится только start.
+    command: ['start', '--import-realm']
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${POSTGRES_USER:-skilllink}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-skilllink}
+      # Полный адрес СО СХЕМОЙ И ПУТЁМ /auth (hostname v2 в Keycloak 26 принимает
+      # это как есть) — на стенде https://skilllink.site/auth. Путь обязателен
+      # здесь же, а не только в KC_HTTP_RELATIVE_PATH ниже: без него в адресе
+      # выпуска токена (`iss`) пути `/auth` нет, а в фактических адресах
+      # запросов — есть, и проверка issuer в NextAuth отказывает всем входам
+      # ошибкой `OperationProcessingError: issuer does not match` (проверено
+      # живой проверкой задачи, решение 188).
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:-http://localhost:8081/auth}
+      KC_HTTP_RELATIVE_PATH: /auth
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: 'true'
+      KC_HEALTH_ENABLED: 'true'
+      # Пароль администратора — пусто в репозитории, только из окружения
+      # (deploy/.env.cloud.example). Не задан — Keycloak сам отказывается
+      # стартовать понятной ошибкой, а не поднимается с известным паролем.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-}
+      JAVA_OPTS_APPEND: '-Xms256m -Xmx512m'
+    ports:
+      # Только 127.0.0.1 — по той же причине, что у базы и приложения. Снаружи
+      # на стенде — через Caddy (deploy/yandex-cloud/Caddyfile, /auth/*).
+      - '127.0.0.1:${KEYCLOAK_PORT:-8081}:8080'
+    volumes:
+      - ./deploy/keycloak/skilllink-realm.json:/opt/keycloak/data/import/skilllink-realm.json:ro
+    healthcheck:
+      # Образ Keycloak не несёт curl/wget — проверка через встроенный /dev/tcp
+      # bash, тот же приём, что рекомендует сам проект для контейнеров без утилит.
+      # Порт здоровья (9000) отдельный от HTTP (8080), но путь у него ТОТ ЖЕ
+      # относительный префикс — /auth/health/ready, не /health/ready (проверено
+      # живой проверкой задачи: без /auth здесь 404).
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"status": "UP"' <&3
+      interval: 10s
+      timeout: 5s
+      start_period: 90s
+      retries: 10
 
   # Метрики и оповещения (решение 137) — по решению владельца, не по умолчанию:
   #   docker compose --profile app --profile monitoring up -d
