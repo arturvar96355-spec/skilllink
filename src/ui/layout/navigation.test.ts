@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CurrentUserDto, UserRole } from '@/shared/contracts'
 import { ROUTES } from '../lib/links'
-import { navigationFor, serviceLinksFor } from './navigation'
+import { isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
 import { API_CONTRACT_URL } from '../lib/links'
 
 /**
@@ -42,7 +42,9 @@ function user(role: UserRole): CurrentUserDto {
       canWrite: role === 'ADMIN' || role === 'MANAGER',
       canSeeAnalytics: role !== 'UNIVERSITY_REP',
       canWorkAnalytics: role === 'ADMIN' || role === 'MANAGER' || role === 'ANALYST',
-      canUsePortal: role === 'UNIVERSITY_REP',
+      // UNIVERSITY_PORTAL (permissions.ts): ADMIN, MANAGER, UNIVERSITY_REP, HEAD —
+      // сотрудник открывает кабинет любого вуза, аналитик и наблюдатель — нет.
+      canUsePortal: role === 'UNIVERSITY_REP' || role === 'ADMIN' || role === 'MANAGER' || role === 'HEAD',
       canWritePortal: role === 'UNIVERSITY_REP',
       canSeeContactDetails: role === 'ADMIN' || role === 'MANAGER',
       isAdmin: role === 'ADMIN',
@@ -96,6 +98,57 @@ describe('адреса страниц', () => {
       }
       expect(pageExists(href), `${name} → ${href}`).toBe(true)
     }
+  })
+})
+
+describe('охранник разделов (isSectionAllowed, решение 153)', () => {
+  it.each(ROLES)('у роли %s каждый пункт меню и служебная ссылка доступны через охранник', (role) => {
+    const current = user(role)
+    const menuHrefs = navigationFor(current).flatMap((group) => group.items.map((item) => item.href))
+    const footerHrefs = serviceLinksFor(current)
+      .filter((item) => !item.external)
+      .map((item) => item.href.replace(/#.*$/, ''))
+    for (const href of [...menuHrefs, ...footerHrefs]) {
+      expect(isSectionAllowed(current, href), `${role} → ${href}`).toBe(true)
+    }
+  })
+
+  it('представителю вуза закрыты внутренние разделы по прямой ссылке', () => {
+    const rep = user('UNIVERSITY_REP')
+    for (const route of [
+      ROUTES.universities,
+      ROUTES.programs,
+      ROUTES.cooperations,
+      ROUTES.recommendations,
+      ROUTES.documents,
+      ROUTES.products,
+      ROUTES.settings,
+      ROUTES.reports,
+      ROUTES.analytics,
+    ]) {
+      expect(isSectionAllowed(rep, route), route).toBe(false)
+      // Вложенная страница раздела (например, карточка вуза) закрыта так же, как список.
+      expect(isSectionAllowed(rep, `${route}/some-id`), `${route}/some-id`).toBe(false)
+    }
+  })
+
+  it('представителю вуза открыты его кабинет, профиль, главная и состояние системы', () => {
+    const rep = user('UNIVERSITY_REP')
+    expect(isSectionAllowed(rep, ROUTES.portal)).toBe(true)
+    expect(isSectionAllowed(rep, ROUTES.profile)).toBe(true)
+    expect(isSectionAllowed(rep, ROUTES.dashboard)).toBe(true)
+    expect(isSectionAllowed(rep, ROUTES.status)).toBe(true)
+  })
+
+  it('кабинет вуза закрыт роли без права UNIVERSITY_PORTAL', () => {
+    expect(isSectionAllowed(user('ANALYST'), ROUTES.portal)).toBe(false)
+    expect(isSectionAllowed(user('VIEWER'), ROUTES.portal)).toBe(false)
+    expect(isSectionAllowed(user('ADMIN'), ROUTES.portal)).toBe(true)
+    expect(isSectionAllowed(user('MANAGER'), ROUTES.portal)).toBe(true)
+  })
+
+  it('раздел не в списке охранника открыт всем — им управляет обычный 404', () => {
+    expect(isSectionAllowed(user('UNIVERSITY_REP'), '/no-such-route')).toBe(true)
   })
 })
 

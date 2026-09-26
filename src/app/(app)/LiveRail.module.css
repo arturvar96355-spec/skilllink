@@ -78,6 +78,27 @@
   color: var(--text-warm);
 }
 
+/* Кликабельный показатель (решение 153) — ссылка на список с уже применённым
+   фильтром. Собственного оформления «кнопки» не получает: строка чисел должна
+   выглядеть строкой чисел, а не рядом кнопок — только курсор, подсветка значения
+   при наведении и видимая рамка при фокусе с клавиатуры. */
+.numberLink {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-control);
+}
+
+.numberLink:hover .value,
+.numberLink:focus-visible .value {
+  color: var(--text-accent);
+}
+
+.numberLink:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 4px;
+}
+
 /* Второстепенный показатель — мельче и в конце: у блока одна главная мысль. */
 .secondary .value {
   font-size: var(--text-kpi-md-size);

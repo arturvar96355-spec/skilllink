@@ -154,6 +154,25 @@ const RAIL_MOTION: Record<string, RailNumber['motion']> = {
   operationsPerCooperation: 'still',
 }
 
+/**
+ * Куда ведёт плитка-показатель (пробел ТЗ «кликабельные показатели главной»,
+ * решение 153) — список с уже применённым фильтром из тех, что реестр связок
+ * умеет читать из адреса («Этапы в срок» → просроченные, «Дней до занятий» →
+ * связки, отсортированные по ближайшему сроку начала). «Активные связки»
+ * и «Вузы в работе» ведут в свои реестры без фильтра: у реестра связок нет
+ * одного статуса, равного «активная» (это черновик и статус «в работе» вместе),
+ * а у реестра вузов нет фильтра «вуз в работе» вовсе — заводить его не в этой
+ * задаче (реестр вузов не трогаем, параллельно с ним работает другой агент).
+ * У «Операций на связку» записи нет: это расчётная величина, а не выборка
+ * записей, — подходящего списка для неё нет, поэтому плитка остаётся текстом.
+ */
+const METRIC_HREF: Record<string, string> = {
+  activeCooperations: ROUTES.cooperations,
+  universitiesInWork: ROUTES.universities,
+  stagesOnTimePercent: `${ROUTES.cooperations}${buildQuery({ onlyOverdue: 'true' })}`,
+  avgDaysToClasses: `${ROUTES.cooperations}${buildQuery({ sort: 'targetDate' })}`,
+}
+
 const FACTOR_SHORT: Record<string, string> = {
   applicationCount: 'заявки',
   studentCount: 'обучающиеся',
@@ -421,6 +440,7 @@ function Dashboard() {
     motion: RAIL_MOTION[metric.key],
     trend: metric.trend ?? null,
     isShare: metric.unit === '%',
+    href: METRIC_HREF[metric.key],
   }))
 
 

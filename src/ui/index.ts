@@ -25,7 +25,7 @@ export {
   universityShortOption,
 } from './lib/options'
 
-export { EmptyState, ErrorState, CardsSkeleton, TableSkeleton } from './data/States'
+export { EmptyState, ErrorState, SectionUnavailable, CardsSkeleton, TableSkeleton } from './data/States'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
 export { ListTitle } from './data/ListTitle'
 export { mockMarks, type MockMarks } from './data/origin'

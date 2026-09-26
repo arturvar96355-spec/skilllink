@@ -134,19 +134,29 @@ export default function CooperationsPage() {
 
 function CooperationsView() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   /**
    * Отбор по продукту приходит ссылкой «Связки с этим продуктом» из карточки
    * продукта. Раньше страница параметр не читала и показывала все связки.
    */
-  const productId = useSearchParams().get('productId')
+  const productId = searchParams.get('productId')
   const product = useResource<ProductDto>(
     productId ? `/api/products/${encodeURIComponent(productId)}` : null,
   )
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('')
-  const [onlyOverdue, setOnlyOverdue] = useState(false)
-  const [onlyBlocked, setOnlyBlocked] = useState(false)
-  const [sort, setSort] = useState('-updatedAt')
+  /**
+   * Статус, просрочка и блокировка — ссылками с других экранов (решение 153,
+   * пробел ТЗ «кликабельные показатели главной»): `?onlyOverdue=true` от плитки
+   * «Этапы в срок». Читаются один раз при заходе, как и `productId` выше —
+   * страница не держит фильтры в адресе постоянно, только принимает вход по нему.
+   */
+  const [status, setStatus] = useState(() => {
+    const value = searchParams.get('status')
+    return value && (COOPERATION_STATUSES as readonly string[]).includes(value) ? value : ''
+  })
+  const [onlyOverdue, setOnlyOverdue] = useState(() => searchParams.get('onlyOverdue') === 'true')
+  const [onlyBlocked, setOnlyBlocked] = useState(() => searchParams.get('onlyBlocked') === 'true')
+  const [sort, setSort] = useState(() => searchParams.get('sort') || '-updatedAt')
   const [page, setPage] = useState(1)
   const user = useCurrentUser()
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -183,7 +193,7 @@ function CooperationsView() {
     setOnlyOverdue(false)
     setOnlyBlocked(false)
     setPage(1)
-    resetUrl(['productId'])
+    resetUrl(['productId', 'status', 'onlyOverdue', 'onlyBlocked', 'sort'])
   }
 
   /*
