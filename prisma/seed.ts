@@ -226,6 +226,41 @@ async function seedDataSources() {
       isMock: true,
     },
   })
+  // Решение 141: справочник источников не только демонстрационный и региональный
+  // (тот заводится отдельно, insertExtendedDemo) — ещё ручной ввод и два источника
+  // из конвейера «сайт → LMS» (решение 132), которых до сих пор не было заведено
+  // отдельными записями, хотя сами данные (SiteOrder) уже поступают этим путём.
+  await prisma.dataSource.create({
+    data: {
+      name: 'Ручной ввод аналитика по итогам встречи',
+      type: 'MANUAL',
+      collectionDate: daysAgo(45),
+      reliability: 'MEDIUM',
+      description: 'Оценки спроса, зафиксированные аналитиком со слов представителей вузов на очных встречах.',
+      isMock: true,
+    },
+  })
+  await prisma.dataSource.create({
+    data: {
+      name: 'Заказы с сайта ИТ-Школы РТК',
+      type: 'SITE',
+      url: 'https://example.invalid/site-orders',
+      collectionDate: daysAgo(10),
+      reliability: 'MEDIUM',
+      description: 'Выгрузка заказов на курсы школы с сайта (решение 132) — источник данных SiteOrder, не рыночного спроса.',
+      isMock: true,
+    },
+  })
+  await prisma.dataSource.create({
+    data: {
+      name: 'Шаблон загрузки пользователей LMS',
+      type: 'LMS',
+      collectionDate: daysAgo(10),
+      reliability: 'LOW',
+      description: 'Формат выгрузки для LMS (решение 132): 30 колонок шаблона организаторов, заполнены только 5.',
+      isMock: true,
+    },
+  })
   return mockSource
 }
 
