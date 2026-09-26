@@ -20,6 +20,8 @@ export const ROUTES = {
   products: '/products',
   settings: '/settings',
   profile: '/profile',
+  /** Что система хранит о пользователе и выгрузка «всё обо мне» (ТЗ дизайна 26–29.09, п. 4.6). */
+  myData: '/profile/data',
   portal: '/portal',
   /** Раздел отчётов: отчёт руководителю, отчёт и каталог по ТЗ (решение 150). */
   reports: '/reports',

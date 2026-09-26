@@ -176,6 +176,10 @@ function ProfileMenu() {
             <Icon name="user" size={16} />
             Личный кабинет
           </Link>
+          <Link href={ROUTES.myData} role="menuitem" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
+            <Icon name="lock" size={16} />
+            Мои данные
+          </Link>
           <div className={styles.dropdownMode}>
             <span className={styles.dropdownLabel}>Режим интерфейса</span>
             <UiModeSwitch placement="header" />

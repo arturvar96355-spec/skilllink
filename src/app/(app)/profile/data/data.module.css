@@ -1,0 +1,94 @@
+/* «Мои данные» (ТЗ дизайна 26–29.09, п. 4.6). */
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.factLabel {
+  font-size: var(--text-label-size);
+  color: var(--text-tertiary);
+}
+
+.factValue {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.factEmpty {
+  margin: 0;
+  font-size: var(--text-body-size);
+  color: var(--text-tertiary);
+}
+
+.note {
+  margin-top: var(--space-4);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.exportText {
+  flex: 1 1 320px;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-primary);
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.link > svg:last-child {
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+
+.link:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
