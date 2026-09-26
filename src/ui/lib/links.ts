@@ -54,6 +54,9 @@ export const ROUTES = {
  */
 export const API_CONTRACT_URL = 'https://github.com/arturvar96355-spec/skilllink/blob/main/docs/API_CONTRACT.md'
 
+/** Открытый код проекта — заметно на стенде (решение владельца, 27.09). */
+export const OPEN_SOURCE_REPO_URL = 'https://github.com/arturvar96355-spec/skilllink'
+
 export function universityHref(id: string): string {
   return `${ROUTES.universities}/${id}`
 }
