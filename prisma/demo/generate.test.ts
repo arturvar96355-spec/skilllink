@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
-import { EXTRA_MARKET, EXTRA_PRODUCTS, EXTRA_PROGRAMS, EXTRA_SKILLS } from './catalog'
+import { EXTRA_MARKET, EXTRA_PRODUCTS, EXTRA_PROGRAMS, EXTRA_SKILLS, MORE_SKILLS } from './catalog'
 import { buildStageTimeline, DAY_MS, DEFAULT_STABLE_UNTIL, generateDemoData, type DemoData } from './generate'
 import { fnv1a, mulberry32 } from './random'
 import {
@@ -63,8 +63,8 @@ describe('детерминизм генератора', () => {
 })
 
 describe('объёмы и покрытие статусов', () => {
-  it('40 связок, 12 вузов, 8 продуктов, программы по 2–6 на вуз', () => {
-    expect(data.cooperations).toHaveLength(40)
+  it('63 связки, 12 вузов, 8 продуктов, программы по 2–6 на вуз (решение 141)', () => {
+    expect(data.cooperations).toHaveLength(63)
     expect(data.universities).toHaveLength(12)
     expect(data.products).toHaveLength(8)
     for (const university of data.universities) {
@@ -233,7 +233,8 @@ describe('справочники', () => {
     const keys = q2.map(skillNameKey)
     expect(new Set(keys).size).toBe(keys.length)
     for (const name of extraNames) expect(q2).toContain(name)
-    expect(q2.length).toBe(28)
+    for (const name of MORE_SKILLS.map((skill) => skill.name)) expect(q2).toContain(name)
+    expect(q2.length).toBe(50)
   })
 
   it('программы и продукты ссылаются только на навыки справочника', () => {

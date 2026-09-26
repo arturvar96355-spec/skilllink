@@ -1260,9 +1260,12 @@ function generateResolvedRecommendations(coops: readonly DemoCooperation[], prog
  * сколько встреч). Вузы основного сида — кроме СПбГУТ (сценарий кабинета вуза)
  * и тех, где работа стоит или закрыта.
  */
+// Решение 141 подняло фон встреч (4–7 связок на вуз вместо 2–3): счётчики здесь
+// увеличены, чтобы всплеск оставался заметно выше фона при любом дне заливки
+// (generate.test.ts, «всплеск спроса … ловится детектором», все 7 сдвигов).
 export const DEMAND_SPIKE_UNIVERSITIES: ReadonlyArray<readonly [string, number]> = [
-  ['unn', 3], ['psuti', 3], ['sfu', 3], ['dvfu', 3], ['uust', 3], ['vsu', 2], ['omgtu', 3],
-  ['irnitu', 3], ['kantiana', 3], ['innopolis', 3], ['mtuci', 3], ['kazan', 3], ['nsu', 2], ['urfu', 3],
+  ['unn', 5], ['psuti', 5], ['sfu', 5], ['dvfu', 5], ['uust', 5], ['vsu', 3], ['omgtu', 5],
+  ['irnitu', 5], ['kantiana', 5], ['innopolis', 5], ['mtuci', 5], ['kazan', 5], ['nsu', 3], ['urfu', 5],
 ]
 
 /**
