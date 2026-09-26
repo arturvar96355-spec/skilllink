@@ -1,5 +1,6 @@
 import { prisma } from '@/shared/db/prisma'
 import { TIE_BREAKER } from '@/shared/http/pagination'
+import { createTtlMemo } from '@/shared/cache/ttl-memo'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { problemStageWhere } from '@/modules/analytics/analytics.repo'
 import {
@@ -9,6 +10,39 @@ import {
 import { OPEN_RECOMMENDATION_STATUSES } from '@/modules/recommendations/recommendations.rules'
 import type { KnownPeople } from './ai-assist.privacy'
 import type { ProblemStageInput, ProgramLabel } from './ai-assist.rules'
+
+interface GlobalRedactionContext {
+  staff: string[]
+  universityReps: string[]
+  universityNames: string[]
+}
+
+/**
+ * Сотрудники и названия вузов — единственная в приложении часть редакции, не
+ * зависящая от того, о какой связке или письме идёт речь: `findRedactionContext`
+ * всегда читает ВСЕХ сотрудников и ВСЕ вузы целиком, а фильтр по `universityIds`
+ * ниже касается только контактных лиц. Кеш на минуту без ключа по области
+ * видимости (решение 190, ревью базы) — она здесь одна на всё приложение,
+ * заводить ключ было бы данью форме без пользы.
+ */
+const REDACTION_CONTEXT_TTL_MS = 60_000
+const globalRedactionContextMemo = createTtlMemo<'*', GlobalRedactionContext>(REDACTION_CONTEXT_TTL_MS)
+
+function loadGlobalRedactionContext(now: Date): Promise<GlobalRedactionContext> {
+  return globalRedactionContextMemo('*', now, async () => {
+    const [users, universities] = await Promise.all([
+      prisma.user.findMany({ select: { fullName: true, role: true } }),
+      prisma.university.findMany({ select: { name: true, shortName: true } }),
+    ])
+    return {
+      staff: users.filter((user) => user.role !== 'UNIVERSITY_REP').map((user) => user.fullName),
+      universityReps: users.filter((user) => user.role === 'UNIVERSITY_REP').map((user) => user.fullName),
+      universityNames: universities.flatMap((university) =>
+        university.shortName ? [university.name, university.shortName] : [university.name],
+      ),
+    }
+  })
+}
 
 /**
  * Что нужно, чтобы вычистить персональные данные перед отправкой в модель.
@@ -24,29 +58,24 @@ import type { ProblemStageInput, ProgramLabel } from './ai-assist.rules'
  */
 export async function findRedactionContext(
   universityIds: readonly string[],
+  now: Date = new Date(),
 ): Promise<{ people: KnownPeople; universityNames: string[] }> {
   const ids = [...new Set(universityIds)]
-  const [users, contacts, universities] = await Promise.all([
-    prisma.user.findMany({ select: { fullName: true, role: true } }),
+  const [global, contacts] = await Promise.all([
+    loadGlobalRedactionContext(now),
     ids.length === 0
       ? Promise.resolve([])
       : prisma.contact.findMany({
           where: { universityId: { in: ids } },
           select: { fullName: true },
         }),
-    prisma.university.findMany({ select: { name: true, shortName: true } }),
   ])
   return {
     people: {
-      staff: users.filter((user) => user.role !== 'UNIVERSITY_REP').map((user) => user.fullName),
-      contacts: [
-        ...users.filter((user) => user.role === 'UNIVERSITY_REP').map((user) => user.fullName),
-        ...contacts.map((contact) => contact.fullName),
-      ],
+      staff: global.staff,
+      contacts: [...global.universityReps, ...contacts.map((contact) => contact.fullName)],
     },
-    universityNames: universities.flatMap((university) =>
-      university.shortName ? [university.name, university.shortName] : [university.name],
-    ),
+    universityNames: global.universityNames,
   }
 }
 

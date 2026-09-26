@@ -300,7 +300,7 @@ export async function analyzeLetter(user: CurrentUser, id: string, now: Date = n
   }
 
   // ── Код: вуз по домену отправителя, связка и текущий этап ──────────────────
-  const domains = await repo.findUniversityDomains()
+  const domains = await repo.findUniversityDomains(now)
   const universityId = matchUniversityByDomain(existing.senderEmail, domains)
   let cooperationId: string | null = null
   let stageNumber: number | null = null

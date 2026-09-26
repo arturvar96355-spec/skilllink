@@ -1,4 +1,5 @@
 import { assertCan, can, universityScope } from '@/shared/auth/permissions'
+import { createTtlMemo } from '@/shared/cache/ttl-memo'
 import {
   DASHBOARD_PROBLEM_LIMIT,
   DASHBOARD_TOP_LIMIT,
@@ -484,6 +485,16 @@ function toBound(min: number | null, max: number | null): { min: number; max: nu
 }
 
 /**
+ * Кеш на минуту, ключ по области видимости (решение 190, ревью базы, тот же
+ * приём, что sharedInsights в pulse.extras.ts, решение 120): реестр вузов
+ * запрашивает рейтинг при каждом открытии страницы и при каждой фильтрации
+ * или сортировке по нему (universities.service.ts), а расчёт — по всей
+ * выборке действующих программ сразу.
+ */
+const UNIVERSITY_RATINGS_TTL_MS = 60_000
+const universityRatingsMemo = createTtlMemo<string, Map<string, UniversityRatingDto>>(UNIVERSITY_RATINGS_TTL_MS)
+
+/**
  * Рейтинги всех вузов в области видимости пользователя (пункт 7.2 ТЗ).
  *
  * Возвращает карту, а не список: используется реестром вузов для показа,
@@ -494,29 +505,33 @@ function toBound(min: number | null, max: number | null): { min: number; max: nu
  */
 export async function universityRatings(
   user: CurrentUser,
+  now: Date = new Date(),
 ): Promise<Map<string, UniversityRatingDto>> {
   assertCan(user, 'ANALYTICS')
+  const scope = universityScope(user)
 
-  // Здесь выборка полная — границы по ней совпадают с границами по базе.
-  const programs = await repo.findProgramsForUniversityRating(universityScope(user))
-  const ratings = calculateRatings(
-    programs.map((program) => ({
-      programId: program.id,
-      applicationCount: program.applicationCount,
-      studentCount: program.studentCount,
-      groupCount: program.groupCount,
-      metricsSource: program.metricsSource,
-    })),
-  )
+  return universityRatingsMemo(scope.universityId ?? '*', now, async () => {
+    // Здесь выборка полная — границы по ней совпадают с границами по базе.
+    const programs = await repo.findProgramsForUniversityRating(scope)
+    const ratings = calculateRatings(
+      programs.map((program) => ({
+        programId: program.id,
+        applicationCount: program.applicationCount,
+        studentCount: program.studentCount,
+        groupCount: program.groupCount,
+        metricsSource: program.metricsSource,
+      })),
+    )
 
-  return aggregateUniversityRatings(
-    programs.map((program) => ({
-      programId: program.id,
-      programName: program.name,
-      universityId: program.universityId,
-    })),
-    ratings,
-  )
+    return aggregateUniversityRatings(
+      programs.map((program) => ({
+        programId: program.id,
+        programName: program.name,
+        universityId: program.universityId,
+      })),
+      ratings,
+    )
+  })
 }
 
 /**
