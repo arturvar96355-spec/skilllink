@@ -122,7 +122,7 @@
   position: relative;
   border-radius: var(--radius-control);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-body-size);
   font-weight: 500;
   transition: background var(--motion-micro) var(--ease-out),
     color var(--motion-micro) var(--ease-out),
@@ -322,3 +322,13 @@
   white-space: nowrap;
 }
 
+
+/*
+ * Разделы на широком экране — в шапке (решение 122): боковое меню остаётся только
+ * выезжающим на узком экране.
+ */
+@media (min-width: 1081px) {
+  .sidebar {
+    display: none;
+  }
+}

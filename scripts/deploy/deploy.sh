@@ -89,6 +89,24 @@ mv "\$ENV_FILE.tmp" "\$ENV_FILE"
 chmod 600 "\$ENV_FILE"
 REMOTE
 
+# ── Откат ───────────────────────────────────────────────────────────────────
+# Что работало до этой выкладки — чтобы при провале проверки сразу дать готовую
+# команду отката, а не искать коммит по истории.
+PREV_COMMIT=$(ssh_run "$TARGET" "cat $REMOTE_DIR/app/DEPLOYED_COMMIT 2>/dev/null" || true)
+rollback_hint() {
+  {
+    echo
+    echo "Откат на прошлую версию${PREV_COMMIT:+ ($PREV_COMMIT)}:"
+    echo "  быстро — прошлая сборка ещё лежит на сервере (app.old):"
+    echo "    ssh $TARGET 'cd $REMOTE_DIR && rm -rf app.failed && mv app app.failed && mv app.old app && cd app && sg docker -c \"ENV_FILE=$REMOTE_DIR/.env.cloud bash scripts/deploy/remote-up.sh\"'"
+    if [ -n "$PREV_COMMIT" ]; then
+      echo "  или выложить прошлый коммит заново:"
+      echo "    git switch --detach $PREV_COMMIT && scripts/deploy/deploy.sh $TARGET $DOMAIN"
+    fi
+    echo "  Миграции откат не отменяет — docs/DEPLOY.md, «Откат»."
+  } >&2
+}
+
 # ── 3. Код ──────────────────────────────────────────────────────────────────
 echo "── Отправляю код ($COMMIT)"
 git archive --format=tar HEAD | ssh_run "$TARGET" "
@@ -107,7 +125,12 @@ git archive --format=tar HEAD | ssh_run "$TARGET" "
 # Порядок (база → миграции → приложение) и разбор ошибок — в remote-up.sh:
 # он уехал на сервер вместе с кодом.
 echo "── Поднимаю стенд (первый раз — несколько минут)"
-ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"
+# Там же — проверка после выкладки (решение 118): приложение напрямую и через Caddy.
+if ! ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"; then
+  echo "━━ Стенд не поднялся или не прошёл проверку после выкладки" >&2
+  rollback_hint
+  exit 1
+fi
 
 # Отметка «развёрнут такой-то коммит» — только после того, как стенд поднялся:
 # при обрыве посреди сборки на сервере работает прошлая версия, и задача,
@@ -121,7 +144,7 @@ ssh_run "$TARGET" "echo $COMMIT > $REMOTE_DIR/app/DEPLOYED_COMMIT"
 if [ -n "$DOMAIN" ]; then
   printf '── Жду сертификат'
   for _ in $(seq 1 30); do
-    curl -fsS --max-time 5 -o /dev/null "$PUBLIC_URL/api/health" 2>/dev/null && break
+    curl -fsS --max-time 5 -o /dev/null "$PUBLIC_URL/api/ready" 2>/dev/null && break
     printf '.'
     sleep 4
   done
@@ -135,7 +158,10 @@ PASSWORD=$(ssh_run "$TARGET" "grep '^SEED_DEMO_PASSWORD=' $REMOTE_DIR/.env.cloud
 if [ "${GITHUB_ACTIONS:-}" = "true" ] && [ -n "$PASSWORD" ]; then
   echo "::add-mask::$PASSWORD"
 fi
-DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"
+if ! DEMO_PASSWORD="$PASSWORD" scripts/deploy/check.sh "$PUBLIC_URL" "$HOST"; then
+  rollback_hint
+  exit 1
+fi
 
 echo
 echo "━━ Готово: $PUBLIC_URL"
