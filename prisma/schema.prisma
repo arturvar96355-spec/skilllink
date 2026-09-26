@@ -281,6 +281,9 @@ model User {
   telegramLink           TelegramLink?
   calendarFeed           CalendarFeed?
   contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
+  duplicateDismissals    DuplicateDismissal[]  @relation("DuplicateDismissalAuthor")
+  universityMerges       UniversityMerge[]     @relation("UniversityMergeAuthor")
+  universityMergeUndos   UniversityMerge[]     @relation("UniversityMergeUndoAuthor")
   siteOrdersImported     SiteOrder[]           @relation("SiteOrderImporter")
   secretsRotated         SystemSecret[]        @relation("SystemSecretRotatedBy")
   approvalsRequested     Approval[]            @relation("ApprovalRequestedBy")
@@ -313,12 +316,22 @@ model University {
   /// Общая численность обучающихся в вузе.
   studentCount   Int?             @map("student_count")
   description    String?
+  /// ИНН организации (решение 124): 10 цифр, контрольная цифра проверяется при вводе.
+  /// null — не заполнен. CHECK в базе: NULL или ровно 10 цифр.
+  inn            String?
+  /// ОГРН организации: 13 цифр. CHECK в базе: NULL или ровно 13 цифр.
+  ogrn           String?
+  /// Вуз слит в другой (решение 124): запись в архиве и ссылается на того, кто остался.
+  /// Не удаляется — слияние можно отменить. CHECK: не на себя; только у архивной записи.
+  mergedIntoId   String?          @map("merged_into_id")
   /// Демонстрационная запись. Фронт обязан показывать пометку.
   isMock         Boolean          @default(false) @map("is_mock")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   archivedAt     DateTime?        @map("archived_at")
 
+  mergedInto   University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom   University[]         @relation("UniversityMergedInto")
   contacts     Contact[]
   programs     EducationalProgram[]
   cooperations Cooperation[]
@@ -326,10 +339,16 @@ model University {
   meetings     Meeting[]
   applications Application[]
   users        User[]
+  mergesAsSource UniversityMerge[] @relation("UniversityMergeSource")
+  mergesAsTarget UniversityMerge[] @relation("UniversityMergeTarget")
 
   @@index([status])
   @@index([region])
   @@index([city])
+  @@index([mergedIntoId])
+  @@index([inn])
+  /// Поиск дублей по названию (решение 124): кандидатов отбирает оператор `%` расширения pg_trgm.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "universities_name_trgm")
   @@map("universities")
 }
 
@@ -455,6 +474,7 @@ model EducationalProgram {
   @@index([universityId])
   @@index([level])
   @@index([status])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "educational_programs_name_trgm")
   @@map("educational_programs")
 }
 
@@ -473,6 +493,7 @@ model Skill {
   demand   MarketDemand[]
 
   @@index([category])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "skills_name_trgm")
   /**
    * Уникальность названия без учёта регистра и пробелов держит индекс по выражению
    * `skills_name_key_ci` (миграция 20260925230100, решение 110): «ML Ops» и «MLOps»,
@@ -571,6 +592,7 @@ model ITProduct {
 
   @@index([category])
   @@index([status])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "it_products_name_trgm")
   @@index([vendorId])
   @@map("it_products")
 }
@@ -1199,6 +1221,64 @@ model TelegramLink {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("telegram_links")
+}
+
+// ─────────────────────── Качество данных (решение 134) ───────────────────────
+
+/// Пара записей, отмеченная «не дубль»: поиск дублей её больше не предлагает.
+/// Пара хранится упорядоченной (first_id < second_id) — «A и B» и «B и A» одна запись.
+/// Ссылок на сами записи нет: сущности разные (вуз, навык, программа, продукт);
+/// исключение про удалённую запись просто ни на что не влияет.
+/// CHECK в базе: entity — одна из четырёх; first_id < second_id.
+model DuplicateDismissal {
+  id            String   @id @default(cuid())
+  entity        String
+  firstId       String   @map("first_id")
+  secondId      String   @map("second_id")
+  comment       String?
+  dismissedById String   @map("dismissed_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  dismissedBy User @relation("DuplicateDismissalAuthor", fields: [dismissedById], references: [id], onDelete: Restrict)
+
+  @@unique([entity, firstId, secondId])
+  @@index([dismissedById])
+  @@map("duplicate_dismissals")
+}
+
+/// Слияние вуза-дубля в другой (решение 134). Журнал выживания полей и список
+/// перенесённых объектов — чтобы слияние можно было объяснить и отменить.
+/// В журнале только поля вуза и идентификаторы: ФИО и контакты не копируются.
+/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает.
+model UniversityMerge {
+  id           String    @id @default(cuid())
+  sourceId     String    @map("source_id")
+  targetId     String    @map("target_id")
+  mergedById   String    @map("merged_by_id")
+  mergedAt     DateTime  @default(now()) @map("merged_at")
+  /// До какого момента слияние можно отменить.
+  undoUntil    DateTime  @map("undo_until")
+  /// Правила выбора значения по полям: { поле: правило }.
+  fieldRules   Json      @map("field_rules")
+  /// Журнал выживания: по каждому полю — правило, чьё значение осталось, было и стало.
+  survivorship Json
+  /// Идентификаторы перенесённых объектов по таблицам — для отмены.
+  moved        Json
+  /// Состояние цели и источника до слияния — для отмены.
+  before       Json
+  undoneAt     DateTime? @map("undone_at")
+  undoneById   String?   @map("undone_by_id")
+
+  source   University @relation("UniversityMergeSource", fields: [sourceId], references: [id], onDelete: Restrict)
+  target   University @relation("UniversityMergeTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  mergedBy User       @relation("UniversityMergeAuthor", fields: [mergedById], references: [id], onDelete: Restrict)
+  undoneBy User?      @relation("UniversityMergeUndoAuthor", fields: [undoneById], references: [id], onDelete: SetNull)
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@index([mergedById])
+  @@index([undoneById])
+  @@map("university_merges")
 }
 
 // ─────────────────────── Безопасность, волна 2 (решение 133) ───────────────────────

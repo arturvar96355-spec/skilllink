@@ -25,6 +25,7 @@ import {
   ANONYMIZED_CONTACT_FIELDS,
   assertCanArchive,
   assertNotArchived,
+  assertNotMerged,
   basisHistoryKind,
   isAnonymizedContact,
   planBasisChange,
@@ -183,6 +184,9 @@ export function toDetail(
     description: row.description,
     directionCount: row.directionCount,
     studentCount: row.studentCount,
+    inn: row.inn,
+    ogrn: row.ogrn,
+    mergedIntoId: row.mergedIntoId,
     // Обезличенный контакт основным не бывает — и запасным «первым попавшимся» тоже.
     primaryContact:
       contacts.find((contact) => contact.isPrimary) ??
@@ -385,6 +389,9 @@ export async function restore(user: CurrentUser, id: string): Promise<University
   assertCan(user, 'WRITE')
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Вуз не найден')
+  // Слитый дубль возвращается только отменой слияния: иначе его программы и связки
+  // остались бы у другого вуза, а он сам — пустым «двойником» в реестре (решение 134).
+  assertNotMerged(existing.mergedIntoId)
   const row = await repo.update(id, { archivedAt: null, status: 'IN_PROGRESS' })
   await writeAudit({
     userId: user.id,

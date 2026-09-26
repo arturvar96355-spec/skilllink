@@ -35,6 +35,7 @@
     "telegram:digest": "tsx scripts/telegram-digest.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts",
+    "dq:report": "tsx scripts/dq-report.ts",
     "recs:simulate": "tsx scripts/recs-simulate.ts",
     "analytics:report": "tsx scripts/analytics-report.ts"
   },

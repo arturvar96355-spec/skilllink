@@ -66,6 +66,8 @@ async function main(): Promise<void> {
   await prisma.application.deleteMany()
   await prisma.educationalProgram.deleteMany()
   await prisma.contact.deleteMany()
+  // Журнал слияний ссылается на вузы (решение 134): без его очистки вузы не удалить.
+  await prisma.universityMerge.deleteMany()
   await prisma.university.deleteMany()
 
   const admin = await prisma.user.findFirst({ where: { role: { in: ['ADMIN', 'MANAGER'] } } })

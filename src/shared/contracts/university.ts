@@ -127,6 +127,15 @@ export interface UniversityDto extends UniversityListItemDto {
   description: string | null
   directionCount: number | null
   studentCount: number | null
+  /** ИНН организации, 10 цифр (решение 134). null — не заполнен. */
+  inn: string | null
+  /** ОГРН организации, 13 цифр. null — не заполнен. */
+  ogrn: string | null
+  /**
+   * Вуз слит в другой как дубль (решение 134): запись в архиве, её программы, связки
+   * и контакты — у вуза `mergedIntoId`. Слияние можно отменить в течение срока.
+   */
+  mergedIntoId: string | null
   primaryContact: ContactDto | null
   contacts: ContactDto[]
   createdAt: string

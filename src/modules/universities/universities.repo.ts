@@ -46,6 +46,9 @@ const detailSelect = {
   description: true,
   directionCount: true,
   studentCount: true,
+  inn: true,
+  ogrn: true,
+  mergedIntoId: true,
   contacts: {
     orderBy: [{ isPrimary: 'desc' }, { fullName: 'asc' }],
     select: {
