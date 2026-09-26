@@ -128,6 +128,8 @@ export async function insertExtendedDemo(
       region: university.region,
       address: `${university.city}, адрес указан условно`,
       website: `https://example.invalid/${university.key}`,
+      inn: university.inn,
+      ogrn: university.ogrn,
       status: university.status,
       archivedAt: university.archivedAt,
       directionCount: university.directionCount,
