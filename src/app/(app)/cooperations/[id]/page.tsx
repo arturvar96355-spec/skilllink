@@ -31,6 +31,8 @@ import {
   PageHeader,
   PriorityBadge,
   Progress,
+  formatStageProgress,
+  STAGE_PROGRESS_HINT,
   RecommendationStatusBadge,
   Section,
   Skeleton,
@@ -335,7 +337,12 @@ function CooperationContent() {
               из {countableStages.length}
             </span>
           </span>
-          <Progress value={percent} tone={overdueStages > 0 ? 'danger' : 'default'} label="Прогресс связки" />
+          <Progress
+            value={percent}
+            tone={overdueStages > 0 ? 'danger' : 'default'}
+            label="Прогресс связки"
+            title={`${formatStageProgress(closedStages, countableStages.length)}. ${STAGE_PROGRESS_HINT}`}
+          />
           <div className={styles.progressCounts}>
             {overdueStages > 0 && <Badge tone="danger" withDot>Просрочено: {overdueStages}</Badge>}
             {dueSoonStages > 0 && <Badge tone="warning" withDot>Скоро срок: {dueSoonStages}</Badge>}

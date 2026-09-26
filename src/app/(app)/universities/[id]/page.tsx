@@ -35,6 +35,8 @@ import {
   mockMarks,
   PageHeader,
   Progress,
+  formatStageProgress,
+  STAGE_PROGRESS_HINT,
   ProgramStatusBadge,
   Section,
   Skeleton,
@@ -319,7 +321,12 @@ export default function UniversityPage() {
       title: 'Прогресс',
       width: '180px',
       render: (row) => (
-        <Progress value={row.progress.percent} withValue label="Прогресс связки" />
+        <Progress
+          value={row.progress.percent}
+          withValue
+          label="Прогресс связки"
+          title={`${formatStageProgress(row.progress.completedStages + row.progress.cancelledStages, row.progress.totalStages)}. ${STAGE_PROGRESS_HINT}`}
+        />
       ),
     },
     {

@@ -38,6 +38,8 @@ import {
   NO_DATA,
   PageHeader,
   Progress,
+  formatStageProgress,
+  STAGE_PROGRESS_HINT,
   ProgramStatusBadge,
   ROUTES,
   Radar,
@@ -500,7 +502,14 @@ export default function ProgramPage() {
       key: 'progress',
       title: 'Прогресс',
       width: '180px',
-      render: (row) => <Progress value={row.progress.percent} withValue label="Прогресс связки" />,
+      render: (row) => (
+        <Progress
+          value={row.progress.percent}
+          withValue
+          label="Прогресс связки"
+          title={`${formatStageProgress(row.progress.completedStages + row.progress.cancelledStages, row.progress.totalStages)}. ${STAGE_PROGRESS_HINT}`}
+        />
+      ),
     },
     {
       key: 'updatedAt',
