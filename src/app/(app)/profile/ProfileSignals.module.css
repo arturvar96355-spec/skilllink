@@ -1,0 +1,118 @@
+/*
+ * «Система заметила» и «Пульс» в личном кабинете (решение 178, п. 6):
+ * то, что раньше было только в сводке Telegram-бота (решение 120).
+ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+}
+
+.dot.warning {
+  background: var(--status-warning);
+}
+
+.dot.critical {
+  background: var(--status-danger);
+}
+
+.itemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.itemDetail {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
+.itemLink {
+  text-decoration: none;
+}
+
+.itemLink:hover .itemTitle {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Пульс: четыре раздела всегда в одном порядке. */
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.sectionCount {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pulseItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.pulseGroup {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
