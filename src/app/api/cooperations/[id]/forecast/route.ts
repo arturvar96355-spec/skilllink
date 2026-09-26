@@ -4,7 +4,7 @@ import * as service from '@/modules/analytics/forecast.service'
 
 type Context = { params: Promise<{ id: string }> }
 
-/** Прогноз связки: вероятность, источник (модель/правило), статус, объяснение (решение 132). */
+/** Прогноз связки: вероятность, источник (модель/правило), статус, объяснение (решение 135). */
 export const GET = handle<Context>(async (_request, context) => {
   const user = await getCurrentUser()
   const { id } = await context.params

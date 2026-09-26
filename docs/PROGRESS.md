@@ -4,7 +4,7 @@
 
 ## Состояние
 
-**Прогноз «дойдёт ли связка до вехи» (26.09.2026, решение 132, ветка `feat/forecast`).**
+**Прогноз «дойдёт ли связка до вехи» (26.09.2026, решение 135, ветка `feat/forecast`).**
 Логистическая регрессия (L2, метод Ньютона) на чистом TypeScript поверх признаков связки
 на момент времени, без утечки будущего; временное разбиение обучение/проверка, AUC, Brier,
 калибровка, PSI. Ворота публикации: модель заменяет простое правило (частота вехи по
@@ -327,7 +327,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 132); `GET /api/me/pulse` |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |

@@ -1,6 +1,6 @@
 # FORECAST_MODEL.md — прогноз «дойдёт ли связка до вехи»
 
-Решение 132 (docs/TECHNICAL_DECISIONS.md). Код — `src/modules/analytics/forecast-*.ts`,
+Решение 135 (docs/TECHNICAL_DECISIONS.md). Код — `src/modules/analytics/forecast-*.ts`,
 `forecast.repo.ts`, `forecast.service.ts`; настройки — `src/shared/config/forecast.config.ts`
 (все числа там — рабочие гипотезы, помечены `TEMP`).
 

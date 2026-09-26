@@ -47,7 +47,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `contacts_basis_reference_check` | документ-основание и дата фиксации — ровно при заданном основании |
 | `contact_basis_history_consent_status_check` | в истории: статус согласия не `NONE` ровно при `to_basis = CONSENT` |
 | `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
-| `forecast_models_coefficients_check` | коэффициенты модели заполнены ровно тогда, когда статус `PUBLISHED` (миграция `20260926000000_forecast_models`, решение 132) |
+| `forecast_models_coefficients_check` | коэффициенты модели заполнены ровно тогда, когда статус `PUBLISHED` (миграция `20260926000000_forecast_models`, решение 135) |
 | `recommendation_rule_stats_scope_type_check` | уровень статистики — `global`, `university` или `manager` (миграция `20260926120000_recommendation_learning`, решение 119) |
 | `recommendation_rule_stats_counts_check` | счётчики ≥ 0, успехов не больше показов: `successes ≤ trials`, `successes_eff ≤ trials_eff` |
 | `audit_log_chain_check` | у записи журнала есть номер цепочки > 0 и SHA-256; `prev_hash` нет ровно у № 1 (миграция `20260926000000_audit_hash_chain`, решение 115) |
@@ -397,7 +397,7 @@ PK: (`rule_type`, `scope_type`, `scope_id`). Пишется только одн�
 `name` UNIQUE, `type` (MANUAL, CSV, EXTERNAL_API, LMS, SITE, MOCK), `url?`, `collection_date?`,
 `reliability`, `description?`, `is_mock`.
 
-### forecast_models — прогноз «дойдёт ли связка до вехи» (решение 132)
+### forecast_models — прогноз «дойдёт ли связка до вехи» (решение 135)
 
 `milestone_stage` UNIQUE — номер этапа вехи (подписание договора, начало занятий):
 новое обучение заменяет запись той же вехи, `version` растёт. `status` (`PUBLISHED`,
