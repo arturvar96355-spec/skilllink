@@ -1,4 +1,4 @@
-# Стенд жив: каждые 30 минут открываем проверку здоровья и страницу входа.
+# Стенд жив: каждые 30 минут открываем проверку готовности (/api/ready) и страницу входа.
 #
 # С 30.09 по 14.10 стенд проверяют эксперты — асинхронно, без нас рядом. Если он
 # упадёт, узнать надо сразу, а не когда эксперт напишет, что ничего не открывается.
@@ -40,7 +40,12 @@ jobs:
           ok=0
           # Три попытки с паузой: одна потерянная пачка пакетов — ещё не падение.
           for attempt in 1 2 3; do
-            health=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/api/health" || true)
+            # Готовность, а не живость: база и миграции (решение 118).
+            health=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/api/ready" || true)
+            # Стенд, развёрнутый до решения 118, готовности ещё не знает — тогда живость.
+            if [ "$health" = "404" ]; then
+              health=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/api/health" || true)
+            fi
             login=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$STAND_URL/login" || true)
             if [ "$health" = "200" ] && [ "$login" = "200" ]; then ok=1; break; fi
             [ "$attempt" -lt 3 ] && sleep 20

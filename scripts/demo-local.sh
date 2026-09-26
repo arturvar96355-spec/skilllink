@@ -111,8 +111,9 @@ for _ in $(seq 1 60); do
   kill -0 "$SERVER_PID" 2>/dev/null || { tail -20 "$LOG" >&2; fail "сервер остановился — журнал: $LOG"; }
   sleep 1
 done
-curl -fsS -o /dev/null --max-time 2 "http://localhost:$PORT/api/health" ||
-  fail "сервер не ответил за минуту — журнал: $LOG"
+# Живость — процесс поднялся; готовность — видит базу и миграции (решение 118).
+curl -fsS -o /dev/null --max-time 5 "http://localhost:$PORT/api/ready" ||
+  fail "сервер не готов: /api/ready не 200 (база или миграции) — журнал: $LOG"
 echo "   работает (процесс $SERVER_PID)"
 
 step "Сверка со сценарием"

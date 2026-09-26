@@ -213,6 +213,7 @@ interface Identified {
 async function warmUp(): Promise<void> {
   const routes = [
     '/api/health',
+    '/api/ready',
     '/api/users',
     '/api/me',
     '/api/analytics/overview',
@@ -288,8 +289,11 @@ interface SmokeContext extends CreatedUniversity, CreatedCooperation {
 /** Возвращает false, если сервер не отвечает: дальше идти незачем. */
 async function checkDatabase(): Promise<boolean> {
   step('1. Проверка подключения к базе данных')
-  const health = await call<{ status: string; database: string }>('GET', '/api/health')
-  check('GET /api/health отвечает 200', health.status === 200, `статус ${health.status}`)
+  const live = await call<{ status: string }>('GET', '/api/health')
+  check('GET /api/health отвечает 200', live.status === 200, `статус ${live.status}`)
+  // База и миграции — в проверке готовности (решение 118).
+  const health = await call<{ status: string; database: string }>('GET', '/api/ready')
+  check('GET /api/ready отвечает 200', health.status === 200, `статус ${health.status}`)
   check('база данных подключена', health.body.data?.database === 'connected')
 
   if (health.status !== 200) {

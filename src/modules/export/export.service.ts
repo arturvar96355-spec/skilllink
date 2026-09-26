@@ -1,5 +1,6 @@
 import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { noteExport } from '@/shared/ops/security-alerts'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import {
   COOPERATION_STATUS_LABELS,
@@ -297,6 +298,8 @@ export async function exportDataset(
       address: client.address,
     },
   })
+  // Много выгрузок одного пользователя подряд — владельцу (решение 118).
+  noteExport(user.id, request.dataset, data.rows.length)
 
   return {
     fileName: exportFileName(request.dataset),
