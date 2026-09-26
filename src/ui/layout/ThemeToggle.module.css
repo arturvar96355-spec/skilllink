@@ -45,11 +45,11 @@
 
 /* Тёмная тема — показываем луну: круг больше, тень наезжает, лучей нет. */
 .toggle[data-theme-icon='dark'] .core {
-  transform: scale(1.5);
+  transform: scale(1.4);
 }
 
 .toggle[data-theme-icon='dark'] .bite {
-  transform: translate(-7px, 5px);
+  transform: translate(-7px, 6px);
 }
 
 .toggle[data-theme-icon='dark'] .rays {
