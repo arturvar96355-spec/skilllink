@@ -298,7 +298,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 98 маршрутов, 122 операции
+### Модули и эндпоинты — 99 маршрутов, 123 операции
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -326,6 +326,10 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | telegram | `GET`, `POST`, `DELETE /api/me/telegram`; `POST /api/telegram/webhook` — личные уведомления в Telegram, решение 102 |
 | vendors | `GET /api/vendors`; `GET /api/vendors/:id`; `POST /api/import/vendors` — вендоры IT-продуктов, импорт из xlsx/CSV с предпросмотром, решение 132 |
 | school-courses | `GET`, `POST /api/school-courses`; `POST /api/import/site-orders` — заказы с сайта → курсы и потоки школы, показатели набора; `POST /api/import/site-orders/lms-file` — выгрузка файла для LMS по шаблону, решение 132 |
+
+| contacts | `POST /api/contacts/:id/reveal` — раскрытие почты и телефона контакта с причиной, решение 133 |
+| client-errors | `POST /api/client-errors` — приём ошибок фронтенда, без входа, решение 133 |
+| admin (безопасность) | `POST /api/admin/telegram/rotate-webhook-secret`; `GET`, `POST /api/admin/approvals`; `POST …/:id/approve`, `POST …/:id/reject`; `GET /api/admin/audit/export` — решение 133 |
 | dsar | `GET /api/me/data-export`; `GET /api/admin/dsar/users/:id/export`, `GET /api/admin/dsar/contacts/:id/export`; `POST /api/admin/dsar/users/:id/erase`, `POST /api/admin/dsar/contacts/:id/erase`; `GET`, `POST /api/admin/dsar/requests` — права субъекта ПД, решение 116 |
 
 ### Workflow
@@ -481,7 +485,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 97 путей, 122 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 98 путей, 123 операции. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

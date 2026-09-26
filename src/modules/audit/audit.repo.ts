@@ -188,3 +188,25 @@ export async function loadUniversityEvents(universityId: string, limit: number) 
 
   return { cooperations, stageHistory, documentHistory, meetings, applications }
 }
+
+// ─────────────── Выгрузка для внешней системы сбора событий (решение 133) ───────────────
+
+/**
+ * Записи журнала после `afterId` в порядке (время, id) — все колонки модели,
+ * какие бы в ней ни появились (`select` не задан намеренно: цепочка хешей и другие
+ * будущие колонки уходят в выгрузку без правки этого места).
+ *
+ * `afterId` неизвестен — `null`: курсор потерян (запись удалена по сроку хранения),
+ * выгрузку надо начать заново или с другого курсора.
+ */
+export async function findAuditPageAfter(afterId: string | null, limit: number) {
+  let where: Prisma.AuditLogWhereInput = {}
+  if (afterId) {
+    const cursor = await prisma.auditLog.findUnique({ where: { id: afterId }, select: { id: true, createdAt: true } })
+    if (!cursor) return null
+    where = {
+      OR: [{ createdAt: { gt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { gt: cursor.id } }],
+    }
+  }
+  return prisma.auditLog.findMany({ where, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit })
+}

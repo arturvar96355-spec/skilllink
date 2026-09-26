@@ -109,6 +109,18 @@ export const AUDIT_ACTIONS = [
   /** Файл «Загрузка пользователей» для LMS: сколько строк, без ПД. */
   'export.lms_users',
   'school_course.create',
+  // ── Решение 123: безопасность, волна 2 ──
+  /** Сменён секрет вебхука Telegram. Без самого секрета — только хост вебхука. */
+  'telegram.webhook_secret_rotated',
+  /** Раскрыты почта и/или телефон контакта: перечень полей и причина (почта и телефоны в ней замаскированы). */
+  'contact.revealed',
+  /** «Четыре глаза»: запрос на опасную операцию, одобрение, отказ, использование одобрения. */
+  'approval.requested',
+  'approval.approved',
+  'approval.rejected',
+  'approval.consumed',
+  /** Выгрузка журнала для внешней системы сбора событий: курсор, число строк, последний id. */
+  'audit.export',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -135,6 +147,8 @@ export const AUDIT_OBJECT_TYPES = [
   'Import',
   'AuditLog',
   'SchoolCourse',
+  'SystemSecret',
+  'Approval',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

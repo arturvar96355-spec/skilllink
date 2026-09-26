@@ -94,7 +94,8 @@ async function clean(): Promise<void> {
   await prisma.dataSource.deleteMany()
   await prisma.user.updateMany({ data: { universityId: null } })
   await prisma.university.deleteMany()
-  // Реестр запросов субъектов ссылается на пользователей (RESTRICT) — до них.
+  // Одобрения и реестр запросов субъектов ссылаются на пользователей (RESTRICT) — до них.
+  await prisma.approval.deleteMany()
   await prisma.dsarRequest.deleteMany()
   await prisma.user.deleteMany()
 }

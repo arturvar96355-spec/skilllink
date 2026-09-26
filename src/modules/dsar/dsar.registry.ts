@@ -87,6 +87,9 @@ const KEEP_AUDIT =
   '(ст. 19, ч. 3 ст. 9 152-ФЗ; п. 7 ч. 1 ст. 6 — законный интерес); удаляется по сроку хранения (1 год)'
 const KEEP_DSAR =
   'реестр запросов субъектов — доказательство исполнения ст. 14 и 20; ПД в нём нет, кроме идентификаторов'
+const KEEP_SECURITY =
+  'административная запись безопасности (решение 133): доказательство контроля над опасными операциями ' +
+  'и секретами, как и журнал действий; ПД в ней нет, только идентификатор администратора'
 
 const AUDIT_SELECT = {
   id: true,
@@ -386,6 +389,40 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_DSAR,
   },
   {
+    section: 'systemRotations',
+    model: 'SystemSecret',
+    title: 'Смена системных секретов',
+    links: ['rotatedById'],
+    select: { name: true, rotatedAt: true },
+    orderBy: { rotatedAt: 'desc' },
+    tieBreaker: { name: 'asc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
+    section: 'approvalsInvolved',
+    model: 'Approval',
+    title: '«Четыре глаза»: запросы и решения по опасным операциям с участием пользователя',
+    links: ['requestedById', 'approvedById', 'rejectedById'],
+    select: { id: true, action: true, status: true, createdAt: true, decidedAt: true },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
+    section: 'idempotencyKeys',
+    model: 'IdempotencyKey',
+    title: 'Ключи идемпотентности недавних запросов',
+    links: ['userId'],
+    select: { key: true, status: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    tieBreaker: { key: 'asc' },
+    erase: 'keep',
+    reason:
+      'техническая защита от повтора формы (решение 133), не сведения о человеке: живёт не дольше 24 часов ' +
+      'и чистится сама (retention.ts); тело ответа не содержит ФИО, почту и телефон отдельно от самой записи',
+  },
+  {
     section: 'auditByActor',
     model: 'AuditLog',
     title: 'Действия, совершённые пользователем',
@@ -581,6 +618,7 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   CourseStream: 'поток курса — справочник, без ПД (решение 132)',
   // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
   // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
+  TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',
   RecommendationRuleStats: 'счётчики обучения правила (показы, успехи) по общей/вузовской/менеджерской области; ' +
     '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',
 }

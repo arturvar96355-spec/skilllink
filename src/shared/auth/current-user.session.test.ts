@@ -55,7 +55,7 @@ describe('ошибка чтения сессии', () => {
     expect(failure).toBeInstanceOf(AppError)
     expect((failure as AppError).code).toBe('INTERNAL')
     expect(mocks.findMany).not.toHaveBeenCalled()
-    expect(logged).toHaveBeenCalledWith('[AUTH] не удалось прочитать сессию:', expect.any(String))
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining('[AUTH] не удалось прочитать сессию'))
   })
 
   it('без сессии демо-режим по-прежнему выбирает пользователя по умолчанию', async () => {

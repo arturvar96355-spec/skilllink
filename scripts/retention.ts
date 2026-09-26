@@ -25,6 +25,11 @@
  * Расписание — cron владельца сервера, docs/DEPLOY.md; пока не включено.
  *
  * Факт применения пишется в сам журнал (`audit.retention`) — только числа.
+ *
+ * Попутно (решение 133) — служебные таблицы без ПД: отметки обработанных
+ * обновлений Telegram старше 7 суток, ключи идемпотентности старше 24 часов,
+ * просроченные запросы на одобрение (статус EXPIRED). Приложение чистит их
+ * и само, при работе; здесь — для стенда, где запросов давно не было.
  */
 
 import 'dotenv/config'
@@ -32,6 +37,8 @@ import { PrismaClient } from '@/generated/prisma/client'
 import type { Prisma } from '@/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { RETENTION } from '@/shared/config/retention.config'
+import { TELEGRAM_WEBHOOK } from '@/shared/config/telegram.config'
+import { IDEMPOTENCY } from '@/shared/config/idempotency.config'
 import { writeAudit } from '@/shared/audit/audit'
 import {
   planRetention,
@@ -137,6 +144,30 @@ async function stripAddresses(
   return stripped
 }
 
+/** Служебные таблицы решения 133: только числа, без ПД. */
+async function cleanServiceTables(prisma: PrismaClient, apply: boolean): Promise<void> {
+  const now = Date.now()
+  const seenBefore = new Date(now - TELEGRAM_WEBHOOK.seenRetentionDays * 86_400_000)
+  const keysBefore = new Date(now - IDEMPOTENCY.ttlMs)
+  const expiring = { status: { in: ['REQUESTED', 'APPROVED'] as const }, expiresAt: { lte: new Date(now) } }
+  if (!apply) {
+    const [seen, keys, approvals] = await Promise.all([
+      prisma.telegramUpdateSeen.count({ where: { seenAt: { lt: seenBefore } } }),
+      prisma.idempotencyKey.count({ where: { createdAt: { lt: keysBefore } } }),
+      prisma.approval.count({ where: { status: { in: ['REQUESTED', 'APPROVED'] }, expiresAt: { lte: new Date(now) } } }),
+    ])
+    console.log(`Служебные таблицы: отметок Telegram к удалению ${seen}, ключей идемпотентности ${keys}, одобрений истекло ${approvals}`)
+    return
+  }
+  const seen = await prisma.telegramUpdateSeen.deleteMany({ where: { seenAt: { lt: seenBefore } } })
+  const keys = await prisma.idempotencyKey.deleteMany({ where: { createdAt: { lt: keysBefore } } })
+  const approvals = await prisma.approval.updateMany({
+    where: { status: { in: [...expiring.status.in] }, expiresAt: expiring.expiresAt },
+    data: { status: 'EXPIRED' },
+  })
+  console.log(`Служебные таблицы: удалено отметок Telegram ${seen.count}, ключей идемпотентности ${keys.count}; одобрений истекло ${approvals.count}`)
+}
+
 async function main(): Promise<void> {
   const mode = parseMode(process.argv.slice(2))
   const url = process.env.DATABASE_URL
@@ -159,6 +190,7 @@ async function main(): Promise<void> {
     )
 
     const plan = await describeDeletion(prisma, cutoffs)
+    await cleanServiceTables(prisma, mode === 'apply')
 
     if (mode === 'dry-run') {
       const toStrip = await stripAddresses(prisma, cutoffs, false)
