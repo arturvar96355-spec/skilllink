@@ -557,7 +557,7 @@
  * Размытие под шапкой на время сборки выключено: под ней летят блоки, и
  * размытие пересчитывалось каждый кадр — конец входа от этого подтормаживал.
  */
-.arrival .header {
+.assembling .header {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   background: var(--canvas);
