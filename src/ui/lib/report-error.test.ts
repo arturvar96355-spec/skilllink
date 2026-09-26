@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('reportClientError', () => {
   it('шлёт сообщение, стек, код и адрес без строки запроса', () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }))
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 }))
     vi.stubGlobal('fetch', fetchMock)
     vi.stubGlobal('window', {
       location: { origin: 'https://skilllink.example', pathname: '/cooperations/1', search: '?q=Иванов', hash: '#top' },
@@ -26,8 +26,8 @@ describe('reportClientError', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const [url, init] = fetchMock.mock.calls[0]!
     expect(url).toBe('/api/client-errors')
-    expect(init.method).toBe('POST')
-    const body = JSON.parse(init.body as string)
+    expect(init?.method).toBe('POST')
+    const body = JSON.parse(init!.body as string)
     expect(body).toEqual({
       message: 'Cannot read properties of undefined',
       stack: error.stack,
