@@ -50,6 +50,21 @@ describe('ограничения схемы, которые живут толь�
     expect(schema).toMatch(/@@index\(\[responsibleId\]\)/)
   })
 
+  it('решение 190: индексы ревью базы — журнал по действию, связки по статусу и дате', () => {
+    // audit.repo.ts: findAuditEntries фильтрует по action и сортирует по created_at.
+    expect(schema).toMatch(/@@index\(\[action, createdAt\]\)/)
+    // analytics.repo.ts: countCooperationsOpenAt фильтрует по status и created_at.
+    expect(schema).toMatch(/@@index\(\[status, createdAt\]\)/)
+  })
+
+  it('решение 190: точный поиск вуза при импорте — индекс по выражению lower(name)', () => {
+    // Обычный B-tree по name бесполезен для ILIKE (equals + mode: 'insensitive') —
+    // Prisma индексы по выражению не описывает, поэтому индекс живёт только в SQL миграции.
+    expect(migrations).toContain('universities_name_lower_idx')
+    expect(migrations).toMatch(/ON "universities" \(lower\("name"\)\)/)
+    expect(schema).toContain('universities_name_lower_idx')
+  })
+
   it('статистика правил рекомендаций: успехов не больше показов (решение 119)', () => {
     // successes_eff ≤ trials_eff держит запись (GREATEST в upsert); CHECK — страховка.
     expect(migrations).toContain('recommendation_rule_stats_counts_check')

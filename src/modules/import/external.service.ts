@@ -99,6 +99,10 @@ export async function importExternal(input: ExternalImportInput): Promise<Extern
     cooperationOutcome = 'updated'
   } else {
     const startedAt = new Date()
+    // Ключ идемпотентности пишется в той же транзакции, что и связка (решение 190,
+    // ревью базы): иначе сбой между созданием связки и записью ключа оставил бы
+    // связку без ключа, и повторный запрос с тем же (source, externalId) не нашёл
+    // бы её и завёл вторую такую же.
     cooperationId = await prisma.$transaction(async (tx) => {
       await cooperationRepo.lockProgram(tx, program.id)
       const duplicate = await cooperationRepo.findOpenDuplicate(tx, {
@@ -106,9 +110,12 @@ export async function importExternal(input: ExternalImportInput): Promise<Extern
         programId: program.id,
         productId: product.id,
       })
-      if (duplicate) return duplicate.id
+      if (duplicate) {
+        await repo.createLink(input.source, input.externalId, duplicate.id, tx)
+        return duplicate.id
+      }
 
-      return cooperationRepo.createWithStages(
+      const created = await cooperationRepo.createWithStages(
         tx,
         {
           university: { connect: { id: university.id } },
@@ -120,8 +127,9 @@ export async function importExternal(input: ExternalImportInput): Promise<Extern
         },
         buildStages(startedAt, responsible.id),
       )
+      await repo.createLink(input.source, input.externalId, created, tx)
+      return created
     })
-    await repo.createLink(input.source, input.externalId, cooperationId)
     cooperationOutcome = 'created'
   }
 

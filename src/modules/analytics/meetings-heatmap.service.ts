@@ -5,6 +5,7 @@ import { intersectUniversityFilter } from '@/shared/auth/scope'
 import { MEETINGS_HEATMAP } from '@/shared/config/data-quality.config'
 import type { MeetingsHeatmapDto } from '@/shared/contracts/data-quality'
 import { validationError } from '@/shared/http/errors'
+import { addDays } from '@/shared/utils/date'
 import { findHeldMeetings } from './meetings-heatmap.repo'
 import { buildHeatmap, DAY_LABELS } from './meetings-heatmap.rules'
 
@@ -30,12 +31,16 @@ export async function meetingsHeatmap(
   now: Date = new Date(),
 ): Promise<MeetingsHeatmapDto> {
   assertCan(user, 'ANALYTICS')
-  const from = query.from ? new Date(query.from) : null
+  const explicitFrom = query.from ? new Date(query.from) : null
   const requestedTo = query.to ? new Date(query.to) : now
   const to = requestedTo.getTime() > now.getTime() ? now : requestedTo
-  if (from && from.getTime() > to.getTime()) {
+  if (explicitFrom && explicitFrom.getTime() > to.getTime()) {
     throw validationError('Начало периода позже конца', [{ field: 'from', message: 'Укажите дату не позже конца периода' }])
   }
+  // Без явного from — не вся история с начала данных, а последние 12 месяцев
+  // до to (решение 190, ревью базы): иначе каждое открытие карты выгружало все
+  // встречи, сколько бы их ни накопилось.
+  const from = explicitFrom ?? addDays(to, -MEETINGS_HEATMAP.defaultRangeDays)
 
   const filter = intersectUniversityFilter(universityScope(user), query.universityId)
   const meetings = filter === null ? [] : await findHeldMeetings(filter, from, to)
@@ -46,7 +51,7 @@ export async function meetingsHeatmap(
     timeZone: MEETINGS_HEATMAP.timeZone,
     total: meetings.length,
     max: Math.max(0, ...cells.flat()),
-    from: from?.toISOString() ?? null,
+    from: from.toISOString(),
     to: to.toISOString(),
     isMock: meetings.some((meeting) => meeting.isMock),
   }

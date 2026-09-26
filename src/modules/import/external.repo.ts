@@ -12,12 +12,21 @@ export async function findLink(source: ExternalImportSource, externalId: string)
   })
 }
 
+/**
+ * Пишет ключ идемпотентности повторной загрузки. Принимает клиент транзакции
+ * (решение 190, ревью базы): связку и ссылку на неё нужно создавать в одной
+ * транзакции — иначе сбой между ними (обрыв соединения, падение процесса)
+ * оставляет связку с полным набором этапов без ключа идемпотентности, и
+ * повторный запрос с тем же (source, externalId) не находит её и заводит
+ * вторую такую же.
+ */
 export async function createLink(
   source: ExternalImportSource,
   externalId: string,
   cooperationId: string,
+  client: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<void> {
-  await prisma.externalImportLink.create({ data: { source, externalId, cooperationId } })
+  await client.externalImportLink.create({ data: { source, externalId, cooperationId } })
 }
 
 export async function findUniversityByInn(inn: string) {

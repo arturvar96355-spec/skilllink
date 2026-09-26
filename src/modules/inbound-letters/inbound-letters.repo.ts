@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import type { AiDraftSource } from '@/shared/contracts/ai-assist'
+import { createTtlMemo } from '@/shared/cache/ttl-memo'
 import { everyWordInSomeField } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
@@ -173,22 +174,33 @@ export interface UniversityDomainCandidate {
   domains: string[]
 }
 
+/**
+ * Кеш на минуту, без ключа по области видимости (решение 190, ревью базы):
+ * опознание письма по домену не завязано на роль или вуз того, кто его
+ * читает — все действующие вузы и их контакты нужны целиком при каждом
+ * входящем письме, а обновляются сайт вуза и почты контактов не поминутно.
+ */
+const UNIVERSITY_DOMAINS_TTL_MS = 60_000
+const universityDomainsMemo = createTtlMemo<'*', UniversityDomainCandidate[]>(UNIVERSITY_DOMAINS_TTL_MS)
+
 /** Домены вузов: сайт вуза + почты его контактных лиц. */
-export async function findUniversityDomains(): Promise<UniversityDomainCandidate[]> {
-  const universities = await prisma.university.findMany({
-    where: { archivedAt: null, mergedIntoId: null },
-    select: { id: true, website: true, contacts: { select: { email: true } } },
-  })
-  return universities.map((university) => {
-    const domains = new Set<string>()
-    const websiteDomain = university.website ? domainFromWebsite(university.website) : null
-    if (websiteDomain) domains.add(websiteDomain)
-    for (const contact of university.contacts) {
-      if (!contact.email) continue
-      const domain = emailDomain(contact.email)
-      if (domain) domains.add(domain)
-    }
-    return { universityId: university.id, domains: [...domains] }
+export async function findUniversityDomains(now: Date = new Date()): Promise<UniversityDomainCandidate[]> {
+  return universityDomainsMemo('*', now, async () => {
+    const universities = await prisma.university.findMany({
+      where: { archivedAt: null, mergedIntoId: null },
+      select: { id: true, website: true, contacts: { select: { email: true } } },
+    })
+    return universities.map((university) => {
+      const domains = new Set<string>()
+      const websiteDomain = university.website ? domainFromWebsite(university.website) : null
+      if (websiteDomain) domains.add(websiteDomain)
+      for (const contact of university.contacts) {
+        if (!contact.email) continue
+        const domain = emailDomain(contact.email)
+        if (domain) domains.add(domain)
+      }
+      return { universityId: university.id, domains: [...domains] }
+    })
   })
 }
 
