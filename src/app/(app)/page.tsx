@@ -996,7 +996,13 @@ function Dashboard() {
           {/* Финал главной (решение 125): сеть SkillLink — только в презентационном режиме. */}
           {showcase && (funnelSource.data?.length ?? 0) > 0 && (
             <div className={styles.reveal} data-assemble="center" style={{ '--delay': '760ms' } as CSSProperties}>
-              <Section title="Сеть SkillLink" description="Вузы → программы → навыки → IT-продукты.">
+              {/*
+                Честность «витрины» (решение 180, п. 3): вуз → программа → продукт —
+                настоящие связки из данных, а расположение навыков на схеме —
+                иллюстрация (самые востребованные рынком в целом, не для конкретной
+                программы). Заголовок и подпись под схемой говорят это прямо.
+              */}
+              <Section title="Сеть SkillLink (схема)" description="Вузы → программы → продукты — настоящие связки. Навыки на пути — самые востребованные рынком, показаны схематично.">
                 <Finale cooperations={funnelSource.data ?? []} skills={(gaps.data ?? []).map((gap) => gap.name)} />
               </Section>
             </div>
