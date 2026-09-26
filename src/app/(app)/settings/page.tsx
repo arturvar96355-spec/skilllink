@@ -30,6 +30,7 @@ import {
 } from '@/ui'
 import { AdminChannelsSection } from './AdminChannelsSection'
 import { AuditSection } from './AuditSection'
+import { DsarSection } from './DsarSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
@@ -78,6 +79,7 @@ const SECTIONS = [
   { key: 'users', label: 'Пользователи', icon: 'user', adminOnly: true },
   { key: 'workflow', label: 'Этапы работы', icon: 'calendar', adminOnly: true },
   { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
+  { key: 'dsar', label: 'Запросы субъектов', icon: 'lock', adminOnly: true },
   { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
 ] as const
 
@@ -85,7 +87,7 @@ type SectionKey = (typeof SECTIONS)[number]['key']
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
-const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'audit']
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'audit', 'dsar']
 
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
@@ -274,6 +276,8 @@ export default function SettingsPage() {
       'Шаблон 14 этапов, по которому заводятся новые связки. Правка названия и срока касается только новых связок — уже заведённые остаются как есть, если явно не попросить пересчитать.',
     audit:
       'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
+    dsar:
+      'Запросы субъектов персональных данных по 152-ФЗ: сведения о себе (ст. 14), уничтожение (ст. 20, 21). Открытые запросы закрываются выгрузкой или обезличиванием.',
   }
 
   function body(): ReactNode {
@@ -387,6 +391,9 @@ export default function SettingsPage() {
 
       case 'audit':
         return isAdmin ? <AuditSection /> : null
+
+      case 'dsar':
+        return isAdmin ? <DsarSection /> : null
 
       case 'about':
         return (

@@ -59,6 +59,37 @@ function detailFor(error: unknown, field: string): string | null {
 
 // ─────────────────────────── Раскрытие почты и телефона ───────────────────────────
 
+/**
+ * Идентификатор контакта нигде в разметке не показан (описания и подсказки
+ * прячут id по правилу дизайн-системы), но он же нужен, чтобы зарегистрировать
+ * запрос субъекта ПД на этот контакт («Настройки → Запросы субъектов», решение 181):
+ * своего поиска контактов по ФИО там нет. Кнопка — только тем, кто и создаёт
+ * такие запросы (ADMIN, право DSAR_MANAGE).
+ */
+function CopyContactIdButton({ contact }: { contact: ContactDto }) {
+  const toast = useToast()
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(contact.id)
+      toast.success('Идентификатор контакта скопирован')
+    } catch {
+      toast.info(`Скопировать не удалось — идентификатор: ${contact.id}`)
+    }
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={copy}
+      title="Для запроса субъекта ПД («Настройки → Запросы субъектов»)"
+    >
+      Скопировать id
+    </Button>
+  )
+}
+
 function RevealAction({ contact }: { contact: ContactDto }) {
   const toast = useToast()
   const [isOpen, setIsOpen] = useState(false)
@@ -528,10 +559,11 @@ function ContactRow({
         {!contact.isAnonymized && <LegalBasisBlock contact={contact} universityId={universityId} canWrite={canWrite} onChanged={onChanged} />}
 
         {isAdmin && !contact.isAnonymized && (
-          <span>
+          <span className={styles.contactActions}>
             <Button variant="ghost" size="sm" onClick={() => setAnonymizing(true)}>
               Удалить персональные данные
             </Button>
+            <CopyContactIdButton contact={contact} />
           </span>
         )}
       </span>

@@ -21,6 +21,7 @@ export function DownloadButton({
   variant = 'secondary',
   size,
   title,
+  onDownloaded,
 }: {
   href: string
   /** Имя файла, если сервер его не прислал. */
@@ -29,6 +30,12 @@ export function DownloadButton({
   variant?: ButtonProps['variant']
   size?: ButtonProps['size']
   title?: string
+  /**
+   * Файл скачан. Нужен, когда скачивание — ещё и действие на сервере
+   * (выгрузка «всё о субъекте» закрывает открытый запрос субъекта, решение 116):
+   * список запросов после неё стоит перечитать.
+   */
+  onDownloaded?: (filename: string) => void
 }) {
   const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
@@ -39,6 +46,7 @@ export function DownloadButton({
     try {
       const { filename } = await apiDownload(href, fallbackName)
       toast.success(`Файл «${filename}» скачан`)
+      onDownloaded?.(filename)
     } catch (error) {
       toast.error(error instanceof ApiRequestError ? error.message : 'Не удалось скачать файл. Попробуйте ещё раз.')
     } finally {
