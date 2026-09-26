@@ -10,7 +10,7 @@ import { WARP_NAVIGATE_MS } from './Constellation'
 import { TiltCard } from './Depth'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { EXPERT_QUICK_LOGIN_ROLES, LOGIN_CAPTCHA, LOGIN_THROTTLE } from '@/shared/config/auth.config'
-import { Button, Icon, Input, ROUTES } from '@/ui'
+import { Button, Icon, Input, OPEN_SOURCE_REPO_URL, ROUTES } from '@/ui'
 import { passCaptcha } from './captcha-solver'
 import styles from './login.module.css'
 
@@ -51,12 +51,28 @@ function quickLoginErrorMessage(code: string | null): string {
   return 'Быстрый вход недоступен для этой учётной записи.'
 }
 
+/**
+ * Отказ единого входа через Keycloak (решение 188). `AccessDenied` — signIn()
+ * в `auth.ts` не нашёл активную учётную запись SkillLink с этой почтой: сама
+ * почта не называется — по тем же причинам, что и у обычного входа.
+ */
+function ssoErrorMessage(error: string | null): string | null {
+  if (!error) return null
+  if (error === 'AccessDenied') {
+    return 'Эта учётная запись Keycloak не сопоставлена с пользователем SkillLink, либо доступ заблокирован. ' +
+      'Обратитесь к администратору или войдите электронной почтой и паролем.'
+  }
+  return 'Единый вход не удался. Попробуйте ещё раз или войдите электронной почтой и паролем.'
+}
+
 export interface LoginFormProps {
   /** Показывать ли блок «Вход для экспертов хакатона» (решение 176). */
   expertQuickLoginEnabled: boolean
+  /** Показывать ли кнопку «Войти через Keycloak» (решение 188, переменные `KEYCLOAK_*`). */
+  keycloakEnabled: boolean
 }
 
-function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
+function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormProps) {
   const router = useRouter()
   const params = useSearchParams()
   const [email, setEmail] = useState('')
@@ -64,10 +80,15 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
   const [isPending, setIsPending] = useState(false)
   /** Ключ кнопки быстрого входа, которая сейчас ждёт ответ сервера — не более одной сразу. */
   const [quickPending, setQuickPending] = useState<string | null>(null)
+  /** Единый вход через Keycloak (решение 188) ждёт перехода на экран Keycloak. */
+  const [ssoPending, setSsoPending] = useState(false)
   /** Вход удался: панель уходит с экрана, и только потом открывается приложение. */
   const [isLeaving, setIsLeaving] = useState(false)
+  const initialError = params.get('error')
   const [message, setMessage] = useState<string | null>(
-    errorMessage(params.get('error'), params.get('code')),
+    // AccessDenied приходит только от signIn() провайдера keycloak (auth.ts) —
+    // Credentials и expert отказывают своим кодом через CredentialsSignin.
+    initialError === 'AccessDenied' ? ssoErrorMessage(initialError) : errorMessage(initialError, params.get('code')),
   )
   /**
    * Проверка «не робот» (решение 100): сервер попросил её после нескольких неудач.
@@ -78,7 +99,7 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
   // например, демо-данные перезалиты и пользователи созданы заново.
   const isReauth = params.has(REAUTH_PARAM)
 
-  const busy = isPending || isLeaving || quickPending !== null
+  const busy = isPending || isLeaving || quickPending !== null || ssoPending
 
   /**
    * Общий хвост удачного входа — паролем или кнопкой эксперта: одна и та же
@@ -185,6 +206,31 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
     proceedAfterSignIn()
   }
 
+  /**
+   * Единый вход через Keycloak (решение 188): полноценный переход на экран
+   * Keycloak, а не запрос без перезагрузки, как у Credentials, — OpenID
+   * Connect по-другому не работает. `signIn()` сам сделает `window.location`
+   * на адрес Keycloak; отметка сцены прихода выставляется заранее, потому что
+   * после возврата (`/api/auth/callback/keycloak` → `destination`) это уже
+   * новая загрузка страницы, и этот компонент её не увидит.
+   */
+  async function onKeycloakLogin() {
+    setMessage(null)
+    setSsoPending(true)
+    const destination = safeReturnPath(params.get('from'))
+    try {
+      window.sessionStorage.setItem(ARRIVAL_KEY, '1')
+    } catch {
+      // Без хранилища — просто без продолжения сцены после возврата от Keycloak.
+    }
+    try {
+      await signIn('keycloak', { callbackUrl: destination })
+    } catch {
+      setSsoPending(false)
+      setMessage('Сервер не ответил. Проверьте подключение и попробуйте ещё раз.')
+    }
+  }
+
   return (
     <TiltCard resting={isLeaving}>
       <div className={[styles.panel, isLeaving ? styles.leaving : ''].filter(Boolean).join(' ')}>
@@ -196,6 +242,23 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
             Рабочая почта и пароль. Учётные записи заводит администратор системы.
           </p>
         </div>
+
+        {keycloakEnabled && (
+          <div className={styles.ssoLogin}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              fullWidth
+              isLoading={ssoPending}
+              disabled={busy && !ssoPending}
+              onClick={onKeycloakLogin}
+            >
+              Войти через Keycloak (единый вход)
+            </Button>
+            <p className={styles.ssoDivider}>или почтой и паролем</p>
+          </div>
+        )}
 
         <form className={styles.form} onSubmit={onSubmit}>
           <Input
@@ -294,6 +357,18 @@ function LoginFormInner({ expertQuickLoginEnabled }: LoginFormProps) {
           <Link href={ROUTES.privacy} className={styles.privacyLink}>
             Политика обработки персональных данных
           </Link>
+        </p>
+
+        {/* Ссылка на открытый репозиторий — заметно на стенде (решение владельца). */}
+        <p className={styles.note}>
+          <a
+            href={OPEN_SOURCE_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.privacyLink}
+          >
+            Открытый код: github.com/arturvar96355-spec/skilllink
+          </a>
         </p>
       </div>
     </TiltCard>

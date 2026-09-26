@@ -33,6 +33,11 @@ const READ_BY_LIBRARIES = new Set([
   'GRAFANA_ADMIN_PASSWORD',
   'PROMETHEUS_PORT',
   'GRAFANA_PORT',
+  // Единый вход через Keycloak (решение 188) — настройка контейнера `keycloak`
+  // в docker-compose.yml (профиль `keycloak`), не читает сам код приложения.
+  'KEYCLOAK_DB_NAME',
+  'KEYCLOAK_HOSTNAME',
+  'KEYCLOAK_PORT',
 ])
 
 function collectSources(directory: string, found: string[] = []): string[] {

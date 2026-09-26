@@ -429,7 +429,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-input);
   background: var(--danger-surface);
-  border: 1px solid rgba(240, 97, 111, 0.3);
+  border: 1px solid var(--danger-border);
   color: var(--text-danger-strong);
   font-size: var(--text-body-sm-size);
   line-height: 1.45;
@@ -452,6 +452,37 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
   line-height: 1.45;
+}
+
+/*
+ * Единый вход через Keycloak (решение 188): кнопка над формой пароля, в том же
+ * стекле, что и панель, со своей границей снизу — Keycloak сам проверяет
+ * пароль и защиту от перебора, форма пароля остаётся вторым способом входа,
+ * а не заменяется. Пунктирный разделитель «или» — обычная граница между
+ * двумя способами входа, не часть ни одного из них.
+ */
+.ssoLogin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+.ssoDivider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.ssoDivider::before,
+.ssoDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--glass-edge);
 }
 
 /*

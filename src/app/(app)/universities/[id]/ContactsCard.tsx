@@ -103,7 +103,10 @@ function RevealAction({ contact }: { contact: ContactDto }) {
 
   async function submit() {
     const result = await reveal.run({ reason: reason.trim() })
-    if (!result.ok) return
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
     setRevealed(result.data)
     setIsOpen(false)
     setReason('')
@@ -176,6 +179,7 @@ function EditBasisModal({
   onClose: () => void
   onChanged: (contact: ContactDto) => void
 }) {
+  const toast = useToast()
   const current = contact.legalBasis
   const [basis, setBasis] = useState<ContactLegalBasis>(current?.basis ?? 'LEGITIMATE_INTEREST')
   const [documentReference, setDocumentReference] = useState(current?.documentReference ?? '')
@@ -201,7 +205,10 @@ function EditBasisModal({
       consentForm: isConsent && consentForm !== '' ? consentForm : null,
       consentContext: isConsent && consentContext.trim() !== '' ? consentContext.trim() : null,
     })
-    if (!result.ok) return
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
     onChanged(result.data)
     onClose()
   }
@@ -302,7 +309,10 @@ function WithdrawConsentModal({
 
   async function submit() {
     const result = await withdraw.run({ withdrawalReference: withdrawalReference.trim() })
-    if (!result.ok) return
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
     toast.success('Согласие отозвано. Согласие было единственным основанием — контакт обезличен.')
     onChanged(result.data)
     onClose()
