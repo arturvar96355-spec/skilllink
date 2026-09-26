@@ -1,4 +1,5 @@
 import { TelegramClient, type TelegramWebhookInfo } from '@/integrations/telegram'
+import type { TelegramMode } from '@/integrations/config'
 import { effectiveTelegramConfig, TELEGRAM_MODE_SECRET_NAME } from '@/integrations/telegram/runtime-config'
 import { writeAudit } from '@/shared/audit/audit'
 import { notifyOwner } from '@/shared/ops/owner-alert'
@@ -231,13 +232,28 @@ export async function checkAutoMode(secret: string): Promise<void> {
 export async function start(secret: string): Promise<void> {
   const config = effectiveTelegramConfig()
   if (!config.enabled) return
-  runtimeSecret = secret
+  await applyMode(secret, config.mode)
+}
 
-  if (config.mode === 'polling') {
+/**
+ * Переключить на конкретный режим — при старте (`start`) и когда администратор
+ * меняет режим в админке (`PUT /api/admin/telegram/mode`, решение 142). Останавливает
+ * прежний auto-таймер (иначе смена режима туда-обратно копила бы их) и прежний
+ * цикл polling, если он не нужен новому режиму. Идемпотентна: повторный вызов
+ * с тем же режимом не создаёт второй цикл или второй таймер.
+ */
+export async function applyMode(secret: string, mode: TelegramMode): Promise<void> {
+  runtimeSecret = secret
+  if (autoTimer) {
+    clearInterval(autoTimer)
+    autoTimer = null
+  }
+  if (mode === 'polling') {
     await startPollingLoop(secret)
     return
   }
-  if (config.mode === 'auto') {
+  await stopPollingLoop()
+  if (mode === 'auto') {
     await checkAutoMode(secret) // сразу же, не только через 5 минут
     autoTimer = setInterval(() => {
       checkAutoMode(secret).catch((error: unknown) => log.error('[telegram] auto: проверка не выполнена', { err: error }))
@@ -246,7 +262,7 @@ export async function start(secret: string): Promise<void> {
   // mode === 'webhook': ни цикла, ни таймера — вебхук работает сам по себе.
 }
 
-/** Аккуратная остановка (SIGTERM, решение 118): дожидается текущей попытки цикла. */
+/** Аккуратная остановка (SIGTERM, решение 118, или бот полностью отключён в админке). */
 export async function stop(): Promise<void> {
   if (autoTimer) {
     clearInterval(autoTimer)

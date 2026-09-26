@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   getUpdatesQueue: [] as GetUpdatesResult[],
   getUpdatesCalls: [] as Array<{ offset?: number }>,
   webhookInfoQueue: [] as WebhookInfoResult[],
+  webhookInfoCalls: 0,
   deleteWebhookCalls: 0,
   acceptUpdate: vi.fn(async () => true),
   handleUpdate: vi.fn(async () => undefined),
@@ -57,6 +58,7 @@ class FakeTelegramClient {
   }
 
   async getWebhookInfo(): Promise<WebhookInfoResult> {
+    mocks.webhookInfoCalls += 1
     return mocks.webhookInfoQueue.shift() ?? { ok: false, reason: 'failed', status: null }
   }
 
@@ -90,6 +92,7 @@ beforeEach(() => {
   mocks.getUpdatesQueue = []
   mocks.getUpdatesCalls = []
   mocks.webhookInfoQueue = []
+  mocks.webhookInfoCalls = 0
   mocks.deleteWebhookCalls = 0
   mocks.acceptUpdate.mockReset().mockResolvedValue(true)
   mocks.handleUpdate.mockReset().mockResolvedValue(undefined)
@@ -259,5 +262,37 @@ describe('start / stop (instrumentation.ts)', () => {
     await runtime.start('secret')
     await runtime.stop()
     expect(runtime.getRuntimeStatus().running).toBe('off')
+  })
+})
+
+describe('applyMode (смена режима из админки, решение 142)', () => {
+  it('polling → webhook: цикл останавливается', async () => {
+    await runtime.applyMode('secret', 'polling')
+    expect(runtime.getRuntimeStatus().running).toBe('polling')
+    await runtime.applyMode('secret', 'webhook')
+    expect(runtime.getRuntimeStatus().running).toBe('off')
+  })
+
+  it('webhook → polling: цикл запускается, вебхук снимается', async () => {
+    await runtime.applyMode('secret', 'webhook')
+    expect(mocks.deleteWebhookCalls).toBe(0)
+    await runtime.applyMode('secret', 'polling')
+    expect(mocks.deleteWebhookCalls).toBe(1)
+    expect(runtime.getRuntimeStatus().running).toBe('polling')
+  })
+
+  it('повторные applyMode(\'auto\') не копят таймеры: за 5 минут проверка ровно одна, не две', async () => {
+    vi.useFakeTimers()
+    try {
+      await runtime.applyMode('secret', 'auto') // +1 проверка сразу
+      await runtime.applyMode('secret', 'auto') // если бы плодило таймеры — тут завёлся бы второй
+      expect(mocks.webhookInfoCalls).toBe(2) // по разу на каждый immediate-вызов applyMode — это ожидаемо
+      const before = mocks.webhookInfoCalls
+      await vi.advanceTimersByTimeAsync(5 * 60_000)
+      // Один таймер — одна дополнительная проверка через 5 минут, не две.
+      expect(mocks.webhookInfoCalls).toBe(before + 1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
