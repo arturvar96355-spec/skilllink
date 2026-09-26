@@ -28,6 +28,7 @@ import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
 import { validInn, validOgrn } from './demo/random'
 import { BASE_SKILLS, fillProgramSkills } from './demo/catalog'
+import { seedInboundLetters } from './demo/inbound-letters'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('Не задана переменная окружения DATABASE_URL')
@@ -84,6 +85,11 @@ async function clean(): Promise<void> {
   ])
   await prisma.universityMerge.deleteMany()
   await prisma.duplicateDismissal.deleteMany()
+  // Письма вузов (решение 170): задания и статистика — до связок и вузов, на которые
+  // они ссылаются (RESTRICT у InboundLetterTask.universityId).
+  await prisma.inboundLetterTask.deleteMany()
+  await prisma.inboundLetter.deleteMany()
+  await prisma.inboundLetterGroupStats.deleteMany()
   // Прогноз (решение 135, решение 141): version растёт при каждом обучении той же
   // вехи (не привязан к числу строк) — без чистки перезаливка не была бы детерминированной.
   await prisma.forecastModel.deleteMany()
@@ -2410,6 +2416,15 @@ async function main(): Promise<void> {
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
+  const letters = await seedInboundLetters(prisma, {
+    now,
+    daysAgo,
+    universityId,
+    cooperations,
+    manager: users.manager.id,
+    manager2: users.manager2.id,
+  })
+  console.log(`  письма вузов (решение 170): ${letters.letters}, заданий по ним: ${letters.tasks}`)
   // Первая печать журнала (решение 115, решение 141): снимается в середине заливки,
   // до расширенного набора — вторая, в конце, покажет другое число строк и хеш.
   await auditSeal(prisma)

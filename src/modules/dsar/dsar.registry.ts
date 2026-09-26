@@ -527,6 +527,48 @@ const USER_ENTRIES: readonly DsarEntry[] = [
       'и чистится сама (retention.ts); тело ответа не содержит ФИО, почту и телефон отдельно от самой записи',
   },
   {
+    // Решение 170: письма вузов, которые сотрудник проверил («Верно»/«Неверно»).
+    // Само письмо (адрес и текст) — не сведения об этом пользователе, а о вузе;
+    // здесь только то, что он его проверил.
+    section: 'inboundLettersReviewed',
+    model: 'InboundLetter',
+    title: 'Письма вузов, которые проверил (решение 170)',
+    links: ['reviewedById'],
+    select: {
+      id: true,
+      subject: true,
+      status: true,
+      verdict: true,
+      reviewedAt: true,
+      universityId: true,
+      cooperationId: true,
+    },
+    omitted: {
+      senderEmail: 'адрес отправителя — сведения о вузе, не об этом пользователе',
+      senderName: 'имя отправителя — сведения о вузе, не об этом пользователе',
+      bodyText: FREE_TEXT,
+      reviewComment: FREE_TEXT,
+      replyDraft: FREE_TEXT,
+    },
+    orderBy: { reviewedAt: 'desc' },
+    tieBreaker: { id: 'asc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
+    // Решение 170: задание, которое создала проверка письма — тот же смысл, что
+    // «Связки, где ответственный»: рабочая запись оператора, не сведения о человеке.
+    section: 'inboundLetterTasksResponsible',
+    model: 'InboundLetterTask',
+    title: 'Задания по письмам вузов, где назначен ответственным (решение 170)',
+    links: ['responsibleId'],
+    select: { id: true, title: true, status: true, universityId: true, cooperationId: true, createdAt: true },
+    omitted: { description: FREE_TEXT },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
     section: 'auditByActor',
     model: 'AuditLog',
     title: 'Действия, совершённые пользователем',
@@ -735,6 +777,9 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
     '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',
   ForecastModel: 'модель прогноза связок: агрегированные коэффициенты и метрики качества ' +
     '(AUC, Brier, калибровка) по вехе, без ссылок на людей (решение 135)',
+  InboundLetterGroupStats:
+    'счётчики точности разбора писем вузов по группе (показы, успехи, затухание) — тот же ' +
+    'смысл, что RecommendationRuleStats; без ссылок на людей (решение 170)',
 }
 
 /** Условие выборки раздела: своё или «любая из ссылок равна идентификатору». */
