@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.opengroup.org/xsd/archimate/3.0/ http://www.opengroup.org/xsd/archimate/3.1/archimate3_Model.xsd"
+       identifier="id-skilllink-model">
+  <name xml:lang="ru">SkillLink — архитектура решения</name>
+  <documentation xml:lang="ru">Функциональная и компонентная архитектура системы SkillLink — управление сотрудничеством ИТ-Школы РТК с вузами. Исправленная версия: приведены к допустимым по ArchiMate 3.1 типы связей, добавлены элементы, отражающие текущее состояние системы (файлы, приём внешних данных, отчёты, Telegram-уведомления, YandexGPT), и представления (views) для импорта в Archi.</documentation>
+
+  <elements>
+    <!-- Бизнес-слой -->
+    <element identifier="id-ba-manager" xsi:type="BusinessActor"><name xml:lang="ru">Менеджер по вузам</name></element>
+    <element identifier="id-ba-lead" xsi:type="BusinessActor"><name xml:lang="ru">Руководитель</name></element>
+    <element identifier="id-ba-admin" xsi:type="BusinessActor"><name xml:lang="ru">Администратор платформы</name></element>
+    <element identifier="id-ba-rep" xsi:type="BusinessActor"><name xml:lang="ru">Представитель вуза</name></element>
+    <element identifier="id-bp-attract" xsi:type="BusinessProcess"><name xml:lang="ru">Привлечение</name></element>
+    <element identifier="id-bp-formalize" xsi:type="BusinessProcess"><name xml:lang="ru">Оформление</name></element>
+    <element identifier="id-bp-implement" xsi:type="BusinessProcess"><name xml:lang="ru">Внедрение</name></element>
+    <element identifier="id-bp-operate" xsi:type="BusinessProcess"><name xml:lang="ru">Эксплуатация</name></element>
+    <element identifier="id-bo-cooperation" xsi:type="BusinessObject"><name xml:lang="ru">Связка вуз-программа-продукт</name></element>
+    <element identifier="id-bo-stage" xsi:type="BusinessObject"><name xml:lang="ru">Этап workflow</name></element>
+    <element identifier="id-bo-document" xsi:type="BusinessObject"><name xml:lang="ru">Документ</name></element>
+    <element identifier="id-bo-recommendation" xsi:type="BusinessObject"><name xml:lang="ru">Рекомендация</name></element>
+    <element identifier="id-bo-rating" xsi:type="BusinessObject"><name xml:lang="ru">Рейтинг программы</name></element>
+    <element identifier="id-bs-cooperation" xsi:type="BusinessService"><name xml:lang="ru">Ведение сотрудничества с вузами</name></element>
+    <element identifier="id-bs-reporting" xsi:type="BusinessService"><name xml:lang="ru">Формирование отчётности</name></element>
+    <element identifier="id-bs-analytics" xsi:type="BusinessService"><name xml:lang="ru">Аналитика рынка труда и навыков</name></element>
+    <!-- Слой приложения -->
+    <element identifier="id-ac-webui" xsi:type="ApplicationComponent"><name xml:lang="ru">Веб-интерфейс</name></element>
+    <element identifier="id-ac-api" xsi:type="ApplicationComponent"><name xml:lang="ru">API-слой</name></element>
+    <element identifier="id-ac-workflow" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Workflow</name></element>
+    <element identifier="id-ac-recommend" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Рекомендаций</name></element>
+    <element identifier="id-ac-analytics" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Аналитики</name></element>
+    <element identifier="id-ac-documents" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Документов</name></element>
+    <element identifier="id-ac-users" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Пользователей и Прав</name></element>
+    <element identifier="id-ac-audit" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Журнала действий</name></element>
+    <element identifier="id-ac-ai" xsi:type="ApplicationComponent"><name xml:lang="ru">ИИ-помощник</name></element>
+    <element identifier="id-ac-io" xsi:type="ApplicationComponent"><name xml:lang="ru">Сервис Импорта/Экспорта</name></element>
+    <element identifier="id-ac-telegram" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">Telegram-бот уведомлений</name>
+      <documentation xml:lang="ru">Канал уведомлений пользователей о событиях workflow (новые этапы, документы, напоминания).</documentation>
+    </element>
+    <element identifier="id-ac-yandexgpt" xsi:type="ApplicationComponent">
+      <name xml:lang="ru">YandexGPT (внешний сервис ИИ)</name>
+      <documentation xml:lang="ru">Внешний облачный сервис большой языковой модели, используется ИИ-помощником для генерации рекомендаций и ответов. Не входит в периметр разработки SkillLink.</documentation>
+    </element>
+    <element identifier="id-as-cooperation" xsi:type="ApplicationService"><name xml:lang="ru">Управление связками</name></element>
+    <element identifier="id-as-recommend" xsi:type="ApplicationService"><name xml:lang="ru">Формирование рекомендаций</name></element>
+    <element identifier="id-as-rating" xsi:type="ApplicationService"><name xml:lang="ru">Расчёт рейтинга программ</name></element>
+    <element identifier="id-as-auth" xsi:type="ApplicationService"><name xml:lang="ru">Аутентификация и авторизация</name></element>
+    <element identifier="id-as-reports" xsi:type="ApplicationService"><name xml:lang="ru">Генерация отчётов</name></element>
+    <element identifier="id-ai-restapi" xsi:type="ApplicationInterface"><name xml:lang="ru">REST API</name></element>
+    <element identifier="id-ai-import" xsi:type="ApplicationInterface">
+      <name xml:lang="ru">POST /api/import/external</name>
+      <documentation xml:lang="ru">Точка приёма данных из внешних систем (импорт вузов/программ извне).</documentation>
+    </element>
+    <element identifier="id-do-university" xsi:type="DataObject"><name xml:lang="ru">Вуз</name></element>
+    <element identifier="id-do-program" xsi:type="DataObject"><name xml:lang="ru">Программа</name></element>
+    <element identifier="id-do-product" xsi:type="DataObject"><name xml:lang="ru">IT-продукт</name></element>
+    <element identifier="id-do-cooperation" xsi:type="DataObject"><name xml:lang="ru">Связка</name></element>
+    <element identifier="id-do-stage" xsi:type="DataObject"><name xml:lang="ru">Этап</name></element>
+    <element identifier="id-do-document" xsi:type="DataObject"><name xml:lang="ru">Документ</name></element>
+    <element identifier="id-do-recommendation" xsi:type="DataObject"><name xml:lang="ru">Рекомендация</name></element>
+    <element identifier="id-do-user" xsi:type="DataObject"><name xml:lang="ru">Пользователь</name></element>
+    <element identifier="id-do-auditlog" xsi:type="DataObject"><name xml:lang="ru">Журнал действий</name></element>
+    <element identifier="id-do-file" xsi:type="DataObject">
+      <name xml:lang="ru">Файл</name>
+      <documentation xml:lang="ru">Файл, прикреплённый к документу или этапу сотрудничества (хранится в файловом хранилище на сервере).</documentation>
+    </element>
+    <!-- Технологический слой -->
+    <element identifier="id-nd-appserver" xsi:type="Node"><name xml:lang="ru">Сервер приложения (Docker)</name></element>
+    <element identifier="id-nd-dbserver" xsi:type="Node"><name xml:lang="ru">Сервер базы данных (Docker)</name></element>
+    <element identifier="id-nd-proxy" xsi:type="Node"><name xml:lang="ru">Обратный прокси (Caddy)</name></element>
+    <element identifier="id-ss-node" xsi:type="SystemSoftware"><name xml:lang="ru">Node.js Runtime</name></element>
+    <element identifier="id-ss-postgres" xsi:type="SystemSoftware"><name xml:lang="ru">PostgreSQL Server</name></element>
+    <element identifier="id-ts-storage" xsi:type="TechnologyService"><name xml:lang="ru">Хранение данных</name></element>
+    <element identifier="id-ts-https" xsi:type="TechnologyService"><name xml:lang="ru">HTTPS-терминация и маршрутизация</name></element>
+    <element identifier="id-ts-files" xsi:type="TechnologyService">
+      <name xml:lang="ru">Файловое хранилище (сервер)</name>
+      <documentation xml:lang="ru">Локальное файловое хранилище на сервере приложения для файлов документов и этапов.</documentation>
+    </element>
+    <element identifier="id-art-image" xsi:type="Artifact"><name xml:lang="ru">Docker-образ приложения</name></element>
+    <element identifier="id-art-report" xsi:type="Artifact">
+      <name xml:lang="ru">Файл отчёта (CSV/XLSX/JSON)</name>
+      <documentation xml:lang="ru">Выгрузка отчёта по ТЗ в одном из форматов CSV, XLSX или JSON.</documentation>
+    </element>
+    <element identifier="id-loc-cloud" xsi:type="Location"><name xml:lang="ru">Yandex Cloud (Россия)</name></element>
+  </elements>
+
+  <relationships>
+    <relationship identifier="id-r1" source="id-bs-cooperation" target="id-ba-manager" xsi:type="Serving"/>
+    <relationship identifier="id-r2" source="id-bs-cooperation" target="id-ba-lead" xsi:type="Serving"/>
+    <relationship identifier="id-r3" source="id-bs-reporting" target="id-ba-admin" xsi:type="Serving"/>
+    <relationship identifier="id-r4" source="id-bs-cooperation" target="id-ba-rep" xsi:type="Serving"/>
+    <relationship identifier="id-r5" source="id-bp-attract" target="id-bo-cooperation" xsi:type="Access"/>
+    <relationship identifier="id-r6" source="id-bp-formalize" target="id-bo-cooperation" xsi:type="Access"/>
+    <relationship identifier="id-r7" source="id-bp-implement" target="id-bo-cooperation" xsi:type="Access"/>
+    <relationship identifier="id-r8" source="id-bp-operate" target="id-bo-cooperation" xsi:type="Access"/>
+    <relationship identifier="id-r9" source="id-ac-webui" target="id-ba-manager" xsi:type="Serving"/>
+    <relationship identifier="id-r10" source="id-ac-webui" target="id-ba-lead" xsi:type="Serving"/>
+    <relationship identifier="id-r11" source="id-ac-webui" target="id-ba-admin" xsi:type="Serving"/>
+    <relationship identifier="id-r12" source="id-ac-webui" target="id-ba-rep" xsi:type="Serving"/>
+    <relationship identifier="id-r13" source="id-ai-restapi" target="id-ac-webui" xsi:type="Serving"/>
+    <relationship identifier="id-r14" source="id-ac-api" target="id-ai-restapi" xsi:type="Realization"/>
+    <relationship identifier="id-r15" source="id-ac-workflow" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r16" source="id-ac-recommend" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r17" source="id-ac-analytics" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r18" source="id-ac-documents" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r19" source="id-ac-users" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r20" source="id-ac-audit" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r21" source="id-ac-ai" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r22" source="id-ac-io" target="id-ac-api" xsi:type="Serving"/>
+    <relationship identifier="id-r23" source="id-ac-workflow" target="id-as-cooperation" xsi:type="Realization"/>
+    <relationship identifier="id-r24" source="id-ac-recommend" target="id-as-recommend" xsi:type="Realization"/>
+    <relationship identifier="id-r25" source="id-ac-analytics" target="id-as-rating" xsi:type="Realization"/>
+    <relationship identifier="id-r26" source="id-ac-users" target="id-as-auth" xsi:type="Realization"/>
+    <relationship identifier="id-r27" source="id-ac-documents" target="id-as-reports" xsi:type="Realization"/>
+    <relationship identifier="id-r28" source="id-as-cooperation" target="id-bs-cooperation" xsi:type="Realization"/>
+    <relationship identifier="id-r29" source="id-as-rating" target="id-bs-analytics" xsi:type="Realization"/>
+    <relationship identifier="id-r30" source="id-as-reports" target="id-bs-reporting" xsi:type="Realization"/>
+    <relationship identifier="id-r31" source="id-ac-workflow" target="id-do-cooperation" xsi:type="Access"/>
+    <relationship identifier="id-r32" source="id-ac-workflow" target="id-do-stage" xsi:type="Access"/>
+    <relationship identifier="id-r33" source="id-ac-recommend" target="id-do-recommendation" xsi:type="Access"/>
+    <relationship identifier="id-r34" source="id-ac-analytics" target="id-do-program" xsi:type="Access"/>
+    <relationship identifier="id-r35" source="id-ac-analytics" target="id-do-university" xsi:type="Access"/>
+    <relationship identifier="id-r36" source="id-ac-documents" target="id-do-document" xsi:type="Access"/>
+    <relationship identifier="id-r37" source="id-ac-users" target="id-do-user" xsi:type="Access"/>
+    <relationship identifier="id-r38" source="id-ac-audit" target="id-do-auditlog" xsi:type="Access"/>
+    <relationship identifier="id-r39" source="id-ac-workflow" target="id-do-product" xsi:type="Access"/>
+    <relationship identifier="id-r40" source="id-do-university" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r41" source="id-do-program" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r42" source="id-do-cooperation" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r43" source="id-do-stage" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r44" source="id-do-document" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r45" source="id-do-recommendation" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r46" source="id-do-user" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r47" source="id-do-auditlog" target="id-ss-postgres" xsi:type="Association"/>
+    <relationship identifier="id-r48" source="id-art-image" target="id-ac-api" xsi:type="Realization"/>
+    <relationship identifier="id-r49" source="id-art-image" target="id-ac-webui" xsi:type="Realization"/>
+    <relationship identifier="id-r50" source="id-nd-appserver" target="id-ss-node" xsi:type="Assignment"/>
+    <relationship identifier="id-r51" source="id-nd-dbserver" target="id-ss-postgres" xsi:type="Assignment"/>
+    <relationship identifier="id-r52" source="id-ss-postgres" target="id-ts-storage" xsi:type="Realization"/>
+    <relationship identifier="id-r53" source="id-ts-storage" target="id-nd-appserver" xsi:type="Serving"/>
+    <relationship identifier="id-r54" source="id-nd-proxy" target="id-ts-https" xsi:type="Realization"/>
+    <relationship identifier="id-r55" source="id-ts-https" target="id-nd-appserver" xsi:type="Serving"/>
+    <relationship identifier="id-r56" source="id-nd-appserver" target="id-art-image" xsi:type="Assignment"/>
+    <relationship identifier="id-r57" source="id-loc-cloud" target="id-nd-appserver" xsi:type="Aggregation"/>
+    <relationship identifier="id-r58" source="id-loc-cloud" target="id-nd-dbserver" xsi:type="Aggregation"/>
+    <relationship identifier="id-r59" source="id-loc-cloud" target="id-nd-proxy" xsi:type="Aggregation"/>
+    <relationship identifier="id-r60" source="id-bp-formalize" target="id-bo-document" xsi:type="Access"/>
+    <relationship identifier="id-r61" source="id-bp-implement" target="id-bo-stage" xsi:type="Access"/>
+    <relationship identifier="id-r62" source="id-bp-operate" target="id-bo-rating" xsi:type="Access"/>
+    <relationship identifier="id-r63" source="id-bp-attract" target="id-bo-recommendation" xsi:type="Access"/>
+    <relationship identifier="id-r64" source="id-ac-io" target="id-ai-import" xsi:type="Realization"/>
+    <relationship identifier="id-r65" source="id-as-reports" target="id-art-report" xsi:type="Access"/>
+    <relationship identifier="id-r66" source="id-ac-telegram" target="id-ba-manager" xsi:type="Serving"/>
+    <relationship identifier="id-r67" source="id-ac-telegram" target="id-ba-lead" xsi:type="Serving"/>
+    <relationship identifier="id-r68" source="id-art-image" target="id-ac-telegram" xsi:type="Realization"/>
+    <relationship identifier="id-r69" source="id-ac-yandexgpt" target="id-ac-ai" xsi:type="Serving"/>
+    <relationship identifier="id-r70" source="id-nd-appserver" target="id-ts-files" xsi:type="Realization"/>
+    <relationship identifier="id-r71" source="id-do-file" target="id-ts-files" xsi:type="Association"/>
+    <relationship identifier="id-r72" source="id-ac-documents" target="id-do-file" xsi:type="Access"/>
+  </relationships>
+
+  <organizations>
+    <item>
+      <label xml:lang="ru">Бизнес-слой</label>
+      <item identifierRef="id-ba-manager"/>
+      <item identifierRef="id-ba-lead"/>
+      <item identifierRef="id-ba-admin"/>
+      <item identifierRef="id-ba-rep"/>
+      <item identifierRef="id-bp-attract"/>
+      <item identifierRef="id-bp-formalize"/>
+      <item identifierRef="id-bp-implement"/>
+      <item identifierRef="id-bp-operate"/>
+      <item identifierRef="id-bo-cooperation"/>
+      <item identifierRef="id-bo-stage"/>
+      <item identifierRef="id-bo-document"/>
+      <item identifierRef="id-bo-recommendation"/>
+      <item identifierRef="id-bo-rating"/>
+      <item identifierRef="id-bs-cooperation"/>
+      <item identifierRef="id-bs-reporting"/>
+      <item identifierRef="id-bs-analytics"/>
+    </item>
+    <item>
+      <label xml:lang="ru">Слой приложения</label>
+      <item identifierRef="id-ac-webui"/>
+      <item identifierRef="id-ac-api"/>
+      <item identifierRef="id-ac-workflow"/>
+      <item identifierRef="id-ac-recommend"/>
+      <item identifierRef="id-ac-analytics"/>
+      <item identifierRef="id-ac-documents"/>
+      <item identifierRef="id-ac-users"/>
+      <item identifierRef="id-ac-audit"/>
+      <item identifierRef="id-ac-ai"/>
+      <item identifierRef="id-ac-io"/>
+      <item identifierRef="id-ac-telegram"/>
+      <item identifierRef="id-ac-yandexgpt"/>
+      <item identifierRef="id-as-cooperation"/>
+      <item identifierRef="id-as-recommend"/>
+      <item identifierRef="id-as-rating"/>
+      <item identifierRef="id-as-auth"/>
+      <item identifierRef="id-as-reports"/>
+      <item identifierRef="id-ai-restapi"/>
+      <item identifierRef="id-ai-import"/>
+      <item identifierRef="id-do-university"/>
+      <item identifierRef="id-do-program"/>
+      <item identifierRef="id-do-product"/>
+      <item identifierRef="id-do-cooperation"/>
+      <item identifierRef="id-do-stage"/>
+      <item identifierRef="id-do-document"/>
+      <item identifierRef="id-do-recommendation"/>
+      <item identifierRef="id-do-user"/>
+      <item identifierRef="id-do-auditlog"/>
+      <item identifierRef="id-do-file"/>
+    </item>
+    <item>
+      <label xml:lang="ru">Технологический слой</label>
+      <item identifierRef="id-nd-appserver"/>
+      <item identifierRef="id-nd-dbserver"/>
+      <item identifierRef="id-nd-proxy"/>
+      <item identifierRef="id-ss-node"/>
+      <item identifierRef="id-ss-postgres"/>
+      <item identifierRef="id-ts-storage"/>
+      <item identifierRef="id-ts-https"/>
+      <item identifierRef="id-ts-files"/>
+      <item identifierRef="id-art-image"/>
+      <item identifierRef="id-art-report"/>
+      <item identifierRef="id-loc-cloud"/>
+    </item>
+  </organizations>
+
+  <views>
+    <diagrams>
+      <view xsi:type="Diagram" identifier="id-view-layers">
+        <name xml:lang="ru">Слои: общая схема</name>
+        <node xsi:type="Element" identifier="id-n-v1-01" elementRef="id-ba-manager" x="0" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-02" elementRef="id-ba-lead" x="140" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-03" elementRef="id-ba-admin" x="280" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-04" elementRef="id-ba-rep" x="420" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-05" elementRef="id-bp-attract" x="0" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-06" elementRef="id-bp-formalize" x="140" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-07" elementRef="id-bp-implement" x="280" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-08" elementRef="id-bp-operate" x="420" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-09" elementRef="id-bo-cooperation" x="0" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-10" elementRef="id-bo-stage" x="140" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-11" elementRef="id-bo-document" x="280" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-12" elementRef="id-bo-recommendation" x="420" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-13" elementRef="id-bo-rating" x="560" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-14" elementRef="id-bs-cooperation" x="0" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-15" elementRef="id-bs-reporting" x="140" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-16" elementRef="id-bs-analytics" x="280" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-17" elementRef="id-as-cooperation" x="0" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-18" elementRef="id-as-recommend" x="140" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-19" elementRef="id-as-rating" x="280" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-20" elementRef="id-as-auth" x="420" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-21" elementRef="id-as-reports" x="560" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-22" elementRef="id-ac-webui" x="0" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-23" elementRef="id-ac-api" x="140" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-24" elementRef="id-nd-proxy" x="0" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-25" elementRef="id-nd-appserver" x="140" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-26" elementRef="id-nd-dbserver" x="280" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v1-27" elementRef="id-loc-cloud" x="0" y="560" w="120" h="55"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-01" relationshipRef="id-r1" source="id-n-v1-14" target="id-n-v1-01"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-02" relationshipRef="id-r2" source="id-n-v1-14" target="id-n-v1-02"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-03" relationshipRef="id-r3" source="id-n-v1-15" target="id-n-v1-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-04" relationshipRef="id-r4" source="id-n-v1-14" target="id-n-v1-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-05" relationshipRef="id-r9" source="id-n-v1-22" target="id-n-v1-01"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-06" relationshipRef="id-r10" source="id-n-v1-22" target="id-n-v1-02"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-07" relationshipRef="id-r11" source="id-n-v1-22" target="id-n-v1-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-08" relationshipRef="id-r12" source="id-n-v1-22" target="id-n-v1-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-09" relationshipRef="id-r5" source="id-n-v1-05" target="id-n-v1-09"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-10" relationshipRef="id-r6" source="id-n-v1-06" target="id-n-v1-09"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-11" relationshipRef="id-r7" source="id-n-v1-07" target="id-n-v1-09"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-12" relationshipRef="id-r8" source="id-n-v1-08" target="id-n-v1-09"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-13" relationshipRef="id-r60" source="id-n-v1-06" target="id-n-v1-11"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-14" relationshipRef="id-r61" source="id-n-v1-07" target="id-n-v1-10"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-15" relationshipRef="id-r62" source="id-n-v1-08" target="id-n-v1-13"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-16" relationshipRef="id-r63" source="id-n-v1-05" target="id-n-v1-12"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-17" relationshipRef="id-r28" source="id-n-v1-17" target="id-n-v1-14"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-18" relationshipRef="id-r29" source="id-n-v1-19" target="id-n-v1-16"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-19" relationshipRef="id-r30" source="id-n-v1-21" target="id-n-v1-15"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-20" relationshipRef="id-r57" source="id-n-v1-27" target="id-n-v1-25"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-21" relationshipRef="id-r58" source="id-n-v1-27" target="id-n-v1-26"/>
+        <connection xsi:type="Relationship" identifier="id-c-v1-22" relationshipRef="id-r59" source="id-n-v1-27" target="id-n-v1-24"/>
+      </view>
+      <view xsi:type="Diagram" identifier="id-view-app">
+        <name xml:lang="ru">Приложение: компоненты и данные</name>
+        <node xsi:type="Element" identifier="id-n-v2-01" elementRef="id-ai-restapi" x="0" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-02" elementRef="id-ai-import" x="140" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-03" elementRef="id-ac-webui" x="0" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-04" elementRef="id-ac-api" x="140" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-05" elementRef="id-ac-io" x="280" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-06" elementRef="id-ac-workflow" x="0" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-07" elementRef="id-ac-recommend" x="140" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-08" elementRef="id-ac-analytics" x="280" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-09" elementRef="id-ac-documents" x="420" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-10" elementRef="id-ac-users" x="560" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-11" elementRef="id-ac-audit" x="700" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-12" elementRef="id-ac-ai" x="0" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-13" elementRef="id-ac-telegram" x="140" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-14" elementRef="id-ac-yandexgpt" x="280" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-15" elementRef="id-as-cooperation" x="0" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-16" elementRef="id-as-recommend" x="140" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-17" elementRef="id-as-rating" x="280" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-18" elementRef="id-as-auth" x="420" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-19" elementRef="id-as-reports" x="560" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-20" elementRef="id-do-university" x="0" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-21" elementRef="id-do-program" x="140" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-22" elementRef="id-do-product" x="280" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-23" elementRef="id-do-cooperation" x="420" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-24" elementRef="id-do-stage" x="560" y="400" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-25" elementRef="id-do-document" x="0" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-26" elementRef="id-do-recommendation" x="140" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-27" elementRef="id-do-user" x="280" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-28" elementRef="id-do-auditlog" x="420" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-29" elementRef="id-do-file" x="560" y="480" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v2-30" elementRef="id-art-report" x="0" y="560" w="120" h="55"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-01" relationshipRef="id-r13" source="id-n-v2-01" target="id-n-v2-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-02" relationshipRef="id-r14" source="id-n-v2-04" target="id-n-v2-01"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-03" relationshipRef="id-r64" source="id-n-v2-05" target="id-n-v2-02"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-04" relationshipRef="id-r15" source="id-n-v2-06" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-05" relationshipRef="id-r16" source="id-n-v2-07" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-06" relationshipRef="id-r17" source="id-n-v2-08" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-07" relationshipRef="id-r18" source="id-n-v2-09" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-08" relationshipRef="id-r19" source="id-n-v2-10" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-09" relationshipRef="id-r20" source="id-n-v2-11" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-10" relationshipRef="id-r21" source="id-n-v2-12" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-11" relationshipRef="id-r22" source="id-n-v2-05" target="id-n-v2-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-12" relationshipRef="id-r23" source="id-n-v2-06" target="id-n-v2-15"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-13" relationshipRef="id-r24" source="id-n-v2-07" target="id-n-v2-16"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-14" relationshipRef="id-r25" source="id-n-v2-08" target="id-n-v2-17"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-15" relationshipRef="id-r26" source="id-n-v2-10" target="id-n-v2-18"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-16" relationshipRef="id-r27" source="id-n-v2-09" target="id-n-v2-19"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-17" relationshipRef="id-r31" source="id-n-v2-06" target="id-n-v2-23"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-18" relationshipRef="id-r32" source="id-n-v2-06" target="id-n-v2-24"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-19" relationshipRef="id-r33" source="id-n-v2-07" target="id-n-v2-26"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-20" relationshipRef="id-r34" source="id-n-v2-08" target="id-n-v2-21"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-21" relationshipRef="id-r35" source="id-n-v2-08" target="id-n-v2-20"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-22" relationshipRef="id-r36" source="id-n-v2-09" target="id-n-v2-25"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-23" relationshipRef="id-r37" source="id-n-v2-10" target="id-n-v2-27"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-24" relationshipRef="id-r38" source="id-n-v2-11" target="id-n-v2-28"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-25" relationshipRef="id-r39" source="id-n-v2-06" target="id-n-v2-22"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-26" relationshipRef="id-r72" source="id-n-v2-09" target="id-n-v2-29"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-27" relationshipRef="id-r69" source="id-n-v2-14" target="id-n-v2-12"/>
+        <connection xsi:type="Relationship" identifier="id-c-v2-28" relationshipRef="id-r65" source="id-n-v2-19" target="id-n-v2-30"/>
+      </view>
+      <view xsi:type="Diagram" identifier="id-view-deploy">
+        <name xml:lang="ru">Развёртывание</name>
+        <node xsi:type="Element" identifier="id-n-v3-01" elementRef="id-loc-cloud" x="0" y="0" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-02" elementRef="id-nd-proxy" x="0" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-03" elementRef="id-nd-appserver" x="140" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-04" elementRef="id-nd-dbserver" x="280" y="80" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-05" elementRef="id-ss-node" x="0" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-06" elementRef="id-ss-postgres" x="140" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-07" elementRef="id-art-image" x="280" y="160" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-08" elementRef="id-ts-https" x="0" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-09" elementRef="id-ts-storage" x="140" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-10" elementRef="id-ts-files" x="280" y="240" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-11" elementRef="id-ac-api" x="0" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-12" elementRef="id-ac-webui" x="140" y="320" w="120" h="55"/>
+        <node xsi:type="Element" identifier="id-n-v3-13" elementRef="id-ac-telegram" x="280" y="320" w="120" h="55"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-01" relationshipRef="id-r57" source="id-n-v3-01" target="id-n-v3-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-02" relationshipRef="id-r58" source="id-n-v3-01" target="id-n-v3-04"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-03" relationshipRef="id-r59" source="id-n-v3-01" target="id-n-v3-02"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-04" relationshipRef="id-r50" source="id-n-v3-03" target="id-n-v3-05"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-05" relationshipRef="id-r51" source="id-n-v3-04" target="id-n-v3-06"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-06" relationshipRef="id-r52" source="id-n-v3-06" target="id-n-v3-09"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-07" relationshipRef="id-r54" source="id-n-v3-02" target="id-n-v3-08"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-08" relationshipRef="id-r55" source="id-n-v3-08" target="id-n-v3-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-09" relationshipRef="id-r53" source="id-n-v3-09" target="id-n-v3-03"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-10" relationshipRef="id-r70" source="id-n-v3-03" target="id-n-v3-10"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-11" relationshipRef="id-r56" source="id-n-v3-03" target="id-n-v3-07"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-12" relationshipRef="id-r48" source="id-n-v3-07" target="id-n-v3-11"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-13" relationshipRef="id-r49" source="id-n-v3-07" target="id-n-v3-12"/>
+        <connection xsi:type="Relationship" identifier="id-c-v3-14" relationshipRef="id-r68" source="id-n-v3-07" target="id-n-v3-13"/>
+      </view>
+    </diagrams>
+  </views>
+</model>
