@@ -288,3 +288,11 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* ИИ-помощник по вузу (ТЗ дизайна 26–29.09, п. 4.3): выбор связки над карточкой помощника. */
+.assistant {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 880px;
+}

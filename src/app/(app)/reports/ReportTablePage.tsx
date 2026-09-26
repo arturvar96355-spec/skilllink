@@ -5,6 +5,7 @@ import {
   ApiRequestError,
   Button,
   CardsSkeleton,
+  DownloadButton,
   EmptyState,
   ErrorState,
   PageHeader,
@@ -117,16 +118,14 @@ export function ReportTablePage({ title, breadcrumbLabel, description, endpoint 
 
       <div className={styles.actions}>
         {REPORT_FORMATS.map((format) => (
-          <Button
+          <DownloadButton
             key={format}
-            variant="secondary"
-            icon="download"
             href={reportFileHref(endpoint, format)}
-            external
+            fallbackName={`report.${format}`}
             title={`${title} файлом ${REPORT_FORMAT_LABELS[format]}`}
           >
             Скачать {REPORT_FORMAT_LABELS[format]}
-          </Button>
+          </DownloadButton>
         ))}
       </div>
 

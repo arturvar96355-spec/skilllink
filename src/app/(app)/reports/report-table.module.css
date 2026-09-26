@@ -63,7 +63,12 @@
   padding: var(--space-2) var(--space-3) var(--space-2) 0;
   text-align: left;
   vertical-align: top;
-  white-space: nowrap;
+  /* Перенос и на экране (ТЗ дизайна 26–29.09, п. 2.2): без него колонка тянулась
+     по самому длинному названию вуза, и «Статус» с «Ответственным» уезжали за
+     край уже на 1440 — как раз те колонки ТЗ, что эксперт сверяет построчно. */
+  white-space: normal;
+  overflow-wrap: break-word;
+  min-width: 96px;
   border-bottom: 1px solid var(--line-subtle);
 }
 
