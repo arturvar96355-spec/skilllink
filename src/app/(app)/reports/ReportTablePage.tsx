@@ -1,16 +1,18 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
+  ApiRequestError,
   Button,
   CardsSkeleton,
   EmptyState,
   ErrorState,
   PageHeader,
   ROUTES,
+  apiGetRaw,
   buildQuery,
-  useResource,
 } from '@/ui'
+import { leaveToLogin } from '@/ui/lib/session'
 import {
   REPORT_FORMATS,
   REPORT_FORMAT_LABELS,
@@ -25,6 +27,47 @@ import styles from './report-table.module.css'
 
 /** Больше строк одним отчётом сервер не отдаёт (`REPORT_ROW_LIMIT` — `reports.repo.ts`). */
 const REPORT_ROW_LIMIT = 5000
+
+/**
+ * Превью отчёта — тот же `?format=json`, что и кнопка «Скачать JSON»: сервер отдаёт
+ * его как файл (`content-disposition: attachment`), без обёртки `{ data }`, которую
+ * ждёт обычный `useResource`/`apiGet` (решение 150 намеренно переиспользует один ответ
+ * для файла и для экрана — см. report-table.ts). Поэтому здесь свой маленький хук
+ * поверх `apiGetRaw`, а не `useResource`.
+ */
+function useReportPreview(path: string) {
+  const [data, setData] = useState<ReportJsonPayload | null>(null)
+  const [error, setError] = useState<ApiRequestError | null>(null)
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setError(null)
+    apiGetRaw<ReportJsonPayload>(path, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        setData(result)
+      })
+      .catch((caught: unknown) => {
+        if (controller.signal.aborted) return
+        const apiError =
+          caught instanceof ApiRequestError ? caught : new ApiRequestError('Непредвиденная ошибка', 'INTERNAL', 0)
+        if (apiError.code === 'UNAUTHORIZED') {
+          void leaveToLogin()
+          return
+        }
+        setError(apiError)
+      })
+    return () => controller.abort()
+  }, [path, attempt])
+
+  return {
+    data,
+    error,
+    isLoading: data === null && error === null,
+    reload: useCallback(() => setAttempt((value) => value + 1), []),
+  }
+}
 
 export interface ReportTablePageProps {
   title: string
@@ -45,7 +88,7 @@ export interface ReportTablePageProps {
  * руководителю (`/reports/portfolio`, решение 97).
  */
 export function ReportTablePage({ title, breadcrumbLabel, description, endpoint }: ReportTablePageProps) {
-  const report = useResource<ReportJsonPayload>(`${endpoint}${buildQuery({ format: 'json' })}`)
+  const report = useReportPreview(`${endpoint}${buildQuery({ format: 'json' })}`)
   const data = report.data
 
   useEffect(() => {

@@ -71,7 +71,12 @@ export function buildQuery(params: Record<string, QueryValue>): string {
   return query === '' ? '' : `?${query}`
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+/**
+ * Общая часть похода на сервер: сам `fetch`, разбор JSON-тела и превращение
+ * ответа с `error` в `ApiRequestError` — одинаково для обёрнутого `{ data }`
+ * (`request()`) и «сырого» ответа файлом-отчётом (`requestRaw()`, решение 150).
+ */
+async function sendRequest(path: string, init?: RequestInit): Promise<{ response: Response; payload: unknown }> {
   let response: Response
   try {
     response = await fetch(path, {
@@ -108,11 +113,31 @@ async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T
     )
   }
 
+  return { response, payload }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
+  const { response, payload } = await sendRequest(path, init)
+
   if (payload === null || typeof payload !== 'object' || !('data' in payload)) {
     throw new ApiRequestError('Сервер вернул неожиданный ответ', 'INTERNAL', response.status)
   }
 
   return payload as ApiResult<T>
+}
+
+/**
+ * Тот же поход на сервер, что `apiGet`, но без обёртки `{ data }`: у отчётов
+ * по ТЗ (решение 150) `?format=json` — сразу файл на скачивание (тот же байт
+ * в байт ответ, что уходит в «Скачать JSON»), поэтому превью на экране читает
+ * его как есть, а не как обычный ответ API.
+ */
+export async function apiGetRaw<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const { response, payload } = await sendRequest(path, { method: 'GET', signal })
+  if (payload === null || typeof payload !== 'object') {
+    throw new ApiRequestError('Сервер вернул неожиданный ответ', 'INTERNAL', response.status)
+  }
+  return payload as T
 }
 
 export function apiGet<T>(path: string, signal?: AbortSignal): Promise<ApiResult<T>> {
