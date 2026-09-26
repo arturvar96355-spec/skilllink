@@ -30,17 +30,23 @@ import styles from './Shell.module.css'
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const pathname = usePathname()
   // Первое открытие после входа: меню и шапка дописывают сцену входа (07, раздел 18).
-  const [arrived, setArrived] = useState(false)
+  // Сцена держится, пока человек на странице, куда пришёл со входа: снять её
+  // по таймеру нельзя — у блоков страницы своё появление, и при смене анимации
+  // браузер проиграл бы его заново: через несколько секунд после входа всё
+  // на миг пропадало. На следующей странице метки уже нет — там обычное появление.
+  const [arrivedAt, setArrivedAt] = useState<string | null>(null)
+  const [assembling, setAssembling] = useState(false)
   useEffect(() => {
     if (!takeArrival()) return
-    setArrived(true)
-    // Сборка сайта — один раз после входа: дальше страницы приходят обычным
-    // появлением, а не собираются заново на каждом переходе по меню.
-    const timer = window.setTimeout(() => setArrived(false), 6000)
+    setArrivedAt(window.location.pathname)
+    setAssembling(true)
+    // Размытие под шапкой выключено только пока летят блоки: его возврат ничего не перезапускает.
+    const timer = window.setTimeout(() => setAssembling(false), 6000)
     return () => window.clearTimeout(timer)
   }, [])
-  const pathname = usePathname()
+  const arrived = arrivedAt === pathname
   const motion = useNavigationMotion(pathname)
   useMagneticButtons()
   const me = useResource<CurrentUserDto>('/api/me')
@@ -85,7 +91,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <CurrentUserProvider user={user}>
       <LiveBackground />
-      <div className={arrived ? styles.arrival : undefined}>
+      <div className={[arrived && styles.arrival, arrived && assembling && styles.assembling].filter(Boolean).join(' ') || undefined}>
       <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <div className={styles.shell}>
         {/* Линия перехода: щелчок принят, следующая страница уже в пути. */}
