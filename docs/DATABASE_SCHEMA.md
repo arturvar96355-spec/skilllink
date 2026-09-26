@@ -1,7 +1,8 @@
 # DATABASE_SCHEMA.md — схема базы данных
 
 Источник истины — `prisma/schema.prisma`. Этот документ описывает решения, которые из кода
-не видны. Все изменения схемы согласуются с Тиграном.
+не видны. С решения 143 (26.09.2026) изменения схемы согласует команда сама — раздел
+«Ревью схемы 26.09.2026 (решение 143)» ниже.
 
 СУБД: PostgreSQL 16. Доступ — Prisma 7 через драйверный адаптер `@prisma/adapter-pg`.
 Миграции: `prisma migrate` (не `db push`), файлы лежат в `prisma/migrations/`.
@@ -459,12 +460,14 @@ CHECK `recommendation_signals_assigned_by_check` — `assigned_by` из закр
 `rule_type`, `scope_type` (`global` | `university` | `manager`), `scope_id` (`all` для общего
 уровня, иначе id вуза или пользователя — без внешнего ключа: строка статистики переживает
 архив вуза и увольнение), `trials`, `successes` (int, полные), `trials_eff`, `successes_eff`
-(double, с затуханием, не округляются), `eff_updated_at` (timestamptz).
+(double, с затуханием, не округляются), `eff_updated_at` (timestamp; решение 143 — было
+timestamptz, единственная колонка с поясом в схеме, приведена к общему соглашению «пишем UTC»).
 
 PK: (`rule_type`, `scope_type`, `scope_id`). Пишется только одним
 `INSERT … ON CONFLICT DO UPDATE` с затуханием в SQL (`recommendations.stats.repo.ts`) —
 параллельные события не теряются. Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
-Персональных данных нет: id менеджера — ссылка, не ФИО.
+Персональных данных нет: id менеджера — ссылка, не ФИО. `db:verify` (решение 143) сверяет
+`scope_id` со смыслом `scope_type` ('all' — общий, иначе существующий вуз или пользователь).
 
 ### data_sources
 
@@ -637,6 +640,44 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 роли приложения `DELETE` не выдан (`create-app-role.sql`). Сид удаляет строки владельцем.
 ПД в строке нет, кроме идентификаторов и адреса.
 
+### telegram_updates_seen, system_secrets, approvals, idempotency_keys — безопасность, волна 2 (решение 133)
+
+Миграция `20260926120000_security_wave_2`. Четыре служебные таблицы без персональных данных.
+
+- **telegram_updates_seen** — `update_id` (bigint PK, ≥ 0) обработанных обновлений вебхука:
+  `INSERT … ON CONFLICT DO NOTHING` не даёт выполнить одно обновление дважды после
+  перезапуска процесса. `seen_at` (индекс) — для чистки строк старше 7 суток
+  (`npm run db:retention`, попутно чистит и приложение само).
+- **system_secrets** — `name` (text PK, код секрета, сейчас только вебхук Telegram),
+  `value_hash` (SHA-256 hex, CHECK), `rotated_at`, `rotated_by_id?` (FK → users, SET NULL).
+  Хранится только хеш: сверить входящий секрет можно, а прочитать значение из базы — нет.
+- **approvals** — «четыре глаза» на опасную операцию (включается `APPROVALS_REQUIRED=true`):
+  `action`, `payload` (jsonb, только идентификаторы), `payload_hash` (hex SHA-256, CHECK),
+  `status` (`ApprovalStatus`: REQUESTED, APPROVED, REJECTED, CONSUMED, EXPIRED),
+  `requested_by_id`/`approved_by_id`/`rejected_by_id` (FK → users, RESTRICT — решение,
+  доказательство), `created_at`, `decided_at?`, `expires_at`, `consumed_at?`. CHECK:
+  одобривший ≠ запросившему, `payload_hash` — hex SHA-256, `expires_at > created_at`,
+  CONSUMED ⇔ `consumed_at`, REJECTED ⇒ `rejected_by_id`; решение 143 добавил
+  `approvals_decided_at_check` — `decided_at` пуст ровно у REQUESTED и заполнен у
+  APPROVED/REJECTED/CONSUMED (EXPIRED — особый случай: истечь может и ждущий, и уже
+  одобренный запрос). Использование — один атомарный UPDATE (`approvals.repo.ts`).
+- **idempotency_keys** — PK (`user_id`, `key`) для POST-создания по заголовку
+  `Idempotency-Key`: повтор с тем же ключом и телом отдаёт сохранённый ответ. `request_hash`
+  (hex SHA-256 метода, пути и тела, CHECK), `status` (`IdempotencyStatus`: IN_PROGRESS,
+  SUCCEEDED ⇔ `response_status`), `response_body?` (jsonb). Живёт 24 часа, чистится
+  приложением и `db:retention`.
+
+Права роли приложения на эти четыре таблицы не сужены (`create-app-role.sql`) — ни одна
+не защищена триггером запрета правки; сверка список-в-список сделана решением 143.
+
+### notifications_seen_at (решение 139)
+
+`users.notifications_seen_at` (timestamp?) — когда пользователь последний раз открывал
+ленту уведомлений; источник истины на сервере (`POST /api/notifications/seen`).
+`localStorage` на фронте остаётся быстрым кэшем, а не хранилищем: иначе прочитанность
+терялась бы при смене устройства или очистке хранилища. Отдельного CHECK не требует —
+обычная метка времени без связей с другими таблицами.
+
 ## Поведение при удалении
 
 | Связь | Действие | Почему |
@@ -674,22 +715,55 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | `calendar_feeds` | Личная подписка на календарь сроков и встреч, в базе только хеш токена (решение 105). Индексы для ленты (`meetings.responsible_id`, `meeting_participants.user_id`) — из миграции внешних ключей (решение 104) | `20260925210200_calendar_feeds` |
 | `skills_name_key_ci` — уникальный индекс по выражению | Уникальность названия навыка без учёта регистра и пробелов держит база, а не блокировка в коде (решение 110). Если в базе уже есть дубли, миграция падает с их списком и ничего не меняет | `20260925230100_skill_name_key_unique` |
 | `users.session_version` | Отзыв выданных JWT-сессий при смене и сбросе пароля, блокировке и смене роли (решение 109). Существующим строкам — 0, токен без версии тоже считается 0: выкладка никого не разлогинивает. Добавление колонки с константным DEFAULT таблицу не переписывает. Откат — в комментарии миграции | `20260925230000_user_session_version` |
-| Основание обработки ПД у `contacts` (8 колонок, 3 перечисления, 4 CHECK), таблица `contact_basis_history` | Учёт оснований и согласий контактов вузов (152-ФЗ, решение 111). **Ждёт согласования с Тиграном** | `20260925230200_contact_legal_basis` |
-| Цепочка хешей `audit_log` (3 колонки, CHECK, триггеры, функции), таблицы `audit_seals`, `audit_chain_cuts`, FK автора журнала — RESTRICT | Журнал только дописывается и защищён от подмены (решение 115). Таблица на время миграции закрыта на запись; заполнение существующих строк — один проход. Откат — в комментарии миграции. **Ждёт согласования с Тиграном** | `20260926000000_audit_hash_chain` |
-| Таблица `dsar_requests`, 4 перечисления, 4 CHECK, триггер `dsar_requests_guard` | Реестр запросов субъектов ПД со сроком ответа (решение 116). **Ждёт согласования с Тиграном** | `20260926011600_dsar_requests` |
-| 6 колонок `recommendations`, таблица `recommendation_rule_stats` (2 CHECK) | Рекомендации учатся на решениях сотрудников и объясняют себя (решение 119). **Ждёт согласования с Тиграном.** Откат: `DROP TABLE "recommendation_rule_stats"; ALTER TABLE "recommendations" DROP COLUMN "score", DROP COLUMN "score_breakdown", DROP COLUMN "reasons", DROP COLUMN "is_deferred", DROP COLUMN "shown_at", DROP COLUMN "success_at";` | `20260926120000_recommendation_learning` |
-| `universities.inn`, `.ogrn`, `.merged_into_id`; таблицы `duplicate_dismissals`, `university_merges`; расширение `pg_trgm`; GIN-индексы по названиям (вузы, программы, навыки, IT-продукты) | Поиск дублей, слияние вузов, ИНН/ОГРН (решение 134). **Ждёт согласования с Тиграном** | `20260926090000_data_quality` |
-| Таблицы `vendors`, `vendor_contacts`, `vendor_contact_products`, `school_courses`, `course_streams`, `site_orders`; `it_products.vendor_id` | Вендоры IT-продуктов и набор на курсы ИТ-Школы с минимизацией ПД слушателей — заказы с сайта хранят только HMAC-хеш (решение 132). **Ждёт согласования с Тиграном** | `20260926122000_vendors_site_orders` |
+| Основание обработки ПД у `contacts` (8 колонок, 3 перечисления, 4 CHECK), таблица `contact_basis_history` | Учёт оснований и согласий контактов вузов (152-ФЗ, решение 111). Согласовано (решение 143) | `20260925230200_contact_legal_basis` |
+| Цепочка хешей `audit_log` (3 колонки, CHECK, триггеры, функции), таблицы `audit_seals`, `audit_chain_cuts`, FK автора журнала — RESTRICT | Журнал только дописывается и защищён от подмены (решение 115). Таблица на время миграции закрыта на запись; заполнение существующих строк — один проход. Откат — в комментарии миграции. Согласовано (решение 143) | `20260926000000_audit_hash_chain` |
+| Таблица `dsar_requests`, 4 перечисления, 4 CHECK, триггер `dsar_requests_guard` | Реестр запросов субъектов ПД со сроком ответа (решение 116). Согласовано (решение 143) | `20260926011600_dsar_requests` |
+| 6 колонок `recommendations`, таблица `recommendation_rule_stats` (2 CHECK) | Рекомендации учатся на решениях сотрудников и объясняют себя (решение 119). Согласовано, с правкой (решение 143: `eff_updated_at` — TIMESTAMPTZ(6) → TIMESTAMP(3), миграция `20260926200000_schema_review`). Откат: `DROP TABLE "recommendation_rule_stats"; ALTER TABLE "recommendations" DROP COLUMN "score", DROP COLUMN "score_breakdown", DROP COLUMN "reasons", DROP COLUMN "is_deferred", DROP COLUMN "shown_at", DROP COLUMN "success_at";` | `20260926120000_recommendation_learning` |
+| `universities.inn`, `.ogrn`, `.merged_into_id`; таблицы `duplicate_dismissals`, `university_merges`; расширение `pg_trgm`; GIN-индексы по названиям (вузы, программы, навыки, IT-продукты) | Поиск дублей, слияние вузов, ИНН/ОГРН (решение 134). Согласовано, с правкой (решение 143: `university_merges_undone_check` сделан симметричным, миграция `20260926200000_schema_review`) | `20260926090000_data_quality` |
+| Таблицы `vendors`, `vendor_contacts`, `vendor_contact_products`, `school_courses`, `course_streams`, `site_orders`; `it_products.vendor_id` | Вендоры IT-продуктов и набор на курсы ИТ-Школы с минимизацией ПД слушателей — заказы с сайта хранят только HMAC-хеш (решение 132). Согласовано (решение 143) | `20260926122000_vendors_site_orders` |
+| Таблица `recommendation_signals`, перечисление `ExperimentArm`, 2 CHECK | Контрольная группа и оценка прироста рекомендаций (решение 136). Согласовано, с правкой (решение 143: `recommendation_signals_outcome_check` — `outcome_at` и `outcome` только вместе, миграция `20260926200000_schema_review`) | `20260926000000_recommendation_signals` |
+| Таблицы `telegram_updates_seen`, `system_secrets`, `approvals`, `idempotency_keys`; 5 колонок согласия у `contacts`/`contact_basis_history` | Безопасность, волна 2 (решение 133): дедуп апдейтов Telegram, ротация секрета вебхука, «четыре глаза» на опасные операции, идемпотентность POST. Согласовано, с правкой (решение 143: `approvals_decided_at_check` — `decided_at` согласован со статусом, миграция `20260926200000_schema_review`) | `20260926120000_security_wave_2` |
+| Таблица `forecast_models`, перечисление `ForecastModelStatus` | Прогноз «дойдёт ли связка до вехи» (решение 135); `UNIQUE(milestone_stage)` — ровно одна (последняя) модель на веху. Согласовано (решение 143) | `20260926140000_forecast_models` |
+| `users.notifications_seen_at` | Время последнего просмотра ленты уведомлений — источник истины на сервере, а не `localStorage` (решение 139). Согласовано (решение 143) | `20260926150000_notifications_seen_at` |
 
-## Что обсудить с Тиграном
+## Ревью схемы 26.09.2026 (решение 143)
 
-00. **Таблица `dsar_requests`** (25.09.2026, решение 116) — новая, существующие не менялись.
-   Вопросы: полиморфный `subject_id` без FK (сверяет `db:verify`) против двух nullable FK;
-   триггер вместо одних прав роли — держит неизменность и для владельца, но сид удаляет строки
-   `DELETE` (триггер только на `UPDATE`). Откат — в комментарии миграции.
-0. **Таблица `telegram_links`** (25.09.2026, решение 102) — новая, существующие не менялись.
-   Откат: `DROP TABLE "telegram_links";` (в комментарии миграции). Уникальность `chat_id`
-   и CASCADE от `users` — осознанно, объяснение выше.
+Владелец решил согласовывать схему своими силами вместо внешнего согласования с Тиграном
+(ветка `db/review-new-tables`). Ревью прошли все таблицы и колонки миграций
+`20260925230000`–`20260926150000` (решения 109–139: версия сессий, ключ навыка, основание
+ПД контактов, цепочка хешей журнала, DSAR, качество данных, обучение рекомендаций,
+безопасность-2, вендоры и заказы, прогноз, эксперимент, уведомления) — по ключам, внешним
+ключам и `ON DELETE`, индексам на месте фильтров и сортировок из `*.repo.ts`, уникальностям,
+CHECK, `NOT NULL`, типам и именованию. Итог по каждой миграции:
+
+| Миграция | Вердикт | Что исправлено |
+| --- | --- | --- |
+| `20260925230000_user_session_version` | Принято | — |
+| `20260925230100_skill_name_key_unique` | Принято | — |
+| `20260925230200_contact_legal_basis` | Принято | — |
+| `20260926000000_audit_hash_chain` (решение 115) | Принято | — |
+| `20260926000000_recommendation_signals` (решение 136) | Принято, с правкой | `recommendation_signals_outcome_check` — `outcome_at` и `outcome` заданы только вместе и не раньше `fired_at` (миграция `20260926200000_schema_review`) |
+| `20260926011600_dsar_requests` (решение 116) | Принято | — |
+| `20260926090000_data_quality` (решение 134) | Принято, с правкой | `university_merges_undone_check` сделан симметричным: `undone_at`/`undone_by_id` теперь или оба пустые, или оба заданы; в `db:verify` — правило «активное слияние согласовано с университетом-источником» |
+| `20260926120000_recommendation_learning` (решение 119) | Принято, с правкой | `recommendation_rule_stats.eff_updated_at`: TIMESTAMPTZ(6) → TIMESTAMP(3) — единственная колонка с поясом в схеме, приведена к общему соглашению «пишем UTC»; в `db:verify` — правило «`scope_id` соответствует `scope_type`» |
+| `20260926120000_security_wave_2` (решение 133) | Принято, с правкой | `approvals_decided_at_check` — `decided_at` пуст у REQUESTED, заполнен у APPROVED/REJECTED/CONSUMED |
+| `20260926122000_vendors_site_orders` (решение 132) | Принято | — |
+| `20260926140000_forecast_models` (решение 135) | Принято | `UNIQUE(milestone_stage)` уже держит «ровно одна модель на веху» — отдельного правила не потребовалось |
+| `20260926150000_notifications_seen_at` (решение 139) | Принято | — |
+
+Все правки — миграция `20260926200000_schema_review` (старые миграции не менялись). Она же
+проверена на обеих версиях сида (`npm run db:seed` и `SEED_DQ_CASES=1 npm run db:seed`) и
+обеих версиях `db:verify` (обычной и `--demo`) — без потери данных, без изменения существующих
+строк, кроме типа одной колонки.
+
+`deploy/yandex-cloud/create-app-role.sql` сверен со списком таблиц, защищённых от правки
+триггером или самой сутью (`audit_log`, `audit_seals`, `audit_chain_cuts`, `contact_basis_history`,
+`dsar_requests`) — права роли `skilllink_app` уже точно им соответствуют (проверено запуском
+скрипта на копии базы: `INSERT, SELECT` на `audit_log`/`audit_seals`, только `SELECT` на
+`audit_chain_cuts`, `INSERT, SELECT` на `contact_basis_history`, без `DELETE` на `dsar_requests`).
+Изменений не потребовалось.
+
+Не относится к решению 143 (общие открытые вопросы, не про эти миграции):
 
 1. Представления и агрегирующие запросы для рейтинга (обещаны в концепции) пока не созданы:
    рейтинг считается в приложении. На объёме MVP это дешевле; при росте данных переносим в СУБД.
@@ -704,25 +778,3 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
    согласована: Тигран слил её 22.09.2026. Двенадцати колонкам сортировки задана `COLLATE "ru-x-icu"`:
    без неё кириллица на macOS сортируется почти случайно, а в `postgres:16-alpine` —
    по кодам символов. Разбор — решение 35 в `TECHNICAL_DECISIONS.md`.
-6. **Уникальный индекс по выражению `skills_name_key_ci`** — миграция
-   `20260925230100_skill_name_key_unique` (решение 110), на согласование. Держит уникальность
-   названия навыка без учёта регистра и пробелов. На данных с дублями миграция падает
-   с их списком, не меняя ничего; порядок разбора — в шапке миграции. Индекс завязан на
-   ICU (`ru-x-icu`): при обновлении ICU на сервере PostgreSQL предупредит о смене версии
-   сортировки — тогда `REINDEX INDEX skills_name_key_ci`.
-7. **Качество данных** — миграция `20260926090000_data_quality` (решение 134), на
-   согласование. Расширение `pg_trgm` создаётся владельцем базы (сервис `migrate`) —
-   с PostgreSQL 13 оно доверенное, роли `skilllink_app` право `CREATE` не требуется
-   и `create-app-role.sql` не меняется. Новые таблицы `duplicate_dismissals` и
-   `university_merges` персональных данных не хранят (только идентификаторы и поля
-   вуза по значению). `universities.merged_into_id` — самоссылка с `ON DELETE SET NULL`,
-   на практике не срабатывает: слитый вуз архивируется, а не удаляется.
-7. **Вендоры и заказы с сайта** — миграция `20260926122000_vendors_site_orders` (решение 132),
-   на согласование. Шесть новых таблиц и `it_products.vendor_id` (SET NULL, обратная
-   совместимость с продуктами до решения 132). `vendors.name_key` и `school_courses.name_key`
-   уникальны как обычная колонка (проверяется кодом при записи и `db:verify`), а не индексом
-   по выражению, как `skills_name_key_ci`, — расходиться не с чем, потому что на них нет
-   отдельного пути записи в обход сервиса (в отличие от навыков, где решение 110 обсуждает
-   именно этот риск). CHECK на `course_streams.number >= 1` и на формат/непустоту хешей
-   `site_orders` — в теле миграции, не отдельным списком общих CHECK (решение 24.09.2026),
-   потому что специфичны только этим двум таблицам.
