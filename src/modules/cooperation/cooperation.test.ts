@@ -119,6 +119,43 @@ describe('валидация связки', () => {
   })
 })
 
+describe('каталог по ТЗ (решение 145): поля связки, PATCH их принимает', () => {
+  it('принимает все поля каталога сразу', () => {
+    const parsed = updateCooperationSchema.safeParse({
+      contractNumber: '77/2025-ИБ',
+      licenseSignedAt: '2026-05-04T00:00:00.000Z',
+      licenseTermYears: 3,
+      transferStatus: 'TRANSFERRED',
+      comment: 'Лицензия передана вузу.',
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('срок действия лицензии — 1..10 лет', () => {
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 0 }).success).toBe(false)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 11 }).success).toBe(false)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 1 }).success).toBe(true)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 10 }).success).toBe(true)
+  })
+
+  it('статус передачи — только из перечня ТЗ', () => {
+    expect(updateCooperationSchema.safeParse({ transferStatus: 'SOMETHING_ELSE' }).success).toBe(false)
+    for (const status of ['NOT_TRANSFERRED', 'IN_PROGRESS', 'TRANSFERRED', 'REVOKED']) {
+      expect(updateCooperationSchema.safeParse({ transferStatus: status }).success).toBe(true)
+    }
+  })
+
+  it('поля каталога необязательны — PATCH только с одним из них проходит', () => {
+    expect(updateCooperationSchema.safeParse({ comment: 'Заметка' }).success).toBe(true)
+  })
+
+  it('снятие значения явным null проходит (например, снять номер договора)', () => {
+    const parsed = updateCooperationSchema.safeParse({ contractNumber: null })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.contractNumber).toBeNull()
+  })
+})
+
 describe('поиск связок', () => {
   const now = new Date('2026-09-25T00:00:00.000Z')
   const where = (q: string) =>

@@ -687,6 +687,9 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   VendorContactProduct: 'связь контакта вендора и продукта — своих ПД и ссылок на людей нет (решение 132)',
   SchoolCourse: 'курс ИТ-Школы — справочник, без ПД (решение 132)',
   CourseStream: 'поток курса — справочник, без ПД (решение 132)',
+  ExternalImportLink:
+    'ключ идемпотентности приёма данных извне (решение 145): source, externalId и ссылка ' +
+    'на связку — без ссылок на людей',
   // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
   // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
   TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',
