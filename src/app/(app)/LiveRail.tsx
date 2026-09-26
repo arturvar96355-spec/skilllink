@@ -35,6 +35,14 @@ export interface RailNumber {
   trend?: MetricTrendDto | null
   /** Доля в процентах: изменение — в процентных пунктах, а не в штуках. */
   isShare?: boolean
+  /**
+   * Куда ведёт показатель (пробел ТЗ «кликабельные показатели главной»,
+   * решение 153): список с уже применённым фильтром, а где подходящего
+   * фильтра у списка нет — список без фильтра. У показателя, для которого
+   * подходящего списка вообще нет (операций на связку — расчётная величина,
+   * а не выборка записей), поля нет — плитка остаётся текстом.
+   */
+  href?: string
 }
 
 /** Длина шкалы метки «времени до занятий»: год. */
@@ -203,12 +211,12 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
         ? Number(animated.toFixed(number.digits))
         : Math.round(animated)
 
-  return (
-    <div
-      className={[styles.number, number.secondary ? styles.secondary : ''].filter(Boolean).join(' ')}
-      style={{ '--order': order } as CSSProperties}
-      title={number.explanation}
-    >
+  const className = [styles.number, number.secondary ? styles.secondary : '', number.href ? styles.numberLink : '']
+    .filter(Boolean)
+    .join(' ')
+
+  const content = (
+    <>
       <span className={styles.value}>
         {shown === null
           ? 'Нет данных'
@@ -232,6 +240,27 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
           {number.isMock && <span className={styles.mock}>демо</span>}
         </span>
       )}
+    </>
+  )
+
+  // Показатель без списка, на который можно сослаться (операций на связку — расчётная
+  // величина), остаётся текстом: div, а не ссылка в никуда.
+  if (number.href) {
+    return (
+      <Link
+        href={number.href}
+        className={className}
+        style={{ '--order': order } as CSSProperties}
+        title={number.explanation}
+      >
+        {content}
+      </Link>
+    )
+  }
+
+  return (
+    <div className={className} style={{ '--order': order } as CSSProperties} title={number.explanation}>
+      {content}
     </div>
   )
 }

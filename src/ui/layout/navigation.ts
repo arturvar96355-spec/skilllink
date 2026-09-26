@@ -107,3 +107,61 @@ export function currentSectionTitle(groups: NavGroup[], pathname: string): strin
   }
   return null
 }
+
+/**
+ * Охранник по маршруту (пробел ТЗ «раздел недоступен», решение 153): один общий
+ * список вместо проверки в каждой странице отдельно — вписан здесь, рядом
+ * с `navigationFor`, у которой те же правила для меню.
+ *
+ * По прямой ссылке на раздел, которого нет в навигации роли (например,
+ * представитель вуза открывает `/universities`, `/analytics` или `/settings`),
+ * `AppShell` показывает «Раздел недоступен» вместо содержимого страницы —
+ * страница со своими запросами к API вообще не монтируется, и пустого экрана
+ * или сырого 403 от API не возникает.
+ *
+ * Условие — не «есть в списке навигации»: `/portal` не входит в меню сотрудника
+ * (кабинет вуза открывают ссылкой с карточки вуза, а не пунктом меню), но
+ * `ADMIN`/`MANAGER`/`HEAD` должны его открывать, а `ANALYST`/`VIEWER` — нет,
+ * то есть точно по `permissions.canUsePortal`, а не по составу меню.
+ *
+ * Эксперту (`isReviewer`) ничего не закрывается сверх обычных прав его роли:
+ * права `/api/me` у эксперта уже учитывают его ограничения (решение 147, 152) —
+ * читать он может то же, что и обычная учётная запись той же роли, отдельная
+ * проверка `isReviewer` здесь не нужна.
+ */
+const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUserDto) => boolean }> = [
+  { prefix: ROUTES.universities, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.programs, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.cooperations, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.recommendations, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.documents, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.products, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.settings, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
+]
+
+/**
+ * Пути, открытые любой роли независимо от `SECTION_GUARDS`: личный кабинет
+ * (не в меню сотрудника, но доступен всем через шапку), служебные страницы
+ * подвала (`serviceLinksFor` — они и представителю вуза открыты) и сама
+ * главная (`/`): у неё свой редирект на `/portal` для представителя вуза
+ * внутри страницы (`page.tsx`), который должен успеть отработать, а не быть
+ * перехваченным охранником раньше.
+ */
+const ALWAYS_ALLOWED_PATHS: ReadonlySet<string> = new Set([
+  ROUTES.dashboard,
+  ROUTES.profile,
+  ROUTES.privacy,
+  ROUTES.status,
+])
+
+/** Доступен ли пользователю раздел по адресу `pathname` — без учёта хвоста после `?`/`#`. */
+export function isSectionAllowed(user: CurrentUserDto, pathname: string): boolean {
+  if (ALWAYS_ALLOWED_PATHS.has(pathname)) return true
+  const guard = SECTION_GUARDS.find(
+    (item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`),
+  )
+  return guard ? guard.allowed(user) : true
+}
