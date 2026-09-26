@@ -1,5 +1,6 @@
 import type { RecommendationScoreDto } from '@/shared/contracts'
-import { ScoreBar, ScoreLegend, formatNumber, formatShare, type ScorePart } from '@/ui'
+import { ScoreBar, ScoreLegend, formatNumber, formatShare } from '@/ui'
+import { partsOf } from './recommendation-score'
 import styles from './RecommendationScore.module.css'
 
 /**
@@ -19,24 +20,6 @@ const SOURCE_LABEL: Record<RecommendationScoreDto['pSource'], string> = {
   local: 'по своим решениям',
   pooled: 'мало своих решений',
   global: 'общая оценка',
-}
-
-function partsOf(breakdown: RecommendationScoreDto): ScorePart[] {
-  return [
-    { key: 'rule', title: 'Вес правила', contribution: breakdown.weights.rule * breakdown.p * 100, value: breakdown.p },
-    {
-      key: 'value',
-      title: 'Ценность случая',
-      contribution: breakdown.weights.value * breakdown.valueScore * 100,
-      value: breakdown.value,
-    },
-    {
-      key: 'priority',
-      title: 'Приоритет',
-      contribution: breakdown.weights.priority * breakdown.priority * 100,
-      value: breakdown.priority,
-    },
-  ]
 }
 
 export interface RecommendationScoreProps {

@@ -3,6 +3,7 @@
 import { Fragment, type CSSProperties } from 'react'
 import type { MeetingsHeatmapDto } from '@/shared/contracts'
 import { Card, EmptyState, ErrorState, MockBadge, Section, TableSkeleton, useResource } from '@/ui'
+import { heatIntensity } from './heatmap-color'
 import styles from './MeetingsHeatmap.module.css'
 
 /**
@@ -38,8 +39,8 @@ export function MeetingsHeatmap() {
 }
 
 function cellStyle(value: number, max: number): CSSProperties {
-  if (value === 0 || max === 0) return {}
-  const intensity = Math.round((value / max) * 85) + 15
+  const intensity = heatIntensity(value, max)
+  if (intensity === 0) return {}
   return { background: `color-mix(in srgb, var(--accent-violet) ${intensity}%, var(--surface-sunken))` }
 }
 
