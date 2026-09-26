@@ -41,6 +41,8 @@ import {
   type Column,
   ListTitle,
   DownloadButton,
+  formatStageProgress,
+  STAGE_PROGRESS_HINT,
 } from '@/ui'
 import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
@@ -94,7 +96,7 @@ function StageTrack({ row }: { row: CooperationListItemDto }) {
     <span
       className={styles.track}
       title={
-        `Закрыто ${closed} из ${progress.totalStages} этапов` +
+        `Закрыто ${formatStageProgress(closed, progress.totalStages)} (${STAGE_PROGRESS_HINT})` +
         (progress.overdueStages > 0 ? `, просрочено ${progress.overdueStages}` : '') +
         (progress.blockedStages > 0 ? `, заблокировано ${progress.blockedStages}` : '')
       }

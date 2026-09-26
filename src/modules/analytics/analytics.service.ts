@@ -16,6 +16,7 @@ import type {
 import type { RecommendationDto } from '@/shared/contracts/recommendation'
 import { daysBetween } from '@/shared/utils/date'
 import { percent, round } from '@/shared/utils/number'
+import { plural, STAGE_FORMS_OF } from '@/shared/utils/text'
 import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
@@ -45,7 +46,12 @@ function metric(
   value: number,
   unit: string,
   explanation: string,
-  options: { basis?: 'actual' | 'estimate'; isMock?: boolean; trend?: MetricTrendDto | null } = {},
+  options: {
+    basis?: 'actual' | 'estimate'
+    isMock?: boolean
+    trend?: MetricTrendDto | null
+    denominatorLabel?: string
+  } = {},
 ): DashboardMetricDto {
   return {
     key,
@@ -58,6 +64,7 @@ function metric(
     source: 'Данные системы',
     isMock: options.isMock ?? false,
     ...(options.trend !== undefined ? { trend: options.trend } : {}),
+    ...(options.denominatorLabel !== undefined ? { denominatorLabel: options.denominatorLabel } : {}),
   }
 }
 
@@ -126,6 +133,7 @@ function stagesOnTimeMetric(completedStages: CompletedStage[], trendStart: Date)
         onTimeShare === null || onTimeShareBefore === null
           ? null
           : compareWithPast(onTimeShare, onTimeShareBefore),
+      denominatorLabel: `из ${completedStages.length} ${plural(completedStages.length, STAGE_FORMS_OF)}`,
     },
   )
 }
