@@ -201,6 +201,12 @@
   font-size: var(--text-caption-size);
 }
 
+/* Фильтр типа события над лентой 360 (решение 182, п. 3). */
+.timelineFilter {
+  max-width: 260px;
+  margin-bottom: var(--space-4);
+}
+
 .events {
   display: flex;
   flex-direction: column;
