@@ -14,6 +14,13 @@ import { generate as generateRecommendations } from '@/modules/recommendations/r
 import { seedRecommendationStats } from '@/modules/recommendations/recommendations.seed'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
+import { auditSeal } from '@/modules/audit/chain.service'
+import { runTraining as trainForecastModels } from '@/modules/analytics/forecast.service'
+import { eraseUser, exportOwnData, registerRequest } from '@/modules/dsar/dsar.service'
+import { approve as approveApproval, request as requestApproval } from '@/modules/approvals/approvals.service'
+import { dismiss as dismissDuplicate, findDuplicates } from '@/modules/data-quality/data-quality.service'
+import { merge as mergeUniversities, undo as undoUniversityMerge } from '@/modules/universities/merge.service'
+import type { CurrentUser } from '@/shared/auth/current-user'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
@@ -77,6 +84,9 @@ async function clean(): Promise<void> {
   ])
   await prisma.universityMerge.deleteMany()
   await prisma.duplicateDismissal.deleteMany()
+  // Прогноз (решение 135, решение 141): version растёт при каждом обучении той же
+  // вехи (не привязан к числу строк) — без чистки перезаливка не была бы детерминированной.
+  await prisma.forecastModel.deleteMany()
   await prisma.contactBasisHistory.deleteMany()
   await prisma.stageHistory.deleteMany()
   await prisma.task.deleteMany()
@@ -173,7 +183,30 @@ async function seedUsers() {
       role: 'VIEWER',
     },
   })
-  return { customPassword, DEMO_PASSWORD, demoPasswordHash, admin, manager, manager2, analyst }
+  // Второй администратор — «четыре глаза» для approvals (решение 133): одобрить
+  // операцию должен кто-то, кроме запросившего, а на стенде был только один admin.
+  const admin2 = await prisma.user.create({
+    data: {
+      email: 'admin2@skilllink.demo',
+      passwordHash: demoPasswordHash,
+      fullName: 'Соловьёва Марина Дмитриевна',
+      position: 'Администратор системы (ИБ)',
+      role: 'ADMIN',
+    },
+  })
+  // Уволенный сотрудник — только для примера обезличивания по DSAR (решение 116,
+  // решение 141): без открытой работы (связок, этапов), поэтому eraseUser его пропустит.
+  const formerEmployee = await prisma.user.create({
+    data: {
+      email: 'former.employee@skilllink.demo',
+      passwordHash: demoPasswordHash,
+      fullName: 'Куликов Станислав Егорович',
+      position: 'Бывший менеджер партнёрств',
+      role: 'VIEWER',
+      isActive: false,
+    },
+  })
+  return { customPassword, DEMO_PASSWORD, demoPasswordHash, admin, admin2, manager, manager2, analyst, formerEmployee }
 }
 
 type SeedUsers = Awaited<ReturnType<typeof seedUsers>>
@@ -2032,6 +2065,109 @@ async function seedRecommendations(cooperations: CreatedCooperation[], manager: 
   }
 }
 
+/**
+ * Примеры для «пустых содержательных таблиц» решения 141: реестр запросов
+ * субъектов (DSAR), одобрения «четыре глаза», обученная модель прогноза,
+ * отметка «не дубль» и слияние-с-отменой вуза — всё через настоящие сервисные
+ * функции (те же, что вызывает API), а не прямой INSERT: тогда данные проходят
+ * ту же валидацию и пишут тот же журнал, что и на реальном стенде.
+ */
+async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser): Promise<void> {
+  console.log('Одобрения, запросы субъектов, прогноз, качество данных...')
+  const admin: CurrentUser = { id: users.admin.id, email: users.admin.email, fullName: users.admin.fullName, role: 'ADMIN', universityId: null }
+  const admin2: CurrentUser = { id: users.admin2.id, email: users.admin2.email, fullName: users.admin2.fullName, role: 'ADMIN', universityId: null }
+  const analyst: CurrentUser = { id: users.analyst.id, email: users.analyst.email, fullName: users.analyst.fullName, role: 'ANALYST', universityId: null }
+  const rep: CurrentUser = {
+    id: universityRep.id, email: universityRep.email, fullName: universityRep.fullName,
+    role: universityRep.role, universityId: universityRep.universityId,
+  }
+
+  // ── DSAR: реестр запросов субъектов (решение 116) — три примера, разные виды,
+  // статусы, каналы и типы субъекта.
+  // 1. Представитель вуза сам выгружает свои данные из кабинета — EXPORT/COMPLETED/SELF_SERVICE.
+  await exportOwnData(rep, { address: null }, daysAgo(2))
+  // 2. Письмо с просьбой обезличить контакт вуза — ERASE/OPEN/LETTER: срок ещё не истёк,
+  // запрос виден в реестре как открытый.
+  const letterContact = await prisma.contact.findFirstOrThrow({
+    where: { email: 'partners@mtuci.example.invalid' },
+    select: { id: true },
+  })
+  await registerRequest(
+    admin,
+    { subjectType: 'CONTACT', subjectId: letterContact.id, kind: 'ERASE', receivedAt: daysAgo(3).toISOString() },
+    daysAgo(2),
+  )
+  // 3. Уволенный сотрудник обезличен администратором — ERASE/COMPLETED/ADMIN, USER.
+  await eraseUser(admin, users.formerEmployee.id, { confirm: users.formerEmployee.email }, daysAgo(1))
+  const dsarRequests = await prisma.dsarRequest.count()
+
+  // ── Approvals: «четыре глаза» (решение 133) — один открытый, один одобренный,
+  // не использованный (сама операция повышения роли в демо не выполняется).
+  // createdAt строки — DEFAULT now() в базе, backdate тут невозможен без прямого
+  // UPDATE — оставляем настоящее «сейчас», как и было бы при живом запросе.
+  await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.analyst.id } })
+  const toApprove = await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.manager.id } })
+  await approveApproval(admin2, toApprove.id)
+  const approvals = await prisma.approval.count()
+
+  // ── Прогноз (решение 135): обучение на только что залитой истории этапов —
+  // настоящая функция, не подставные числа; ворота публикации решают сами,
+  // публиковать модель или показывать «недостаточно данных».
+  const forecast = await trainForecastModels(null)
+  const forecastModels = forecast.models.length
+
+  // ── Качество данных (решение 134): «Java»/«JavaScript» — единственная пара
+  // навыков, которую находит нечёткий поиск даже на пониженном пороге (0.3
+  // вместо 0.4 по умолчанию) — реальный дубль-кандидат, отклонённый аналитиком.
+  // При пороге по умолчанию эта пара не показывается вовсе, поэтому дубль
+  // остаётся невидимым в обычном отчёте — только в журнале решений.
+  const javaPair = await findDuplicates(analyst, {
+    entity: 'skill',
+    threshold: 0.3,
+    includeDismissed: undefined,
+    includeArchived: false,
+  })
+  const [firstCandidate] = javaPair.data
+  if (firstCandidate) {
+    const manager: CurrentUser = {
+      id: users.manager.id, email: users.manager.email, fullName: users.manager.fullName,
+      role: users.manager.role, universityId: users.manager.universityId,
+    }
+    await dismissDuplicate(manager, {
+      entity: 'skill',
+      firstId: firstCandidate.a.id,
+      secondId: firstCandidate.b.id,
+      comment: 'Java и JavaScript — разные языки программирования, несмотря на схожее название',
+    })
+  }
+  const duplicateDismissals = await prisma.duplicateDismissal.count()
+
+  // ── Слияние вуза с отменой (решение 134): показывает обе операции — перенос
+  // и отмену по журналу — без единого следа в реестре. Источник — КубГТУ (в
+  // архиве, дубль тут ни при чём, просто пример механики); цель обязана быть
+  // действующей (правило слияния), поэтому берём любой активный вуз — Иннополис.
+  //
+  // Правило слияния отказывает, если у обоих вузов есть ИНН и они разные
+  // (решение 134 — «это разные организации, а не дубли»): ровно то, что решение
+  // 141 только что включило для всех 19 вузов. Чтобы пример вообще прошёл эту
+  // проверку, ИНН источника на время примера снимается и возвращается назад
+  // после отмены — checksum-утилита (prisma/demo/random.ts) детерминирована,
+  // так что значение то же, что было. Отмена в ту же секунду возвращает обоих
+  // ровно к прежнему состоянию, включая ИНН, который undo знать не может.
+  const kubstu = await prisma.university.findFirstOrThrow({ where: { shortName: 'КубГТУ' }, select: { id: true, inn: true } })
+  const innopolis = await prisma.university.findFirstOrThrow({ where: { shortName: 'Иннополис' }, select: { id: true } })
+  await prisma.university.update({ where: { id: kubstu.id }, data: { inn: null } })
+  const merged = await mergeUniversities(admin, { sourceId: kubstu.id, targetId: innopolis.id }, daysAgo(10))
+  await undoUniversityMerge(admin, merged.id, daysAgo(9))
+  await prisma.university.update({ where: { id: kubstu.id }, data: { inn: kubstu.inn } })
+  const universityMerges = await prisma.universityMerge.count()
+
+  console.log(
+    `  запросов субъектов: ${dsarRequests}, одобрений: ${approvals}, моделей прогноза: ${forecastModels}, ` +
+      `отметок «не дубль»: ${duplicateDismissals}, слияний вузов (с отменой): ${universityMerges}`,
+  )
+}
+
 /** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
 async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<void> {
   const { admin, manager, analyst, customPassword, DEMO_PASSWORD } = users
@@ -2049,8 +2185,13 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
     Встречи: await prisma.meeting.count(),
     'Заявки на обучение': await prisma.application.count(),
     'Записи журнала': await prisma.auditLog.count(),
+    'Печати журнала': await prisma.auditSeal.count(),
     Пользователи: await prisma.user.count(),
     Рекомендации: await prisma.recommendation.count(),
+    'Запросы субъектов (DSAR)': await prisma.dsarRequest.count(),
+    Одобрения: await prisma.approval.count(),
+    'Модели прогноза': await prisma.forecastModel.count(),
+    'Источники данных': await prisma.dataSource.count(),
   }
   console.log('\nДемонстрационные данные загружены:')
   for (const [name, value] of Object.entries(counts)) {
@@ -2092,6 +2233,9 @@ async function main(): Promise<void> {
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
+  // Первая печать журнала (решение 115, решение 141): снимается в середине заливки,
+  // до расширенного набора — вторая, в конце, покажет другое число строк и хеш.
+  await auditSeal(prisma)
   if (process.env.SEED_DQ_CASES?.trim() === '1') {
     await seedDataQualityCases(universityId)
   } else {
@@ -2118,6 +2262,9 @@ async function main(): Promise<void> {
   console.log(`  закрытых из прошлого: ${resolved}`)
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
+  await seedGovernanceExamples(users, universityRep)
+  // Вторая печать журнала — после всего: другой headSeq/rowCount, чем у первой.
+  await auditSeal(prisma)
   await printSummary(users, universityRep)
   console.log(`\nЗаливка заняла ${((Date.now() - startedAt) / 1000).toFixed(1)} с.`)
 }
