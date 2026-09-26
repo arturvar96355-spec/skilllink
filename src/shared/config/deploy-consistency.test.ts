@@ -6,10 +6,13 @@ import { describe, expect, it } from 'vitest'
  * Ворота выкладки (решение 137): файлы развёртывания не должны расходиться
  * молча. Три независимые проверки:
  *
- * 1. Предел тела запроса в Caddy (`request_body { max_size … }`) не меньше
- *    самого большого предела, который признаёт приложение, — иначе легитимная
- *    выгрузка (импорт CSV) обрывалась бы снаружи 413 раньше, чем до неё вообще
- *    дошло бы дело.
+ * 1. Пределы тела запроса в Caddy (`request_body … { max_size … }`) не меньше
+ *    самых больших пределов, которые признаёт приложение, — иначе легитимная
+ *    выгрузка (импорт CSV) или загрузка файла (решение 145) обрывалась бы снаружи
+ *    413 раньше, чем до неё вообще дошло бы дело. У путей загрузки файлов
+ *    (`/api/documents/{id}/files`, `/api/workflow/stages/{id}/files`) свой, больший
+ *    предел (matcher `@fileUploads`) — общий предел рассчитан на JSON и CSV,
+ *    поднимать его для всех путей ради вложений незачем.
  * 2. Имена контейнеров, которые скрипты называют явно (`docker exec`,
  *    `docker inspect -f … <имя>`), существуют как `container_name` в
  *    docker-compose.yml или его облачной надстройке — иначе скрипт молча
@@ -32,11 +35,21 @@ function evalByteExpr(expr: string): number {
 }
 
 describe('предел тела запроса: Caddy не меньше самого щедрого предела приложения', () => {
-  it('request_body max_size в Caddyfile ≥ максимума среди MAX_*_BODY_BYTES кода', () => {
+  /**
+   * В Caddyfile теперь два блока `request_body { max_size … }` (решение 145):
+   * общий (JSON, CSV) и больший — только для путей загрузки файлов (`@fileUploads`).
+   * Общий предел всегда меньше — поэтому наименьшее найденное число и есть общий,
+   * а наибольшее — предел путей загрузки.
+   */
+  function caddyBodyLimits(): { general: number; uploads: number } {
     const caddyfile = read('deploy/yandex-cloud/Caddyfile')
-    const caddyMatch = /max_size\s+(\d+)/.exec(caddyfile)
-    expect(caddyMatch, 'В Caddyfile нет request_body { max_size … } — decision 137 ожидает предел снаружи').not.toBeNull()
-    const caddyLimit = Number(caddyMatch![1])
+    const matches = [...caddyfile.matchAll(/max_size\s+(\d+)/g)].map((match) => Number(match[1]))
+    expect(matches.length, 'В Caddyfile нет ни одного request_body { max_size … } — decision 137 ожидает предел снаружи').toBeGreaterThanOrEqual(2)
+    return { general: Math.min(...matches), uploads: Math.max(...matches) }
+  }
+
+  it('общий request_body max_size в Caddyfile ≥ максимума среди MAX_*_BODY_BYTES кода', () => {
+    const { general: caddyLimit } = caddyBodyLimits()
 
     const sources: Array<{ file: string; pattern: RegExp }> = [
       { file: 'src/shared/http/request.ts', pattern: /MAX_JSON_BODY_BYTES\s*=\s*([\d\s*_]+)/ },
@@ -54,6 +67,21 @@ describe('предел тела запроса: Caddy не меньше само
       `Caddy пропускает не больше ${caddyLimit} байт, а ${largest.file} готов принять ${largest.bytes} — ` +
         'легитимный запрос обрывался бы снаружи раньше, чем до него дошло бы дело.',
     ).toBeGreaterThanOrEqual(largest.bytes)
+  })
+
+  it('предел путей загрузки файлов в Caddyfile ≥ MAX_ATTACHMENT_SIZE_BYTES (решение 145)', () => {
+    const { uploads: caddyUploadLimit } = caddyBodyLimits()
+    const match = /MAX_ATTACHMENT_SIZE_BYTES\s*=\s*([\d\s*_]+)/.exec(
+      read('src/shared/config/attachments.config.ts'),
+    )
+    expect(match, 'Не нашёл предел размера вложения — сверка устарела').not.toBeNull()
+    const attachmentLimit = evalByteExpr(match![1]!)
+
+    expect(
+      caddyUploadLimit,
+      `Путь загрузки файлов в Caddy пропускает не больше ${caddyUploadLimit} байт, а приложение готово принять ` +
+        `${attachmentLimit} — легитимная загрузка обрывалась бы снаружи раньше, чем до неё дошло бы дело.`,
+    ).toBeGreaterThanOrEqual(attachmentLimit)
   })
 })
 

@@ -53,6 +53,35 @@ describe('набор этапов новой связки', () => {
   })
 })
 
+describe('шаблон этапов из настроек (ТЗ, п. 4; решение 146)', () => {
+  const startedAt = new Date('2026-01-01T00:00:00.000Z')
+
+  it('без overrides — то же самое, что раньше: запасное значение из конфига', () => {
+    const stages = buildStages(startedAt, 'user-1')
+    expect(stages[0]?.title).toBe(WORKFLOW_STAGES[0]?.title)
+    expect(stages[0]?.deadline.getTime()).toBe(
+      startedAt.getTime() + (WORKFLOW_STAGES[0]?.normativeDays ?? 0) * 24 * 60 * 60 * 1000,
+    )
+  })
+
+  it('название и срок из overrides подменяют значения этапа по номеру', () => {
+    const overrides = new Map([[1, { title: 'Новое название этапа 1', normativeDays: 3 }]])
+    const stages = buildStages(startedAt, 'user-1', overrides)
+    expect(stages[0]?.title).toBe('Новое название этапа 1')
+    expect(stages[0]?.deadline.getTime()).toBe(startedAt.getTime() + 3 * 24 * 60 * 60 * 1000)
+    // Этап без записи в overrides (пустая таблица шаблонов на свежей базе до сида,
+    // или запись только по части этапов) — запасное значение из конфига, как раньше.
+    expect(stages[1]?.title).toBe(WORKFLOW_STAGES[1]?.title)
+  })
+
+  it('фаза и чек-лист всегда из конфига — overrides их не задаёт', () => {
+    const overrides = new Map([[1, { title: 'X', normativeDays: 1 }]])
+    const stages = buildStages(startedAt, 'user-1', overrides)
+    expect(stages[0]?.phase).toBe(WORKFLOW_STAGES[0]?.phase)
+    expect(stages[0]?.tasks).toHaveLength(WORKFLOW_STAGES[0]?.tasks.length ?? 0)
+  })
+})
+
 describe('правила связки', () => {
   it('не даёт связать программу чужого вуза', () => {
     expect(() => assertProgramBelongsToUniversity('uni-a', 'uni-b')).toThrowError(AppError)
@@ -116,6 +145,43 @@ describe('валидация связки', () => {
     const parsed = updateCooperationSchema.safeParse({ goal: 'Новая цель' })
     expect(parsed.success).toBe(true)
     expect(parsed.success && 'status' in parsed.data).toBe(false)
+  })
+})
+
+describe('каталог по ТЗ (решение 145): поля связки, PATCH их принимает', () => {
+  it('принимает все поля каталога сразу', () => {
+    const parsed = updateCooperationSchema.safeParse({
+      contractNumber: '77/2025-ИБ',
+      licenseSignedAt: '2026-05-04T00:00:00.000Z',
+      licenseTermYears: 3,
+      transferStatus: 'TRANSFERRED',
+      comment: 'Лицензия передана вузу.',
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('срок действия лицензии — 1..10 лет', () => {
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 0 }).success).toBe(false)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 11 }).success).toBe(false)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 1 }).success).toBe(true)
+    expect(updateCooperationSchema.safeParse({ licenseTermYears: 10 }).success).toBe(true)
+  })
+
+  it('статус передачи — только из перечня ТЗ', () => {
+    expect(updateCooperationSchema.safeParse({ transferStatus: 'SOMETHING_ELSE' }).success).toBe(false)
+    for (const status of ['NOT_TRANSFERRED', 'IN_PROGRESS', 'TRANSFERRED', 'REVOKED']) {
+      expect(updateCooperationSchema.safeParse({ transferStatus: status }).success).toBe(true)
+    }
+  })
+
+  it('поля каталога необязательны — PATCH только с одним из них проходит', () => {
+    expect(updateCooperationSchema.safeParse({ comment: 'Заметка' }).success).toBe(true)
+  })
+
+  it('снятие значения явным null проходит (например, снять номер договора)', () => {
+    const parsed = updateCooperationSchema.safeParse({ contractNumber: null })
+    expect(parsed.success).toBe(true)
+    expect(parsed.success && parsed.data.contractNumber).toBeNull()
   })
 })
 

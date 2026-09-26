@@ -100,3 +100,50 @@ export interface CalculationParametersDto {
   /** Сколько значений рабочие (TEMP) — для строки «N значений ждут утверждения». */
   temporaryCount: number
 }
+
+/**
+ * «Настройки → Workflow» (ТЗ, функц. требования пп. 6, 9; решение 146):
+ * хранимый в базе шаблон 14 этапов, по которому строятся этапы НОВЫХ связок.
+ * Только чтение и правка администратором: `GET/PATCH /api/settings/workflow*`.
+ *
+ * В отличие от `StageNormDto` (раздел «Параметры расчётов» — снимок статического
+ * конфига, только чтение), это редактируемый источник: правка здесь меняет,
+ * какими будут этапы связок, заведённых после сохранения.
+ */
+export interface WorkflowStageTemplateDto {
+  stageNumber: number
+  title: string
+  phase: StagePhase
+  phaseLabel: string
+  normativeDays: number
+  /**
+   * Контрольная точка — только чтение. Правила порядка этапов (решения 5/28)
+   * завязаны на список номеров в коде; снятие признака здесь молча сломало бы
+   * проверку порядка, поэтому PATCH это поле не принимает.
+   */
+  isControlPoint: boolean
+  controlPointExplanation: string | null
+  /** Пункты чек-листа по умолчанию — только для отображения, не редактируются здесь. */
+  defaultTasks: WorkflowStageTemplateTaskDto[]
+  updatedAt: string
+  updatedBy: { id: string; fullName: string } | null
+}
+
+export interface WorkflowStageTemplateTaskDto {
+  title: string
+  isRequired: boolean
+  isUniversityItem: boolean
+}
+
+export interface WorkflowSettingsDto {
+  stages: WorkflowStageTemplateDto[]
+}
+
+/** Ответ `PATCH /api/settings/workflow/stages/{number}`. */
+export interface WorkflowStageTemplatePatchResultDto extends WorkflowStageTemplateDto {
+  /**
+   * Сколько незавершённых этапов уже заведённых связок пересчитано
+   * (только при `applyToUnfinishedStages: true` в теле запроса; иначе 0).
+   */
+  appliedToStages: number
+}

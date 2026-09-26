@@ -145,18 +145,20 @@ function rateLimitResponse(spec: EndpointSpec): Record<string, JsonSchema> {
 
 const PERMISSION_NOTES: Record<string, string> = {
   ANY: 'Доступно любому определённому пользователю',
-  READ: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP',
-  WRITE: 'Роли: ADMIN, MANAGER',
-  ANALYTICS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
-  ANALYTICS_WORK: 'Роли: ADMIN, MANAGER, ANALYST',
+  READ: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD',
+  WRITE: 'Роли: ADMIN, MANAGER, HEAD',
+  ANALYTICS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD',
+  ANALYTICS_WORK: 'Роли: ADMIN, MANAGER, ANALYST, HEAD',
   ADMIN: 'Роль: ADMIN',
-  UNIVERSITY_PORTAL: 'Роли: ADMIN, MANAGER, UNIVERSITY_REP',
+  UNIVERSITY_PORTAL: 'Роли: ADMIN, MANAGER, UNIVERSITY_REP, HEAD',
   UNIVERSITY_PORTAL_WRITE: 'Роль: UNIVERSITY_REP. Сотрудник ИТ-Школы в кабинете вуза только просматривает',
-  CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
-  CONTACT_DETAILS: 'Роли: ADMIN, MANAGER; UNIVERSITY_REP — контакты своего вуза',
-  CONTACT_BASIS: 'Роли: ADMIN, MANAGER',
-  VENDORS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER',
-  SITE_ORDERS: 'Роли: ADMIN, MANAGER',
+  CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD',
+  CONTACT_DETAILS: 'Роли: ADMIN, MANAGER, HEAD; UNIVERSITY_REP — контакты своего вуза',
+  CONTACT_BASIS: 'Роли: ADMIN, MANAGER, HEAD',
+  VENDORS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD; почта и телефон контактов — ADMIN, MANAGER, HEAD',
+  SITE_ORDERS: 'Роли: ADMIN, MANAGER, HEAD',
+  ASSIGN_RESPONSIBLE:
+    'Роли: ADMIN, HEAD (решение 146, роль «Руководитель»: право переназначать ответственных за вузы и связки)',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {
@@ -208,7 +210,26 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
     ...(spec.public ? { security: [] } : {}),
   }
 
-  if (spec.body) {
+  if (spec.multipartField) {
+    operation.requestBody = {
+      required: true,
+      content: {
+        'multipart/form-data': {
+          schema: {
+            type: 'object',
+            required: [spec.multipartField],
+            properties: {
+              [spec.multipartField]: {
+                type: 'string',
+                format: 'binary',
+                description: 'Формат — по расширению из списка ТЗ, сигнатура (magic bytes) должна ему соответствовать.',
+              },
+            },
+          },
+        },
+      },
+    }
+  } else if (spec.body) {
     operation.requestBody = {
       required: spec.bodyOptional !== true,
       content: { 'application/json': { schema: toJsonSchema(spec.body, 'input') } },

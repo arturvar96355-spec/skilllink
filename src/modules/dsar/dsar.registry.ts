@@ -90,6 +90,19 @@ const KEEP_DSAR =
 const KEEP_SECURITY =
   'административная запись безопасности (решение 133): доказательство контроля над опасными операциями ' +
   'и секретами, как и журнал действий; ПД в ней нет, только идентификатор администратора'
+/**
+ * Файлы к документам и этапам (решение 145) не удаляются и не переносятся при обезличивании
+ * загрузившего их сотрудника: сам файл (скан договора, лицензия) — рабочая запись оператора
+ * по связке с вузом (Ц1), нужная для работы независимо от того, кто именно его когда-то
+ * положил. Обезличивание убирает данные конкретного человека (ФИО, почту), а не документы,
+ * которые он от имени оператора завёл, — тем же принципом, что и `KEEP_REFERENCE` для связок,
+ * этапов и документов. Ссылка `uploadedById` в записи файла остаётся и после обезличивания
+ * указывает на обезличенную учётную запись, как и везде в реестре.
+ */
+const KEEP_ATTACHMENT =
+  'рабочий файл оператора по связке с вузом (Ц1): сам файл и запись о нём остаются как часть ' +
+  'истории работы (аналогично документам и этапам, KEEP_REFERENCE); ссылка на загрузившего ' +
+  'остаётся и указывает на обезличенную учётную запись'
 
 const AUDIT_SELECT = {
   id: true,
@@ -199,6 +212,19 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     },
     omitted: { notes: FREE_TEXT, goal: FREE_TEXT },
     orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
+    // Решение 146 (роль «Руководитель»): у вуза появился ответственный сотрудник.
+    // Сам University помечен «организация, не человек» (DSAR_NOT_PERSONAL) —
+    // это единственная ссылка на человека в нём, поэтому у неё свой раздел.
+    section: 'universitiesResponsible',
+    model: 'University',
+    title: 'Вузы, где назначен ответственным',
+    links: ['responsibleId'],
+    select: { id: true, name: true, shortName: true },
+    orderBy: { name: 'asc' },
     erase: 'keep',
     reason: KEEP_REFERENCE,
   },
@@ -414,6 +440,24 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_REFERENCE,
   },
   {
+    section: 'attachmentsUploaded',
+    model: 'Attachment',
+    title: 'Файлы, загруженные пользователем (решение 145)',
+    links: ['uploadedById'],
+    select: {
+      id: true,
+      ownerType: true,
+      ownerId: true,
+      originalName: true,
+      mime: true,
+      size: true,
+      uploadedAt: true,
+    },
+    orderBy: { uploadedAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_ATTACHMENT,
+  },
+  {
     section: 'dsarRequestsAbout',
     model: 'DsarRequest',
     title: 'Запросы субъекта ПД о себе',
@@ -445,6 +489,17 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     select: { name: true, rotatedAt: true },
     orderBy: { rotatedAt: 'desc' },
     tieBreaker: { name: 'asc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
+    // Решение 146: правка хранимого шаблона этапов (настройки, только ADMIN).
+    section: 'workflowTemplateEdits',
+    model: 'WorkflowStageTemplate',
+    title: 'Правки шаблона этапов workflow',
+    links: ['updatedById'],
+    select: { stageNumber: true, title: true, normativeDays: true, updatedAt: true },
+    orderBy: { stageNumber: 'asc' },
     erase: 'keep',
     reason: KEEP_SECURITY,
   },
@@ -651,7 +706,8 @@ export const DSAR_REGISTRY: Readonly<Record<DsarSubjectKind, readonly DsarEntry[
  * с причиной: новая таблица не проскочит незамеченной ни в одну сторону.
  */
 export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string>>> = {
-  University: 'организация, не человек',
+  // University больше не здесь: с решения 146 у неё есть responsibleId — единственная
+  // ссылка на человека, и она в основном реестре (раздел `universitiesResponsible`).
   EducationalProgram: 'программа вуза: показатели без ПД обучающихся',
   Skill: 'справочник навыков',
   ProgramSkill: 'связь программы и навыка',
@@ -668,6 +724,9 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   VendorContactProduct: 'связь контакта вендора и продукта — своих ПД и ссылок на людей нет (решение 132)',
   SchoolCourse: 'курс ИТ-Школы — справочник, без ПД (решение 132)',
   CourseStream: 'поток курса — справочник, без ПД (решение 132)',
+  ExternalImportLink:
+    'ключ идемпотентности приёма данных извне (решение 145): source, externalId и ссылка ' +
+    'на связку — без ссылок на людей',
   // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
   // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
   TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',

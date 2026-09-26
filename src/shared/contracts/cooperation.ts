@@ -1,4 +1,4 @@
-import type { CooperationStatus, StagePhase, StageStatus } from './enums'
+import type { CooperationStatus, StagePhase, StageStatus, TransferStatus } from './enums'
 import type { UserRefDto, WorkflowStageDto } from './workflow'
 
 /** Короткая сводка текущего этапа для списков. */
@@ -70,4 +70,16 @@ export interface CooperationDto extends CooperationListItemDto {
   closedAt: string | null
   createdAt: string
   stages: WorkflowStageDto[]
+  /**
+   * Каталог по ТЗ РТК (решение 145): поля, которых не было в связке — номер
+   * договора, лицензия, статус передачи ПО, комментарий. Все — `null`, пока
+   * не заполнены (демо-сид и PATCH `/api/cooperations/:id` заполняют их у части
+   * связок). Вендор и ПО берутся из `productName`/`productId` выше — отдельных
+   * полей под них здесь нет.
+   */
+  contractNumber: string | null
+  licenseSignedAt: string | null
+  licenseTermYears: number | null
+  transferStatus: TransferStatus | null
+  comment: string | null
 }

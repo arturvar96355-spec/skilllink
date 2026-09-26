@@ -14,13 +14,16 @@ datasource db {
 
 // ─────────────────────────────── Перечисления ───────────────────────────────
 
-/// Роли из раздела 5 ТЗ плюс UNIVERSITY_REP из концепции (кабинет вуза, P1).
+/// Роли из раздела 5 ТЗ плюс UNIVERSITY_REP из концепции (кабинет вуза, P1)
+/// и HEAD — роль «Руководитель» из ТЗ (решение 146): права менеджера плюс
+/// право переназначать ответственного за вуз (permissions.ts, ASSIGN_RESPONSIBLE).
 enum UserRole {
   ADMIN
   MANAGER
   ANALYST
   VIEWER
   UNIVERSITY_REP
+  HEAD
 }
 
 /// Перечень статусов взаимодействия с вузом — решение команды (PM) от 26.09.2026.
@@ -95,6 +98,20 @@ enum CooperationStatus {
   PAUSED
   COMPLETED
   CANCELLED
+}
+
+/// Статус передачи ПО вузу — «Каталог по ТЗ» (решение 145, функц. требования, каталог).
+enum TransferStatus {
+  NOT_TRANSFERRED
+  IN_PROGRESS
+  TRANSFERRED
+  REVOKED
+}
+
+/// К какой записи прикреплён файл (решение 145, ТЗ п.3 функц. требований: форматы вложений).
+enum AttachmentOwnerType {
+  DOCUMENT
+  STAGE
 }
 
 enum StageStatus {
@@ -318,6 +335,10 @@ model User {
   approvalsRejected      Approval[]            @relation("ApprovalRejectedBy")
   idempotencyKeys        IdempotencyKey[]
   dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
+  /// Вузы, где этот пользователь назначен ответственным (решение 146, роль «Руководитель»).
+  responsibleForUniversities University[]      @relation("UniversityResponsible")
+  workflowTemplatesEdited    WorkflowStageTemplate[] @relation("WorkflowStageTemplateUpdatedBy")
+  attachmentsUploaded    Attachment[]          @relation("AttachmentUploader")
 
   @@index([role])
   @@index([universityId])
@@ -353,10 +374,16 @@ model University {
   mergedIntoId   String?          @map("merged_into_id")
   /// Демонстрационная запись. Фронт обязан показывать пометку.
   isMock         Boolean          @default(false) @map("is_mock")
+  /// Ответственный за вуз (ТЗ — роль «Руководитель», решение 146): назначает,
+  /// меняет и снимает ADMIN/HEAD (`PATCH /api/universities/:id/responsible`).
+  /// Nullable: у вуза может не быть назначенного ответственного, и это не ошибка
+  /// настройки, в отличие от связки, где ответственный обязателен.
+  responsibleId  String?          @map("responsible_user_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   archivedAt     DateTime?        @map("archived_at")
 
+  responsible  User?                @relation("UniversityResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
   mergedInto   University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
   mergedFrom   University[]         @relation("UniversityMergedInto")
   contacts     Contact[]
@@ -374,6 +401,7 @@ model University {
   @@index([city])
   @@index([mergedIntoId])
   @@index([inn])
+  @@index([responsibleId])
   /// Поиск дублей по названию (решение 124): кандидатов отбирает оператор `%` расширения pg_trgm.
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "universities_name_trgm")
   @@map("universities")
@@ -794,6 +822,23 @@ model Cooperation {
   startedAt      DateTime? @map("started_at")
   closedAt       DateTime? @map("closed_at")
 
+  /// Каталог по ТЗ РТК (решение 145): поля из требуемых колонок каталога, которых не было
+  /// в связке. Все необязательны — миграция без риска для существующих строк, заполняются
+  /// по мере появления данных у менеджера, сид заполняет только часть связок.
+  /// Номер договора — реквизит, не идентификатор системы (текстовый, может содержать буквы).
+  contractNumber   String?        @map("contract_number")
+  /// Дата подписания лицензии на IT-продукт (не путать с датой подписания договора —
+  /// той служит `documents.signedAt` документа LICENSE).
+  licenseSignedAt  DateTime?      @map("license_signed_at")
+  /// Срок действия лицензии в годах. CHECK в базе: NULL или 1..10 (решение 145).
+  licenseTermYears Int?           @map("license_term_years")
+  /// Статус передачи ПО вузу по каталогу ТЗ. null — не заполнено (демо и старые связки).
+  transferStatus   TransferStatus? @map("transfer_status")
+  /// Комментарий к каталожной карточке связки — тот же смысл, что везде: свободный текст,
+  /// который может содержать ПД третьих лиц (docs/PRIVACY.md, 2.1), в выгрузки уходит как есть,
+  /// как `Cooperation.notes`.
+  comment          String?
+
   isMock    Boolean  @default(false) @map("is_mock")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -806,6 +851,7 @@ model Cooperation {
   documents       Document[]
   meetings        Meeting[]
   recommendations Recommendation[]
+  externalImportLinks ExternalImportLink[]
 
   @@index([universityId])
   @@index([programId])
@@ -813,6 +859,27 @@ model Cooperation {
   @@index([status])
   @@index([responsibleId])
   @@map("cooperations")
+}
+
+/// Приём данных извне — сайт и LMS (решение 145, ТЗ функц. требования п.5: `POST
+/// /api/import/external`). Ключ идемпотентности повторной загрузки — пара
+/// (source, externalId): тот же запрос второй раз находит ту же связку вместо
+/// создания дубля. `source` — свободная строка («site», «lms» и другое, что
+/// подключат позже): реальный контракт с внешней стороной ещё не согласован
+/// (сказано в самом ТЗ), заводить под него перечисление рано.
+model ExternalImportLink {
+  id            String   @id @default(cuid())
+  source        String
+  externalId    String   @map("external_id")
+  cooperationId String   @map("cooperation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  cooperation Cooperation @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([cooperationId])
+  @@map("external_import_links")
 }
 
 /// Один из 14 этапов конвейера. Создаются все сразу при заведении связки.
@@ -854,6 +921,39 @@ model WorkflowStage {
   @@index([responsibleId])
   @@index([completedById])
   @@map("workflow_stages")
+}
+
+/// Хранимый шаблон 14 этапов конвейера (ТЗ, функц. требования пп. 6, 9; решение 146).
+/// Заполняется миграцией/сидом из shared/config/workflow.config.ts. Источник истины
+/// для НОВЫХ связок: `buildStages` в cooperation.rules.ts берёт отсюда title и
+/// normativeDays по номеру этапа, а при отсутствующей строке (пустая таблица до сида)
+/// подставляет значение по умолчанию из конфига. У СУЩЕСТВУЮЩИХ связок этапы (WorkflowStage)
+/// не меняются: title там — своя копия, не ссылка на шаблон.
+/// API: `GET/PATCH /api/settings/workflow[...]`, только ADMIN.
+model WorkflowStageTemplate {
+  id            String     @id @default(cuid())
+  /// 1..14, как WorkflowStage.stageNumber. CHECK в базе: 1–14.
+  stageNumber   Int        @unique @map("stage_number")
+  title         String
+  phase         StagePhase
+  normativeDays Int        @map("normative_days")
+  /// Контрольная точка (решения 5/28) — через API только чтение с объяснением:
+  /// правила порядка этапов (workflow.rules.ts, CONTROL_POINT_STAGES) завязаны на
+  /// список номеров в коде, и снятие признака здесь молча сломало бы их.
+  isControlPoint Boolean   @default(false) @map("is_control_point")
+  /// Пункты чек-листа по умолчанию — снимок TaskDefinition[] из конфига на момент
+  /// заполнения, только для отображения в настройках (решение 146: полноценная
+  /// правка состава пунктов — пункт дорожной карты, не этой версии).
+  defaultTasks  Json       @map("default_tasks")
+  /// Кто последним менял название или срок. Правки признака контрольной точки нет,
+  /// поэтому это не «кто последний менял шаблон» в общем смысле.
+  updatedById   String?    @map("updated_by_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  updatedBy User? @relation("WorkflowStageTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("workflow_stage_templates")
 }
 
 /// Пункт чек-листа этапа. Состав пунктов по этапам — в src/shared/config/workflow.config.ts.
@@ -905,7 +1005,8 @@ model StageHistory {
 
 // ────────────────────────── Документы и встречи (P1) ────────────────────────
 
-/// В MVP хранятся метаданные и ссылка. Загрузка файлов — P2.
+/// Метаданные и ссылка на текст, собранный из шаблона; настоящие файлы (сканы, лицензии,
+/// подписанные версии) прикладываются отдельно — модель `Attachment` (решение 145).
 model Document {
   id            String         @id @default(cuid())
   cooperationId String?        @map("cooperation_id")
@@ -962,6 +1063,42 @@ model DocumentHistory {
   @@index([changedAt])
   @@index([changedById])
   @@map("document_history")
+}
+
+/// Файл, прикреплённый к документу или этапу (решение 145, ТЗ функц. требования п.3:
+/// форматы png, jpeg, pdf, zip, gzip, rar, doc, docx, xls, xlsx).
+///
+/// Сам файл лежит на диске сервера (`UPLOADS_DIR`, том Docker), под случайным ключом
+/// `storageKey` — не под `originalName`: оригинальное имя может содержать что угодно
+/// (управляющие символы, чужой путь), а строка на диске обязана быть безопасной сама
+/// по себе. `sha256` — контроль целостности и защита от подмены содержимого при том же
+/// имени; `size` и `mime` — то, что прошло проверку при загрузке (расширение из списка ТЗ
+/// И сигнатура файла, magic bytes), не то, что прислал браузер без проверки.
+///
+/// `ownerType`/`ownerId` — полиморфная связь без внешнего ключа (Document | WorkflowStage):
+/// Prisma не поддерживает FK на «одна из двух таблиц», проверка существования владельца —
+/// в сервисе перед созданием записи, права — как у изменения самого владельца.
+/// Запись не удаляется при удалении владельца (владелец, документ и этап, тоже не удаляется
+/// в этой системе — только меняет статус/архивируется), поэтому onDelete здесь не нужен.
+///
+/// CHECK в базе: size > 0 (миграция attachments).
+model Attachment {
+  id           String              @id @default(cuid())
+  ownerType    AttachmentOwnerType @map("owner_type")
+  ownerId      String              @map("owner_id")
+  originalName String              @map("original_name")
+  mime         String
+  size         Int
+  sha256       String
+  storageKey   String              @map("storage_key")
+  uploadedById String              @map("uploaded_by_id")
+  uploadedAt   DateTime            @default(now()) @map("uploaded_at")
+
+  uploadedBy User @relation("AttachmentUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([ownerType, ownerId])
+  @@index([uploadedById])
+  @@map("attachments")
 }
 
 /// Встреча с вузом: результат и следующее действие со сроком. Хранится отдельно

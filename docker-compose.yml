@@ -130,10 +130,20 @@ services:
       OPERATOR_NAME: ${OPERATOR_NAME:-}
       OPERATOR_ADDRESS: ${OPERATOR_ADDRESS:-}
       OPERATOR_CONTACT: ${OPERATOR_CONTACT:-}
+      # Файлы к документам и этапам (решение 145): каталог хранения на диске.
+      # Путь внутри контейнера — совпадает с точкой монтирования тома ниже.
+      UPLOADS_DIR: /data/uploads
+      # Токен машинной интеграции для приёма данных извне (решение 145, ТЗ функц. п.5):
+      # POST /api/import/external. Пусто — маршрут отвечает 503 «интеграция не настроена».
+      INTEGRATION_TOKEN: ${INTEGRATION_TOKEN:-}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.
       - '127.0.0.1:${APP_PORT:-3000}:3000'
+    volumes:
+      # Файлы, приложенные к документам и этапам (решение 145): переживают
+      # пересоздание контейнера при выкладке, как и база данных.
+      - skilllink-uploads:/data/uploads
 
   # Разовая задача: применить миграции.
   #   docker compose --profile migrate run --rm migrate
@@ -214,5 +224,6 @@ services:
 
 volumes:
   skilllink-pgdata:
+  skilllink-uploads:
   skilllink-prometheus-data:
   skilllink-grafana-data:

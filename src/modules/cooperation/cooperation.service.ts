@@ -23,6 +23,7 @@ import {
 } from '@/modules/workflow/workflow.rules'
 import { toStageDto } from '@/modules/workflow/workflow.service'
 import * as workflowRepo from '@/modules/workflow/workflow.repo'
+import { loadDefaultsByNumber } from '@/modules/workflow/workflow-templates.repo'
 import * as repo from './cooperation.repo'
 import {
   assertCooperationEditable,
@@ -125,6 +126,11 @@ export async function getById(user: CurrentUser, id: string): Promise<Cooperatio
     closedAt: toIso(row.closedAt),
     createdAt: toIsoRequired(row.createdAt),
     stages: stages.map((stage) => toStageDto(stage, now, { hideInternalNotes })),
+    contractNumber: row.contractNumber,
+    licenseSignedAt: toIso(row.licenseSignedAt),
+    licenseTermYears: row.licenseTermYears,
+    transferStatus: row.transferStatus,
+    comment: row.comment,
   }
 }
 
@@ -178,6 +184,10 @@ export async function create(
   }
 
   const startedAt = new Date()
+  // Шаблон этапов из настроек (ТЗ, п. 4; решение 146) — читается до транзакции:
+  // это чтение справочника, не часть проверки дубля, блокировать программу ради
+  // него незачем.
+  const stageOverrides = await loadDefaultsByNumber()
   // Проверка дубля и создание — одной транзакцией в очереди программы: иначе
   // двойное «Создать» прошло бы проверку дважды и завело две одинаковые связки.
   const id = await prisma.$transaction(async (tx) => {
@@ -204,7 +214,7 @@ export async function create(
         targetDate: input.targetDate ? new Date(input.targetDate) : null,
         startedAt,
       },
-      buildStages(startedAt, input.responsibleId),
+      buildStages(startedAt, input.responsibleId, stageOverrides),
     )
   })
 
@@ -225,6 +235,10 @@ export async function update(
   input: UpdateCooperationInput,
 ): Promise<CooperationDto> {
   assertCan(user, 'WRITE')
+  // Смена ответственного за связку — привилегия «Руководителя» из ТЗ (решение 146),
+  // а не обычного WRITE: менеджер ведёт свои связки, но не переставляет чужие.
+  // Поле не передано (undefined) — ответственный не меняется, право не нужно.
+  if (input.responsibleId !== undefined) assertCan(user, 'ASSIGN_RESPONSIBLE')
 
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Связка не найдена')
@@ -271,6 +285,15 @@ export async function update(
       : {}),
     ...(closing ? { closedAt: new Date() } : {}),
     ...(reopening ? { closedAt: null } : {}),
+    // Каталог по ТЗ (решение 145): те же поля, что и остальные необязательные —
+    // передано явно (в том числе null) — меняется, не передано — не трогается.
+    ...(input.contractNumber !== undefined ? { contractNumber: input.contractNumber } : {}),
+    ...(input.licenseSignedAt !== undefined
+      ? { licenseSignedAt: input.licenseSignedAt ? new Date(input.licenseSignedAt) : null }
+      : {}),
+    ...(input.licenseTermYears !== undefined ? { licenseTermYears: input.licenseTermYears } : {}),
+    ...(input.transferStatus !== undefined ? { transferStatus: input.transferStatus } : {}),
+    ...(input.comment !== undefined ? { comment: input.comment } : {}),
   } satisfies Parameters<typeof repo.update>[1]
 
   // Правка тоже может дать дубль: смена продукта на тот, что уже в соседней незакрытой

@@ -98,6 +98,7 @@ import {
   revealContactSchema,
   createUniversitySchema,
   setContactBasisSchema,
+  setUniversityResponsibleSchema,
   universityListQuerySchema,
   updateUniversitySchema,
   withdrawConsentSchema,
@@ -112,6 +113,9 @@ import {
   updateStageSchema,
   updateTaskSchema,
 } from '@/modules/workflow/workflow.schema'
+import { patchWorkflowStageTemplateSchema } from '@/modules/workflow/workflow-templates.schema'
+import { externalImportSchema } from '@/modules/import/external.schema'
+import { reportQuerySchema } from '@/modules/reports/reports.schema'
 
 /**
  * Реестр эндпоинтов для сборки спецификации OpenAPI.
@@ -149,6 +153,11 @@ export interface EndpointSpec {
   pathParams?: Record<string, string>
   /** Принимает заголовок Idempotency-Key (решение 133). */
   idempotent?: boolean
+  /**
+   * Тело — `multipart/form-data` с файлом в этом поле (решение 145), а не JSON.
+   * Swagger UI рисует настоящее поле выбора файла — запрос выполняется прямо оттуда.
+   */
+  multipartField?: string
   errors: ErrorCode[]
 }
 
@@ -688,6 +697,20 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
+    method: 'patch',
+    path: '/api/universities/{id}/responsible',
+    tag: 'Университеты',
+    summary: 'Назначить, сменить или снять ответственного за вуз',
+    description:
+      'Роль «Руководитель» из ТЗ (решение 146): право переставлять ответственных за вузы, ' +
+      'которого нет у обычного менеджера. `responsibleId: null` снимает ответственного — ' +
+      'у вуза он необязателен, в отличие от связки. Действие пишется в журнал ' +
+      '(`university.responsible.set`) и попадает в ленту уведомлений нового ответственного.',
+    permission: 'ASSIGN_RESPONSIBLE',
+    body: setUniversityResponsibleSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
     method: 'post',
     path: '/api/universities/{id}/archive',
     tag: 'Университеты',
@@ -1077,6 +1100,29 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: READ_ERRORS,
   },
   {
+    method: 'get',
+    path: '/api/workflow/stages/{id}/files',
+    tag: 'Workflow',
+    summary: 'Файлы этапа',
+    description:
+      'Решение 145 (ТЗ функц. п.3). Право — как у чтения самого этапа. Ответ — ' +
+      '`{ data: Attachment[] }`, без пагинации.',
+    permission: 'READ',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/workflow/stages/{id}/files',
+    tag: 'Workflow',
+    summary: 'Загрузить файл к этапу',
+    description:
+      'Решение 145 (ТЗ функц. п.3): те же форматы и проверки, что у файлов документа ' +
+      '(`POST /api/documents/{id}/files`). Право — как у изменения этапа (`PATCH`).',
+    permission: 'WRITE',
+    multipartField: 'file',
+    errors: WRITE_ERRORS,
+  },
+  {
     method: 'patch',
     path: '/api/workflow/tasks/{id}',
     tag: 'Workflow',
@@ -1112,6 +1158,30 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     query: stageListQuerySchema,
     list: true,
     errors: COMMON_ERRORS,
+  },
+
+  // ── Файлы (решение 145) ──────────────────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/files/{id}',
+    tag: 'Файлы',
+    summary: 'Скачать файл',
+    description:
+      'Решение 145. `Content-Disposition: attachment` с исходным именем (безопасно ' +
+      'экранированным), `Cache-Control: no-store` — файлы бывают персональными данными. ' +
+      'Право — как у чтения владельца (документа или этапа), представителю вуза — только свой вуз.',
+    permission: 'READ',
+    fileContentType: 'application/octet-stream',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'delete',
+    path: '/api/files/{id}',
+    tag: 'Файлы',
+    summary: 'Удалить файл',
+    description: 'Право — как у изменения владельца (документа или этапа). Удаляет запись и файл на диске.',
+    permission: 'WRITE',
+    errors: READ_ERRORS,
   },
 
   // ── Аналитика ─────────────────────────────────────────────────────────────
@@ -1552,7 +1622,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     idempotent: true,
     tag: 'Документы',
     summary: 'Создать документ',
-    description: 'Хранятся метаданные и ссылка. Загрузка файлов — P2.',
+    description: 'Хранятся метаданные, ссылка и текст из шаблона. Настоящие файлы — POST …/files.',
     permission: 'WRITE',
     body: createDocumentSchema,
     errors: WRITE_ERRORS,
@@ -1593,6 +1663,31 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description: 'Исходный документ уходит в архив.',
     permission: 'WRITE',
     errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/documents/{id}/files',
+    tag: 'Документы',
+    summary: 'Файлы документа',
+    description:
+      'Решение 145 (ТЗ функц. п.3). Право — как у чтения самого документа. Ответ — ' +
+      '`{ data: Attachment[] }`, без пагинации: файлов у одного документа немного.',
+    permission: 'READ',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/documents/{id}/files',
+    tag: 'Документы',
+    summary: 'Загрузить файл к документу',
+    description:
+      'Решение 145 (ТЗ функц. п.3): форматы строго png, jpeg, pdf, zip, gzip, rar, doc, docx, ' +
+      'xls, xlsx — расширение имени файла И сигнатура содержимого (magic bytes) должны совпасть, ' +
+      'иначе 422. Предел размера — MAX_ATTACHMENT_SIZE_BYTES (docs/SECURITY_LIMITATIONS.md, ' +
+      'сейчас 20 МБ). Право — как у изменения документа (`PATCH`).',
+    permission: 'WRITE',
+    multipartField: 'file',
+    errors: WRITE_ERRORS,
   },
   {
     method: 'get',
@@ -1766,6 +1861,53 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     query: importQuerySchema,
     errors: WRITE_ERRORS,
   },
+  {
+    method: 'post',
+    path: '/api/import/external',
+    tag: 'Выгрузка',
+    summary: 'Приём данных извне — сайт и LMS',
+    description:
+      'Решение 145 (ТЗ функц. п.5). Тело — JSON по примерному контракту (реальный контракт ' +
+      'с внешней стороной не согласован, это прямо сказано в самом ТЗ): вуз, ИТ-направление, ' +
+      'IT-продукт, почты ответственных, внешний идентификатор. Идемпотентно по паре ' +
+      '(source, externalId) — повтор находит ту же связку и обновляет её (200 с тем же id), ' +
+      'а не создаёт дубль. Пример тела и как выполнить его прямо из Swagger — ' +
+      'docs/API_CONTRACT.md, раздел «Приём данных извне».',
+    permission: 'ANY',
+    public: true,
+    accessNote:
+      'Право доступа: заголовок Authorization: Bearer <INTEGRATION_TOKEN> (сравнение постоянным ' +
+      'временем), без cookie сессии. Токен не задан на сервере — 503; не прислан или неверен — 401.',
+    body: externalImportSchema,
+    errors: ['VALIDATION_ERROR', 'UNAUTHORIZED', 'SERVICE_UNAVAILABLE', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/reports/tz',
+    tag: 'Выгрузка',
+    summary: 'Отчёт «по ТЗ»',
+    description:
+      'Решение 145 (ТЗ п.7): колонки дословно — «Наименование вуза, ИТ-направление, ' +
+      'ИТ-продукт, Статус работы с вузом, Ответственный», в этом порядке. Формат — csv ' +
+      '(по умолчанию), xlsx или json (вложением, схема generatedAt/filters/columns/rows). ' +
+      'Право — READ, представителю вуза — только свой вуз.',
+    permission: 'READ',
+    query: reportQuerySchema,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/reports/catalog',
+    tag: 'Выгрузка',
+    summary: '«Каталог по ТЗ»',
+    description:
+      'Решение 145 (ТЗ п.8): колонки дословно — «Название вуза, Вендор, ПО, Номер договора, ' +
+      'Подписание лицензии, Срок действия лицензии (год), Статус по передаче, ФИО менеджера, ' +
+      'Ответственные от вуза, Комментарий», в этом порядке. Форматы — как у /api/reports/tz.',
+    permission: 'READ',
+    query: reportQuerySchema,
+    errors: COMMON_ERRORS,
+  },
 
   // ── Вендоры, курсы ИТ-Школы, заказы с сайта → LMS (решение 132) ─────────────
   {
@@ -1872,6 +2014,33 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'у каждой — ссылка на раздел методики.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/settings/workflow',
+    tag: 'Настройки',
+    summary: 'Хранимый шаблон 14 этапов workflow',
+    description:
+      'ТЗ, функц. требования пп. 6, 9 (решение 146). Только ADMIN. Значения — источник для этапов ' +
+      'НОВЫХ связок (buildStages); у уже заведённых связок этапы не меняются, если явно не попросить ' +
+      '`applyToUnfinishedStages` при правке. `isControlPoint` — только чтение, с объяснением в каждом пункте.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/settings/workflow/stages/{number}',
+    tag: 'Настройки',
+    summary: 'Переименовать этап шаблона или изменить нормативный срок',
+    description:
+      'Только ADMIN, только `title` и `normativeDays`. `isControlPoint` в теле отклоняется с объяснением ' +
+      '(решения 5/28) до разбора остальных полей — признак завязан на код и через настройки не меняется. ' +
+      '`applyToUnfinishedStages: true` пересчитывает срок и/или название у незавершённых этапов уже ' +
+      'заведённых связок (каждой — от её собственной даты старта); без флага существующие связки не меняются.',
+    permission: 'ADMIN',
+    body: patchWorkflowStageTemplateSchema,
+    pathParams: { number: 'Номер этапа, 1–14' },
+    errors: WRITE_ERRORS,
   },
   // ── Безопасность, волна 2 (решение 133) ──────────────────────────────────
   {
