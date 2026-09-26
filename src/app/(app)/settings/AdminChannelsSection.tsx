@@ -7,9 +7,13 @@ import styles from './settings.module.css'
 
 /**
  * Статус каналов уведомлений для администратора (решение 144): «Настройки →
- * Интеграции». Три строки — Telegram, MAX, VK — настроен ли каждый и сколько
- * сотрудников привязано; «Проверить» шлёт пробное сообщение в чат самого
- * администратора (сначала он должен подключить канал себе в личном кабинете).
+ * Интеграции». Строки — MAX и VK — настроен ли каждый и сколько сотрудников
+ * привязано; «Проверить» шлёт пробное сообщение в чат самого администратора
+ * (сначала он должен подключить канал себе в личном кабинете).
+ *
+ * Telegram сюда не выводится — у него свой подробный блок `TelegramBotAdminSection`
+ * (решение 142, токен/режим/вебхук) прямо над этим; повторять его статус и кнопку
+ * «Проверить» здесь было бы дублированием одного и того же действия.
  */
 export function AdminChannelsSection() {
   const toast = useToast()
@@ -18,9 +22,10 @@ export function AdminChannelsSection() {
     async (id: string) => (await apiPost<AdminChannelTestDto>(`/api/admin/channels/${id}/test`)).data,
   )
 
-  if (channels.isLoading) return <RowsSkeleton count={3} />
+  if (channels.isLoading) return <RowsSkeleton count={2} />
   if (channels.error) return <ErrorState error={channels.error} onRetry={channels.reload} />
   if (!channels.data) return null
+  const rows = channels.data.filter((channel) => channel.id !== 'telegram')
 
   async function onTest(id: string) {
     const result = await test.run(id)
@@ -34,7 +39,7 @@ export function AdminChannelsSection() {
 
   return (
     <>
-      {channels.data.map((channel) => (
+      {rows.map((channel) => (
         <Row
           key={channel.id}
           title={channel.title}

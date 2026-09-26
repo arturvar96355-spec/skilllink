@@ -160,6 +160,13 @@
   font-weight: 600;
 }
 
+/* Текстовая метка «основной», не бирка (решение 140, п. 9): раньше плашка
+   выглядела как кнопка, хотя ничего не делала по нажатию. */
+.primaryTag {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
 .contactMeta {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);

@@ -1118,7 +1118,10 @@ model RecommendationRuleStats {
   successes    Int      @default(0)
   trialsEff    Float    @default(0) @map("trials_eff")
   successesEff Float    @default(0) @map("successes_eff")
-  effUpdatedAt DateTime @map("eff_updated_at") @db.Timestamptz(6)
+  /// Решение 143: TIMESTAMP(3) без пояса — как весь остальной schema.prisma
+  /// (соглашение «приложение пишет UTC», миграция audit_hash_chain). Раньше
+  /// была TIMESTAMPTZ(6) — единственная колонка с поясом в схеме.
+  effUpdatedAt DateTime @map("eff_updated_at")
 
   @@id([ruleType, scopeType, scopeId])
   @@map("recommendation_rule_stats")
@@ -1137,6 +1140,8 @@ model RecommendationRuleStats {
 /// Ограничения только в SQL миграции 20260926000000_recommendation_signals:
 /// recommendation_signals_arm_check — у контроля нет рекомендации и назначение только по хешу;
 /// recommendation_signals_assigned_by_check — допустимые способы назначения.
+/// Решение 143 (миграция 20260926200000_schema_review): recommendation_signals_outcome_check —
+/// outcome_at и outcome заданы только вместе, исход не раньше срабатывания сигнала.
 model RecommendationSignal {
   id               String        @id @default(cuid())
   /// Ключ правила (ruleKey рекомендации).
@@ -1391,7 +1396,8 @@ model DuplicateDismissal {
 /// Слияние вуза-дубля в другой (решение 134). Журнал выживания полей и список
 /// перенесённых объектов — чтобы слияние можно было объяснить и отменить.
 /// В журнале только поля вуза и идентификаторы: ФИО и контакты не копируются.
-/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает.
+/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает и наоборот
+/// (решение 143 сделал проверку симметричной, миграция 20260926200000_schema_review).
 model UniversityMerge {
   id           String    @id @default(cuid())
   sourceId     String    @map("source_id")
@@ -1435,13 +1441,19 @@ model TelegramUpdateSeen {
   @@map("telegram_updates_seen")
 }
 
-/// Секреты, которые меняются без перезапуска (секрет вебхука Telegram). Хранится только
-/// SHA-256 значения: проверке входящего запроса больше не нужно, а само значение
-/// знает только Telegram. Запись здесь главнее переменной окружения.
-/// CHECK в базе: value_hash — 64 шестнадцатеричных знака.
+/// Секреты, которые меняются без перезапуска. Два вида записи:
+/// - только хеш (секрет вебхука Telegram) — проверке входящего запроса больше не
+///   нужно само значение, оно только у Telegram;
+/// - зашифрованное значение (решение 142: токен бота Telegram, имя бота, режим
+///   приёма) — `value` хранит AES-256-GCM (nonce|tag|ciphertext, base64; ключ —
+///   HKDF от AUTH_SECRET) или, для не-секретных настроек вроде имени бота и
+///   режима, значение как есть. Запись здесь главнее переменной окружения.
+/// CHECK в базе: ровно одно из value_hash/value заполнено; value_hash, если есть, —
+/// 64 шестнадцатеричных знака.
 model SystemSecret {
-  name        String   @id
-  valueHash   String   @map("value_hash")
+  name        String  @id
+  valueHash   String? @map("value_hash")
+  value       String?
   rotatedAt   DateTime @default(now()) @map("rotated_at")
   rotatedById String?  @map("rotated_by_id")
 
@@ -1464,6 +1476,9 @@ enum ApprovalStatus {
 /// атомарный UPDATE … WHERE status = 'APPROVED' AND payload_hash = … AND expires_at > now().
 /// CHECK в базе: одобривший ≠ запросившему; APPROVED/CONSUMED — с одобрившим;
 /// CONSUMED ровно при consumed_at; REJECTED — с отклонившим; payload_hash — hex SHA-256.
+/// Решение 143 (approvals_decided_at_check, миграция 20260926200000_schema_review):
+/// decided_at пуст ровно у REQUESTED и заполнен у APPROVED/REJECTED/CONSUMED;
+/// EXPIRED — особый случай (просрочиться может и ждущий, и уже одобренный запрос).
 model Approval {
   id            String         @id @default(cuid())
   /// Код действия (approvals.rules.ts, APPROVAL_ACTIONS).

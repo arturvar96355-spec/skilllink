@@ -80,6 +80,35 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /**
+ * Текст в элементе обрезан (многоточием, `-webkit-line-clamp` и т. п.) —
+ * т. е. `scrollWidth`/`scrollHeight` больше видимой области. Нужен, чтобы
+ * не показывать подсказку с полным текстом там, где он и так виден целиком:
+ * такая подсказка только закрывает соседний текст карточки (решение 140, п. 7).
+ * Перемеряется при смене текста и при изменении размера элемента.
+ */
+export function useIsTruncated<T extends HTMLElement>(deps: readonly unknown[] = []): [React.RefObject<T | null>, boolean] {
+  const ref = useRef<T | null>(null)
+  const [isTruncated, setIsTruncated] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    const measure = () => {
+      setIsTruncated(node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+    // deps — намеренно свой список от вызывающего (текст, который может измениться
+    // и снять обрезку), а не переменные из замыкания этого хука.
+  }, deps)
+
+  return [ref, isTruncated]
+}
+
+/**
  * Значение, пережившее перезагрузку страницы.
  *
  * Чтение обёрнуто в try: в приватном окне обращение к хранилищу выбрасывает

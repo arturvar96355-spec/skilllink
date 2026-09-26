@@ -125,6 +125,7 @@
   justify-content: flex-end;
 }
 
+/* Несколько кнопок в одной строке (решение 142: токен бота — «Сменить»/«Отключить»; решение 144: каналы уведомлений). */
 .rowActions {
   display: inline-flex;
   align-items: center;

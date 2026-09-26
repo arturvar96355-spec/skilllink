@@ -2,12 +2,31 @@
 
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useMediaQuery } from '../hooks/dom'
 import styles from './Tooltip.module.css'
 
 export interface TooltipProps {
   /** Текст подсказки. Обычно это `explanation` показателя — откуда взялось число. */
   text: string
   children: ReactNode
+  /**
+   * Не показывать вовсе — например, текст внутри и так виден целиком, не обрезан
+   * (решение 140, п. 7): подсказка с тем же текстом только закрывала бы соседний
+   * текст карточки, ничего не добавляя.
+   */
+  disabled?: boolean
+  /**
+   * По умолчанию — да: значок или сокращение, до которого не добраться иначе,
+   * получает свою точку фокуса и роль «кнопка», а текст подсказки становится
+   * его именем для программ чтения с экрана.
+   *
+   * `false` — для обрезанного текста, который сам уже полностью виден программе
+   * чтения с экрана (обрезка только визуальная), и который часто лежит внутри
+   * своей ссылки или другого интерактивного элемента: вложенная точка фокуса
+   * там была бы второй, лишней остановкой Tab на то же самое (решение 140, п. 7).
+   * Подсказка в этом случае — только по наведению мышью.
+   */
+  interactive?: boolean
 }
 
 /** Отступ подсказки от края окна и от того, к чему она относится. */
@@ -24,14 +43,21 @@ const GAP = 8
  * (`position: fixed` — не раздвигает страницу и не зависит от обрезки
  * контейнера), вынесен в body и сдвигается так, чтобы целиком оставаться в окне.
  */
-export function Tooltip({ text, children }: TooltipProps) {
+export function Tooltip({ text, children, disabled = false, interactive = true }: TooltipProps) {
   const id = useId()
   const triggerRef = useRef<HTMLSpanElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
+  // На сенсорном экране некому наводиться, а тап по фокусируемому элементу
+  // не должен открывать всплывающий текст — на телефоне он только закрывал бы
+  // соседний текст карточки, и закрыть его нечем, кроме тапа мимо (решение 140, п. 7).
+  const canHover = useMediaQuery('(hover: hover) and (pointer: fine)')
+  const show = !disabled && canHover
 
-  const open = useCallback(() => setIsOpen(true), [])
+  const open = useCallback(() => {
+    if (show) setIsOpen(true)
+  }, [show])
   const close = useCallback(() => {
     setIsOpen(false)
     setPosition(null)
@@ -67,15 +93,15 @@ export function Tooltip({ text, children }: TooltipProps) {
       className={styles.wrapper}
       onPointerEnter={open}
       onPointerLeave={close}
-      onFocus={open}
-      onBlur={close}
+      onFocus={interactive ? open : undefined}
+      onBlur={interactive ? close : undefined}
     >
       <span
         ref={triggerRef}
         className={styles.trigger}
-        tabIndex={0}
-        role="button"
-        aria-label={text}
+        tabIndex={interactive ? 0 : undefined}
+        role={interactive ? 'button' : undefined}
+        aria-label={interactive ? text : undefined}
         aria-describedby={isOpen ? id : undefined}
       >
         {children}
