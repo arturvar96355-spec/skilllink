@@ -31,6 +31,7 @@ import {
   useToast,
   type ApiRequestError,
 } from '@/ui'
+import { Attachments } from '../../Attachments'
 import styles from './cooperation.module.css'
 
 /**
@@ -396,6 +397,11 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                 )}
               </div>
             )}
+
+            <div className={styles.block}>
+              <span className={styles.blockLabel}>Файлы</span>
+              <Attachments ownerType="STAGE" ownerId={stage.id} canWrite={canWrite} />
+            </div>
 
             <div className={styles.actions}>
               {stage.isAutoManaged ? (
