@@ -48,6 +48,31 @@ human_duration() {
   fi
 }
 
+# Текущее время в секундах с эпохи. NOW_OVERRIDE (секунды с эпохи) — для проверки
+# заморозки на своей машине без ожидания настоящей даты, как ALERT_DRY_RUN у alert.sh
+# (docs/OPERATIONS_TESTS.md); scripts/ops/freeze.test.sh так и делает.
+now_epoch() { printf '%s' "${NOW_OVERRIDE:-$(date +%s)}"; }
+
+# ISO 8601 со смещением (2026-09-29T23:59:00+03:00, «Z» тоже понимает) → секунды
+# с эпохи. GNU date (сервер, Ubuntu) читает такую строку сама; BSD date (мак) — без
+# двоеточия в смещении и без буквы «Z», отсюда нормализация перед %z.
+iso_epoch() {
+  local iso=$1 bsd
+  date -d "$iso" +%s 2> /dev/null && return
+  bsd=$(printf '%s' "$iso" | sed -E -e 's/Z$/+0000/' -e 's/([+-][0-9]{2}):([0-9]{2})$/\1\2/')
+  date -j -f '%Y-%m-%dT%H:%M:%S%z' "$bsd" +%s 2> /dev/null
+}
+
+# Заморозка стенда после сдачи (STAND_FREEZE_AT в .env.cloud, решение 147): пусто,
+# не дата или дата ещё не наступила — код 1 (не заморожено); дата уже прошла — код 0.
+is_frozen() {
+  local freeze_at=$1 freeze_epoch
+  [ -n "$freeze_at" ] || return 1
+  freeze_epoch=$(iso_epoch "$freeze_at") || return 1
+  [ -n "$freeze_epoch" ] || return 1
+  [ "$(now_epoch)" -ge "$freeze_epoch" ]
+}
+
 # Команда с пределом времени, если есть timeout (на Ubuntu есть всегда).
 with_timeout() {
   local seconds=$1
