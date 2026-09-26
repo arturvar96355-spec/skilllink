@@ -1148,8 +1148,14 @@ ENV_FILE=~/skilllink/.env.cloud scripts/deploy/keycloak-users.sh
 ### Шаг 4. Перезапустить приложение и Caddy
 
 ```bash
-$C up -d app caddy
+APP_COMMIT=$(cat DEPLOYED_COMMIT) $C up -d app
+docker restart skilllink-caddy
 ```
+
+`APP_COMMIT` — иначе `/api/health` покажет пустую версию. Caddy — именно `restart`, а не
+`up -d` или `caddy reload`: выкладка заменяет Caddyfile новым файлом, а контейнер, у
+которого файл примонтирован по одному пути, продолжает видеть старый (проверено на стенде
+27.09 — маршрута `/auth` не было до перезапуска).
 
 Приложение подхватывает три переменные `KEYCLOAK_*` и подключает провайдер — на
 `/login` появляется кнопка «Войти через Keycloak (единый вход)». Caddy — маршрут
