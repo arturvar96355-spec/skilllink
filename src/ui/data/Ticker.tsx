@@ -121,6 +121,13 @@ export function Ticker({ items, label }: { items: TickerItem[]; label: string })
     focusedRef.current = false
   }
 
+  /**
+   * Нажатие ставит автопрокрутку на паузу сразу, но `setPointerCapture` — только
+   * когда движение превысит порог клика (`onPointerMove`). Схваченный курсором
+   * элемент получает и следующий за перетаскиванием `click`: если поймать
+   * указатель уже здесь, обычный щелчок по ссылке перестаёт доходить до нее
+   * (замечено на `TagCarousel.tsx` — тот же приём и та же причина).
+   */
   function onPointerDown(event: PointerEvent<HTMLElement>) {
     if (event.pointerType === 'mouse' && event.button !== 0) return
     dragRef.current = {
@@ -131,8 +138,6 @@ export function Ticker({ items, label }: { items: TickerItem[]; label: string })
     }
     draggingRef.current = true
     draggedRef.current = false
-    setIsDragging(true)
-    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
   function onPointerMove(event: PointerEvent<HTMLElement>) {
@@ -140,7 +145,11 @@ export function Ticker({ items, label }: { items: TickerItem[]; label: string })
     if (!drag || drag.pointerId !== event.pointerId) return
     const dx = event.clientX - drag.x
     const dy = event.clientY - drag.y
-    if (!draggedRef.current && isDragGesture(dx, dy, CLICK_THRESHOLD_PX)) draggedRef.current = true
+    if (!draggedRef.current && isDragGesture(dx, dy, CLICK_THRESHOLD_PX)) {
+      draggedRef.current = true
+      setIsDragging(true)
+      event.currentTarget.setPointerCapture(event.pointerId)
+    }
     positionRef.current = drag.startPosition + dx
   }
 
