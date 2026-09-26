@@ -51,9 +51,11 @@ export const RATE_LIMITS: Record<RateLimitGroup, number> = {
  * - `/api/health` — проверка живости: её дёргают Docker и проверка стенда,
  *   429 на ней выглядел бы как падение приложения;
  * - `/api/telegram/webhook` — Telegram присылает обновления пачками с общего
- *   набора своих адресов, а подлинность проверяется секретом в заголовке.
+ *   набора своих адресов, а подлинность проверяется секретом в заголовке;
+ * - `/api/metrics` — метрики (решение 137): снаружи закрыты в Caddy, опрашивает
+ *   их Prometheus по токену, и 429 оставил бы дыру ровно во время всплеска.
  */
-export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/telegram/webhook']
+export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/telegram/webhook', '/api/metrics']
 
 /**
  * Тяжёлые маршруты (группа `heavy`) — по шаблону пути, любой метод.
@@ -68,8 +70,12 @@ export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   /^\/api\/data-sources\/sync$/,
   /\/ai-(?:summary|letter)$/,
   /\/(?:dsar|personal-data)(?:\/|$)/,
-  /** Переобучение модели прогноза (решение 132): читает всю историю связок. */
+  /** Переобучение модели прогноза (решение 135): читает всю историю связок. */
   /^\/api\/analytics\/forecast\/train$/,
+  // «История сотрудничества» и «Предложить план» (решение 138): те же счёты
+  // модели, что у ИИ-помощника, — обращение к ней или пересчёт по нескольким связкам.
+  /\/(?:universities|cooperations)\/[^/]+\/story$/,
+  /\/cooperations\/[^/]+\/proposals(?:\/|$)/,
 ]
 
 /** Хранилище счётчиков в памяти процесса. */

@@ -59,6 +59,30 @@
 
 `details` присутствует не всегда. Для ошибок валидации это массив `{ field, message }`.
 
+**Номер запроса** (решение 133). Каждый ответ API несёт заголовок `x-request-id`: присланный
+клиентом или прокси, если он допустим (до 64 знаков `A–Z a–z 0–9 -`), иначе выданный сервером.
+Тот же номер стоит во всех строках журнала сервера об этом запросе. Ответ `500` дополнительно
+несёт его в теле — `error.requestId`, без каких-либо подробностей сбоя; фронту — показать его
+человеку («сообщите номер …»):
+
+```json
+{ "error": { "code": "INTERNAL", "message": "Внутренняя ошибка сервера", "requestId": "3f0c…" } }
+```
+
+**Ключ идемпотентности** (решение 133). `POST /api/cooperations`, `/api/meetings`, `/api/documents`,
+`/api/documents/:id/versions` и `/api/portal/applications` принимают заголовок `Idempotency-Key`
+(1–255 печатных латинских знаков, обычно UUID; фронт создаёт его один раз на отправку формы
+и повторяет при повторе). Ключ принадлежит пользователю и живёт 24 часа:
+
+| Ситуация | Ответ |
+| --- | --- |
+| без заголовка | как раньше |
+| тот же ключ и то же тело (метод, путь, параметры, тело) | сохранённый ответ (тот же `201` и `data`), заголовок `Idempotency-Replayed: true` |
+| тот же ключ, другое тело | `422 VALIDATION_ERROR`, поле `Idempotency-Key` |
+| запрос с этим ключом ещё выполняется | `409 CONFLICT` — повторить позже |
+| первый запрос завершился ошибкой (4xx/5xx) | ключ отпускается: исправленный повтор выполнится заново |
+| некорректный ключ | `422 VALIDATION_ERROR` |
+
 | Код | HTTP | Когда |
 | --- | --- | --- |
 | `VALIDATION_ERROR` | 422 | Не прошла проверка входных данных |
@@ -71,8 +95,8 @@
 | `RATE_LIMITED` | 429 | Превышен предел частоты запросов (с 25.09.2026, решение 117). `details.retryAfterSeconds` и заголовок `Retry-After` — через сколько секунд повторить |
 | `INTERNAL` | 500 | Непредвиденная ошибка |
 
-**Ограничение частоты запросов** (решение 117). Все маршруты `/api/*`, кроме `/api/health`
-и `/api/telegram/webhook`, считают запросы скользящим окном в минуту и отвечают заголовками
+**Ограничение частоты запросов** (решение 117). Все маршруты `/api/*`, кроме `/api/health`,
+`/api/telegram/webhook` и `/api/metrics`, считают запросы скользящим окном в минуту и отвечают заголовками
 `RateLimit-Limit` (предел группы в минуту), `RateLimit-Remaining` (сколько осталось),
 `RateLimit-Reset` (через сколько секунд окно сдвинется). Сверх предела — `429` с кодом
 `RATE_LIMITED`, `Retry-After` от 1 до 60 секунд; отклонённые запросы не засчитываются.
@@ -81,7 +105,7 @@
 | --- | --- | --- | --- |
 | чтение | 300 | пользователю, без входа — адресу | `GET` |
 | запись | 60 | пользователю, без входа — адресу | `POST`, `PATCH`, `PUT`, `DELETE` |
-| тяжёлые | 10 | пользователю, без входа — адресу | `/api/export`, `/api/import`, `…/documents/generate`, `/api/recommendations/generate`, `/api/data-sources/sync`, `…/ai-summary`, `…/ai-letter`, выдача данных по запросу субъекта |
+| тяжёлые | 10 | пользователю, без входа — адресу | `/api/export`, `/api/import`, `…/documents/generate`, `/api/recommendations/generate`, `/api/data-sources/sync`, `…/ai-summary`, `…/ai-letter`, `…/story`, `…/proposals*`, выдача данных по запросу субъекта |
 | вход | 30 | адресу клиента | `GET /api/login-challenge`, `POST /api/auth/*` |
 | лента календаря | 60 | токену ленты | `GET /api/calendar/:feed` |
 
@@ -268,9 +292,11 @@ ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудн�
 ### POST /api/telegram/webhook
 
 Вебхук бота личных уведомлений (решение 102). Вызывает **Telegram**, не браузер и не фронт.
-Входа нет; подлинность — заголовок `X-Telegram-Bot-Api-Secret-Token`, равный
-`TELEGRAM_WEBHOOK_SECRET` (задаётся в `setWebhook(secret_token=…)`, docs/SETUP.md).
-Сравнение — `timingSafeEqual`. Заголовка нет, он другой или секрет не задан — `403 FORBIDDEN`.
+Входа нет; подлинность — заголовок `X-Telegram-Bot-Api-Secret-Token`, равный действующему
+секрету: сменённому администратором (`POST /api/admin/telegram/rotate-webhook-secret`, в базе
+хранится SHA-256), иначе `TELEGRAM_WEBHOOK_SECRET` (задаётся в `setWebhook(secret_token=…)`,
+docs/SETUP.md). Сравнение — `timingSafeEqual` по SHA-256 обоих значений (длина одинакова,
+проверяется до сравнения). Заголовка нет, он другой или секрет не задан — `403 FORBIDDEN`.
 Запрос приходит без `Origin`, поэтому проверку «same-origin» (`shared/http/origin.ts`)
 проходит, как любой запрос не из браузера; для остальных маршрутов она не ослаблена.
 
@@ -290,13 +316,40 @@ ADMIN или MANAGER (с 25.09.2026; раньше — любой сотрудн�
 Ответ всегда `200` и сразу: `{ "data": { "accepted": true } }`; команда выполняется после
 ответа. Тело не разобралось — `{ "accepted": false }`, тоже `200`: Telegram повторяет
 обновление, пока не получит 2xx, а повтор того же тела ничего не исправит. Причина — строкой
-в журнале приложения без содержимого сообщения. Повтор одного `update_id` выполняется один раз.
+в журнале приложения без содержимого сообщения. Повтор одного `update_id` выполняется один раз
+и после перезапуска сервера (решение 133: отметка в таблице `telegram_updates_seen`, 7 суток):
+повтор — тихий `200` с тем же телом, команда не выполняется. Сбой базы при отметке — `500`,
+Telegram повторит обновление позже.
 Бот не настроен (нет токена) — `200`, команда не выполняется.
 
 ```bash
 curl -X POST http://localhost:3000/api/telegram/webhook \
   -H 'content-type: application/json' -H 'x-telegram-bot-api-secret-token: <секрет>' \
   -d '{"update_id":1,"message":{"chat":{"id":42,"type":"private"},"text":"/today"}}'
+```
+
+### POST /api/client-errors
+
+Сбор ошибок фронтенда (решение 133). **Без входа.** Ответ всегда `204` без тела (и на кривое
+тело, и сверх предела, и с чужого сайта) — запись в журнал сервера с меткой `client-error`,
+номером запроса и адресом страницы без строки запроса.
+
+| Поле | Тип | Предел |
+| --- | --- | --- |
+| `message` | string | 1000 знаков, обрезается |
+| `stack` | string | 4000 |
+| `url` | string | 500; `?…` и `#…` отбрасываются |
+| `component`, `release` | string | 200 / 100 |
+| `digest` | string | 100 — `error.digest` из Next |
+| `level` | string | 20 |
+
+Тело — не больше 8 КБ, неизвестные поля отбрасываются, без `message` и `stack` запись не делается.
+С одного адреса — не больше 30 сообщений в минуту. Почта, телефоны и токены в тексте
+маскируются журналом. Отправлять удобно `navigator.sendBeacon` или `fetch(…, { keepalive: true })`.
+
+```bash
+curl -i -X POST http://localhost:3000/api/client-errors -H 'content-type: application/json' \
+  -d '{"message":"TypeError: x is undefined","stack":"at Card (card.tsx:12)","url":"http://localhost:3000/universities/1"}'
 ```
 
 ### GET /api/health
@@ -373,6 +426,32 @@ curl -s http://localhost:3000/api/ready
 (вместо `misconfigured`). Подсказка пишется в журнал приложения. `status`, `reason`,
 `schema`, `migration` и `latencyMs` значат то же, что и вне продакшена: на них смотрят
 проверки и сторож. Имена миграций секрета не составляют — они лежат в открытом репозитории.
+
+### GET /api/metrics
+
+Метрики сервера в текстовом формате Prometheus 0.0.4 (решение 137). **Не для фронта**:
+его опрашивает Prometheus, на стенде снаружи адрес закрыт в Caddy (`404`).
+
+Доступ — заголовок `Authorization: Bearer <METRICS_TOKEN>` или запрос с самой машины
+приложения (петлевой адрес). `METRICS_TOKEN` не задан — `404` (маршрута для постороннего
+как будто нет); задан, но токен не предъявлен или неверен — `401`. Не ограничивается по
+частоте и сам в метрики не попадает. Персональных данных в ответе нет: только счётчики
+по шаблонам маршрутов (`/api/universities/[id]`, не адрес с id), группам и причинам.
+
+```bash
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:3000/api/metrics
+```
+
+```text
+# HELP http_requests_total Запросы к API по методу, шаблону маршрута и классу ответа
+# TYPE http_requests_total counter
+http_requests_total{method="GET",route="/api/universities/[id]",status_class="2xx"} 12
+…
+db_up 1
+backup_last_success_timestamp_seconds 1790291703
+```
+
+Полный список метрик и правила оповещений — `deploy/monitoring/README.md`.
 
 ---
 
@@ -497,8 +576,16 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
 { "id": "…", "fullName": "Ветрова Ирина Павловна", "position": "Заместитель декана",
   "email": null, "phone": null, "isPrimary": true,
   "isAnonymized": false, "contactDetailsHidden": true,
+  "emailMasked": "c***@spbgu.example.invalid", "phoneMasked": "+7******00",
   "basisRecorded": true, "legalBasis": null }
 ```
+
+**Маски почты и телефона** (решение 133): `emailMasked` (`i***@домен`) и `phoneMasked`
+(`+7******71`) приходят всем, кто видит контакт, — вместо «скрыто» видно, что почта и телефон
+есть. `null` — значения нет или контакт обезличен. Полное значение — через раскрытие
+с причиной (`POST /api/contacts/:id/reveal`). Поля новые, прежние не менялись.
+При `CONTACT_REVEAL_REQUIRED=true` (строгий режим, по умолчанию выключен) почта и телефон
+не приходят в карточке никому — только маски и `contactDetailsHidden: true`.
 
 **Правовое основание обработки ПД контакта** (решение 111). `basisRecorded` приходит всем,
 кто видит контакт: основание зафиксировано или нет. `legalBasis` целиком
@@ -516,6 +603,9 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
 | `documentReference` | string | где лежит документ-основание: номер, дата, место хранения |
 | `withdrawalReference` | string \| null | где лежит отзыв — только при `WITHDRAWN` |
 | `updatedAt` | ISO | когда основание фиксировали в последний раз |
+| `policyVersion` | string \| null | решение 133: редакция политики обработки ПД на момент согласия; только при согласии, у записанных до 26.09.2026 — null |
+| `consentTextHash` | string \| null | решение 133: SHA-256 (hex) текста подписанного согласия; сам текст не хранится |
+| `consentContext` | string \| null | решение 133: где получено согласие |
 
 ### POST /api/universities
 
@@ -576,6 +666,9 @@ curl -s -X POST http://localhost:3000/api/universities \
 | `documentReference` | string | да | 3..200: номер, дата и место хранения документа-основания. Не файл; ФИО сюда не писать |
 | `consentObtainedAt` | ISO \| null | при `CONSENT` — да | не в будущем; при другом основании — нельзя |
 | `consentForm` | enum \| null | при `CONSENT` — да | `WRITTEN`, `ELECTRONIC`, `ORAL_CONFIRMED_BY_EMAIL`; при другом основании — нельзя |
+| `policyVersion` | string \| null | нет | решение 133: 1..50, редакция политики; не передана — действующая (`CONSENT_RECORD.policyVersion`). Только при `CONSENT` |
+| `consentText` | string \| null | нет | решение 133: 1..20000, текст подписанного бланка — **не хранится**, в базу идёт его SHA-256; не передан — хеш бланка по умолчанию. Только при `CONSENT` |
+| `consentContext` | string \| null | нет | решение 133: 1..200, где получено согласие («встреча в вузе 12.09»). Без ФИО. Только при `CONSENT` |
 
 - При `CONSENT` статус становится `OBTAINED`, при остальных — `NONE`. Смена согласия на
   другое основание разрешена (ч. 2 ст. 9 152-ФЗ): дата и форма согласия в карточке
@@ -633,14 +726,46 @@ curl -s -X POST http://localhost:3000/api/universities/<id>/contacts/<contactId>
     "consentObtainedAt": "2026-03-09T19:06:23.449Z", "consentForm": "ORAL_CONFIRMED_BY_EMAIL",
     "consentWithdrawnAt": "2026-09-05T19:06:23.449Z",
     "referenceChanged": true, "anonymized": true,
+    "policyVersion": null, "consentTextHash": null,
     "changedBy": { "id": "…", "fullName": "Кириллов Пётр Андреевич", "role": "MANAGER" },
     "changedAt": "2026-09-05T19:06:23.449Z" }],
   "meta": { "page": 1, "pageSize": 20, "total": 2 } }
 ```
 
 `kind`: `basis.set` — основание зафиксировано или изменено, `consent.withdraw` — отзыв.
+`policyVersion` и `consentTextHash` (решение 133) — снимок записи согласия на момент изменения.
 `referenceChanged` — документ-основание сменился или появился документ отзыва (сам текст
 в истории не хранится). Чужой вуз или контакт — `NOT_FOUND`.
+
+### POST /api/contacts/:id/reveal
+
+Раскрыть почту и/или телефон контакта вуза (решение 133). Право: ADMIN и MANAGER; представитель
+вуза — контакты своего вуза (чужой — `404`). ANALYST и VIEWER — `403` до поиска контакта:
+решение 106 причиной не обходится. Каждое раскрытие — запись `contact.revealed` в журнале.
+
+| Поле | Тип | Обязательно | Ограничения |
+| --- | --- | --- | --- |
+| `reason` | string | да | 10..500 — зачем нужны контакты |
+| `fields` | `("email" \| "phone")[]` | нет | по умолчанию оба |
+
+Ответ `200`, `Cache-Control: no-store`:
+
+```json
+{ "data": { "id": "…", "universityId": "…", "email": "contact@spbgu.example.invalid",
+  "phone": "+7 900 000-00-00", "revealedFields": ["email", "phone"],
+  "revealedAt": "2026-09-26T10:00:00.000Z" } }
+```
+
+`revealedFields` — поля, которые запрошены и заполнены. Обезличенный контакт — `409`.
+Журнал: `contact.revealed` `{ universityId, fields, requested, reason }` — почта и телефоны
+внутри причины маскируются. Фронту: значения показывать по нажатию «Показать», не сохранять
+в состоянии дольше показа.
+
+```bash
+curl -s -X POST http://localhost:3000/api/contacts/<contactId>/reveal \
+  -H 'content-type: application/json' -b 'skilllink_user=<id менеджера>' \
+  -d '{"reason":"Согласовать дату подписания соглашения","fields":["email"]}'
+```
 
 ---
 
@@ -1059,6 +1184,82 @@ curl -s -X PUT http://localhost:3000/api/products/PRODUCT_ID/skills \
 
 Все три записи попадают в журнал действий: `product.create`, `product.update`,
 `product.skills.replace` (в журнале — имена изменённых полей, не значения).
+
+---
+
+## 6а. Вендоры (решение 132)
+
+Компания-вендор IT-продукта (ООО «Базис», ПАО «Ростелеком» и другие) с контактными лицами.
+Продукт может ссылаться на вендора (`ITProduct.vendorId`, необязательно — обратная
+совместимость с продуктами до решения 132).
+
+### GET /api/vendors
+
+Право: `VENDORS` (`ADMIN`, `MANAGER`, `ANALYST`, `VIEWER`; представителю вуза — 403).
+Параметры: `q` (по названию), пагинация. В списке — название, продукты, число контактов,
+число связок через продукты, `isMock`.
+
+### GET /api/vendors/:id
+
+Право: `VENDORS`. Карточка: продукты (с числом связок), контакты, связки «вуз — программа —
+продукт» через продукты вендора, курсы ИТ-Школы на базе этих продуктов.
+
+Почта и телефон контакта — только с правом `CONTACT_DETAILS` (решение 106, как у контактов
+вузов): без него поля `null`, а `contactDetailsHidden: true` объясняет, что они скрыты
+правом, а не отсутствуют.
+
+```json
+{
+  "data": {
+    "id": "…", "name": "ООО «Базис»",
+    "products": [{ "id": "…", "name": "Базис Dynamix", "category": "…", "version": null,
+                   "status": "ACTIVE", "cooperationCount": 2 }],
+    "contacts": [{ "id": "…", "fullName": "Иванов Иван Иванович", "email": null, "phone": null,
+                   "preferredChannels": ["EMAIL", "TELEGRAM"], "productIds": ["…"],
+                   "legalBasis": "LEGITIMATE_INTEREST", "contactDetailsHidden": true }],
+    "cooperations": [{ "id": "…", "status": "ACTIVE", "universityId": "…", "universityName": "…",
+                       "programId": "…", "programName": "…", "productId": "…", "productName": "…" }],
+    "courses": [{ "id": "…", "name": "…", "productId": "…" }],
+    "isMock": false, "createdAt": "…", "updatedAt": "…"
+  }
+}
+```
+
+### POST /api/import/vendors?mode=preview|apply
+
+Право: `WRITE` (представителю вуза и аналитику — 403). Тело — файл: книга Excel (лист
+«Компания | Продукт | ФИО | Телефон | Почта | Способ связи») или CSV с теми же колонками;
+`content-type` любой, формат распознаётся по подписи ZIP. `mode=preview` (по умолчанию)
+ничего не пишет и возвращает предпросмотр, `mode=apply` — записывает. Ответ — всегда
+`cache-control: no-store` (в файле бывают телефоны и почты).
+
+Разбор строки: ячейка «Продукт» может содержать несколько названий через запятую в кавычках
+(«А», «Б»); компания и продукт узнаются по ключу названия — без учёта кавычек-ёлочек, регистра
+и пробелов (`catalogNameKey`, решение 110), поэтому «ООО «Базис»» и «ооо базис» — один вендор.
+Недостающий продукт заводится со статусом `ACTIVE` и категорией по умолчанию «Без категории» —
+её правят в карточке продукта. Телефон приводится к `+7XXXXXXXXXX`, почта — к нижнему регистру,
+«Способ связи» разбирается на `EMAIL` / `TELEGRAM` / `PHONE` (значения «Почта», «Чат в ТГ»,
+«Телефон», через запятую — несколько). Продукт, уже привязанный к другому вендору, не
+перепривязывается тихо — это ошибка строки: смену вендора делает человек в карточке продукта.
+Повторная загрузка того же файла ничего не создаёт (`toCreate` пустой, счётчики в `unchanged`).
+
+```json
+{
+  "data": {
+    "mode": "preview", "format": "xlsx", "encoding": null, "sheet": "Лист1", "totalRows": 2,
+    "toCreate": { "vendors": ["ООО «Базис»"], "products": ["Базис Dynamix", "Яга"], "contacts": ["Иванов Иван Иванович"] },
+    "toUpdate": { "products": [], "contacts": [] },
+    "unchanged": { "products": 0, "contacts": 0 },
+    "errors": [{ "row": 3, "column": "Телефон", "message": "Номер не распознан: нужен российский номер из 10–11 цифр" }],
+    "warnings": [{ "row": 2, "column": "ФИО", "message": "У контакта нет ни телефона, ни почты" }],
+    "quality": { "phonesNormalized": 1, "emailsLowercased": 1, "multiProductCells": 1, "productsMatched": 0 },
+    "processedAt": "…"
+  }
+}
+```
+
+Загрузка (`apply`) пишет в журнал `import.vendors` со счётчиками строк, созданных и
+изменённых вендоров/продуктов/контактов — без ФИО, почт и телефонов.
 
 ---
 
@@ -1698,7 +1899,89 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 
 ---
 
-## 9а. Прогноз связок (решение 135)
+## 9а. Курсы ИТ-Школы и заказы с сайта (решение 132)
+
+Курс ИТ-Школы (`SchoolCourse`) — отдельная сущность от программы вуза: заказ на сайте
+делает частный слушатель, а не вуз, и в рейтинг программ (разделы 9, 10) не входит.
+Курс может быть «на базе продукта» (`productId`). Показатели набора (раздел 7.4 ТЗ:
+«заявки, студенты, группы») считаются по загруженным заказам.
+
+**Персональных данных слушателей в этих ответах нет.** ФИО, телефон и почта проходят
+только через тело запроса загрузки и уходят только в файл для LMS; в базе и во всех
+ответах ниже — только хеш (HMAC) почты/телефона для дедупликации.
+
+### GET /api/school-courses
+
+Право: `READ`. Параметры: `q` (по названию), пагинация. Курс — с продуктом (и его
+вендором), числом заявок, уникальных слушателей и потоков, потоками с их показателями,
+датой последнего заказа. `meta.totals` — те же три числа по всем курсам страницы выборки.
+
+### POST /api/school-courses
+
+Право: `WRITE`. `{ "name": "…", "description": "…"?, "productId": "…"? }`. Название
+уникально по ключу (`catalogNameKey`, решение 110, как у навыков и вендоров) — тот же
+курс в другом регистре или с другими кавычками — `CONFLICT` 409.
+
+### POST /api/import/site-orders?mode=preview|apply
+
+Право: `SITE_ORDERS` (`ADMIN`, `MANAGER`; представителю вуза — 403). Тело — JSON-массив
+заказов, ровно как выгружает сайт (первый элемент бывает `null` — пропускается). По
+умолчанию `mode=preview` — только отчёт о качестве данных, `mode=apply` — запись.
+
+Нормализация и проверки: телефон → `7XXXXXXXXXX`, почта → нижний регистр с проверкой
+формата, ФИО — обрезка пробелов и заглавная буква; номер заявки `ORD-ГГГГММДДЧЧММСС-XXXXXX`
+разбирается на дату — несуществующая (месяц 17, секунды 69, 15 цифр вместо 14) даёт
+**предупреждение**, не ошибку: заказ всё равно грузится, `orderedAt: null`. Дедупликация —
+по номеру заявки (свой ключ повторной загрузки) и по HMAC-SHA256 нормальных почты/телефона
+(ключ `ORDERS_HMAC_KEY`, docs/PRIVACY.md) — так находятся повторы и внутри файла, и с
+прошлыми загрузками, хотя сама почта/телефон в базе не хранится. Курс ищется по названию
+из поля «Курс» (`catalogNameKey`) — при отсутствии курса заказ не загружается, это
+ошибка строки, а не предупреждение. Повторная загрузка того же файла ничего не создаёт.
+
+```json
+{
+  "data": {
+    "mode": "preview", "batchId": null, "toCreate": 3,
+    "errors": [{ "row": 5, "column": "Курс", "message": "Курса «…» нет в системе — заведите его или исправьте название" }],
+    "warnings": [{ "row": 2, "column": "Номер заявки", "message": "Номер не в формате ORD-ГГГГММДДЧЧММСС-XXXXXX — дата не разобрана" }],
+    "quality": {
+      "totalItems": 5, "emptyItemsSkipped": 1, "validRows": 3, "rowsWithErrors": 1,
+      "phonesNormalized": 2, "emailsLowercased": 1, "namesFixed": 0,
+      "brokenOrderNumbers": 1, "duplicateOrderNumbersInFile": 0, "duplicateListenersInFile": 1,
+      "alreadyImported": 0, "knownListeners": 0,
+      "unknownCourses": [{ "name": "…", "rows": 1 }],
+      "newStreams": [{ "courseName": "…", "number": 1 }, { "courseName": "…", "number": 2 }]
+    },
+    "courses": [{ "courseId": "…", "courseName": "…", "streamNumber": 1, "orders": 2 }],
+    "processedAt": "…"
+  }
+}
+```
+
+`apply` пишет в журнал `import.site_orders` со счётчиками (без ФИО, почт и телефонов).
+
+### POST /api/import/site-orders/lms-file?scope=new|all&courseId=…&stream=…
+
+Право: `SITE_ORDERS`. Тело — тот же JSON-файл заказов. Ответ — книга Excel «Загрузка
+пользователей» строго по шаблону LMS: те же 30 заголовков колонок (с их опечатками —
+воспроизведены байт-в-байт), Лист2 со справочниками (пол, уровни образования); заполнены
+только Фамилия, Имя, Отчество, Телефон (`7XXXXXXXXXX`), Email — остальные 25 колонок
+пустые: СНИЛС, паспорт и прочее ИТ-Школа не собирает (docs/PRIVACY.md).
+
+`scope=new` (по умолчанию) — только те, кого ещё не выгружали в LMS (повторное нажатие не
+плодит двойников в LMS); `scope=all` — все загруженные заказы подходящего курса/потока,
+даже уже выгруженные (если прошлый файл потерялся). Один человек — одна строка: совпадение
+хеша почты или телефона внутри выборки схлопывается в одну строку. Пустой результат — 422
+(`VALIDATION_ERROR`) с объяснением: заказы ещё не загружены (`mode=apply`) или все уже в LMS.
+
+Ответ — `content-type` книги Excel, `content-disposition: attachment`, **`cache-control:
+no-store`** (в файле ФИО, телефоны и почты слушателей — ни браузер, ни прокси не должны
+его сохранять). Заголовки `x-total-rows`, `x-skipped-not-imported`, `x-skipped-already-exported`,
+`x-duplicates-merged` — те же числа, что попадают в журнал `export.lms_users` (без ПД).
+
+---
+
+## 9б. Прогноз связок (решение 135)
 
 Прогноз «дойдёт ли связка до подписанного договора» (этап 6) и дальше — до начала занятий
 (этап 11). Формулы, ворота публикации и честные ограничения — [FORECAST_MODEL.md](FORECAST_MODEL.md).
@@ -2082,6 +2365,58 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 показ уже учтён при создании, успеха нет. После отклонения то же правило по тому же
 объекту молчит 30 дней (пауза), потом пересборка может открыть запись снова.
 
+### GET /api/recommendations/experiment
+
+Право: `ANALYTICS`. «Работают ли рекомендации» — контрольная группа и оценка прироста
+(решение 136, объяснение целиком — [RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md)).
+Часть допустимых сигналов правил по хешу (правило + объект + период) уходит в контроль:
+сигнал пишется в журнал `recommendation_signals`, рекомендация сотруднику не показывается.
+Просрочки сроков и критичные сигналы в контроль не уходят никогда. Тело запроса не нужно.
+
+```json
+{
+  "data": {
+    "enabled": false,
+    "controlShare": 0.1,
+    "horizonDays": 30,
+    "minControlForVerdict": 30,
+    "confidenceLevel": 0.95,
+    "overall": {
+      "nTreatment": 812,
+      "nControl": 94,
+      "successesTreatment": 361,
+      "successesControl": 30,
+      "convT": 0.444,
+      "convC": 0.319,
+      "lift": 0.125,
+      "relativeLift": 0.392,
+      "ci": { "low": 0.021, "high": 0.229 },
+      "days": { "meanTreatment": 14.2, "meanControl": 18.7, "diff": -4.5, "ci": { "low": -8.1, "high": -0.9 }, "df": 121.4 },
+      "sequential": { "llr": 3.1, "upper": 2.77, "lower": -1.56, "decision": "lift", "conversions": 58 },
+      "status": "lift",
+      "statusLabel": "Прирост есть",
+      "pendingTreatment": 40,
+      "pendingControl": 6,
+      "since": "2026-06-01T00:00:00.000Z"
+    },
+    "rules": [
+      { "ruleType": "cooperation.stalled", "label": "Связка без движения", "controlEligible": true, "...": "тот же набор полей, что в overall" }
+    ],
+    "journal": { "total": 950, "randomized": 906, "byAssignment": { "hash": 906, "excluded-rule": 20, "already-shown": 24 } },
+    "warnings": [],
+    "generatedAt": "2026-09-26T09:00:00.000Z"
+  }
+}
+```
+
+`status`: `insufficient-data` — в контроле или в группе меньше `minControlForVerdict` исходов;
+`not-proven` — 95 % интервал разности долей содержит 0; `lift` — весь интервал выше 0;
+`negative` — весь интервал ниже 0 (с рекомендацией хуже). `ci` — интервал по методу
+10 Ньюкомба, `days.ci` — интервал Уэлча для разности средних (дни до сдвига, не сдвинулся
+за окно — считается как `horizonDays`). `sequential` — последовательная проверка Вальда:
+можно ли остановить сбор раньше. Знаменатель везде — все назначенные (принцип «по назначению»),
+а не только показанные или взятые в работу.
+
 ---
 
 ## 10а. ИИ-помощник (решение 90)
@@ -2245,6 +2580,121 @@ curl -s -X POST http://localhost:3000/api/ai/today
 **Ошибки всех трёх маршрутов:** `UNAUTHORIZED` 401, `FORBIDDEN` 403, `NOT_FOUND` 404
 (связка или рекомендация), `INTERNAL` 500 — только при сбое базы, не модели.
 `INTEGRATION_ERROR` эти маршруты не отдают: сбой модели — это шаблон.
+
+---
+
+## 10б. История сотрудничества и «Предложить план» (решение 138)
+
+Три уровня, и на каждом решает человек: **подсказка** (история, что мешает) — только
+чтение; **проект** («Предложить план») — ничего не пишет, только считает; **применение** —
+сохраняет штатный сервис (встреч или этапов) с его обычными проверками прав и данных.
+Подробно об уровнях и о том, что уходит в модель, — [AI_ASSISTANT.md](AI_ASSISTANT.md).
+
+**Числа считает код.** История собирается из фактов (этапы, встречи, документы,
+открытые рекомендации, главное препятствие) точно так же, как сводка решения 90.
+Модель, если подключена, только формулирует; ответ с числом или датой, которых нет
+в фактах, отбрасывается — тот же путь, что у ИИ-помощника, плюс отдельная проверка чисел
+(`ai-story.numbers.ts`).
+
+**Обратимая маскировка.** В модель уходят не сами ФИО, почта и телефоны, а типизированные
+метки — `[КОНТАКТ_1]`, `[СОТРУДНИК_2]`, `[ПОЧТА_1]`, `[ТЕЛЕФОН_1]`, `[ЛИЦО_1]`. После ответа
+метки возвращаются исходным текстом: сотрудник видит свои собственные формулировки,
+в модель уходят только метки (`ai-story.masking.ts`). Это отличается от решения 90, где
+имена заменяются словом «ответственный» безвозвратно — там черновик уходит вузу и имена
+ему не нужны, здесь текст остаётся у сотрудника.
+
+### GET /api/cooperations/:id/story
+
+Право: `ANALYTICS` — как у сводки решения 90; представителю вуза 403, чужая или
+несуществующая связка — 404.
+
+**Ответ — `AiStoryDto`** (`shared/contracts/ai-story.ts`):
+
+| Поле | Тип | Что это |
+| --- | --- | --- |
+| `subject` | `{ type: "Cooperation" \| "University", id }` | О ком история |
+| `text` | string | 3–5 предложений |
+| `source` | `model` \| `template` | Кто сформулировал |
+| `provider` | `yandexgpt` \| `gigachat` \| `null` | Модель, если формулировала она |
+| `model` | string \| null | Ответившая модель |
+| `fallbackReason` | string \| null | Как у ИИ-помощника решения 90; `null` — писала модель |
+| `facts` | string[] | Факты, из которых собран текст — числа в тексте только отсюда |
+| `mainBlocker` | `BlockerDto` \| null | Главное препятствие — то же, что первым в `/blockers` |
+| `generatedAt` | string | ISO 8601 |
+| `dataAsOf` | string | На какой момент данные — самое позднее изменение среди источников |
+
+```bash
+curl -s http://localhost:3000/api/cooperations/<id>/story
+```
+
+### GET /api/universities/:id/story
+
+То же самое, право и форма ответа, но по всем связкам вуза сразу: сколько их,
+в каком состоянии, какая связка сейчас требует внимания больше остальных.
+
+### GET /api/cooperations/:id/blockers
+
+Право: `ANALYTICS`. Без модели: список уже посчитанных правилами препятствий.
+
+**Ответ — `CooperationBlockersDto`:**
+
+| Поле | Тип | Что это |
+| --- | --- | --- |
+| `currentStage`, `nextStage` | `{ id, stageNumber, title, status }` \| null | Текущий и следующий открытые этапы |
+| `blockers` | `BlockerDto[]` | В порядке важности; первый — главное препятствие; пусто — ничего не мешает |
+| `dataAsOf` | string | ISO 8601 |
+
+`BlockerDto`: `{ code, detail, link, stageNumber }`. Коды по важности —
+`COOPERATION_CLOSED`, `COOPERATION_PAUSED`, `STAGE_BLOCKED`, `CONTROL_POINT`,
+`PRODUCT_NOT_SELECTED`, `DOCUMENTS_NOT_SIGNED`, `UNIVERSITY_ITEM_PENDING`,
+`REQUIRED_TASKS_OPEN`, `STAGE_NOT_STARTED`, `RESULT_MISSING`, `NEXT_CONTROL_POINT`
+(полный разбор каждого — `shared/contracts/ai-story.ts`).
+
+### POST /api/cooperations/:id/proposals
+
+Право: `WRITE` (ADMIN, MANAGER) — как у письма вузу решения 90: план меняет расписание
+связки, представителю вуза недоступно. Тело необязательно: `{ "kind"?: "meeting" | "task" }`;
+без него сервис сам выбирает — есть препятствия, значит нужен разговор (`meeting`),
+нет — просто новый срок этапа (`task`).
+
+Ничего не создаёт: только проект. Дата — ближайший рабочий день по Москве через 3–5
+календарных дней (короче нельзя договориться, дальше — план перестаёт быть срочным);
+праздник или выходные внутри окна — дата ищется дальше, с предупреждением в `warnings`.
+
+**Ответ — `AiProposalDto`:**
+
+| Поле | Тип | Что это |
+| --- | --- | --- |
+| `proposalId` | string | Идентификатор проекта — передать в `/apply` |
+| `kind` | `meeting` \| `task` | Вид проекта |
+| `payload` | `MeetingProposalPayload` \| `TaskProposalPayload` | Тема и повестка встречи или новый срок этапа |
+| `sourceVersion` | string | `updatedAt` связки на момент постройки — сверяется при применении |
+| `expiresAt` | string | Проект живёт час; дальше — 404, нужен новый |
+| `warnings` | string[] | На что обратить внимание перед сохранением |
+
+Ошибки: связка закрыта или все её этапы уже закрыты — `CONFLICT` 409.
+
+```bash
+curl -s -X POST http://localhost:3000/api/cooperations/<id>/proposals
+```
+
+### POST /api/cooperations/:id/proposals/:proposalId/apply
+
+Право: `WRITE`. Тело не нужно.
+
+Повторно проверяет права и версию связки: `updatedAt` изменился с момента постройки
+проекта — `CONFLICT` 409 «данные изменились, обновите предложение». Проект не найден
+или истёк (час) — `NOT_FOUND` 404. Применение создаёт запись **штатным сервисом**
+(встреч — для `meeting`, изменение срока этапа — для `task`), а не прямой записью
+в базу, поэтому обычные проверки (открыта ли связка, существует ли этап) действуют
+и здесь. Проект одноразовый: вторая попытка применить тот же `proposalId` — 404.
+
+**Ответ — `AiProposalAppliedDto`:** `{ proposalId, kind, meeting: MeetingDto | null,
+stage: WorkflowStageDto | null }` — заполнено то поле, что соответствует `kind`.
+
+**Журнал.** `ai.story` — каждая сформулированная история; `ai.request` — каждое обращение
+к модели (без текста запроса и ответа — только провайдер, объём фактов, исход);
+`ai.proposal.created` и `ai.proposal.applied` — постройка и применение проекта.
 
 ---
 
@@ -3004,6 +3454,15 @@ curl -X POST http://localhost:3000/api/users -H 'content-type: application/json'
 Любое подмножество полей: `fullName`, `position`, `role`, `universityId`, `isActive`.
 Почта не меняется (это логин), пароль — отдельным маршрутом. Пустое тело — 422. Ответ — `UserDto`.
 
+**«Четыре глаза»** (решение 133, при `APPROVALS_REQUIRED=true`; по умолчанию выключено):
+назначение роли `ADMIN` и блокировка действующего администратора требуют поля `approvalId` —
+одобрения, запрошенного этим администратором (`POST /api/admin/approvals`) и одобренного
+другим. Без него или с неподходящим — `403 FORBIDDEN` с
+`details: { "approvalRequired": true, "action": "user.grant_admin" | "user.block_admin" }`;
+фронту — предложить «Запросить одобрение». Одобрение срабатывает один раз, в той же транзакции,
+что и изменение. `POST /api/users` с ролью `ADMIN` при включённом требовании — тот же `403`:
+администратора заводят с другой ролью и затем назначают.
+
 ```bash
 curl -X PATCH http://localhost:3000/api/users/<id> -H 'content-type: application/json' \
   -H 'cookie: skilllink_user=<id администратора>' -d '{"isActive":false}'
@@ -3368,6 +3827,96 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 
 ---
 
+## 15б-2. Администрирование: безопасность (решение 133)
+
+### POST /api/admin/telegram/rotate-webhook-secret
+
+Право: `ADMIN`. Тело не нужно. Сервер создаёт новый секрет (32 случайных байта, base64url),
+**сначала** вызывает `setWebhook` у Telegram (адрес — `AUTH_URL`/`APP_BASE_URL` +
+`/api/telegram/webhook`, соединение через `TELEGRAM_API_IP`, если задан) и только при успехе
+сохраняет SHA-256 секрета в `system_secrets` — с этого момента он главнее
+`TELEGRAM_WEBHOOK_SECRET`. Отказ или недоступность Telegram — `502 INTEGRATION_ERROR`
+с `details: { telegramStatus }`, прежний секрет продолжает действовать. Бот не настроен или
+нет публичного адреса — `502` до обращения к Telegram. Две смены одновременно выполняются
+по очереди.
+
+```json
+{ "data": { "rotatedAt": "2026-09-26T10:00:00.000Z",
+  "webhookUrl": "https://skilllink.example/api/telegram/webhook" } }
+```
+
+Самого секрета нет ни в ответе, ни в журнале: `telegram.webhook_secret_rotated`
+с `{ webhookHost }`.
+
+### Одобрения опасных операций: GET, POST /api/admin/approvals
+
+Право: `ADMIN`. «Четыре глаза» — одобрение второго администратора для назначения
+администратором и блокировки администратора (действует при `APPROVALS_REQUIRED=true`;
+API работает и при выключенном требовании).
+
+`POST /api/admin/approvals` — запросить, ответ `201` `ApprovalDto`:
+
+| Поле | Тип | Смысл |
+| --- | --- | --- |
+| `action` | `user.grant_admin` \| `user.block_admin` | операция; подписи — `APPROVAL_ACTION_LABELS` |
+| `payload` | `{ "userId": "…" }` | только идентификаторы; лишние поля — 422 |
+
+Цель проверяется сразу: пользователя нет — `404`; уже администратор (`grant_admin`) или
+не действующий администратор (`block_admin`) — `409`. Запрос живёт 24 часа.
+
+`GET /api/admin/approvals?status=&page=&pageSize=` — список, новые сверху; истёкшие
+показываются как `EXPIRED`.
+
+```json
+{ "id": "…", "action": "user.grant_admin", "payload": { "userId": "…" },
+  "status": "REQUESTED", "requestedBy": { "id": "…", "fullName": "…", "role": "ADMIN" },
+  "approvedBy": null, "rejectedBy": null, "createdAt": "…", "decidedAt": null,
+  "expiresAt": "…", "consumedAt": null, "canApprove": true }
+```
+
+`status`: `REQUESTED` → `APPROVED` | `REJECTED` | `EXPIRED`; `APPROVED` → `CONSUMED` (операция
+выполнена) | `REJECTED` | `EXPIRED`. Подписи — `APPROVAL_STATUS_LABELS`. `canApprove` — текущий
+администратор может одобрить (не автор, запрос ждёт решения, не истёк).
+
+### POST /api/admin/approvals/:id/approve, POST /api/admin/approvals/:id/reject
+
+Право: `ADMIN`, тело не нужно, ответ `200` `ApprovalDto`. Одобряет **только другой**
+администратор — свой запрос `409`; не ждущий или истёкший — `409`. Отклонить может любой
+администратор, в том числе автор (отозвать свой): ждущий или одобренный, но не использованный.
+Использование — `PATCH /api/users/:id` с `approvalId` автором запроса: атомарно, один раз,
+только на ту же операцию с теми же параметрами. Журнал: `approval.requested`,
+`approval.approved`, `approval.rejected`, `approval.consumed`.
+
+```bash
+# админ A просит, админ B одобряет, A выполняет
+curl -s -X POST localhost:3000/api/admin/approvals -H 'content-type: application/json' \
+  -b 'skilllink_user=<A>' -d '{"action":"user.grant_admin","payload":{"userId":"<id>"}}'
+curl -s -X POST localhost:3000/api/admin/approvals/<approvalId>/approve -b 'skilllink_user=<B>'
+curl -s -X PATCH localhost:3000/api/users/<id> -H 'content-type: application/json' \
+  -b 'skilllink_user=<A>' -d '{"role":"ADMIN","approvalId":"<approvalId>"}'
+```
+
+### GET /api/admin/audit/export
+
+Право: `ADMIN`. Выгрузка журнала для внешней системы сбора событий. Ответ `200`,
+`Content-Type: application/x-ndjson` — одна запись на строку, **все колонки** журнала
+(`id`, `userId`, `action`, `objectType`, `objectId`, `payload`, `createdAt` и те, что появятся;
+BigInt — строкой), по возрастанию времени, затем `id`.
+
+| Параметр | Смысл |
+| --- | --- |
+| `after_id` | курсор — `id` последней полученной записи; без него — с начала |
+| `limit` | 1..5000, по умолчанию 1000 |
+
+Заголовки ответа: `x-last-id` — курсор следующего запроса (пусто — записей больше нет),
+`x-count` — число строк, `Cache-Control: no-store`. Курсор не найден (запись удалена по сроку
+хранения) — `422` по `after_id`. Сама выгрузка пишется в журнал: `audit.export`
+`{ afterId, limit, count, lastId }` — она попадёт в следующую страницу.
+
+```bash
+curl -s -D - 'localhost:3000/api/admin/audit/export?limit=500' -b 'skilllink_user=<id администратора>'
+```
+
 ## 15в. Групповая операция: выпуск версии продукта
 
 Обещание концепции: одно действие ставит задачи во всех связках, где передана
@@ -3650,6 +4199,175 @@ receivedAt? }`. `receivedAt` — когда оператор получил за
 Несуществующий субъект — 422; открытый запрос того же вида о том же субъекте — 409 с
 `details.requestId`. Ответ `201` — `DsarRequestDto`. Текст письма и ФИО не хранятся.
 Журнал: `dsar.requested`.
+## 15и. Качество данных: отчёт, поиск дублей, слияние вузов (решение 134)
+
+Формулы и пороги — [ANALYTICS_METHODOLOGY.md](ANALYTICS_METHODOLOGY.md), раздел 8.
+Отчёт и поиск дублей — право `ANALYTICS` (сравнение и оценка чужих вузов, представителю
+вуза недоступно — `FORBIDDEN` 403); слияние и его отмена — только `ADMIN`.
+
+### GET /api/data-quality/report
+
+Оценка справочника 0–100 по пяти сущностям (вузы, программы, навыки, IT-продукты,
+связки) с прозрачной формулой и списком проблем со ссылками. Без параметров.
+
+```json
+{ "data": {
+    "score": 83.8,
+    "entities": [
+      { "entity": "university", "title": "Вузы", "total": 8, "score": 72.5, "weight": 0.25,
+        "issues": [
+          { "code": "university.noContacts", "title": "Вуз без контактных лиц", "count": 1,
+            "share": 0.125, "weight": 0.4, "penalty": 5,
+            "items": [{ "id": "…", "name": "…", "href": "/universities/…" }] } ] } ],
+    "duplicates": { "university": 2, "skill": 3, "program": 0, "product": 0 },
+    "explanation": "Оценка сущности = 100 × (1 − Σ вес проблемы × доля записей с ней); …",
+    "generatedAt": "2026-09-26T…", "isMock": true } }
+```
+
+`score` сущности — `null`, если записей нет: она не участвует в среднем. `explanation` —
+для показа под общей оценкой, слово в слово повторяет формулу выше.
+
+### GET /api/data-quality/duplicates
+
+Параметры: `entity` (`university` \| `skill` \| `program` \| `product`, обязателен),
+`threshold` (0,1–1, по умолчанию 0,4), `includeDismissed`, `includeArchived`. Пары —
+самые похожие первыми, не «страница», а список целиком (`meta.total` — сколько найдено,
+без пагинации).
+
+```json
+{ "data": [
+    { "entity": "skill", "a": { "id": "…", "name": "JavaScript", "hint": "Языки программирования", "href": "/settings" },
+      "b": { "id": "…", "name": "JS", "hint": "Языки программирования", "href": "/settings" },
+      "score": 0.95, "method": "synonym",
+      "reasons": ["Синонимы по словарю: «JavaScript» и «JS» — это javascript", "Одна категория: Языки программирования"],
+      "dismissed": false } ],
+  "meta": { "entity": "skill", "threshold": 0.4, "compared": 21, "candidateSource": "all-pairs",
+            "total": 3, "dismissedHidden": 0 } }
+```
+
+`method` — как найдено сходство: `inn`, `normalized`, `synonym`, `abbreviation`, `trigram`
+или `levenshtein`. `candidateSource` — `all-pairs` (сравнили все со всеми, справочник
+небольшой) или `pg_trgm` (кандидатов отобрала база по индексу на большом справочнике).
+
+### POST /api/data-quality/duplicates/dismiss
+
+Отметить пару «не дубль»: `{ "entity": "skill", "firstId": "…", "secondId": "…", "comment": "…?" }`.
+Право `WRITE`. Порядок `firstId`/`secondId` не важен — пара хранится упорядоченной.
+Повтор — та же запись, журнал не растёт. Одной из записей нет в справочнике — `422`.
+
+```json
+{ "data": { "id": "…", "entity": "skill", "firstId": "…", "secondId": "…",
+    "comment": "Разные технологии", "dismissedBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
+    "createdAt": "2026-09-26T…" } }
+```
+
+Журнал: `duplicate.dismiss` с `{ entity, firstId, secondId }`.
+
+### POST /api/universities/merge
+
+Слить вуз-дубль (`sourceId`) в целевой (`targetId`) одной транзакцией — тот же подход,
+что у объединения навыков (решение 107), но с правилом на каждое поле: `fieldRules`
+(необязательно) — `{ "website": "most_recent", "description": "longest" }`, поле без
+правила — `non_null` (значение цели, а если пусто — источника; пустое никогда не
+побеждает). Правило `manual` требует значения в `manualValues` той же схемой, что при
+обычной правке вуза.
+
+```json
+{ "sourceId": "…", "targetId": "…",
+  "fieldRules": { "website": "non_null", "studentCount": "longest" },
+  "manualValues": { "city": "Верхнеуслонский район" } }
+```
+
+Источник уходит в архив со ссылкой `mergedIntoId` (не удаляется); программы, контакты,
+связки, встречи, документы, заявки и учётные записи представителей переносятся к цели.
+Ответ `200`:
+
+```json
+{ "data": { "id": "…", "sourceId": "…", "targetId": "…",
+    "mergedBy": { "id": "…", "fullName": "…", "role": "ADMIN" }, "mergedAt": "2026-09-26T…",
+    "undoUntil": "2026-10-26T…", "undoneAt": null,
+    "moved": { "programs": 1, "contacts": 1, "cooperations": 0, "meetings": 0, "documents": 0, "applications": 0, "users": 0 },
+    "survivorship": [ { "field": "website", "rule": "non_null", "chosen": "source", "changed": true,
+                         "targetValue": null, "sourceValue": "https://…", "resultValue": "https://…" } ],
+    "demotedPrimaryContacts": 0 } }
+```
+
+`sourceId === targetId` — `422`; вуз уже слит с другим — `409`; цель в архиве — `422`;
+разные ИНН у обоих — `409` (это разные организации, не дубли). Только `ADMIN` —
+остальным `403`. Журнал: `university.merge`, `objectId` — цель, в `payload` — `sourceId`,
+`sourceName`, счётчики `moved`, список изменившихся полей (без значений — они в самом
+журнале слияния, а среди перенесённого могут быть контакты с ПД).
+
+### POST /api/universities/merge/:id/undo
+
+Отменить слияние в течение `undoUntil` (по умолчанию 30 дней). Объекты возвращаются
+источнику по списку из журнала — включая то, что появилось на перенесённых программах
+и связках уже после слияния. Поле цели возвращается к значению до слияния, только
+если его не меняли с тех пор — иначе остаётся как есть.
+
+```json
+{ "data": { "merge": { "…": "…", "undoneAt": "2026-09-27T…" },
+    "returned": { "programs": 1, "contacts": 1, "cooperations": 0, "meetings": 0, "documents": 0, "applications": 0, "users": 0 },
+    "restoredFields": ["website"], "keptFields": [] } }
+```
+
+Срок истёк или уже отменено — `409`; слияния нет — `404`. Только `ADMIN`. Журнал:
+`university.merge.undo`.
+
+## 15й. Лента 360 вуза, похожие программы, тепловая карта встреч (решение 134)
+
+### GET /api/universities/:id/timeline
+
+Единая лента вуза: смены этапов, встречи, документы, заявки, связки, рекомендации
+и их статусы, факты по основаниям обработки ПД контактов (без ФИО), правки записи
+вуза и слияния — новые сверху. Курсорная пагинация: `cursor` (из `meta.nextCursor`
+прошлого ответа), `limit` (1–100, по умолчанию 20), `types` (список через запятую или
+повторяющийся параметр). Право `READ`; представитель вуза видит только свой вуз (чужой —
+`404`, как и везде) и только разрешённые его роли типы (`meta.types` называет, какие
+вошли); внутренние комментарии сотрудников ему не показываются.
+
+```json
+{ "data": [
+    { "id": "stage:…", "type": "stage", "kind": "stage.status", "title": "Этап 3 «…»: в работе",
+      "details": "Итог этапа", "cooperationId": "…", "programName": "…", "href": "/cooperations/…",
+      "author": { "id": "…", "fullName": "…", "role": "MANAGER" }, "occurredAt": "2026-09-26T…" } ],
+  "meta": { "limit": 20, "nextCursor": "MjAyNi0…", "hasMore": true,
+            "types": ["cooperation", "stage", "meeting", "document", "application"] } }
+```
+
+Вуза нет или он чужой представителю — `404`.
+
+### GET /api/programs/:id/similar
+
+Похожие программы по навыкам: косинус взвешенных векторов (вес = важность × idf) плюс
+бонусы за то же направление и уровень. Параметр `limit` (1–20, по умолчанию 5).
+Право `ANALYTICS`. Считается на лету, снимок не хранится.
+
+```json
+{ "data": { "programId": "…",
+    "items": [ { "program": { "id": "…", "name": "…", "universityId": "…", "universityName": "…",
+                               "level": "BACHELOR", "direction": "…" },
+                 "score": 0.71, "cosine": 0.66, "sameDirection": true, "sameLevel": true,
+                 "sharedSkills": [{ "id": "…", "name": "JavaScript" }],
+                 "missingSkills": [{ "id": "…", "name": "Docker" }] } ],
+    "missingSummary": [ { "id": "…", "name": "Docker", "programCount": 2, "weight": 1.4 } ],
+    "explanation": "Сходство = 0,85 × косинус векторов навыков + 0,1 за то же направление + …" } }
+```
+
+Программы без общих навыков не попадают в `items`, каким бы ни был бонус. Программы
+нет — `404`.
+
+### GET /api/analytics/meetings-heatmap
+
+7 (дни недели, понедельник первым) × 24 (часы, московское время) — число проведённых
+встреч. Параметры: `from`, `to` (ISO 8601, по умолчанию — от начала данных до сейчас),
+`universityId`. Право `ANALYTICS`, область видимости — как у остальной аналитики.
+
+```json
+{ "data": { "cells": [[0,0,1,"…"]], "dayLabels": ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],
+    "timeZone": "Europe/Moscow", "total": 5, "max": 2,
+    "from": null, "to": "2026-09-26T…", "isMock": true } }
+```
 
 ## 16. Чего ещё нет
 

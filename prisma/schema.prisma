@@ -163,11 +163,18 @@ enum RecommendationStatus {
   DONE
 }
 
-/// Итог обучения модели прогноза по воротам публикации (решение 132, forecast.config.ts).
+/// Итог обучения модели прогноза по воротам публикации (решение 135, forecast.config.ts).
 enum ForecastModelStatus {
   PUBLISHED
   BASELINE_BETTER
   INSUFFICIENT_DATA
+}
+
+/// Группа сигнала в проверке рекомендаций (решение 126): рекомендацию показали
+/// сотруднику (treatment) или придержали для сравнения (control).
+enum ExperimentArm {
+  treatment
+  control
 }
 
 enum DataSourceType {
@@ -200,6 +207,13 @@ enum ContactLegalBasis {
   CONSENT
   /// Иное основание ст. 6 — какое, видно по документу-основанию.
   OTHER
+}
+
+/// Предпочтительный канал связи с контактом вендора (решение 132).
+enum VendorContactChannel {
+  EMAIL
+  TELEGRAM
+  PHONE
 }
 
 /// Статус согласия. NONE — основание не согласие; OBTAINED и WITHDRAWN — только при CONSENT.
@@ -281,6 +295,15 @@ model User {
   telegramLink           TelegramLink?
   calendarFeed           CalendarFeed?
   contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
+  duplicateDismissals    DuplicateDismissal[]  @relation("DuplicateDismissalAuthor")
+  universityMerges       UniversityMerge[]     @relation("UniversityMergeAuthor")
+  universityMergeUndos   UniversityMerge[]     @relation("UniversityMergeUndoAuthor")
+  siteOrdersImported     SiteOrder[]           @relation("SiteOrderImporter")
+  secretsRotated         SystemSecret[]        @relation("SystemSecretRotatedBy")
+  approvalsRequested     Approval[]            @relation("ApprovalRequestedBy")
+  approvalsApproved      Approval[]            @relation("ApprovalApprovedBy")
+  approvalsRejected      Approval[]            @relation("ApprovalRejectedBy")
+  idempotencyKeys        IdempotencyKey[]
   dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
 
   @@index([role])
@@ -307,12 +330,22 @@ model University {
   /// Общая численность обучающихся в вузе.
   studentCount   Int?             @map("student_count")
   description    String?
+  /// ИНН организации (решение 124): 10 цифр, контрольная цифра проверяется при вводе.
+  /// null — не заполнен. CHECK в базе: NULL или ровно 10 цифр.
+  inn            String?
+  /// ОГРН организации: 13 цифр. CHECK в базе: NULL или ровно 13 цифр.
+  ogrn           String?
+  /// Вуз слит в другой (решение 124): запись в архиве и ссылается на того, кто остался.
+  /// Не удаляется — слияние можно отменить. CHECK: не на себя; только у архивной записи.
+  mergedIntoId   String?          @map("merged_into_id")
   /// Демонстрационная запись. Фронт обязан показывать пометку.
   isMock         Boolean          @default(false) @map("is_mock")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   archivedAt     DateTime?        @map("archived_at")
 
+  mergedInto   University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom   University[]         @relation("UniversityMergedInto")
   contacts     Contact[]
   programs     EducationalProgram[]
   cooperations Cooperation[]
@@ -320,10 +353,16 @@ model University {
   meetings     Meeting[]
   applications Application[]
   users        User[]
+  mergesAsSource UniversityMerge[] @relation("UniversityMergeSource")
+  mergesAsTarget UniversityMerge[] @relation("UniversityMergeTarget")
 
   @@index([status])
   @@index([region])
   @@index([city])
+  @@index([mergedIntoId])
+  @@index([inn])
+  /// Поиск дублей по названию (решение 124): кандидатов отбирает оператор `%` расширения pg_trgm.
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "universities_name_trgm")
   @@map("universities")
 }
 
@@ -354,6 +393,12 @@ model Contact {
   withdrawalReference String?            @map("withdrawal_reference")
   /// Когда основание фиксировалось в последний раз; кто — в истории.
   basisUpdatedAt      DateTime?          @map("basis_updated_at")
+  /// Решение 123: редакция политики обработки ПД на момент согласия. Только при согласии.
+  consentPolicyVersion String?           @map("consent_policy_version")
+  /// Решение 123: SHA-256 (hex) текста согласия, под которым человек подписался; текст не хранится.
+  consentTextHash     String?            @map("consent_text_hash")
+  /// Решение 123: где получено согласие (встреча, письмо, подписание соглашения). Без ПД.
+  consentContext      String?            @map("consent_context")
 
   university     University            @relation(fields: [universityId], references: [id], onDelete: Cascade)
   participations MeetingParticipant[]  @relation("MeetingParticipantContact")
@@ -392,6 +437,9 @@ model ContactBasisHistory {
   referenceChanged   Boolean            @default(false) @map("reference_changed")
   /// Изменение повлекло обезличивание контакта (отзыв единственного основания).
   anonymized         Boolean            @default(false)
+  /// Решение 123: редакция политики и хеш текста согласия — снимок на момент записи.
+  policyVersion      String?            @map("policy_version")
+  consentTextHash    String?            @map("consent_text_hash")
   changedById        String             @map("changed_by_id")
   changedAt          DateTime           @default(now()) @map("changed_at")
 
@@ -440,6 +488,7 @@ model EducationalProgram {
   @@index([universityId])
   @@index([level])
   @@index([status])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "educational_programs_name_trgm")
   @@map("educational_programs")
 }
 
@@ -458,6 +507,7 @@ model Skill {
   demand   MarketDemand[]
 
   @@index([category])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "skills_name_trgm")
   /**
    * Уникальность названия без учёта регистра и пробелов держит индекс по выражению
    * `skills_name_key_ci` (миграция 20260925230100, решение 110): «ML Ops» и «MLOps»,
@@ -542,15 +592,22 @@ model ITProduct {
   documentationUrl String?       @map("documentation_url")
   version          String?
   status           ProductStatus @default(ACTIVE)
+  /// Компания-вендор (решение 132). null — вендор не указан; продукты до решения 132 — такие.
+  vendorId         String?       @map("vendor_id")
   isMock           Boolean       @default(false) @map("is_mock")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
-  skills       ProductSkill[]
-  cooperations Cooperation[]
+  vendor         Vendor?                @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  skills         ProductSkill[]
+  cooperations   Cooperation[]
+  vendorContacts VendorContactProduct[]
+  schoolCourses  SchoolCourse[]
 
   @@index([category])
   @@index([status])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "it_products_name_trgm")
+  @@index([vendorId])
   @@map("it_products")
 }
 
@@ -569,6 +626,137 @@ model ProductSkill {
   @@unique([productId, skillId])
   @@index([skillId])
   @@map("product_skills")
+}
+
+// ──────────────────── Вендоры, курсы ИТ-Школы, заказы с сайта ────────────────
+
+/// Компания-вендор IT-продуктов (решение 132): ООО «Базис», ООО «ТДата» и другие компании
+/// группы. Название уникально по ключу `name_key` — `catalogNameKey` из
+/// src/shared/utils/contacts.ts (NFKC, нижний регистр, без пробелов и кавычек): «ООО «Базис»»
+/// и «ООО "Базис"» — одна компания. Ключ хранится колонкой, а не индексом по выражению
+/// (как у навыков, решение 110): считает его только код, расходиться не с чем.
+model Vendor {
+  id        String   @id @default(cuid())
+  name      String
+  nameKey   String   @unique @map("name_key")
+  isMock    Boolean  @default(false) @map("is_mock")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  products ITProduct[]
+  contacts VendorContact[]
+
+  @@map("vendors")
+}
+
+/// Контактное лицо вендора — деловой контакт (решение 132, по аналогии с контактами вузов,
+/// решение 111): основание по умолчанию — законный интерес оператора (п. 7 ч. 1 ст. 6 152-ФЗ).
+/// Почта и телефон — только ролям с правом CONTACT_DETAILS (решение 106).
+/// Телефон хранится в виде +7XXXXXXXXXX, почта — в нижнем регистре.
+model VendorContact {
+  id                String                 @id @default(cuid())
+  vendorId          String                 @map("vendor_id")
+  fullName          String                 @map("full_name")
+  email             String?
+  phone             String?
+  preferredChannels VendorContactChannel[] @map("preferred_channels")
+  legalBasis        ContactLegalBasis      @default(LEGITIMATE_INTEREST) @map("legal_basis")
+  /// Где лежит основание: письмо вендора, договор, файл загрузки. Не файл и не ПД.
+  basisReference    String?                @map("basis_reference")
+  isMock            Boolean                @default(false) @map("is_mock")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  vendor   Vendor                 @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  products VendorContactProduct[]
+
+  @@index([vendorId])
+  @@map("vendor_contacts")
+}
+
+/// По каким продуктам вендора отвечает контакт: в файле вендоров контакт указан у строки продукта.
+model VendorContactProduct {
+  contactId String @map("contact_id")
+  productId String @map("product_id")
+
+  contact VendorContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  product ITProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, productId])
+  @@index([productId])
+  @@map("vendor_contact_products")
+}
+
+/// Курс ИТ-Школы, который продаётся на сайте (решение 132). Отдельная сущность, а не
+/// программа вуза: заказ на сайте делает человек, а не вуз, и в рейтинг программ
+/// (решения 7, 9, 22) заказы не входят. Курс может быть «на базе продукта» — productId.
+/// Название уникально по `name_key` (тот же `catalogNameKey`).
+model SchoolCourse {
+  id          String   @id @default(cuid())
+  name        String
+  nameKey     String   @unique @map("name_key")
+  productId   String?  @map("product_id")
+  description String?
+  isMock      Boolean  @default(false) @map("is_mock")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  product ITProduct?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  streams CourseStream[]
+  orders  SiteOrder[]
+
+  @@index([productId])
+  @@map("school_courses")
+}
+
+/// Поток (группа) курса: «Номер потока» из заказа с сайта. Заводится при загрузке заказов.
+/// CHECK в базе (миграция vendors_site_orders): number ≥ 1.
+model CourseStream {
+  id        String    @id @default(cuid())
+  courseId  String    @map("course_id")
+  number    Int
+  startsAt  DateTime? @map("starts_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  course SchoolCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  orders SiteOrder[]
+
+  @@unique([courseId, number])
+  @@map("course_streams")
+}
+
+/// Заказ с сайта (решение 132). ФИО, телефона и почты слушателя здесь НЕТ: они живут
+/// только в запросе загрузки и в файле для LMS. Для дедупликации — HMAC-SHA256 от
+/// нормализованной почты и телефона с ключом ORDERS_HMAC_KEY (docs/PRIVACY.md).
+/// CHECK в базе: хеши — 64 шестнадцатеричных знака, хотя бы один задан.
+model SiteOrder {
+  id            String    @id @default(cuid())
+  /// Номер заявки сайта (ORD-<дата-время>-<код>) — ключ повторной загрузки.
+  orderNo       String    @unique @map("order_no")
+  courseId      String    @map("course_id")
+  streamId      String?   @map("stream_id")
+  emailHash     String?   @map("email_hash")
+  phoneHash     String?   @map("phone_hash")
+  /// Дата заказа из номера заявки; null — номер битый (месяц 17, секунды 69, 15 цифр).
+  orderedAt     DateTime? @map("ordered_at")
+  importedAt    DateTime  @default(now()) @map("imported_at")
+  importBatchId String    @map("import_batch_id")
+  importedById  String?   @map("imported_by_id")
+  /// Когда слушатель ушёл в файл «Загрузка пользователей» для LMS; null — ещё не уходил.
+  lmsExportedAt DateTime? @map("lms_exported_at")
+  isMock        Boolean   @default(false) @map("is_mock")
+
+  course     SchoolCourse  @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  stream     CourseStream? @relation(fields: [streamId], references: [id], onDelete: SetNull)
+  importedBy User?         @relation("SiteOrderImporter", fields: [importedById], references: [id], onDelete: SetNull)
+
+  @@index([courseId])
+  @@index([streamId])
+  @@index([emailHash])
+  @@index([phoneHash])
+  @@index([importBatchId])
+  @@index([importedById])
+  @@map("site_orders")
 }
 
 // ───────────────────── Сотрудничество и workflow из 14 этапов ────────────────
@@ -860,6 +1048,7 @@ model Recommendation {
 
   cooperation Cooperation? @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
   resolvedBy  User?        @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  signals     RecommendationSignal[]
 
   @@unique([ruleKey, objectType, objectId])
   @@index([status, priority])
@@ -876,7 +1065,7 @@ model Recommendation {
   @@map("recommendations")
 }
 
-/// Модель прогноза «дойдёт ли связка до вехи» (решение 132, docs/FORECAST_MODEL.md).
+/// Модель прогноза «дойдёт ли связка до вехи» (решение 135, docs/FORECAST_MODEL.md).
 /// Одна запись на веху (`milestoneStage`): новое обучение заменяет предыдущую — версия
 /// растёт, история обучений не хранится, это агрегированные коэффициенты и метрики
 /// качества, а не персональные данные (DSAR_NOT_PERSONAL, dsar.registry.ts).
@@ -928,6 +1117,51 @@ model RecommendationRuleStats {
 
 /// Источник рыночных данных с оценкой достоверности. Без него показатель
 /// нельзя подписать происхождением, а показатель должен быть объяснимым (раздел 10 ТЗ).
+/// Журнал сигналов правил рекомендаций — контрольная группа и оценка прироста (решение 126).
+///
+/// Сигнал — «правило сработало по объекту». Пишется всегда, даже если эксперимент
+/// выключен. Группа назначается детерминированно по хешу (правило + объект + период):
+/// control — рекомендацию сотруднику не показали, treatment — показали.
+/// В оценку идут только назначенные по хешу (assigned_by = 'hash'), знаменатель —
+/// все назначенные (принцип «по назначению»).
+///
+/// Ограничения только в SQL миграции 20260926000000_recommendation_signals:
+/// recommendation_signals_arm_check — у контроля нет рекомендации и назначение только по хешу;
+/// recommendation_signals_assigned_by_check — допустимые способы назначения.
+model RecommendationSignal {
+  id               String        @id @default(cuid())
+  /// Ключ правила (ruleKey рекомендации).
+  ruleType         String        @map("rule_type")
+  /// Объект правила: Cooperation, EducationalProgram, Skill.
+  entityType       String        @map("entity_type")
+  entityId         String        @map("entity_id")
+  /// Период назначения: номер отрезка длиной H дней от 01.01.1970 UTC («30d-684»).
+  /// Один сигнал на правило, объект и период.
+  periodKey        String        @map("period_key")
+  firedAt          DateTime      @map("fired_at")
+  arm              ExperimentArm
+  /// Как назначена группа: hash — случайно по хешу, участвует в оценке;
+  /// experiment-off, excluded-rule, already-shown, dismissed, resolved — вне оценки, всегда treatment.
+  assignedBy       String        @map("assigned_by")
+  /// Показанная рекомендация; у контроля всегда null.
+  recommendationId String?       @map("recommendation_id")
+  /// Состояние на момент сигнала: текущий этап связки, программы навыка, доля контроля.
+  context          Json?
+  /// Когда исход наступил (успех) или окно H дней закрылось без него; null — ещё ждём.
+  outcomeAt        DateTime?     @map("outcome_at")
+  /// Исход: { state: success | failure, days, event, evaluatedAt }.
+  outcome          Json?
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  @@unique([ruleType, entityType, entityId, periodKey])
+  @@index([firedAt])
+  @@index([recommendationId])
+  @@index([entityType, entityId])
+  @@map("recommendation_signals")
+}
+
 model DataSource {
   id             String          @id @default(cuid())
   name           String          @unique
@@ -1074,6 +1308,158 @@ model TelegramLink {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("telegram_links")
+}
+
+// ─────────────────────── Качество данных (решение 134) ───────────────────────
+
+/// Пара записей, отмеченная «не дубль»: поиск дублей её больше не предлагает.
+/// Пара хранится упорядоченной (first_id < second_id) — «A и B» и «B и A» одна запись.
+/// Ссылок на сами записи нет: сущности разные (вуз, навык, программа, продукт);
+/// исключение про удалённую запись просто ни на что не влияет.
+/// CHECK в базе: entity — одна из четырёх; first_id < second_id.
+model DuplicateDismissal {
+  id            String   @id @default(cuid())
+  entity        String
+  firstId       String   @map("first_id")
+  secondId      String   @map("second_id")
+  comment       String?
+  dismissedById String   @map("dismissed_by_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  dismissedBy User @relation("DuplicateDismissalAuthor", fields: [dismissedById], references: [id], onDelete: Restrict)
+
+  @@unique([entity, firstId, secondId])
+  @@index([dismissedById])
+  @@map("duplicate_dismissals")
+}
+
+/// Слияние вуза-дубля в другой (решение 134). Журнал выживания полей и список
+/// перенесённых объектов — чтобы слияние можно было объяснить и отменить.
+/// В журнале только поля вуза и идентификаторы: ФИО и контакты не копируются.
+/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает.
+model UniversityMerge {
+  id           String    @id @default(cuid())
+  sourceId     String    @map("source_id")
+  targetId     String    @map("target_id")
+  mergedById   String    @map("merged_by_id")
+  mergedAt     DateTime  @default(now()) @map("merged_at")
+  /// До какого момента слияние можно отменить.
+  undoUntil    DateTime  @map("undo_until")
+  /// Правила выбора значения по полям: { поле: правило }.
+  fieldRules   Json      @map("field_rules")
+  /// Журнал выживания: по каждому полю — правило, чьё значение осталось, было и стало.
+  survivorship Json
+  /// Идентификаторы перенесённых объектов по таблицам — для отмены.
+  moved        Json
+  /// Состояние цели и источника до слияния — для отмены.
+  before       Json
+  undoneAt     DateTime? @map("undone_at")
+  undoneById   String?   @map("undone_by_id")
+
+  source   University @relation("UniversityMergeSource", fields: [sourceId], references: [id], onDelete: Restrict)
+  target   University @relation("UniversityMergeTarget", fields: [targetId], references: [id], onDelete: Restrict)
+  mergedBy User       @relation("UniversityMergeAuthor", fields: [mergedById], references: [id], onDelete: Restrict)
+  undoneBy User?      @relation("UniversityMergeUndoAuthor", fields: [undoneById], references: [id], onDelete: SetNull)
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@index([mergedById])
+  @@index([undoneById])
+  @@map("university_merges")
+}
+
+// ─────────────────────── Безопасность, волна 2 (решение 133) ───────────────────────
+
+/// Обработанные обновления Telegram: один update_id выполняется один раз и после
+/// перезапуска процесса. Записи старше 7 суток чистятся при вставке и retention-скриптом.
+model TelegramUpdateSeen {
+  updateId BigInt   @id @map("update_id")
+  seenAt   DateTime @default(now()) @map("seen_at")
+
+  @@index([seenAt])
+  @@map("telegram_updates_seen")
+}
+
+/// Секреты, которые меняются без перезапуска (секрет вебхука Telegram). Хранится только
+/// SHA-256 значения: проверке входящего запроса больше не нужно, а само значение
+/// знает только Telegram. Запись здесь главнее переменной окружения.
+/// CHECK в базе: value_hash — 64 шестнадцатеричных знака.
+model SystemSecret {
+  name        String   @id
+  valueHash   String   @map("value_hash")
+  rotatedAt   DateTime @default(now()) @map("rotated_at")
+  rotatedById String?  @map("rotated_by_id")
+
+  rotatedBy User? @relation("SystemSecretRotatedBy", fields: [rotatedById], references: [id], onDelete: SetNull)
+
+  @@index([rotatedById])
+  @@map("system_secrets")
+}
+
+/// Статус запроса на одобрение опасной операции («четыре глаза»).
+enum ApprovalStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  CONSUMED
+  EXPIRED
+}
+
+/// Одобрение опасной операции вторым администратором. Одноразовое: использование —
+/// атомарный UPDATE … WHERE status = 'APPROVED' AND payload_hash = … AND expires_at > now().
+/// CHECK в базе: одобривший ≠ запросившему; APPROVED/CONSUMED — с одобрившим;
+/// CONSUMED ровно при consumed_at; REJECTED — с отклонившим; payload_hash — hex SHA-256.
+model Approval {
+  id            String         @id @default(cuid())
+  /// Код действия (approvals.rules.ts, APPROVAL_ACTIONS).
+  action        String
+  /// Параметры действия — только идентификаторы, без ПД. Для экрана одобрения.
+  payload       Json
+  /// SHA-256 канонического JSON { action, payload }: одобрено ровно это действие.
+  payloadHash   String         @map("payload_hash")
+  status        ApprovalStatus @default(REQUESTED)
+  requestedById String         @map("requested_by_id")
+  approvedById  String?        @map("approved_by_id")
+  rejectedById  String?        @map("rejected_by_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  decidedAt     DateTime?      @map("decided_at")
+  expiresAt     DateTime       @map("expires_at")
+  consumedAt    DateTime?      @map("consumed_at")
+
+  requestedBy User  @relation("ApprovalRequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User? @relation("ApprovalApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  rejectedBy  User? @relation("ApprovalRejectedBy", fields: [rejectedById], references: [id], onDelete: Restrict)
+
+  @@index([status, expiresAt])
+  @@index([requestedById])
+  @@index([approvedById])
+  @@index([rejectedById])
+  @@map("approvals")
+}
+
+/// Статус ключа идемпотентности.
+enum IdempotencyStatus {
+  IN_PROGRESS
+  SUCCEEDED
+}
+
+/// Ключ идемпотентности POST-создания: повтор с тем же ключом и телом отдаёт
+/// сохранённый ответ, а не создаёт вторую запись. Живёт 24 часа.
+model IdempotencyKey {
+  userId         String            @map("user_id")
+  key            String
+  /// SHA-256 метода, пути и тела запроса.
+  requestHash    String            @map("request_hash")
+  status         IdempotencyStatus @default(IN_PROGRESS)
+  responseStatus Int?              @map("response_status")
+  responseBody   Json?             @map("response_body")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@index([createdAt])
+  @@map("idempotency_keys")
 }
 
 /// Реестр запросов субъектов ПД (решение 116): кто, о ком, что просил, срок ответа и когда исполнено.

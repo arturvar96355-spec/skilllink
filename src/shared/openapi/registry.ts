@@ -2,6 +2,7 @@ import type { z } from '@/shared/zod'
 import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
+import { createProposalSchema } from '@/modules/ai-assist/ai-story.schema'
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
@@ -11,6 +12,13 @@ import {
   eraseSubjectSchema,
 } from '@/modules/dsar/dsar.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
+import { vendorImportQuerySchema, vendorListQuerySchema } from '@/modules/vendors/vendors.schema'
+import {
+  createSchoolCourseSchema,
+  lmsFileQuerySchema,
+  schoolCourseListQuerySchema,
+  siteOrdersQuerySchema,
+} from '@/modules/enrollment/enrollment.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
@@ -75,14 +83,22 @@ import {
   skillListQuerySchema,
   updateSkillSchema,
 } from '@/modules/skills/skills.schema'
+import { approvalListQuerySchema, createApprovalSchema } from '@/modules/approvals/approvals.schema'
+import { auditExportQuerySchema } from '@/modules/audit/audit.schema'
 import {
   contactBasisHistoryQuerySchema,
+  revealContactSchema,
   createUniversitySchema,
   setContactBasisSchema,
   universityListQuerySchema,
   updateUniversitySchema,
   withdrawConsentSchema,
 } from '@/modules/universities/universities.schema'
+import { dismissDuplicateSchema, duplicatesQuerySchema } from '@/modules/data-quality/data-quality.schema'
+import { mergeUniversitiesSchema } from '@/modules/universities/merge.schema'
+import { timelineQuerySchema } from '@/modules/universities/timeline.schema'
+import { similarProgramsQuerySchema } from '@/modules/programs/similar.service'
+import { meetingsHeatmapQuerySchema } from '@/modules/analytics/meetings-heatmap.service'
 import {
   stageListQuerySchema,
   updateStageSchema,
@@ -117,10 +133,14 @@ export interface EndpointSpec {
   returnsOk?: boolean
   /** Без входа: доступ даёт не cookie сессии, а сам адрес (лента календаря). */
   public?: boolean
+  /** Своё описание доступа вместо строки по праву — когда доступ даёт не сессия. */
+  accessNote?: string
   /** Успешный ответ — не JSON `{ data }`, а файл этого типа. */
   fileContentType?: string
   /** Описания параметров пути, если это не идентификатор записи. */
   pathParams?: Record<string, string>
+  /** Принимает заголовок Idempotency-Key (решение 133). */
+  idempotent?: boolean
   errors: ErrorCode[]
 }
 
@@ -159,6 +179,24 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Спецификация OpenAPI этого API',
     permission: 'ANY',
     errors: ['INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/metrics',
+    tag: 'Служебное',
+    summary: 'Метрики сервера в текстовом формате Prometheus',
+    description:
+      'Не для фронта: его опрашивает Prometheus (решение 137). Ответ — text/plain; version=0.0.4: ' +
+      'запросы и время ответа по шаблону маршрута, отказы 429, неудачные входы, память, ' +
+      'задержка цикла событий, доступность базы, отметка ночной копии. На стенде снаружи ' +
+      'закрыт в Caddy (404). Не ограничивается по частоте и сам в метрики не попадает.',
+    permission: 'ANY',
+    public: true,
+    accessNote:
+      'Право доступа: заголовок Authorization: Bearer <METRICS_TOKEN> или запрос с самой машины ' +
+      'приложения. Токен не задан — 404, задан, но не предъявлен или неверен — 401.',
+    fileContentType: 'text/plain',
+    errors: ['UNAUTHORIZED', 'NOT_FOUND', 'INTERNAL'],
   },
   {
     method: 'get',
@@ -862,6 +900,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/cooperations',
+    idempotent: true,
     tag: 'Сотрудничество',
     summary: 'Создать связку',
     description:
@@ -1045,7 +1084,124 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
 
-  // ── Прогноз связок (решение 132) ─────────────────────────────────────────
+  // ── Качество данных (решение 134) ────────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/data-quality/duplicates',
+    tag: 'Качество данных',
+    summary: 'Кандидаты в дубли: вузы, навыки, программы или продукты',
+    description:
+      'Пары { a, b, score, method, reasons } — самые похожие первыми, не больше 200. Названия ' +
+      'нормализуются (регистр, «ё», кавычки, сокращения, синонимы навыков), сходство — триграммы ' +
+      'как в pg_trgm, у коротких названий — число правок; у вузов — ещё ИНН, аббревиатура, город. ' +
+      'Программы сравниваются только внутри вуза. Пары «не дубль» скрыты (includeDismissed=true — ' +
+      'показать с признаком). В meta — порог, число сравненных записей, откуда взяты кандидаты ' +
+      'и сколько пар скрыто как «не дубль».',
+    permission: 'ANALYTICS',
+    query: duplicatesQuerySchema,
+    list: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/data-quality/duplicates/dismiss',
+    tag: 'Качество данных',
+    summary: 'Отметить пару «не дубль»',
+    description:
+      'ADMIN и MANAGER. Порядок записей не важен; повтор возвращает сохранённую отметку и журнал ' +
+      'не пишет. Обе записи должны существовать — иначе 422.',
+    body: dismissDuplicateSchema,
+    permission: 'WRITE',
+    returnsOk: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/data-quality/report',
+    tag: 'Качество данных',
+    summary: 'Отчёт «Качество справочника»: оценка 0–100 и проблемы',
+    description:
+      'По сущностям: score = 100 × (1 − Σ вес × доля записей с проблемой); итог — взвешенное среднее. ' +
+      'Проблемы — с числом, долей, штрафом и примерами со ссылками. Веса — data-quality.config.ts, ' +
+      'формула словами — в поле explanation.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/universities/merge',
+    tag: 'Университеты',
+    summary: 'Слить вуз-дубль в другой',
+    description:
+      'Только администратор. Одной транзакцией программы, контакты, связки, встречи, документы, заявки ' +
+      'и представители дубля (sourceId) переходят к targetId. Значение каждого поля выбирает правило ' +
+      '(fieldRules): non_null — по умолчанию, most_recent, longest, manual (значение в manualValues); ' +
+      'пустое не побеждает. Журнал выживания — в ответе (survivorship). Дубль уходит в архив со ссылкой ' +
+      'mergedIntoId и не удаляется; отмена — /api/universities/merge/{id}/undo в течение 30 дней. ' +
+      'Разные ИНН — 409: это разные организации.',
+    body: mergeUniversitiesSchema,
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/universities/merge/{id}/undo',
+    tag: 'Университеты',
+    summary: 'Отменить слияние вузов',
+    description:
+      'Только администратор, в пределах срока (undoUntil). Объекты из журнала слияния возвращаются ' +
+      'дублю вместе с появившимися после слияния на его программах и связках; поля цели ' +
+      'откатываются, если их не меняли после слияния (restoredFields), изменённые — остаются (keptFields). ' +
+      'Повторная отмена и истёкший срок — 409.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    pathParams: { id: 'Идентификатор слияния (id из ответа слияния)' },
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/timeline',
+    tag: 'Университеты',
+    summary: 'Лента 360 вуза: все события одной лентой',
+    description:
+      'Смены этапов, проведённые встречи, статусы документов, заявки, связки — всем, кто видит вуз; ' +
+      'рекомендации и их статусы — ANALYTICS; факты по основаниям обработки ПД контактов (без ФИО) — ' +
+      'ADMIN и MANAGER; правки записи вуза и слияния — WRITE. Представитель вуза — только свой вуз, ' +
+      'без внутренних комментариев. Новые сверху, курсор: meta.nextCursor → ?cursor=. ' +
+      'types=stage,meeting — отбор; недоступные роли типы просто не входят (meta.types).',
+    permission: 'READ',
+    query: timelineQuerySchema,
+    list: true,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/programs/{id}/similar',
+    tag: 'Программы',
+    summary: 'Похожие программы и чего не хватает этой',
+    description:
+      'Косинус векторов навыков (вес = важность × idf) + 0,1 за направление + 0,05 за уровень. ' +
+      'В ответе — общие навыки и навыки похожих, которых у программы нет; missingSummary — подсказка ' +
+      'для skill gap. Программы без общих навыков не показываются.',
+    permission: 'ANALYTICS',
+    query: similarProgramsQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/meetings-heatmap',
+    tag: 'Аналитика',
+    summary: 'Тепловая карта проведённых встреч: день недели × час (МСК)',
+    description:
+      'cells — 7 строк (пн … вс) × 24 часа. Проведённые — не позже текущего момента. ' +
+      'Фильтры from, to, universityId; область видимости — как у встреч.',
+    permission: 'ANALYTICS',
+    query: meetingsHeatmapQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+
+  // ── Прогноз связок (решение 135) ─────────────────────────────────────────
   {
     method: 'get',
     path: '/api/analytics/forecast/model',
@@ -1154,6 +1310,20 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     body: updateRecommendationSchema,
     errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
+  {
+    method: 'get',
+    path: '/api/recommendations/experiment',
+    tag: 'Рекомендации',
+    summary: 'Работают ли рекомендации: контрольная группа и прирост',
+    description:
+      'Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный ' +
+      'и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба), дни до сдвига ' +
+      '(интервал Уэлча), последовательная проверка Вальда, статус insufficient-data | not-proven | ' +
+      'lift | negative и since. Считаются только сигналы, назначенные в группу по хешу, ' +
+      'по принципу «по назначению». Только чтение.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
 
   // ── ИИ-помощник (решение 90) ──────────────────────────────────────────────
   {
@@ -1195,6 +1365,70 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
 
+  // ── История сотрудничества и «Предложить план» (решение 138) ────────────────
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/story',
+    tag: 'История сотрудничества',
+    summary: 'История сотрудничества по связке: где она, что мешает, что сделать дальше',
+    description:
+      'Детерминированная сводка по этапам, встречам, документам и открытым рекомендациям; ' +
+      'числа считает код. Модель, если подключена, только формулирует уже собранные факты — без ' +
+      'персональных данных (ФИО, почта, телефон вырезаются перед отправкой и возвращаются в ответе). ' +
+      'Ответ модели с числом или датой, которых нет в фактах, отбрасывается. Модель выключена, ' +
+      'не настроена или подвела — тот же текст шаблоном, source: "template".',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/story',
+    tag: 'История сотрудничества',
+    summary: 'История сотрудничества с вузом: сколько связок, в каком они состоянии',
+    description: 'То же самое, что история связки, но по всем связкам вуза сразу.',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/blockers',
+    tag: 'История сотрудничества',
+    summary: 'Что мешает связке перейти к следующему этапу',
+    description:
+      'Список препятствий в порядке важности — по контрольным точкам, чек-листам этапа, ' +
+      'подписанным документам и статусу связки. Без модели: это уже посчитанные правилами факты.',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/cooperations/{id}/proposals',
+    tag: 'История сотрудничества',
+    summary: 'Предложить план: проект встречи или новой даты этапа по препятствиям связки',
+    description:
+      'Ничего не сохраняет — только проект: тема и повестка встречи или новый срок этапа, ' +
+      'дата — ближайший рабочий день через 3–5 дней. Проект живёт час (`expiresAt`), применяет ' +
+      'его человек отдельным запросом. Вид проекта необязателен в теле: без него сервис сам ' +
+      'выбирает по препятствиям связки.',
+    permission: 'WRITE',
+    body: createProposalSchema,
+    bodyOptional: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/cooperations/{id}/proposals/{proposalId}/apply',
+    tag: 'История сотрудничества',
+    summary: 'Применить проект плана: создать встречу или перенести срок этапа',
+    description:
+      'Повторно проверяет права и версию связки (`sourceVersion` проекта): связка изменилась ' +
+      'после постройки проекта — 409 «данные изменились, обновите предложение». Запись — штатным ' +
+      'сервисом встреч или этапов, а не напрямую. Проект истёк или уже применён — 404. Тело не нужно.',
+    permission: 'WRITE',
+    pathParams: { proposalId: 'Идентификатор проекта плана, из ответа POST .../proposals' },
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+
   // ── Документы ─────────────────────────────────────────────────────────────
   {
     method: 'get',
@@ -1209,6 +1443,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/documents',
+    idempotent: true,
     tag: 'Документы',
     summary: 'Создать документ',
     description: 'Хранятся метаданные и ссылка. Загрузка файлов — P2.',
@@ -1246,6 +1481,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/documents/{id}/versions',
+    idempotent: true,
     tag: 'Документы',
     summary: 'Создать новую версию документа',
     description: 'Исходный документ уходит в архив.',
@@ -1275,6 +1511,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/meetings',
+    idempotent: true,
     tag: 'Встречи',
     summary: 'Создать встречу',
     description: 'Если задано следующее действие, обязателен его срок.',
@@ -1357,6 +1594,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/portal/applications',
+    idempotent: true,
     tag: 'Кабинет вуза',
     summary: 'Подать заявку на обучение',
     description: 'Персональных данных обучающихся заявка не содержит.',
@@ -1422,6 +1660,100 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     query: importQuerySchema,
     errors: WRITE_ERRORS,
   },
+
+  // ── Вендоры, курсы ИТ-Школы, заказы с сайта → LMS (решение 132) ─────────────
+  {
+    method: 'get',
+    path: '/api/vendors',
+    tag: 'Вендоры',
+    summary: 'Реестр вендоров IT-продуктов',
+    description: 'Компании-вендоры с продуктами, числом контактов и связок. Поиск q — по названию вендора или продукта.',
+    permission: 'VENDORS',
+    query: vendorListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/vendors/{id}',
+    tag: 'Вендоры',
+    summary: 'Карточка вендора',
+    description:
+      'Продукты, контакты (почта и телефон — только ADMIN и MANAGER, иначе null и contactDetailsHidden), ' +
+      'связки с продуктами вендора, курсы ИТ-Школы на базе его продуктов.',
+    permission: 'VENDORS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/vendors',
+    tag: 'Вендоры',
+    summary: 'Загрузка вендоров, продуктов и контактов (xlsx или CSV)',
+    description:
+      'Тело — сам файл: книга Excel или CSV с колонками Компания, Продукт, ФИО, Телефон, Почта, Способ связи. ' +
+      'По умолчанию предпросмотр {toCreate, toUpdate, errors[{row, column, message}]}; запись — mode=apply. ' +
+      'Несколько продуктов в ячейке — «A», «B». Телефон → +7XXXXXXXXXX, почта — нижний регистр. ' +
+      'Продукт сопоставляется по названию без кавычек, регистра и пробелов; недостающий заводится.',
+    permission: 'WRITE',
+    query: vendorImportQuerySchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/site-orders',
+    tag: 'Набор на курсы',
+    summary: 'Загрузка заказов с сайта',
+    description:
+      'Тело — JSON-массив заказов, как выгружает сайт (ключи: Номер заявки, Курс, Фамилия, Имя, Отчество, ' +
+      'Телефон, Email, Номер потока; null пропускается). По умолчанию предпросмотр с отчётом о качестве данных; ' +
+      'запись — mode=apply. В базе и в ответе нет ФИО, почты и телефона: хранятся номер заявки, курс, поток, ' +
+      'дата из номера и HMAC почты и телефона. Повторная загрузка того же файла ничего не создаёт.',
+    permission: 'SITE_ORDERS',
+    query: siteOrdersQuerySchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/site-orders/lms-file',
+    tag: 'Набор на курсы',
+    summary: 'Файл «Загрузка пользователей» для LMS',
+    description:
+      'Тело — тот же JSON заказов. Ответ — книга Excel по шаблону LMS (30 колонок, Лист2 со справочниками); ' +
+      'заполнены Фамилия, Имя, Отчество, Номер телефона (7XXXXXXXXXX), Email. Только уже загруженные заказы, ' +
+      'один человек — одна строка. scope=new — без тех, кто уже уходил в LMS; фильтр courseId и stream. ' +
+      'Заголовки ответа: x-total-rows, x-skipped-not-imported, x-skipped-already-exported, x-duplicates-merged. ' +
+      'Cache-Control: no-store.',
+    permission: 'SITE_ORDERS',
+    query: lmsFileQuerySchema,
+    returnsOk: true,
+    fileContentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/school-courses',
+    tag: 'Набор на курсы',
+    summary: 'Курсы ИТ-Школы с показателями набора',
+    description:
+      'Заявки (заказы), слушатели (разные люди по HMAC почты или телефона), группы (потоки) — по курсу и потоку. ' +
+      'meta.totals — итог по всем курсам.',
+    permission: 'VENDORS',
+    query: schoolCourseListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/school-courses',
+    tag: 'Набор на курсы',
+    summary: 'Завести курс ИТ-Школы',
+    description: 'Название уникально без учёта регистра, пробелов и кавычек — дубль CONFLICT. productId — курс на базе продукта.',
+    permission: 'WRITE',
+    body: createSchoolCourseSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
   {
     method: 'get',
     path: '/api/settings/parameters',
@@ -1434,6 +1766,112 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'у каждой — ссылка на раздел методики.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
+  },
+  // ── Безопасность, волна 2 (решение 133) ──────────────────────────────────
+  {
+    method: 'post',
+    path: '/api/admin/telegram/rotate-webhook-secret',
+    tag: 'Администрирование',
+    summary: 'Сменить секрет вебхука Telegram',
+    description:
+      'Сервер создаёт новый секрет, СНАЧАЛА вызывает setWebhook у Telegram и только при успехе сохраняет ' +
+      'SHA-256 секрета в базе (он главнее TELEGRAM_WEBHOOK_SECRET). Отказ Telegram — 502, прежний секрет ' +
+      'действует. Ответ { rotatedAt, webhookUrl } — самого секрета нет ни в ответе, ни в журнале ' +
+      '(telegram.webhook_secret_rotated). Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/approvals',
+    tag: 'Администрирование',
+    summary: 'Запросы на одобрение опасных операций («четыре глаза»)',
+    description:
+      'Новые сверху; истёкшие показываются как EXPIRED. canApprove — текущий администратор может одобрить ' +
+      '(не автор, запрос ждёт решения). Требование одобрения включается APPROVALS_REQUIRED=true.',
+    permission: 'ADMIN',
+    query: approvalListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals',
+    tag: 'Администрирование',
+    summary: 'Запросить одобрение операции',
+    description:
+      'Действия: user.grant_admin (назначить администратором), user.block_admin (заблокировать администратора); ' +
+      'payload — { userId }. Цель проверяется сразу: не найдена — 404, операция не имеет смысла — 409. ' +
+      'Запрос живёт 24 часа. После одобрения другим администратором автор выполняет операцию, передав approvalId ' +
+      '(PATCH /api/users/{id}); одобрение срабатывает один раз.',
+    permission: 'ADMIN',
+    body: createApprovalSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals/{id}/approve',
+    tag: 'Администрирование',
+    summary: 'Одобрить запрос',
+    description: 'Только другой администратор, не автор; только ждущий и не истёкший запрос — иначе 409. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals/{id}/reject',
+    tag: 'Администрирование',
+    summary: 'Отклонить запрос',
+    description: 'Любой администратор, в том числе автор (отозвать свой). Ждущий или одобренный, но не использованный. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/audit/export',
+    tag: 'Журнал',
+    summary: 'Выгрузка журнала для внешней системы сбора событий (NDJSON)',
+    description:
+      'Одна запись — одна строка JSON со всеми колонками журнала, по возрастанию времени. after_id — курсор ' +
+      '(id последней полученной записи), limit — до 5000 (по умолчанию 1000). Заголовки: x-last-id — курсор ' +
+      'следующего запроса (пусто — записей больше нет), x-count — число строк. Потерянный курсор — 422. ' +
+      'Выгрузка пишется в журнал (audit.export).',
+    permission: 'ADMIN',
+    query: auditExportQuerySchema,
+    fileContentType: 'application/x-ndjson',
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/contacts/{id}/reveal',
+    tag: 'Университеты',
+    summary: 'Раскрыть почту и телефон контакта вуза',
+    description:
+      'Причина обязательна (10–500 символов), fields — email и/или phone (по умолчанию оба). Каждое раскрытие — ' +
+      'запись contact.revealed в журнале с перечнем полей и причиной (почта и телефоны в причине маскируются). ' +
+      'ANALYST и VIEWER — 403 (решение 106); представитель вуза — только свой вуз, чужой — 404; обезличенный ' +
+      'контакт — 409. Ответ не сохраняется для повторной отдачи (Cache-Control: no-store).',
+    permission: 'CONTACT_DETAILS',
+    body: revealContactSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/client-errors',
+    tag: 'Служебное',
+    summary: 'Сообщить об ошибке фронтенда',
+    description:
+      'Без входа. Тело до 8 КБ: message, stack, url, component, digest, level, release — остальное отбрасывается, ' +
+      'длинное обрезается. Ответ всегда 204 без тела; запись в журнал сервера с меткой client-error и номером ' +
+      'запроса. С одного адреса — не больше 30 сообщений в минуту, лишние молча не пишутся.',
+    permission: 'ANY',
+    public: true,
+    returnsOk: true,
+    errors: [],
   },
   {
     method: 'get',

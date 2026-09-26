@@ -20,6 +20,53 @@
 `forecast_models` — не персональные данные (`DSAR_NOT_PERSONAL`). Права — как у остальной
 аналитики, представителю вуза недоступно.
 
+**Контрольная группа для рекомендаций и оценка прироста (26.09.2026, решение 136,
+ветка `feat/rec-control-group`).** Часть допустимых сигналов правил (по умолчанию
+10 %, детерминированно по хешу правила, объекта и периода) уходит в контроль:
+сигнал пишется в журнал `recommendation_signals`, рекомендация сотруднику не
+показывается. Просрочки сроков, связка без IT-продукта, застой на контрольной
+точке и любой критичный сигнал в контроль не уходят никогда. Через окно в 30 дней
+сравнивается конверсия treatment/control по принципу «по назначению» (intention-to-treat):
+абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба),
+интервал Уэлча для дней до перехода, последовательная проверка Вальда (SPRT) для
+раннего вывода, честные статусы «мало данных» / «прирост не доказан» / «прирост есть».
+`GET /api/recommendations/experiment`, параметр-выключатель на демо-стенде выключен
+по умолчанию (сценарий показа опирается на рекомендации). `npm run recs:experiment-sim`
+проверяет оценку на выдуманных данных с известным эффектом. Подробности —
+[RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md), формулы и обоснование —
+[TECHNICAL_DECISIONS.md](TECHNICAL_DECISIONS.md#136-контрольная-группа-для-рекомендаций-и-оценка-прироста).
+
+**Метрики сервера и ворота выкладки (26.09.2026, решение 137, ветка `ops/metrics-gate`).**
+`GET /api/metrics` (Prometheus 0.0.4) — свой реестр без зависимостей: запросы и время
+ответа по шаблону маршрута, отказы ограничения частоты, неудачные входы, память,
+задержка цикла событий, база и пул соединений, ночная копия, целостность журнала
+(кэш на 5 минут — проверка дорогая). Доступ — токен `METRICS_TOKEN` или петлевой
+адрес; снаружи закрыт в Caddy. CI и `deploy.sh` останавливают выкладку, если схема
+разошлась с миграциями (`prisma migrate diff --exit-code`); `remote-up.sh` на сервере
+не даёт накатить поверх «failed» или изменённой после применения миграции и сверяет,
+что накатилась именно последняя. Тест на согласованность файлов развёртывания (лимит
+тела запроса, имена контейнеров, переменные окружения). Prometheus и Grafana с
+дашбордом — профиль docker-compose `monitoring`, по умолчанию выключен, включает
+владелец. Подробности — docs/TECHNICAL_DECISIONS.md, решение 137; как включить —
+`deploy/monitoring/README.md`. Фронт не затронут.
+
+**Качество данных, поиск дублей, карточка 360, похожие программы (26.09.2026, решение 134,
+ветка `feat/data-quality`).** `GET /api/data-quality/report` — оценка справочника 0–100
+по пяти сущностям с прозрачной формулой (веса — `data-quality.config.ts`) и списком проблем
+со ссылками; `GET .../duplicates` — нечёткий поиск дублей вузов, навыков, программ, продуктов
+(нормализация, словарь сокращений и синонимов, триграммы pg_trgm с расчётом в приложении,
+Левенштейн для коротких названий), `POST .../duplicates/dismiss` — «не дубль». Слияние
+вузов-дублей — `POST /api/universities/merge` (только `ADMIN`, правила `non_null` /
+`most_recent` / `longest` / `manual` по полю, журнал выживания, отмена в течение 30 дней —
+`POST …/merge/:id/undo`), тот же подход, что у объединения навыков (решение 107). Лента 360
+вуза — `GET /api/universities/:id/timeline` (курсорная пагинация, university-scope).
+Похожие программы — `GET /api/programs/:id/similar` (косинус взвешенных векторов навыков,
+idf, подсказка «чего не хватает»). Тепловая карта встреч — `GET /api/analytics/meetings-heatmap`.
+ИНН/ОГРН — необязательные поля вуза с проверкой контрольной суммы (`src/shared/validation/inn-ogrn.ts`).
+`npm run dq:report` — тот же отчёт и топ дублей текстом, для слайда. Новые таблицы
+`duplicate_dismissals` и `university_merges` — на согласование с Тиграном; DSAR — при слиянии
+основной ветки (обе не хранят ПД: только идентификаторы, счётчики и служебные поля).
+
 **Больше демо-данных (26.09.2026, решение 131, ветка `feat/demo-data`).** Стенд
 с 7 вузами и 10 связками недоставало объёма для аналитики этапов (решение 120):
 ни на одном этапе не набиралось данных для оценки по Каплану–Мейеру, детектор
@@ -58,6 +105,8 @@ docs/OPERATIONS_TESTS.md. На сервере **не включено**: cron и
 диаграммы без залипания, без системных подсказок, вкладки на месте (решение 121).
 Этап 2 — шапка с разделами вместо бокового меню, живой логотип, стеклянный поиск,
 светлая тема с переключателем (решение 122). Этап 3 — карта России в неоновом стиле со связями от центра, блоки бенто одной высоты, тренд в обоих режимах (решение 123). Этапы 4–5 — логотипы в реестре вузов, единое наведение (подъём и свет, без залипания на тач-экране), три уровня длительности (решение 124). Этап 6 — финал главной: сеть «вузы → программы → навыки → IT-продукты» по настоящим связкам (решение 132).
+
+светлая тема с переключателем (решение 132). Этап 3 — карта России в неоновом стиле со связями от центра, блоки бенто одной высоты, тренд в обоих режимах (решение 123). Этапы 4–5 — логотипы в реестре вузов, единое наведение (подъём и свет, без залипания на тач-экране), три уровня длительности (решение 124). Этап 6 — финал главной: сеть «вузы → программы → навыки → IT-продукты» по настоящим связкам (решение 125).
 
 **Задачи фронта от 25.09 (вечер), ветка `front/visual-v2`.** «Состояние системы» — страница
 `/status` словами, «Контракт API» — документ в репозитории (решение 126). Бирки: боковая
@@ -314,20 +363,28 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 95 маршрутов, 118 операций
+### Модули и эндпоинты
+
+### Модули и эндпоинты — 120 маршрутов, 145 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
 | health | `GET /api/health` — живость; `GET /api/ready` — готовность: база и миграции (решение 118) |
 | auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
-| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111) |
-| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
+| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111); `GET …/timeline` — лента 360 (решение 134); `POST /api/universities/merge`, `POST …/merge/:id/undo` — слияние дублей (решение 134) |
+| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore`; `GET …/similar` — похожие программы (решение 134) |
 | skills | `GET`, `POST /api/skills`; `PATCH`, `DELETE /api/skills/:id`; `POST …/merge`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
+
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
+| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/experiment` — контрольная группа и прирост (решение 136); `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
+
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
+| data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
@@ -338,8 +395,15 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | import | `POST /api/import` — загрузка реестров из CSV с предпросмотром |
 | products (групповые операции) | `GET`, `POST /api/products/:id/release` |
 | ai-assist | `POST /api/cooperations/:id/ai-summary`; `POST /api/recommendations/:id/ai-letter`; `POST /api/ai/today` — черновики ИИ-помощника, решение 90 |
+| ai-story | `GET /api/cooperations/:id/story`, `GET /api/universities/:id/story` — история сотрудничества; `GET /api/cooperations/:id/blockers` — что мешает; `POST …/proposals`, `POST …/proposals/:proposalId/apply` — предложить и применить план (решение 138) |
 | calendar | `GET`, `POST`, `DELETE /api/me/calendar`; `GET /api/calendar/:feed` — лента `.ics` без входа по личной ссылке, решение 105 |
 | telegram | `GET`, `POST`, `DELETE /api/me/telegram`; `POST /api/telegram/webhook` — личные уведомления в Telegram, решение 102 |
+| vendors | `GET /api/vendors`; `GET /api/vendors/:id`; `POST /api/import/vendors` — вендоры IT-продуктов, импорт из xlsx/CSV с предпросмотром, решение 132 |
+| school-courses | `GET`, `POST /api/school-courses`; `POST /api/import/site-orders` — заказы с сайта → курсы и потоки школы, показатели набора; `POST /api/import/site-orders/lms-file` — выгрузка файла для LMS по шаблону, решение 132 |
+
+| contacts | `POST /api/contacts/:id/reveal` — раскрытие почты и телефона контакта с причиной, решение 133 |
+| client-errors | `POST /api/client-errors` — приём ошибок фронтенда, без входа, решение 133 |
+| admin (безопасность) | `POST /api/admin/telegram/rotate-webhook-secret`; `GET`, `POST /api/admin/approvals`; `POST …/:id/approve`, `POST …/:id/reject`; `GET /api/admin/audit/export` — решение 133 |
 | dsar | `GET /api/me/data-export`; `GET /api/admin/dsar/users/:id/export`, `GET /api/admin/dsar/contacts/:id/export`; `POST /api/admin/dsar/users/:id/erase`, `POST /api/admin/dsar/contacts/:id/erase`; `GET`, `POST /api/admin/dsar/requests` — права субъекта ПД, решение 116 |
 
 ### Workflow
@@ -495,7 +559,9 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 94 пути, 118 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
+
+`docs/openapi.json` и `GET /api/openapi.json` — 119 путей, 145 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.
