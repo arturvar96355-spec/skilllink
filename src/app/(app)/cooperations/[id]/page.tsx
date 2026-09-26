@@ -57,6 +57,8 @@ import {
 import { AiAssistCard } from '../../AiDraft'
 import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { EditMeetingModal } from '../../EditMeetingModal'
+import { ChangeCooperationStatusModal } from './ChangeCooperationStatusModal'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { LicenseModal } from './LicenseModal'
@@ -82,6 +84,9 @@ function CooperationContent() {
   const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
   const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   const [isLicenseOpen, setIsLicenseOpen] = useState(false)
+  // Смена статуса связки (задача «Данные без экрана», пункт 1) — по праву canWrite,
+  // как и остальные правки связки.
+  const [isStatusOpen, setIsStatusOpen] = useState(false)
   // Смена ответственного связки (ТЗ — роль «Руководитель», решение 146):
   // кнопка видна только с правом ASSIGN_RESPONSIBLE (ADMIN, HEAD).
   const [changingResponsible, setChangingResponsible] = useState(false)
@@ -148,6 +153,8 @@ function CooperationContent() {
   const [patchedStages, setPatchedStages] = useState<Record<string, WorkflowStageDto>>({})
   useEffect(() => setPatchedStages({}), [cooperation.data])
   const [packageResult, setPackageResult] = useState<DocumentPackageResultDto | null>(null)
+  // Правка встречи (задача «Данные без экрана», пункт 2) — по образцу CreateMeetingModal.
+  const [editingMeeting, setEditingMeeting] = useState<MeetingDto | null>(null)
 
   const generatePackage = useMutation(async () => {
     const result = await apiPost<DocumentPackageResultDto>(
@@ -248,6 +255,11 @@ function CooperationContent() {
         meta={
           <>
             <CooperationStatusBadge status={data.status} />
+            {user.permissions.canWrite && (
+              <Button size="sm" variant="ghost" onClick={() => setIsStatusOpen(true)}>
+                Сменить статус
+              </Button>
+            )}
             {data.isMock && <MockBadge />}
           </>
         }
@@ -403,6 +415,16 @@ function CooperationContent() {
         />
       )}
 
+      {isStatusOpen && (
+        <ChangeCooperationStatusModal
+          cooperation={data}
+          onClose={(updated) => {
+            setIsStatusOpen(false)
+            if (updated) cooperation.reload()
+          }}
+        />
+      )}
+
       <Section
         title="Ход работы"
         description="Четырнадцатый этап система закрывает сама, когда закрыты остальные. Этапы 6, 7 и 11 — контрольные точки: их не начать, пока не закрыты предыдущие, а следующие за ними — пока точка не завершена."
@@ -508,6 +530,11 @@ function CooperationContent() {
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
                   </span>
+                  {user.permissions.canWrite && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditingMeeting(meeting)}>
+                      Изменить
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -521,6 +548,17 @@ function CooperationContent() {
           onClose={(created) => {
             setIsMeetingOpen(false)
             if (created) meetings.reload()
+          }}
+        />
+      )}
+
+      {editingMeeting && (
+        <EditMeetingModal
+          key={editingMeeting.id}
+          meeting={editingMeeting}
+          onClose={(updated) => {
+            setEditingMeeting(null)
+            if (updated) meetings.reload()
           }}
         />
       )}
