@@ -4937,12 +4937,15 @@ INTEGRATION_TOKEN»; не прислан или неверен — `401 UNAUTHOR
 ### GET /api/inbound-letters
 
 Право: `INBOUND_READ`. Фильтры: `status`, `group` (можно несколько значений через
-повтор параметра), `universityId`, `cooperationId`. Пагинация и `sort` — как у соседних
-реестров (`page`, `pageSize`, `sort=-receivedAt` по умолчанию; поля сортировки —
-`receivedAt`, `createdAt`, `status`).
+повтор параметра), `universityId`, `cooperationId`, `q` (решение 184) — поиск по
+ключевым словам: тема, текст письма, адрес и имя отправителя, название вуза; каждое
+слово запроса ищется в любом из полей (`everyWordInSomeField`, как у поиска связок).
+Пагинация и `sort` — как у соседних реестров (`page`, `pageSize`, `sort=-receivedAt`
+по умолчанию; поля сортировки — `receivedAt`, `createdAt`, `status`).
 
 ```bash
 curl -s "http://localhost:3000/api/inbound-letters?status=NEW&status=ANALYZED&pageSize=20"
+curl -s "http://localhost:3000/api/inbound-letters?q=перенести+встречу"
 ```
 
 ### GET /api/inbound-letters/:id

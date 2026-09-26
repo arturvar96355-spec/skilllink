@@ -4,12 +4,14 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SearchEntityType, SearchItemDto, SearchResultDto } from '@/shared/contracts'
 import { Icon, type IconName } from '../primitives/Icon'
+import { IconButton } from '../primitives/IconButton'
 import { Skeleton } from '../primitives/Skeleton'
 import { useResource } from '../hooks/useResource'
 import { useDebounced, useEscape } from '../hooks/dom'
+import { useFocusTrap } from '../hooks/focus-trap'
 import { buildQuery } from '../lib/api'
 import { searchItemHref } from '../lib/links'
-import { OPEN_SEARCH_EVENT } from './search-events'
+import { nextSearchAction, OPEN_SEARCH_EVENT } from './search-events'
 import styles from './Search.module.css'
 
 const TYPE_ICONS: Record<SearchEntityType, IconName> = {
@@ -65,21 +67,46 @@ export function GlobalSearch() {
     }, CLOSE_MS)
   }, [])
   useEscape(close, isOpen)
+  /**
+   * Фокус внутри окна (решение 184): при открытии — на строку ввода, Tab
+   * ходит по кругу, при закрытии возвращается на кнопку, которая открыла
+   * поиск (та, что сейчас имеет фокус, — кнопка в шапке или, по Ctrl K,
+   * что было в фокусе прежде), как у `Modal` и `Drawer` (`hooks/focus-trap`).
+   */
+  useFocusTrap(windowRef, isOpen, 'field')
 
   const toggle = useCallback(() => {
     if (isOpen) close()
     else setIsOpen(true)
   }, [isOpen, close])
 
-  // Открытие из шапки и меню (search-events): окно растёт из нажатой кнопки.
+  // Открытие из шапки и меню (search-events, решение 184): окно растёт из
+  // нажатой кнопки, повторный щелчок по ней же — закрывает (nextSearchAction).
   useEffect(() => {
     function handle(event: Event) {
+      if (nextSearchAction(isOpen) === 'close') {
+        close()
+        return
+      }
       originRef.current = (event as CustomEvent<{ from: HTMLElement | null }>).detail?.from ?? null
       setIsOpen(true)
     }
     window.addEventListener(OPEN_SEARCH_EVENT, handle)
     return () => window.removeEventListener(OPEN_SEARCH_EVENT, handle)
-  }, [])
+  }, [isOpen, close])
+
+  // Щелчок вне окна закрывает его — как остальные всплывающие окна (hooks/dom
+  // useOutsideClick); свой слушатель здесь, а не хук, — узел окна нужен и для
+  // перетаскивания, и для анимации, второй ref на тот же узел не завести.
+  useEffect(() => {
+    if (!isOpen) return
+    function handle(event: MouseEvent) {
+      const node = windowRef.current
+      if (node && event.target instanceof Node && !node.contains(event.target)) close()
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [isOpen, close])
 
   // Ctrl + K — привычное сочетание для поиска; на macOS то же самое с ⌘.
   useEffect(() => {
@@ -278,6 +305,7 @@ export function GlobalSearch() {
               autoComplete="off"
             />
             <span className={styles.hint}>Esc</span>
+            <IconButton icon="close" label="Закрыть поиск" size="sm" onClick={close} data-dialog-close />
           </div>
 
           {query.trim().length >= MIN_QUERY_LENGTH && (
