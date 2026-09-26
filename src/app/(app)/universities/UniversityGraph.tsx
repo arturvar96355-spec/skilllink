@@ -16,6 +16,7 @@ import {
   buildQuery,
   cooperationHref,
   formatNumber,
+  formatStageProgress,
   productHref,
   programHref,
   useCalmMotion,
@@ -258,7 +259,7 @@ export function UniversityGraph({
                     <Link
                       href={cooperationHref(link.id)}
                       className={styles.chip}
-                      title={`${COOPERATION_STATUS_LABELS[link.status]} · ${link.progress.percent}% этапов закрыто`}
+                      title={`${COOPERATION_STATUS_LABELS[link.status]} · закрыто ${formatStageProgress(link.progress.completedStages + link.progress.cancelledStages, link.progress.totalStages)}`}
                     >
                       {stage}
                       <span className={styles.chipPct}>{link.progress.percent}%</span>

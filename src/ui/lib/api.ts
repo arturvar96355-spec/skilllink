@@ -219,11 +219,22 @@ export function filenameFromDisposition(header: string | null, fallback: string)
  * Скачивание файла выгрузки (ТЗ дизайна 26–29.09, п. 2.2): файл забирается
  * запросом, а не переходом по ссылке, — так у кнопки есть «готовим», «готово»
  * и русский текст ошибки вместо JSON на пустой вкладке.
+ *
+ * По умолчанию — `GET` (реестры, отчёты). Файл для LMS (решение 182, п. 5,
+ * `POST /api/import/site-orders/lms-file`) собирается из того же файла заказов,
+ * что и предпросмотр загрузки, — серверу заново нужно его тело (ФИО, почта и
+ * телефон слушателей нигде, кроме этого запроса и файла для LMS, не хранятся,
+ * `docs/PRIVACY.md`), поэтому `init` даёт передать метод и тело без второй
+ * функции ради одного отличия.
  */
-export async function apiDownload(path: string, fallbackName: string): Promise<{ filename: string }> {
+export async function apiDownload(
+  path: string,
+  fallbackName: string,
+  init?: { method?: 'GET' | 'POST'; body?: BodyInit },
+): Promise<{ filename: string }> {
   let response: Response
   try {
-    response = await fetch(path, { credentials: 'same-origin' })
+    response = await fetch(path, { credentials: 'same-origin', method: init?.method, body: init?.body })
   } catch {
     throw new ApiRequestError('Нет связи с сервером. Проверьте подключение.', 'NETWORK', 0)
   }

@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
-import { STAGE_PHASES, STAGE_PHASE_LABELS } from '@/shared/contracts'
 import type {
   CooperationCountsDto,
   CooperationListItemDto,
@@ -16,6 +15,7 @@ import type {
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
+import { ExpertStartHere } from './ExpertStartHere'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
 import { usePrintBlock } from './print-block'
@@ -68,7 +68,6 @@ import {
   usePeek,
   startMorph,
   type Bars3DGroup,
-  type Pie3DSlice,
   type Pie3DTone,
 } from '@/ui'
 import { PriorityBreakdown } from './PriorityBreakdown'
@@ -247,7 +246,6 @@ function Dashboard() {
 
   // Печать одной диаграммы (решение 172, ТЗ — выгрузка диаграмм в png/pdf):
   // каждый блок ниже печатается независимо от остальных.
-  const phasePiePrint = usePrintBlock<HTMLDivElement>()
   const universityMapPrint = usePrintBlock<HTMLDivElement>()
   const universityBarsPrint = usePrintBlock<HTMLDivElement>()
   const funnelPrint = usePrintBlock<HTMLDivElement>()
@@ -334,21 +332,6 @@ function Dashboard() {
   const gaps = useResource<SkillGapDto[]>(
     showcase && user.permissions.canSeeAnalytics ? '/api/skills/gaps?limit=5' : null,
   )
-
-  // Где сейчас связки: фаза текущего этапа; без текущего этапа — все пройдены.
-  const phaseSlices: Pie3DSlice[] = useMemo(() => {
-    const list = funnelSource.data ?? []
-    const tones: Pie3DTone[] = ['violet', 'pink', 'orange', 'cyan', 'warning']
-    const slices: Pie3DSlice[] = STAGE_PHASES.map((phase, index) => ({
-      key: phase,
-      label: STAGE_PHASE_LABELS[phase],
-      value: list.filter((item) => item.currentStage?.phase === phase).length,
-      tone: tones[index] ?? 'muted',
-    }))
-    const finished = list.filter((item) => item.currentStage === null).length
-    if (finished > 0) slices.push({ key: 'done', label: 'Все этапы пройдены', value: finished, tone: 'success' })
-    return slices.filter((slice) => slice.value > 0)
-  }, [funnelSource.data])
 
   // Связки по вузам: сколько идёт спокойно и сколько требует внимания.
   const universityBars: Bars3DGroup[] = useMemo(() => {
@@ -451,6 +434,7 @@ function Dashboard() {
     trend: metric.trend ?? null,
     isShare: metric.unit === '%',
     href: METRIC_HREF[metric.key],
+    denominatorLabel: metric.denominatorLabel ?? undefined,
   }))
 
 
@@ -467,16 +451,12 @@ function Dashboard() {
         meta={data?.containsMockData ? <MockBadge /> : undefined}
         actions={
           <>
-            {user.permissions.canWorkAnalytics && (
-              <Button
-                icon="refresh"
-                onClick={onRegenerate}
-                isLoading={regenerate.isPending}
-                variant="secondary"
-              >
-                Пересобрать рекомендации
-              </Button>
-            )}
+            {/*
+              «Пересобрать рекомендации» с главной убрано (решение 180, п. 2):
+              это действие администратора, ему место на /recommendations, где
+              есть контекст (какие правила сработали, что изменится), а не
+              рядом с приветствием, где его видели все.
+            */}
             {/* Лист A4 для печати и PDF (решение 97) — всем, кому видна главная. */}
             <Button href={ROUTES.managerReport} icon="document" variant="secondary">
               Отчёт руководителю
@@ -484,6 +464,8 @@ function Dashboard() {
           </>
         }
       />
+
+      {user.isReviewer && user.role !== 'UNIVERSITY_REP' && <ExpertStartHere />}
 
       {overview.isLoading ? (
         <CardsSkeleton count={3} />
@@ -552,53 +534,42 @@ function Dashboard() {
                 </Section>
               </div>
 
-              <div className={styles.bento}>
-                <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
-                  <Section
-                    title="Где сейчас связки"
-                    description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись."
-                    action={
-                      <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
+              {/*
+                Где сейчас связки по фазам — уже показывает воронка ниже (решение
+                180, п. 2: две визуализации одних и тех же данных о фазах вводили
+                в заблуждение, а не объясняли). Здесь остаётся карта — она вузы
+                показывает по городам, а не по фазам, и не повторяет воронку.
+              */}
+              <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="center" style={{ '--delay': '440ms' } as CSSProperties}>
+                <Section
+                  title="Вузы на карте"
+                  description="Размер точки — число связок. Щелчок — страница вуза."
+                  action={
+                    <div className={styles.sectionActions}>
+                      <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                        Все вузы
+                      </Button>
+                      <Button variant="secondary" size="sm" icon="download" onClick={universityMapPrint.print}>
                         Печать / PDF
                       </Button>
-                    }
-                  >
-                    <div className={styles.panel3d} ref={phasePiePrint.ref}>
-                      <Pie3D slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
                     </div>
-                  </Section>
-                </div>
-                <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="right" style={{ '--delay': '500ms' } as CSSProperties}>
-                  <Section
-                    title="Вузы на карте"
-                    description="Размер точки — число связок. Щелчок — страница вуза."
-                    action={
-                      <div className={styles.sectionActions}>
-                        <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                          Все вузы
-                        </Button>
-                        <Button variant="secondary" size="sm" icon="download" onClick={universityMapPrint.print}>
-                          Печать / PDF
-                        </Button>
-                      </div>
-                    }
-                  >
-                    <div className={styles.mapPanel} ref={universityMapPrint.ref}>
-                      {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
-                      <RussiaMap
-                        points={mapPoints}
-                        label="Вузы на карте России"
-                        hub={{ label: 'ИТ-Школа РТК', lat: 55.756, lon: 37.617 }}
-                      />
-                    </div>
-                    {offMap > 0 && (
-                      <p className={styles.funnelNote}>
-                        Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
-                        нет координат.
-                      </p>
-                    )}
-                  </Section>
-                </div>
+                  }
+                >
+                  <div className={styles.mapPanel} ref={universityMapPrint.ref}>
+                    {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
+                    <RussiaMap
+                      points={mapPoints}
+                      label="Вузы на карте России"
+                      hub={{ label: 'ИТ-Школа РТК', lat: 55.756, lon: 37.617 }}
+                    />
+                  </div>
+                  {offMap > 0 && (
+                    <p className={styles.funnelNote}>
+                      Ещё {formatNumber(offMap)} {pluralize(offMap, ['вуз', 'вуза', 'вузов'])} не на карте: для их города
+                      нет координат.
+                    </p>
+                  )}
+                </Section>
               </div>
             </>
           )}
@@ -1025,7 +996,13 @@ function Dashboard() {
           {/* Финал главной (решение 125): сеть SkillLink — только в презентационном режиме. */}
           {showcase && (funnelSource.data?.length ?? 0) > 0 && (
             <div className={styles.reveal} data-assemble="center" style={{ '--delay': '760ms' } as CSSProperties}>
-              <Section title="Сеть SkillLink" description="Вузы → программы → навыки → IT-продукты.">
+              {/*
+                Честность «витрины» (решение 180, п. 3): вуз → программа → продукт —
+                настоящие связки из данных, а расположение навыков на схеме —
+                иллюстрация (самые востребованные рынком в целом, не для конкретной
+                программы). Заголовок и подпись под схемой говорят это прямо.
+              */}
+              <Section title="Сеть SkillLink (схема)" description="Вузы → программы → продукты — настоящие связки. Навыки на пути — самые востребованные рынком, показаны схематично.">
                 <Finale cooperations={funnelSource.data ?? []} skills={(gaps.data ?? []).map((gap) => gap.name)} />
               </Section>
             </div>

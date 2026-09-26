@@ -111,6 +111,8 @@ export {
   formatShare,
   formatPlace,
   formatDemand,
+  formatStageProgress,
+  STAGE_PROGRESS_HINT,
   formatMetric,
   formatDate,
   formatDateTime,
