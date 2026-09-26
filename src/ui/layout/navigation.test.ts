@@ -45,6 +45,7 @@ function user(role: UserRole): CurrentUserDto {
       canWritePortal: role === 'UNIVERSITY_REP',
       canSeeContactDetails: role === 'ADMIN' || role === 'MANAGER',
       isAdmin: role === 'ADMIN',
+      canAssignResponsible: role === 'ADMIN' || role === 'HEAD',
     },
     passwordTemporary: false,
   }

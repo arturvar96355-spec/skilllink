@@ -118,6 +118,7 @@ export function describeCurrentUser(
       canWritePortal: can(user, 'UNIVERSITY_PORTAL_WRITE'),
       canSeeContactDetails: can(user, 'CONTACT_DETAILS'),
       isAdmin: can(user, 'ADMIN'),
+      canAssignResponsible: can(user, 'ASSIGN_RESPONSIBLE'),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
   }
