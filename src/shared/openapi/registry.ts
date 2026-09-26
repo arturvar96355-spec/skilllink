@@ -1273,6 +1273,20 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     body: updateRecommendationSchema,
     errors: [...WRITE_ERRORS, 'INVALID_TRANSITION', 'CONFLICT'],
   },
+  {
+    method: 'get',
+    path: '/api/recommendations/experiment',
+    tag: 'Рекомендации',
+    summary: 'Работают ли рекомендации: контрольная группа и прирост',
+    description:
+      'Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный ' +
+      'и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба), дни до сдвига ' +
+      '(интервал Уэлча), последовательная проверка Вальда, статус insufficient-data | not-proven | ' +
+      'lift | negative и since. Считаются только сигналы, назначенные в группу по хешу, ' +
+      'по принципу «по назначению». Только чтение.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
 
   // ── ИИ-помощник (решение 90) ──────────────────────────────────────────────
   {

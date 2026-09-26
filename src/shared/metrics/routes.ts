@@ -100,6 +100,7 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/recommendations',
   '/api/recommendations/[id]',
   '/api/recommendations/[id]/ai-letter',
+  '/api/recommendations/experiment',
   '/api/recommendations/generate',
   '/api/recommendations/rules/stats',
   '/api/recommendations/why-not',

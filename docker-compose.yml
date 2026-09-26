@@ -95,6 +95,9 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # Контрольная группа рекомендаций (решение 126). По умолчанию выключена: на стенде
+      # показа сценарий опирается на рекомендации, прятать их нельзя.
+      RECOMMENDATION_EXPERIMENT: ${RECOMMENDATION_EXPERIMENT:-off}
       # Оповещения владельцу о событиях безопасности (решение 118): кроме администраторов
       # с привязанным Telegram — ещё этот чат. Пусто — только администраторам.
       TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}

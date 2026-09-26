@@ -163,6 +163,13 @@ enum RecommendationStatus {
   DONE
 }
 
+/// Группа сигнала в проверке рекомендаций (решение 126): рекомендацию показали
+/// сотруднику (treatment) или придержали для сравнения (control).
+enum ExperimentArm {
+  treatment
+  control
+}
+
 enum DataSourceType {
   MANUAL
   CSV
@@ -1034,6 +1041,7 @@ model Recommendation {
 
   cooperation Cooperation? @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
   resolvedBy  User?        @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  signals     RecommendationSignal[]
 
   @@unique([ruleKey, objectType, objectId])
   @@index([status, priority])
@@ -1075,6 +1083,51 @@ model RecommendationRuleStats {
 
 /// Источник рыночных данных с оценкой достоверности. Без него показатель
 /// нельзя подписать происхождением, а показатель должен быть объяснимым (раздел 10 ТЗ).
+/// Журнал сигналов правил рекомендаций — контрольная группа и оценка прироста (решение 126).
+///
+/// Сигнал — «правило сработало по объекту». Пишется всегда, даже если эксперимент
+/// выключен. Группа назначается детерминированно по хешу (правило + объект + период):
+/// control — рекомендацию сотруднику не показали, treatment — показали.
+/// В оценку идут только назначенные по хешу (assigned_by = 'hash'), знаменатель —
+/// все назначенные (принцип «по назначению»).
+///
+/// Ограничения только в SQL миграции 20260926000000_recommendation_signals:
+/// recommendation_signals_arm_check — у контроля нет рекомендации и назначение только по хешу;
+/// recommendation_signals_assigned_by_check — допустимые способы назначения.
+model RecommendationSignal {
+  id               String        @id @default(cuid())
+  /// Ключ правила (ruleKey рекомендации).
+  ruleType         String        @map("rule_type")
+  /// Объект правила: Cooperation, EducationalProgram, Skill.
+  entityType       String        @map("entity_type")
+  entityId         String        @map("entity_id")
+  /// Период назначения: номер отрезка длиной H дней от 01.01.1970 UTC («30d-684»).
+  /// Один сигнал на правило, объект и период.
+  periodKey        String        @map("period_key")
+  firedAt          DateTime      @map("fired_at")
+  arm              ExperimentArm
+  /// Как назначена группа: hash — случайно по хешу, участвует в оценке;
+  /// experiment-off, excluded-rule, already-shown, dismissed, resolved — вне оценки, всегда treatment.
+  assignedBy       String        @map("assigned_by")
+  /// Показанная рекомендация; у контроля всегда null.
+  recommendationId String?       @map("recommendation_id")
+  /// Состояние на момент сигнала: текущий этап связки, программы навыка, доля контроля.
+  context          Json?
+  /// Когда исход наступил (успех) или окно H дней закрылось без него; null — ещё ждём.
+  outcomeAt        DateTime?     @map("outcome_at")
+  /// Исход: { state: success | failure, days, event, evaluatedAt }.
+  outcome          Json?
+  createdAt        DateTime      @default(now()) @map("created_at")
+
+  recommendation Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  @@unique([ruleType, entityType, entityId, periodKey])
+  @@index([firedAt])
+  @@index([recommendationId])
+  @@index([entityType, entityId])
+  @@map("recommendation_signals")
+}
+
 model DataSource {
   id             String          @id @default(cuid())
   name           String          @unique

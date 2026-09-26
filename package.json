@@ -33,6 +33,8 @@
     "audit:verify": "tsx scripts/audit-chain.ts verify",
     "audit:seal": "tsx scripts/audit-chain.ts seal",
     "telegram:digest": "tsx scripts/telegram-digest.ts",
+    "recs:experiment-report": "tsx scripts/recs-experiment-report.ts",
+    "recs:experiment-sim": "tsx scripts/recs-experiment-sim.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts",
     "dq:report": "tsx scripts/dq-report.ts",

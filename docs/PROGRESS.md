@@ -4,6 +4,22 @@
 
 ## Состояние
 
+**Контрольная группа для рекомендаций и оценка прироста (26.09.2026, решение 136,
+ветка `feat/rec-control-group`).** Часть допустимых сигналов правил (по умолчанию
+10 %, детерминированно по хешу правила, объекта и периода) уходит в контроль:
+сигнал пишется в журнал `recommendation_signals`, рекомендация сотруднику не
+показывается. Просрочки сроков, связка без IT-продукта, застой на контрольной
+точке и любой критичный сигнал в контроль не уходят никогда. Через окно в 30 дней
+сравнивается конверсия treatment/control по принципу «по назначению» (intention-to-treat):
+абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба),
+интервал Уэлча для дней до перехода, последовательная проверка Вальда (SPRT) для
+раннего вывода, честные статусы «мало данных» / «прирост не доказан» / «прирост есть».
+`GET /api/recommendations/experiment`, параметр-выключатель на демо-стенде выключен
+по умолчанию (сценарий показа опирается на рекомендации). `npm run recs:experiment-sim`
+проверяет оценку на выдуманных данных с известным эффектом. Подробности —
+[RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md), формулы и обоснование —
+[TECHNICAL_DECISIONS.md](TECHNICAL_DECISIONS.md#136-контрольная-группа-для-рекомендаций-и-оценка-прироста).
+
 **Метрики сервера и ворота выкладки (26.09.2026, решение 137, ветка `ops/metrics-gate`).**
 `GET /api/metrics` (Prometheus 0.0.4) — свой реестр без зависимостей: запросы и время
 ответа по шаблону маршрута, отказы ограничения частоты, неудачные входы, память,
@@ -331,7 +347,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### Модули и эндпоинты
 
-### Модули и эндпоинты — 114 маршрутов, 139 операций
+### Модули и эндпоинты — 115 маршрутов, 140 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -344,6 +360,9 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
+| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/experiment` — контрольная группа и прирост (решение 136); `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
+
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
 | data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
@@ -521,7 +540,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 `docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
 
-`docs/openapi.json` и `GET /api/openapi.json` — 113 путей, 139 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 114 путей, 140 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

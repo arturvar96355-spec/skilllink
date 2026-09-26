@@ -4,6 +4,7 @@ import {
   PROGRAM_RATING_WEIGHTS,
   RATING_MIN_FILLED_FACTORS,
   RATING_SCALE,
+  RECOMMENDATION_EXPERIMENT,
   RECOMMENDATION_DISABLED_RULES,
   RECOMMENDATION_LEARNING,
   RECOMMENDATION_RULES,
@@ -273,6 +274,95 @@ function recommendations(): CalculationParameterGroupDto {
   }
 }
 
+function recommendationExperiment(): CalculationParameterGroupDto {
+  return {
+    id: 'recommendationExperiment',
+    title: 'Проверка рекомендаций контрольной группой',
+    description:
+      'Часть сигналов низкой срочности по хешу уходит в контроль: сигнал пишется в журнал, ' +
+      'рекомендация не показывается. Через окно исхода сравнивается, как часто объект ' +
+      'сдвинулся с рекомендацией и без неё. Просрочки сроков в контроль не уходят никогда.',
+    methodology: { document: 'docs/RECOMMENDATIONS_EXPERIMENT.md', section: 'Параметры' },
+    parameters: [
+      param(
+        'RECOMMENDATION_EXPERIMENT.enabled',
+        'Эксперимент включён',
+        RECOMMENDATION_EXPERIMENT.enabled,
+        'flag',
+        false,
+        'Переменная среды RECOMMENDATION_EXPERIMENT=on. На демо-стенде выключено: сценарий показа не прячет рекомендаций',
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.controlShare',
+        'Доля контроля',
+        RECOMMENDATION_EXPERIMENT.controlShare,
+        'share',
+        true,
+        'Какая часть допустимых сигналов не показывается сотрудникам',
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.maxControlShare',
+        'Доля контроля, не больше',
+        RECOMMENDATION_EXPERIMENT.maxControlShare,
+        'share',
+        false,
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.horizonDays',
+        'Окно исхода',
+        RECOMMENDATION_EXPERIMENT.horizonDays,
+        'days',
+        true,
+        'Сколько дней после сигнала ждём перехода связки на следующий этап или новой связки и встречи',
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.minControlForVerdict',
+        'Исходов в контроле для вывода, не меньше',
+        RECOMMENDATION_EXPERIMENT.minControlForVerdict,
+        'count',
+        true,
+        'Меньше — статус «мало данных»',
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.confidenceLevel',
+        'Уровень доверия интервалов',
+        RECOMMENDATION_EXPERIMENT.confidenceLevel,
+        'share',
+        false,
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.sequentialAlpha',
+        'Проверка Вальда: риск найти прирост, которого нет',
+        RECOMMENDATION_EXPERIMENT.sequentialAlpha,
+        'share',
+        true,
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.sequentialBeta',
+        'Проверка Вальда: риск не заметить прирост',
+        RECOMMENDATION_EXPERIMENT.sequentialBeta,
+        'share',
+        true,
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.sequentialRelativeLift',
+        'Проверка Вальда: какой относительный прирост замечать',
+        RECOMMENDATION_EXPERIMENT.sequentialRelativeLift,
+        'share',
+        true,
+      ),
+      param(
+        'RECOMMENDATION_EXPERIMENT.neverControlRules',
+        'Правила, которые в контроль не уходят никогда',
+        RECOMMENDATION_EXPERIMENT.neverControlRules,
+        'list',
+        false,
+        'Ещё не уходят: застой на контрольной точке и любой критичный приоритет',
+      ),
+    ],
+  }
+}
+
 /** Решение 119: как рекомендации учатся на решениях сотрудников. */
 function recommendationLearning(): CalculationParameterGroupDto {
   const L = RECOMMENDATION_LEARNING
@@ -484,6 +574,7 @@ export function buildCalculationParameters(): CalculationParametersDto {
     skillProfile(),
     workflow(),
     recommendations(),
+    recommendationExperiment(),
     recommendationLearning(),
     login(),
     retention(),
