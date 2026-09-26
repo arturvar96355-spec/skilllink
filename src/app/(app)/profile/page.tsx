@@ -374,7 +374,7 @@ export default function ProfilePage() {
         <div className={styles.blockHead}>
           <h2 id="profile-settings" className={styles.blockTitle}>
             Настройки
-            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — это логин, она не меняется. Пароль вы меняете сами — здесь.">
+            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — адрес для входа, она не меняется. Пароль вы меняете сами — здесь.">
               <span className={styles.hint}>
                 <Icon name="info" size={16} />
               </span>
