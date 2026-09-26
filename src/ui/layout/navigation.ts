@@ -51,6 +51,9 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   if (user.permissions.canSeeAnalytics) {
     tools.push({ href: ROUTES.analytics, label: 'Аналитика', icon: 'analytics' })
   }
+  // Отчёт руководителю, отчёт и каталог по ТЗ живут под одним общим адресом
+  // (решение 150) — пункт меню ведёт на раздел, подсвечивается на любой его странице.
+  tools.push({ href: ROUTES.reports, label: 'Отчёты', icon: 'report' })
   tools.push({ href: ROUTES.documents, label: 'Документы', icon: 'document' })
   tools.push({ href: ROUTES.products, label: 'IT-продукты', icon: 'product' })
   tools.push({ href: ROUTES.settings, label: 'Настройки', icon: 'settings' })

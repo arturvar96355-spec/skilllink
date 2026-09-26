@@ -5,6 +5,7 @@ import {
   RECOMMENDATION_PRIORITY_LABELS,
   RECOMMENDATION_STATUS_LABELS,
   STAGE_STATUS_LABELS,
+  TRANSFER_STATUS_LABELS,
   UNIVERSITY_STATUS_LABELS,
   type CooperationStatus,
   type DocumentStatus,
@@ -12,6 +13,7 @@ import {
   type RecommendationPriority,
   type RecommendationStatus,
   type StageStatus,
+  type TransferStatus,
   type UniversityStatus,
 } from '@/shared/contracts'
 import { Badge, type BadgeTone } from '../primitives/Badge'
@@ -83,6 +85,14 @@ const RECOMMENDATION_TONES: Record<RecommendationStatus, BadgeTone> = {
   DONE: 'success',
 }
 
+/** Статус передачи ПО вузу — «Каталог по ТЗ» (решение 145/150). */
+const TRANSFER_TONES: Record<TransferStatus, BadgeTone> = {
+  NOT_TRANSFERRED: 'neutral',
+  IN_PROGRESS: 'info',
+  TRANSFERRED: 'success',
+  REVOKED: 'danger',
+}
+
 export function UniversityStatusBadge({ status }: { status: UniversityStatus }) {
   return (
     <Badge tone={UNIVERSITY_TONES[status]} withDot>
@@ -133,6 +143,14 @@ export function PriorityBadge({ priority }: { priority: RecommendationPriority }
 
 export function RecommendationStatusBadge({ status }: { status: RecommendationStatus }) {
   return <Badge tone={RECOMMENDATION_TONES[status]}>{RECOMMENDATION_STATUS_LABELS[status]}</Badge>
+}
+
+export function TransferStatusBadge({ status }: { status: TransferStatus }) {
+  return (
+    <Badge tone={TRANSFER_TONES[status]} withDot>
+      {TRANSFER_STATUS_LABELS[status]}
+    </Badge>
+  )
 }
 
 /** Подсказка к пометке «план сдвинут»: дата в прошлом на не начатом этапе — не ошибка. */

@@ -38,6 +38,7 @@ export {
   DocumentStatusBadge,
   PriorityBadge,
   RecommendationStatusBadge,
+  TransferStatusBadge,
   DeadlineBadge,
 } from './data/status'
 
