@@ -4,17 +4,22 @@
  * импортировать типы из @/generated/prisma запрещено (CLAUDE.md, раздел «Архитектура»).
  */
 
-export const USER_ROLES = ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP'] as const
+/**
+ * HEAD — роль «Руководитель» из ТЗ (решение 146): права менеджера (WRITE и
+ * остальные группы, где состоит MANAGER) плюс право переназначать ответственного
+ * за вуз (permissions.ts, ASSIGN_RESPONSIBLE), которого у обычного менеджера нет.
+ */
+export const USER_ROLES = ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP', 'HEAD'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
 /**
  * Кого можно назначить ответственным за этап, связку, встречу или документ.
  *
- * Ответственный ведёт запись и меняет её, а менять данные могут только ADMIN
- * и MANAGER. Аналитик или наблюдатель в этой роли числился бы за работой,
+ * Ответственный ведёт запись и меняет её, а менять данные могут только ADMIN,
+ * MANAGER и HEAD. Аналитик или наблюдатель в этой роли числился бы за работой,
  * которую не может сделать, а представитель вуза — вообще не сотрудник ИТ-Школы.
  */
-export const RESPONSIBLE_ROLES = ['ADMIN', 'MANAGER'] as const satisfies readonly UserRole[]
+export const RESPONSIBLE_ROLES = ['ADMIN', 'MANAGER', 'HEAD'] as const satisfies readonly UserRole[]
 
 export function canBeResponsible(role: UserRole): boolean {
   return (RESPONSIBLE_ROLES as readonly UserRole[]).includes(role)

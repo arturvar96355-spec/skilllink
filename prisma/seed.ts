@@ -22,7 +22,7 @@ import { dismiss as dismissDuplicate, findDuplicates } from '@/modules/data-qual
 import { merge as mergeUniversities, undo as undoUniversityMerge } from '@/modules/universities/merge.service'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { PrismaClient } from '../src/generated/prisma/client'
-import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
+import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
@@ -2257,6 +2257,55 @@ async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser)
 }
 
 /** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
+/**
+ * Хранимый шаблон 14 этапов (ТЗ, функц. требования пп. 6, 9; решение 146):
+ * заполняется из shared/config/workflow.config.ts — того же источника, из
+ * которого раньше строились этапы напрямую. `upsert`, а не `create`: повторная
+ * заливка (npm run db:seed) не должна падать на уникальности stage_number.
+ */
+async function seedWorkflowStageTemplates(): Promise<void> {
+  console.log('Шаблон этапов workflow (решение 146)...')
+  for (const stage of WORKFLOW_STAGES) {
+    await prisma.workflowStageTemplate.upsert({
+      where: { stageNumber: stage.number },
+      create: {
+        stageNumber: stage.number,
+        title: stage.title,
+        phase: stage.phase,
+        normativeDays: stage.normativeDays,
+        isControlPoint: (CONTROL_POINT_STAGES as readonly number[]).includes(stage.number),
+        defaultTasks: stage.tasks.map((task) => ({
+          title: task.title,
+          isRequired: task.isRequired,
+          isUniversityItem: task.universityItem === true,
+        })),
+      },
+      update: {},
+    })
+  }
+}
+
+/**
+ * Демо-учётка роли «Руководитель» (ТЗ, решение 146): права менеджера плюс право
+ * переназначать ответственных за вузы (ASSIGN_RESPONSIBLE). Тот же демо-пароль,
+ * что у остальных — seedUsers() выше считает его хеш один раз.
+ *
+ * Отдельная функция и отдельный вызов в конце main() — чтобы не задевать строки
+ * seedUsers(), которые правит параллельная ветка с демо-данными (решение 141).
+ */
+async function seedHeadUser(demoPasswordHash: string): Promise<SeedUser> {
+  console.log('Демо-учётка «Руководитель» (решение 146)...')
+  return prisma.user.create({
+    data: {
+      email: 'head@skilllink.demo',
+      passwordHash: demoPasswordHash,
+      fullName: 'Тимофеев Аркадий Семёнович',
+      position: 'Руководитель направления сотрудничества с вузами',
+      role: 'HEAD',
+    },
+  })
+}
+
 async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<void> {
   const { admin, manager, analyst, customPassword, DEMO_PASSWORD } = users
   const counts = {
@@ -2306,6 +2355,8 @@ async function main(): Promise<void> {
   await clean()
 
   const users = await seedUsers()
+  await seedHeadUser(users.demoPasswordHash)
+  await seedWorkflowStageTemplates()
   const mockSource = await seedDataSources()
   const skillId = await seedSkills()
   const products = await seedProducts(skillId)

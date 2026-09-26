@@ -55,6 +55,7 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
   ANALYST: 'Аналитик',
   VIEWER: 'Наблюдатель',
   UNIVERSITY_REP: 'Представитель вуза',
+  HEAD: 'Руководитель',
 }
 
 export const UNIVERSITY_STATUS_LABELS: Record<UniversityStatus, string> = {
@@ -375,6 +376,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'approval.rejected': 'В одобрении операции отказано',
   'approval.consumed': 'Одобрение использовано',
   'audit.export': 'Выгрузка журнала для внешней системы',
+  'university.responsible.set': 'Изменён ответственный за вуз',
+  'workflow_template.update': 'Изменён шаблон этапа workflow',
   'file.uploaded': 'Загружен файл',
   'file.deleted': 'Удалён файл',
   'import.external': 'Приём данных извне (сайт/LMS)',
@@ -407,6 +410,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   SchoolCourse: 'Курс ИТ-Школы',
   SystemSecret: 'Секрет системы',
   Approval: 'Одобрение операции',
+  WorkflowStageTemplate: 'Шаблон этапа workflow',
   Attachment: 'Файл',
 }
 

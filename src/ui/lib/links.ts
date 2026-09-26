@@ -94,6 +94,8 @@ export function notificationHref(target: NotificationTargetDto): string {
       return documentHref(target.id)
     case 'recommendation':
       return recommendationHref(target.id)
+    case 'university':
+      return universityHref(target.id)
   }
 }
 

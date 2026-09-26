@@ -52,6 +52,7 @@ const ROW: UniversityListItemDto = {
   cooperationCount: 1,
   activeCooperationCount: 1,
   isMock: true,
+  responsible: null,
   rating: null,
   updatedAt: '2026-09-21T10:00:00.000Z',
   archivedAt: null,

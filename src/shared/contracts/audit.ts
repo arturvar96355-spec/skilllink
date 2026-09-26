@@ -155,6 +155,19 @@ export const AUDIT_ACTIONS = [
   'approval.consumed',
   /** Выгрузка журнала для внешней системы сбора событий: курсор, число строк, последний id. */
   'audit.export',
+  // ── Решение 146: соответствие ТЗ — workflow, роль «Руководитель», Swagger ──
+  /**
+   * Ответственный за вуз назначен, сменён или снят (роль «Руководитель», ТЗ).
+   * В payload — новый и прежний responsibleId (id, не ФИО — не персональные данные).
+   * По этой же записи строится уведомление новому ответственному (решение 139).
+   */
+  'university.responsible.set',
+  /**
+   * Правка хранимого шаблона этапа (название или нормативный срок — решение 146):
+   * в payload — номер этапа и изменённые поля «было → стало». Признак контрольной
+   * точки правкой не затрагивается — он только для чтения.
+   */
+  'workflow_template.update',
   /**
    * Файлы к документам и этапам (решение 145): загрузка и удаление. В payload —
    * владелец (тип и id), расширение, размер и sha256 — не оригинальное имя
@@ -208,6 +221,7 @@ export const AUDIT_OBJECT_TYPES = [
   'SchoolCourse',
   'SystemSecret',
   'Approval',
+  'WorkflowStageTemplate',
   'Attachment',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
