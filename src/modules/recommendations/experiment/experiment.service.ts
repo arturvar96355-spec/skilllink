@@ -24,7 +24,7 @@ import { evaluateOutcome, programIdsOf, type Outcome, type SignalContext } from 
 import { buildExperimentReport, type ReportSettings } from './report'
 
 /**
- * Контрольная группа рекомендаций (решение 126): журнал сигналов, назначение в группу,
+ * Контрольная группа рекомендаций (решение 136): журнал сигналов, назначение в группу,
  * исходы и отчёт. Выдача рекомендаций знает о нём ровно одну функцию — `withControlGroup`.
  */
 

@@ -4,7 +4,7 @@ import * as experiment from '@/modules/recommendations/experiment/experiment.ser
 
 /**
  * Работают ли рекомендации: группа с рекомендацией против контрольной, прирост
- * с 95 % интервалом и честным статусом (решение 126). Только чтение.
+ * с 95 % интервалом и честным статусом (решение 136). Только чтение.
  */
 export const GET = handle(async () => {
   const user = await getCurrentUser()

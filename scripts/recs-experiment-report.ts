@@ -1,5 +1,5 @@
 /**
- * Отчёт «работают ли рекомендации» по журналу сигналов текущей базы (решение 126).
+ * Отчёт «работают ли рекомендации» по журналу сигналов текущей базы (решение 136).
  *
  *   npm run recs:experiment-report
  *
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   }
   const report = await buildReport(new Date())
 
-  console.log('Работают ли рекомендации — отчёт по журналу сигналов (решение 126)')
+  console.log('Работают ли рекомендации — отчёт по журналу сигналов (решение 136)')
   console.log(`Эксперимент: ${report.enabled ? 'включён' : 'выключен (новые сигналы — все treatment)'}, ` +
     `доля контроля ${pct(report.controlShare)}, окно исхода ${report.horizonDays} дн.`)
   console.log(`Журнал: всего сигналов ${report.journal.total}, по хешу ${report.journal.randomized}`)

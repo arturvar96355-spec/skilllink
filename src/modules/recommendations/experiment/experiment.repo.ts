@@ -5,7 +5,7 @@ import type { ExperimentArm } from '@/shared/contracts/recommendation-experiment
 import type { AssignedBy } from './assignment'
 import type { Outcome, OutcomeFacts, ProgramEvent, SignalContext, StageClosure } from './outcome'
 
-/** Доступ к журналу сигналов и к фактам для исходов (решение 126). Prisma — только здесь. */
+/** Доступ к журналу сигналов и к фактам для исходов (решение 136). Prisma — только здесь. */
 
 export interface SignalIdentity {
   ruleType: string

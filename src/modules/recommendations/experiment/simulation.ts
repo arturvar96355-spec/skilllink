@@ -4,7 +4,7 @@ import { evaluateOutcome, type StageClosure } from './outcome'
 import { buildExperimentReport, type ReportSettings, type ReportSignal } from './report'
 
 /**
- * Симуляция эксперимента с известным эффектом (решение 126, `npm run recs:experiment-sim`).
+ * Симуляция эксперимента с известным эффектом (решение 136, `npm run recs:experiment-sim`).
  *
  * Сигналы и исходы выдуманы генератором псевдослучайных чисел с фиксированным зерном,
  * а назначение в группу, исход и отчёт считаются тем же кодом, что и на настоящих данных.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { cappedDays, evaluateOutcome, programIdsOf, type OutcomeFacts } from './outcome'
 
 /**
- * Исход сигнала (решение 126): связка перешла на следующий этап, или у программы
+ * Исход сигнала (решение 136): связка перешла на следующий этап, или у программы
  * появилась связка/встреча, — в окне H дней после сигнала.
  */
 

@@ -3,7 +3,7 @@ import { mulberry32, simulate, type SimulationScenario } from './simulation'
 import type { ReportSettings } from './report'
 
 /**
- * Симуляция для слайда (решение 126, npm run recs:experiment-sim): та же оценка,
+ * Симуляция для слайда (решение 136, npm run recs:experiment-sim): та же оценка,
  * что и на настоящих данных, находит заложенный эффект и не находит эффект там,
  * где его нет.
  */

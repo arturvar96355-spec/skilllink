@@ -16,6 +16,7 @@ import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
 import * as repo from './recommendations.repo'
 import { withControlGroup } from './experiment/experiment.service'
+import { ensureStageDurations } from '@/modules/analytics/stage-analytics.service'
 import {
   assertRecommendationTransition,
   compareDraftsByImportance,
@@ -137,6 +138,8 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   assertCan(user, 'ANALYTICS_WORK')
 
   const now = new Date()
+  // Порог застоя по истории этапов (решение 120): правило берёт его из памяти.
+  await ensureStageDurations(now)
   const input = await repo.loadGenerationInput()
   const drafts: RecommendationDraft[] = []
 
@@ -255,6 +258,7 @@ async function currentDraft(
   now: Date,
 ): Promise<RecommendationDraft | null> {
   if (row.objectType === 'Cooperation') {
+    await ensureStageDurations(now)
     const cooperation = await repo.loadCooperationForRules(row.objectId)
     if (!cooperation) return null
     return draftsForCooperation(cooperation, now).find((draft) => draft.ruleKey === row.ruleKey) ?? null
@@ -328,6 +332,7 @@ export async function updateStatus(
  */
 export async function syncCooperation(cooperationId: string): Promise<void> {
   try {
+    await ensureStageDurations()
     const cooperation = await repo.loadCooperationForRules(cooperationId)
     const drafts = cooperation ? draftsForCooperation(cooperation, new Date()) : []
     await repo.syncCooperation(cooperationId, drafts)

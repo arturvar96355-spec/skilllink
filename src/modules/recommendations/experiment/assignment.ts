@@ -5,7 +5,7 @@ import type { RecommendationPriority } from '@/shared/contracts/enums'
 import type { ExperimentArm } from '@/shared/contracts/recommendation-experiment'
 
 /**
- * Назначение сигнала в группу (решение 126).
+ * Назначение сигнала в группу (решение 136).
  *
  * Чистые функции без базы: одинаковый сигнал — одинаковая группа при любом порядке
  * обработки, на любой машине и при любом числе пересборок. Поэтому назначение

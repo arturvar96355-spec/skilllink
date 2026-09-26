@@ -32,6 +32,11 @@ services:
       dockerfile: Dockerfile
     container_name: skilllink-app
     restart: unless-stopped
+    # Остановка (выкладка, docker stop) — сначала SIGTERM: Next перестаёт принимать
+    # соединения и дожидается начатых запросов, потом выходит сам. По умолчанию Docker
+    # ждёт 10 с и добивает SIGKILL — долгая выгрузка оборвалась бы на середине.
+    # Фоновых задач внутри процесса нет (решение 118): сводки и копии — cron владельца.
+    stop_grace_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +94,9 @@ services:
       # Контрольная группа рекомендаций (решение 126). По умолчанию выключена: на стенде
       # показа сценарий опирается на рекомендации, прятать их нельзя.
       RECOMMENDATION_EXPERIMENT: ${RECOMMENDATION_EXPERIMENT:-off}
+      # Оповещения владельцу о событиях безопасности (решение 118): кроме администраторов
+      # с привязанным Telegram — ещё этот чат. Пусто — только администраторам.
+      TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.

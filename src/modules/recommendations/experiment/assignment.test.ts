@@ -9,9 +9,9 @@ import {
 } from './assignment'
 
 /**
- * Назначение группы (решение 126): детерминизм, доля контроля на больших выборках,
+ * Назначение группы (решение 136): детерминизм, доля контроля на больших выборках,
  * что исключается из эксперимента и выключатель. Формулы и мотивация — см.
- * docs/RECOMMENDATIONS_EXPERIMENT.md и docs/TECHNICAL_DECISIONS.md, раздел 126.
+ * docs/RECOMMENDATIONS_EXPERIMENT.md и docs/TECHNICAL_DECISIONS.md, раздел 136.
  */
 
 const SETTINGS: ExperimentSettings = {
