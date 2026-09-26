@@ -147,6 +147,17 @@ OVER=$(head -c $((CADDY_BODY_LIMIT + 1024)) /dev/urandom 2>/dev/null |
     -X POST --data-binary @- -H 'Content-Type: text/csv' "$URL/api/import")
 check "тело больше предела — ровно 413, а не обрыв" "$(yes_no "$OVER" 413)" "код $OVER"
 
+# У путей загрузки файлов (решение 145) свой, больший предел (Caddyfile, matcher
+# @fileUploads) — MAX_ATTACHMENT_SIZE_BYTES (src/shared/config/attachments.config.ts).
+# Путь с несуществующим id проверке Caddy не мешает: она режет тело до маршрутизации
+# в приложение и до всякой проверки прав.
+CADDY_UPLOAD_LIMIT=20971520
+OVER_UPLOAD=$(head -c $((CADDY_UPLOAD_LIMIT + 1024)) /dev/urandom 2>/dev/null |
+  curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 30 \
+    -X POST --data-binary @- -H 'Content-Type: application/octet-stream' \
+    "$URL/api/documents/check-sh-probe/files")
+check "тело больше предела загрузки файла — ровно 413, а не обрыв" "$(yes_no "$OVER_UPLOAD" 413)" "код $OVER_UPLOAD"
+
 # ── Устаревшая сессия не запирает вход ──────────────────────────────────────
 #
 # После перезаливки демо-данных cookie в браузере указывает на пользователя,

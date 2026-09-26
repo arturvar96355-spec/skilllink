@@ -28,6 +28,7 @@ import type {
   SkillLevel,
   StagePhase,
   StageStatus,
+  TransferStatus,
   UniversityStatus,
   UserRole,
   VendorContactChannel,
@@ -136,6 +137,14 @@ export const COOPERATION_STATUS_LABELS: Record<CooperationStatus, string> = {
   PAUSED: 'Приостановлена',
   COMPLETED: 'Завершена',
   CANCELLED: 'Отменена',
+}
+
+/** Статус передачи ПО вузу — «Каталог по ТЗ» (решение 145). Подписи дословно по ТЗ. */
+export const TRANSFER_STATUS_LABELS: Record<TransferStatus, string> = {
+  NOT_TRANSFERRED: 'Не передано',
+  IN_PROGRESS: 'Передаётся',
+  TRANSFERRED: 'Передано',
+  REVOKED: 'Отозвано',
 }
 
 export const STAGE_STATUS_LABELS: Record<StageStatus, string> = {
@@ -364,6 +373,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'approval.rejected': 'В одобрении операции отказано',
   'approval.consumed': 'Одобрение использовано',
   'audit.export': 'Выгрузка журнала для внешней системы',
+  'file.uploaded': 'Загружен файл',
+  'file.deleted': 'Удалён файл',
+  'import.external': 'Приём данных извне (сайт/LMS)',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -390,6 +402,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   SchoolCourse: 'Курс ИТ-Школы',
   SystemSecret: 'Секрет системы',
   Approval: 'Одобрение операции',
+  Attachment: 'Файл',
 }
 
 /** Статус запроса на одобрение (решение 133). */

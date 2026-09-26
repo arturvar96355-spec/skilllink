@@ -4,6 +4,10 @@ out/
 build/
 dist/
 src/generated/
+
+# Файлы к документам и этапам (решение 145) — локальное хранилище загрузок,
+# путь по умолчанию из UPLOADS_DIR (.env.example).
+.uploads/
 *.tsbuildinfo
 next-env.d.ts
 
