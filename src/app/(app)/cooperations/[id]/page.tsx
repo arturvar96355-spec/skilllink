@@ -60,6 +60,7 @@ import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { EditMeetingModal } from '../../EditMeetingModal'
 import { ChangeCooperationStatusModal } from './ChangeCooperationStatusModal'
 import { CooperationChain } from './CooperationChain'
+import { CreateDocumentModal } from '../../documents/CreateDocumentModal'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { LicenseModal } from './LicenseModal'
 import { licenseTermYearsText } from './license'
@@ -155,6 +156,8 @@ function CooperationContent() {
   const [packageResult, setPackageResult] = useState<DocumentPackageResultDto | null>(null)
   // Правка встречи (задача «Данные без экрана», пункт 2) — по образцу CreateMeetingModal.
   const [editingMeeting, setEditingMeeting] = useState<MeetingDto | null>(null)
+  // Добавление документа вручную (задача «Данные без экрана», пункт 3).
+  const [isDocumentOpen, setIsDocumentOpen] = useState(false)
 
   const generatePackage = useMutation(async () => {
     const result = await apiPost<DocumentPackageResultDto>(
@@ -461,6 +464,14 @@ function CooperationContent() {
         </div>
       )}
 
+      {tab === 'documents' && user.permissions.canWrite && (
+        <div className={styles.tabActions}>
+          <Button icon="plus" variant="secondary" onClick={() => setIsDocumentOpen(true)}>
+            Добавить документ
+          </Button>
+        </div>
+      )}
+
       {tab === 'documents' && (
         <Card padding="none">
           {documents.isLoading ? (
@@ -471,7 +482,7 @@ function CooperationContent() {
             <EmptyState
               icon="document"
               title="Документов нет"
-              description="По связке ещё не заведено ни одного документа. Пакет можно собрать из шаблонов кнопкой в заголовке страницы."
+              description="По связке ещё не заведено ни одного документа. Пакет можно собрать из шаблонов кнопкой в заголовке страницы или добавить документ вручную кнопкой выше."
             />
           ) : (
             <DataTable
@@ -484,6 +495,16 @@ function CooperationContent() {
             />
           )}
         </Card>
+      )}
+
+      {isDocumentOpen && (
+        <CreateDocumentModal
+          cooperationId={params.id}
+          onClose={(created) => {
+            setIsDocumentOpen(false)
+            if (created) documents.reload()
+          }}
+        />
       )}
 
       {tab === 'meetings' && user.permissions.canWrite && (
