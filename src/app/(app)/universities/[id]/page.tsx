@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
 import type {
@@ -64,6 +65,7 @@ import {
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
+import { UniversityAssistant } from './UniversityAssistant'
 import styles from './university.module.css'
 
 type TabKey =
@@ -537,6 +539,8 @@ export default function UniversityPage() {
         </Section>
       )}
 
+      {tab === 'overview' && user.permissions.canSeeAnalytics && <UniversityAssistant universityId={data.id} />}
+
       {tab === 'overview' && (
         <div className={styles.grid}>
           <Card>
@@ -790,7 +794,7 @@ export default function UniversityPage() {
                     <span className={styles.eventText}>
                       <span className={styles.eventTitle}>
                         {event.cooperationId ? (
-                          <a href={cooperationHref(event.cooperationId)}>{event.title}</a>
+                          <Link href={cooperationHref(event.cooperationId)}>{event.title}</Link>
                         ) : (
                           event.title
                         )}
@@ -892,6 +896,7 @@ export default function UniversityPage() {
           title={data.responsible ? 'Сменить ответственного за вуз' : 'Назначить ответственного за вуз'}
           description="Ответственный за вуз — сотрудник, который ведёт работу с ним в целом, отдельно от ответственных по конкретным связкам."
           endpoint={`/api/universities/${id}/responsible`}
+          consequence="Новый ответственный увидит назначение в своих уведомлениях, смена попадёт в журнал действий. Ответственные по связкам вуза не меняются."
           currentResponsibleId={data.responsible?.id ?? null}
           currentResponsibleName={data.responsible?.fullName ?? null}
           allowNone

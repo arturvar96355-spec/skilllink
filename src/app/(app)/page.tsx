@@ -70,6 +70,7 @@ import {
   type Pie3DSlice,
   type Pie3DTone,
 } from '@/ui'
+import { PriorityBreakdown } from './PriorityBreakdown'
 import styles from './dashboard.module.css'
 
 /** Знаков после запятой у показателей главной. Остальные — целые. */
@@ -181,7 +182,7 @@ const FACTOR_SHORT: Record<string, string> = {
 }
 
 /** Сколько связок показывать строками маршрута под главным блоком. */
-const ROUTE_ROWS = 6
+const ROUTE_ROWS = 8
 
 /**
  * «7 активных связей (6 в работе, 1 черновик)». Шапка, блок «Связки в работе»
@@ -498,7 +499,7 @@ function Dashboard() {
           {showcase && (
             <>
               <div className={styles.reveal} data-assemble="center" style={{ '--delay': '380ms' } as CSSProperties}>
-                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Кольцо можно покрутить.">
+                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение.">
                   <div className={styles.health}>
                     <HealthPie
                       title="Этапы в срок"
@@ -709,18 +710,19 @@ function Dashboard() {
                   <ul className={styles.actions}>
                     {data.priorityActions.map((action) => (
                       <li key={action.id}>
-                        <a className={styles.action} href={recommendationHref(action.id)}>
+                        <Link className={styles.action} href={recommendationHref(action.id)}>
                           <span className={styles.actionHead}>
                             <span className={styles.actionTitle}>{action.title}</span>
                             <PriorityBadge priority={action.priority} />
                           </span>
                           <ActionJustification text={action.justification} />
                           <span className={styles.actionTarget}>{action.target.label}</span>
-                        </a>
+                        </Link>
                       </li>
                     ))}
                   </ul>
                 )}
+                {data.priorityActions.length > 0 && <PriorityBreakdown />}
               </Section>
             </div>
           </div>
@@ -906,7 +908,16 @@ function Dashboard() {
                                 </span>
                               )}
                             </span>
-                            <span className={styles.rankLine} aria-hidden />
+                            {/* Полоска балла вместо декоративной черты: в покое та выглядела
+                                обломком посреди строки (ТЗ дизайна 26–29.09, п. 1.2). */}
+                            <span className={styles.rankBar} aria-hidden>
+                              {row.score !== null && (
+                                <span
+                                  className={styles.rankBarFill}
+                                  style={{ '--score': `${Math.max(0, Math.min(100, row.score))}%` } as CSSProperties}
+                                />
+                              )}
+                            </span>
                             <span className={row.score === null ? styles.scoreEmpty : styles.score}>
                               {row.score === null ? 'Нет данных' : formatScore(row.score)}
                             </span>

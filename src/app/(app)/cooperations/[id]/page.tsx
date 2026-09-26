@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { CONTROL_POINT_STAGES, SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
@@ -54,6 +55,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard } from '../../AiDraft'
+import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
@@ -527,6 +529,7 @@ function CooperationContent() {
         <ChangeResponsibleModal
           title="Сменить ответственного связки"
           description="У связки всегда есть ответственный — снять его нельзя, только назначить другого."
+          consequence="Смена попадёт в журнал действий. Ответственные за отдельные этапы не меняются."
           endpoint={`/api/cooperations/${params.id}`}
           currentResponsibleId={data.responsible.id}
           currentResponsibleName={data.responsible.fullName}
@@ -597,6 +600,13 @@ function CooperationContent() {
               ))}
             </div>
           )}
+          {/* «Почему нет» — по всем правилам связки: и когда предложений нет вовсе,
+              и когда видно не всё, что ожидали (ТЗ дизайна 26–29.09, п. 4.1). */}
+          {adviceScope === 'open' && !advice.isLoading && !advice.error && (
+            <div className={styles.whyNot}>
+              <WhyNoRecommendation entity="cooperation" id={params.id} />
+            </div>
+          )}
         </Card>
       )}
 
@@ -617,9 +627,9 @@ function CooperationContent() {
             <div className={styles.block}>
               <span className={styles.blockLabel}>Создано документов: {packageResult.created.length}</span>
               {packageResult.created.map((item) => (
-                <a key={item.document.id} className={styles.factLink} href={documentHref(item.document.id)}>
+                <Link key={item.document.id} className={styles.factLink} href={documentHref(item.document.id)}>
                   {item.document.title}
-                </a>
+                </Link>
               ))}
             </div>
           ) : (
