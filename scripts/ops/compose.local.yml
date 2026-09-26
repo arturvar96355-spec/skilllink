@@ -1,0 +1,36 @@
+# Локальная копия стенда для хаос-сценариев и проверки сторожа (решение 118).
+#
+# Тот же docker-compose.yml + compose.cloud.yml, что на сервере (Caddy, пределы
+# памяти, роль-владелец), но с другими именами контейнеров: на машине разработчика
+# рядом может работать `docker compose up -d postgres` с именем skilllink-postgres.
+#
+#   C="docker compose -p skilllink-ops -f docker-compose.yml -f deploy/yandex-cloud/compose.cloud.yml \
+#      -f scripts/ops/compose.local.yml --env-file <файл>"
+#
+# Файл настроек — как .env.cloud, только для своей машины (docs/OPERATIONS_TESTS.md):
+#   POSTGRES_PASSWORD, DOCKER_AUTH_SECRET, SEED_DEMO_PASSWORD, SITE_ADDRESS=:80,
+#   DOCKER_AUTH_URL=http://localhost:8154, HTTP_PORT=8154, HTTPS_PORT=8453,
+#   APP_PORT=3155, POSTGRES_PORT=5455.
+services:
+  postgres:
+    container_name: skilllink-ops-postgres
+  app:
+    container_name: skilllink-ops-app
+    image: skilllink-ops-app
+  migrate:
+    container_name: skilllink-ops-migrate
+    image: skilllink-ops-migrate
+  caddy:
+    container_name: skilllink-ops-caddy
+    # Тот же Caddyfile, но внутри образа, а не монтированием: Docker на маке работает
+    # в виртуальной машине, и каталог вне домашнего (рабочая копия во временной папке)
+    # в неё не смонтирован — Docker молча подставил бы пустую папку.
+    image: skilllink-ops-caddy
+    build:
+      context: deploy/yandex-cloud
+      dockerfile_inline: |
+        FROM caddy:2.8-alpine
+        COPY Caddyfile /etc/caddy/Caddyfile
+    volumes: !override
+      - caddy-data:/data
+      - caddy-config:/config
