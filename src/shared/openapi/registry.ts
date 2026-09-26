@@ -72,6 +72,7 @@ import {
 import {
   recommendationListQuerySchema,
   updateRecommendationSchema,
+  whyNotQuerySchema,
 } from '@/modules/recommendations/recommendations.schema'
 import {
   createSkillSchema,
@@ -140,7 +141,21 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     method: 'get',
     path: '/api/health',
     tag: 'Служебное',
-    summary: 'Проверка живости приложения и подключения к базе',
+    summary: 'Проверка живости: процесс жив и настроен (без базы)',
+    description:
+      'Без входа. На неё смотрит healthcheck контейнера. База не проверяется: её падение ' +
+      'не должно перезапускать приложение (решение 118). 503 — не задан AUTH_SECRET или DATABASE_URL.',
+    permission: 'ANY',
+    errors: ['INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/ready',
+    tag: 'Служебное',
+    summary: 'Проверка готовности: база отвечает, миграции совпадают с кодом',
+    description:
+      'Без входа. SELECT 1 (время ответа — latencyMs) и сверка последней применённой миграции ' +
+      'с последней в prisma/migrations. Иначе 503 { status: "degraded", reason } (решение 118).',
     permission: 'ANY',
     errors: ['INTERNAL'],
   },
@@ -1045,7 +1060,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Пересобрать рекомендации по правилам',
     description:
       'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
-      'вернулась, открывает; отклонённые с основанием не трогает.',
+      'вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после ' +
+      'отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.',
     permission: 'ANALYTICS_WORK',
     errors: COMMON_ERRORS,
   },
@@ -1054,9 +1070,38 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/recommendations',
     tag: 'Рекомендации',
     summary: 'Список рекомендаций',
+    description:
+      'sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность ' +
+      'случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, ' +
+      'scoreBreakdown (почему выше), reasons (почему предложена) и isDeferred. deferred=false — без отложенных.',
     permission: 'ANALYTICS',
     query: recommendationListQuerySchema,
     list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/recommendations/why-not',
+    tag: 'Рекомендации',
+    summary: 'Почему по объекту нет рекомендации',
+    description:
+      'Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при ' +
+      'пересборке, и возвращает каждую: пройдена ли и почему (уже есть сотрудничество, спрос ниже ' +
+      'порога, отклонена N дней назад — пауза до даты, правило выключено).',
+    permission: 'ANALYTICS',
+    query: whyNotQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/recommendations/rules/stats',
+    tag: 'Рекомендации',
+    summary: 'Вес каждого правила рекомендаций',
+    description:
+      'Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по ' +
+      'счётчикам с затуханием), 90-процентный интервал, полные и эффективные показы и успехи — ' +
+      'общий уровень, вузы и менеджеры.',
+    permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
   },
   {

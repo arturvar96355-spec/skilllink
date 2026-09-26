@@ -9,7 +9,10 @@
  */
 import 'dotenv/config'
 import { createHash } from 'node:crypto'
-import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
+import {
+  RECOMMENDATION_SORT_BY_SCORE,
+  RECOMMENDATION_SORT_MOST_IMPORTANT,
+} from '../src/shared/contracts/recommendation'
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
 import type { StageStatus } from '@/shared/contracts/enums'
@@ -113,6 +116,7 @@ function step(title: string): void {
 async function warmUp(): Promise<void> {
   const routes = [
     '/api/health',
+    '/api/ready',
     '/api/users',
     '/api/me',
     '/api/analytics/overview',
@@ -129,6 +133,8 @@ async function warmUp(): Promise<void> {
     '/api/documents?pageSize=1',
     '/api/meetings?pageSize=1',
     '/api/recommendations?pageSize=1',
+    '/api/recommendations/why-not?entity=program&id=warm-up',
+    '/api/recommendations/rules/stats',
     '/api/skills?pageSize=1',
     '/api/skills/warm-up',
     '/api/skills/warm-up/merge',
@@ -2607,15 +2613,36 @@ async function checkStageNotCountedTwice(): Promise<void> {
 async function checkHealth(): Promise<void> {
   step('Здоровье приложения отвечает по делу')
 
-  const response = await fetch(`${BASE_URL}/api/health`)
+  // Живость — без базы (решение 118): процесс жив и настроен.
+  const live = await fetch(`${BASE_URL}/api/health`)
+  const liveBody = (await live.json()) as { data?: { status?: string; database?: string; uptimeSeconds?: number } }
+  check('живость: статус ok', live.status === 200 && liveBody.data?.status === 'ok', `получено ${live.status}`)
+  check('живость не говорит о базе — её проверяет готовность', liveBody.data?.database === undefined)
+  check('живость называет время работы процесса', typeof liveBody.data?.uptimeSeconds === 'number')
+
+  // Готовность — база и миграции.
+  const response = await fetch(`${BASE_URL}/api/ready`)
   const body = (await response.json()) as {
-    data?: { status?: string; database?: string; schema?: string; hint?: string }
+    data?: {
+      status?: string
+      database?: string
+      schema?: string
+      hint?: string
+      latencyMs?: number
+      migration?: { applied?: string | null; expected?: string | null }
+    }
   }
   const health = body.data ?? {}
 
-  check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
+  check('готовность: статус ok на рабочем приложении', response.status === 200 && health.status === 'ok', `получено ${response.status} ${health.status}`)
   check('соединение с базой подтверждено', health.database === 'connected')
   check('схема отмечена применённой', health.schema === 'ready')
+  check(
+    'применённая миграция совпадает с последней в коде',
+    health.migration?.applied !== undefined && health.migration.applied === health.migration.expected,
+    `${health.migration?.applied} / ${health.migration?.expected}`,
+  )
+  check('время ответа базы измерено', typeof health.latencyMs === 'number')
   check(
     'на здоровом приложении подсказки нет',
     health.hint === undefined,
@@ -3181,6 +3208,246 @@ async function checkRecommendationFeedOrder(ctx: ProbeContext): Promise<void> {
       `${new Set(comparable).size} разных из ${expected.length}`,
     )
   }
+  actAs(null)
+}
+
+// ─────────────────────────── Решение 119: обучение рекомендаций ─────────────
+
+type ScoredRec = {
+  id: string
+  ruleKey: string
+  status: string
+  score: number | null
+  isDeferred: boolean
+  scoreBreakdown: { score: number; p: number; pSource: string } | null
+  reasons: Array<{ code: string; pass: boolean; detail: string }>
+  target: { objectType: string; objectId: string }
+}
+
+type RuleStatsRow = {
+  ruleKey: string
+  p: number
+  ci90: [number, number]
+  trials: number
+  successes: number
+  trialsEff: number
+  successesEff: number
+}
+
+async function checkRecommendationScoreFeed(ctx: ProbeContext): Promise<void> {
+  step('Лента по баллу: сверху полезное, у каждой рекомендации балл и причины (решение 119)')
+  actAs(ctx.adminId)
+  const feed = await call<ScoredRec[]>('GET', `/api/recommendations?sort=${RECOMMENDATION_SORT_BY_SCORE}&pageSize=100`)
+  const rows = feed.body.data ?? []
+  const key = (row: ScoredRec) => [row.isDeferred ? 1 : 0, row.score === null ? 1 : 0, -(row.score ?? 0)]
+  const outOfOrder = rows.findIndex((row, index) => {
+    if (index === 0) return false
+    const [a, b] = [key(rows[index - 1]!), key(row)]
+    for (let part = 0; part < 3; part += 1) {
+      if (a[part]! < b[part]!) return false
+      if (a[part]! > b[part]!) return true
+    }
+    return false
+  })
+  check(
+    'балл не растёт сверху вниз, отложенные и неоценённые — в конце',
+    feed.status === 200 && rows.length > 1 && outOfOrder === -1,
+    outOfOrder === -1 ? `${rows.length} рекомендаций, сверху ${rows[0]?.score?.toFixed(3) ?? '—'}` : `строка ${outOfOrder + 1}`,
+  )
+  const open = rows.filter((row) => row.status === 'NEW' || row.status === 'IN_PROGRESS')
+  check(
+    'у открытых: балл в [0..1], разбор сходится с баллом, есть причины',
+    open.length > 0 &&
+      open.every(
+        (row) =>
+          row.score !== null &&
+          row.score >= 0 &&
+          row.score <= 1 &&
+          Math.abs((row.scoreBreakdown?.score ?? -1) - row.score) < 1e-9 &&
+          row.reasons.length > 0 &&
+          row.reasons.some((item) => item.code === 'rule_weight_low'),
+      ),
+    `${open.length} открытых`,
+  )
+  check(
+    'проверки правила у открытой рекомендации пройдены',
+    open.every((row) =>
+      row.reasons
+        .filter((item) => item.code !== 'rule_weight_low' && item.code !== 'manager_overloaded')
+        .every((item) => item.pass),
+    ),
+  )
+  const paged: string[] = []
+  for (let page = 1; page <= Math.ceil(Math.min(rows.length, 60) / 7); page += 1) {
+    const chunk = await call<ScoredRec[]>('GET', `/api/recommendations?sort=${RECOMMENDATION_SORT_BY_SCORE}&page=${page}&pageSize=7`)
+    paged.push(...(chunk.body.data ?? []).map((row) => row.id))
+  }
+  check(
+    'постраничный обход по баллу — тот же порядок',
+    paged.join() === rows.slice(0, paged.length).map((row) => row.id).join(),
+  )
+  const notDeferred = await call<ScoredRec[]>('GET', '/api/recommendations?deferred=false&pageSize=100')
+  check(
+    'фильтр deferred=false — без отложенных',
+    notDeferred.status === 200 && (notDeferred.body.data ?? []).every((row) => !row.isDeferred),
+  )
+  actAs(null)
+}
+
+async function checkRecommendationWhyNot(ctx: ProbeContext): Promise<void> {
+  step('«Почему нет рекомендации» — те же проверки, что у правила (решение 119)')
+  actAs(ctx.adminId)
+  type WhyNot = {
+    rules: Array<{ ruleKey: string; wouldRecommend: boolean; checks: Array<{ check: string; pass: boolean; detail: string }> }>
+    checks: Array<{ check: string; pass: boolean; detail: string }>
+  }
+  const entityOf: Record<string, string> = { Cooperation: 'cooperation', EducationalProgram: 'program', Skill: 'skill' }
+  const feed = await call<ScoredRec[]>('GET', '/api/recommendations?status=NEW&pageSize=100')
+  const samples = (feed.body.data ?? []).filter((row) => entityOf[row.target.objectType]).slice(0, 6)
+  let agreed = 0
+  for (const row of samples) {
+    const answer = await call<WhyNot>(
+      'GET',
+      `/api/recommendations/why-not?entity=${entityOf[row.target.objectType]}&id=${row.target.objectId}&rule=${row.ruleKey}`,
+    )
+    const rule = answer.body.data?.rules[0]
+    if (answer.status === 200 && rule?.wouldRecommend && rule.checks.every((item) => item.pass)) agreed += 1
+    else console.log(`    ${GREY}${row.ruleKey} ${row.target.objectId}: ${JSON.stringify(rule?.checks.filter((c) => !c.pass))}${RESET}`)
+  }
+  check(
+    'по объектам с новой рекомендацией все проверки пройдены',
+    samples.length > 0 && agreed === samples.length,
+    `${agreed} из ${samples.length}`,
+  )
+
+  // Отклонённая в сиде «связка без движения» — пауза после отклонения.
+  const dismissed = await call<ScoredRec[]>('GET', '/api/recommendations?status=DISMISSED&pageSize=100')
+  const paused = (dismissed.body.data ?? []).find((row) => row.target.objectType === 'Cooperation')
+  if (paused) {
+    const answer = await call<WhyNot>(
+      'GET',
+      `/api/recommendations/why-not?entity=cooperation&id=${paused.target.objectId}&rule=${paused.ruleKey}`,
+    )
+    const pause = answer.body.data?.checks.find((item) => item.check === 'dismissed_recently')
+    check(
+      'отклонённая: проверка паузы названа, с датой или «пауза кончилась»',
+      answer.status === 200 && pause !== undefined && /Отклонена \d+ дн\. назад/.test(pause.detail),
+      pause?.detail ?? `код ${answer.status}`,
+    )
+  }
+
+  const bad = await call('GET', '/api/recommendations/why-not?entity=university&id=x')
+  check('вид объекта вне списка — 422', bad.status === 422, `код ${bad.status}`)
+  const missing = await call('GET', '/api/recommendations/why-not?entity=program&id=nonexistent-probe')
+  check('несуществующий объект — 404', missing.status === 404, `код ${missing.status}`)
+  actAs(ctx.rep?.id ?? null)
+  const asRep = await call('GET', `/api/recommendations/why-not?entity=program&id=nonexistent-probe`)
+  check('представителю вуза закрыто — 403', asRep.status === 403, `код ${asRep.status}`)
+  actAs(null)
+}
+
+async function ruleStatsNow(): Promise<RuleStatsRow[]> {
+  const stats = await call<{ rules: RuleStatsRow[] }>('GET', '/api/recommendations/rules/stats')
+  return stats.body.data?.rules ?? []
+}
+
+async function checkRecommendationRuleStats(ctx: ProbeContext): Promise<void> {
+  step('Веса правил: вероятность, интервал, счётчики (решение 119)')
+  actAs(ctx.adminId)
+  const rules = await ruleStatsNow()
+  check('пять правил', rules.length === 5, `${rules.length}`)
+  check(
+    'вес в [0..1] внутри 90-процентного интервала, успехов не больше показов',
+    rules.every(
+      (rule) =>
+        rule.p >= 0 &&
+        rule.p <= 1 &&
+        rule.ci90[0] <= rule.p &&
+        rule.p <= rule.ci90[1] &&
+        rule.successesEff <= rule.trialsEff + 1e-9 &&
+        rule.successes <= rule.trials,
+    ),
+  )
+  const stalled = rules.find((rule) => rule.ruleKey === 'cooperation.stalled')
+  const others = rules.filter((rule) => rule.ruleKey !== 'cooperation.stalled')
+  check(
+    'в демо-данных отклоняемое правило «связка без движения» весит меньше остальных',
+    stalled !== undefined && others.every((rule) => rule.p > stalled.p),
+    rules.map((rule) => `${rule.ruleKey} ${rule.p.toFixed(2)}`).join(', '),
+  )
+  actAs(null)
+}
+
+/**
+ * Гонка записи статистики: параллельные решения не теряют событий. Полные счётчики
+ * целые, поэтому сверка точная: показов прибавилось ровно столько, сколько
+ * пересборки создали записей, успехов — сколько рекомендаций закрыли.
+ */
+async function checkRecommendationStatsRace(ctx: ProbeContext): Promise<void> {
+  step('Статистика правил: параллельные пересборки и решения не теряют событий')
+  const { managerId, adminId } = ctx
+  if (!managerId) return
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const uni = await call<{ id: string }>('POST', '/api/universities', {
+    name: `Пробный вуз обучения ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+  })
+  const COUNT = 6
+  const programIds: string[] = []
+  for (let index = 0; index < COUNT; index += 1) {
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа обучения ${index} ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const id = program.body.data?.id
+    if (!id) continue
+    programIds.push(id)
+    await call('POST', '/api/cooperations', { universityId: uni.body.data?.id, programId: id, responsibleId: managerId })
+  }
+  const sum = (rules: RuleStatsRow[], field: 'trials' | 'successes') =>
+    rules.reduce((total, rule) => total + rule[field], 0)
+
+  const before = await ruleStatsNow()
+  const generations = await Promise.all(
+    Array.from({ length: 3 }, () => call<{ created: number }>('POST', '/api/recommendations/generate')),
+  )
+  const created = generations.reduce((total, item) => total + (item.body.data?.created ?? 0), 0)
+  const afterGenerate = await ruleStatsNow()
+  check(
+    'три параллельные пересборки: показов прибавилось ровно столько, сколько создано записей',
+    generations.every((item) => item.status === 200) && created >= COUNT && sum(afterGenerate, 'trials') - sum(before, 'trials') === created,
+    `создано ${created}, показов +${sum(afterGenerate, 'trials') - sum(before, 'trials')}`,
+  )
+
+  const recs: string[] = []
+  for (const id of programIds) {
+    const list = await call<ScoredRec[]>('GET', `/api/recommendations?type=PROGRAM&status=NEW&pageSize=100`)
+    const rec = (list.body.data ?? []).find((row) => row.target.objectId === id && row.ruleKey === 'program.missing-metrics')
+    if (!rec) continue
+    await call('PATCH', `/api/recommendations/${rec.id}`, { status: 'IN_PROGRESS' })
+    await call('PATCH', `/api/programs/${id}`, { applicationCount: 10, studentCount: 20, groupCount: 1 })
+    recs.push(rec.id)
+  }
+  const beforeDone = await ruleStatsNow()
+  const done = await Promise.all(recs.map((id) => call('PATCH', `/api/recommendations/${id}`, { status: 'DONE' })))
+  // Двойной клик по той же: успех по одному показу засчитывается один раз.
+  await Promise.all(recs.slice(0, 2).map((id) => call('PATCH', `/api/recommendations/${id}`, { status: 'DONE' })))
+  const afterDone = await ruleStatsNow()
+  const gained = sum(afterDone, 'successes') - sum(beforeDone, 'successes')
+  const missing = (rules: RuleStatsRow[]) => rules.find((rule) => rule.ruleKey === 'program.missing-metrics')
+  check(
+    `${recs.length} параллельных «Выполнено»: успехов прибавилось ровно столько же, повтор не засчитан`,
+    recs.length === COUNT && done.every((item) => item.status === 200) && gained === recs.length,
+    `успехов +${gained}`,
+  )
+  check(
+    'вес правила «нет данных по программе» вырос после выполненных',
+    (missing(afterDone)?.p ?? 0) > (missing(beforeDone)?.p ?? 1),
+    `${missing(beforeDone)?.p.toFixed(3)} → ${missing(afterDone)?.p.toFixed(3)}`,
+  )
   actAs(null)
 }
 
@@ -5288,6 +5555,10 @@ async function main(): Promise<void> {
   await checkProblemCounter(ctx)
   await checkCooperationCount(ctx)
   await checkRecommendationFeedOrder(ctx)
+  await checkRecommendationScoreFeed(ctx)
+  await checkRecommendationWhyNot(ctx)
+  await checkRecommendationRuleStats(ctx)
+  await checkRecommendationStatsRace(ctx)
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
   await checkSkillNameConsistency(ctx)

@@ -581,6 +581,8 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   CourseStream: 'поток курса — справочник, без ПД (решение 132)',
   // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
   // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
+  RecommendationRuleStats: 'счётчики обучения правила (показы, успехи) по общей/вузовской/менеджерской области; ' +
+    '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',
 }
 
 /** Условие выборки раздела: своё или «любая из ссылок равна идентификатору». */
