@@ -1,6 +1,6 @@
 import type { CurrentUserDto } from '@/shared/contracts'
 import type { IconName } from '../primitives/Icon'
-import { API_CONTRACT_URL, ROUTES } from '../lib/links'
+import { API_CONTRACT_URL, OPEN_SOURCE_REPO_URL, ROUTES } from '../lib/links'
 
 /**
  * Состав бокового меню.
@@ -120,6 +120,12 @@ export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
   }
   // Политика обработки ПД — всем ролям: её обязан видеть каждый, чьи данные в системе.
   links.push({ href: ROUTES.privacy, label: 'Персональные данные' })
+  // Ссылка на открытый репозиторий — заметно на стенде (решение владельца, 27.09).
+  links.push({
+    href: OPEN_SOURCE_REPO_URL,
+    label: 'Открытый код: github.com/arturvar96355-spec/skilllink',
+    external: true,
+  })
   return links
 }
 

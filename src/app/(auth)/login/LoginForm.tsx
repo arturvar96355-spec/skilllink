@@ -10,7 +10,7 @@ import { WARP_NAVIGATE_MS } from './Constellation'
 import { TiltCard } from './Depth'
 import { safeReturnPath } from '@/shared/auth/return-path'
 import { EXPERT_QUICK_LOGIN_ROLES, LOGIN_CAPTCHA, LOGIN_THROTTLE } from '@/shared/config/auth.config'
-import { Button, Icon, Input, ROUTES } from '@/ui'
+import { Button, Icon, Input, OPEN_SOURCE_REPO_URL, ROUTES } from '@/ui'
 import { passCaptcha } from './captcha-solver'
 import styles from './login.module.css'
 
@@ -357,6 +357,18 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           <Link href={ROUTES.privacy} className={styles.privacyLink}>
             Политика обработки персональных данных
           </Link>
+        </p>
+
+        {/* Ссылка на открытый репозиторий — заметно на стенде (решение владельца). */}
+        <p className={styles.note}>
+          <a
+            href={OPEN_SOURCE_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.privacyLink}
+          >
+            Открытый код: github.com/arturvar96355-spec/skilllink
+          </a>
         </p>
       </div>
     </TiltCard>

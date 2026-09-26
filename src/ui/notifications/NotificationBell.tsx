@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { NotificationDto, NotificationFeedDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
 import { Icon, type IconName } from '../primitives/Icon'
@@ -63,7 +63,16 @@ export function NotificationBell() {
 
   const unread = feed.data?.unreadCount ?? 0
   const items = useMemo(() => feed.data?.items ?? [], [feed.data])
-  const now = useMemo(() => Date.now(), [feed.data])
+
+  // Время в списке («2 минуты назад») иначе застывает на моменте загрузки —
+  // пока панель открыта, обновляем его раз в минуту.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!isOpen) return
+    setNow(Date.now())
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [isOpen])
 
   function open() {
     setIsOpen((current) => {

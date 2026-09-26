@@ -27,7 +27,7 @@ export function Footer({ service }: { service: ServiceLink[] }) {
         <nav className={styles.footerLinks} aria-label="Служебные ссылки">
           {service.map((link) =>
             link.external ? (
-              <a key={link.href} className={styles.footerLink} href={link.href} target="_blank" rel="noreferrer">
+              <a key={link.href} className={styles.footerLink} href={link.href} target="_blank" rel="noopener noreferrer">
                 {link.label}
               </a>
             ) : (
