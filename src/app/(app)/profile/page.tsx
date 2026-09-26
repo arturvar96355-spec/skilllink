@@ -24,6 +24,7 @@ import {
   UiModeSwitch,
   buildQuery,
   cooperationHref,
+  firstNameOf,
   formatCount,
   formatDateTime,
   formatNumber,
@@ -96,7 +97,7 @@ export default function ProfilePage() {
 
   const data = stats.data
   const cooperations = mine.data ?? []
-  const firstName = user.fullName.split(' ')[1] ?? user.fullName
+  const firstName = firstNameOf(user.fullName)
 
   async function onSignOut() {
     setIsLeaving(true)
