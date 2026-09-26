@@ -24,6 +24,16 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+/**
+ * Право читать «Письма вузов» (`INBOUND_READ` на сервере, решение 170) —
+ * ADMIN, HEAD, MANAGER. Флага чтения в `GET /api/me` нет (только
+ * `permissions.canReviewLetters` — право разбирать и решать), поэтому пункт
+ * меню и охранник раздела смотрят на роль напрямую.
+ */
+export function canReadLetters(user: CurrentUserDto): boolean {
+  return user.role === 'ADMIN' || user.role === 'HEAD' || user.role === 'MANAGER'
+}
+
 export function navigationFor(user: CurrentUserDto): NavGroup[] {
   // У представителя вуза свой кабинет: внутренние реестры и аналитика ему закрыты.
   if (user.role === 'UNIVERSITY_REP') {
@@ -41,11 +51,19 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
 
   const workspace: NavItem[] = [
     { href: ROUTES.dashboard, label: 'Главная', icon: 'home' },
-    { href: ROUTES.universities, label: 'Университеты', icon: 'university' },
+    { href: ROUTES.universities, label: 'Вузы', icon: 'university' },
     { href: ROUTES.programs, label: 'Программы', icon: 'program' },
     { href: ROUTES.recommendations, label: 'Рекомендации', icon: 'recommendation' },
-    { href: ROUTES.cooperations, label: 'Сотрудничество', icon: 'cooperation' },
+    { href: ROUTES.cooperations, label: 'Связки', icon: 'cooperation' },
   ]
+  // «Письма вузов» (решение 170/171): читают ADMIN, HEAD и MANAGER (право
+  // INBOUND_READ) — тот же список ролей, что и у охранника раздела ниже.
+  // Отдельного флага чтения в правах нет (только canReviewLetters — это право
+  // разбирать и решать, а не видеть раздел), поэтому здесь смотрим на роль
+  // напрямую, как и у остальных пунктов этой функции.
+  if (canReadLetters(user)) {
+    workspace.push({ href: ROUTES.letters, label: 'Письма вузов', icon: 'mail' })
+  }
 
   const tools: NavItem[] = []
   if (user.permissions.canSeeAnalytics) {
@@ -151,6 +169,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.products, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.settings, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
+  { prefix: ROUTES.letters, allowed: canReadLetters },
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },

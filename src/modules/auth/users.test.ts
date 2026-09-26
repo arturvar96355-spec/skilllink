@@ -57,7 +57,9 @@ const as = (role: UserRole, id = 'me'): CurrentUser => ({
   universityId: role === 'UNIVERSITY_REP' ? 'uni-1' : null,
 })
 
-function row(overrides: Partial<{ id: string; role: UserRole; isActive: boolean; universityId: string | null }> = {}) {
+function row(
+  overrides: Partial<{ id: string; role: UserRole; isActive: boolean; isReviewer: boolean; universityId: string | null }> = {},
+) {
   return {
     id: 'target',
     email: 'target@skilllink.demo',
@@ -66,6 +68,7 @@ function row(overrides: Partial<{ id: string; role: UserRole; isActive: boolean;
     role: 'MANAGER' as UserRole,
     universityId: null,
     isActive: true,
+    isReviewer: false,
     university: null,
     createdAt: new Date('2026-09-01T00:00:00Z'),
     ...overrides,

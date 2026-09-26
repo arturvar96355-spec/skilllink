@@ -25,6 +25,15 @@
   .screen {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  /*
+   * На телефоне форма идёт первым экраном, а декоративная схема этапов — под ней:
+   * иначе, чтобы дойти до поля входа и кнопки «Войти», нужно было сначала
+   * пролистать заставку (итоговый список Серёже, п. 2.12).
+   */
+  .formSide {
+    order: -1;
+  }
 }
 
 .brandSide {
@@ -443,6 +452,31 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
   line-height: 1.45;
+}
+
+/*
+ * Быстрый вход экспертов хакатона (решение 176): отдельный блок под формой,
+ * в том же стекле, что и панель, но со своей границей сверху — не часть формы,
+ * второй способ входа. Кнопки оборачиваются на телефоне (375 px): три подписи
+ * в один ряд не помещаются на узком экране.
+ */
+.expertLogin {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--glass-edge);
+}
+
+.expertLoginTitle {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.expertLoginButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 .privacyLink {

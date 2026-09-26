@@ -40,6 +40,8 @@ import { ChangePasswordModal } from './ChangePasswordModal'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { Orb } from './Orb'
 import { ChannelsBlock } from './ChannelsBlock'
+import { ProfileInsights } from './ProfileInsights'
+import { ProfilePulse } from './ProfilePulse'
 import styles from './profile.module.css'
 
 /**
@@ -268,6 +270,19 @@ export default function ProfilePage() {
         ) : null}
       </section>
 
+      {/*
+        «Система заметила» и «Пульс» (решение 120) — раньше были только
+        в сводке Telegram-бота (решение 178, п. 6). Право ANALYTICS —
+        представителю вуза они и так закрыты сервером (403), поэтому здесь
+        дополнительно скрыты, а не показывают панель с отказом.
+      */}
+      {user.permissions.canSeeAnalytics && !isRep && (
+        <>
+          <ProfilePulse />
+          <ProfileInsights />
+        </>
+      )}
+
       {!isRep && (
         <div className={styles.columns}>
           {/* Мои связки: сами связки с лентой этапов, а не только их число. */}
@@ -374,7 +389,7 @@ export default function ProfilePage() {
         <div className={styles.blockHead}>
           <h2 id="profile-settings" className={styles.blockTitle}>
             Настройки
-            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — это логин, она не меняется. Пароль вы меняете сами — здесь.">
+            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — адрес для входа, она не меняется. Пароль вы меняете сами — здесь.">
               <span className={styles.hint}>
                 <Icon name="info" size={16} />
               </span>

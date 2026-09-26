@@ -2,6 +2,7 @@ import { compare, hash } from 'bcryptjs'
 import { pageMeta } from '@/shared/http/pagination'
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
 import { can, assertCan, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
+import { canBeResponsible } from '@/shared/contracts/enums'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
 import { alertUserChange } from '@/shared/ops/security-alerts'
@@ -62,6 +63,11 @@ export function toUserDto(row: repo.UserRow, showEmail: boolean): UserDto {
     universityId: row.universityId,
     universityName: row.university?.name ?? null,
     isActive: row.isActive,
+    isReviewer: row.isReviewer,
+    // Эксперт хакатона в справочнике пользователей видит роль ADMIN/MANAGER/HEAD,
+    // но ответственным быть не может (assertStaffResponsible) — фронт узнаёт это
+    // одним полем, не дублируя проверку isReviewer у себя.
+    canBeResponsible: canBeResponsible(row.role) && !row.isReviewer,
   }
 }
 
