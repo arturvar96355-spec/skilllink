@@ -131,6 +131,17 @@
   color: var(--text-primary);
 }
 
+.cellTitleLink {
+  width: fit-content;
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.cellTitleLink:hover {
+  color: var(--accent-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .cellMeta {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
