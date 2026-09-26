@@ -1,4 +1,5 @@
 import { handlers } from '@/shared/auth/auth'
+import { withMetrics } from '@/shared/http/metrics-guard'
 import { withRateLimit } from '@/shared/http/rate-limit-guard'
 
 /**
@@ -9,6 +10,7 @@ import { withRateLimit } from '@/shared/http/rate-limit-guard'
  *
  * Под общим ограничением частоты (решение 117): вход и выход — группа `auth`
  * по адресу клиента, чтение сессии и csrf-токена — обычное чтение.
+ * В метриках — одной меткой `/api/auth/[...nextauth]` (решение 137).
  */
-export const GET = withRateLimit(handlers.GET)
-export const POST = withRateLimit(handlers.POST)
+export const GET = withMetrics(withRateLimit(handlers.GET))
+export const POST = withMetrics(withRateLimit(handlers.POST))

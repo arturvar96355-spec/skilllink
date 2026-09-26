@@ -33,8 +33,19 @@ if (!databaseUrl && command && NEEDS_DATABASE.includes(command)) {
   )
 }
 
+/**
+ * Отдельная пустая база для сверки «миграции ↔ схема» (решение 137): Prisma 7
+ * проигрывает в ней папку миграций и сравнивает результат со schema.prisma
+ * (`prisma migrate diff --from-migrations … --to-schema …`). Содержимое этой базы
+ * Prisma стирает — общую базу разработки сюда не указывать. Нужна только CI
+ * и проверке перед выкладкой; приложению не нужна.
+ */
+const shadowDatabaseUrl = process.env.SHADOW_DATABASE_URL
+
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  ...(databaseUrl ? { datasource: { url: databaseUrl } } : {}),
+  ...(databaseUrl
+    ? { datasource: { url: databaseUrl, ...(shadowDatabaseUrl ? { shadowDatabaseUrl } : {}) } }
+    : {}),
   migrations: { seed: 'tsx prisma/seed.ts' },
 })

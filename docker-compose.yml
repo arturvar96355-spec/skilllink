@@ -98,6 +98,12 @@ services:
       # Оповещения владельцу о событиях безопасности (решение 118): кроме администраторов
       # с привязанным Telegram — ещё этот чат. Пусто — только администраторам.
       TELEGRAM_OWNER_CHAT_ID: ${TELEGRAM_OWNER_CHAT_ID:-}
+      # Метрики сервера (решение 137). Токен пуст — читает только сама машина
+      # приложения; BACKUP_STATUS_FILE пуст — метрик копии нет (нечего копировать
+      # локально). APP_COMMIT задаёт развёртывание (remote-up.sh), не человек.
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      BACKUP_STATUS_FILE: ${BACKUP_STATUS_FILE:-}
+      APP_COMMIT: ${APP_COMMIT:-}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.
@@ -129,5 +135,45 @@ services:
     command: ['npx', 'prisma', 'migrate', 'deploy']
     restart: 'no'
 
+  # Метрики и оповещения (решение 137) — по решению владельца, не по умолчанию:
+  #   docker compose --profile app --profile monitoring up -d
+  # На боевой машине (2 ГБ) не включён (docs/SECURITY_LIMITATIONS.md). Пароль
+  # Grafana обязателен — без него объявится admin/admin на открытом порту.
+  # Токен, которым Prometheus читает /api/metrics, — файл, не переменная
+  # (deploy/monitoring/metrics-token, docs/DEPLOY.md, deploy/monitoring/README.md).
+  prometheus:
+    profiles: ['monitoring']
+    image: prom/prometheus:v2.55.1
+    container_name: skilllink-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ./deploy/monitoring/metrics-token:/etc/prometheus/metrics-token:ro
+      - skilllink-prometheus-data:/prometheus
+    ports:
+      - '127.0.0.1:${PROMETHEUS_PORT:-9090}:9090'
+
+  grafana:
+    profiles: ['monitoring']
+    image: grafana/grafana-oss:11.3.1
+    container_name: skilllink-grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?задайте GRAFANA_ADMIN_PASSWORD}
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ./deploy/monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./deploy/monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/monitoring/grafana/skilllink.json:/etc/grafana/provisioning/skilllink-dashboards/skilllink.json:ro
+      - skilllink-grafana-data:/var/lib/grafana
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3001}:3000'
+
 volumes:
   skilllink-pgdata:
+  skilllink-prometheus-data:
+  skilllink-grafana-data:

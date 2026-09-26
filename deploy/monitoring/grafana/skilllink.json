@@ -1,0 +1,130 @@
+{
+  "title": "SkillLink",
+  "uid": "skilllink-overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Запросов в секунду по классу ответа",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total[1m])) by (status_class)",
+          "legendFormat": "{{status_class}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Доля ответов 5xx",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1, "min": 0 }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status_class=\"5xx\"}[5m])) / sum(rate(http_requests_total[5m]))",
+          "legendFormat": "доля 5xx"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Время ответа: p50 / p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Отказы 429 и неудачные входы",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "sum(rate(rate_limit_rejections_total[5m])) by (group)", "legendFormat": "429 {{group}}" },
+        { "expr": "sum(rate(auth_login_failures_total[5m])) by (reason)", "legendFormat": "вход {{reason}}" },
+        { "expr": "sum(rate(captcha_required_total[5m]))", "legendFormat": "капча" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Память процесса",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        { "expr": "process_resident_memory_bytes", "legendFormat": "RSS" },
+        { "expr": "process_heap_used_bytes", "legendFormat": "куча занято" },
+        { "expr": "process_heap_total_bytes", "legendFormat": "куча выделено" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Задержка цикла событий (p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [{ "expr": "process_event_loop_lag_seconds{stat=\"p99\"}", "legendFormat": "p99" }]
+    },
+    {
+      "id": 7,
+      "title": "База и пул соединений",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "expr": "db_up", "legendFormat": "db_up" },
+        { "expr": "db_pool_total_connections", "legendFormat": "пул: всего" },
+        { "expr": "db_pool_waiting_requests", "legendFormat": "пул: ждут" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Ночная копия",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 93600 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{ "expr": "time() - backup_last_success_timestamp_seconds", "legendFormat": "с последней удачной копии" }]
+    },
+    {
+      "id": 9,
+      "title": "Размер последней копии",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [{ "expr": "backup_last_size_bytes", "legendFormat": "байт" }]
+    }
+  ]
+}

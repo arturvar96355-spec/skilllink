@@ -81,6 +81,12 @@ mv -f "$partial" "$final" || broken "не удалось переименова�
 (cd "$BACKUP_DIR" && printf '%s  %s\n' "$(sha256_of "$name")" "$name" > "$name.sha256") ||
   broken "не удалось записать $name.sha256"
 
+# Отметка для метрик сервера (решение 137): `backup_last_success_timestamp_seconds`
+# и `backup_last_size_bytes` в /api/metrics читают этот файл через переменную
+# BACKUP_STATUS_FILE в контейнере приложения (путь и монтирование — на решение
+# владельца, docs/DEPLOY.md, раздел 10). Не смертельно, если не записалась.
+printf '{"timestamp": %s, "sizeBytes": %s}' "$(date +%s)" "$size" > "$BACKUP_DIR/last.json" 2> /dev/null || true
+
 # Срок хранения — вместе с контрольными суммами.
 find "$BACKUP_DIR" -maxdepth 1 \( -name 'skilllink-*.dump' -o -name 'skilllink-*.dump.sha256' \) \
   -mtime +"$KEEP_DAYS" -delete 2> /dev/null || true

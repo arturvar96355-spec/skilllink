@@ -9,6 +9,7 @@ import { checkLogin, clientAddress, needsCaptcha, throttledAttempt } from './thr
 import { parseSolution, verifySolution } from './captcha'
 import { loginAuditEntries, type LoginOutcome } from './login-audit'
 import { renewedSessionVersion, tokenSessionVersion } from './session-version'
+import { countSafely } from '@/shared/metrics/app-metrics'
 import { alertAdminLogin, alertLoginBlocked, noteCaptchaRequired } from '@/shared/ops/security-alerts'
 
 /**
@@ -144,6 +145,7 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           needsCaptcha(source) &&
           !verifySolution(parseSolution(credentials?.captcha), resolveSecret())
         ) {
+          countSafely((metrics) => metrics.captchaRequired.inc())
           // Массовое включение проверки — повод сообщить владельцу (решение 118).
           noteCaptchaRequired()
           throw new CaptchaRequiredError()
@@ -188,8 +190,13 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
           return matches ? user : null
         })
 
-        if (attempt.blocked) throw new LoginThrottledError()
+        if (attempt.blocked) {
+          countSafely((metrics) => metrics.loginFailures.inc({ reason: 'throttled' }))
+          throw new LoginThrottledError()
+        }
         const user = attempt.result
+        // Метрика — только число (решение 137): кто и откуда, пишет журнал действий.
+        if (!user) countSafely((metrics) => metrics.loginFailures.inc({ reason: 'credentials' }))
 
         const outcome: LoginOutcome = user
           ? { kind: 'success', userId: user.id, address: source.address }

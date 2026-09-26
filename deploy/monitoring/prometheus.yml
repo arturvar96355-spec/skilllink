@@ -1,0 +1,20 @@
+# Настройка Prometheus для профиля `monitoring` (решение 137, docker-compose.yml).
+#
+# Опрашивает приложение по имени сервиса docker-сети (app:3000), не по адресу
+# снаружи: /api/metrics закрыт в Caddy для всех, кроме этого пути. Токен —
+# файл deploy/monitoring/metrics-token (в git не попадает, см. README.md),
+# то же значение, что METRICS_TOKEN в .env / .env.cloud.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+scrape_configs:
+  - job_name: skilllink-app
+    metrics_path: /api/metrics
+    authorization:
+      credentials_file: /etc/prometheus/metrics-token
+    static_configs:
+      - targets: ['app:3000']

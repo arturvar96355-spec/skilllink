@@ -51,9 +51,11 @@ export const RATE_LIMITS: Record<RateLimitGroup, number> = {
  * - `/api/health` — проверка живости: её дёргают Docker и проверка стенда,
  *   429 на ней выглядел бы как падение приложения;
  * - `/api/telegram/webhook` — Telegram присылает обновления пачками с общего
- *   набора своих адресов, а подлинность проверяется секретом в заголовке.
+ *   набора своих адресов, а подлинность проверяется секретом в заголовке;
+ * - `/api/metrics` — метрики (решение 137): снаружи закрыты в Caddy, опрашивает
+ *   их Prometheus по токену, и 429 оставил бы дыру ровно во время всплеска.
  */
-export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/telegram/webhook']
+export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/telegram/webhook', '/api/metrics']
 
 /**
  * Тяжёлые маршруты (группа `heavy`) — по шаблону пути, любой метод.

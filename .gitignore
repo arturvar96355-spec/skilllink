@@ -19,3 +19,7 @@ coverage/
 .vitest/
 .idea/
 .vscode/
+
+# Токен, которым Prometheus читает /api/metrics (решение 137) — тот же секрет,
+# что METRICS_TOKEN. Пример без значения — deploy/monitoring/metrics-token.example.
+deploy/monitoring/metrics-token
