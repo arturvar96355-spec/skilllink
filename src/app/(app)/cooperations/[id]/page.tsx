@@ -55,6 +55,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard } from '../../AiDraft'
+import { RecommendationScore } from '../../RecommendationScore'
 import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { CooperationBlockers, CooperationProposalAction, CooperationStory } from './CooperationAssistant'
@@ -636,6 +637,7 @@ function CooperationContent() {
                   </div>
                   <span className={styles.blockText}>{item.description}</span>
                   <span className={styles.adviceWhy}>{item.justification}</span>
+                  <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
                   <Button
                     href={recommendationHref(item.id)}
                     variant="ghost"

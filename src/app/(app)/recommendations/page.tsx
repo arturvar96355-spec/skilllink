@@ -7,6 +7,7 @@ import {
   CONFIDENCE_LABELS,
   RECOMMENDATION_PRIORITIES,
   RECOMMENDATION_PRIORITY_LABELS,
+  RECOMMENDATION_SORT_BY_SCORE,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
   RECOMMENDATION_STATUS_ACTIONS,
   RECOMMENDATION_WORKFLOW_STATUSES,
@@ -55,7 +56,9 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard, AiDraftLoading, AiDraftView } from '../AiDraft'
+import { RecommendationScore } from '../RecommendationScore'
 import { WhyRecommended } from '../RuleChecks'
+import { RecommendationExperiment } from './ExperimentSummary'
 import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
@@ -129,6 +132,10 @@ function RecommendationsContent() {
     const fromUrl = searchParams.get('priority')
     return fromUrl && (RECOMMENDATION_PRIORITIES as readonly string[]).includes(fromUrl) ? fromUrl : ''
   })
+  // Лента по умолчанию — гибрид «приоритет → балл» (решение 147), порядок держит
+  // сценарий показа. «По баллу» — отдельный режим на весь балл (решение 119),
+  // самим гибридом не заменяется — выбирает сотрудник.
+  const [sort, setSort] = useState<string>(RECOMMENDATION_SORT_MOST_IMPORTANT)
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
   const [comment, setComment] = useState('')
@@ -146,7 +153,7 @@ function RecommendationsContent() {
             ? undefined
             : status,
     priority: priority || undefined,
-    sort: RECOMMENDATION_SORT_MOST_IMPORTANT,
+    sort,
     page,
     pageSize: PAGE_SIZE,
   })}`
@@ -252,11 +259,12 @@ function RecommendationsContent() {
   }
 
   // «Сбросить фильтры» (решение 128): назад к открытым, любому приоритету, всем типам.
-  const hasFilters = status !== 'open' || priority !== '' || tab !== 'all'
+  const hasFilters = status !== 'open' || priority !== '' || tab !== 'all' || sort !== RECOMMENDATION_SORT_MOST_IMPORTANT
   function resetFilters() {
     setStatus('open')
     setPriority('')
     setTab('all')
+    setSort(RECOMMENDATION_SORT_MOST_IMPORTANT)
     setPage(1)
   }
 
@@ -280,6 +288,8 @@ function RecommendationsContent() {
         actionLabel="Что сделать сегодня"
         endpoint="/api/ai/today"
       />
+
+      {user.permissions.canSeeAnalytics && <RecommendationExperiment />}
 
       <Tabs items={TABS} active={tab} onChange={(key) => changeFilter(() => setTab(key))} />
 
@@ -312,7 +322,24 @@ function RecommendationsContent() {
             }))}
           />
         </ToolbarItem>
+        <ToolbarItem>
+          <Select
+            label="Порядок ленты"
+            value={sort}
+            onValueChange={(value) => changeFilter(() => setSort(value || RECOMMENDATION_SORT_MOST_IMPORTANT))}
+            options={[
+              { value: RECOMMENDATION_SORT_MOST_IMPORTANT, label: 'Сначала важное' },
+              { value: RECOMMENDATION_SORT_BY_SCORE, label: 'По баллу' },
+            ]}
+          />
+        </ToolbarItem>
       </Toolbar>
+      {sort === RECOMMENDATION_SORT_BY_SCORE && (
+        <p className={styles.sortNote}>
+          Сверху то, что с наибольшей вероятностью окажется полезным по решениям сотрудников; отложенные защитой от
+          перегрузки — в конце. Порядок «сначала важное» (приоритет, при равенстве — балл) не меняется — это отдельный режим.
+        </p>
+      )}
 
       <Section>
         {recommendations.isLoading ? (
@@ -369,6 +396,13 @@ function RecommendationsContent() {
 
                     {item.resolutionComment && (
                       <p className={styles.resolution}>Комментарий: {item.resolutionComment}</p>
+                    )}
+
+                    <div className={styles.score}>
+                      <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
+                    </div>
+                    {item.isDeferred && (
+                      <span className={styles.deferred}>Отложена: у ответственного много невыполненных предложений</span>
                     )}
 
                     <div className={styles.foot}>
@@ -454,6 +488,16 @@ function RecommendationsContent() {
             <div className={styles.block}>
               <span className={styles.blockLabel}>Условия правила</span>
               <WhyRecommended recommendation={opened} />
+            </div>
+
+            <div className={styles.block}>
+              <span className={styles.blockLabel}>Как посчитан балл</span>
+              <RecommendationScore score={opened.score} breakdown={opened.scoreBreakdown} variant="full" />
+              {opened.isDeferred && (
+                <span className={styles.deferred}>
+                  Отложена защитой от перегрузки: у ответственного много невыполненных предложений — запись не удалена
+                </span>
+              )}
             </div>
 
             <div className={styles.block}>
