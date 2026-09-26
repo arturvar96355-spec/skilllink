@@ -26,6 +26,7 @@ import {
   Card,
   CooperationStatusBadge,
   DataTable,
+  DeadlineBadge,
   DocumentStatusBadge,
   EmptyState,
   ErrorState,
@@ -304,9 +305,15 @@ export default function UniversityPage() {
             <span className={styles.rowTitle}>
               {row.currentStage.stageNumber}. {row.currentStage.title}
             </span>
-            {row.currentStage.isOverdue && (
+            {(row.currentStage.isOverdue || row.currentStage.isPlanShifted || row.currentStage.isDueSoon) && (
               <span className={styles.rowMeta}>
-                <Badge tone="danger">Просрочен</Badge>
+                <DeadlineBadge
+                  isOverdue={row.currentStage.isOverdue}
+                  isPlanShifted={row.currentStage.isPlanShifted}
+                  isDueSoon={row.currentStage.isDueSoon}
+                  daysToDeadline={row.currentStage.daysToDeadline}
+                  compact
+                />
               </span>
             )}
           </span>
