@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { AI_PROPOSAL } from '@/shared/config/ai-assist.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { CooperationDto } from '@/shared/contracts/cooperation'
 import type { MeetingDto } from '@/shared/contracts/meeting'
@@ -268,6 +269,14 @@ describe('applyProposal', () => {
 
   it('проекта нет — 404', async () => {
     await expect(applyProposal(MANAGER, 'coop-1', 'нет-такого')).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+
+  it('проект истёк — 404, как будто его не было', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    const proposal = await proposalFor()
+    vi.setSystemTime(new Date(NOW.getTime() + AI_PROPOSAL.ttlMs + 1000))
+    await expect(applyProposal(MANAGER, 'coop-1', proposal.proposalId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
   it('связка изменилась после постройки проекта — 409', async () => {
