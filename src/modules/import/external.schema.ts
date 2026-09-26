@@ -8,7 +8,7 @@ import { legalEntityInnSchema } from '@/shared/validation/inn-ogrn'
  * в самом ТЗ), поэтому здесь только поля из примера в задании плюс минимум сверх
  * него, без которого нельзя завести вуз и программу в системе (`city`/`region`
  * у вуза, `level` у программы — необязательны в этом контракте и заполняются
- * плейсхолдером, если не пришли: docs/API_CONTRACT.md, раздел «Приём данных извне»).
+ * заглушкой, если не пришли: docs/API_CONTRACT.md, раздел «Приём данных извне»).
  */
 
 export const EXTERNAL_IMPORT_SOURCES = ['site', 'lms'] as const

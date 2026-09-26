@@ -15,7 +15,7 @@ import type { ExternalImportInput } from './external.schema'
  *
  * Реальный контракт с внешней стороной не согласован (сказано в самом ТЗ) —
  * поэтому вуз, программа и продукт заводятся по минимуму полей, которые контракт
- * действительно даёт, остальное — плейсхолдер (docs/API_CONTRACT.md).
+ * действительно даёт, остальное — заглушка (docs/API_CONTRACT.md).
  */
 
 export type EntityOutcome = 'created' | 'matched'

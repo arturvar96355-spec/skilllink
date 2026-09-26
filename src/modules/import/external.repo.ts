@@ -2,7 +2,7 @@ import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import type { ExternalImportSource } from './external.schema'
 
-/** Плейсхолдер для полей, которых нет в примерном контракте ТЗ (город, регион, категория). */
+/** Заглушка для полей, которых нет в примерном контракте ТЗ (город, регион, категория). */
 export const EXTERNAL_IMPORT_PLACEHOLDER = 'Не указано (данные извне)'
 
 export async function findLink(source: ExternalImportSource, externalId: string) {

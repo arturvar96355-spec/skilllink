@@ -1351,6 +1351,59 @@ function cooperationByKey(cooperations: CreatedCooperation[], key: string): Crea
   return found
 }
 
+/**
+ * Каталог по ТЗ РТК (решение 145): контрактные поля связки, которых не было
+ * (номер договора, лицензия, статус передачи, комментарий) — минимально, у двух
+ * связок, чтобы «Каталог по ТЗ» показывал заполненный пример, а не пустые колонки
+ * везде. Отдельная функция, вызывается последней в main(): параллельно демо-сид
+ * правит другой агент (feat/more-demo-data) — так правки не пересекаются.
+ */
+async function seedCatalogFields(cooperations: CreatedCooperation[]): Promise<void> {
+  console.log('Каталог по ТЗ: контрактные поля у части связок...')
+
+  const plan: Array<{
+    coopKey: string
+    contractNumber: string
+    licenseSignedAt: Date
+    licenseTermYears: number
+    transferStatus: 'NOT_TRANSFERRED' | 'IN_PROGRESS' | 'TRANSFERRED' | 'REVOKED'
+    comment: string
+  }> = [
+    {
+      // Этап 7 «Передача материалов и лицензии» давно закрыт (completedUpTo: 12) — лицензия передана.
+      coopKey: 'spbgu-spbgu-infosec',
+      contractNumber: '77/2025-ИБ',
+      licenseSignedAt: daysAgo(145),
+      licenseTermYears: 3,
+      transferStatus: 'TRANSFERRED',
+      comment: 'Лицензия передана вузу вместе с материалами на этапе 7.',
+    },
+    {
+      // Этап 7 заблокирован: вуз не подтвердил получение — статус «передаётся», не «передано».
+      coopKey: 'mtuci-mtuci-cloud',
+      contractNumber: '58/2026-ОБ',
+      licenseSignedAt: daysAgo(15),
+      licenseTermYears: 1,
+      transferStatus: 'IN_PROGRESS',
+      comment: 'Лицензия согласована, вуз пока не подтвердил получение (этап 7 заблокирован).',
+    },
+  ]
+
+  for (const item of plan) {
+    const coop = cooperationByKey(cooperations, item.coopKey)
+    await prisma.cooperation.update({
+      where: { id: coop.id },
+      data: {
+        contractNumber: item.contractNumber,
+        licenseSignedAt: item.licenseSignedAt,
+        licenseTermYears: item.licenseTermYears,
+        transferStatus: item.transferStatus,
+        comment: item.comment,
+      },
+    })
+  }
+}
+
 /** Документы связок с историей статусов. */
 async function seedDocuments(
   cooperations: CreatedCooperation[],
@@ -1818,6 +1871,11 @@ async function main(): Promise<void> {
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
   await printSummary(users, universityRep)
+
+  // Решение 145, в конце — см. комментарий у функции: не пересекается с сидом
+  // расширенного набора, который правит другой агент.
+  await seedCatalogFields(cooperations)
+
   console.log(`\nЗаливка заняла ${((Date.now() - startedAt) / 1000).toFixed(1)} с.`)
 }
 
