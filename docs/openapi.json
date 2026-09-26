@@ -1038,7 +1038,7 @@
           "Пользователи"
         ],
         "summary": "Пульс: «Внимание», «Сегодня», «Решить», «Успехи» по моим связкам",
-        "description": "Решение 120. То же содержимое, что сводка в Telegram. Разделы с потолком пунктов, total — сколько всего; checkedRules — сколько правил проверено; пустой пульс — isCalm и calmText.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 120. То же содержимое, что сводка в Telegram. Разделы с потолком пунктов, total — сколько всего; checkedRules — сколько правил проверено; пустой пульс — isCalm и calmText.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_me_pulse",
         "responses": {
           "200": {
@@ -1218,7 +1218,7 @@
           "Пользователи"
         ],
         "summary": "Есть ли личная ссылка на календарь сроков и встреч",
-        "description": "Только признак и время выпуска: сам адрес ленты показывается один раз, при выпуске (решение 105).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Только признак и время выпуска: сам адрес ленты показывается один раз, при выпуске (решение 105).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_me_calendar",
         "responses": {
           "200": {
@@ -1396,7 +1396,7 @@
           "Пользователи"
         ],
         "summary": "Выпустить или перевыпустить ссылку на календарь (.ics)",
-        "description": "Тела нет. В ответе url и webcalUrl — один раз; в базе хранится только SHA-256 токена. Перевыпуск сразу закрывает прежнюю ссылку. Ссылка = доступ без входа: хранить как пароль. В журнал — calendar.issue без токена.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Тела нет. В ответе url и webcalUrl — один раз; в базе хранится только SHA-256 токена. Перевыпуск сразу закрывает прежнюю ссылку. Ссылка = доступ без входа: хранить как пароль. В журнал — calendar.issue без токена.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "post_api_me_calendar",
         "responses": {
           "201": {
@@ -1574,7 +1574,7 @@
           "Пользователи"
         ],
         "summary": "Отозвать ссылку на календарь",
-        "description": "Прежний адрес ленты сразу отвечает 404. Повторный отзыв — 200 с revoked=false. В журнал — calendar.revoke.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Прежний адрес ленты сразу отвечает 404. Повторный отзыв — 200 с revoked=false. В журнал — calendar.revoke.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "delete_api_me_calendar",
         "responses": {
           "200": {
@@ -1889,7 +1889,7 @@
           "Пользователи"
         ],
         "summary": "Лента уведомлений текущего пользователя",
-        "description": "Сроки своих этапов, изменения по своим связкам и документам, важные рекомендации. Прочитанность хранит сервер (`users.notifications_seen_at`, решение 139), выставляется через POST /api/notifications/seen; необязательный since от клиента — обратная совместимость, используется более позднее из двух значений.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Сроки своих этапов, изменения по своим связкам и документам, важные рекомендации. Прочитанность хранит сервер (`users.notifications_seen_at`, решение 139), выставляется через POST /api/notifications/seen; необязательный since от клиента — обратная совместимость, используется более позднее из двух значений.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_notifications",
         "parameters": [
           {
@@ -2092,7 +2092,7 @@
           "Пользователи"
         ],
         "summary": "Отметить ленту уведомлений просмотренной",
-        "description": "Решение 139: отметка «прочитано» хранится на сервере, а не только в localStorage — переживает смену устройства и очистку хранилища. Тела нет — ставится текущее время сервера; с `seenAt` — переданное время, если оно не в будущем (иначе 422).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Решение 139: отметка «прочитано» хранится на сервере, а не только в localStorage — переживает смену устройства и очистку хранилища. Тела нет — ставится текущее время сервера; с `seenAt` — переданное время, если оно не в будущем (иначе 422).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "post_api_notifications_seen",
         "responses": {
           "200": {
@@ -2289,7 +2289,7 @@
           "Пользователи"
         ],
         "summary": "Глобальный поиск по разделам",
-        "description": "Вузы, программы, связки, продукты, навыки и документы одним запросом, сгруппированные по разделам. Права и видимость — как у соответствующих списков. Связки ищутся по словам: каждое слово — в полном или кратком имени вуза, программе, продукте, цели или ФИО ответственного.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Вузы, программы, связки, продукты, навыки и документы одним запросом, сгруппированные по разделам. Права и видимость — как у соответствующих списков. Связки ищутся по словам: каждое слово — в полном или кратком имени вуза, программе, продукте, цели или ФИО ответственного.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_search",
         "parameters": [
           {
@@ -2747,7 +2747,7 @@
           "Пользователи"
         ],
         "summary": "Уведомления в Telegram: состояние для личного кабинета",
-        "description": "configured — бот настроен администратором (иначе блок пишет «Не настроено администратором»); available — сводка доступна роли (представителю вуза — нет); linked, username, linkedAt — привязка текущего пользователя (решение 102).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "configured — бот настроен администратором (иначе блок пишет «Не настроено администратором»); available — сводка доступна роли (представителю вуза — нет); linked, username, linkedAt — привязка текущего пользователя (решение 102).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_me_telegram",
         "responses": {
           "200": {
@@ -2925,7 +2925,7 @@
           "Пользователи"
         ],
         "summary": "Уведомления в Telegram: ссылка на бота для подключения",
-        "description": "Отдаёт url вида https://t.me/<бот>?start=<токен> и срок expiresAt. Токен — HMAC над id пользователя и сроком, живёт 15 минут, срабатывает один раз; в базе не хранится. Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Бот не настроен — 502. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Отдаёт url вида https://t.me/<бот>?start=<токен> и срок expiresAt. Токен — HMAC над id пользователя и сроком, живёт 15 минут, срабатывает один раз; в базе не хранится. Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Бот не настроен — 502. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "post_api_me_telegram",
         "responses": {
           "200": {
@@ -3152,7 +3152,7 @@
           "Пользователи"
         ],
         "summary": "Уведомления в Telegram: отключить",
-        "description": "Удаляет привязку текущего пользователя и отдаёт новое состояние. Повтор — не ошибка; работает и при выключенном боте.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Удаляет привязку текущего пользователя и отдаёт новое состояние. Повтор — не ошибка; работает и при выключенном боте.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "delete_api_me_telegram",
         "responses": {
           "200": {
@@ -3332,7 +3332,7 @@
           "Пользователи"
         ],
         "summary": "Справочник пользователей",
-        "description": "Нужен для выбора ответственного и участников встреч; администратору — для вкладки «Пользователи» (фильтр isActive).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Нужен для выбора ответственного и участников встреч; администратору — для вкладки «Пользователи» (фильтр isActive).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_users",
         "parameters": [
           {
@@ -3380,7 +3380,8 @@
                     "MANAGER",
                     "ANALYST",
                     "VIEWER",
-                    "UNIVERSITY_REP"
+                    "UNIVERSITY_REP",
+                    "HEAD"
                   ]
                 },
                 {
@@ -3392,7 +3393,8 @@
                       "MANAGER",
                       "ANALYST",
                       "VIEWER",
-                      "UNIVERSITY_REP"
+                      "UNIVERSITY_REP",
+                      "HEAD"
                     ]
                   }
                 }
@@ -3993,7 +3995,8 @@
                       "MANAGER",
                       "ANALYST",
                       "VIEWER",
-                      "UNIVERSITY_REP"
+                      "UNIVERSITY_REP",
+                      "HEAD"
                     ]
                   },
                   "universityId": {
@@ -4623,7 +4626,8 @@
                       "MANAGER",
                       "ANALYST",
                       "VIEWER",
-                      "UNIVERSITY_REP"
+                      "UNIVERSITY_REP",
+                      "HEAD"
                     ]
                   },
                   "universityId": {
@@ -6905,7 +6909,7 @@
           "Университеты"
         ],
         "summary": "Реестр университетов",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_universities",
         "parameters": [
           {
@@ -7269,7 +7273,7 @@
           "Университеты"
         ],
         "summary": "Создать университет",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_universities",
         "responses": {
           "201": {
@@ -7725,7 +7729,7 @@
           "Университеты"
         ],
         "summary": "Карточка университета",
-        "description": "Почта и телефон контактных лиц — только ADMIN и MANAGER, представителю вуза — своего вуза (решение 106). Остальным `email` и `phone` = null и `contactDetailsHidden: true`; ФИО и должность видны.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Почта и телефон контактных лиц — только ADMIN и MANAGER, представителю вуза — своего вуза (решение 106). Остальным `email` и `phone` = null и `contactDetailsHidden: true`; ФИО и должность видны.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_universities__id_",
         "parameters": [
           {
@@ -7963,7 +7967,7 @@
           "Университеты"
         ],
         "summary": "Изменить университет",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_universities__id_",
         "parameters": [
           {
@@ -8413,13 +8417,377 @@
         }
       }
     },
+    "/api/universities/{id}/responsible": {
+      "patch": {
+        "tags": [
+          "Университеты"
+        ],
+        "summary": "Назначить, сменить или снять ответственного за вуз",
+        "description": "Роль «Руководитель» из ТЗ (решение 146): право переставлять ответственных за вузы, которого нет у обычного менеджера. `responsibleId: null` снимает ответственного — у вуза он необязателен, в отличие от связки. Действие пишется в журнал (`university.responsible.set`) и попадает в ленту уведомлений нового ответственного.\n\nПраво доступа: Роли: ADMIN, HEAD (решение 146, роль «Руководитель»: право переназначать ответственных за вузы и связки).",
+        "operationId": "patch_api_universities__id__responsible",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "responsibleId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "responsibleId"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/universities/{id}/archive": {
       "post": {
         "tags": [
           "Университеты"
         ],
         "summary": "Архивировать университет",
-        "description": "Отклоняется, если у вуза есть незакрытые связки.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Отклоняется, если у вуза есть незакрытые связки.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_universities__id__archive",
         "parameters": [
           {
@@ -8708,7 +9076,7 @@
           "Университеты"
         ],
         "summary": "Вернуть университет из архива",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_universities__id__restore",
         "parameters": [
           {
@@ -9197,7 +9565,7 @@
           "Университеты"
         ],
         "summary": "Зафиксировать правовое основание обработки ПД контакта",
-        "description": "Решение 111: основание по ч. 1 ст. 6 152-ФЗ и документ-основание; при согласии — дата получения (не в будущем) и форма. Повтор той же формы ничего не меняет. Обезличенный контакт и отозванное согласие — 409. В журнал — коды «было → стало» без текста документа.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Решение 111: основание по ч. 1 ст. 6 152-ФЗ и документ-основание; при согласии — дата получения (не в будущем) и форма. Повтор той же формы ничего не меняет. Обезличенный контакт и отозванное согласие — 409. В журнал — коды «было → стало» без текста документа.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "put_api_universities__id__contacts__contactId__legal-basis",
         "parameters": [
           {
@@ -9637,7 +10005,7 @@
           "Университеты"
         ],
         "summary": "Отозвать согласие контакта — контакт обезличивается",
-        "description": "Ч. 5 ст. 21 152-ФЗ. Только когда основание — действующее согласие; иначе 409. Согласие — единственное основание, поэтому контакт сразу обезличивается тем же набором полей, что и `anonymize`. Документ отзыва обязателен. Необратимо; повтор возвращает тот же результат.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Ч. 5 ст. 21 152-ФЗ. Только когда основание — действующее согласие; иначе 409. Согласие — единственное основание, поэтому контакт сразу обезличивается тем же набором полей, что и `anonymize`. Документ отзыва обязателен. Необратимо; повтор возвращает тот же результат.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_universities__id__contacts__contactId__consent_withdraw",
         "parameters": [
           {
@@ -10009,7 +10377,7 @@
           "Университеты"
         ],
         "summary": "История основания обработки ПД и согласия контакта",
-        "description": "Кто, когда, что было → что стало. Без комментариев и текста документов. Новые сверху.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Кто, когда, что было → что стало. Без комментариев и текста документов. Новые сверху.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "get_api_universities__id__contacts__contactId__legal-basis_history",
         "parameters": [
           {
@@ -10302,7 +10670,7 @@
           "Университеты"
         ],
         "summary": "Лента последних событий вуза",
-        "description": "Собирается из истории этапов, документов, встреч и заявок.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Собирается из истории этапов, документов, встреч и заявок.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_universities__id__events",
         "parameters": [
           {
@@ -10553,7 +10921,7 @@
           "Программы"
         ],
         "summary": "Список образовательных программ",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_programs",
         "parameters": [
           {
@@ -10905,7 +11273,7 @@
           "Программы"
         ],
         "summary": "Создать образовательную программу",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_programs",
         "responses": {
           "201": {
@@ -11318,7 +11686,7 @@
           "Программы"
         ],
         "summary": "Карточка программы",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_programs__id_",
         "parameters": [
           {
@@ -11556,7 +11924,7 @@
           "Программы"
         ],
         "summary": "Изменить программу",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_programs__id_",
         "parameters": [
           {
@@ -11970,7 +12338,7 @@
           "Программы"
         ],
         "summary": "Заменить набор навыков программы",
-        "description": "Полная замена: пустой список снимает все навыки.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Полная замена: пустой список снимает все навыки.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "put_api_programs__id__skills",
         "parameters": [
           {
@@ -12347,7 +12715,7 @@
           "Программы"
         ],
         "summary": "Архивировать программу",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_programs__id__archive",
         "parameters": [
           {
@@ -12587,7 +12955,7 @@
           "Программы"
         ],
         "summary": "Вернуть программу из архива",
-        "description": "Отклоняется, если вуз программы находится в архиве.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Отклоняется, если вуз программы находится в архиве.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_programs__id__restore",
         "parameters": [
           {
@@ -12876,7 +13244,7 @@
           "Навыки"
         ],
         "summary": "Справочник навыков",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_skills",
         "parameters": [
           {
@@ -14419,7 +14787,7 @@
           "Навыки"
         ],
         "summary": "Востребованность навыков на рынке",
-        "description": "Каждая строка несёт источник, период и признак демонстрационных данных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Каждая строка несёт источник, период и признак демонстрационных данных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_skills_demand",
         "parameters": [
           {
@@ -14693,7 +15061,7 @@
           "Навыки"
         ],
         "summary": "Дефицит навыков (skill gap)",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_skills_gaps",
         "parameters": [
           {
@@ -15001,7 +15369,7 @@
           "IT-продукты"
         ],
         "summary": "Реестр IT-продуктов",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_products",
         "parameters": [
           {
@@ -15311,7 +15679,7 @@
           "IT-продукты"
         ],
         "summary": "Завести IT-продукт",
-        "description": "Название уникально без учёта регистра: дубль — CONFLICT.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Название уникально без учёта регистра: дубль — CONFLICT.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_products",
         "responses": {
           "201": {
@@ -15707,7 +16075,7 @@
           "IT-продукты"
         ],
         "summary": "Карточка IT-продукта",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_products__id_",
         "parameters": [
           {
@@ -15945,7 +16313,7 @@
           "IT-продукты"
         ],
         "summary": "Изменить IT-продукт",
-        "description": "Частичное изменение. Дубль названия — CONFLICT. Версию продукта с открытыми связками меняет выпуск версии, а не правка карточки — CONFLICT.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Частичное изменение. Дубль названия — CONFLICT. Версию продукта с открытыми связками меняет выпуск версии, а не правка карточки — CONFLICT.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_products__id_",
         "parameters": [
           {
@@ -16347,7 +16715,7 @@
           "IT-продукты"
         ],
         "summary": "Заменить набор навыков продукта",
-        "description": "Полная замена: пустой список снимает все навыки.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Полная замена: пустой список снимает все навыки.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "put_api_products__id__skills",
         "parameters": [
           {
@@ -16676,7 +17044,7 @@
           "IT-продукты"
         ],
         "summary": "Предпросмотр выпуска новой версии",
-        "description": "Показывает, какие связки затронет групповая операция. Ничего не меняет.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Показывает, какие связки затронет групповая операция. Ничего не меняет.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "get_api_products__id__release",
         "parameters": [
           {
@@ -16973,7 +17341,7 @@
           "IT-продукты"
         ],
         "summary": "Выпустить новую версию продукта",
-        "description": "Групповая операция: ставит задачи во всех связках с этим продуктом и переоткрывает закрытые этапы передачи материалов.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Групповая операция: ставит задачи во всех связках с этим продуктом и переоткрывает закрытые этапы передачи материалов.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_products__id__release",
         "parameters": [
           {
@@ -17342,7 +17710,7 @@
           "Сотрудничество"
         ],
         "summary": "Список связок",
-        "description": "q — поиск по словам без учёта регистра: каждое слово найдено хотя бы в одном поле — полное или краткое имя вуза, программа, продукт, цель, ФИО ответственного.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "q — поиск по словам без учёта регистра: каждое слово найдено хотя бы в одном поле — полное или краткое имя вуза, программа, продукт, цель, ФИО ответственного.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_cooperations",
         "parameters": [
           {
@@ -17686,7 +18054,7 @@
           "Сотрудничество"
         ],
         "summary": "Создать связку",
-        "description": "Сразу создаются все 14 этапов с чек-листами и нормативными сроками. Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT с details.cooperationId существующей.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Сразу создаются все 14 этапов с чек-листами и нормативными сроками. Вторая незакрытая связка с тем же «вуз + программа + IT-продукт» — CONFLICT с details.cooperationId существующей.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_cooperations",
         "parameters": [
           {
@@ -18133,7 +18501,7 @@
           "Сотрудничество"
         ],
         "summary": "Карточка связки со всеми этапами",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_cooperations__id_",
         "parameters": [
           {
@@ -18371,7 +18739,7 @@
           "Сотрудничество"
         ],
         "summary": "Изменить связку",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_cooperations__id_",
         "parameters": [
           {
@@ -18804,7 +19172,7 @@
           "Сотрудничество"
         ],
         "summary": "Этапы связки",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_cooperations__id__stages",
         "parameters": [
           {
@@ -19044,7 +19412,7 @@
           "Документы"
         ],
         "summary": "Собрать пакет документов из шаблонов",
-        "description": "Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Реквизиты подставляются автоматически. Недостающие заменяются видимым прочерком и перечисляются в ответе. Шаблон, по которому в связке уже есть документ, и лицензия без выбранного IT-продукта не собираются — они в skipped с причиной.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_cooperations__id__documents_generate",
         "parameters": [
           {
@@ -19405,7 +19773,7 @@
           "Workflow"
         ],
         "summary": "Изменить этап",
-        "description": "Недопустимый переход статуса возвращает INVALID_TRANSITION 409.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Недопустимый переход статуса возвращает INVALID_TRANSITION 409.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_workflow_stages__id_",
         "parameters": [
           {
@@ -19821,7 +20189,7 @@
           "Workflow"
         ],
         "summary": "История изменений этапа",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_workflow_stages__id__history",
         "parameters": [
           {
@@ -20061,7 +20429,7 @@
           "Workflow"
         ],
         "summary": "Отметить пункт чек-листа",
-        "description": "В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса. Закрытая связка или этап — конфликт; пункт контрольной точки до закрытия предыдущих этапов — недопустимый переход. Пункт вуза (`isUniversityItem`, решение 103): при действующем представителе вуза — 403 «Этот пункт отмечает представитель вуза в кабинете вуза»; без представителя отметка только с `confirmationNote` (3–500 символов), иначе 422 по полю `confirmationNote`. Как сотрудник может отметить пункт — `staffMarkRule` в пункте этапа.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "В ответе — этап целиком, чтобы фронт обновил прогресс без второго запроса. Закрытая связка или этап — конфликт; пункт контрольной точки до закрытия предыдущих этапов — недопустимый переход. Пункт вуза (`isUniversityItem`, решение 103): при действующем представителе вуза — 403 «Этот пункт отмечает представитель вуза в кабинете вуза»; без представителя отметка только с `confirmationNote` (3–500 символов), иначе 422 по полю `confirmationNote`. Как сотрудник может отметить пункт — `staffMarkRule` в пункте этапа.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_workflow_tasks__id_",
         "parameters": [
           {
@@ -20429,7 +20797,7 @@
           "Workflow"
         ],
         "summary": "Просроченные этапы",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_workflow_overdue",
         "parameters": [
           {
@@ -20683,7 +21051,7 @@
           "Workflow"
         ],
         "summary": "Заблокированные этапы",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_workflow_blocked",
         "parameters": [
           {
@@ -20937,7 +21305,7 @@
           "Аналитика"
         ],
         "summary": "Сводка главной страницы",
-        "description": "У каждого показателя есть происхождение и признак демонстрационных данных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "У каждого показателя есть происхождение и признак демонстрационных данных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_overview",
         "responses": {
           "200": {
@@ -21117,7 +21485,7 @@
           "Аналитика"
         ],
         "summary": "Рейтинг программ с раскрытием вклада показателей",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_programs",
         "responses": {
           "200": {
@@ -21297,7 +21665,7 @@
           "Аналитика"
         ],
         "summary": "Длительность этапов по Каплану–Мейеру и порог застоя",
-        "description": "Решение 120. По каждому этапу 1–13: n (входили в этап), events (перешли дальше), censored (ещё на этапе, пауза, отмена), median и p90 в днях с 95% интервалом (ci), кривая curve [{day, F, lo, hi}] — доля прошедших этап к дню. status insufficient_data — меньше minObservations наблюдений или minEvents переходов: порог застоя тогда ручной (threshold.source manual).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 120. По каждому этапу 1–13: n (входили в этап), events (перешли дальше), censored (ещё на этапе, пауза, отмена), median и p90 в днях с 95% интервалом (ci), кривая curve [{day, F, lo, hi}] — доля прошедших этап к дню. status insufficient_data — меньше minObservations наблюдений или minEvents переходов: порог застоя тогда ручной (threshold.source manual).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_stage-durations",
         "responses": {
           "200": {
@@ -21477,7 +21845,7 @@
           "Аналитика"
         ],
         "summary": "Предпросмотр порога застоя: сколько связок станут или перестанут быть застрявшими",
-        "description": "Решение 120. Было (текущий порог правила) → станет (порог days) по открытым связкам, у которых этап stage текущий; без stage — по всем этапам. Ничего не меняет.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 120. Было (текущий порог правила) → станет (порог days) по открытым связкам, у которых этап stage текущий; без stage — по всем этапам. Ничего не меняет.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_stalled-preview",
         "parameters": [
           {
@@ -21728,7 +22096,7 @@
           "Аналитика"
         ],
         "summary": "Воронка по этапам или вехам с отвалившимися и разрезом",
-        "description": "Решение 120. Для каждого шага: дошли, конверсия от предыдущего и от начала, медиана дней перехода, в работе, отвалившиеся (отменены или на паузе) со ссылками. milestones=true — шесть вех вместо 14 этапов; groupBy — разрез.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 120. Для каждого шага: дошли, конверсия от предыдущего и от начала, медиана дней перехода, в работе, отвалившиеся (отменены или на паузе) со ссылками. milestones=true — шесть вех вместо 14 этапов; groupBy — разрез.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_funnel",
         "parameters": [
           {
@@ -22029,7 +22397,7 @@
           "Аналитика"
         ],
         "summary": "Когорты: квартал старта × кварталы с начала → доля с подписанным договором",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_cohorts",
         "responses": {
           "200": {
@@ -22209,7 +22577,7 @@
           "Аналитика"
         ],
         "summary": "«Система заметила»: отклонения рядов и выводы по этапам",
-        "description": "Решение 120. [{code, severity, title, detail, facts, link}] — детерминированные тексты по шаблонам, каждое число из текста есть в facts. Без ИИ.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 120. [{code, severity, title, detail, facts, link}] — детерминированные тексты по шаблонам, каждое число из текста есть в facts. Без ИИ.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_insights",
         "responses": {
           "200": {
@@ -22389,7 +22757,7 @@
           "Качество данных"
         ],
         "summary": "Кандидаты в дубли: вузы, навыки, программы или продукты",
-        "description": "Пары { a, b, score, method, reasons } — самые похожие первыми, не больше 200. Названия нормализуются (регистр, «ё», кавычки, сокращения, синонимы навыков), сходство — триграммы как в pg_trgm, у коротких названий — число правок; у вузов — ещё ИНН, аббревиатура, город. Программы сравниваются только внутри вуза. Пары «не дубль» скрыты (includeDismissed=true — показать с признаком). В meta — порог, число сравненных записей, откуда взяты кандидаты и сколько пар скрыто как «не дубль».\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Пары { a, b, score, method, reasons } — самые похожие первыми, не больше 200. Названия нормализуются (регистр, «ё», кавычки, сокращения, синонимы навыков), сходство — триграммы как в pg_trgm, у коротких названий — число правок; у вузов — ещё ИНН, аббревиатура, город. Программы сравниваются только внутри вуза. Пары «не дубль» скрыты (includeDismissed=true — показать с признаком). В meta — порог, число сравненных записей, откуда взяты кандидаты и сколько пар скрыто как «не дубль».\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_data-quality_duplicates",
         "parameters": [
           {
@@ -22701,7 +23069,7 @@
           "Качество данных"
         ],
         "summary": "Отметить пару «не дубль»",
-        "description": "ADMIN и MANAGER. Порядок записей не важен; повтор возвращает сохранённую отметку и журнал не пишет. Обе записи должны существовать — иначе 422.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "ADMIN и MANAGER. Порядок записей не важен; повтор возвращает сохранённую отметку и журнал не пишет. Обе записи должны существовать — иначе 422.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_data-quality_duplicates_dismiss",
         "responses": {
           "200": {
@@ -22975,7 +23343,7 @@
           "Качество данных"
         ],
         "summary": "Отчёт «Качество справочника»: оценка 0–100 и проблемы",
-        "description": "По сущностям: score = 100 × (1 − Σ вес × доля записей с проблемой); итог — взвешенное среднее. Проблемы — с числом, долей, штрафом и примерами со ссылками. Веса — data-quality.config.ts, формула словами — в поле explanation.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "По сущностям: score = 100 × (1 − Σ вес × доля записей с проблемой); итог — взвешенное среднее. Проблемы — с числом, долей, штрафом и примерами со ссылками. Веса — data-quality.config.ts, формула словами — в поле explanation.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_data-quality_report",
         "responses": {
           "200": {
@@ -24002,7 +24370,7 @@
           "Университеты"
         ],
         "summary": "Лента 360 вуза: все события одной лентой",
-        "description": "Смены этапов, проведённые встречи, статусы документов, заявки, связки — всем, кто видит вуз; рекомендации и их статусы — ANALYTICS; факты по основаниям обработки ПД контактов (без ФИО) — ADMIN и MANAGER; правки записи вуза и слияния — WRITE. Представитель вуза — только свой вуз, без внутренних комментариев. Новые сверху, курсор: meta.nextCursor → ?cursor=. types=stage,meeting — отбор; недоступные роли типы просто не входят (meta.types).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Смены этапов, проведённые встречи, статусы документов, заявки, связки — всем, кто видит вуз; рекомендации и их статусы — ANALYTICS; факты по основаниям обработки ПД контактов (без ФИО) — ADMIN и MANAGER; правки записи вуза и слияния — WRITE. Представитель вуза — только свой вуз, без внутренних комментариев. Новые сверху, курсор: meta.nextCursor → ?cursor=. types=stage,meeting — отбор; недоступные роли типы просто не входят (meta.types).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_universities__id__timeline",
         "parameters": [
           {
@@ -24352,7 +24720,7 @@
           "Программы"
         ],
         "summary": "Похожие программы и чего не хватает этой",
-        "description": "Косинус векторов навыков (вес = важность × idf) + 0,1 за направление + 0,05 за уровень. В ответе — общие навыки и навыки похожих, которых у программы нет; missingSummary — подсказка для skill gap. Программы без общих навыков не показываются.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Косинус векторов навыков (вес = важность × idf) + 0,1 за направление + 0,05 за уровень. В ответе — общие навыки и навыки похожих, которых у программы нет; missingSummary — подсказка для skill gap. Программы без общих навыков не показываются.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_programs__id__similar",
         "parameters": [
           {
@@ -24652,7 +25020,7 @@
           "Аналитика"
         ],
         "summary": "Тепловая карта проведённых встреч: день недели × час (МСК)",
-        "description": "cells — 7 строк (пн … вс) × 24 часа. Проведённые — не позже текущего момента. Фильтры from, to, universityId; область видимости — как у встреч.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "cells — 7 строк (пн … вс) × 24 часа. Проведённые — не позже текущего момента. Фильтры from, to, universityId; область видимости — как у встреч.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_meetings-heatmap",
         "parameters": [
           {
@@ -24912,7 +25280,7 @@
           "Прогноз"
         ],
         "summary": "Метрики, статус ворот, коэффициенты и калибровка модели прогноза",
-        "description": "По обеим вехам (подписание договора, начало занятий). Представителю вуза недоступно, как и остальная аналитика.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "По обеим вехам (подписание договора, начало занятий). Представителю вуза недоступно, как и остальная аналитика.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_analytics_forecast_model",
         "responses": {
           "200": {
@@ -25272,7 +25640,7 @@
           "Прогноз"
         ],
         "summary": "Прогноз связки: вероятность, источник, объяснение",
-        "description": "Вероятность дойти до ближайшей ещё не пройденной вехи за горизонт прогноза, топ-3 «за» и «против» обычными словами. Представителю вуза недоступно (право `ANALYTICS`).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Вероятность дойти до ближайшей ещё не пройденной вехи за горизонт прогноза, топ-3 «за» и «против» обычными словами. Представителю вуза недоступно (право `ANALYTICS`).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_cooperations__id__forecast",
         "parameters": [
           {
@@ -25512,7 +25880,7 @@
           "Рекомендации"
         ],
         "summary": "Пересобрать рекомендации по правилам",
-        "description": "Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST.",
+        "description": "Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
         "operationId": "post_api_recommendations_generate",
         "responses": {
           "200": {
@@ -25692,7 +26060,7 @@
           "Рекомендации"
         ],
         "summary": "Список рекомендаций",
-        "description": "sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, scoreBreakdown (почему выше), reasons (почему предложена) и isDeferred. deferred=false — без отложенных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, scoreBreakdown (почему выше), reasons (почему предложена) и isDeferred. deferred=false — без отложенных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations",
         "parameters": [
           {
@@ -26054,7 +26422,7 @@
           "Рекомендации"
         ],
         "summary": "Почему по объекту нет рекомендации",
-        "description": "Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при пересборке, и возвращает каждую: пройдена ли и почему (уже есть сотрудничество, спрос ниже порога, отклонена N дней назад — пауза до даты, правило выключено).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при пересборке, и возвращает каждую: пройдена ли и почему (уже есть сотрудничество, спрос ниже порога, отклонена N дней назад — пауза до даты, правило выключено).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations_why-not",
         "parameters": [
           {
@@ -26367,7 +26735,7 @@
           "Рекомендации"
         ],
         "summary": "Вес каждого правила рекомендаций",
-        "description": "Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по счётчикам с затуханием), 90-процентный интервал, полные и эффективные показы и успехи — общий уровень, вузы и менеджеры.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по счётчикам с затуханием), 90-процентный интервал, полные и эффективные показы и успехи — общий уровень, вузы и менеджеры.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations_rules_stats",
         "responses": {
           "200": {
@@ -26547,7 +26915,7 @@
           "Рекомендации"
         ],
         "summary": "Карточка рекомендации",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations__id_",
         "parameters": [
           {
@@ -26785,7 +27153,7 @@
           "Рекомендации"
         ],
         "summary": "Принять, взять в работу, закрыть или отклонить рекомендацию",
-        "description": "Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST.",
+        "description": "Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
         "operationId": "patch_api_recommendations__id_",
         "parameters": [
           {
@@ -27159,7 +27527,7 @@
           "Рекомендации"
         ],
         "summary": "Работают ли рекомендации: контрольная группа и прирост",
-        "description": "Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба), дни до сдвига (интервал Уэлча), последовательная проверка Вальда, статус insufficient-data | not-proven | lift | negative и since. Считаются только сигналы, назначенные в группу по хешу, по принципу «по назначению». Только чтение.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба), дни до сдвига (интервал Уэлча), последовательная проверка Вальда, статус insufficient-data | not-proven | lift | negative и since. Считаются только сигналы, назначенные в группу по хешу, по принципу «по назначению». Только чтение.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations_experiment",
         "responses": {
           "200": {
@@ -27339,7 +27707,7 @@
           "ИИ-помощник"
         ],
         "summary": "Сводка по связке: где она, что мешает, что сделать дальше",
-        "description": "Черновик текста. Факты — из карточки связки и её открытых рекомендаций, без персональных данных; модель (YandexGPT или GigaChat) только формулирует. Модель выключена (AI_ASSIST_PROVIDER=off, по умолчанию), не настроена, упала, не уложилась в таймаут или лимит — тот же текст шаблоном, source: \"template\". Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Черновик текста. Факты — из карточки связки и её открытых рекомендаций, без персональных данных; модель (YandexGPT или GigaChat) только формулирует. Модель выключена (AI_ASSIST_PROVIDER=off, по умолчанию), не настроена, упала, не уложилась в таймаут или лимит — тот же текст шаблоном, source: \"template\". Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "post_api_cooperations__id__ai-summary",
         "parameters": [
           {
@@ -27579,7 +27947,7 @@
           "ИИ-помощник"
         ],
         "summary": "Черновик письма вузу по рекомендации",
-        "description": "Вежливое деловое письмо от лица ИТ-Школы РТК по фактам рекомендации: что нужно от вуза и к какому сроку. Письмо не отправляется. Без модели — шаблон. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Вежливое деловое письмо от лица ИТ-Школы РТК по фактам рекомендации: что нужно от вуза и к какому сроку. Письмо не отправляется. Без модели — шаблон. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_recommendations__id__ai-letter",
         "parameters": [
           {
@@ -27819,7 +28187,7 @@
           "ИИ-помощник"
         ],
         "summary": "Что сделать сегодня: 3–7 дел текущего пользователя",
-        "description": "Открытые рекомендации и проблемные этапы связок пользователя; порядок задают правила рекомендаций, модель только формулирует. Без модели — шаблон. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Открытые рекомендации и проблемные этапы связок пользователя; порядок задают правила рекомендаций, модель только формулирует. Без модели — шаблон. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "post_api_ai_today",
         "responses": {
           "200": {
@@ -27999,7 +28367,7 @@
           "История сотрудничества"
         ],
         "summary": "История сотрудничества по связке: где она, что мешает, что сделать дальше",
-        "description": "Детерминированная сводка по этапам, встречам, документам и открытым рекомендациям; числа считает код. Модель, если подключена, только формулирует уже собранные факты — без персональных данных (ФИО, почта, телефон вырезаются перед отправкой и возвращаются в ответе). Ответ модели с числом или датой, которых нет в фактах, отбрасывается. Модель выключена, не настроена или подвела — тот же текст шаблоном, source: \"template\".\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Детерминированная сводка по этапам, встречам, документам и открытым рекомендациям; числа считает код. Модель, если подключена, только формулирует уже собранные факты — без персональных данных (ФИО, почта, телефон вырезаются перед отправкой и возвращаются в ответе). Ответ модели с числом или датой, которых нет в фактах, отбрасывается. Модель выключена, не настроена или подвела — тот же текст шаблоном, source: \"template\".\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_cooperations__id__story",
         "parameters": [
           {
@@ -28239,7 +28607,7 @@
           "История сотрудничества"
         ],
         "summary": "История сотрудничества с вузом: сколько связок, в каком они состоянии",
-        "description": "То же самое, что история связки, но по всем связкам вуза сразу.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "То же самое, что история связки, но по всем связкам вуза сразу.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_universities__id__story",
         "parameters": [
           {
@@ -28479,7 +28847,7 @@
           "История сотрудничества"
         ],
         "summary": "Что мешает связке перейти к следующему этапу",
-        "description": "Список препятствий в порядке важности — по контрольным точкам, чек-листам этапа, подписанным документам и статусу связки. Без модели: это уже посчитанные правилами факты.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Список препятствий в порядке важности — по контрольным точкам, чек-листам этапа, подписанным документам и статусу связки. Без модели: это уже посчитанные правилами факты.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_cooperations__id__blockers",
         "parameters": [
           {
@@ -28719,7 +29087,7 @@
           "История сотрудничества"
         ],
         "summary": "Предложить план: проект встречи или новой даты этапа по препятствиям связки",
-        "description": "Ничего не сохраняет — только проект: тема и повестка встречи или новый срок этапа, дата — ближайший рабочий день через 3–5 дней. Проект живёт час (`expiresAt`), применяет его человек отдельным запросом. Вид проекта необязателен в теле: без него сервис сам выбирает по препятствиям связки.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Ничего не сохраняет — только проект: тема и повестка встречи или новый срок этапа, дата — ближайший рабочий день через 3–5 дней. Проект живёт час (`expiresAt`), применяет его человек отдельным запросом. Вид проекта необязателен в теле: без него сервис сам выбирает по препятствиям связки.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_cooperations__id__proposals",
         "parameters": [
           {
@@ -29034,7 +29402,7 @@
           "История сотрудничества"
         ],
         "summary": "Применить проект плана: создать встречу или перенести срок этапа",
-        "description": "Повторно проверяет права и версию связки (`sourceVersion` проекта): связка изменилась после постройки проекта — 409 «данные изменились, обновите предложение». Запись — штатным сервисом встреч или этапов, а не напрямую. Проект истёк или уже применён — 404. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Повторно проверяет права и версию связки (`sourceVersion` проекта): связка изменилась после постройки проекта — 409 «данные изменились, обновите предложение». Запись — штатным сервисом встреч или этапов, а не напрямую. Проект истёк или уже применён — 404. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_cooperations__id__proposals__proposalId__apply",
         "parameters": [
           {
@@ -29381,7 +29749,7 @@
           "Документы"
         ],
         "summary": "Список документов",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_documents",
         "parameters": [
           {
@@ -29722,7 +30090,7 @@
           "Документы"
         ],
         "summary": "Создать документ",
-        "description": "Хранятся метаданные и ссылка. Загрузка файлов — P2.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Хранятся метаданные и ссылка. Загрузка файлов — P2.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_documents",
         "parameters": [
           {
@@ -30121,7 +30489,7 @@
           "Документы"
         ],
         "summary": "Карточка документа с историей статусов",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_documents__id_",
         "parameters": [
           {
@@ -30359,7 +30727,7 @@
           "Документы"
         ],
         "summary": "Изменить документ",
-        "description": "Подписанный и архивный документ не редактируются.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Подписанный и архивный документ не редактируются.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_documents__id_",
         "parameters": [
           {
@@ -30767,7 +31135,7 @@
           "Документы"
         ],
         "summary": "Сменить статус документа",
-        "description": "Право доступа: Роли: ADMIN, MANAGER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_documents__id__status",
         "parameters": [
           {
@@ -31142,7 +31510,7 @@
           "Документы"
         ],
         "summary": "Создать новую версию документа",
-        "description": "Исходный документ уходит в архив.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Исходный документ уходит в архив.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_documents__id__versions",
         "parameters": [
           {
@@ -31393,7 +31761,7 @@
           "Документы"
         ],
         "summary": "Шаблоны документов и доступные подстановки",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_document-templates",
         "responses": {
           "200": {
@@ -31573,7 +31941,7 @@
           "Встречи"
         ],
         "summary": "Список встреч",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_meetings",
         "parameters": [
           {
@@ -31862,7 +32230,7 @@
           "Встречи"
         ],
         "summary": "Создать встречу",
-        "description": "Если задано следующее действие, обязателен его срок.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Если задано следующее действие, обязателен его срок.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_meetings",
         "parameters": [
           {
@@ -32304,7 +32672,7 @@
           "Встречи"
         ],
         "summary": "Карточка встречи",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_meetings__id_",
         "parameters": [
           {
@@ -32542,7 +32910,7 @@
           "Встречи"
         ],
         "summary": "Изменить встречу",
-        "description": "Список участников заменяется целиком, если передан.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Список участников заменяется целиком, если передан.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "patch_api_meetings__id_",
         "parameters": [
           {
@@ -32943,7 +33311,7 @@
           "Кабинет вуза"
         ],
         "summary": "Сводка кабинета представителя вуза",
-        "description": "Представитель видит только свой вуз. Сотрудник ИТ-Школы указывает вуз параметром.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
+        "description": "Представитель видит только свой вуз. Сотрудник ИТ-Школы указывает вуз параметром.\n\nПраво доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_portal_overview",
         "responses": {
           "200": {
@@ -33172,7 +33540,7 @@
           "Кабинет вуза"
         ],
         "summary": "Переданные вузу материалы",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_portal_materials",
         "responses": {
           "200": {
@@ -34087,7 +34455,7 @@
           "Кабинет вуза"
         ],
         "summary": "Заявки на обучение",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_portal_applications",
         "parameters": [
           {
@@ -34722,7 +35090,7 @@
           "Источники данных"
         ],
         "summary": "Источники данных с происхождением",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_data-sources",
         "parameters": [
           {
@@ -34958,7 +35326,7 @@
           "Источники данных"
         ],
         "summary": "Загрузить рыночные данные из активного источника",
-        "description": "Сбой источника возвращает INTEGRATION_ERROR 502 и не затрагивает систему.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST.",
+        "description": "Сбой источника возвращает INTEGRATION_ERROR 502 и не затрагивает систему.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
         "operationId": "post_api_data-sources_sync",
         "responses": {
           "201": {
@@ -35252,7 +35620,7 @@
           "Источники данных"
         ],
         "summary": "Состояние интеграций",
-        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_integrations_status",
         "responses": {
           "200": {
@@ -35432,7 +35800,7 @@
           "Выгрузка"
         ],
         "summary": "Выгрузка реестра в CSV",
-        "description": "Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой, дробные числа — с запятой, перечисления — русскими словами. Права совпадают с правами соответствующего раздела. Для universities, programs и cooperations принимаются фильтры и сортировка их списков (те же параметры, что у GET /api/<раздел>, кроме page и pageSize).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP.",
+        "description": "Файл для Excel: UTF-8 с BOM, разделитель — точка с запятой, дробные числа — с запятой, перечисления — русскими словами. Права совпадают с правами соответствующего раздела. Для universities, programs и cooperations принимаются фильтры и сортировка их списков (те же параметры, что у GET /api/<раздел>, кроме page и pageSize).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
         "operationId": "get_api_export",
         "parameters": [
           {
@@ -35648,7 +36016,7 @@
           "Выгрузка"
         ],
         "summary": "Загрузка реестра из CSV",
-        "description": "Тело запроса — сам файл (text/csv). По умолчанию предпросмотр: запись происходит только при mode=apply. Колонки совпадают с заголовками выгрузки. Разделитель «;» или «,» определяется по строке заголовков.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Тело запроса — сам файл (text/csv). По умолчанию предпросмотр: запись происходит только при mode=apply. Колонки совпадают с заголовками выгрузки. Разделитель «;» или «,» определяется по строке заголовков.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_import",
         "parameters": [
           {
@@ -35953,7 +36321,7 @@
           "Вендоры"
         ],
         "summary": "Реестр вендоров IT-продуктов",
-        "description": "Компании-вендоры с продуктами, числом контактов и связок. Поиск q — по названию вендора или продукта.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER.",
+        "description": "Компании-вендоры с продуктами, числом контактов и связок. Поиск q — по названию вендора или продукта.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD; почта и телефон контактов — ADMIN, MANAGER, HEAD.",
         "operationId": "get_api_vendors",
         "parameters": [
           {
@@ -36189,7 +36557,7 @@
           "Вендоры"
         ],
         "summary": "Карточка вендора",
-        "description": "Продукты, контакты (почта и телефон — только ADMIN и MANAGER, иначе null и contactDetailsHidden), связки с продуктами вендора, курсы ИТ-Школы на базе его продуктов.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER.",
+        "description": "Продукты, контакты (почта и телефон — только ADMIN и MANAGER, иначе null и contactDetailsHidden), связки с продуктами вендора, курсы ИТ-Школы на базе его продуктов.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD; почта и телефон контактов — ADMIN, MANAGER, HEAD.",
         "operationId": "get_api_vendors__id_",
         "parameters": [
           {
@@ -36429,7 +36797,7 @@
           "Вендоры"
         ],
         "summary": "Загрузка вендоров, продуктов и контактов (xlsx или CSV)",
-        "description": "Тело — сам файл: книга Excel или CSV с колонками Компания, Продукт, ФИО, Телефон, Почта, Способ связи. По умолчанию предпросмотр {toCreate, toUpdate, errors[{row, column, message}]}; запись — mode=apply. Несколько продуктов в ячейке — «A», «B». Телефон → +7XXXXXXXXXX, почта — нижний регистр. Продукт сопоставляется по названию без кавычек, регистра и пробелов; недостающий заводится.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Тело — сам файл: книга Excel или CSV с колонками Компания, Продукт, ФИО, Телефон, Почта, Способ связи. По умолчанию предпросмотр {toCreate, toUpdate, errors[{row, column, message}]}; запись — mode=apply. Несколько продуктов в ячейке — «A», «B». Телефон → +7XXXXXXXXXX, почта — нижний регистр. Продукт сопоставляется по названию без кавычек, регистра и пробелов; недостающий заводится.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_import_vendors",
         "parameters": [
           {
@@ -36722,7 +37090,7 @@
           "Набор на курсы"
         ],
         "summary": "Загрузка заказов с сайта",
-        "description": "Тело — JSON-массив заказов, как выгружает сайт (ключи: Номер заявки, Курс, Фамилия, Имя, Отчество, Телефон, Email, Номер потока; null пропускается). По умолчанию предпросмотр с отчётом о качестве данных; запись — mode=apply. В базе и в ответе нет ФИО, почты и телефона: хранятся номер заявки, курс, поток, дата из номера и HMAC почты и телефона. Повторная загрузка того же файла ничего не создаёт.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Тело — JSON-массив заказов, как выгружает сайт (ключи: Номер заявки, Курс, Фамилия, Имя, Отчество, Телефон, Email, Номер потока; null пропускается). По умолчанию предпросмотр с отчётом о качестве данных; запись — mode=apply. В базе и в ответе нет ФИО, почты и телефона: хранятся номер заявки, курс, поток, дата из номера и HMAC почты и телефона. Повторная загрузка того же файла ничего не создаёт.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_import_site-orders",
         "parameters": [
           {
@@ -37015,7 +37383,7 @@
           "Набор на курсы"
         ],
         "summary": "Файл «Загрузка пользователей» для LMS",
-        "description": "Тело — тот же JSON заказов. Ответ — книга Excel по шаблону LMS (30 колонок, Лист2 со справочниками); заполнены Фамилия, Имя, Отчество, Номер телефона (7XXXXXXXXXX), Email. Только уже загруженные заказы, один человек — одна строка. scope=new — без тех, кто уже уходил в LMS; фильтр courseId и stream. Заголовки ответа: x-total-rows, x-skipped-not-imported, x-skipped-already-exported, x-duplicates-merged. Cache-Control: no-store.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Тело — тот же JSON заказов. Ответ — книга Excel по шаблону LMS (30 колонок, Лист2 со справочниками); заполнены Фамилия, Имя, Отчество, Номер телефона (7XXXXXXXXXX), Email. Только уже загруженные заказы, один человек — одна строка. scope=new — без тех, кто уже уходил в LMS; фильтр courseId и stream. Заголовки ответа: x-total-rows, x-skipped-not-imported, x-skipped-already-exported, x-duplicates-merged. Cache-Control: no-store.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_import_site-orders_lms-file",
         "parameters": [
           {
@@ -37320,7 +37688,7 @@
           "Набор на курсы"
         ],
         "summary": "Курсы ИТ-Школы с показателями набора",
-        "description": "Заявки (заказы), слушатели (разные люди по HMAC почты или телефона), группы (потоки) — по курсу и потоку. meta.totals — итог по всем курсам.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER.",
+        "description": "Заявки (заказы), слушатели (разные люди по HMAC почты или телефона), группы (потоки) — по курсу и потоку. meta.totals — итог по всем курсам.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD; почта и телефон контактов — ADMIN, MANAGER, HEAD.",
         "operationId": "get_api_school-courses",
         "parameters": [
           {
@@ -37554,7 +37922,7 @@
           "Набор на курсы"
         ],
         "summary": "Завести курс ИТ-Школы",
-        "description": "Название уникально без учёта регистра, пробелов и кавычек — дубль CONFLICT. productId — курс на базе продукта.\n\nПраво доступа: Роли: ADMIN, MANAGER.",
+        "description": "Название уникально без учёта регистра, пробелов и кавычек — дубль CONFLICT. productId — курс на базе продукта.\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD.",
         "operationId": "post_api_school-courses",
         "responses": {
           "201": {
@@ -37924,7 +38292,7 @@
           "Настройки"
         ],
         "summary": "Параметры расчётов: веса, пороги, нормативы",
-        "description": "Только чтение (решение 107). Значения берутся из тех же констант, по которым считает код; isTemporary — рабочее значение (TEMP), утверждается с заказчиком. Группы: рейтинг, дефициты, профиль навыков, нормативы 14 этапов, правила рекомендаций, вход, сроки хранения; у каждой — ссылка на раздел методики.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER.",
+        "description": "Только чтение (решение 107). Значения берутся из тех же констант, по которым считает код; isTemporary — рабочее значение (TEMP), утверждается с заказчиком. Группы: рейтинг, дефициты, профиль навыков, нормативы 14 этапов, правила рекомендаций, вход, сроки хранения; у каждой — ссылка на раздел методики.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_settings_parameters",
         "responses": {
           "200": {
@@ -38090,6 +38458,500 @@
                         }
                       }
                     }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/workflow": {
+      "get": {
+        "tags": [
+          "Настройки"
+        ],
+        "summary": "Хранимый шаблон 14 этапов workflow",
+        "description": "ТЗ, функц. требования пп. 6, 9 (решение 146). Только ADMIN. Значения — источник для этапов НОВЫХ связок (buildStages); у уже заведённых связок этапы не меняются, если явно не попросить `applyToUnfinishedStages` при правке. `isControlPoint` — только чтение, с объяснением в каждом пункте.\n\nПраво доступа: Роль: ADMIN.",
+        "operationId": "get_api_settings_workflow",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/workflow/stages/{number}": {
+      "patch": {
+        "tags": [
+          "Настройки"
+        ],
+        "summary": "Переименовать этап шаблона или изменить нормативный срок",
+        "description": "Только ADMIN, только `title` и `normativeDays`. `isControlPoint` в теле отклоняется с объяснением (решения 5/28) до разбора остальных полей — признак завязан на код и через настройки не меняется. `applyToUnfinishedStages: true` пересчитывает срок и/или название у незавершённых этапов уже заведённых связок (каждой — от её собственной даты старта); без флага существующие связки не меняются.\n\nПраво доступа: Роль: ADMIN.",
+        "operationId": "patch_api_settings_workflow_stages__number_",
+        "parameters": [
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Номер этапа, 1–14"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "normativeDays": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 3650
+                  },
+                  "applyToUnfinishedStages": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -39758,7 +40620,7 @@
           "Университеты"
         ],
         "summary": "Раскрыть почту и телефон контакта вуза",
-        "description": "Причина обязательна (10–500 символов), fields — email и/или phone (по умолчанию оба). Каждое раскрытие — запись contact.revealed в журнале с перечнем полей и причиной (почта и телефоны в причине маскируются). ANALYST и VIEWER — 403 (решение 106); представитель вуза — только свой вуз, чужой — 404; обезличенный контакт — 409. Ответ не сохраняется для повторной отдачи (Cache-Control: no-store).\n\nПраво доступа: Роли: ADMIN, MANAGER; UNIVERSITY_REP — контакты своего вуза.",
+        "description": "Причина обязательна (10–500 символов), fields — email и/или phone (по умолчанию оба). Каждое раскрытие — запись contact.revealed в журнале с перечнем полей и причиной (почта и телефоны в причине маскируются). ANALYST и VIEWER — 403 (решение 106); представитель вуза — только свой вуз, чужой — 404; обезличенный контакт — 409. Ответ не сохраняется для повторной отдачи (Cache-Control: no-store).\n\nПраво доступа: Роли: ADMIN, MANAGER, HEAD; UNIVERSITY_REP — контакты своего вуза.",
         "operationId": "post_api_contacts__id__reveal",
         "parameters": [
           {

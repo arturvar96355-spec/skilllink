@@ -514,6 +514,7 @@ curl -s "http://localhost:3000/api/universities?q=связи&status=ACTIVE&pageS
   "cooperationCount": 2,
   "activeCooperationCount": 2,
   "isMock": true,
+  "responsible": null,
   "rating": { "score": 82.1, "basis": "estimate", "…": "см. ниже" },
   "updatedAt": "2026-09-21T07:23:11.101Z",
   "archivedAt": null
@@ -641,6 +642,23 @@ curl -s -X POST http://localhost:3000/api/universities \
 
 Право: `WRITE`. Любое подмножество полей создания, кроме `contacts`. **Пустое тело — 422.**
 Архивную запись править нельзя — `CONFLICT`.
+
+### PATCH /api/universities/:id/responsible
+
+Право: `ASSIGN_RESPONSIBLE` (роли `ADMIN`, `HEAD` — ТЗ, роль «Руководитель», решение 146).
+Обычный `MANAGER` этот маршрут не вызывает — 403.
+
+```json
+{ "responsibleId": "cmuser000000000000000001" }
+```
+
+`responsibleId: null` снимает ответственного (у вуза он необязателен, в отличие от связки).
+Указанный `responsibleId` должен принадлежать действующему сотруднику с ролью из
+`RESPONSIBLE_ROLES` (`ADMIN`, `MANAGER`, `HEAD`) — иначе `VALIDATION_ERROR`. Действие пишется
+в журнал (`university.responsible.set`) и попадает в ленту уведомлений
+(`GET /api/notifications`) нового ответственного, вид `university.responsible-changed`.
+
+Ответ — `UniversityDto`; в `responsible` теперь `{ id, fullName, role }` вместо `null`.
 
 ### POST /api/universities/:id/archive
 
@@ -1376,6 +1394,10 @@ curl -s -X POST http://localhost:3000/api/cooperations \
 править нельзя, кроме смены статуса — `CONFLICT`. `productId: null` отвязывает продукт.
 Смена продукта и переоткрытие подчиняются тому же правилу, что создание: если получится
 вторая незакрытая связка «вуз + программа + продукт» — `CONFLICT` с `details.cooperationId`.
+
+**`responsibleId` — дополнительно право `ASSIGN_RESPONSIBLE`** (роли `ADMIN`, `HEAD` — ТЗ,
+роль «Руководитель», решение 146): передан `responsibleId` без этого права — `403`, даже
+если у пользователя есть `WRITE`. Остальные поля этой проверкой не затронуты.
 
 ---
 
@@ -4092,6 +4114,53 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 - `methodology` — документ репозитория и заголовок раздела; тест проверяет, что раздел есть.
 - `stages` — все 14 этапов: нормативный срок в днях от создания связки, контрольная точка,
   можно ли отменить как «не требуется», этап 14 — автоматический.
+
+### GET /api/settings/workflow
+
+Право: `ADMIN` (ТЗ, функц. требования пп. 6, 9; решение 146). **Хранимый** шаблон 14 этапов
+(таблица `workflow_stage_templates`), отдельный от статического `GET /api/settings/parameters`
+выше: этот источник читает `buildStages` при создании **новой** связки, а тот — только
+показывает нормативы для справки и никогда не редактируется через API.
+
+```json
+{ "data": { "stages": [
+  { "stageNumber": 6, "title": "Подписание документов", "phase": "FORMALIZATION",
+    "phaseLabel": "Оформление", "normativeDays": 63, "isControlPoint": true,
+    "controlPointExplanation": "Контрольная точка: … (решения 5/28)",
+    "defaultTasks": [
+      { "title": "Документы подписаны со стороны вуза", "isRequired": true, "isUniversityItem": false } ],
+    "updatedAt": "2026-09-26T09:00:00.000Z", "updatedBy": null } ] } }
+```
+
+`controlPointExplanation` — только у этапов с `isControlPoint: true`, иначе `null`.
+`defaultTasks` — снимок чек-листа по умолчанию, только для отображения: этой версией API
+пункты не редактируются.
+
+### PATCH /api/settings/workflow/stages/:number
+
+Право: `ADMIN`. Только `title` и `normativeDays` — любое из двух, оба или ни одного (в теле
+нужно хотя бы одно). Пустое тело — 422. Номер вне 1–14 — 422, отсутствующий шаблон
+(таблица не заполнена — сделайте `npm run db:seed`) — 404.
+
+```json
+{ "title": "Подписание документов (новая редакция)", "normativeDays": 70, "applyToUnfinishedStages": false }
+```
+
+**`isControlPoint` в теле — 422 с объяснением**, до разбора остальных полей: признак
+контрольной точки завязан на правила порядка этапов в коде (решения 5/28,
+`CONTROL_POINT_STAGES`) и через это API не меняется никогда.
+
+`applyToUnfinishedStages: true` (по умолчанию `false`) пересчитывает новое название и/или
+срок у **незавершённых** этапов **уже заведённых** связок — у каждой от её собственной даты
+старта, а не общей датой. Без флага существующие связки не меняются (ТЗ, п. 4: «существующие
+не меняются»), меняются только новые — им шаблон подставляется при создании (`buildStages`).
+Ответ — шаблон плюс `appliedToStages: <число изменённых этапов>` (0, если флаг не передан).
+
+Действие пишется в журнал (`workflow_template.update`).
+
+**Дорожная карта, не в этой версии:** полноценный конструктор новых workflow — добавление,
+удаление и переупорядочивание этапов, редактирование состава чек-листа через интерфейс.
+Сейчас можно только переименовать существующий этап шаблона и изменить его нормативный срок.
 
 ## 15ж. Права субъекта ПД: «всё о субъекте», обезличивание, реестр запросов
 
