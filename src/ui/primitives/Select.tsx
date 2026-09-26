@@ -194,6 +194,8 @@ export function Select({
           disabled={disabled}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
+          aria-controls={isOpen ? `${id}-listbox` : undefined}
+          aria-activedescendant={isOpen && items[activeIndex] ? `${id}-option-${activeIndex}` : undefined}
           aria-invalid={error ? true : undefined}
         >
           <span
