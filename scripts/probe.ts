@@ -112,6 +112,7 @@ function step(title: string): void {
 async function warmUp(): Promise<void> {
   const routes = [
     '/api/health',
+    '/api/ready',
     '/api/users',
     '/api/me',
     '/api/analytics/overview',
@@ -2602,15 +2603,36 @@ async function checkStageNotCountedTwice(): Promise<void> {
 async function checkHealth(): Promise<void> {
   step('Здоровье приложения отвечает по делу')
 
-  const response = await fetch(`${BASE_URL}/api/health`)
+  // Живость — без базы (решение 118): процесс жив и настроен.
+  const live = await fetch(`${BASE_URL}/api/health`)
+  const liveBody = (await live.json()) as { data?: { status?: string; database?: string; uptimeSeconds?: number } }
+  check('живость: статус ok', live.status === 200 && liveBody.data?.status === 'ok', `получено ${live.status}`)
+  check('живость не говорит о базе — её проверяет готовность', liveBody.data?.database === undefined)
+  check('живость называет время работы процесса', typeof liveBody.data?.uptimeSeconds === 'number')
+
+  // Готовность — база и миграции.
+  const response = await fetch(`${BASE_URL}/api/ready`)
   const body = (await response.json()) as {
-    data?: { status?: string; database?: string; schema?: string; hint?: string }
+    data?: {
+      status?: string
+      database?: string
+      schema?: string
+      hint?: string
+      latencyMs?: number
+      migration?: { applied?: string | null; expected?: string | null }
+    }
   }
   const health = body.data ?? {}
 
-  check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
+  check('готовность: статус ok на рабочем приложении', response.status === 200 && health.status === 'ok', `получено ${response.status} ${health.status}`)
   check('соединение с базой подтверждено', health.database === 'connected')
   check('схема отмечена применённой', health.schema === 'ready')
+  check(
+    'применённая миграция совпадает с последней в коде',
+    health.migration?.applied !== undefined && health.migration.applied === health.migration.expected,
+    `${health.migration?.applied} / ${health.migration?.expected}`,
+  )
+  check('время ответа базы измерено', typeof health.latencyMs === 'number')
   check(
     'на здоровом приложении подсказки нет',
     health.hint === undefined,

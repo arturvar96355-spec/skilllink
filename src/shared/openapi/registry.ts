@@ -134,7 +134,21 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     method: 'get',
     path: '/api/health',
     tag: 'Служебное',
-    summary: 'Проверка живости приложения и подключения к базе',
+    summary: 'Проверка живости: процесс жив и настроен (без базы)',
+    description:
+      'Без входа. На неё смотрит healthcheck контейнера. База не проверяется: её падение ' +
+      'не должно перезапускать приложение (решение 118). 503 — не задан AUTH_SECRET или DATABASE_URL.',
+    permission: 'ANY',
+    errors: ['INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/ready',
+    tag: 'Служебное',
+    summary: 'Проверка готовности: база отвечает, миграции совпадают с кодом',
+    description:
+      'Без входа. SELECT 1 (время ответа — latencyMs) и сверка последней применённой миграции ' +
+      'с последней в prisma/migrations. Иначе 503 { status: "degraded", reason } (решение 118).',
     permission: 'ANY',
     errors: ['INTERNAL'],
   },

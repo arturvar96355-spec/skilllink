@@ -1,6 +1,6 @@
 import type { CurrentUserDto } from '@/shared/contracts'
 import type { IconName } from '../primitives/Icon'
-import { ROUTES } from '../lib/links'
+import { API_CONTRACT_URL, ROUTES } from '../lib/links'
 
 /**
  * Состав бокового меню.
@@ -75,8 +75,10 @@ export interface ServiceLink {
  */
 export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
   const links: ServiceLink[] = [
-    { href: '/api/openapi.json', label: 'Контракт API', external: true },
-    { href: '/api/health', label: 'Состояние системы', external: true },
+    // Не сырой JSON: контракт — документом в новой вкладке, состояние — страницей
+    // внутри приложения (решение 126).
+    { href: API_CONTRACT_URL, label: 'Контракт API', external: true },
+    { href: ROUTES.status, label: 'Состояние системы' },
   ]
   if (user.role !== 'UNIVERSITY_REP') {
     links.push({ href: `${ROUTES.settings}#integrations`, label: 'Источники данных' })
