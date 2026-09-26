@@ -62,7 +62,8 @@
 | `calendar_feeds` | `user_id` — чья подписка на календарь; `token_hash` — SHA-256 токена ссылки, сам токен не хранится (решение 105) | сотрудники ИТ-Школы | Ц1 |
 | `documents.content` | ФИО и должность контактного лица, подставленные в текст документа из шаблона («в лице …») | контактные лица вузов | Ц1 |
 | ссылки на сотрудников: `cooperations.responsible_id`, `workflow_stages.responsible_id`, `completed_by_id`, `stage_history.changed_by_id`, `documents.author_id`, `responsible_id`, `document_history.changed_by_id`, `meetings.responsible_id`, `tasks.done_by_id`, `applications.created_by_id`, `recommendations.resolved_by_id` | кто что сделал и когда — ПД сотрудника в связке с `users` | сотрудники, представители вузов | Ц1, Ц4 |
-| свободный текст: `contacts.notes`, `cooperations.notes`, `workflow_stages.comment`, `blocking_reason`, `result`, `stage_history.comment`, `document_history.comment`, `meetings.topic`, `result`, `next_action`, `applications.comment`, `recommendations.resolution_comment` | ПД сюда **не предназначены**, но человек может их вписать («созвонились с Ивановым») | кто угодно | — |
+| свободный текст: `contacts.notes`, `cooperations.notes`, `workflow_stages.comment`, `blocking_reason`, `result`, `stage_history.comment`, `document_history.comment`, `meetings.topic`, `result`, `next_action`, `applications.comment`, `recommendations.resolution_comment`, `cooperations.comment` (каталог по ТЗ, решение 145) | ПД сюда **не предназначены**, но человек может их вписать («созвонились с Ивановым») | кто угодно | — |
+| `attachments` (решение 145) | `original_name` — имя файла, как его назвал загрузивший (может содержать ФИО в имени файла); `uploaded_by_id` — кто загрузил. Само содержимое файла — не в этой таблице, см. раздел 2.2 | сотрудники (кто загрузил); файл может относиться к контактному лицу вуза (скан документа с его ФИО) | Ц1 |
 
 Свободный текст — главный неуправляемый канал ПД. Правило для пользователей
 (в политике и инструкции): **ФИО, телефоны и почту — только в карточке контакта**,
@@ -86,6 +87,7 @@
 | Учения по восстановлению (`restore-drill.sh`) | полная копия базы восстанавливается во временный контейнер без тома и портов | минуты: контейнер удаляется сразу после проверки (`--rm`) |
 | Журнал запросов Caddy — лента календаря | не пишется: запросы `/api/calendar/*` исключены из журнала (`log_skip` в Caddyfile), токен ссылки туда не попадает | — |
 | Календарь, подписанный на ленту (Google, Яндекс, Apple, Outlook — выбирает сотрудник) | копия ленты: сроки этапов, темы встреч, названия вузов и программ | пока сотрудник не удалит подписку в своём календаре |
+| Файлы к документам и этапам (решение 145) — том Docker `/data/uploads`, локально `./.uploads` | сами файлы: сканы документов, договоры, лицензии — могут содержать ПД контактных лиц вуза (ФИО, подпись на скане). Не в базе: имя на диске — случайный ключ, не исходное имя | по срокам хранения договорных документов оператора, как `documents.content` (раздел 5) — вместе с базой, но не в резервной копии `pg_dump` (нужны отдельные копии тома, см. раздел «Не сделано» DEPLOY.md) |
 
 ### 2.3. Лента календаря (решение 105)
 

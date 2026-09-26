@@ -421,6 +421,17 @@ ssh skilllink@<адрес> 'cd ~/skilllink/app && docker compose -p skilllink -f
 
   Без этого пять проверок входа падают так, будто сломалась авторизация.
 
+- **Файлы к документам и этапам (решение 145) не входят в резервную копию.**
+  `pg_dump` копирует базу, а файлы лежат в отдельном томе Docker (`skilllink-uploads`,
+  `/data/uploads`) — ни ночной cron, ни копии вне сервера (раздел 9) его сейчас не
+  трогают. Потеря машины теряет и файлы. Снимок тома вручную:
+
+  ```bash
+  ssh skilllink@<адрес> "docker run --rm -v skilllink_skilllink-uploads:/data -v ~/backups:/backup \
+    alpine tar czf /backup/uploads-$(date +%F).tar.gz -C /data ."
+  ```
+
+  Включить в автоматическую копию — доработка `scripts/ops/backup.sh`, не сделано.
 - **Мониторинг — сторож на той же машине и «Стенд жив» из GitHub; метрики и
   правила оповещений готовы, Prometheus и Grafana не включены.** Сторож
   (`scripts/ops/watchdog.sh`, раздел 10) каждые 5 минут проверяет готовность, контейнеры,

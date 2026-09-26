@@ -4,6 +4,20 @@
 
 ## Состояние
 
+**Соответствие ТЗ РТК: файлы, приём извне, отчёт (26.09.2026, решение 145, ветка
+`feat/tz-files-import-reports`).** Приоритет 1 аудита разрывов с официальным ТЗ — пункты
+2, 3, 7, 8, 10. Модель `Attachment` и `POST`/`GET /api/documents/:id/files`,
+`POST`/`GET /api/workflow/stages/:id/files`, `GET`/`DELETE /api/files/:id`: форматы строго
+по ТЗ (png, jpeg, pdf, zip, gzip, rar, doc, docx, xls, xlsx), проверка расширения И
+сигнатуры (magic bytes), хранение на диске (том `UPLOADS_DIR`), права — как у изменения
+документа/этапа, DSAR (`keep`, обосновано в реестре). `POST /api/import/external` —
+приём данных извне (сайт/LMS), авторизация токеном (`INTEGRATION_TOKEN`), идемпотентно
+по (source, externalId). Каталог связки (решение 132) дополнен полями ТЗ (номер договора,
+лицензия, статус передачи, комментарий — все `nullable`). `GET /api/reports/tz` и
+`GET /api/reports/catalog` — колонки дословно из ТЗ, форматы `csv`/`xlsx`/`json` (xlsx —
+свой писатель без новой зависимости, json — вложением со схемой generatedAt/filters/columns/rows).
+Подробности — [TECHNICAL_DECISIONS.md, решение 145](TECHNICAL_DECISIONS.md).
+
 **Ревью схемы: таблицы решений 115–139 (26.09.2026, решение 143, ветка
 `db/review-new-tables`).** Владелец решил, что схему согласует сама команда, а не Тигран
 со стороны, и заказал полное ревью того, что копилось «на согласование». Разобраны первичные
@@ -414,7 +428,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
-| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
+| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked`; `GET`, `POST /api/workflow/stages/:id/files` — файлы этапа, решение 145 |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
 
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
@@ -423,13 +437,15 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
 | data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
-| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
+| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate`; `GET`, `POST /api/documents/:id/files` — файлы документа, решение 145 |
+| files | `GET`, `DELETE /api/files/:id` — скачивание и удаление файла к документу/этапу, решение 145 |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
 | data-sources | `GET /api/data-sources`; `POST /api/data-sources/sync`; `GET /api/integrations/status` |
 | audit | `GET /api/audit`; `GET /api/audit/verify`, `GET /api/audit/seals` — цепочка и печати (решение 115); `GET /api/universities/:id/events` |
 | export | `GET /api/export` — выгрузка реестров в CSV |
-| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром |
+| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром; `POST /api/import/external` — приём данных извне (сайт/LMS), решение 145 |
+| reports | `GET /api/reports/tz`, `GET /api/reports/catalog` — отчёты по колонкам ТЗ, форматы csv/xlsx/json, решение 145 |
 | products (групповые операции) | `GET`, `POST /api/products/:id/release` |
 | ai-assist | `POST /api/cooperations/:id/ai-summary`; `POST /api/recommendations/:id/ai-letter`; `POST /api/ai/today` — черновики ИИ-помощника, решение 90 |
 | ai-story | `GET /api/cooperations/:id/story`, `GET /api/universities/:id/story` — история сотрудничества; `GET /api/cooperations/:id/blockers` — что мешает; `POST …/proposals`, `POST …/proposals/:proposalId/apply` — предложить и применить план (решение 138) |
