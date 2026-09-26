@@ -17,6 +17,7 @@ import { isActiveItem, type NavGroup, type NavItem } from './navigation'
 import { ROUTES } from '../lib/links'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
+import iconButtonStyles from '../primitives/IconButton.module.css'
 import { UiModeSwitch } from './UiModeSwitch'
 import styles from './Shell.module.css'
 
@@ -95,6 +96,17 @@ export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClic
           <span className={styles.searchLabel}>Поиск</span>
           <kbd className={styles.kbd}>⌘K</kbd>
         </button>
+        <Link
+          href={ROUTES.help}
+          className={[iconButtonStyles.button, iconButtonStyles.md, pathname === ROUTES.help ? iconButtonStyles.active : '']
+            .filter(Boolean)
+            .join(' ')}
+          aria-label="Справка"
+          title="Справка"
+          aria-current={pathname === ROUTES.help ? 'page' : undefined}
+        >
+          <Icon name="help" size={20} />
+        </Link>
         <ThemeToggle />
         <NotificationBell />
         <ProfileMenu />
@@ -175,6 +187,10 @@ function ProfileMenu() {
           <Link href={ROUTES.profile} role="menuitem" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
             <Icon name="user" size={16} />
             Личный кабинет
+          </Link>
+          <Link href={ROUTES.myData} role="menuitem" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
+            <Icon name="lock" size={16} />
+            Мои данные
           </Link>
           <div className={styles.dropdownMode}>
             <span className={styles.dropdownLabel}>Режим интерфейса</span>
