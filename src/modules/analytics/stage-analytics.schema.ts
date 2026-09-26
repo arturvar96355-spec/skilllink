@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { dateBoundarySchema, z } from '@/shared/zod'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 
 /** Параметры запросов аналитики этапов (решение 120). */
@@ -8,11 +8,6 @@ const stageNumber = z.coerce
   .int()
   .min(1)
   .max(CONTROL_STAGE_NUMBER - 1, 'Этап 14 вычисляется автоматически: у него нет своего порога')
-
-const dateParam = z.union([
-  z.iso.date({ message: 'Дата должна быть в формате ГГГГ-ММ-ДД или ISO 8601' }),
-  z.iso.datetime({ message: 'Дата должна быть в формате ГГГГ-ММ-ДД или ISO 8601' }),
-])
 
 const flag = z
   .union([z.literal('true'), z.literal('false')])
@@ -30,10 +25,20 @@ export type StalledPreviewQuery = z.infer<typeof stalledPreviewQuerySchema>
 export const FUNNEL_GROUP_BY = ['region', 'city', 'university', 'product', 'programLevel'] as const
 
 export const funnelQuerySchema = z.object({
-  /** Связки, начатые не раньше даты (включительно). */
-  from: dateParam.optional(),
-  /** Связки, начатые раньше даты (не включительно). */
-  to: dateParam.optional(),
+  /**
+   * Связки, начатые не раньше даты (включительно). Дата без времени
+   * разворачивается в московские сутки тем же `dateBoundarySchema`, что
+   * и в отчётах (решение 187) — иначе связка, начатая в 01:00 по Москве
+   * 1 января (22:00 UTC 31 декабря), не попадала бы в период «с 1 января».
+   */
+  from: dateBoundarySchema('start').optional(),
+  /**
+   * Связки, начатые не позже даты (включительно). Дата без времени
+   * разворачивается в конец московских суток тем же `dateBoundarySchema` —
+   * иначе связка, начатая поздно вечером по Москве в последний день периода,
+   * могла выпасть из него из-за более раннего среза по UTC.
+   */
+  to: dateBoundarySchema('end').optional(),
   /** Разрез: регион, город, вуз, IT-продукт, уровень программы. */
   groupBy: z.enum(FUNNEL_GROUP_BY).optional(),
   /** true — шесть вех вместо четырнадцати этапов. */

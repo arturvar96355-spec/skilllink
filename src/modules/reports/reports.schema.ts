@@ -1,4 +1,4 @@
-import { z } from '@/shared/zod'
+import { dateBoundarySchema, z } from '@/shared/zod'
 import { COOPERATION_STATUSES } from '@/shared/contracts/enums'
 
 /**
@@ -11,22 +11,6 @@ import { COOPERATION_STATUSES } from '@/shared/contracts/enums'
  */
 export const REPORT_FORMATS = ['csv', 'xlsx', 'json'] as const
 export type ReportFormat = (typeof REPORT_FORMATS)[number]
-
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
-
-/**
- * Граница периода отчёта: дата без времени («2026-01-01») или полный ISO 8601
- * (тот же приём, что у `funnelQuerySchema` в аналитике этапов). Дата без времени
- * разворачивается в начало или конец московских суток UTC — иначе связка,
- * созданная в 23:50 по Москве 1 января, не попадала бы в период «с 1 января».
- */
-function reportDateBoundary(edge: 'start' | 'end') {
-  const message = 'Дата должна быть в формате ГГГГ-ММ-ДД или ISO 8601'
-  const time = edge === 'start' ? '00:00:00.000+03:00' : '23:59:59.999+03:00'
-  return z
-    .union([z.iso.date({ message }), z.iso.datetime({ message })])
-    .transform((value) => (DATE_ONLY.test(value) ? new Date(`${value}T${time}`).toISOString() : value))
-}
 
 /**
  * Фильтры отчётов «по ТЗ» и «Каталог по ТЗ» (решение 172): ТЗ заказчика требует, чтобы
@@ -42,8 +26,8 @@ function reportDateBoundary(edge: 'start' | 'end') {
 export const reportQuerySchema = z
   .object({
     format: z.enum(REPORT_FORMATS).default('csv'),
-    dateFrom: reportDateBoundary('start').optional(),
-    dateTo: reportDateBoundary('end').optional(),
+    dateFrom: dateBoundarySchema('start').optional(),
+    dateTo: dateBoundarySchema('end').optional(),
     universityId: z.string().trim().min(1).optional(),
     programId: z.string().trim().min(1).optional(),
     productId: z.string().trim().min(1).optional(),
