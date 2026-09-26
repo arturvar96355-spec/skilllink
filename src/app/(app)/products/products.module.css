@@ -101,6 +101,14 @@
   width: 100%;
 }
 
+.skillsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
 .skillsTitle {
   font-size: var(--text-h3-size);
   font-weight: var(--text-h3-weight);
@@ -128,6 +136,7 @@
 
 .skillText {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-1);
   min-width: 0;
