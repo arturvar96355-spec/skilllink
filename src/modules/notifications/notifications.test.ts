@@ -316,3 +316,35 @@ describe('лента уведомлений', () => {
     expect(feed.unreadCount).toBe(0)
   })
 })
+
+describe('назначение ответственного за вуз (ТЗ, решение 146)', () => {
+  it('назначение и снятие — разные заголовки и ведут на карточку вуза', () => {
+    const feed = buildFeed(
+      sources({
+        responsibleAssignments: [
+          {
+            auditLogId: 'log-1',
+            universityId: 'uni-1',
+            universityName: 'СПбГУТ',
+            assigned: true,
+            changedAt: now,
+          },
+          {
+            auditLogId: 'log-2',
+            universityId: 'uni-2',
+            universityName: 'ИТМО',
+            assigned: false,
+            changedAt: now,
+          },
+        ],
+      }),
+      { now, since: null, limit: 20 },
+    )
+    expect(feed.items).toHaveLength(2)
+    const assigned = feed.items.find((item) => item.id === 'responsible:log-1')
+    const removed = feed.items.find((item) => item.id === 'responsible:log-2')
+    expect(assigned?.title).toContain('назначены ответственным')
+    expect(assigned?.target).toEqual({ type: 'university', id: 'uni-1', cooperationId: null, stageId: null })
+    expect(removed?.title).toContain('больше не ответственный')
+  })
+})

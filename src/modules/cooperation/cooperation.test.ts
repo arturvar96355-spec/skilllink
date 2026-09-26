@@ -53,6 +53,35 @@ describe('набор этапов новой связки', () => {
   })
 })
 
+describe('шаблон этапов из настроек (ТЗ, п. 4; решение 146)', () => {
+  const startedAt = new Date('2026-01-01T00:00:00.000Z')
+
+  it('без overrides — то же самое, что раньше: запасное значение из конфига', () => {
+    const stages = buildStages(startedAt, 'user-1')
+    expect(stages[0]?.title).toBe(WORKFLOW_STAGES[0]?.title)
+    expect(stages[0]?.deadline.getTime()).toBe(
+      startedAt.getTime() + (WORKFLOW_STAGES[0]?.normativeDays ?? 0) * 24 * 60 * 60 * 1000,
+    )
+  })
+
+  it('название и срок из overrides подменяют значения этапа по номеру', () => {
+    const overrides = new Map([[1, { title: 'Новое название этапа 1', normativeDays: 3 }]])
+    const stages = buildStages(startedAt, 'user-1', overrides)
+    expect(stages[0]?.title).toBe('Новое название этапа 1')
+    expect(stages[0]?.deadline.getTime()).toBe(startedAt.getTime() + 3 * 24 * 60 * 60 * 1000)
+    // Этап без записи в overrides (пустая таблица шаблонов на свежей базе до сида,
+    // или запись только по части этапов) — запасное значение из конфига, как раньше.
+    expect(stages[1]?.title).toBe(WORKFLOW_STAGES[1]?.title)
+  })
+
+  it('фаза и чек-лист всегда из конфига — overrides их не задаёт', () => {
+    const overrides = new Map([[1, { title: 'X', normativeDays: 1 }]])
+    const stages = buildStages(startedAt, 'user-1', overrides)
+    expect(stages[0]?.phase).toBe(WORKFLOW_STAGES[0]?.phase)
+    expect(stages[0]?.tasks).toHaveLength(WORKFLOW_STAGES[0]?.tasks.length ?? 0)
+  })
+})
+
 describe('правила связки', () => {
   it('не даёт связать программу чужого вуза', () => {
     expect(() => assertProgramBelongsToUniversity('uni-a', 'uni-b')).toThrowError(AppError)

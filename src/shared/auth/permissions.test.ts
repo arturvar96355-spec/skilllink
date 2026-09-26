@@ -130,3 +130,30 @@ describe('ответственный за запись', () => {
     }
   })
 })
+
+describe('роль «Руководитель» (ТЗ, решение 146)', () => {
+  it('имеет права менеджера: чтение, запись, аналитику', () => {
+    expect(can(user('HEAD'), 'READ')).toBe(true)
+    expect(can(user('HEAD'), 'WRITE')).toBe(true)
+    expect(can(user('HEAD'), 'ANALYTICS')).toBe(true)
+    expect(can(user('HEAD'), 'ANALYTICS_WORK')).toBe(true)
+  })
+
+  it('может быть назначен ответственным за связку, как менеджер', () => {
+    expect(canBeResponsible('HEAD')).toBe(true)
+  })
+
+  it('не получает права ADMIN и DSAR_MANAGE — только у ADMIN', () => {
+    expect(can(user('HEAD'), 'ADMIN')).toBe(false)
+    expect(can(user('HEAD'), 'DSAR_MANAGE')).toBe(false)
+  })
+
+  it('право переназначать ответственных (ASSIGN_RESPONSIBLE) — только ADMIN и HEAD', () => {
+    expect(can(user('ADMIN'), 'ASSIGN_RESPONSIBLE')).toBe(true)
+    expect(can(user('HEAD'), 'ASSIGN_RESPONSIBLE')).toBe(true)
+    expect(can(user('MANAGER'), 'ASSIGN_RESPONSIBLE')).toBe(false)
+    expect(can(user('ANALYST'), 'ASSIGN_RESPONSIBLE')).toBe(false)
+    expect(can(user('VIEWER'), 'ASSIGN_RESPONSIBLE')).toBe(false)
+    expect(can(user('UNIVERSITY_REP'), 'ASSIGN_RESPONSIBLE')).toBe(false)
+  })
+})
