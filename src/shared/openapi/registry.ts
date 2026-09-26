@@ -19,7 +19,10 @@ import {
   schoolCourseListQuerySchema,
   siteOrdersQuerySchema,
 } from '@/modules/enrollment/enrollment.schema'
-import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
+import {
+  markNotificationsSeenSchema,
+  notificationFeedQuerySchema,
+} from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
 import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
@@ -157,7 +160,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Проверка живости: процесс жив и настроен (без базы)',
     description:
       'Без входа. На неё смотрит healthcheck контейнера. База не проверяется: её падение ' +
-      'не должно перезапускать приложение (решение 118). 503 — не задан AUTH_SECRET или DATABASE_URL.',
+      'не должно перезапускать приложение (решение 118). 503 — не задан AUTH_SECRET или DATABASE_URL. ' +
+      'Ответ несёт commit (из APP_COMMIT сборки, null без него) и version (из package.json) — ' +
+      'чем сейчас отвечает стенд, видно без входа на сервер.',
     permission: 'ANY',
     errors: ['INTERNAL'],
   },
@@ -316,9 +321,25 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Лента уведомлений текущего пользователя',
     description:
       'Сроки своих этапов, изменения по своим связкам и документам, важные рекомендации. ' +
-      'Прочитанность хранит фронт: отметку последнего просмотра он передаёт в since.',
+      'Прочитанность хранит сервер (`users.notifications_seen_at`, решение 139), ' +
+      'выставляется через POST /api/notifications/seen; необязательный since от клиента — ' +
+      'обратная совместимость, используется более позднее из двух значений.',
     query: notificationFeedQuerySchema,
     permission: 'READ',
+    errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'post',
+    path: '/api/notifications/seen',
+    tag: 'Пользователи',
+    summary: 'Отметить ленту уведомлений просмотренной',
+    description:
+      'Решение 139: отметка «прочитано» хранится на сервере, а не только в localStorage — ' +
+      'переживает смену устройства и очистку хранилища. Тела нет — ставится текущее время ' +
+      'сервера; с `seenAt` — переданное время, если оно не в будущем (иначе 422).',
+    permission: 'READ',
+    body: markNotificationsSeenSchema,
+    returnsOk: true,
     errors: ['UNAUTHORIZED', 'VALIDATION_ERROR', 'INTERNAL'],
   },
   {

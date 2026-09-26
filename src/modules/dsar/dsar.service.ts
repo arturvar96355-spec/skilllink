@@ -6,8 +6,8 @@ import { isSharedDemoAccount, SHARED_DEMO_ACCOUNT_REFUSAL } from '@/shared/confi
 import {
   DSAR_LEGAL,
   DSAR_LIMITS,
-  DSAR_OPERATOR,
   DSAR_OPTIONAL_TRANSFERS,
+  dsarOperator,
 } from '@/shared/config/dsar.config'
 import { CONTACT_LEGAL_BASIS_LABELS } from '@/shared/contracts/labels'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -155,7 +155,7 @@ export async function buildExport(
     generatedAt: now.toISOString(),
     generatedBy,
     requestId: null,
-    operator: { ...DSAR_OPERATOR },
+    operator: dsarOperator(),
     purposes: legal.purposes,
     legalBasis: subject.legalBasis,
     categories: legal.categories,

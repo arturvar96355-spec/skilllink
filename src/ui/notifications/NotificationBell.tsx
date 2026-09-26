@@ -9,13 +9,24 @@ import { IconButton } from '../primitives/IconButton'
 import { Skeleton } from '../primitives/Skeleton'
 import { useResource } from '../hooks/useResource'
 import { useOutsideClick, useEscape, useStoredValue } from '../hooks/dom'
-import { buildQuery } from '../lib/api'
+import { apiPost, buildQuery } from '../lib/api'
 import { formatRelative } from '../lib/format'
 import { notificationHref } from '../lib/links'
 import styles from './Notifications.module.css'
 
-/** Ключ отметки «просмотрено»: прочитанность хранит фронт (контракт API, раздел 14). */
+/**
+ * Ключ отметки «просмотрено» в localStorage — быстрый локальный кэш.
+ * Источник истины — сервер, `users.notifications_seen_at` (решение 139),
+ * его ставит `POST /api/notifications/seen`.
+ */
 const SEEN_KEY = 'skilllink:notifications:seen-at'
+
+/** Отметить ленту просмотренной на сервере. Не критично для интерфейса — localStorage уже обновлён. */
+function markSeenOnServer(seenAt?: string): void {
+  void apiPost('/api/notifications/seen', seenAt ? { seenAt } : undefined).catch(() => {
+    // Сервер не узнал об этом просмотре — при следующем открытии колокольчика попробуем снова.
+  })
+}
 
 const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
   'stage.overdue': 'alert',
@@ -30,8 +41,8 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
  *
  * Лента собирается сервером из сроков, истории этапов и документов —
  * отдельного хранилища уведомлений нет, поэтому она не может разойтись
- * с данными. Прочитанность хранится здесь: отметка времени последнего
- * просмотра уходит в запрос параметром `since`.
+ * с данными. Прочитанность хранит сервер (решение 139); localStorage здесь —
+ * быстрый локальный кэш для отправки `since` до первого ответа сервера.
  */
 export function NotificationBell() {
   const router = useRouter()
@@ -56,13 +67,20 @@ export function NotificationBell() {
   function open() {
     setIsOpen((current) => {
       // Открываем — перечитываем ленту: она могла измениться, пока страница висела.
-      if (!current) feed.reload()
+      // Заодно сообщаем серверу, что колокольчик открыли: устройство сменится
+      // или localStorage очистят — отметка на сервере всё равно останется.
+      if (!current) {
+        feed.reload()
+        markSeenOnServer()
+      }
       return !current
     })
   }
 
   function markAllRead() {
-    storeSeenAt(new Date().toISOString())
+    const seenAt = new Date().toISOString()
+    storeSeenAt(seenAt)
+    markSeenOnServer(seenAt)
   }
 
   function openTarget(item: NotificationDto) {

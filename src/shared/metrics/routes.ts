@@ -87,6 +87,7 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/meetings/[id]',
   '/api/metrics',
   '/api/notifications',
+  '/api/notifications/seen',
   '/api/openapi.json',
   '/api/portal/applications',
   '/api/portal/materials',
