@@ -6,7 +6,9 @@
 #
 # Отвечает на вопросы, которые не видны из «сайт открывается»:
 # закрыты ли база и приложение напрямую, не отправит ли вход на localhost,
-# выключен ли вход без пароля, дошли ли миграции.
+# выключен ли вход без пароля, дошли ли миграции, доходит ли прокси до приложения
+# (решение 118: /api/health, /api/ready, 307 на /login, 401 без cookie — до 60 с каждый;
+# WAIT_HTTP_SECONDS меняет предел).
 set -uo pipefail
 
 URL=${1:-}
@@ -33,16 +35,47 @@ yes_no() { [ "$1" = "$2" ] && echo 1 || echo 0; }
 
 echo "Проверка стенда: $URL"
 
-# ── Живость и база ──────────────────────────────────────────────────────────
-HEALTH=$(curl -fsS $CURL_INSECURE --max-time 20 "$URL/api/health" 2>/dev/null || echo '{}')
-STATUS=$(echo "$HEALTH" | sed -nE 's/.*"status":"([a-z]+)".*/\1/p')
-SCHEMA=$(echo "$HEALTH" | sed -nE 's/.*"schema":"([a-z]+)".*/\1/p')
+# ── Живость, готовность и путь до приложения (решение 118) ──────────────────
+#
+# Каждый адрес ждём до 60 с: сразу после выкладки приложение и Caddy ещё
+# поднимаются. Защищённый API без cookie — ровно 401: так отвечает только само
+# приложение, значит, прокси до него доходит (502 — не доходит, 200 — вход открыт).
+# shellcheck source=scripts/deploy/http-check-lib.sh
+. "$(dirname "$0")/http-check-lib.sh"
+[ -n "$CURL_INSECURE" ] && export WAIT_HTTP_INSECURE=1
+for probe in \
+  "$URL/api/health|200|процесс жив (/api/health)" \
+  "$URL/api/ready|200|база и миграции (/api/ready)" \
+  "$URL/|307|главная без входа → /login (307)" \
+  "$URL/api/universities|401|защищённый API без cookie → 401"; do
+  IFS='|' read -r probe_url probe_code probe_label <<< "$probe"
+  if wait_http "$probe_url" "$probe_code" "$probe_label" > /dev/null; then
+    check "$probe_label" 1
+  else
+    check "$probe_label" 0 "${HTTP_FAILS[${#HTTP_FAILS[@]}-1]}"
+  fi
+done
+
+READY=$(curl -sS $CURL_INSECURE --max-time 20 "$URL/api/ready" 2>/dev/null || echo '{}')
+STATUS=$(echo "$READY" | sed -nE 's/.*"status":"([a-z]+)".*/\1/p')
+SCHEMA=$(echo "$READY" | sed -nE 's/.*"schema":"([a-z]+)".*/\1/p')
 check "приложение отвечает и видит базу" "$(yes_no "$STATUS" ok)" "status=${STATUS:-нет ответа}"
-check "миграции применены" "$(yes_no "$SCHEMA" ready)" "schema=${SCHEMA:-?}"
+check "миграции совпадают с кодом" "$(yes_no "$SCHEMA" ready)" "schema=${SCHEMA:-?}"
 
 # ── Вход без пароля выключен ────────────────────────────────────────────────
 ME=$(curl -s $CURL_INSECURE -o /dev/null -w '%{http_code}' --max-time 20 "$URL/api/me")
 check "вход без пароля выключен" "$(yes_no "$ME" 401)" "/api/me без сессии → $ME (нужен 401)"
+
+# ── Ограничение частоты запросов (решение 117) ──────────────────────────────
+#
+# Только наличие заголовков: один запрос, без попыток исчерпать предел —
+# стенд под показом, а 429 проверяет пробник локально.
+RL=$(curl -s $CURL_INSECURE -D - -o /dev/null --max-time 20 "$URL/api/me" | tr 'A-Z' 'a-z' | tr -d '\r')
+RL_OK=1
+for header in ratelimit-limit ratelimit-remaining ratelimit-reset; do
+  echo "$RL" | grep -q "^$header: *[0-9]" || RL_OK=0
+done
+check "ответы API несут RateLimit-*" "$RL_OK" "$(echo "$RL" | sed -nE 's/^ratelimit-limit: *([0-9]+).*/предел \1 в минуту/p')"
 
 # ── Защитные заголовки ──────────────────────────────────────────────────────
 HEADERS=$(curl -fsSI $CURL_INSECURE --max-time 20 "$URL/api/health" 2>/dev/null | tr 'A-Z' 'a-z')
@@ -145,6 +178,8 @@ fi
 echo
 if [ "$failed" -gt 0 ]; then
   printf '  \033[31mПроблем: %s\033[0m (пройдено %s)\n' "$failed" "$passed"
+  # Список провалов проверки после выкладки — одним блоком, как у remote-up.sh.
+  http_fails_report || true
   exit 1
 fi
 printf '  \033[32mВсе проверки пройдены: %s\033[0m\n' "$passed"

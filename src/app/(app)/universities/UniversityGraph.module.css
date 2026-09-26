@@ -87,6 +87,7 @@
 /* Узкий экран: полотно прокручивается вбок внутри себя, страница не шире экрана. */
 .scroll {
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
 }
 
@@ -155,7 +156,7 @@
 
 a.node:hover {
   border-color: var(--border-active);
-  transform: translateY(-2px);
+  transform: translateY(var(--hover-lift));
 }
 
 a.node:focus-visible {

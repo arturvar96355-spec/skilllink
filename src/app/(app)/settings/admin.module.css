@@ -108,7 +108,7 @@
 }
 
 .passwordValue {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: var(--text-kpi-sm-size);
   letter-spacing: 0.08em;
   color: var(--text-primary);

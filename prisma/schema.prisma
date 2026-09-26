@@ -209,6 +209,31 @@ enum ConsentForm {
   ORAL_CONFIRMED_BY_EMAIL
 }
 
+/// Чьи это сведения в запросе субъекта (решение 116): пользователь системы или контакт вуза.
+enum DsarSubjectType {
+  USER
+  CONTACT
+}
+
+/// Что просит субъект: сведения о своих ПД (ст. 14) или их уничтожение (ч. 3 ст. 20, ст. 21).
+enum DsarRequestKind {
+  EXPORT
+  ERASE
+}
+
+/// Открыт — срок идёт; исполнен — выгрузка отдана или ПД обезличены.
+enum DsarRequestStatus {
+  OPEN
+  COMPLETED
+}
+
+/// Откуда запрос: сам пользователь из кабинета, письмо субъекта, выгрузка администратора без письма.
+enum DsarRequestChannel {
+  SELF_SERVICE
+  LETTER
+  ADMIN
+}
+
 // ──────────────────────────── Пользователи и доступ ─────────────────────────
 
 /// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
@@ -232,26 +257,27 @@ model User {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  university             University?          @relation(fields: [universityId], references: [id], onDelete: SetNull)
-  cooperations           Cooperation[]        @relation("CooperationResponsible")
-  stagesResponsible      WorkflowStage[]      @relation("StageResponsible")
-  stagesCompleted        WorkflowStage[]      @relation("StageCompletedBy")
-  tasksDone              Task[]               @relation("TaskDoneBy")
-  stageHistoryEntries    StageHistory[]       @relation("StageHistoryAuthor")
-  documentsAuthored      Document[]           @relation("DocumentAuthor")
-  documentsResponsible   Document[]           @relation("DocumentResponsible")
-  documentHistoryEntries DocumentHistory[]    @relation("DocumentHistoryAuthor")
-  meetingsResponsible    Meeting[]            @relation("MeetingResponsible")
-  meetingParticipations  MeetingParticipant[] @relation("MeetingParticipantUser")
-  recommendationsClosed  Recommendation[]     @relation("RecommendationResolver")
-  auditLogs              AuditLog[]           @relation("AuditLogUser")
-  applicationsCreated    Application[]        @relation("ApplicationAuthor")
+  university             University?           @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  cooperations           Cooperation[]         @relation("CooperationResponsible")
+  stagesResponsible      WorkflowStage[]       @relation("StageResponsible")
+  stagesCompleted        WorkflowStage[]       @relation("StageCompletedBy")
+  tasksDone              Task[]                @relation("TaskDoneBy")
+  stageHistoryEntries    StageHistory[]        @relation("StageHistoryAuthor")
+  documentsAuthored      Document[]            @relation("DocumentAuthor")
+  documentsResponsible   Document[]            @relation("DocumentResponsible")
+  documentHistoryEntries DocumentHistory[]     @relation("DocumentHistoryAuthor")
+  meetingsResponsible    Meeting[]             @relation("MeetingResponsible")
+  meetingParticipations  MeetingParticipant[]  @relation("MeetingParticipantUser")
+  recommendationsClosed  Recommendation[]      @relation("RecommendationResolver")
+  auditLogs              AuditLog[]            @relation("AuditLogUser")
+  applicationsCreated    Application[]         @relation("ApplicationAuthor")
   telegramLink           TelegramLink?
   calendarFeed           CalendarFeed?
   contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
   duplicateDismissals    DuplicateDismissal[]  @relation("DuplicateDismissalAuthor")
   universityMerges       UniversityMerge[]     @relation("UniversityMergeAuthor")
   universityMergeUndos   UniversityMerge[]     @relation("UniversityMergeUndoAuthor")
+  dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
 
   @@index([role])
   @@index([universityId])
@@ -341,8 +367,8 @@ model Contact {
   /// Когда основание фиксировалось в последний раз; кто — в истории.
   basisUpdatedAt      DateTime?          @map("basis_updated_at")
 
-  university     University           @relation(fields: [universityId], references: [id], onDelete: Cascade)
-  participations MeetingParticipant[] @relation("MeetingParticipantContact")
+  university     University            @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  participations MeetingParticipant[]  @relation("MeetingParticipantContact")
   basisHistory   ContactBasisHistory[]
 
   @@index([universityId])
@@ -352,7 +378,6 @@ model Contact {
    * потому что условие `WHERE is_primary` в схеме Prisma не выражается.
    * Без него при двух основных контактах карточка вуза показывала бы произвольный:
    * она берёт первый найденный.
-   *
    * CHECK в базе (миграция contact_legal_basis): статус согласия не NONE ровно
    * при основании CONSENT; дата и форма — ровно при OBTAINED/WITHDRAWN; дата
    * и документ отзыва — ровно при WITHDRAWN, отзыв не раньше получения;
@@ -832,6 +857,19 @@ model Recommendation {
   cooperationId     String?                @map("cooperation_id")
   resolvedById      String?                @map("resolved_by_id")
   resolvedAt        DateTime?              @map("resolved_at")
+  /// Решение 119. Итоговый балл 0..1: польза правила, ценность случая, приоритет.
+  /// Пересчитывается у открытых рекомендаций после пересборки и каждого решения сотрудника.
+  score             Float?
+  /// Разбор балла: { p, pSource, trialsEff, successesEff, value, priority, score, … }.
+  scoreBreakdown    Json?                  @map("score_breakdown")
+  /// Причины: [{ code, pass, detail, facts }] — проверки правила и пометки обучения.
+  reasons           Json?
+  /// Отложена защитой от перегрузки менеджера: не удалена, стоит в конце ленты.
+  isDeferred        Boolean                @default(false) @map("is_deferred")
+  /// Последний показ — момент, когда рекомендация создана или открыта снова (показ в статистике правила).
+  shownAt           DateTime?              @map("shown_at")
+  /// Когда показ засчитан полезным; второй раз за один показ не засчитывается.
+  successAt         DateTime?              @map("success_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
 
@@ -849,7 +887,31 @@ model Recommendation {
   @@index([objectType, objectId])
   @@index([cooperationId])
   @@index([resolvedById])
+  @@index([score])
   @@map("recommendations")
+}
+
+/// Решение 119. Статистика правила рекомендаций: сколько раз показано и сколько
+/// раз оказалось полезным — полные счётчики и «эффективные» с затуханием
+/// (полураспад RECOMMENDATION_LEARNING.halfLifeDays). Уровни: общий
+/// (scope_id = 'all'), вуз, менеджер. Пишется только одним запросом
+/// INSERT … ON CONFLICT DO UPDATE (recommendations.stats.repo.ts), затухание
+/// считается в SQL — параллельные события не теряются.
+/// CHECK-ограничения (в SQL миграции 20260926120000_recommendation_learning):
+/// recommendation_rule_stats_scope_type_check, recommendation_rule_stats_counts_check.
+model RecommendationRuleStats {
+  ruleType     String   @map("rule_type")
+  /// 'global' | 'university' | 'manager'.
+  scopeType    String   @map("scope_type")
+  scopeId      String   @map("scope_id")
+  trials       Int      @default(0)
+  successes    Int      @default(0)
+  trialsEff    Float    @default(0) @map("trials_eff")
+  successesEff Float    @default(0) @map("successes_eff")
+  effUpdatedAt DateTime @map("eff_updated_at") @db.Timestamptz(6)
+
+  @@id([ruleType, scopeType, scopeId])
+  @@map("recommendation_rule_stats")
 }
 
 /// Источник рыночных данных с оценкой достоверности. Без него показатель
@@ -872,21 +934,72 @@ model DataSource {
 }
 
 /// Журнал критичных действий (раздел 15 ТЗ). Персональные данные в payload не пишутся.
+///
+/// Только дописывается и защищён от подмены цепочкой хешей (решение 115, миграция
+/// audit_hash_chain). Всё это живёт только в SQL миграции, Prisma о нём не знает:
+/// - триггер zz_audit_chain_link (BEFORE INSERT) сам ставит chain_seq, prev_hash
+///   и row_hash — значения из приложения перезаписываются;
+/// - триггеры audit_log_append_only и audit_log_no_truncate запрещают UPDATE, DELETE
+///   и TRUNCATE без `SET LOCAL skilllink.allow_audit_purge = 'on'`;
+/// - CHECK audit_log_chain_check: номер и хеш есть у каждой строки.
+/// Проверка — функция audit_verify_chain() и независимо modules/audit/chain.rules.ts.
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String?  @map("user_id")
   action     String
   objectType String   @map("object_type")
   objectId   String   @map("object_id")
+  /// Адрес клиента (`payload.address`) в хеш не входит: его стирают по сроку (решение 88).
   payload    Json?
   createdAt  DateTime @default(now()) @map("created_at")
+  /// Место в цепочке: 1, 2, 3… без пропусков. Ставит триггер под блокировкой.
+  chainSeq   BigInt?  @unique @map("chain_seq")
+  /// SHA-256 предыдущей строки цепочки; NULL — у первой строки.
+  prevHash   Bytes?   @map("prev_hash")
+  /// SHA-256 от prev_hash и канонической записи строки (audit_row_canonical).
+  rowHash    Bytes?   @map("row_hash")
 
-  user User? @relation("AuditLogUser", fields: [userId], references: [id], onDelete: SetNull)
+  /// RESTRICT, а не SET NULL: обнуление автора — правка журнала, и триггер её не пропустит.
+  /// Сотрудник не удаляется, а блокируется.
+  user User? @relation("AuditLogUser", fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([objectType, objectId])
   @@index([createdAt])
   @@index([userId])
   @@map("audit_log")
+}
+
+/// Печать журнала (решение 115): голова цепочки на момент снятия. Только дописывается.
+/// Копия печати вне базы (сообщение владельцу) ловит удаление хвоста журнала,
+/// которое сама цепочка не видит. Снимает `npm run audit:seal` или audit_take_seal().
+model AuditSeal {
+  id        BigInt   @id @default(autoincrement())
+  /// chain_seq последней строки журнала; 0 — журнал пуст.
+  headSeq   BigInt   @map("head_seq")
+  /// row_hash этой строки; NULL — журнал пуст.
+  headHash  Bytes?   @map("head_hash")
+  /// Сколько строк было в журнале (после чистки по сроку меньше headSeq).
+  rowCount  BigInt   @map("row_count")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_seals")
+}
+
+/// Точка чистки журнала по сроку хранения (решение 115). Только дописывается.
+/// Чистка удаляет начало цепочки; отсюда проверка знает, с какого номера и какого
+/// хеша цепочка законно начинается. Пишет только функция audit_purge_before().
+model AuditChainCut {
+  id          BigInt   @id @default(autoincrement())
+  /// Номер последней удалённой строки.
+  cutSeq      BigInt   @unique @map("cut_seq")
+  /// Её row_hash — prev_hash первой оставшейся строки.
+  cutHash     Bytes    @map("cut_hash")
+  deletedRows BigInt   @map("deleted_rows")
+  /// Граница срока хранения, по которой чистили.
+  cutoff      DateTime
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("audit_chain_cuts")
 }
 
 /// Личная подписка на календарь сроков и встреч (.ics, решение 105).
@@ -951,7 +1064,7 @@ model TelegramLink {
   @@map("telegram_links")
 }
 
-// ─────────────────────── Качество данных (решение 124) ───────────────────────
+// ─────────────────────── Качество данных (решение 134) ───────────────────────
 
 /// Пара записей, отмеченная «не дубль»: поиск дублей её больше не предлагает.
 /// Пара хранится упорядоченной (first_id < second_id) — «A и B» и «B и A» одна запись.
@@ -974,7 +1087,7 @@ model DuplicateDismissal {
   @@map("duplicate_dismissals")
 }
 
-/// Слияние вуза-дубля в другой (решение 124). Журнал выживания полей и список
+/// Слияние вуза-дубля в другой (решение 134). Журнал выживания полей и список
 /// перенесённых объектов — чтобы слияние можно было объяснить и отменить.
 /// В журнале только поля вуза и идентификаторы: ФИО и контакты не копируются.
 /// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает.
@@ -1007,4 +1120,35 @@ model UniversityMerge {
   @@index([mergedById])
   @@index([undoneById])
   @@map("university_merges")
+}
+
+/// Реестр запросов субъектов ПД (решение 116): кто, о ком, что просил, срок ответа и когда исполнено.
+/// Строки не удаляются: приложение только добавляет запрос и закрывает его (роль БД без DELETE,
+/// триггер `dsar_requests_guard` не даёт менять неизменяемые колонки). ПД в строке нет, кроме
+/// идентификаторов и адреса клиента (`ip`) у запроса из личного кабинета.
+/// CHECK в базе: COMPLETED ровно при completed_at; срок позже запроса; исполнение не раньше запроса.
+model DsarRequest {
+  id            String             @id @default(cuid())
+  subjectType   DsarSubjectType    @map("subject_type")
+  /// Идентификатор пользователя или контакта. Без внешнего ключа: субъект двух видов.
+  subjectId     String             @map("subject_id")
+  kind          DsarRequestKind
+  channel       DsarRequestChannel
+  requestedById String             @map("requested_by_id")
+  requestedAt   DateTime           @default(now()) @map("requested_at")
+  /// Срок ответа: 10 рабочих дней на сведения (ч. 3 ст. 14), 7 — на уничтожение (ч. 3 ст. 20).
+  dueAt         DateTime           @map("due_at")
+  completedAt   DateTime?          @map("completed_at")
+  status        DsarRequestStatus  @default(OPEN)
+  /// Итог исполнения: счётчики по разделам, без самих данных.
+  summary       Json?
+  /// Адрес клиента — только у запроса из личного кабинета.
+  ip            String?
+
+  requestedBy User @relation("DsarRequestAuthor", fields: [requestedById], references: [id], onDelete: Restrict)
+
+  @@index([subjectType, subjectId, requestedAt])
+  @@index([status, dueAt])
+  @@index([requestedById])
+  @@map("dsar_requests")
 }

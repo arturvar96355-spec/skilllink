@@ -50,6 +50,15 @@ describe('ограничения схемы, которые живут толь�
     expect(schema).toMatch(/@@index\(\[responsibleId\]\)/)
   })
 
+  it('статистика правил рекомендаций: успехов не больше показов (решение 119)', () => {
+    // successes_eff ≤ trials_eff держит запись (GREATEST в upsert); CHECK — страховка.
+    expect(migrations).toContain('recommendation_rule_stats_counts_check')
+    expect(migrations).toMatch(/"successes_eff" <= "trials_eff"/)
+    expect(migrations).toContain('recommendation_rule_stats_scope_type_check')
+    expect(schema).toContain('recommendation_rule_stats_counts_check')
+    expect(schema).toMatch(/@@id\(\[ruleType, scopeType, scopeId\]\)/)
+  })
+
   it('миграция подставляет регион до NOT NULL', () => {
     // Иначе она упадёт на любой базе, где есть замеры без региона.
     const index = migrations.indexOf('SET NOT NULL')

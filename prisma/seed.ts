@@ -11,6 +11,7 @@ import 'dotenv/config'
 import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
+import { seedRecommendationStats } from '@/modules/recommendations/recommendations.seed'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
@@ -38,7 +39,15 @@ const DAYS_AFTER_CLASSES_START: Partial<Record<number, number>> = { 11: 30, 12: 
 
 /** Порядок важен: сначала зависимые таблицы. */
 async function clean(): Promise<void> {
-  await prisma.auditLog.deleteMany()
+  // Журнал, его печати и точки чистки только дописываются (решение 115): перезаливка
+  // демо — осознанный обход, одной транзакцией. Цепочка начинается заново с № 1,
+  // печати прежнего журнала вместе с ним теряют смысл и удаляются.
+  await prisma.$transaction([
+    prisma.$executeRaw`SELECT set_config('skilllink.allow_audit_purge', 'on', true)`,
+    prisma.auditLog.deleteMany(),
+    prisma.auditSeal.deleteMany(),
+    prisma.auditChainCut.deleteMany(),
+  ])
   await prisma.universityMerge.deleteMany()
   await prisma.duplicateDismissal.deleteMany()
   await prisma.contactBasisHistory.deleteMany()
@@ -62,6 +71,8 @@ async function clean(): Promise<void> {
   await prisma.dataSource.deleteMany()
   await prisma.user.updateMany({ data: { universityId: null } })
   await prisma.university.deleteMany()
+  // Реестр запросов субъектов ссылается на пользователей (RESTRICT) — до них.
+  await prisma.dsarRequest.deleteMany()
   await prisma.user.deleteMany()
 }
 
@@ -1726,6 +1737,8 @@ async function main(): Promise<void> {
   await seedApplications(universityId, programId)
   await seedDataQualityCases(universityId)
   await seedRecommendations(cooperations, users.manager)
+  // Решение 119: история решений по правилам — обучение видно на стенде сразу.
+  await seedRecommendationStats(now)
   await printSummary(users, universityRep)
 }
 

@@ -10,8 +10,6 @@ import styles from './LiveRail.module.css'
 const TOTAL_STAGES = 14
 /** Больше точек линия не держит: дальше подписи сливаются. Остаток называется числом. */
 const MAX_DOTS = 24
-/** Подписей над одним этапом — не больше двух, остальные — «+N». */
-const MAX_LABELS_PER_STAGE = 2
 /** Расстояние между точками одного этапа, px. */
 const DOT_GAP = 14
 
@@ -75,14 +73,11 @@ export function LiveRail({
   cooperations,
   problemTotal,
   generatedAt,
-  showcase = false,
 }: {
   numbers: RailNumber[]
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
-  /** Презентационный режим (решение 94): под числами — сравнение за 30 дней. */
-  showcase?: boolean
 }) {
   const onRail = cooperations.filter((item) => item.currentStage !== null)
   const shown = onRail.slice(0, MAX_DOTS)
@@ -100,14 +95,21 @@ export function LiveRail({
     ...dot,
     shift: (dot.stack - ((perStage.get(dot.stage) ?? 1) - 1) / 2) * DOT_GAP,
   }))
+  // Подпись — одна на этап, в ширину этапа (решение 130): подписи у каждой точки
+  // наезжали на соседние этапы. Первая связка этапа названа, остальные — «+N».
+  const stageLabels = [...perStage.entries()].map(([stage, count]) => {
+    const first = placed.find((dot) => dot.stage === stage)!.item
+    return { stage, count, name: first.universityShortName ?? first.universityName }
+  })
 
   return (
     <section className={styles.rail} aria-label="Активно сейчас">
       <span className={styles.kicker}>Активно сейчас</span>
 
+      {/* Сравнение за 30 дней — в обоих режимах: это данные, а не украшение (ТЗ фронту, задача 1). */}
       <div className={styles.numbers}>
         {numbers.map((number, index) => (
-          <RailValue key={number.key} number={number} order={index} showTrend={showcase} />
+          <RailValue key={number.key} number={number} order={index} showTrend />
         ))}
       </div>
 
@@ -136,11 +138,9 @@ export function LiveRail({
         ))}
 
         <ul className={styles.dots} aria-label="Связки в работе на маршруте из 14 этапов">
-          {dots.map(({ item, index, stage, stack, shift }) => {
+          {dots.map(({ item, index, stage, shift }) => {
             const name = item.universityShortName ?? item.universityName
             const stuck = isStuck(item)
-            const labelled = stack < MAX_LABELS_PER_STAGE
-            const extra = (perStage.get(stage) ?? 0) - MAX_LABELS_PER_STAGE
             return (
               <li
                 key={item.id}
@@ -149,7 +149,6 @@ export function LiveRail({
                   {
                     left: `calc(${stageAt(stage)}% + ${shift}px)`,
                     '--i': index,
-                    '--stack': stack,
                   } as CSSProperties
                 }
               >
@@ -159,20 +158,23 @@ export function LiveRail({
                   aria-label={`${name}, ${item.programName}: этап ${stage} из ${TOTAL_STAGES}${stuck ? ', требует внимания' : ''}`}
                   title={`${name} — ${item.programName}\nЭтап ${stage}: ${item.currentStage!.title}`}
                 />
-                {labelled && (
-                  <span className={styles.dotLabel} aria-hidden>
-                    {name}
-                  </span>
-                )}
-                {stack === MAX_LABELS_PER_STAGE && extra > 0 && (
-                  <span className={styles.dotMore} aria-hidden>
-                    +{extra}
-                  </span>
-                )}
               </li>
             )
           })}
         </ul>
+
+        {stageLabels.map(({ stage, count, name }) => (
+          <span
+            key={stage}
+            className={styles.stageLabel}
+            style={{ left: `${((stage - 1) / TOTAL_STAGES) * 100}%`, width: `${100 / TOTAL_STAGES}%` } as CSSProperties}
+            title={name}
+            aria-hidden
+          >
+            <span className={styles.stageName}>{name}</span>
+            {count > 1 && <span className={styles.stageMore}>+{count - 1}</span>}
+          </span>
+        ))}
       </div>
 
       <div className={styles.foot}>

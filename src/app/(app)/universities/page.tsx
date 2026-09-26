@@ -7,12 +7,12 @@ import {
   type UniversityListItemDto,
 } from '@/shared/contracts'
 import {
-  Avatar,
   Badge,
   Button,
   Card,
   DataTable,
   EmptyState,
+  ResetFilters,
   ErrorState,
   Input,
   MockBadge,
@@ -45,6 +45,7 @@ import {
 import { CreateUniversityModal } from './CreateUniversityModal'
 import { UniversityTag } from './UniversityTag'
 import { UniversityFacts } from './UniversityFacts'
+import { UniversityMark } from './UniversityMark'
 import styles from './universities.module.css'
 
 /**
@@ -146,6 +147,16 @@ export default function UniversitiesPage() {
     setPage(1)
   }
 
+  // «Сбросить фильтры» (решение 128): видна, пока задан поиск или фильтр.
+  const hasFilters = Boolean(search.trim() || status || region || minRating)
+  function resetFilters() {
+    setSearch('')
+    setStatus('')
+    setRegion('')
+    setMinRating('')
+    setPage(1)
+  }
+
   const columns: Column<UniversityListItemDto>[] = [
     {
       key: 'name',
@@ -154,7 +165,7 @@ export default function UniversitiesPage() {
       render: (row) => (
         // Лента: название и одна строка пояснения — сокращение, город с регионом, связки.
         <ListTitle
-          leading={<Avatar name={row.shortName ?? row.name} kind="entity" size="sm" />}
+          leading={<UniversityMark name={row.name} shortName={row.shortName} />}
           title={row.name}
           tooltip={row.name}
           subline={[
@@ -267,7 +278,7 @@ export default function UniversitiesPage() {
         }
       />
 
-      <Toolbar>
+      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarItem>
           <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
             <Button
@@ -351,6 +362,7 @@ export default function UniversitiesPage() {
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
                   : 'Реестр пуст: ни одного вуза ещё не заведено.'
               }
+              action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
             />
           ) : (
             <>

@@ -67,7 +67,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.
 USER nextjs
 EXPOSE 3000
 
-# Проверка живости: контейнер считается здоровым, только когда доступна и база.
+# Проверка живости: процесс жив и настроен. Базу она не проверяет (решение 118):
+# остановка базы не должна делать приложение «нездоровым» — оно само вернётся
+# в строй вместе с базой. Базу и миграции смотрит /api/ready (сторож, выкладка).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
