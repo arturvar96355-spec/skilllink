@@ -72,9 +72,83 @@
         "tags": [
           "Служебное"
         ],
-        "summary": "Проверка живости приложения и подключения к базе",
-        "description": "Право доступа: Доступно любому определённому пользователю.",
+        "summary": "Проверка живости: процесс жив и настроен (без базы)",
+        "description": "Без входа. На неё смотрит healthcheck контейнера. База не проверяется: её падение не должно перезапускать приложение (решение 118). 503 — не задан AUTH_SECRET или DATABASE_URL.\n\nПраво доступа: Доступно любому определённому пользователю.",
         "operationId": "get_api_health",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "INTERNAL"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ready": {
+      "get": {
+        "tags": [
+          "Служебное"
+        ],
+        "summary": "Проверка готовности: база отвечает, миграции совпадают с кодом",
+        "description": "Без входа. SELECT 1 (время ответа — latencyMs) и сверка последней применённой миграции с последней в prisma/migrations. Иначе 503 { status: \"degraded\", reason } (решение 118).\n\nПраво доступа: Доступно любому определённому пользователю.",
+        "operationId": "get_api_ready",
         "responses": {
           "200": {
             "description": "Успех",

@@ -4,6 +4,20 @@
 
 ## Состояние
 
+**Эксплуатация «как в продакшене» (25.09.2026, решение 118, ветка `ops/owner-alerts`).**
+`/api/health` — живость без базы (healthcheck контейнера), новый `/api/ready` — база
+и миграции против кода с `latencyMs`. Проверка после выкладки в `remote-up.sh`, `deploy.sh`
+и `check.sh`: каждый адрес до 60 с, провалы списком и готовая команда отката.
+Оповещения владельцу в Telegram: из приложения (`notifyOwner` — блокировка входа,
+массовая проверка «не робот», вход администратора с нового адреса, блокировка
+пользователя, выдача роли администратора, массовая выгрузка; без ПД, без повторов)
+и из скриптов (`scripts/ops/alert.sh`, маркеры и «восстановилось ✅»). Сторож каждые
+5 минут и сводка в 09:00, ночная копия с проверкой и `.sha256`, еженедельные учения
+по восстановлению (RTO 1,8–3,5 с на копии стенда), хаос-сценарии и нагрузочный тест —
+docs/OPERATIONS_TESTS.md. На сервере **не включено**: cron и строки `.env.cloud` ставит
+владелец (DEPLOY.md, раздел 10). Узкое место под нагрузкой — один процесс Node по CPU,
+база простаивает.
+
 **Полная Content-Security-Policy (25.09.2026, решение 112, ветка `sec/csp-nonce`).** Скрипты
 страниц исполняются только с nonce запроса (`'strict-dynamic'`, без `unsafe-inline` и
 `unsafe-eval` в боевой сборке); nonce выдаёт middleware, Next и встроенные скрипты макета
@@ -200,11 +214,11 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 75 маршрутов, 97 операций
+### Модули и эндпоинты — 76 маршрутов, 98 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
-| health | `GET /api/health` |
+| health | `GET /api/health` — живость; `GET /api/ready` — готовность: база и миграции (решение 118) |
 | auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
 | universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111) |
 | programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
@@ -380,7 +394,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 74 пути, 97 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 75 путей, 98 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

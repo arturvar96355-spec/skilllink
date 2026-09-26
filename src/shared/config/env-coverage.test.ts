@@ -54,14 +54,16 @@ function usedNames(): Set<string> {
     }
   }
 
-  // Скрипты сервера (scripts/deploy/*.sh) читают свои настройки из .env.cloud
-  // хелпером env_get (offsite-lib.sh). Приложение их не видит, но описаны они там же.
-  const deployDir = join(ROOT, 'scripts', 'deploy')
-  for (const entry of readdirSync(deployDir)) {
-    if (!entry.endsWith('.sh')) continue
-    const content = readFileSync(join(deployDir, entry), 'utf8')
-    for (const match of content.matchAll(/\benv_get ([A-Z_0-9]+)/g)) {
-      names.add(match[1]!)
+  // Скрипты сервера (scripts/deploy/*.sh, scripts/ops/*.sh) читают свои настройки
+  // из .env.cloud хелпером env_get (offsite-lib.sh) или его обёрткой setting.
+  // Приложение их не видит, но описаны они там же.
+  for (const dir of [join(ROOT, 'scripts', 'deploy'), join(ROOT, 'scripts', 'ops')]) {
+    for (const entry of readdirSync(dir)) {
+      if (!entry.endsWith('.sh')) continue
+      const content = readFileSync(join(dir, entry), 'utf8')
+      for (const match of content.matchAll(/\b(?:env_get|setting) ([A-Z_0-9]+)/g)) {
+        names.add(match[1]!)
+      }
     }
   }
 
