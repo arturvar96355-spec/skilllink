@@ -14,6 +14,16 @@
   min-width: 640px;
 }
 
+/* Узкий экран: клетки и подписи мельче, чтобы прокрутка не растягивалась
+   на всю тепловую карту (390 px из FRONTEND.md), подписи часов и дней остаются читаемыми. */
+@media screen and (max-width: 480px) {
+  .grid {
+    grid-template-columns: 26px repeat(24, minmax(12px, 1fr));
+    gap: 2px;
+    min-width: 362px;
+  }
+}
+
 .hourLabel {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
