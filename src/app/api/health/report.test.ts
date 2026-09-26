@@ -3,6 +3,7 @@ import {
   compareMigrations,
   publicLiveness,
   publicReadiness,
+  resolveCommit,
   type LivenessReport,
   type ReadinessReport,
 } from './report'
@@ -64,10 +65,36 @@ describe('ответ проверки готовности', () => {
 })
 
 describe('ответ проверки живости', () => {
-  it('в продакшене без совета', () => {
-    const secretMissing: LivenessReport = { status: 'misconfigured', uptimeSeconds: 3, hint: 'Не задан AUTH_SECRET', time: TIME }
-    expect(publicLiveness(secretMissing, true)).toEqual({ status: 'degraded', uptimeSeconds: 3, time: TIME })
+  it('в продакшене без совета, но с коммитом и версией — их прятать незачем (риск 13)', () => {
+    const secretMissing: LivenessReport = {
+      status: 'misconfigured',
+      uptimeSeconds: 3,
+      commit: 'a1b2c3d',
+      version: '0.1.0',
+      hint: 'Не задан AUTH_SECRET',
+      time: TIME,
+    }
+    expect(publicLiveness(secretMissing, true)).toEqual({
+      status: 'degraded',
+      uptimeSeconds: 3,
+      commit: 'a1b2c3d',
+      version: '0.1.0',
+      time: TIME,
+    })
     expect(publicLiveness(secretMissing, false)).toEqual(secretMissing)
+  })
+})
+
+describe('коммит сборки в /api/health', () => {
+  it('шестнадцатеричный хеш проходит как есть, в нижнем регистре', () => {
+    expect(resolveCommit('A1B2C3D')).toBe('a1b2c3d')
+    expect(resolveCommit('  a1b2c3d  ')).toBe('a1b2c3d')
+  })
+
+  it('нет переменной или мусор в ней — null, а не текст на волю случая', () => {
+    expect(resolveCommit(undefined)).toBeNull()
+    expect(resolveCommit('')).toBeNull()
+    expect(resolveCommit('не коммит')).toBeNull()
   })
 })
 

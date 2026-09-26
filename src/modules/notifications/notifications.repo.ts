@@ -270,3 +270,23 @@ export async function loadForUniversity(
     recommendations: [],
   }
 }
+
+/**
+ * Время последнего просмотра ленты уведомлений — источник истины на сервере
+ * (решение 139). `null`, если пользователь ещё ни разу не отмечал ленту просмотренной.
+ */
+export async function getSeenAt(userId: string): Promise<Date | null> {
+  const row = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { notificationsSeenAt: true },
+  })
+  return row?.notificationsSeenAt ?? null
+}
+
+/** Ставит время последнего просмотра ленты. */
+export async function setSeenAt(userId: string, seenAt: Date): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { notificationsSeenAt: seenAt },
+  })
+}

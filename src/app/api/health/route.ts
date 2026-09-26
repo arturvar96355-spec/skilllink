@@ -1,6 +1,7 @@
-import { publicLiveness, type LivenessReport } from './report'
+import { publicLiveness, resolveCommit, type LivenessReport } from './report'
 import { handle, ok } from '@/shared/http'
 import { log } from '@/shared/log/logger'
+import packageJson from '../../../../package.json'
 
 /**
  * Проверка живости: процесс жив и настроен. **Базу не трогает** (решение 118).
@@ -19,7 +20,12 @@ export const dynamic = 'force-dynamic'
 
 export const GET = handle(async () => {
   const production = process.env.NODE_ENV === 'production'
-  const base = { uptimeSeconds: Math.round(process.uptime()), time: new Date().toISOString() }
+  const base = {
+    uptimeSeconds: Math.round(process.uptime()),
+    commit: resolveCommit(process.env.APP_COMMIT),
+    version: String(packageJson.version),
+    time: new Date().toISOString(),
+  }
 
   const respond = (report: LivenessReport, status: number) => {
     if (report.hint && production) log.error('Проверка живости: стенд не готов', { hint: report.hint })

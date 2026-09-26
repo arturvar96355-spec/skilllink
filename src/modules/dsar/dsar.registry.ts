@@ -132,6 +132,8 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     omitted: {
       passwordHash: 'секрет входа: не выгружается никогда, при обезличивании стирается',
       sessionVersion: 'служебный счётчик сессий, не сведения о человеке',
+      notificationsSeenAt:
+        'служебная отметка последнего просмотра ленты уведомлений (решение 139), не сведения о человеке',
     },
     orderBy: { createdAt: 'asc' },
     erase: 'redact',

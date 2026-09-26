@@ -24,6 +24,15 @@ export interface LivenessReport {
   status: 'ok' | 'misconfigured'
   /** Сколько секунд работает процесс: после падения и перезапуска — снова с нуля. */
   uptimeSeconds: number
+  /**
+   * Короткий хеш коммита выкладки (риск 13 ревизии от 26.09.2026: нельзя было
+   * проверить, что сейчас на стенде). Ставит сборка через `APP_COMMIT`
+   * (Dockerfile/deploy.sh/remote-up.sh), не человек. `null` — сборка без этой
+   * переменной (например, локальный `npm run dev`).
+   */
+  commit: string | null
+  /** Версия из package.json — та же, что в `app_build_info` метрик. */
+  version: string
   hint?: string
   time: string
 }
@@ -31,16 +40,28 @@ export interface LivenessReport {
 export interface PublicLiveness {
   status: 'ok' | 'degraded' | 'misconfigured'
   uptimeSeconds: number
+  commit: string | null
+  version: string
   hint?: string
   time: string
+}
+
+/** Короткий коммит из `APP_COMMIT`: только шестнадцатеричный хеш, иначе `null` — не выдавать наружу мусор. */
+export function resolveCommit(raw: string | undefined): string | null {
+  const value = raw?.trim() ?? ''
+  return /^[0-9a-f]{4,40}$/i.test(value) ? value.toLowerCase() : null
 }
 
 export function publicLiveness(report: LivenessReport, production: boolean): PublicLiveness {
   if (!production) return report
   // «misconfigured» — уже подсказка: снаружи достаточно знать, что процесс нездоров.
+  // Коммит и версия — не секрет, это как раз то, что должно быть видно снаружи
+  // (риск 13): каким кодом отвечает стенд сейчас.
   return {
     status: report.status === 'misconfigured' ? 'degraded' : report.status,
     uptimeSeconds: report.uptimeSeconds,
+    commit: report.commit,
+    version: report.version,
     time: report.time,
   }
 }
