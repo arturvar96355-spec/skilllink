@@ -1,4 +1,5 @@
 import type { Metric } from '@/shared/contracts'
+import { moscowIsoDate } from '@/shared/utils/date'
 import { outOf100 } from '@/shared/utils/number'
 import { plural } from '@/shared/utils/text'
 
@@ -337,10 +338,18 @@ export function dateTimeInputToIso(value: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
 }
 
-/** Обратное преобразование — для полей формы редактирования. */
+/**
+ * Обратное преобразование — для полей формы редактирования.
+ *
+ * Дата — по Москве (`moscowIsoDate`), а не по UTC срезом `toISOString`: срок
+ * «01.10, 01:00 по Москве» хранится как «30.09, 22:00 UTC», и срез по UTC
+ * подставил бы в поле 30 сентября. Открыли модалку срока, ничего не поменяли,
+ * нажали «Сохранить» — `dateInputToIso` без исправления записал бы дату на
+ * день раньше настоящей.
+ */
 export function isoToDateInput(iso: string | null | undefined): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return ''
-  return date.toISOString().slice(0, 10)
+  return moscowIsoDate(date)
 }

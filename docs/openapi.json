@@ -49043,7 +49043,7 @@
           "Письма вузов"
         ],
         "summary": "Загрузить письмо вуза (.eml)",
-        "description": "Разбирает заголовки From/Subject/Date/Message-ID и текстовую часть письма, создаёт обращение и сразу его разбирает (как `POST …/{id}/analyze`) — ответ уже с разбором. Предел размера — MAX_EML_SIZE_BYTES (5 МБ).\n\nПраво доступа: undefined.",
+        "description": "Разбирает заголовки From/Subject/Date/Message-ID и текстовую часть письма, создаёт обращение и сразу его разбирает (как `POST …/{id}/analyze`) — ответ уже с разбором. Предел размера — MAX_EML_SIZE_BYTES (5 МБ). Письмо с тем же Message-ID от того же отправителя уже загружено — CONFLICT (решение 187).\n\nПраво доступа: undefined.",
         "operationId": "post_api_inbound-letters_upload",
         "responses": {
           "201": {
@@ -49166,6 +49166,56 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
             "content": {
               "application/json": {
                 "schema": {

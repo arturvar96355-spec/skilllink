@@ -252,6 +252,24 @@ export async function findPriorityRecommendations(
 }
 
 /**
+ * Сколько открытых рекомендаций всего — **включая** `stage.overdue`, в отличие
+ * от `findPriorityRecommendations` (исправление 187, находка ревью 27.09).
+ *
+ * Пустой список приоритетных действий не значит «рекомендаций нет вообще»:
+ * если открыты только просрочки этапов, они не в `findPriorityRecommendations`
+ * (решение 180), но не в нуле здесь — и главная должна сказать об этом, а не
+ * «рекомендаций нет, всё закрыто».
+ */
+export async function countOpenRecommendations(scope: { universityId?: string }): Promise<number> {
+  return prisma.recommendation.count({
+    where: {
+      status: { in: ['NEW', 'IN_PROGRESS'] },
+      ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
+    },
+  })
+}
+
+/**
  * Операции, зафиксированные в журнале, и количество связок.
  * Показатель «ручных операций на связку» из концепции считается только по тому,
  * что система действительно журналирует, — это указано в пояснении к показателю.

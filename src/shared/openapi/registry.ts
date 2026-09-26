@@ -2331,10 +2331,11 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Разбирает заголовки From/Subject/Date/Message-ID и текстовую часть письма, создаёт ' +
       'обращение и сразу его разбирает (как `POST …/{id}/analyze`) — ответ уже с разбором. ' +
-      'Предел размера — MAX_EML_SIZE_BYTES (5 МБ).',
+      'Предел размера — MAX_EML_SIZE_BYTES (5 МБ). Письмо с тем же Message-ID от того же ' +
+      'отправителя уже загружено — CONFLICT (решение 187).',
     permission: 'INBOUND_REVIEW',
     multipartField: 'file',
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'post',

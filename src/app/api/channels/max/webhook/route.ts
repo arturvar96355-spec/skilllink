@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { after } from 'next/server'
 import { resolveSecret } from '@/shared/auth/auth'
 import { CHANNEL_WEBHOOK } from '@/shared/config/notify-channels.config'
@@ -38,10 +39,25 @@ async function readUpdate(request: Request): Promise<MaxUpdate | null> {
 /**
  * Ключ дедупликации: MAX не документирует единый числовой update_id для вебхука
  * (в отличие от Telegram) — берём id сообщения (`mid`), а для событий без него
- * (например «бот запущен») — тип события и время.
+ * (например «бот запущен») — хеш устойчивых полей события: тип, отправитель/чат
+ * и стартовый payload.
+ *
+ * Раньше при отсутствии `timestamp` в ключ подставлялось `Date.now()` — у каждого
+ * повтора того же события получался свой ключ, и дедупликация не срабатывала:
+ * MAX повторяет вебхук, если не дождался 200 вовремя, и одно и то же «бот
+ * запущен» могло обработаться дважды.
  */
 function updateKey(update: MaxUpdate): string {
-  return update.message?.body?.mid ?? `${update.update_type}:${update.timestamp ?? Date.now()}`
+  if (update.message?.body?.mid) return update.message.body.mid
+  const who =
+    update.chat_id ??
+    update.user?.user_id ??
+    update.message?.sender?.user_id ??
+    update.message?.recipient?.chat_id ??
+    update.message?.recipient?.user_id ??
+    ''
+  const stable = `${update.update_type}:${who}:${update.payload ?? ''}`
+  return createHash('sha256').update(stable).digest('hex')
 }
 
 export const POST = handle(async (request) => {

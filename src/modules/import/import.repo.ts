@@ -4,10 +4,13 @@ import type { Prisma } from '@/generated/prisma/client'
 /**
  * Вуз опознаётся по названию: другого устойчивого ключа в файле у человека нет.
  * Поля — те, что можно поменять файлом: по ним видно, изменится ли что-нибудь.
+ *
+ * Сравнение без учёта регистра (как в external.repo.ts) — иначе «МГУ» и «мгу»
+ * из разных файлов заводили бы два вуза-дубля вместо обновления одного.
  */
 export async function findUniversityByName(name: string) {
   return prisma.university.findFirst({
-    where: { name },
+    where: { name: { equals: name, mode: 'insensitive' } },
     select: {
       id: true,
       city: true,
@@ -24,7 +27,7 @@ export async function findUniversityByName(name: string) {
 /** Вуз, к которому привязывается программа из файла. */
 export async function findUniversityRefByName(name: string) {
   return prisma.university.findFirst({
-    where: { name },
+    where: { name: { equals: name, mode: 'insensitive' } },
     select: { id: true, archivedAt: true },
   })
 }
@@ -37,10 +40,10 @@ export async function createUniversity(data: Prisma.UniversityCreateInput): Prom
   await prisma.university.create({ data })
 }
 
-/** Программа опознаётся по вузу и названию. */
+/** Программа опознаётся по вузу и названию (без учёта регистра — как вуз выше). */
 export async function findProgramByName(universityId: string, name: string) {
   return prisma.educationalProgram.findFirst({
-    where: { universityId, name },
+    where: { universityId, name: { equals: name, mode: 'insensitive' } },
     select: {
       id: true,
       level: true,

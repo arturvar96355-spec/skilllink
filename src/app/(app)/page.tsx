@@ -18,6 +18,7 @@ import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
 import { ExpertStartHere } from './ExpertStartHere'
 import { phaseFunnel } from './phase-funnel'
+import { priorityActionsEmptyState } from './priority-actions-empty'
 import { cityCoordinates } from './city-coordinates'
 import { usePrintBlock } from './print-block'
 import {
@@ -432,6 +433,7 @@ function Dashboard() {
   const data = overview.data
   const cooperations = active.data ?? []
   const firstName = firstNameOf(user.fullName)
+  const priorityEmpty = priorityActionsEmptyState(data?.openRecommendationsTotal ?? 0)
 
   const numbers: RailNumber[] = (data?.metrics ?? []).map((metric) => ({
     key: metric.key,
@@ -721,8 +723,8 @@ function Dashboard() {
               >
                 {data.priorityActions.length === 0 ? (
                   <EmptyState
-                    title="Рекомендаций нет"
-                    description="Система ещё не собирала предложения или все они закрыты."
+                    title={priorityEmpty.title}
+                    description={priorityEmpty.description}
                     action={
                       user.permissions.canWorkAnalytics ? (
                         <Button icon="refresh" onClick={onRegenerate} isLoading={regenerate.isPending}>

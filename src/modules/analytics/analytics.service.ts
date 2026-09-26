@@ -289,6 +289,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     logged,
     skillMatch,
     priorityRows,
+    openRecommendationsTotal,
     cooperationsAreMock,
     universitiesAreMock,
   ] = await Promise.all([
@@ -303,6 +304,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     repo.countLoggedOperations(scope),
     buildSkillMatch(user),
     repo.findPriorityRecommendations(scope, DASHBOARD_TOP_LIMIT),
+    repo.countOpenRecommendations(scope),
     repo.hasMockCooperations(scope),
     repo.hasMockUniversities(scope),
   ])
@@ -346,6 +348,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     problemCooperations,
     problemStageTotal,
     priorityActions,
+    openRecommendationsTotal,
     skillMatch,
     generatedAt: now.toISOString(),
     containsMockData:

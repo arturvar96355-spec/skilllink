@@ -189,7 +189,13 @@ export async function handleInbound(channel: Exclude<ChannelId, 'telegram'>, par
         const { previousChatRef } = await repo.linkAltChannel(user.id, channel, parsed.chatRef, parsed.username ?? null)
         await writeAudit({ userId: user.id, action: 'channel.link', objectType: 'User', objectId: user.id, payload: { channel, source: channel } })
         if (previousChatRef) {
-          adapter.send(previousChatRef, REPLIES.transferred).catch(() => undefined)
+          // Не блокирует привязку новым чатом: прежний чат уже больше не привязан,
+          // а сбой уведомления об этом — не повод откатывать саму привязку. Раньше
+          // сбой терялся молча; теперь виден в журнале, как соседний catch выше
+          // (purgeSeenUpdates).
+          adapter.send(previousChatRef, REPLIES.transferred).catch((error: unknown) => {
+            log.warn('[notify-channels] уведомление о переносе в прежний чат не отправлено', { channel, err: error })
+          })
         }
         reply = REPLIES.linked
       }
