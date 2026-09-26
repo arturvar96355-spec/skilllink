@@ -45,12 +45,14 @@ import {
   EXTRA_PROGRAMS,
   EXTRA_SKILLS,
   EXTRA_UNIVERSITIES,
+  fillProgramSkills,
+  MORE_SKILLS,
   REGIONAL_SOURCE,
   type CooperationPattern,
   type CooperationSpec,
   type ProgramSpec,
 } from './catalog'
-import { Rng } from './random'
+import { Rng, validInn, validOgrn } from './random'
 
 export const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -228,6 +230,9 @@ export interface DemoUniversity {
   updatedAt: Date
   archivedAt: Date | null
   contacts: DemoContact[]
+  /// ИНН/ОГРН с верной контрольной суммой (решение 134, решение 141) — prisma/demo/random.ts.
+  inn: string
+  ogrn: string
 }
 
 export interface DemoApplication {
@@ -1081,6 +1086,8 @@ function generateUniversities(clock: Clock, earliestStart: Map<string, Date>): D
       updatedAt,
       archivedAt,
       contacts,
+      inn: validInn(spec.key),
+      ogrn: validOgrn(spec.key),
     }
   })
 }
@@ -1141,7 +1148,7 @@ function generatePrograms(clock: Clock, universityCreatedAt: (key: string) => Da
         status === 'ARCHIVED'
           ? (universityArchivedAt(spec.university) ?? workTimeBefore(addDays(clock.anchor, -rng.uniform(60, 150)), rng))
           : null,
-      skills: spec.skills,
+      skills: fillProgramSkills(spec.key, spec.skills),
       applications: generateApplications(spec, clock),
     }
   })
@@ -1363,7 +1370,7 @@ export function generateDemoData(options: DemoOptions): DemoData {
   return {
     anchor: options.anchor,
     stableUntil: options.stableUntil,
-    skills: EXTRA_SKILLS,
+    skills: [...EXTRA_SKILLS, ...MORE_SKILLS],
     market,
     products,
     universities,

@@ -19,6 +19,8 @@ import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
+import { validInn, validOgrn } from './demo/random'
+import { BASE_SKILLS, fillProgramSkills } from './demo/catalog'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('Не задана переменная окружения DATABASE_URL')
@@ -197,29 +199,8 @@ async function seedDataSources() {
 /** Справочник навыков. Возвращает поиск id навыка по имени. */
 async function seedSkills(): Promise<IdOf> {
   console.log('Навыки...')
-  const skillSeed: Array<{ name: string; category: string; description: string }> = [
-    { name: 'Python', category: 'Языки программирования', description: 'Разработка на Python' },
-    { name: 'Java', category: 'Языки программирования', description: 'Разработка на Java' },
-    { name: 'JavaScript', category: 'Языки программирования', description: 'Веб-разработка' },
-    { name: 'SQL', category: 'Базы данных', description: 'Запросы к реляционным СУБД' },
-    { name: 'PostgreSQL', category: 'Базы данных', description: 'Администрирование PostgreSQL' },
-    { name: 'Docker', category: 'DevOps', description: 'Контейнеризация приложений' },
-    { name: 'Kubernetes', category: 'DevOps', description: 'Оркестрация контейнеров' },
-    { name: 'CI/CD', category: 'DevOps', description: 'Непрерывная интеграция и поставка' },
-    { name: 'Linux', category: 'Системное администрирование', description: 'Работа в Linux' },
-    { name: 'Сетевые технологии', category: 'Инфраструктура', description: 'Сети передачи данных' },
-    { name: 'Информационная безопасность', category: 'Безопасность', description: 'Защита систем' },
-    { name: 'Машинное обучение', category: 'Данные', description: 'Построение моделей' },
-    { name: 'Аналитика данных', category: 'Данные', description: 'Обработка и визуализация' },
-    { name: 'Облачные платформы', category: 'Инфраструктура', description: 'Работа с облаками' },
-    { name: 'Микросервисы', category: 'Архитектура', description: 'Проектирование микросервисов' },
-    { name: 'Тестирование ПО', category: 'Качество', description: 'Автоматизация тестирования' },
-    { name: 'Управление проектами', category: 'Процессы', description: 'Методологии управления' },
-    { name: 'Бизнес-анализ', category: 'Процессы', description: 'Сбор и анализ требований' },
-  ]
-
   const skills = new Map<string, string>()
-  for (const item of skillSeed) {
+  for (const item of BASE_SKILLS) {
     const created = await prisma.skill.create({ data: item })
     skills.set(item.name, created.id)
   }
@@ -231,46 +212,9 @@ async function seedSkills(): Promise<IdOf> {
   return skillId
 }
 
-/** Рыночная востребованность навыков по кварталам — из демонстрационного источника. */
-async function seedMarket(mockSource: { id: string }, skillId: IdOf): Promise<void> {
-  console.log('Рыночная востребованность навыков...')
-  const demandByPeriod: Record<string, Record<string, number>> = {
-    '2025-Q4': {
-      Python: 8200, Java: 6100, JavaScript: 7400, SQL: 9100, PostgreSQL: 6800,
-      Docker: 5600, Kubernetes: 6300, 'CI/CD': 3400, Linux: 5200,
-      'Сетевые технологии': 2600, 'Информационная безопасность': 4100,
-      'Машинное обучение': 3100, 'Аналитика данных': 4800, 'Облачные платформы': 3600,
-      Микросервисы: 2900, 'Тестирование ПО': 3300, 'Управление проектами': 2400,
-      'Бизнес-анализ': 2100,
-    },
-    '2026-Q1': {
-      Python: 9400, Java: 6000, JavaScript: 7800, SQL: 9600, PostgreSQL: 7400,
-      Docker: 6400, Kubernetes: 7900, 'CI/CD': 4100, Linux: 5400,
-      'Сетевые технологии': 2700, 'Информационная безопасность': 5300,
-      'Машинное обучение': 4200, 'Аналитика данных': 5600, 'Облачные платформы': 4400,
-      Микросервисы: 3400, 'Тестирование ПО': 3500, 'Управление проектами': 2500,
-      'Бизнес-анализ': 2200,
-    },
-  }
-
-  for (const [period, values] of Object.entries(demandByPeriod)) {
-    for (const [name, value] of Object.entries(values)) {
-      await prisma.marketDemand.create({
-        data: {
-          skillId: skillId(name),
-          period,
-          value,
-          unit: 'вакансий',
-          region: 'Россия',
-          source: 'Демонстрационный набор вакансий',
-          dataSourceId: mockSource.id,
-          confidence: 'LOW',
-          isMock: true,
-        },
-      })
-    }
-  }
-}
+// Рыночная востребованность навыков основного сида (2025-Q3…2026-Q3) заливается
+// вместе с расширенным набором — insertExtendedDemo() (решение 141): один источник
+// чисел, EXTRA_MARKET в prisma/demo/catalog.ts, вместо двух копий по кварталам.
 
 /** IT-продукты ИТ-Школы с навыками, во всех статусах жизненного цикла. */
 async function seedProducts(skillId: IdOf) {
@@ -511,6 +455,10 @@ async function seedUniversities() {
         region: item.region,
         address: `${item.city}, адрес указан условно`,
         website: `https://example.invalid/${item.key}`,
+        // ИНН/ОГРН — решение 134: контрольная сумма верна (prisma/demo/random.ts),
+        // сама организация в реестре ФНС не проверяется.
+        inn: validInn(item.key),
+        ogrn: validOgrn(item.key),
         status: item.status,
         // Архив — это и статус, и дата: по дате архивный вуз исключается из аналитики.
         archivedAt: item.status === 'ARCHIVED' ? daysAgo(item.updatedDaysAgo) : null,
@@ -662,6 +610,85 @@ async function seedContactBases(
       },
     ],
   })
+}
+
+/**
+ * Второй контакт у вузов основного сида (решение 141): у каждого вуза — 2–3 контакта
+ * с правовым основанием (решение 111), а не один. ТУСУР — исключение по сюжету:
+ * у его единственного прежнего контакта основание намеренно не зафиксировано
+ * (см. seedContactBases), второй контакт добавлен позже, когда учёт уже вели.
+ *
+ * Основания подобраны так, чтобы в демо встретились и «Договор» (CONTRACT).
+ * и «Иное» (OTHER) — до этого решения ни один демо-контакт их не использовал.
+ */
+async function seedSecondaryContacts(manager: SeedUser, universityId: IdOf, universityCreatedAt: ReadonlyMap<string, Date>): Promise<void> {
+  console.log('Вторые контакты вузов основного сида...')
+  interface SecondContactPlan {
+    key: string
+    fullName: string
+    position: string
+    mailbox: string
+    phone: string
+    basis:
+      | { kind: 'LEGITIMATE_INTEREST'; reference: string }
+      | { kind: 'CONSENT'; form: 'WRITTEN' | 'ELECTRONIC' | 'ORAL_CONFIRMED_BY_EMAIL'; reference: string }
+      | { kind: 'CONTRACT'; reference: string }
+      | { kind: 'OTHER'; reference: string }
+  }
+  const plan: SecondContactPlan[] = [
+    { key: 'spbgu', fullName: 'Фадеев Григорий Андреевич', position: 'Специалист приёмной комиссии', mailbox: 'admissions', phone: '+7 900 000-01-01',
+      basis: { kind: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 14/2026 (демо), архив договоров' } },
+    { key: 'mtuci', fullName: 'Панова Ксения Романовна', position: 'Менеджер по работе с партнёрами', mailbox: 'partners', phone: '+7 900 000-01-02',
+      basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 145/2026 (демо)' } },
+    { key: 'kazan', fullName: 'Хабибуллин Ринат Маратович', position: 'Приглашённый эксперт по договору ГПХ', mailbox: 'expert', phone: '+7 900 000-01-03',
+      basis: { kind: 'CONTRACT', reference: 'Договор возмездного оказания услуг № 9/2026 (демо), приложение «Контактные лица»' } },
+    { key: 'nsu', fullName: 'Дорофеева Александра Игоревна', position: 'Куратор цифровой кафедры', mailbox: 'digital-dept', phone: '+7 900 000-01-04',
+      basis: { kind: 'OTHER', reference: 'Регламент взаимодействия с индустриальными партнёрами, п. 4.2 (демо)' } },
+    { key: 'urfu', fullName: 'Костенко Вадим Олегович', position: 'Специалист по цифровым кафедрам', mailbox: 'digital', phone: '+7 900 000-01-05',
+      basis: { kind: 'LEGITIMATE_INTEREST', reference: 'Соглашение о намерениях № 52/2026 (демо), архив договоров' } },
+    { key: 'tomsk', fullName: 'Малышев Егор Викторович', position: 'Специалист отдела партнёрств', mailbox: 'partnership', phone: '+7 900 000-01-06',
+      basis: { kind: 'CONSENT', form: 'WRITTEN', reference: 'Согласие вх. № 12/2026 (демо), папка «Согласия ПД»' } },
+  ]
+
+  for (const item of plan) {
+    const since = universityCreatedAt.get(item.key)
+    if (!since) throw new Error(`Нет даты заведения вуза: ${item.key}`)
+    const consent = item.basis.kind === 'CONSENT'
+    const consentForm = item.basis.kind === 'CONSENT' ? item.basis.form : null
+    const created = await prisma.contact.create({
+      data: {
+        universityId: universityId(item.key),
+        fullName: item.fullName,
+        position: item.position,
+        email: `${item.mailbox}@${item.key}.example.invalid`,
+        phone: item.phone,
+        isPrimary: false,
+        createdAt: since,
+        updatedAt: since,
+        legalBasis: item.basis.kind,
+        consentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm,
+        basisReference: item.basis.reference,
+        basisUpdatedAt: since,
+      },
+      select: { id: true },
+    })
+    await prisma.contactBasisHistory.create({
+      data: {
+        contactId: created.id,
+        fromBasis: null,
+        toBasis: item.basis.kind,
+        fromConsentStatus: 'NONE',
+        toConsentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm,
+        referenceChanged: true,
+        changedById: manager.id,
+        changedAt: since,
+      },
+    })
+  }
 }
 
 /** Программы демо-набора. У части показатели намеренно не заполнены — проверка поведения «Нет данных». */
@@ -860,7 +887,11 @@ async function seedPrograms(
         metricsUpdatedAt,
         isMock: true,
         skills: {
-          create: item.skills.map(([name, level, importance]) => ({
+          create: fillProgramSkills(
+            item.key,
+            item.skills,
+            BASE_SKILLS.map((skill) => skill.name),
+          ).map(([name, level, importance]) => ({
             skillId: skillId(name),
             level,
             importance,
@@ -1778,13 +1809,13 @@ async function main(): Promise<void> {
   const users = await seedUsers()
   const mockSource = await seedDataSources()
   const skillId = await seedSkills()
-  await seedMarket(mockSource, skillId)
   const products = await seedProducts(skillId)
   const vendors = await seedVendors(prisma)
   const courses = await seedSchoolCourses(prisma, now)
   console.log(`  вендоры (решение 132): ${vendors.vendors}, их продуктов ${vendors.products}, контактов ${vendors.contacts}; курсов ${courses.courses}, заказов с сайта ${courses.orders}`)
   const { universityId, universityCreatedAt } = await seedUniversities()
   await seedContactBases(users.manager, universityId, universityCreatedAt)
+  await seedSecondaryContacts(users.manager, universityId, universityCreatedAt)
   const programId = await seedPrograms(skillId, universityId, universityCreatedAt)
   const cooperations = await seedCooperations(products, users.manager, users.manager2, universityId, programId)
   const universityRep = await seedUniversityRep(users.demoPasswordHash, universityId)
