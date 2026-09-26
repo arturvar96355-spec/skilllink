@@ -1,6 +1,9 @@
 import { prisma } from '@/shared/db/prisma'
+import type { Prisma } from '@/generated/prisma/client'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { ChannelId } from './notify-channels.types'
+
+type Client = Prisma.TransactionClient | typeof prisma
 
 /**
  * Доступ к данным каналов уведомлений (решение 144).
@@ -102,6 +105,18 @@ export async function linkAltChannel(
 export async function unlinkAltChannel(userId: string, channel: Exclude<ChannelId, 'telegram'>): Promise<boolean> {
   const { count } = await prisma.notificationChannelLink.deleteMany({ where: { userId, channel: altChannelWhere(channel) } })
   return count > 0
+}
+
+/**
+ * Все альтернативные каналы пользователя разом (блокировка учётной записи, решение 144:
+ * то, что работает без сессии, закрывается при блокировке — как лента календаря и Telegram,
+ * решения 105 и 102). Отдаёт список отвязанных каналов — для записи в журнал по каждому.
+ */
+export async function unlinkAllAltChannels(userId: string, client: Client = prisma): Promise<Array<Exclude<ChannelId, 'telegram'>>> {
+  const links = await client.notificationChannelLink.findMany({ where: { userId }, select: { channel: true } })
+  if (links.length === 0) return []
+  await client.notificationChannelLink.deleteMany({ where: { userId } })
+  return links.map((link) => (link.channel === 'MAX' ? 'max' : 'vk'))
 }
 
 /** Чей это чат (команда «стоп»). Отдаёт userId — сервис проверяет активность отдельно. */
