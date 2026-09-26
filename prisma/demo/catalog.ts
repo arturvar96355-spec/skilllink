@@ -9,6 +9,7 @@
  * Показатели вузов и программ — демонстрационные, не статистика.
  */
 
+import { Rng } from './random'
 import type {
   ConsentForm,
   CooperationStatus,
@@ -24,8 +25,34 @@ import type {
 // ─────────────────────────────── Навыки и рынок ───────────────────────────────
 
 /**
- * Новые навыки справочника. Ключи названий (skillNameKey) не совпадают ни между
- * собой, ни с навыками основного сида — это проверяет тест (решение 110).
+ * Навыки основного сида (prisma/seed.ts, `seedSkills`) — источник истины здесь,
+ * а не дублируются числом: справочнику решения 141 нужен полный список имён,
+ * чтобы наполнять программы навыками и считать рыночный спрос по всем 50.
+ */
+export const BASE_SKILLS: ReadonlyArray<{ name: string; category: string; description: string }> = [
+  { name: 'Python', category: 'Языки программирования', description: 'Разработка на Python' },
+  { name: 'Java', category: 'Языки программирования', description: 'Разработка на Java' },
+  { name: 'JavaScript', category: 'Языки программирования', description: 'Веб-разработка' },
+  { name: 'SQL', category: 'Базы данных', description: 'Запросы к реляционным СУБД' },
+  { name: 'PostgreSQL', category: 'Базы данных', description: 'Администрирование PostgreSQL' },
+  { name: 'Docker', category: 'DevOps', description: 'Контейнеризация приложений' },
+  { name: 'Kubernetes', category: 'DevOps', description: 'Оркестрация контейнеров' },
+  { name: 'CI/CD', category: 'DevOps', description: 'Непрерывная интеграция и поставка' },
+  { name: 'Linux', category: 'Системное администрирование', description: 'Работа в Linux' },
+  { name: 'Сетевые технологии', category: 'Инфраструктура', description: 'Сети передачи данных' },
+  { name: 'Информационная безопасность', category: 'Безопасность', description: 'Защита систем' },
+  { name: 'Машинное обучение', category: 'Данные', description: 'Построение моделей' },
+  { name: 'Аналитика данных', category: 'Данные', description: 'Обработка и визуализация' },
+  { name: 'Облачные платформы', category: 'Инфраструктура', description: 'Работа с облаками' },
+  { name: 'Микросервисы', category: 'Архитектура', description: 'Проектирование микросервисов' },
+  { name: 'Тестирование ПО', category: 'Качество', description: 'Автоматизация тестирования' },
+  { name: 'Управление проектами', category: 'Процессы', description: 'Методологии управления' },
+  { name: 'Бизнес-анализ', category: 'Процессы', description: 'Сбор и анализ требований' },
+]
+
+/**
+ * Новые навыки справочника (решение 131). Ключи названий (skillNameKey) не совпадают
+ * ни между собой, ни с навыками основного сида — это проверяет тест (решение 110).
  */
 export const EXTRA_SKILLS: ReadonlyArray<{ name: string; category: string; description: string }> = [
   { name: 'Go', category: 'Языки программирования', description: 'Разработка сервисов на Go' },
@@ -41,20 +68,129 @@ export const EXTRA_SKILLS: ReadonlyArray<{ name: string; category: string; descr
 ]
 
 /**
- * Рыночный спрос, вакансий за период (демонстрационный набор): новые навыки в двух
- * прежних кварталах и весь справочник за 2026-Q2 — он становится последним периодом.
+ * Ещё навыки справочника (решение 141: «Полнота демо-данных») — по категориям
+ * из задачи (данные, DevOps, ИБ, сети/облака, ИИ/ML, 1С, тестирование, управление
+ * проектами), доводят справочник с 28 до 50. Каждый из них заведён хотя бы в одной
+ * программе (см. `fillProgramSkills` в этом файле), поэтому ни один не становится
+ * новым критическим дефицитом (решение 131 держит их ровно три: Kubernetes,
+ * PostgreSQL, MLOps — остальные навыки покрыты).
+ */
+export const MORE_SKILLS: ReadonlyArray<{ name: string; category: string; description: string }> = [
+  { name: 'C#', category: 'Языки программирования', description: 'Разработка на платформе .NET' },
+  { name: 'PHP', category: 'Языки программирования', description: 'Веб-разработка на PHP' },
+  { name: 'Rust', category: 'Языки программирования', description: 'Системное программирование с гарантией безопасности памяти' },
+  { name: 'Инженерия данных (ETL)', category: 'Данные', description: 'Построение конвейеров загрузки и очистки данных' },
+  { name: 'Big Data', category: 'Данные', description: 'Обработка больших массивов данных (Hadoop, Spark)' },
+  { name: 'Бизнес-аналитика (BI)', category: 'Данные', description: 'Дашборды и отчётность для принятия решений' },
+  { name: 'Terraform', category: 'DevOps', description: 'Инфраструктура как код' },
+  { name: 'Ansible', category: 'DevOps', description: 'Автоматизация настройки серверов' },
+  { name: 'Мониторинг и логирование', category: 'DevOps', description: 'Сбор метрик и логов эксплуатируемых систем' },
+  { name: 'Криптографическая защита информации', category: 'Безопасность', description: 'Шифрование и электронная подпись' },
+  { name: 'Управление инцидентами ИБ', category: 'Безопасность', description: 'Реагирование на инциденты информационной безопасности' },
+  { name: 'Виртуализация', category: 'Инфраструктура', description: 'Виртуальные машины и гипервизоры' },
+  { name: 'Программно-конфигурируемые сети', category: 'Инфраструктура', description: 'SDN и управление сетевой инфраструктурой программно' },
+  { name: 'Обработка естественного языка', category: 'Данные', description: 'NLP: анализ и генерация текста' },
+  { name: 'Генеративные модели (LLM)', category: 'Данные', description: 'Большие языковые модели и их применение' },
+  { name: '1С:Предприятие', category: '1С', description: 'Разработка и настройка конфигураций 1С:Предприятие' },
+  { name: '1С:ERP', category: '1С', description: 'Внедрение и сопровождение 1С:ERP' },
+  { name: 'Автоматизация тестирования', category: 'Качество', description: 'Автотесты на уровне UI и API' },
+  { name: 'Нагрузочное тестирование', category: 'Качество', description: 'Проверка производительности под нагрузкой' },
+  { name: 'Agile и Scrum', category: 'Процессы', description: 'Гибкие методологии разработки' },
+  { name: 'Продуктовая аналитика', category: 'Процессы', description: 'Метрики продукта и принятие решений на данных' },
+  { name: 'Английский язык для ИТ', category: 'Процессы', description: 'Профессиональное общение и документация на английском' },
+]
+
+/** Все навыки справочника — имена, для добивки списка навыков программы (ниже) и тестов. */
+export const ALL_SKILL_NAMES: readonly string[] = [
+  ...BASE_SKILLS.map((skill) => skill.name),
+  ...EXTRA_SKILLS.map((skill) => skill.name),
+  ...MORE_SKILLS.map((skill) => skill.name),
+]
+
+/**
+ * Kubernetes, PostgreSQL, MLOps — три намеренных критических дефицита сценария
+ * показа (решение 131): рынок их требует, но ни одна программа не должна их
+ * преподавать. `fillProgramSkills` никогда не берёт их в добивку.
+ */
+const PROTECTED_GAP_SKILLS: ReadonlySet<string> = new Set(['Kubernetes', 'PostgreSQL', 'MLOps'])
+
+const FILL_LEVELS: readonly SkillLevel[] = ['BASIC', 'INTERMEDIATE']
+const FILL_IMPORTANCE: readonly SkillImportance[] = ['LOW', 'MEDIUM', 'HIGH']
+
+/**
+ * Добивает список навыков программы до 5–8 (решение 141, инвариант «у каждой
+ * программы ≥ 5 навыков»): авторские навыки из каталога — важные для сюжета —
+ * остаются первыми и с исходным уровнем/важностью, добавленные — заведомо не
+ * CRITICAL и не ADVANCED, чтобы не спорить по значимости с авторским выбором.
+ * Детерминировано по ключу программы: перезаливка не меняет добивку.
+ *
+ * Побочный эффект по всему набору программ (не гарантия одной программы, но
+ * проверено тестом генератора): при ~90 программах и полусотне навыков в пуле
+ * каждый навык решения 141 почти наверняка попадёт хоть в одну программу —
+ * это и снимает его с потенциальных критических дефицитов (покрытие считается
+ * по всем активным программам сразу, `skills.service.ts`).
+ */
+export function fillProgramSkills(
+  programKey: string,
+  existing: ReadonlyArray<readonly [string, SkillLevel, SkillImportance]>,
+  /**
+   * Пул навыков для добивки. По умолчанию — весь справочник (`ALL_SKILL_NAMES`);
+   * `prisma/seed.ts` передаёт только навыки основного сида для программ сценарных
+   * вузов — они заводятся раньше, чем расширенный набор создаёт остальные навыки
+   * (`insertExtendedDemo`), и по имени навыка решения 141 сценарный `skillId()`
+   * ещё не нашёл бы запись.
+   */
+  pool: readonly string[] = ALL_SKILL_NAMES,
+): ReadonlyArray<readonly [string, SkillLevel, SkillImportance]> {
+  const rng = new Rng(`fill-skills:${programKey}`)
+  const target = Math.max(existing.length, rng.int(5, 8))
+  const have = new Set(existing.map(([name]) => name))
+  const candidates = pool.filter((name) => !have.has(name) && !PROTECTED_GAP_SKILLS.has(name))
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swapWith = rng.int(0, index)
+    const a = candidates[index]!
+    candidates[index] = candidates[swapWith]!
+    candidates[swapWith] = a
+  }
+  const added: Array<readonly [string, SkillLevel, SkillImportance]> = []
+  for (const name of candidates) {
+    if (existing.length + added.length >= target) break
+    added.push([name, rng.pick(FILL_LEVELS), rng.pick(FILL_IMPORTANCE)])
+  }
+  return [...existing, ...added]
+}
+
+/**
+ * Рыночный спрос, вакансий за период (демонстрационный набор). Три квартала —
+ * `2025-Q4`, `2026-Q1`, `2026-Q2` — заданы вручную (решение 131): новые навыки во
+ * всех трёх, справочник основного сида (`BASE_SKILLS`) — начиная с `2026-Q2`, где
+ * он ранее совпадал с `prisma/seed.ts` (те же числа, перенесены сюда решением 141,
+ * чтобы весь спрос считался в одном месте) и с `2025-Q4`/`2026-Q1` (тоже перенесены).
  *
  * Пропорции Q2 сохранены: Kubernetes и PostgreSQL остаются двумя самыми острыми
- * дефицитами (их нет ни в одной программе), MLOps добавляется третьим — ниже них.
+ * дефицитами (их нет ни в одной программе), MLOps — третий, ниже них.
  * Сценарий показа (шаг 4) на них и держится.
  */
-export const EXTRA_MARKET: Record<string, Record<string, number>> = {
+const MANUAL_MARKET: Record<string, Record<string, number>> = {
   '2025-Q4': {
+    // Навыки основного сида — перенесено из prisma/seed.ts (`seedMarket`, решение 141).
+    Python: 8200, Java: 6100, JavaScript: 7400, SQL: 9100, PostgreSQL: 6800,
+    Docker: 5600, Kubernetes: 6300, 'CI/CD': 3400, Linux: 5200,
+    'Сетевые технологии': 2600, 'Информационная безопасность': 4100,
+    'Машинное обучение': 3100, 'Аналитика данных': 4800, 'Облачные платформы': 3600,
+    Микросервисы: 2900, 'Тестирование ПО': 3300, 'Управление проектами': 2400,
+    'Бизнес-анализ': 2100,
     Go: 3100, 'C++': 3500, TypeScript: 4200, Kotlin: 2300, 'Разработка мобильных приложений': 3000,
     'Компьютерное зрение': 2000, MLOps: 3900, 'Анализ защищённости': 2600, 'Интернет вещей': 1900,
     'Системный анализ': 3400,
   },
   '2026-Q1': {
+    Python: 9400, Java: 6000, JavaScript: 7800, SQL: 9600, PostgreSQL: 7400,
+    Docker: 6400, Kubernetes: 7900, 'CI/CD': 4100, Linux: 5400,
+    'Сетевые технологии': 2700, 'Информационная безопасность': 5300,
+    'Машинное обучение': 4200, 'Аналитика данных': 5600, 'Облачные платформы': 4400,
+    Микросервисы: 3400, 'Тестирование ПО': 3500, 'Управление проектами': 2500,
+    'Бизнес-анализ': 2200,
     Go: 3500, 'C++': 3500, TypeScript: 4800, Kotlin: 2300, 'Разработка мобильных приложений': 3200,
     'Компьютерное зрение': 2400, MLOps: 5200, 'Анализ защищённости': 3100, 'Интернет вещей': 2000,
     'Системный анализ': 3700,
@@ -69,8 +205,56 @@ export const EXTRA_MARKET: Record<string, Record<string, number>> = {
     Go: 3900, 'C++': 3600, TypeScript: 5200, Kotlin: 2400, 'Разработка мобильных приложений': 3300,
     'Компьютерное зрение': 2600, MLOps: 6300, 'Анализ защищённости': 3400, 'Интернет вещей': 2100,
     'Системный анализ': 3900,
+    // Навыки решения 141 (MORE_SKILLS) — «текущий» замер, с него считается их тренд.
+    'C#': 3400, PHP: 2400, Rust: 1700, 'Инженерия данных (ETL)': 3100, 'Big Data': 3300,
+    'Бизнес-аналитика (BI)': 3500, Terraform: 2600, Ansible: 1900, 'Мониторинг и логирование': 2800,
+    'Криптографическая защита информации': 2000, 'Управление инцидентами ИБ': 2200,
+    Виртуализация: 2500, 'Программно-конфигурируемые сети': 1500,
+    'Обработка естественного языка': 2900, 'Генеративные модели (LLM)': 4600,
+    '1С:Предприятие': 5100, '1С:ERP': 2700, 'Автоматизация тестирования': 3200,
+    'Нагрузочное тестирование': 1800, 'Agile и Scrum': 3000, 'Продуктовая аналитика': 2600,
+    'Английский язык для ИТ': 2400,
   },
 }
+
+/**
+ * Соседний квартал: рост вперёд (к `2026-Q3`), спад назад (к `2025-Q3`) — детерминированно
+ * по имени навыка и направлению, чтобы перезаливка не меняла тренд.
+ */
+function stepQuarter(skill: string, value: number, direction: 'forward' | 'back'): number {
+  const rng = new Rng(`market-step:${skill}:${direction}`)
+  const factor = direction === 'forward' ? rng.uniform(1.03, 1.12) : 1 / rng.uniform(1.05, 1.16)
+  return Math.round((value * factor) / 10) * 10
+}
+
+/**
+ * Явные значения `2026-Q3` для трёх критических дефицитов сценария (решение 131):
+ * растут быстрее общего фона, чтобы после нормирования внутри периода остаться
+ * выше порога `SKILL_GAP.demandThreshold` — обычный случайный шаг (`stepQuarter`)
+ * возможен, но у MLOps в `2026-Q2` запас над порогом мал (решение 141 тест держит
+ * это явно, `generate.test.ts`), и полагаться на жребий для сценарного факта нельзя.
+ */
+const CRITICAL_GAP_Q3_2026: Record<string, number> = { Kubernetes: 9400, PostgreSQL: 8500, MLOps: 7500 }
+
+/** 2025-Q3 → 2025-Q4 → 2026-Q1 → 2026-Q2 → 2026-Q3, с ручными кварталами и явными вехами дефицитов. */
+export const EXTRA_MARKET: Record<string, Record<string, number>> = (() => {
+  const q3_2025: Record<string, number> = {}
+  for (const [skill, value] of Object.entries(MANUAL_MARKET['2025-Q4']!)) q3_2025[skill] = stepQuarter(skill, value, 'back')
+
+  const q2_2026 = MANUAL_MARKET['2026-Q2']!
+  const q3_2026: Record<string, number> = {}
+  for (const [skill, value] of Object.entries(q2_2026)) {
+    q3_2026[skill] = CRITICAL_GAP_Q3_2026[skill] ?? stepQuarter(skill, value, 'forward')
+  }
+
+  return {
+    '2025-Q3': q3_2025,
+    '2025-Q4': MANUAL_MARKET['2025-Q4']!,
+    '2026-Q1': MANUAL_MARKET['2026-Q1']!,
+    '2026-Q2': q2_2026,
+    '2026-Q3': q3_2026,
+  }
+})()
 
 /**
  * Спрос работодателей по регионам за 2026-Q2 — второй демо-источник. Федеральный
@@ -239,6 +423,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 20, studentCount: 9000, createdDaysAgo: 268,
     contacts: [
       { fullName: 'Фролов Денис Александрович', position: 'Заведующий кафедрой программной инженерии', mailbox: 'contact', isPrimary: true, basis: agreement(33) },
+      { fullName: 'Гурьева Полина Витальевна', position: 'Специалист учебного отдела', mailbox: 'edu', isPrimary: false, basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 152/2026 (демо)' } },
     ],
   },
   {
@@ -257,6 +442,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 50, studentCount: 22000, createdDaysAgo: 150,
     contacts: [
       { fullName: 'Ким Виктория Андреевна', position: 'Руководитель направления цифровых кафедр', mailbox: 'contact', isPrimary: true, basis: { kind: 'CONSENT', form: 'ORAL_CONFIRMED_BY_EMAIL', reference: 'Письмо-подтверждение вх. № 140/2026 (демо)' } },
+      { fullName: 'Ткаченко Артур Борисович', position: 'Заведующий кафедрой компьютерных систем', mailbox: 'dept', isPrimary: false, basis: agreement(41) },
     ],
   },
   {
@@ -265,6 +451,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 60, studentCount: 28000, createdDaysAgo: 272,
     contacts: [
       { fullName: 'Галиев Тимур Ринатович', position: 'Проректор по цифровой трансформации', mailbox: 'contact', isPrimary: true, basis: agreement(29) },
+      { fullName: 'Юсупова Гульнара Фаритовна', position: 'Начальник отдела трудоустройства выпускников', mailbox: 'career', isPrimary: false, basis: { kind: 'CONSENT', form: 'WRITTEN', reference: 'Согласие вх. № 95/2026 (демо), папка «Согласия ПД»' } },
     ],
   },
   {
@@ -297,6 +484,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 30, studentCount: 12000, createdDaysAgo: 120,
     contacts: [
       { fullName: 'Кравченко Олег Николаевич', position: 'Заведующий кафедрой прикладной математики', mailbox: 'contact', isPrimary: true, basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 77/2026 (демо)' } },
+      { fullName: 'Логинова Виктория Сергеевна', position: 'Специалист приёмной комиссии', mailbox: 'admissions', isPrimary: false, basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 78/2026 (демо)' } },
     ],
   },
   {
@@ -305,6 +493,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 40, studentCount: 18000, createdDaysAgo: 274,
     contacts: [
       { fullName: 'Власова Дарья Михайловна', position: 'Руководитель центра партнёрства с ИТ-компаниями', mailbox: 'contact', isPrimary: true, basis: agreement(25) },
+      { fullName: 'Никитин Станислав Олегович', position: 'Доцент кафедры программного обеспечения', mailbox: 'dept', isPrimary: false, basis: agreement(25) },
     ],
   },
   {
@@ -313,6 +502,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 45, studentCount: 14000, createdDaysAgo: 273,
     contacts: [
       { fullName: 'Янсон Кирилл Эдуардович', position: 'Директор высшей школы компьютерных наук', mailbox: 'contact', isPrimary: true, basis: agreement(27) },
+      { fullName: 'Романова Варвара Дмитриевна', position: 'Менеджер по работе с работодателями', mailbox: 'partners', isPrimary: false, basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 163/2026 (демо)' } },
     ],
   },
   {
@@ -321,6 +511,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 6, studentCount: 1500, createdDaysAgo: 266,
     contacts: [
       { fullName: 'Сафина Алсу Ильдаровна', position: 'Руководитель программ бакалавриата', mailbox: 'contact', isPrimary: true, basis: agreement(34) },
+      { fullName: 'Гилязов Данил Тимурович', position: 'Координатор магистерских программ', mailbox: 'magistracy', isPrimary: false, basis: agreement(34) },
     ],
   },
   {
@@ -331,6 +522,7 @@ export const EXTRA_UNIVERSITIES: readonly UniversitySpec[] = [
     directionCount: 35, studentCount: 13000, createdDaysAgo: 265, archivedDaysAgo: 50,
     contacts: [
       { fullName: 'Лысенко Андрей Геннадьевич', position: 'Заведующий кафедрой информационных систем', mailbox: 'contact', isPrimary: true, basis: { kind: 'NONE' } },
+      { fullName: 'Дьяченко Марина Анатольевна', position: 'Секретарь учёного совета', mailbox: 'secretary', isPrimary: false, basis: { kind: 'CONSENT', form: 'WRITTEN', reference: 'Согласие вх. № 18/2025 (демо), папка «Согласия ПД»' } },
     ],
   },
 ]
@@ -473,6 +665,41 @@ export const EXTRA_PROGRAMS: readonly ProgramSpec[] = [
     skills: [['Информационная безопасность', 'ADVANCED', 'CRITICAL'], ['Сетевые технологии', 'ADVANCED', 'HIGH']] },
   { key: 'tomsk-soft', university: 'tomsk', status: 'ARCHIVED', name: 'Программная инженерия', code: SE[0], direction: SE[1], level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
     skills: [['Java', 'INTERMEDIATE', 'HIGH'], ['Тестирование ПО', 'BASIC', 'MEDIUM']] },
+
+  // ─── Решение 141: сеть общих направлений на несколько вузов, а не звезда
+  // уникальных названий — у каждого направления (код ФГОС) свои 3–8 вузов,
+  // одни коды переиспользуются намеренно. Новые связки на эти программы — ниже,
+  // в MORE_COOPERATIONS. Kubernetes/PostgreSQL/MLOps по-прежнему нигде не заведены.
+  { key: 'vsu-networks', university: 'vsu', name: 'Инфокоммуникационные системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 190, studentCount: 80, groupCount: 3,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'dvfu-isit', university: 'dvfu', name: 'Информационные системы и технологии', code: '09.03.02', direction: 'Информационные системы и технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 200, studentCount: 84, groupCount: 3,
+    skills: [['JavaScript', 'INTERMEDIATE', 'HIGH'], ['SQL', 'INTERMEDIATE', 'HIGH']] },
+  { key: 'dvfu-appl', university: 'dvfu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 175, studentCount: 70, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'innopolis-pmi', university: 'innopolis', name: 'Прикладная математика и информатика', code: '01.03.02', direction: 'Прикладная математика и информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 210, studentCount: 88, groupCount: 3,
+    skills: [['Python', 'ADVANCED', 'HIGH'], ['SQL', 'INTERMEDIATE', 'HIGH']] },
+  { key: 'kubstu-networks', university: 'kubstu', status: 'ARCHIVED', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'kubstu-pmi', university: 'kubstu', status: 'ARCHIVED', name: 'Прикладная математика и информатика', code: '01.03.02', direction: 'Прикладная математика и информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Python', 'BASIC', 'MEDIUM'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-networks', university: 'omgtu', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 150, studentCount: 62, groupCount: 2,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-appl', university: 'omgtu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 165, studentCount: 68, groupCount: 3,
+    skills: [['Аналитика данных', 'BASIC', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-master', university: 'omgtu', name: 'Информатика и вычислительная техника', code: '09.04.01', direction: 'Информатика и вычислительная техника', level: 'MASTER', durationMonths: 24, applicationCount: 80, studentCount: 32, groupCount: 2,
+    skills: [['Python', 'INTERMEDIATE', 'HIGH'], ['Машинное обучение', 'BASIC', 'MEDIUM']] },
+  { key: 'psuti-appl', university: 'psuti', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 195, studentCount: 82, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'INTERMEDIATE', 'MEDIUM']] },
+  { key: 'pnipu-appl', university: 'pnipu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 185, studentCount: 76, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['Бизнес-анализ', 'BASIC', 'MEDIUM'], ['Бизнес-аналитика (BI)', 'BASIC', 'MEDIUM']] },
+  { key: 'pnipu-networks', university: 'pnipu', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 160, studentCount: 66, groupCount: 2,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'tomsk-isit', university: 'tomsk', status: 'ARCHIVED', name: 'Информационные системы и технологии', code: '09.03.02', direction: 'Информационные системы и технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['JavaScript', 'BASIC', 'MEDIUM'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'tomsk-business', university: 'tomsk', status: 'ARCHIVED', name: 'Бизнес-информатика и анализ данных', code: '38.03.05', direction: 'Бизнес-информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Аналитика данных', 'BASIC', 'MEDIUM'], ['Управление проектами', 'BASIC', 'LOW']] },
+  { key: 'kantiana-appl', university: 'kantiana', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 170, studentCount: 70, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
 ]
 
 // ─────────────────────────────── Связки ───────────────────────────────────────
@@ -516,6 +743,7 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'unn-soft', university: 'unn', program: 'unn-soft', product: 'teamDev', responsible: 'manager2', status: 'COMPLETED', stage: 14, pattern: 'regular', goal: 'Командная разработка в курсе программной инженерии: курс прочитан' },
   { key: 'unn-infosec', university: 'unn', program: 'unn-infosec', product: 'cyberRange', responsible: 'manager', status: 'ACTIVE', stage: 7, pattern: 'demandBase', goal: 'Киберполигон для практикума по безопасности' },
   { key: 'unn-data', university: 'unn', program: 'unn-data', product: 'dbms', responsible: 'manager2', status: 'ACTIVE', stage: 11, pattern: 'regular', goal: 'Учебный стенд СУБД в курсе баз данных' },
+  { key: 'unn-dpo', university: 'unn', program: 'unn-dpo', product: null, responsible: 'manager', status: 'ACTIVE', stage: 3, pattern: 'regular', goal: 'Курс анализа данных для инженеров' },
   // ПГУТИ
   { key: 'psuti-networks', university: 'psuti', program: 'psuti-networks', product: 'iot', responsible: 'manager', status: 'ACTIVE', stage: 12, pattern: 'regular', goal: 'Платформа интернета вещей в лабораторном практикуме' },
   { key: 'psuti-soft', university: 'psuti', program: 'psuti-soft', product: 'cloud', responsible: 'manager2', status: 'ACTIVE', stage: 10, pattern: 'regular', overdue: true, goal: 'Облачная платформа в курсе распределённых систем' },
@@ -563,4 +791,41 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'innopolis-mobile', university: 'innopolis', program: 'innopolis-mobile', product: 'mobile', responsible: 'manager2', status: 'ACTIVE', stage: 7, pattern: 'regular', blocked: 'Лицензия не подписана: проректор в командировке до середины октября', goal: 'Платформа мобильной разработки в программе ДПО' },
   // КубГТУ — переговоры не вышли из этапа 6, вуз в архиве
   { key: 'kubstu-soft', university: 'kubstu', program: 'kubstu-soft', product: 'cloud', responsible: 'manager', status: 'CANCELLED', stage: 6, pattern: 'stuck', goal: 'Облачная платформа в курсе ИС', notes: 'Отменена: за четыре месяца договор так и не согласовали, вуз прекратил переговоры.' },
+
+  // ─── Решение 141: 4–7 связок на вуз (было 2–3) — те же продукты на программах
+  // общих направлений в нескольких вузах, разные статусы и этапы.
+  // ВГУ — вторая и третья связки
+  { key: 'vsu-ai', university: 'vsu', program: 'vsu-ai', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичные переговоры по магистратуре ИИ: направление ещё черновик' },
+  { key: 'vsu-networks', university: 'vsu', program: 'vsu-networks', product: 'monitoring', responsible: 'manager', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Мониторинг инфраструктуры в курсе связи' },
+  // ДВФУ
+  { key: 'dvfu-isit', university: 'dvfu', program: 'dvfu-isit', product: 'devops', responsible: 'manager', status: 'ACTIVE', stage: 5, pattern: 'regular', goal: 'Конвейер сборки в информационных системах' },
+  { key: 'dvfu-appl', university: 'dvfu', program: 'dvfu-appl', product: 'dataLab', responsible: 'manager2', status: 'COMPLETED', stage: 14, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике: курс прочитан' },
+  // ИРНИТУ — программа доп. образования закрыта вместе со связкой
+  { key: 'irnitu-dpo', university: 'irnitu', program: 'irnitu-dpo', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 3, pattern: 'regular', goal: 'Курс промышленной аналитики данных', notes: 'Отменена: программу доп. образования закрыли за недобором слушателей.' },
+  // Иннополис
+  { key: 'innopolis-pmi', university: 'innopolis', program: 'innopolis-pmi', product: 'dbms', responsible: 'manager', status: 'ACTIVE', stage: 8, pattern: 'regular', goal: 'Учебный стенд СУБД в прикладной математике' },
+  // КубГТУ — вуз в архиве, остальные связки тоже не пошли дальше
+  { key: 'kubstu-data', university: 'kubstu', program: 'kubstu-data', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 4, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике', notes: 'Отменена вместе с остальными переговорами при закрытии сотрудничества.' },
+  { key: 'kubstu-networks', university: 'kubstu', program: 'kubstu-networks', product: null, responsible: 'manager', status: 'CANCELLED', stage: 2, pattern: 'regular', goal: 'Сети связи в инфокоммуникационных технологиях', notes: 'Отменена вместе с остальными переговорами при закрытии сотрудничества.' },
+  { key: 'kubstu-pmi', university: 'kubstu', program: 'kubstu-pmi', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичная заявка по прикладной математике' },
+  // ОмГТУ — новый вуз, разные стадии знакомства
+  { key: 'omgtu-networks', university: 'omgtu', program: 'omgtu-networks', product: 'iot', responsible: 'manager', status: 'ACTIVE', stage: 3, pattern: 'regular', goal: 'Платформа интернета вещей в инфокоммуникационных технологиях' },
+  { key: 'omgtu-appl', university: 'omgtu', program: 'omgtu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'regular', overdue: true, goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'omgtu-master', university: 'omgtu', program: 'omgtu-master', product: null, responsible: 'manager', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичные переговоры по магистратуре ИВТ' },
+  // ПГУТИ
+  { key: 'psuti-appl', university: 'psuti', program: 'psuti-appl', product: 'dataLab', responsible: 'manager', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
+  // ПНИПУ — активность падает, как и у остальных связок вуза
+  { key: 'pnipu-appl', university: 'pnipu', program: 'pnipu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'fading', idle: true, goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'pnipu-networks', university: 'pnipu', program: 'pnipu-networks', product: 'monitoring', responsible: 'manager', status: 'PAUSED', stage: 4, pattern: 'fading', goal: 'Мониторинг инфраструктуры в инфокоммуникационных технологиях', notes: 'Пауза: та же причина, что и у остальных связок вуза — активность падает.' },
+  // СФУ — аспирантура, некрупная связка
+  { key: 'sfu-phd', university: 'sfu', program: 'sfu-phd', product: null, responsible: 'manager2', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Научный семинар по системному ПО в аспирантуре' },
+  // ТУСУР — вуз в архиве, ни одна связка не пошла дальше первых этапов
+  { key: 'tomsk-infosec', university: 'tomsk', program: 'tomsk-infosec', product: null, responsible: 'manager', status: 'CANCELLED', stage: 3, pattern: 'regular', goal: 'Защищённые сети связи', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-soft', university: 'tomsk', program: 'tomsk-soft', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 2, pattern: 'regular', goal: 'Программная инженерия', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-isit', university: 'tomsk', program: 'tomsk-isit', product: null, responsible: 'manager', status: 'CANCELLED', stage: 1, pattern: 'regular', goal: 'Информационные системы и технологии', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-business', university: 'tomsk', program: 'tomsk-business', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичная заявка по бизнес-информатике' },
+  // УУНиТ — приостановленная программа даёт связке на паузе
+  { key: 'uust-embedded', university: 'uust', program: 'uust-embedded', product: 'iot', responsible: 'manager2', status: 'PAUSED', stage: 4, pattern: 'regular', idle: true, goal: 'Платформа интернета вещей во встраиваемых системах', notes: 'Пауза: программа приостановлена, набор не объявлен.' },
+  // БФУ им. И. Канта
+  { key: 'kantiana-appl', university: 'kantiana', program: 'kantiana-appl', product: 'dataLab', responsible: 'manager', status: 'ACTIVE', stage: 11, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
 ]

@@ -24,7 +24,12 @@ import {
   notificationFeedQuerySchema,
 } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
-import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import { telegramSetModeSchema, telegramSetTokenSchema, telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import {
+  maxUpdateSchema,
+  setPrimaryChannelSchema,
+  vkCallbackEventSchema,
+} from '@/modules/notify-channels/notify-channels.schema'
 import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
 import {
   changePasswordSchema,
@@ -237,6 +242,36 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     returnsOk: true,
     errors: ['FORBIDDEN', 'INTERNAL'],
   },
+  {
+    method: 'post',
+    path: '/api/channels/max/webhook',
+    tag: 'Служебное',
+    summary: 'Вебхук бота MAX (вызывает MAX, решение 144)',
+    description:
+      'Без входа: подлинность — заголовок X-Max-Bot-Api-Secret, равный MAX_WEBHOOK_SECRET; ' +
+      'без него или с другим — 403 (отправка сообщений при этом не затронута). Диплинк со стартовым ' +
+      'кодом привязывает чат, «сегодня»/«стоп» — те же команды, что у Telegram. Отвечает 200 сразу ' +
+      '({ accepted }), обрабатывает после ответа; нераспознанное тело — тоже 200.',
+    body: maxUpdateSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['FORBIDDEN', 'INTERNAL'],
+  },
+  {
+    method: 'post',
+    path: '/api/channels/vk/callback',
+    tag: 'Служебное',
+    summary: 'Callback API сообщества VK (вызывает VK, решение 144)',
+    description:
+      'Без входа. Устроен не так, как остальные вебхуки: событие confirmation отвечается открытым ' +
+      'текстом с кодом из VK_CONFIRMATION_CODE, не JSON; подлинность остальных событий — поле `secret` ' +
+      'в теле, а не заголовок (VK_SECRET), неверный или отсутствующий — 403. Ссылка vk.me/<сообщество>' +
+      '?ref=<код> привязывает чат, «сегодня»/«стоп» — те же команды. Ответ всегда "ok" открытым текстом.',
+    body: vkCallbackEventSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['FORBIDDEN', 'INTERNAL'],
+  },
 
   // ── Пользователи ──────────────────────────────────────────────────────────
   {
@@ -393,11 +428,13 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     method: 'post',
     path: '/api/me/telegram',
     tag: 'Пользователи',
-    summary: 'Уведомления в Telegram: ссылка на бота для подключения',
+    summary: 'Уведомления в Telegram: ссылка на бота для подключения или перепривязки',
     description:
       'Отдаёт url вида https://t.me/<бот>?start=<токен> и срок expiresAt. Токен — HMAC над id ' +
       'пользователя и сроком, живёт 15 минут, срабатывает один раз; в базе не хранится. ' +
-      'Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Бот не настроен — 502. Тело не нужно.',
+      'Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Работает и при уже ' +
+      'существующей привязке — «Перепривязать» (решение 142): «Старт» в другом чате переносит туда ' +
+      'привязку, в прежний чат уходит одно сообщение о переносе. Бот не настроен — 502. Тело не нужно.',
     permission: 'ANALYTICS',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
@@ -412,6 +449,54 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'работает и при выключенном боте.',
     permission: 'READ',
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/me/channels',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: Telegram, MAX, VK — состояние для личного кабинета',
+    description:
+      'Решение 144. Три строки: для каждого канала — configured (настроен администратором), ' +
+      'linked, username, linkedAt и primary (основной — куда уходит сводка и оповещения, если ' +
+      'привязано несколько). Без выбора основного канала им становится первый настроенный и ' +
+      'привязанный по порядку Telegram → MAX → VK.',
+    permission: 'READ',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'put',
+    path: '/api/me/channels',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: выбрать основной канал',
+    description: 'Тело { primary: "telegram" | "max" | "vk" | null }; null — снова автоматический выбор.',
+    body: setPrimaryChannelSchema,
+    permission: 'READ',
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/me/channels/{id}/connect',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: ссылка на канал для подключения/перепривязки',
+    description:
+      'Отдаёт url и expiresAt (диплинк MAX или vk.me/<сообщество>?ref=… для VK; для Telegram — ' +
+      'то же, что POST /api/me/telegram). Одноразовый код живёт 15 минут. Перепривязка заменяет ' +
+      'прежний чат — он получает «уведомления перенесены», если доставка возможна. Канал не ' +
+      'настроен администратором — 502. Тела не нужно.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'ANALYTICS',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'delete',
+    path: '/api/me/channels/{id}',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: отключить канал',
+    description: 'Удаляет привязку текущего пользователя к этому каналу. Повтор — не ошибка.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'READ',
+    errors: READ_ERRORS,
   },
   {
     method: 'get',
@@ -1928,6 +2013,97 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ADMIN',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  // ── Админка бота Telegram (решение 142) ──────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/admin/telegram',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: статус',
+    description:
+      'Настроен ли бот, @имя, режим (webhook/polling/auto — настройка) и running (что происходит фактически: ' +
+      'webhook/polling/off), адрес вебхука и необработанные обновления по данным Telegram (живой запрос), ' +
+      'последняя ошибка и её время, число сотрудников с личной привязкой, откуда действующий токен ' +
+      '(env/база/нет), задан ли TELEGRAM_OWNER_CHAT_ID. Токена в ответе нет.',
+    permission: 'ADMIN',
+    errors: [...COMMON_ERRORS],
+  },
+  {
+    method: 'put',
+    path: '/api/admin/telegram/token',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: сменить токен',
+    description:
+      'Токен проверяется у Telegram (getMe) до сохранения — неверный отклоняется, старый токен продолжает ' +
+      'действовать. При успехе сохраняется зашифрованным (AES-256-GCM, ключ — HKDF от AUTH_SECRET) в базе, ' +
+      'главнее переменных окружения; дальше — новый секрет вебхука (решение 133) или перезапуск polling новым ' +
+      'токеном, смотря какой режим сейчас выбран. Журнал telegram.token_changed без самого токена. Ответ — ' +
+      'обновлённый статус (как GET /api/admin/telegram).',
+    body: telegramSetTokenSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'INTEGRATION_ERROR'],
+  },
+  {
+    method: 'delete',
+    path: '/api/admin/telegram/token',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: отключить (удалить токен)',
+    description:
+      'Снимает вебхук у Telegram (по возможности), удаляет токен из базы и останавливает polling. Если токен ' +
+      'также задан переменной окружения — бот остаётся настроенным им (это видно по tokenSource в ответе). ' +
+      'Журнал telegram.token_removed. Тело не нужно.',
+    permission: 'ADMIN',
+    errors: [...COMMON_ERRORS],
+  },
+  {
+    method: 'put',
+    path: '/api/admin/telegram/mode',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: сменить режим приёма обновлений',
+    description:
+      'webhook — только вебхук; polling — только long polling (getUpdates), вебхук снимается; auto — вебхук, ' +
+      'пока отвечает, иначе приложение само переключается на polling (решение 142). Бот не настроен — 502. ' +
+      'Журнал telegram.mode_switched (by: admin). Ответ — обновлённый статус.',
+    body: telegramSetModeSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'INTEGRATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/telegram/test',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: отправить проверочное сообщение',
+    description:
+      'В чат администратора, который вызвал операцию, если он сам подключил личные уведомления, иначе — ' +
+      'в чат владельца (TELEGRAM_OWNER_CHAT_ID). Ни того ни другого — понятная ошибка. Ответ { sentTo }. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...COMMON_ERRORS, 'INTEGRATION_ERROR'],
+  },
+  // ── Каналы уведомлений (решение 144) ─────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/admin/channels',
+    tag: 'Администрирование',
+    summary: 'Каналы уведомлений: статус для администратора',
+    description:
+      'Telegram, MAX, VK — настроен ли каждый (есть токен) и сколько сотрудников привязано ' +
+      '(«Настройки → Интеграции»). Ни один канал не настроен по умолчанию — это не ошибка.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/channels/{id}/test',
+    tag: 'Администрирование',
+    summary: 'Проверить канал уведомлений',
+    description:
+      'Пробное сообщение в собственный чат администратора — сначала он должен подключить канал ' +
+      'себе в личном кабинете, иначе 403. Канал не настроен — { ok: false, reason }, не ошибка. Тело не нужно.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'INTERNAL'],
   },
   {
     method: 'get',

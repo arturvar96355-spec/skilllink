@@ -95,6 +95,20 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # Каналы уведомлений: MAX и VK (решение 144). По умолчанию выключены — на этом
+      # хакатоне боевых токенов нет и не будет, канал остаётся «для галочки» в
+      # интерфейсе. Ключи — только в .env.cloud: docs/SETUP.md, «Каналы уведомлений:
+      # MAX и VK».
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_BOT_USERNAME: ${MAX_BOT_USERNAME:-}
+      MAX_WEBHOOK_SECRET: ${MAX_WEBHOOK_SECRET:-}
+      MAX_API_BASE: ${MAX_API_BASE:-}
+      VK_GROUP_TOKEN: ${VK_GROUP_TOKEN:-}
+      VK_GROUP_ID: ${VK_GROUP_ID:-}
+      VK_CONFIRMATION_CODE: ${VK_CONFIRMATION_CODE:-}
+      VK_SECRET: ${VK_SECRET:-}
+      VK_API_VERSION: ${VK_API_VERSION:-}
+      VK_API_BASE: ${VK_API_BASE:-}
       # Контрольная группа рекомендаций (решение 126). По умолчанию выключена: на стенде
       # показа сценарий опирается на рекомендации, прятать их нельзя.
       RECOMMENDATION_EXPERIMENT: ${RECOMMENDATION_EXPERIMENT:-off}
@@ -145,11 +159,21 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-skilllink}:${POSTGRES_PASSWORD:-skilllink}@postgres:5432/${POSTGRES_DB:-skilllink}?schema=public
-      # Для рассылки сводки в Telegram по расписанию (npm run telegram:digest,
-      # docs/DEPLOY.md): тот же бот и публичный адрес стенда для ссылок.
+      # Для рассылки сводки по каналам уведомлений по расписанию (npm run
+      # telegram:digest, docs/DEPLOY.md): те же боты и публичный адрес стенда
+      # для ссылок в тексте сводки.
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # MAX и VK (решение 144) — только то, что нужно для отправки, без секретов
+      # вебхука/Callback API: рассылка не принимает входящие.
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      MAX_BOT_USERNAME: ${MAX_BOT_USERNAME:-}
+      MAX_API_BASE: ${MAX_API_BASE:-}
+      VK_GROUP_TOKEN: ${VK_GROUP_TOKEN:-}
+      VK_GROUP_ID: ${VK_GROUP_ID:-}
+      VK_API_VERSION: ${VK_API_VERSION:-}
+      VK_API_BASE: ${VK_API_BASE:-}
       AUTH_URL: ${DOCKER_AUTH_URL:-}
     command: ['npx', 'prisma', 'migrate', 'deploy']
     restart: 'no'

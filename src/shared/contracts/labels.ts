@@ -336,6 +336,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'ai.proposal.applied': 'План применён',
   'telegram.link': 'Подключены уведомления в Telegram',
   'telegram.unlink': 'Отключены уведомления в Telegram',
+  'channel.link': 'Подключён канал уведомлений (MAX/VK)',
+  'channel.unlink': 'Отключён канал уведомлений (MAX/VK)',
   'document.create': 'Создан документ',
   'document.update': 'Изменён документ',
   'document.status.change': 'Изменён статус документа',
@@ -376,6 +378,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'file.uploaded': 'Загружен файл',
   'file.deleted': 'Удалён файл',
   'import.external': 'Приём данных извне (сайт/LMS)',
+  'telegram.token_changed': 'Сменён токен бота Telegram',
+  'telegram.token_removed': 'Бот Telegram отключён (токен удалён)',
+  'telegram.mode_switched': 'Изменён режим приёма обновлений Telegram',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */

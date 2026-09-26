@@ -293,6 +293,10 @@ model User {
   /// Ставится `POST /api/notifications/seen`; `localStorage` на фронте остаётся быстрым кэшем,
   /// но не хранилищем — иначе прочитанность терялась при смене устройства или очистке хранилища.
   notificationsSeenAt DateTime? @map("notifications_seen_at")
+  /// Основной канал уведомлений (решение 144): куда уходит сводка «что горит у меня»
+  /// и оповещения владельцу, когда настроено и привязано несколько каналов. Пусто —
+  /// выбирается первый настроенный и привязанный по порядку Telegram → MAX → VK.
+  notifyChannel  NotifyChannelKind? @map("notify_channel")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -311,6 +315,7 @@ model User {
   auditLogs              AuditLog[]            @relation("AuditLogUser")
   applicationsCreated    Application[]         @relation("ApplicationAuthor")
   telegramLink           TelegramLink?
+  notificationChannelLinks NotificationChannelLink[]
   calendarFeed           CalendarFeed?
   contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
   duplicateDismissals    DuplicateDismissal[]  @relation("DuplicateDismissalAuthor")
@@ -1410,6 +1415,52 @@ model TelegramLink {
   @@map("telegram_links")
 }
 
+// ─────────────────── Каналы уведомлений: MAX, VK (решение 144) ───────────────────
+
+/// Каналы уведомлений сотруднику, кроме Telegram (который остаётся в telegram_links,
+/// решение 102 — раздельные схемы старше этой модели). MAX и VK — российские сервисы,
+/// в отличие от Telegram (docs/PRIVACY.md).
+enum NotifyChannelKind {
+  TELEGRAM
+  MAX
+  VK
+}
+
+/// Привязка альтернативного канала уведомлений — MAX или VK (решение 144). Тот же
+/// принцип, что у Telegram: один пользователь — один чат на канал, один чат — один
+/// пользователь; перепривязка заменяет прежнюю запись. Хранится только то, без чего
+/// сообщение не доставить: идентификатор чата/собеседника на стороне канала и ник.
+model NotificationChannelLink {
+  id       String            @id @default(cuid())
+  userId   String            @map("user_id")
+  channel  NotifyChannelKind
+  /// Идентификатор чата/собеседника на стороне канала: MAX — user_id/chat_id, VK — peer_id.
+  chatRef  String            @map("chat_ref")
+  username String?
+  linkedAt DateTime          @default(now()) @map("linked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@unique([channel, chatRef])
+  @@map("notification_channel_links")
+}
+
+/// Дедупликация входящих обновлений MAX и VK (решение 144) — общей таблицей на оба
+/// канала, тем же приёмом, что telegram_updates_seen (решение 133): Telegram обрабатывает
+/// свой вебхук отдельно и в этой таблице не участвует.
+model ChannelUpdatesSeen {
+  channel  NotifyChannelKind
+  /// Идентификатор события на стороне канала (MAX update_id, VK event_id) — строкой:
+  /// у каналов разный тип идентификатора, общего числового формата нет.
+  updateId String            @map("update_id")
+  seenAt   DateTime          @default(now()) @map("seen_at")
+
+  @@id([channel, updateId])
+  @@index([seenAt])
+  @@map("channel_updates_seen")
+}
+
 // ─────────────────────── Качество данных (решение 134) ───────────────────────
 
 /// Пара записей, отмеченная «не дубль»: поиск дублей её больше не предлагает.
@@ -1481,13 +1532,19 @@ model TelegramUpdateSeen {
   @@map("telegram_updates_seen")
 }
 
-/// Секреты, которые меняются без перезапуска (секрет вебхука Telegram). Хранится только
-/// SHA-256 значения: проверке входящего запроса больше не нужно, а само значение
-/// знает только Telegram. Запись здесь главнее переменной окружения.
-/// CHECK в базе: value_hash — 64 шестнадцатеричных знака.
+/// Секреты, которые меняются без перезапуска. Два вида записи:
+/// - только хеш (секрет вебхука Telegram) — проверке входящего запроса больше не
+///   нужно само значение, оно только у Telegram;
+/// - зашифрованное значение (решение 142: токен бота Telegram, имя бота, режим
+///   приёма) — `value` хранит AES-256-GCM (nonce|tag|ciphertext, base64; ключ —
+///   HKDF от AUTH_SECRET) или, для не-секретных настроек вроде имени бота и
+///   режима, значение как есть. Запись здесь главнее переменной окружения.
+/// CHECK в базе: ровно одно из value_hash/value заполнено; value_hash, если есть, —
+/// 64 шестнадцатеричных знака.
 model SystemSecret {
-  name        String   @id
-  valueHash   String   @map("value_hash")
+  name        String  @id
+  valueHash   String? @map("value_hash")
+  value       String?
   rotatedAt   DateTime @default(now()) @map("rotated_at")
   rotatedById String?  @map("rotated_by_id")
 

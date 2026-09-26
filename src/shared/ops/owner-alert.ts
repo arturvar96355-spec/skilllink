@@ -1,9 +1,9 @@
-import { prisma } from '@/shared/db/prisma'
-import { getTelegramClient } from '@/integrations/telegram'
 import { OWNER_ALERT } from '@/shared/config/ops.config'
+import { anyChannelConfigured, dispatchToRecipientKey, ownerRecipientKeys } from '@/modules/notify-channels/notify-channels.service'
 
 /**
- * Оповещения владельцу о событиях безопасности — в Telegram (решение 118).
+ * Оповещения владельцу о событиях безопасности — через каналы уведомлений
+ * (решение 118, решение 144: Telegram, MAX, VK).
  *
  *     notifyOwner('user.blocked', { key: userId, details: { userId, by: actor.id } })
  *
@@ -11,12 +11,16 @@ import { OWNER_ALERT } from '@/shared/config/ops.config'
  * не бросает — сбой оповещения не должен ломать вход, блокировку или выгрузку.
  * Отправка ограничена по времени (AbortController, OWNER_ALERT.timeoutMs).
  *
- * - **Кому:** активные администраторы с привязанным ботом (telegram_links, решение 102)
- *   и чат TELEGRAM_OWNER_CHAT_ID, если задан. Бот не настроен (нет TELEGRAM_BOT_TOKEN) —
- *   строка в журнале «бот не настроен» и ничего больше.
+ * - **Кому:** активные администраторы с привязанным каналом (Telegram — telegram_links,
+ *   решение 102; MAX/VK — notification_channel_links, решение 144: основной канал
+ *   администратора, иначе первый привязанный) и чат TELEGRAM_OWNER_CHAT_ID, если
+ *   задан. Ни один канал не настроен — строка в журнале «каналы не настроены»
+ *   и ничего больше (`getChannels`/`notify-channels.service.ts` решают, что «настроено»,
+ *   этот модуль — только доставка).
  * - **Без повторов:** одно и то же событие с тем же `key` — не чаще раза в 15 минут
  *   (память процесса). Перебор пароля даёт одно сообщение, а не сотню.
- * - **Без персональных данных:** Telegram — иностранный сервис. Почта и логин
+ * - **Без персональных данных:** MAX, VK и Telegram — внешние сервисы (Telegram —
+ *   зарубежный, MAX и VK — российские, подробности в docs/PRIVACY.md). Почта и логин
  *   маскируются (`i***@m***.ru`), адрес клиента — до сети (`203.0.*.*`); любая строка,
  *   похожая на почту, маскируется, даже если пришла под другим именем поля.
  *   Идентификаторы записей (cuid) — не персональные данные сами по себе, по ним
@@ -36,6 +40,10 @@ export const OWNER_ALERT_EVENTS = {
   'user.blocked': { title: 'Пользователь заблокирован', severity: 'info' },
   'user.role.admin': { title: 'Выдана роль администратора', severity: 'warning' },
   'export.bulk': { title: 'Массовая выгрузка данных', severity: 'warning' },
+  /** Вебхук Telegram перестал отвечать — процесс сам перешёл на long polling (решение 142). */
+  'telegram.auto-switched-to-polling': { title: 'Бот Telegram: авто-переход на приём без вебхука', severity: 'warning' },
+  /** Токен бота сменён или бот отключён через админку (решение 142). */
+  'telegram.token-changed': { title: 'Бот Telegram: сменён или отключён токен', severity: 'info' },
 } as const satisfies Record<string, { title: string; severity: OwnerAlertSeverity }>
 
 export type OwnerAlertEvent = keyof typeof OWNER_ALERT_EVENTS
@@ -89,6 +97,8 @@ const LABELS: Record<string, string> = {
   rows: 'строк',
   count: 'сколько раз',
   windowMinutes: 'за минут',
+  reason: 'причина',
+  mode: 'режим',
 }
 
 function maskValue(field: string, value: string): string {
@@ -200,7 +210,7 @@ export function createOwnerNotifier(deps: OwnerNotifierDeps): OwnerNotifier {
         const at = now()
         if (!admit(`${event}\n${payload.key ?? ''}`, at)) return
         if (!deps.enabled()) {
-          log(`[owner-alert] ${event}: бот не настроен (TELEGRAM_BOT_TOKEN) — не отправлено`)
+          log(`[owner-alert] ${event}: ни один канал не настроен (Telegram/MAX/VK) — не отправлено`)
           return
         }
         const text = formatOwnerAlert(event, payload, new Date(at))
@@ -222,28 +232,21 @@ export function createOwnerNotifier(deps: OwnerNotifierDeps): OwnerNotifier {
 
 // ── Экземпляр приложения ─────────────────────────────────────────────────────
 
-const CHAT_ID = /^-?\d{1,20}$/
+/**
+ * Получатели и доставка — через общий слой каналов (решение 144): каждый ключ
+ * из `ownerRecipientKeys()` — `<канал>:<чат>` (администратор с основным или первым
+ * привязанным каналом, плюс TELEGRAM_OWNER_CHAT_ID из настроек), `dispatchToRecipientKey`
+ * разбирает ключ и шлёт через нужный адаптер. Раньше здесь читался только
+ * `telegramLink` напрямую — поведение для Telegram не изменилось, каналы добавлены рядом.
+ */
 
-/** Администраторы с привязанным ботом и чат владельца из настроек. */
-async function ownerRecipients(): Promise<string[]> {
-  const owner = process.env.TELEGRAM_OWNER_CHAT_ID?.trim() ?? ''
-  const chats = CHAT_ID.test(owner) ? [owner] : []
-  try {
-    const links = await prisma.telegramLink.findMany({
-      where: { user: { role: 'ADMIN', isActive: true } },
-      select: { chatId: true },
-    })
-    chats.push(...links.map((link) => link.chatId))
-  } catch {
-    // База недоступна — остаётся чат владельца из настроек.
-  }
-  return chats
-}
+/** Формат идентификатора чата Telegram — переиспользуется админкой бота (решение 142). */
+export const OWNER_CHAT_ID_PATTERN = /^-?\d{1,20}$/
 
 const defaultNotifier = createOwnerNotifier({
-  enabled: () => getTelegramClient().enabled,
-  recipients: ownerRecipients,
-  send: (chatId, text) => getTelegramClient().sendMessage(chatId, text),
+  enabled: anyChannelConfigured,
+  recipients: ownerRecipientKeys,
+  send: dispatchToRecipientKey,
 })
 
 /** Отправить владельцу и забыть. Никогда не бросает и не ждёт. */

@@ -328,6 +328,46 @@ curl -X POST http://localhost:3000/api/telegram/webhook \
   -d '{"update_id":1,"message":{"chat":{"id":42,"type":"private"},"text":"/today"}}'
 ```
 
+### POST /api/channels/max/webhook
+
+Вебхук бота **MAX** (мессенджер VK, решение 144) — тот же приём, что у Telegram, своим
+заголовком: `X-Max-Bot-Api-Secret`, равный `MAX_WEBHOOK_SECRET`. Секрет не задан (боевого
+токена MAX на этом хакатоне нет — канал остаётся «для галочки», docs/SETUP.md) — `403` для
+любого запроса; отправка сообщений через MAX это не затрагивает. Дедупликация повторов —
+таблица `channel_updates_seen` (канал + update_id), тем же способом, что `telegram_updates_seen`.
+
+Диплинк `https://max.ru/<бот>/start/<код>` привязывает чат (код — из
+`POST /api/me/channels/max/connect`, HMAC, 15 минут, один раз); команды «сегодня»/«стоп» —
+как `/today`/`/stop` у Telegram, только словом, не слэш-командой. Ответ всегда `200` сразу,
+`{ "data": { "accepted": true|false } }`.
+
+```bash
+curl -X POST http://localhost:3000/api/channels/max/webhook \
+  -H 'content-type: application/json' -H 'x-max-bot-api-secret: <секрет>' \
+  -d '{"update_type":"message_created","message":{"sender":{"user_id":1},"body":{"text":"сегодня"}}}'
+```
+
+### POST /api/channels/vk/callback
+
+Callback API сообщества **VK** (решение 144). Устроен иначе, чем вебхуки Telegram/MAX:
+подлинность — не заголовок, а поле `secret` в теле каждого события (сверяется с `VK_SECRET`),
+а адрес подтверждается ответом открытым текстом (не JSON!) с кодом из `VK_CONFIRMATION_CODE`
+на событие `{"type":"confirmation"}`. Ни один код не задан — канал «для галочки»: `confirmation`
+отвечает `403`, остальные события тоже (secret никогда не совпадёт), отправка не затронута.
+Любой другой ответ, кроме `ok`, VK считает сбоем и повторяет доставку — маршрут всегда отвечает
+текстом `ok`, кроме `403`.
+
+Ссылка `https://vk.me/club<id сообщества>?ref=<код>` привязывает чат — VK возвращает `ref` в
+первом сообщении того, кто перешёл по ней; команды «сегодня»/«стоп» — как у MAX. Дедупликация —
+`channel_updates_seen` по `event_id`.
+
+```bash
+curl -X POST http://localhost:3000/api/channels/vk/callback -H 'content-type: application/json' \
+  -d '{"type":"confirmation","group_id":1}'
+curl -X POST http://localhost:3000/api/channels/vk/callback -H 'content-type: application/json' \
+  -d '{"type":"message_new","secret":"<секрет>","event_id":"1","object":{"message":{"from_id":1,"text":"сегодня"}}}'
+```
+
 ### POST /api/client-errors
 
 Сбор ошибок фронтенда (решение 133). **Без входа.** Ответ всегда `204` без тела (и на кривое
@@ -3238,8 +3278,74 @@ curl -X POST http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<i
 curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=<id>'
 ```
 
-Затрагивает фронт: новая строка в «Настройках» личного кабинета (`TelegramRow.tsx`),
-в `src/ui/lib/api.ts` добавлен `apiDelete`.
+Затрагивает фронт: новая строка в «Настройках» личного кабинета (решение 144 объединил её
+с MAX и VK в `ChannelsBlock.tsx` — см. следующий раздел), в `src/ui/lib/api.ts` добавлен `apiDelete`.
+
+### GET/PUT /api/me/channels, POST /api/me/channels/:id/connect, DELETE /api/me/channels/:id
+
+Блок «Каналы уведомлений» личного кабинета (решение 144): Telegram, MAX, VK рядом, один
+интерфейс на все три. Telegram-путь (`/api/me/telegram`) продолжает работать сам по себе —
+этот блок его не заменяет, а показывает вместе с двумя новыми каналами. `:id` — `telegram`,
+`max` или `vk`; другое значение — `404`.
+
+**GET** — авторизация: любая роль. Ответ `200` — массив `ChannelStatusDto[]`, по одной строке
+на канал:
+
+```json
+{ "data": [
+  { "id": "telegram", "title": "Telegram", "configured": true, "linked": true,
+    "username": "ivanov", "linkedAt": "2026-09-25T09:00:00.000Z", "primary": true },
+  { "id": "max", "title": "MAX", "configured": false, "linked": false,
+    "username": null, "linkedAt": null, "primary": false },
+  { "id": "vk", "title": "VK", "configured": false, "linked": false,
+    "username": null, "linkedAt": null, "primary": false }
+] }
+```
+
+`configured` — настроен ли канал администратором (свой токен на каждый: `TELEGRAM_BOT_TOKEN`
+и пара, `MAX_BOT_TOKEN`/`MAX_BOT_USERNAME`, `VK_GROUP_TOKEN`/`VK_GROUP_ID`); `primary` — куда
+уходит сводка и оповещения, если настроено и привязано больше одного канала — без явного
+выбора им становится первый настроенный и привязанный по порядку Telegram → MAX → VK.
+
+**PUT** — авторизация: любая роль. Тело `{ "primary": "telegram" | "max" | "vk" | null }`
+(`null` — снова автоматический выбор). Отдаёт обновлённый список, как GET.
+
+**POST /api/me/channels/:id/connect** — авторизация: `ANALYTICS`; тело не нужно. Ничего не
+создаёт — `200`, `ChannelConnectDto` (`{ url, expiresAt }`): для `telegram` — то же, что
+`POST /api/me/telegram`; для `max` — диплинк `https://max.ru/<бот>/start/<код>`; для `vk` —
+`https://vk.me/club<id сообщества>?ref=<код>`. Код — свой HMAC (тот же приём, что у токена
+Telegram), 15 минут, один раз, в базе не хранится. Перепривязка (человек уже привязан, но
+открыл ссылку заново) заменяет прежний чат — тот получает «Уведомления SkillLink перенесены…»,
+если доставка возможна. Канал не настроен администратором — `502 INTEGRATION_ERROR`.
+
+**DELETE /api/me/channels/:id** — авторизация: любая роль. Удаляет свою привязку к этому
+каналу и отдаёт обновлённый список. Привязки не было — тоже `200`. Журнал: `channel.link`/
+`channel.unlink` (для `max`/`vk`; Telegram по-прежнему пишет `telegram.link`/`telegram.unlink`).
+
+```bash
+curl http://localhost:3000/api/me/channels -H 'cookie: skilllink_user=<id>'
+curl -X PUT http://localhost:3000/api/me/channels -H 'content-type: application/json' \
+  -H 'cookie: skilllink_user=<id>' -d '{"primary":"max"}'
+curl -X POST http://localhost:3000/api/me/channels/max/connect -H 'cookie: skilllink_user=<id>'
+curl -X DELETE http://localhost:3000/api/me/channels/max -H 'cookie: skilllink_user=<id>'
+```
+
+### GET /api/admin/channels, POST /api/admin/channels/:id/test
+
+Статус каналов уведомлений для «Настройки → Интеграции» (решение 144). Авторизация: `ADMIN`.
+
+**GET** — `AdminChannelStatusDto[]`: `configured` (есть токен) и `linkedCount` (сколько
+сотрудников привязано) на каждый канал.
+
+**POST /api/admin/channels/:id/test** — тело не нужно. Пробное сообщение в собственный чат
+администратора — сначала он должен подключить канал себе; иначе `403`. Отвечает `200` всегда,
+кроме `403`/`404`: `{ "data": { "ok": true } }` или `{ "data": { "ok": false, "reason": "…" } }`
+(канал не настроен, сбой доставки) — это не ошибка запроса.
+
+```bash
+curl http://localhost:3000/api/admin/channels -H 'cookie: skilllink_user=<admin-id>'
+curl -X POST http://localhost:3000/api/admin/channels/max/test -H 'cookie: skilllink_user=<admin-id>'
+```
 
 ### GET /api/me/stats
 
@@ -3961,6 +4067,73 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 
 Самого секрета нет ни в ответе, ни в журнале: `telegram.webhook_secret_rotated`
 с `{ webhookHost }`.
+
+## 15б-3. Администрирование: бот Telegram (решение 142)
+
+Право везде — `ADMIN`. Токен никогда не появляется ни в одном ответе и не пишется
+в журнал — только служебные поля (имя бота, режим, причина). Токен, имя бота и
+режим приёма могут храниться в базе (токен — зашифрован, AES-256-GCM, ключ —
+HKDF от `AUTH_SECRET`) и тогда главнее одноимённых переменных окружения.
+
+### GET /api/admin/telegram
+
+Полная картина состояния — для «Настройки → Интеграции».
+
+```json
+{
+  "data": {
+    "configured": true,
+    "botUsername": "skilllink_robot",
+    "mode": "auto",
+    "running": "webhook",
+    "webhookUrl": "https://skilllink.example/api/telegram/webhook",
+    "pendingUpdateCount": 0,
+    "lastErrorMessage": null,
+    "lastErrorAt": null,
+    "linkedEmployeeCount": 3,
+    "tokenSource": "database",
+    "ownerChatConfigured": true
+  }
+}
+```
+
+`mode` — что выбрано (`webhook`/`polling`/`auto`, переменная `TELEGRAM_MODE` или админка);
+`running` — что происходит фактически прямо сейчас (`webhook`/`polling`/`off`): в режиме
+`auto` они могут разойтись, если процесс сам переключился на polling. `webhookUrl` и
+`pendingUpdateCount` — живой запрос к Telegram (`getWebhookInfo`); бот не настроен —
+все поля состояния вебхука `null`. `tokenSource` — `env`, `database` или `none`.
+
+### PUT /api/admin/telegram/token
+
+Тело — `{ "token": "123456789:AA..." }`. Токен проверяется у Telegram (`getMe`) до
+сохранения: неверный — `502 INTEGRATION_ERROR`, старый токен продолжает действовать.
+При успехе: токен сохраняется зашифрованным в базе (главнее `TELEGRAM_BOT_TOKEN`),
+дальше — новый секрет вебхука и `setWebhook` (тот же механизм, что у
+`rotate-webhook-secret`), либо, если выбран режим `polling`, перезапуск цикла приёма
+новым токеном. Журнал: `telegram.token_changed` (без токена). Ответ — обновлённый
+статус, как у `GET /api/admin/telegram`.
+
+### DELETE /api/admin/telegram/token
+
+Тело не нужно. Снимает вебхук у Telegram (по возможности), удаляет токен из базы,
+останавливает polling. Токен также задан переменной окружения — бот остаётся
+настроенным им (`tokenSource: "env"` в ответе). Журнал: `telegram.token_removed`.
+
+### PUT /api/admin/telegram/mode
+
+Тело — `{ "mode": "webhook" | "polling" | "auto" }`. Бот не настроен —
+`502 INTEGRATION_ERROR`. Журнал: `telegram.mode_switched` (`by: "admin"`). Ответ —
+обновлённый статус.
+
+### POST /api/admin/telegram/test
+
+Тело не нужно. Проверочное сообщение — в чат администратора, который вызвал операцию
+(если он сам подключил личные уведомления в личном кабинете), иначе — в чат владельца
+(`TELEGRAM_OWNER_CHAT_ID`). Ни того ни другого — `502 INTEGRATION_ERROR`.
+
+```json
+{ "data": { "sentTo": "admin" } }
+```
 
 ### Одобрения опасных операций: GET, POST /api/admin/approvals
 

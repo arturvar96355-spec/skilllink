@@ -14,11 +14,20 @@ import { generate as generateRecommendations } from '@/modules/recommendations/r
 import { seedRecommendationStats } from '@/modules/recommendations/recommendations.seed'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
+import { auditSeal } from '@/modules/audit/chain.service'
+import { runTraining as trainForecastModels } from '@/modules/analytics/forecast.service'
+import { eraseUser, exportOwnData, registerRequest } from '@/modules/dsar/dsar.service'
+import { approve as approveApproval, request as requestApproval } from '@/modules/approvals/approvals.service'
+import { dismiss as dismissDuplicate, findDuplicates } from '@/modules/data-quality/data-quality.service'
+import { merge as mergeUniversities, undo as undoUniversityMerge } from '@/modules/universities/merge.service'
+import type { CurrentUser } from '@/shared/auth/current-user'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
+import { validInn, validOgrn } from './demo/random'
+import { BASE_SKILLS, fillProgramSkills } from './demo/catalog'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('Не задана переменная окружения DATABASE_URL')
@@ -75,6 +84,9 @@ async function clean(): Promise<void> {
   ])
   await prisma.universityMerge.deleteMany()
   await prisma.duplicateDismissal.deleteMany()
+  // Прогноз (решение 135, решение 141): version растёт при каждом обучении той же
+  // вехи (не привязан к числу строк) — без чистки перезаливка не была бы детерминированной.
+  await prisma.forecastModel.deleteMany()
   await prisma.contactBasisHistory.deleteMany()
   await prisma.stageHistory.deleteMany()
   await prisma.task.deleteMany()
@@ -171,7 +183,30 @@ async function seedUsers() {
       role: 'VIEWER',
     },
   })
-  return { customPassword, DEMO_PASSWORD, demoPasswordHash, admin, manager, manager2, analyst }
+  // Второй администратор — «четыре глаза» для approvals (решение 133): одобрить
+  // операцию должен кто-то, кроме запросившего, а на стенде был только один admin.
+  const admin2 = await prisma.user.create({
+    data: {
+      email: 'admin2@skilllink.demo',
+      passwordHash: demoPasswordHash,
+      fullName: 'Соловьёва Марина Дмитриевна',
+      position: 'Администратор системы (ИБ)',
+      role: 'ADMIN',
+    },
+  })
+  // Уволенный сотрудник — только для примера обезличивания по DSAR (решение 116,
+  // решение 141): без открытой работы (связок, этапов), поэтому eraseUser его пропустит.
+  const formerEmployee = await prisma.user.create({
+    data: {
+      email: 'former.employee@skilllink.demo',
+      passwordHash: demoPasswordHash,
+      fullName: 'Куликов Станислав Егорович',
+      position: 'Бывший менеджер партнёрств',
+      role: 'VIEWER',
+      isActive: false,
+    },
+  })
+  return { customPassword, DEMO_PASSWORD, demoPasswordHash, admin, admin2, manager, manager2, analyst, formerEmployee }
 }
 
 type SeedUsers = Awaited<ReturnType<typeof seedUsers>>
@@ -191,35 +226,49 @@ async function seedDataSources() {
       isMock: true,
     },
   })
+  // Решение 141: справочник источников не только демонстрационный и региональный
+  // (тот заводится отдельно, insertExtendedDemo) — ещё ручной ввод и два источника
+  // из конвейера «сайт → LMS» (решение 132), которых до сих пор не было заведено
+  // отдельными записями, хотя сами данные (SiteOrder) уже поступают этим путём.
+  await prisma.dataSource.create({
+    data: {
+      name: 'Ручной ввод аналитика по итогам встречи',
+      type: 'MANUAL',
+      collectionDate: daysAgo(45),
+      reliability: 'MEDIUM',
+      description: 'Оценки спроса, зафиксированные аналитиком со слов представителей вузов на очных встречах.',
+      isMock: true,
+    },
+  })
+  await prisma.dataSource.create({
+    data: {
+      name: 'Заказы с сайта ИТ-Школы РТК',
+      type: 'SITE',
+      url: 'https://example.invalid/site-orders',
+      collectionDate: daysAgo(10),
+      reliability: 'MEDIUM',
+      description: 'Выгрузка заказов на курсы школы с сайта (решение 132) — источник данных SiteOrder, не рыночного спроса.',
+      isMock: true,
+    },
+  })
+  await prisma.dataSource.create({
+    data: {
+      name: 'Шаблон загрузки пользователей LMS',
+      type: 'LMS',
+      collectionDate: daysAgo(10),
+      reliability: 'LOW',
+      description: 'Формат выгрузки для LMS (решение 132): 30 колонок шаблона организаторов, заполнены только 5.',
+      isMock: true,
+    },
+  })
   return mockSource
 }
 
 /** Справочник навыков. Возвращает поиск id навыка по имени. */
 async function seedSkills(): Promise<IdOf> {
   console.log('Навыки...')
-  const skillSeed: Array<{ name: string; category: string; description: string }> = [
-    { name: 'Python', category: 'Языки программирования', description: 'Разработка на Python' },
-    { name: 'Java', category: 'Языки программирования', description: 'Разработка на Java' },
-    { name: 'JavaScript', category: 'Языки программирования', description: 'Веб-разработка' },
-    { name: 'SQL', category: 'Базы данных', description: 'Запросы к реляционным СУБД' },
-    { name: 'PostgreSQL', category: 'Базы данных', description: 'Администрирование PostgreSQL' },
-    { name: 'Docker', category: 'DevOps', description: 'Контейнеризация приложений' },
-    { name: 'Kubernetes', category: 'DevOps', description: 'Оркестрация контейнеров' },
-    { name: 'CI/CD', category: 'DevOps', description: 'Непрерывная интеграция и поставка' },
-    { name: 'Linux', category: 'Системное администрирование', description: 'Работа в Linux' },
-    { name: 'Сетевые технологии', category: 'Инфраструктура', description: 'Сети передачи данных' },
-    { name: 'Информационная безопасность', category: 'Безопасность', description: 'Защита систем' },
-    { name: 'Машинное обучение', category: 'Данные', description: 'Построение моделей' },
-    { name: 'Аналитика данных', category: 'Данные', description: 'Обработка и визуализация' },
-    { name: 'Облачные платформы', category: 'Инфраструктура', description: 'Работа с облаками' },
-    { name: 'Микросервисы', category: 'Архитектура', description: 'Проектирование микросервисов' },
-    { name: 'Тестирование ПО', category: 'Качество', description: 'Автоматизация тестирования' },
-    { name: 'Управление проектами', category: 'Процессы', description: 'Методологии управления' },
-    { name: 'Бизнес-анализ', category: 'Процессы', description: 'Сбор и анализ требований' },
-  ]
-
   const skills = new Map<string, string>()
-  for (const item of skillSeed) {
+  for (const item of BASE_SKILLS) {
     const created = await prisma.skill.create({ data: item })
     skills.set(item.name, created.id)
   }
@@ -231,46 +280,9 @@ async function seedSkills(): Promise<IdOf> {
   return skillId
 }
 
-/** Рыночная востребованность навыков по кварталам — из демонстрационного источника. */
-async function seedMarket(mockSource: { id: string }, skillId: IdOf): Promise<void> {
-  console.log('Рыночная востребованность навыков...')
-  const demandByPeriod: Record<string, Record<string, number>> = {
-    '2025-Q4': {
-      Python: 8200, Java: 6100, JavaScript: 7400, SQL: 9100, PostgreSQL: 6800,
-      Docker: 5600, Kubernetes: 6300, 'CI/CD': 3400, Linux: 5200,
-      'Сетевые технологии': 2600, 'Информационная безопасность': 4100,
-      'Машинное обучение': 3100, 'Аналитика данных': 4800, 'Облачные платформы': 3600,
-      Микросервисы: 2900, 'Тестирование ПО': 3300, 'Управление проектами': 2400,
-      'Бизнес-анализ': 2100,
-    },
-    '2026-Q1': {
-      Python: 9400, Java: 6000, JavaScript: 7800, SQL: 9600, PostgreSQL: 7400,
-      Docker: 6400, Kubernetes: 7900, 'CI/CD': 4100, Linux: 5400,
-      'Сетевые технологии': 2700, 'Информационная безопасность': 5300,
-      'Машинное обучение': 4200, 'Аналитика данных': 5600, 'Облачные платформы': 4400,
-      Микросервисы: 3400, 'Тестирование ПО': 3500, 'Управление проектами': 2500,
-      'Бизнес-анализ': 2200,
-    },
-  }
-
-  for (const [period, values] of Object.entries(demandByPeriod)) {
-    for (const [name, value] of Object.entries(values)) {
-      await prisma.marketDemand.create({
-        data: {
-          skillId: skillId(name),
-          period,
-          value,
-          unit: 'вакансий',
-          region: 'Россия',
-          source: 'Демонстрационный набор вакансий',
-          dataSourceId: mockSource.id,
-          confidence: 'LOW',
-          isMock: true,
-        },
-      })
-    }
-  }
-}
+// Рыночная востребованность навыков основного сида (2025-Q3…2026-Q3) заливается
+// вместе с расширенным набором — insertExtendedDemo() (решение 141): один источник
+// чисел, EXTRA_MARKET в prisma/demo/catalog.ts, вместо двух копий по кварталам.
 
 /** IT-продукты ИТ-Школы с навыками, во всех статусах жизненного цикла. */
 async function seedProducts(skillId: IdOf) {
@@ -511,6 +523,10 @@ async function seedUniversities() {
         region: item.region,
         address: `${item.city}, адрес указан условно`,
         website: `https://example.invalid/${item.key}`,
+        // ИНН/ОГРН — решение 134: контрольная сумма верна (prisma/demo/random.ts),
+        // сама организация в реестре ФНС не проверяется.
+        inn: validInn(item.key),
+        ogrn: validOgrn(item.key),
         status: item.status,
         // Архив — это и статус, и дата: по дате архивный вуз исключается из аналитики.
         archivedAt: item.status === 'ARCHIVED' ? daysAgo(item.updatedDaysAgo) : null,
@@ -662,6 +678,85 @@ async function seedContactBases(
       },
     ],
   })
+}
+
+/**
+ * Второй контакт у вузов основного сида (решение 141): у каждого вуза — 2–3 контакта
+ * с правовым основанием (решение 111), а не один. ТУСУР — исключение по сюжету:
+ * у его единственного прежнего контакта основание намеренно не зафиксировано
+ * (см. seedContactBases), второй контакт добавлен позже, когда учёт уже вели.
+ *
+ * Основания подобраны так, чтобы в демо встретились и «Договор» (CONTRACT).
+ * и «Иное» (OTHER) — до этого решения ни один демо-контакт их не использовал.
+ */
+async function seedSecondaryContacts(manager: SeedUser, universityId: IdOf, universityCreatedAt: ReadonlyMap<string, Date>): Promise<void> {
+  console.log('Вторые контакты вузов основного сида...')
+  interface SecondContactPlan {
+    key: string
+    fullName: string
+    position: string
+    mailbox: string
+    phone: string
+    basis:
+      | { kind: 'LEGITIMATE_INTEREST'; reference: string }
+      | { kind: 'CONSENT'; form: 'WRITTEN' | 'ELECTRONIC' | 'ORAL_CONFIRMED_BY_EMAIL'; reference: string }
+      | { kind: 'CONTRACT'; reference: string }
+      | { kind: 'OTHER'; reference: string }
+  }
+  const plan: SecondContactPlan[] = [
+    { key: 'spbgu', fullName: 'Фадеев Григорий Андреевич', position: 'Специалист приёмной комиссии', mailbox: 'admissions', phone: '+7 900 000-01-01',
+      basis: { kind: 'LEGITIMATE_INTEREST', reference: 'Соглашение о сотрудничестве № 14/2026 (демо), архив договоров' } },
+    { key: 'mtuci', fullName: 'Панова Ксения Романовна', position: 'Менеджер по работе с партнёрами', mailbox: 'partners', phone: '+7 900 000-01-02',
+      basis: { kind: 'CONSENT', form: 'ELECTRONIC', reference: 'Электронное согласие, письмо вх. № 145/2026 (демо)' } },
+    { key: 'kazan', fullName: 'Хабибуллин Ринат Маратович', position: 'Приглашённый эксперт по договору ГПХ', mailbox: 'expert', phone: '+7 900 000-01-03',
+      basis: { kind: 'CONTRACT', reference: 'Договор возмездного оказания услуг № 9/2026 (демо), приложение «Контактные лица»' } },
+    { key: 'nsu', fullName: 'Дорофеева Александра Игоревна', position: 'Куратор цифровой кафедры', mailbox: 'digital-dept', phone: '+7 900 000-01-04',
+      basis: { kind: 'OTHER', reference: 'Регламент взаимодействия с индустриальными партнёрами, п. 4.2 (демо)' } },
+    { key: 'urfu', fullName: 'Костенко Вадим Олегович', position: 'Специалист по цифровым кафедрам', mailbox: 'digital', phone: '+7 900 000-01-05',
+      basis: { kind: 'LEGITIMATE_INTEREST', reference: 'Соглашение о намерениях № 52/2026 (демо), архив договоров' } },
+    { key: 'tomsk', fullName: 'Малышев Егор Викторович', position: 'Специалист отдела партнёрств', mailbox: 'partnership', phone: '+7 900 000-01-06',
+      basis: { kind: 'CONSENT', form: 'WRITTEN', reference: 'Согласие вх. № 12/2026 (демо), папка «Согласия ПД»' } },
+  ]
+
+  for (const item of plan) {
+    const since = universityCreatedAt.get(item.key)
+    if (!since) throw new Error(`Нет даты заведения вуза: ${item.key}`)
+    const consent = item.basis.kind === 'CONSENT'
+    const consentForm = item.basis.kind === 'CONSENT' ? item.basis.form : null
+    const created = await prisma.contact.create({
+      data: {
+        universityId: universityId(item.key),
+        fullName: item.fullName,
+        position: item.position,
+        email: `${item.mailbox}@${item.key}.example.invalid`,
+        phone: item.phone,
+        isPrimary: false,
+        createdAt: since,
+        updatedAt: since,
+        legalBasis: item.basis.kind,
+        consentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm,
+        basisReference: item.basis.reference,
+        basisUpdatedAt: since,
+      },
+      select: { id: true },
+    })
+    await prisma.contactBasisHistory.create({
+      data: {
+        contactId: created.id,
+        fromBasis: null,
+        toBasis: item.basis.kind,
+        fromConsentStatus: 'NONE',
+        toConsentStatus: consent ? 'OBTAINED' : 'NONE',
+        consentObtainedAt: consent ? since : null,
+        consentForm,
+        referenceChanged: true,
+        changedById: manager.id,
+        changedAt: since,
+      },
+    })
+  }
 }
 
 /** Программы демо-набора. У части показатели намеренно не заполнены — проверка поведения «Нет данных». */
@@ -823,6 +918,153 @@ const programSeed = [
       ['Python', 'BASIC', 'MEDIUM'],
     ] as const,
   },
+  // Решение 141: 4–7 связок на вуз (было 1–2) — программы общих направлений,
+  // те же коды ФГОС, что и у остальных вузов (сеть, а не звезда уникальных программ).
+  {
+    key: 'mtuci-isit', university: 'mtuci',
+    name: 'Информационные системы и технологии',
+    code: '09.03.02', direction: 'Информационные системы и технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 210, studentCount: 88, groupCount: 3,
+    skills: [
+      ['JavaScript', 'INTERMEDIATE', 'HIGH'],
+      ['SQL', 'INTERMEDIATE', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'mtuci-networks', university: 'mtuci',
+    name: 'Инфокоммуникационные технологии и системы связи',
+    code: '11.03.02', direction: 'Инфокоммуникационные технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 195, studentCount: 80, groupCount: 3,
+    skills: [
+      ['Сетевые технологии', 'INTERMEDIATE', 'HIGH'],
+      ['Linux', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'mtuci-appl', university: 'mtuci',
+    name: 'Прикладная информатика',
+    code: '09.03.03', direction: 'Прикладная информатика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 180, studentCount: 74, groupCount: 3,
+    skills: [
+      ['Аналитика данных', 'INTERMEDIATE', 'HIGH'],
+      ['Бизнес-анализ', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'nsu-appl', university: 'nsu',
+    name: 'Прикладная информатика',
+    code: '09.03.03', direction: 'Прикладная информатика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 170, studentCount: 70, groupCount: 3,
+    skills: [
+      ['Аналитика данных', 'BASIC', 'HIGH'],
+      ['SQL', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'nsu-infosec', university: 'nsu',
+    name: 'Информационная безопасность',
+    code: '10.03.01', direction: 'Информационная безопасность',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 160, studentCount: 66, groupCount: 2,
+    skills: [
+      ['Информационная безопасность', 'INTERMEDIATE', 'CRITICAL'],
+      ['Сетевые технологии', 'BASIC', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'rostov-master', university: 'rostov',
+    name: 'Информатика и вычислительная техника',
+    code: '09.04.01', direction: 'Информатика и вычислительная техника',
+    level: 'MASTER' as const, durationMonths: 24,
+    applicationCount: 90, studentCount: 36, groupCount: 2,
+    skills: [
+      ['Python', 'INTERMEDIATE', 'HIGH'],
+      ['Аналитика данных', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'rostov-infosec', university: 'rostov',
+    name: 'Информационная безопасность',
+    code: '10.03.01', direction: 'Информационная безопасность',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 150, studentCount: 62, groupCount: 2,
+    skills: [
+      ['Информационная безопасность', 'INTERMEDIATE', 'CRITICAL'],
+      ['Linux', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'rostov-ivt', university: 'rostov',
+    name: 'Информатика и вычислительная техника',
+    code: '09.03.01', direction: 'Информатика и вычислительная техника',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 200, studentCount: 82, groupCount: 3,
+    skills: [
+      ['Тестирование ПО', 'BASIC', 'HIGH'],
+      ['Linux', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'kazan-infosec', university: 'kazan',
+    name: 'Информационная безопасность',
+    code: '10.03.01', direction: 'Информационная безопасность',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 170, studentCount: 70, groupCount: 3,
+    skills: [
+      ['Информационная безопасность', 'INTERMEDIATE', 'CRITICAL'],
+      ['Сетевые технологии', 'BASIC', 'HIGH'],
+    ] as const,
+  },
+  {
+    key: 'kazan-isit', university: 'kazan',
+    name: 'Информационные системы и технологии',
+    code: '09.03.02', direction: 'Информационные системы и технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 190, studentCount: 78, groupCount: 3,
+    skills: [
+      ['JavaScript', 'BASIC', 'HIGH'],
+      ['SQL', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'kazan-business', university: 'kazan',
+    name: 'Бизнес-информатика и анализ данных',
+    code: '38.03.05', direction: 'Бизнес-информатика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: 140, studentCount: 56, groupCount: 2,
+    skills: [
+      ['Аналитика данных', 'BASIC', 'HIGH'],
+      ['Управление проектами', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  // УрФУ — тоже без показателей набора: заявочная кампания ещё не запускалась,
+  // как и у существующих программ вуза (рейтинг вуза остаётся «Нет данных»).
+  {
+    key: 'urfu-isit', university: 'urfu',
+    name: 'Информационные системы и технологии',
+    code: '09.03.02', direction: 'Информационные системы и технологии',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['JavaScript', 'BASIC', 'MEDIUM'],
+      ['SQL', 'BASIC', 'MEDIUM'],
+    ] as const,
+  },
+  {
+    key: 'urfu-appl', university: 'urfu',
+    name: 'Прикладная информатика',
+    code: '09.03.03', direction: 'Прикладная информатика',
+    level: 'BACHELOR' as const, durationMonths: 48,
+    applicationCount: null, studentCount: null, groupCount: null,
+    skills: [
+      ['Аналитика данных', 'BASIC', 'MEDIUM'],
+      ['SQL', 'BASIC', 'LOW'],
+    ] as const,
+  },
 ]
 
 /** Образовательные программы с навыками. Возвращает поиск id программы по ключу. */
@@ -860,7 +1102,11 @@ async function seedPrograms(
         metricsUpdatedAt,
         isMock: true,
         skills: {
-          create: item.skills.map(([name, level, importance]) => ({
+          create: fillProgramSkills(
+            item.key,
+            item.skills,
+            BASE_SKILLS.map((skill) => skill.name),
+          ).map(([name, level, importance]) => ({
             skillId: skillId(name),
             level,
             importance,
@@ -1021,6 +1267,129 @@ async function seedCooperations(
       notes: 'Отменена: вуз решил использовать собственный стенд. Договор не подписывали.',
       startedDaysAgo: 150, firstContactDaysAgo: 150, classesStartInDays: null,
       completedUpTo: 3, cancelledStages: [4], closedDaysAgo: 40,
+    },
+    // Решение 141: 4–7 связок на вуз (было 1–2) — программы общих направлений,
+    // во всех статусах и на разных этапах.
+    {
+      university: 'mtuci', program: 'mtuci-isit', productId: products.devops.id,
+      responsibleId: manager.id, status: 'ACTIVE',
+      goal: 'Конвейер сборки в информационных системах',
+      startedDaysAgo: 180, firstContactDaysAgo: 180, classesStartInDays: -20,
+      completedUpTo: 8, lateStages: [3],
+    },
+    {
+      university: 'mtuci', program: 'mtuci-networks', productId: products.legacyNet.id,
+      responsibleId: manager2.id, status: 'ACTIVE',
+      goal: 'Сетевой стенд в инфокоммуникационных технологиях',
+      startedDaysAgo: 50, firstContactDaysAgo: 50, classesStartInDays: 160,
+      completedUpTo: 3, overdueStages: [4],
+    },
+    {
+      university: 'mtuci', program: 'mtuci-appl', productId: null,
+      responsibleId: manager.id, status: 'DRAFT',
+      goal: 'Первичные переговоры по прикладной информатике',
+      startedDaysAgo: 8, firstContactDaysAgo: null, classesStartInDays: null,
+      completedUpTo: 0,
+    },
+    {
+      university: 'nsu', program: 'nsu-appl', productId: products.dataLab.id,
+      responsibleId: manager2.id, status: 'ACTIVE',
+      goal: 'Аналитическая платформа в прикладной информатике',
+      startedDaysAgo: 140, firstContactDaysAgo: 140, classesStartInDays: 90,
+      completedUpTo: 6, blockedStage: 7, lateStages: [3],
+      blockingReason: 'Вуз не назначил ответственного за приёмку материалов',
+    },
+    {
+      university: 'nsu', program: 'nsu-infosec', productId: products.security.id,
+      responsibleId: manager.id, status: 'PAUSED',
+      goal: 'Мониторинг безопасности в бакалавриате ИБ',
+      notes: 'Пауза: вуз пересматривает учебный план на следующий год.',
+      startedDaysAgo: 160, firstContactDaysAgo: 160, classesStartInDays: null,
+      completedUpTo: 3, nextStageNotStarted: true,
+    },
+    {
+      // Программа доп. образования архивная, связка так и не пошла дальше знакомства.
+      university: 'nsu', program: 'nsu-embedded', productId: null,
+      responsibleId: manager2.id, status: 'CANCELLED',
+      goal: 'Встраиваемые системы в магистратуре',
+      notes: 'Отменена: программу закрыли до начала переговоров по IT-продукту.',
+      startedDaysAgo: 100, firstContactDaysAgo: 100, classesStartInDays: null,
+      completedUpTo: 1, cancelledStages: [2], closedDaysAgo: 60,
+    },
+    {
+      university: 'rostov', program: 'rostov-master', productId: products.dataLab.id,
+      responsibleId: manager.id, status: 'ACTIVE',
+      goal: 'Аналитическая платформа в магистратуре ИВТ',
+      startedDaysAgo: 40, firstContactDaysAgo: 40, classesStartInDays: 200,
+      completedUpTo: 2,
+    },
+    {
+      university: 'rostov', program: 'rostov-infosec', productId: products.security.id,
+      responsibleId: manager2.id, status: 'ACTIVE',
+      goal: 'Мониторинг безопасности в бакалавриате ИБ',
+      startedDaysAgo: 220, firstContactDaysAgo: 220, classesStartInDays: -20,
+      completedUpTo: 9, overdueStages: [10],
+    },
+    {
+      university: 'rostov', program: 'rostov-ivt', productId: null,
+      responsibleId: manager.id, status: 'DRAFT',
+      goal: 'Первичные переговоры по информатике и вычислительной технике',
+      startedDaysAgo: 6, firstContactDaysAgo: null, classesStartInDays: null,
+      completedUpTo: 0,
+    },
+    {
+      // Вторая связка вуза на паузе — по той же причине, что и rostov-it.
+      university: 'rostov', program: 'rostov-networks', productId: products.legacyNet.id,
+      responsibleId: manager2.id, status: 'PAUSED',
+      goal: 'Сетевой стенд в инфокоммуникационных технологиях',
+      notes: 'Пауза: та же причина, что и у остальных связок вуза — пересмотр учебного плана.',
+      startedDaysAgo: 130, firstContactDaysAgo: 130, classesStartInDays: null,
+      completedUpTo: 4, nextStageNotStarted: true,
+    },
+    {
+      university: 'kazan', program: 'kazan-infosec', productId: products.security.id,
+      responsibleId: manager.id, status: 'ACTIVE',
+      goal: 'Мониторинг безопасности в бакалавриате ИБ',
+      startedDaysAgo: 170, firstContactDaysAgo: 170, classesStartInDays: 60,
+      completedUpTo: 5, blockedStage: 6,
+      blockingReason: 'Договор на подписании у проректора по безопасности',
+    },
+    {
+      university: 'kazan', program: 'kazan-isit', productId: products.cloud.id,
+      responsibleId: manager2.id, status: 'COMPLETED',
+      goal: 'Облачная платформа в информационных системах: курс прочитан',
+      startedDaysAgo: 380, firstContactDaysAgo: 380, classesStartInDays: null,
+      completedUpTo: 13, lateStages: [7],
+    },
+    {
+      university: 'kazan', program: 'kazan-business', productId: products.dataLab.id,
+      responsibleId: manager.id, status: 'ACTIVE',
+      goal: 'Аналитическая платформа в бизнес-информатике',
+      startedDaysAgo: 60, firstContactDaysAgo: 60, classesStartInDays: 210,
+      completedUpTo: 2, overdueStages: [3],
+    },
+    {
+      university: 'urfu', program: 'urfu-isit', productId: null,
+      responsibleId: manager2.id, status: 'DRAFT',
+      goal: 'Первичные переговоры по информационным системам',
+      startedDaysAgo: 10, firstContactDaysAgo: null, classesStartInDays: null,
+      completedUpTo: 0,
+    },
+    {
+      university: 'urfu', program: 'urfu-appl', productId: null,
+      responsibleId: manager.id, status: 'ACTIVE',
+      goal: 'Первый контакт по прикладной информатике',
+      startedDaysAgo: 20, firstContactDaysAgo: 20, classesStartInDays: null,
+      completedUpTo: 1,
+    },
+    {
+      // Программа игр так и осталась черновиком, связка отменена вместе с ней.
+      university: 'urfu', program: 'urfu-gamedev', productId: null,
+      responsibleId: manager2.id, status: 'CANCELLED',
+      goal: 'Технологии разработки компьютерных игр',
+      notes: 'Отменена: программу не утвердили, IT-продукт не выбирали.',
+      startedDaysAgo: 15, firstContactDaysAgo: 15, classesStartInDays: null,
+      completedUpTo: 0, cancelledStages: [1], closedDaysAgo: 5,
     },
   ]
 
@@ -1784,6 +2153,109 @@ async function seedRecommendations(cooperations: CreatedCooperation[], manager: 
   }
 }
 
+/**
+ * Примеры для «пустых содержательных таблиц» решения 141: реестр запросов
+ * субъектов (DSAR), одобрения «четыре глаза», обученная модель прогноза,
+ * отметка «не дубль» и слияние-с-отменой вуза — всё через настоящие сервисные
+ * функции (те же, что вызывает API), а не прямой INSERT: тогда данные проходят
+ * ту же валидацию и пишут тот же журнал, что и на реальном стенде.
+ */
+async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser): Promise<void> {
+  console.log('Одобрения, запросы субъектов, прогноз, качество данных...')
+  const admin: CurrentUser = { id: users.admin.id, email: users.admin.email, fullName: users.admin.fullName, role: 'ADMIN', universityId: null }
+  const admin2: CurrentUser = { id: users.admin2.id, email: users.admin2.email, fullName: users.admin2.fullName, role: 'ADMIN', universityId: null }
+  const analyst: CurrentUser = { id: users.analyst.id, email: users.analyst.email, fullName: users.analyst.fullName, role: 'ANALYST', universityId: null }
+  const rep: CurrentUser = {
+    id: universityRep.id, email: universityRep.email, fullName: universityRep.fullName,
+    role: universityRep.role, universityId: universityRep.universityId,
+  }
+
+  // ── DSAR: реестр запросов субъектов (решение 116) — три примера, разные виды,
+  // статусы, каналы и типы субъекта.
+  // 1. Представитель вуза сам выгружает свои данные из кабинета — EXPORT/COMPLETED/SELF_SERVICE.
+  await exportOwnData(rep, { address: null }, daysAgo(2))
+  // 2. Письмо с просьбой обезличить контакт вуза — ERASE/OPEN/LETTER: срок ещё не истёк,
+  // запрос виден в реестре как открытый.
+  const letterContact = await prisma.contact.findFirstOrThrow({
+    where: { email: 'partners@mtuci.example.invalid' },
+    select: { id: true },
+  })
+  await registerRequest(
+    admin,
+    { subjectType: 'CONTACT', subjectId: letterContact.id, kind: 'ERASE', receivedAt: daysAgo(3).toISOString() },
+    daysAgo(2),
+  )
+  // 3. Уволенный сотрудник обезличен администратором — ERASE/COMPLETED/ADMIN, USER.
+  await eraseUser(admin, users.formerEmployee.id, { confirm: users.formerEmployee.email }, daysAgo(1))
+  const dsarRequests = await prisma.dsarRequest.count()
+
+  // ── Approvals: «четыре глаза» (решение 133) — один открытый, один одобренный,
+  // не использованный (сама операция повышения роли в демо не выполняется).
+  // createdAt строки — DEFAULT now() в базе, backdate тут невозможен без прямого
+  // UPDATE — оставляем настоящее «сейчас», как и было бы при живом запросе.
+  await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.analyst.id } })
+  const toApprove = await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.manager.id } })
+  await approveApproval(admin2, toApprove.id)
+  const approvals = await prisma.approval.count()
+
+  // ── Прогноз (решение 135): обучение на только что залитой истории этапов —
+  // настоящая функция, не подставные числа; ворота публикации решают сами,
+  // публиковать модель или показывать «недостаточно данных».
+  const forecast = await trainForecastModels(null)
+  const forecastModels = forecast.models.length
+
+  // ── Качество данных (решение 134): «Java»/«JavaScript» — единственная пара
+  // навыков, которую находит нечёткий поиск даже на пониженном пороге (0.3
+  // вместо 0.4 по умолчанию) — реальный дубль-кандидат, отклонённый аналитиком.
+  // При пороге по умолчанию эта пара не показывается вовсе, поэтому дубль
+  // остаётся невидимым в обычном отчёте — только в журнале решений.
+  const javaPair = await findDuplicates(analyst, {
+    entity: 'skill',
+    threshold: 0.3,
+    includeDismissed: undefined,
+    includeArchived: false,
+  })
+  const [firstCandidate] = javaPair.data
+  if (firstCandidate) {
+    const manager: CurrentUser = {
+      id: users.manager.id, email: users.manager.email, fullName: users.manager.fullName,
+      role: users.manager.role, universityId: users.manager.universityId,
+    }
+    await dismissDuplicate(manager, {
+      entity: 'skill',
+      firstId: firstCandidate.a.id,
+      secondId: firstCandidate.b.id,
+      comment: 'Java и JavaScript — разные языки программирования, несмотря на схожее название',
+    })
+  }
+  const duplicateDismissals = await prisma.duplicateDismissal.count()
+
+  // ── Слияние вуза с отменой (решение 134): показывает обе операции — перенос
+  // и отмену по журналу — без единого следа в реестре. Источник — КубГТУ (в
+  // архиве, дубль тут ни при чём, просто пример механики); цель обязана быть
+  // действующей (правило слияния), поэтому берём любой активный вуз — Иннополис.
+  //
+  // Правило слияния отказывает, если у обоих вузов есть ИНН и они разные
+  // (решение 134 — «это разные организации, а не дубли»): ровно то, что решение
+  // 141 только что включило для всех 19 вузов. Чтобы пример вообще прошёл эту
+  // проверку, ИНН источника на время примера снимается и возвращается назад
+  // после отмены — checksum-утилита (prisma/demo/random.ts) детерминирована,
+  // так что значение то же, что было. Отмена в ту же секунду возвращает обоих
+  // ровно к прежнему состоянию, включая ИНН, который undo знать не может.
+  const kubstu = await prisma.university.findFirstOrThrow({ where: { shortName: 'КубГТУ' }, select: { id: true, inn: true } })
+  const innopolis = await prisma.university.findFirstOrThrow({ where: { shortName: 'Иннополис' }, select: { id: true } })
+  await prisma.university.update({ where: { id: kubstu.id }, data: { inn: null } })
+  const merged = await mergeUniversities(admin, { sourceId: kubstu.id, targetId: innopolis.id }, daysAgo(10))
+  await undoUniversityMerge(admin, merged.id, daysAgo(9))
+  await prisma.university.update({ where: { id: kubstu.id }, data: { inn: kubstu.inn } })
+  const universityMerges = await prisma.universityMerge.count()
+
+  console.log(
+    `  запросов субъектов: ${dsarRequests}, одобрений: ${approvals}, моделей прогноза: ${forecastModels}, ` +
+      `отметок «не дубль»: ${duplicateDismissals}, слияний вузов (с отменой): ${universityMerges}`,
+  )
+}
+
 /** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
 async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<void> {
   const { admin, manager, analyst, customPassword, DEMO_PASSWORD } = users
@@ -1801,8 +2273,13 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
     Встречи: await prisma.meeting.count(),
     'Заявки на обучение': await prisma.application.count(),
     'Записи журнала': await prisma.auditLog.count(),
+    'Печати журнала': await prisma.auditSeal.count(),
     Пользователи: await prisma.user.count(),
     Рекомендации: await prisma.recommendation.count(),
+    'Запросы субъектов (DSAR)': await prisma.dsarRequest.count(),
+    Одобрения: await prisma.approval.count(),
+    'Модели прогноза': await prisma.forecastModel.count(),
+    'Источники данных': await prisma.dataSource.count(),
   }
   console.log('\nДемонстрационные данные загружены:')
   for (const [name, value] of Object.entries(counts)) {
@@ -1831,19 +2308,22 @@ async function main(): Promise<void> {
   const users = await seedUsers()
   const mockSource = await seedDataSources()
   const skillId = await seedSkills()
-  await seedMarket(mockSource, skillId)
   const products = await seedProducts(skillId)
   const vendors = await seedVendors(prisma)
   const courses = await seedSchoolCourses(prisma, now)
   console.log(`  вендоры (решение 132): ${vendors.vendors}, их продуктов ${vendors.products}, контактов ${vendors.contacts}; курсов ${courses.courses}, заказов с сайта ${courses.orders}`)
   const { universityId, universityCreatedAt } = await seedUniversities()
   await seedContactBases(users.manager, universityId, universityCreatedAt)
+  await seedSecondaryContacts(users.manager, universityId, universityCreatedAt)
   const programId = await seedPrograms(skillId, universityId, universityCreatedAt)
   const cooperations = await seedCooperations(products, users.manager, users.manager2, universityId, programId)
   const universityRep = await seedUniversityRep(users.demoPasswordHash, universityId)
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
+  // Первая печать журнала (решение 115, решение 141): снимается в середине заливки,
+  // до расширенного набора — вторая, в конце, покажет другое число строк и хеш.
+  await auditSeal(prisma)
   if (process.env.SEED_DQ_CASES?.trim() === '1') {
     await seedDataQualityCases(universityId)
   } else {
@@ -1870,6 +2350,9 @@ async function main(): Promise<void> {
   console.log(`  закрытых из прошлого: ${resolved}`)
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
+  await seedGovernanceExamples(users, universityRep)
+  // Вторая печать журнала — после всего: другой headSeq/rowCount, чем у первой.
+  await auditSeal(prisma)
   await printSummary(users, universityRep)
 
   // Решение 145, в конце — см. комментарий у функции: не пересекается с сидом

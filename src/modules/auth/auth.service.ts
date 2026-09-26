@@ -25,6 +25,7 @@ import { approvalRequiredError, requireApproval } from '@/modules/approvals/appr
 import { userChangeApprovals } from '@/modules/approvals/approvals.rules'
 import { approvalsRequired } from '@/shared/config/approvals.config'
 import * as telegramRepo from '@/modules/telegram/telegram.repo'
+import * as notifyChannelsRepo from '@/modules/notify-channels/notify-channels.repo'
 import * as repo from './auth.repo'
 import {
   assertUserChangeAllowed,
@@ -280,10 +281,16 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
     }
     if (!(before.isActive && !after.isActive)) return
     // Всё, что работает без сессии, закрывается при блокировке: лента календаря
-    // и сводки в Telegram (решения 105 и 102).
+    // и сводки в Telegram, MAX, VK (решения 105, 102, 144).
     if (await telegramRepo.unlinkUser(id, tx)) {
       await writeAudit(
         { userId: user.id, action: 'telegram.unlink', objectType: 'User', objectId: id, payload: { source: 'user.block' } },
+        tx,
+      )
+    }
+    for (const channel of await notifyChannelsRepo.unlinkAllAltChannels(id, tx)) {
+      await writeAudit(
+        { userId: user.id, action: 'channel.unlink', objectType: 'User', objectId: id, payload: { channel, source: 'user.block' } },
         tx,
       )
     }

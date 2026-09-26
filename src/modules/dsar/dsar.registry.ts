@@ -173,6 +173,18 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: 'доступ к сводкам без сессии и трансграничная передача: без субъекта не нужна (решение 102)',
   },
   {
+    section: 'notificationChannelLinks',
+    model: 'NotificationChannelLink',
+    title: 'Привязки каналов уведомлений (MAX, VK)',
+    links: ['userId'],
+    select: { channel: true, chatRef: true, username: true, linkedAt: true },
+    orderBy: { linkedAt: 'asc' },
+    erase: 'delete',
+    reason:
+      'доступ к сводкам без сессии и трансграничная передача: без субъекта не нужна ' +
+      '(решение 144, тот же довод, что у telegramLink/решение 102)',
+  },
+  {
     section: 'calendarFeed',
     model: 'CalendarFeed',
     title: 'Подписка на календарь',
@@ -693,6 +705,7 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
   // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
   TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',
+  ChannelUpdatesSeen: 'отметка обработанного события MAX/VK: канал, update_id и время, без ссылок на людей (решение 144)',
   RecommendationRuleStats: 'счётчики обучения правила (показы, успехи) по общей/вузовской/менеджерской области; ' +
     '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',
   ForecastModel: 'модель прогноза связок: агрегированные коэффициенты и метрики качества ' +

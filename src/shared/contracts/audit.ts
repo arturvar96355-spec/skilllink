@@ -91,6 +91,10 @@ export const AUDIT_ACTIONS = [
   'telegram.link',
   /** Чат отвязан: из личного кабинета или командой /stop. */
   'telegram.unlink',
+  /** Пользователь подключил канал уведомлений MAX или VK (решение 144). Без идентификатора чата и ника. */
+  'channel.link',
+  /** Канал отвязан: из личного кабинета или командой «стоп». */
+  'channel.unlink',
   'document.create',
   'document.update',
   'document.status.change',
@@ -164,6 +168,16 @@ export const AUDIT_ACTIONS = [
    * ответственных (только число писем-строк).
    */
   'import.external',
+  // ── Решение 142: админка бота Telegram ──
+  /** Токен бота сменён администратором. objectId — 'telegram.bot_token'; без самого токена. */
+  'telegram.token_changed',
+  /** Токен бота отключён администратором (удалён из базы). */
+  'telegram.token_removed',
+  /**
+   * Режим приёма обновлений (webhook/polling/auto) изменён — вручную администратором
+   * или автоматически (payload.by: 'admin' | 'auto'), когда вебхук перестал отвечать.
+   */
+  'telegram.mode_switched',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
