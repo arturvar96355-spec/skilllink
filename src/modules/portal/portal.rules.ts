@@ -1,5 +1,5 @@
 import { forbidden, notFound } from '@/shared/http/errors'
-import { can } from '@/shared/auth/permissions'
+import { assertReviewerAllowed, can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 
 /**
@@ -49,4 +49,7 @@ export function assertPortalWritable(user: CurrentUser): void {
   if (!can(user, 'UNIVERSITY_PORTAL_WRITE')) {
     throw forbidden('В кабинете вуза сотрудник только просматривает; подтверждает сам вуз')
   }
+  // Право UNIVERSITY_PORTAL_WRITE проверяется здесь через `can`, не `assertCan` (сам
+  // вуз, а не сотрудник), поэтому эксперта (решение 147) `assertCan` не остановил бы.
+  assertReviewerAllowed(user)
 }

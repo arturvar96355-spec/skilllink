@@ -2204,6 +2204,44 @@ async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser)
 }
 
 /** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
+/**
+ * Учётные записи экспертов хакатона (решение 147, решение PM от 26.09.2026).
+ *
+ * `isReviewer: true` — сервер отклоняет любое разрушающее или изменяющее действие
+ * независимо от роли (`shared/auth/permissions.ts`, `assertReviewerAllowed`),
+ * поэтому `expert-admin@skilllink.demo` формально ADMIN, но прав ADMIN на деле
+ * не использует. Тот же демо-пароль, что у остальных учётных записей (`SEED_DEMO_PASSWORD`).
+ * Представитель — вуз СПбГУТ, как у сценарного `rep@spbgu.example.invalid`.
+ *
+ * Отдельная функция в конце заливки — минимально трогает остальной seed.ts.
+ */
+async function seedExpertAccounts(demoPasswordHash: string, universityId: IdOf): Promise<void> {
+  console.log('Учётные записи экспертов (решение 147)...')
+  const accounts: ReadonlyArray<{
+    email: string
+    fullName: string
+    role: 'MANAGER' | 'ADMIN' | 'UNIVERSITY_REP'
+  }> = [
+    { email: 'expert-manager@skilllink.demo', fullName: 'Эксперт — менеджер', role: 'MANAGER' },
+    { email: 'expert-admin@skilllink.demo', fullName: 'Эксперт — администратор', role: 'ADMIN' },
+    { email: 'expert-rep@skilllink.demo', fullName: 'Эксперт — представитель вуза', role: 'UNIVERSITY_REP' },
+  ]
+  for (const account of accounts) {
+    await prisma.user.create({
+      data: {
+        email: account.email,
+        passwordHash: demoPasswordHash,
+        fullName: account.fullName,
+        position: 'Эксперт хакатона',
+        role: account.role,
+        isReviewer: true,
+        universityId: account.role === 'UNIVERSITY_REP' ? universityId(UNIVERSITY_WITH_REP) : null,
+      },
+    })
+  }
+  console.log(`  учётных записей: ${accounts.length}, is_reviewer = true (пароль — как у остальных демо-пользователей)`)
+}
+
 async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<void> {
   const { admin, manager, analyst, customPassword, DEMO_PASSWORD } = users
   const counts = {
@@ -2298,6 +2336,7 @@ async function main(): Promise<void> {
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
   await seedGovernanceExamples(users, universityRep)
+  await seedExpertAccounts(users.demoPasswordHash, universityId)
   // Вторая печать журнала — после всего: другой headSeq/rowCount, чем у первой.
   await auditSeal(prisma)
   await printSummary(users, universityRep)
