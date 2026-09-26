@@ -173,16 +173,26 @@
  * пиксель вниз — ряд можно было дёрнуть вверх-вниз. Вертикаль закрыта,
  * вбок ряд листается только на узком экране, без видимой полосы.
  */
+.tabsWrap {
+  overflow: hidden;
+  box-shadow: inset 0 -1px 0 var(--border-divider);
+}
+
 .tabs {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  box-shadow: inset 0 -1px 0 var(--border-divider);
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scrollbar-width: none;
   touch-action: pan-x;
+  /*
+   * Запас понизу под индикатор прокрутки и такой же отрицательный отступ —
+   * `.tabsWrap` без лишней высоты обрезает его (решение 140, п. 4).
+   */
+  padding-bottom: 20px;
+  margin-bottom: -20px;
 }
 
 .tabs::-webkit-scrollbar {

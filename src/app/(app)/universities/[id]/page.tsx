@@ -464,7 +464,9 @@ export default function UniversityPage() {
                       <span className={styles.contactText}>
                         <span className={styles.contactName}>
                           {contact.fullName}
-                          {contact.isPrimary && <Badge tone="accent">основной</Badge>}
+                          {/* Текстовая метка, не бирка (решение 140, п. 9): плашка выглядела
+                              как кнопка, хотя нажать её было нельзя. */}
+                          {contact.isPrimary && <span className={styles.primaryTag}> · основной</span>}
                         </span>
                         <span className={styles.contactMeta}>{contact.position ?? 'должность не указана'}</span>
                         <span className={styles.contactLinks}>
