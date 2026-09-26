@@ -19,7 +19,6 @@
   "accessTokenLifespan": 300,
   "ssoSessionIdleTimeout": 28800,
   "ssoSessionMaxLifespan": 28800,
-
   "clients": [
     {
       "clientId": "skilllink-web",
@@ -47,7 +46,6 @@
       }
     }
   ],
-
   "users": [
     {
       "username": "admin@skilllink.demo",
@@ -121,5 +119,10 @@
       "lastName": "Ветрова",
       "credentials": []
     }
-  ]
+  ],
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "ru"
+  ],
+  "defaultLocale": "ru"
 }

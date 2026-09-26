@@ -33,7 +33,8 @@ CLIENT_ID=${KEYCLOAK_CLIENT_ID_NAME:-skilllink-web}
 # Внутри контейнера — прямой адрес, минуя Caddy и опубликованный порт хоста.
 KC_URL=http://localhost:8080/auth
 
-cd "$(git rev-parse --show-toplevel)"
+# На стенде код разворачивается без .git — тогда корень ищем от самого скрипта.
+cd "$(git rev-parse --show-toplevel 2> /dev/null || { cd "$(dirname "$0")/../.." && pwd; })"
 
 say() { printf '%s %s\n' "$(date '+%F %T')" "$*"; }
 fail() {
