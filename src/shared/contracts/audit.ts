@@ -90,6 +90,12 @@ export const AUDIT_ACTIONS = [
   'export.download',
   'audit.retention',
   'import.apply',
+  /**
+   * Обучение модели прогноза (решение 125): в payload — число связок и по каждой
+   * вехе версия, статус ворот и AUC. Коэффициенты и метрики не персональные
+   * данные, но полный слепок в журнал не пишется — только сводка обучения.
+   */
+  'forecast.model.train',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -115,6 +121,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'ForecastModel',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

@@ -47,6 +47,7 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `contacts_basis_reference_check` | документ-основание и дата фиксации — ровно при заданном основании |
 | `contact_basis_history_consent_status_check` | в истории: статус согласия не `NONE` ровно при `to_basis = CONSENT` |
 | `users_session_version_check` | версия сессий ≥ 0 (миграция `20260925230000_user_session_version`) |
+| `forecast_models_coefficients_check` | коэффициенты модели заполнены ровно тогда, когда статус `PUBLISHED` (миграция `20260926000000_forecast_models`, решение 125) |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
 в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
@@ -363,6 +364,20 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 
 `name` UNIQUE, `type` (MANUAL, CSV, EXTERNAL_API, LMS, SITE, MOCK), `url?`, `collection_date?`,
 `reliability`, `description?`, `is_mock`.
+
+### forecast_models — прогноз «дойдёт ли связка до вехи» (решение 125)
+
+`milestone_stage` UNIQUE — номер этапа вехи (подписание договора, начало занятий):
+новое обучение заменяет запись той же вехи, `version` растёт. `status` (`PUBLISHED`,
+`BASELINE_BETTER`, `INSUFFICIENT_DATA`) — итог ворот публикации, `trained_at` — когда
+обучена. `metrics` (jsonb) — AUC, Brier, калибровка, размер выборки; `coefficients`
+(jsonb?) — свободный член и веса по стандартизованным признакам, `NULL`, пока данных
+не хватает; `feature_stats` (jsonb) — медианы этапов, среднее/отклонение/квантили
+признаков для объяснений и PSI, частоты базовой линии по этапам.
+
+Прогноз конкретной связки не хранится — считается на лету от этой записи и текущего
+состояния связки (docs/FORECAST_MODEL.md). Таблица не содержит персональных данных:
+`src/modules/dsar/dsar.registry.ts`, `DSAR_NOT_PERSONAL`.
 
 ### audit_log
 

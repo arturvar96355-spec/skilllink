@@ -1,8 +1,23 @@
 # PROGRESS.md — прогресс, риски, незавершённое
 
-Обновлено: 25.09.2026.
+Обновлено: 26.09.2026.
 
 ## Состояние
+
+**Прогноз «дойдёт ли связка до вехи» (26.09.2026, решение 125, ветка `feat/forecast`).**
+Логистическая регрессия (L2, метод Ньютона) на чистом TypeScript поверх признаков связки
+на момент времени, без утечки будущего; временное разбиение обучение/проверка, AUC, Brier,
+калибровка, PSI. Ворота публикации: модель заменяет простое правило (частота вехи по
+этапу), только если доказанно точнее на статистически вменяемой выборке — иначе честно
+отдаётся правило со статусом «Недостаточно данных» или «Предварительная оценка по
+правилу». На демонстрационном сиде ворота ожидаемо не пропускают модель — проверено.
+Объяснение прогноза связки — топ-3 «за» и «против» обычными фразами, вклад признака
+складывается ровно в вероятность (тестами). Формулы и как объяснить жюри за минуту —
+[FORECAST_MODEL.md](FORECAST_MODEL.md). `GET /api/analytics/forecast/model`,
+`GET /api/cooperations/:id/forecast`, `POST /api/analytics/forecast/train` (администратор,
+`npm run forecast:train`), `npm run forecast:report` — печать метрик для слайда. Таблица
+`forecast_models` — не персональные данные (`DSAR_NOT_PERSONAL`). Права — как у остальной
+аналитики, представителю вуза недоступно.
 
 **Общее ограничение частоты запросов к API (25.09.2026, решение 117, ветка `sec/rate-limit`).**
 Все маршруты `/api/*`, кроме проверки живости и вебхука Telegram, считают запросы
@@ -210,7 +225,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 75 маршрутов, 97 операций
+### Модули и эндпоинты — 78 маршрутов, 100 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -223,7 +238,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs` |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/forecast/model`; `POST /api/analytics/forecast/train`; `GET /api/cooperations/:id/forecast` — прогноз связок, решение 125 |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id` |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
@@ -390,7 +405,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 74 пути, 97 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 77 путей, 100 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

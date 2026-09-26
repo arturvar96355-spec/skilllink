@@ -163,6 +163,13 @@ enum RecommendationStatus {
   DONE
 }
 
+/// Итог обучения модели прогноза по воротам публикации (решение 125, forecast.config.ts).
+enum ForecastModelStatus {
+  PUBLISHED
+  BASELINE_BETTER
+  INSUFFICIENT_DATA
+}
+
 enum DataSourceType {
   MANUAL
   CSV
@@ -828,6 +835,33 @@ model Recommendation {
   @@index([cooperationId])
   @@index([resolvedById])
   @@map("recommendations")
+}
+
+/// Модель прогноза «дойдёт ли связка до вехи» (решение 125, docs/FORECAST_MODEL.md).
+/// Одна запись на веху (`milestoneStage`): новое обучение заменяет предыдущую — версия
+/// растёт, история обучений не хранится, это агрегированные коэффициенты и метрики
+/// качества, а не персональные данные (DSAR_NOT_PERSONAL, dsar.registry.ts).
+/// Прогнозы для конкретных связок не хранятся — считаются на лету от этой записи.
+/// CHECK в базе: coefficients заполнены, когда status = PUBLISHED.
+model ForecastModel {
+  id             String              @id @default(cuid())
+  /// Номер этапа вехи, к которой обучена модель (FORECAST_MILESTONES).
+  milestoneStage Int                 @map("milestone_stage")
+  horizonDays    Int                 @map("horizon_days")
+  /// Растёт при каждом обучении той же вехи — не привязан к количеству строк в таблице.
+  version        Int
+  status         ForecastModelStatus
+  trainedAt      DateTime            @map("trained_at")
+  /// auc, baselineAuc, brier, n, positives, calibration и остальное — ForecastMetrics.
+  metrics        Json
+  /// intercept и веса по признакам; null — модель не обучилась (недостаточно данных).
+  coefficients   Json?
+  /// Медианы этапов, статистика признаков (среднее, отклонение, квантили, PSI) и частоты правила.
+  featureStats   Json                @map("feature_stats")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@unique([milestoneStage])
+  @@map("forecast_models")
 }
 
 /// Источник рыночных данных с оценкой достоверности. Без него показатель

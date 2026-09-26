@@ -326,6 +326,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'export.download': 'Выгрузка в CSV',
   'audit.retention': 'Очистка журнала по сроку хранения',
   'import.apply': 'Загрузка реестра из CSV',
+  'forecast.model.train': 'Обучена модель прогноза связок',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -347,4 +348,5 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+  ForecastModel: 'Модель прогноза',
 }
