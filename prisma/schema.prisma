@@ -849,6 +849,19 @@ model Recommendation {
   cooperationId     String?                @map("cooperation_id")
   resolvedById      String?                @map("resolved_by_id")
   resolvedAt        DateTime?              @map("resolved_at")
+  /// Решение 119. Итоговый балл 0..1: польза правила, ценность случая, приоритет.
+  /// Пересчитывается у открытых рекомендаций после пересборки и каждого решения сотрудника.
+  score             Float?
+  /// Разбор балла: { p, pSource, trialsEff, successesEff, value, priority, score, … }.
+  scoreBreakdown    Json?                  @map("score_breakdown")
+  /// Причины: [{ code, pass, detail, facts }] — проверки правила и пометки обучения.
+  reasons           Json?
+  /// Отложена защитой от перегрузки менеджера: не удалена, стоит в конце ленты.
+  isDeferred        Boolean                @default(false) @map("is_deferred")
+  /// Последний показ — момент, когда рекомендация создана или открыта снова (показ в статистике правила).
+  shownAt           DateTime?              @map("shown_at")
+  /// Когда показ засчитан полезным; второй раз за один показ не засчитывается.
+  successAt         DateTime?              @map("success_at")
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
 
@@ -866,7 +879,31 @@ model Recommendation {
   @@index([objectType, objectId])
   @@index([cooperationId])
   @@index([resolvedById])
+  @@index([score])
   @@map("recommendations")
+}
+
+/// Решение 119. Статистика правила рекомендаций: сколько раз показано и сколько
+/// раз оказалось полезным — полные счётчики и «эффективные» с затуханием
+/// (полураспад RECOMMENDATION_LEARNING.halfLifeDays). Уровни: общий
+/// (scope_id = 'all'), вуз, менеджер. Пишется только одним запросом
+/// INSERT … ON CONFLICT DO UPDATE (recommendations.stats.repo.ts), затухание
+/// считается в SQL — параллельные события не теряются.
+/// CHECK-ограничения (в SQL миграции 20260926120000_recommendation_learning):
+/// recommendation_rule_stats_scope_type_check, recommendation_rule_stats_counts_check.
+model RecommendationRuleStats {
+  ruleType     String   @map("rule_type")
+  /// 'global' | 'university' | 'manager'.
+  scopeType    String   @map("scope_type")
+  scopeId      String   @map("scope_id")
+  trials       Int      @default(0)
+  successes    Int      @default(0)
+  trialsEff    Float    @default(0) @map("trials_eff")
+  successesEff Float    @default(0) @map("successes_eff")
+  effUpdatedAt DateTime @map("eff_updated_at") @db.Timestamptz(6)
+
+  @@id([ruleType, scopeType, scopeId])
+  @@map("recommendation_rule_stats")
 }
 
 /// Источник рыночных данных с оценкой достоверности. Без него показатель

@@ -4,6 +4,7 @@ import { conflict, forbidden, notFound, validationError } from '@/shared/http/er
 import { can, assertCan } from '@/shared/auth/permissions'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
+import { alertUserChange } from '@/shared/ops/security-alerts'
 import {
   PASSWORD_POLICY,
   SHARED_DEMO_ACCOUNT_REFUSAL,
@@ -222,6 +223,7 @@ export async function createUser(user: CurrentUser, input: CreateUserInput): Pro
     objectId: row.id,
     payload: { role: row.role, universityId: row.universityId },
   })
+  alertUserChange(user.id, row.id, null, { role: row.role, isActive: true })
 
   return { user: toUserDto(row, true), temporaryPassword }
 }
@@ -303,6 +305,8 @@ export async function updateUser(user: CurrentUser, id: string, input: UpdateUse
       ...(entry.payload ? { payload: entry.payload } : {}),
     })
   }
+  // Блокировка и выдача роли администратора — владельцу в Telegram (решение 118).
+  alertUserChange(user.id, id, result.before, result.after)
 
   return toUserDto(result.after, true)
 }

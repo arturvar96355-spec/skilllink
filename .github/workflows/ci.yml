@@ -113,7 +113,7 @@ jobs:
         run: |
           npm start &
           for i in $(seq 1 60); do
-            curl -sf http://localhost:3000/api/health && break
+            curl -sf http://localhost:3000/api/ready && break
             sleep 2
           done
 

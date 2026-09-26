@@ -2,31 +2,40 @@ import { conflict, notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
-import { RECOMMENDATION_RULES, SKILL_GAP } from '@/shared/config/analytics.config'
+import { RECOMMENDATION_LEARNING } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
   RecommendationDto,
   RecommendationGenerationResultDto,
+  RecommendationScoreDto,
   RecommendationTargetDto,
 } from '@/shared/contracts/recommendation'
-import type { SkillLevel } from '@/shared/contracts/enums'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
-import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
+import { findCurrentStage } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import { log } from '@/shared/log/logger'
+import * as statsRepo from './recommendations.stats.repo'
 import { ensureStageDurations } from '@/modules/analytics/stage-analytics.service'
 import {
   assertRecommendationTransition,
   compareDraftsByImportance,
   draftsForCooperation,
+  evaluateCooperation,
+  evaluateProgram,
+  evaluateSkillGaps,
   isConditionChecked,
+  progressedSince,
   recommendationKey,
-  ruleCriticalGapWithProduct,
-  ruleMissingProgramMetrics,
   stillActualMessage,
+  type ProgramForRules,
   type RecommendationDraft,
+  type RuleEvaluation,
 } from './recommendations.rules'
+import { isRuleEnabled } from './recommendations.explain'
+import { parseReasons } from './recommendations.reasons'
+import { DAY_MS } from './recommendations.learning'
+import { rescoreOpen } from './recommendations.learning.service'
 import type {
   RecommendationListQuery,
   UpdateRecommendationInput,
@@ -80,6 +89,28 @@ export function toRecommendationDto(
     createdAt: toIsoRequired(row.createdAt),
     updatedAt: toIsoRequired(row.updatedAt),
     resolvedAt: toIso(row.resolvedAt),
+    score: row.score,
+    scoreBreakdown: toScoreBreakdown(row.scoreBreakdown),
+    reasons: parseReasons(row.reasons),
+    isDeferred: row.isDeferred,
+  }
+}
+
+/** Разбор балла из базы: объект с числом `score` — иначе null (запись ещё не пересчитана). */
+function toScoreBreakdown(value: unknown): RecommendationScoreDto | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  return typeof (value as { score?: unknown }).score === 'number' ? (value as RecommendationScoreDto) : null
+}
+
+/**
+ * Побочная работа обучения (статистика, пересчёт балла) не должна отменять уже
+ * записанное: сбой — в журнал сервера, недосчитанное поправит следующая пересборка.
+ */
+async function learningStep(label: string, step: () => Promise<unknown>): Promise<void> {
+  try {
+    await step()
+  } catch (error) {
+    log.error(`[RECOMMENDATIONS] обучение: ${label}`, { err: error })
   }
 }
 
@@ -103,27 +134,9 @@ export async function getById(user: CurrentUser, id: string): Promise<Recommenda
   return (await toRecommendationDtos([row]))[0]!
 }
 
-function missingMetricsDraft(program: {
-  id: string
-  name: string
-  applicationCount: number | null
-  studentCount: number | null
-  groupCount: number | null
-  university: { name: string }
-  _count: { cooperations: number }
-}): RecommendationDraft | null {
-  return ruleMissingProgramMetrics({
-    programId: program.id,
-    programName: program.name,
-    universityName: program.university.name,
-    applicationCount: program.applicationCount,
-    studentCount: program.studentCount,
-    groupCount: program.groupCount,
-    hasCooperation: program._count.cooperations > 0,
-  })
+function missingMetricsDraft(program: ProgramForRules): RecommendationDraft | null {
+  return evaluateProgram(program).draft
 }
-
-const LEVEL_ORDER: Record<SkillLevel, number> = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3 }
 
 /**
  * Прогоняет все правила и сохраняет результат.
@@ -140,105 +153,71 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   // Порог застоя по истории этапов (решение 120): правило берёт его из памяти.
   await ensureStageDurations(now)
   const input = await repo.loadGenerationInput()
-  const drafts: RecommendationDraft[] = []
+  const evaluations: RuleEvaluation[] = []
 
   // ── Правила по связкам ─────────────────────────────────────────────────────
   for (const cooperation of input.cooperations) {
-    drafts.push(...draftsForCooperation(cooperation, now))
+    evaluations.push(...evaluateCooperation(cooperation, now))
   }
 
   // ── Правило по недостающим показателям программ ────────────────────────────
-  for (const program of input.programs) {
-    const draft = missingMetricsDraft(program)
-    if (draft) drafts.push(draft)
-  }
+  for (const program of input.programs) evaluations.push(evaluateProgram(program))
 
   // ── Правило по критичным дефицитам навыков ─────────────────────────────────
-  // Одна строка на навык — как в списке дефицитов (demandPerSkill): иначе два
-  // региональных замера одного навыка дали бы две рекомендации с одним ключом,
-  // и вторая молча затёрла бы первую.
-  const demand = demandPerSkill(input.demand)
-  const normalizeValue = demandNormalizer(demand.map((row) => row.value))
+  // Лимит показа общий на все навыки — правило считается по всем сразу; те, что
+  // за лимитом, остаются актуальными и не закрываются как выполненные.
+  const gaps = evaluateSkillGaps(input)
 
-  /** Лучший уровень навыка по каждой программе — нужен, чтобы понять, покрыт ли он. */
-  const levelByProgramSkill = new Map<string, SkillLevel>()
-  for (const row of input.programSkills) {
-    const key = `${row.programId}::${row.skillId}`
-    const current = levelByProgramSkill.get(key)
-    if (!current || LEVEL_ORDER[row.level] > LEVEL_ORDER[current]) {
-      levelByProgramSkill.set(key, row.level)
-    }
-  }
-
-  const productsBySkill = new Map<string, Array<{ id: string; name: string; relevance: string }>>()
-  for (const row of input.productSkills) {
-    const list = productsBySkill.get(row.skillId) ?? []
-    list.push({ id: row.product.id, name: row.product.name, relevance: row.relevance })
-    productsBySkill.set(row.skillId, list)
-  }
-
-  const gapDrafts: RecommendationDraft[] = []
-  for (const row of demand) {
-    const normalized = normalizeValue(row.value)
-    if (normalized === null || normalized < SKILL_GAP.demandThreshold) continue
-
-    // Программы, в которых этого навыка нет вовсе.
-    const programsWithoutSkill = input.programs.filter(
-      (program) => !levelByProgramSkill.has(`${program.id}::${row.skillId}`),
-    )
-    // Навык считается дефицитным только если его нет НИ В ОДНОЙ программе:
-    // иначе это не дефицит, а неравномерное покрытие.
-    if (programsWithoutSkill.length !== input.programs.length) continue
-
-    const draft = ruleCriticalGapWithProduct({
-      skillId: row.skillId,
-      skillName: row.skill.name,
-      demandNormalized: normalized,
-      products: productsBySkill.get(row.skillId) ?? [],
-      programs: programsWithoutSkill.map((program) => ({
-        id: program.id,
-        name: program.name,
-        universityName: program.university.name,
-      })),
-    })
-    if (draft) gapDrafts.push(draft)
-  }
-
-  gapDrafts.sort(
-    (a, b) =>
-      Number(b.relatedData.demandNormalized ?? 0) - Number(a.relatedData.demandNormalized ?? 0),
-  )
-
-  // Лимит ограничивает, сколько дефицитов попадёт в список за раз. Но те, что за лимитом,
-  // остаются актуальными: их ключи всё равно уходят в проверку на устаревание, иначе
-  // система закрыла бы их как выполненные, хотя дефицит никуда не делся.
-  const shownGaps = gapDrafts.slice(0, RECOMMENDATION_RULES.criticalGapLimit)
-  const deferredGaps = gapDrafts.slice(RECOMMENDATION_RULES.criticalGapLimit)
-  drafts.push(...shownGaps)
+  const candidates = [
+    ...evaluations.flatMap((item) => (item.draft ? [item.draft] : [])),
+    ...gaps.shown,
+  ]
+  // Выключенное правило (решение 119) молчит: новых записей не создаёт, но и его
+  // открытые записи, пока условие выполняется, не закрываются как выполненные.
+  const drafts = candidates.filter((draft) => isRuleEnabled(draft.ruleKey))
+  const silenced = candidates.filter((draft) => !isRuleEnabled(draft.ruleKey))
 
   // ── Сохранение ─────────────────────────────────────────────────────────────
   // В порядке ленты: новые записи получают время создания по этому порядку,
   // и при равной важности лента и главная показывают их одинаково всегда.
   drafts.sort(compareDraftsByImportance)
-  const { created, updated, keys } = await repo.upsertDrafts(drafts, now)
+  const { created, updated, keys, shown } = await repo.upsertDrafts(drafts, now)
   const stillActualKeys = [
     ...keys,
-    ...deferredGaps.map(recommendationKey),
+    ...gaps.deferred.map(recommendationKey),
+    ...silenced.map(recommendationKey),
   ]
   const closed = await repo.closeObsolete(stillActualKeys)
+
+  // ── Обучение (решение 119) ─────────────────────────────────────────────────
+  // Показ — в статистику правила. Закрытое системой засчитывается полезным, только
+  // если объект по-прежнему в работе: проблема ушла, а не связку отменили.
+  const live = new Set([
+    ...input.cooperations.map((row) => repo.targetKey('Cooperation', row.id)),
+    ...input.programs.map((row) => repo.targetKey('EducationalProgram', row.id)),
+    ...input.demand.map((row) => repo.targetKey('Skill', row.skillId)),
+  ])
+  await learningStep('показы', () => statsRepo.recordShows(shown, now))
+  await learningStep('выполненные системой', () =>
+    statsRepo.creditSuccesses(
+      closed.filter((row) => live.has(repo.targetKey(row.objectType, row.objectId))).map((row) => row.id),
+      now,
+    ),
+  )
+  await learningStep('пересчёт балла', () => rescoreOpen(now))
 
   await writeAudit({
     userId: user.id,
     action: 'recommendation.generate',
     objectType: 'Recommendation',
     objectId: 'batch',
-    payload: { created, updated, closed, total: drafts.length },
+    payload: { created, updated, closed: closed.length, total: drafts.length },
   })
 
   return {
     created,
     updated,
-    closed,
+    closed: closed.length,
     total: drafts.length,
     generatedAt: now.toISOString(),
   }
@@ -313,6 +292,15 @@ export async function updateStatus(
     payload: { from: existing.status, to: input.status, ruleKey: existing.ruleKey },
   })
 
+  // Решение 119: выполненная — успех правила; вес правила меняется, и балл
+  // открытых рекомендаций пересчитывается сразу. Отклонение в статистике — показ
+  // без успеха: показ уже учтён при создании, отдельного события нет.
+  if (input.status === 'DONE') {
+    const now = new Date()
+    await learningStep('выполненная', () => statsRepo.creditSuccesses([id], now))
+    await learningStep('пересчёт балла', () => rescoreOpen(now))
+  }
+
   return (await toRecommendationDtos([row]))[0]!
 }
 
@@ -327,10 +315,31 @@ export async function updateStatus(
  */
 export async function syncCooperation(cooperationId: string): Promise<void> {
   try {
-    await ensureStageDurations()
+    const now = new Date()
+    await ensureStageDurations(now)
+    // Кандидаты на бонус — до сверки: сверка переписывает их данные на сегодняшние
+    // (просрочка переходит на следующий этап), а сравнивать надо с тем, что было.
+    const candidates = await repo.findProgressCandidates(
+      cooperationId,
+      new Date(now.getTime() - RECOMMENDATION_LEARNING.progressCreditDays * DAY_MS),
+    )
     const cooperation = await repo.loadCooperationForRules(cooperationId)
-    const drafts = cooperation ? draftsForCooperation(cooperation, new Date()) : []
-    await repo.syncCooperation(cooperationId, drafts)
+    const drafts = cooperation ? draftsForCooperation(cooperation, now) : []
+    const { closed } = await repo.syncCooperation(cooperationId, drafts)
+    if (!cooperation) return
+
+    // Решение 119: проблема ушла, связка в работе — рекомендация помогла; связка
+    // сдвинулась на следующий этап в течение окна после показа — тоже.
+    const currentStage = findCurrentStage(cooperation.stages)?.stageNumber ?? null
+    const credited = new Set([
+      ...closed.map((row) => row.id),
+      ...candidates
+        .filter((row) => progressedSince(row.ruleKey, row.relatedData, currentStage))
+        .map((row) => row.id),
+    ])
+    if (credited.size === 0) return
+    await learningStep('сдвиг связки', () => statsRepo.creditSuccesses([...credited], now))
+    await learningStep('пересчёт балла', () => rescoreOpen(now))
   } catch (error) {
     log.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', { cooperationId, err: error })
   }

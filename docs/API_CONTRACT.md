@@ -354,46 +354,78 @@ curl -i -X POST http://localhost:3000/api/client-errors -H 'content-type: applic
 
 ### GET /api/health
 
-Проверка живости приложения. Авторизация не требуется.
-
-Проверяется не только соединение, но и то, что миграции применены: пустая база отвечает
-на `SELECT 1` как ни в чём не бывало, и контейнер рапортовал бы «здоров», пока приложение
-на деле неработоспособно.
+Проверка **живости**: процесс жив и настроен. Авторизация не требуется. **Базу не
+проверяет** (с 25.09.2026, решение 118): на неё смотрит healthcheck контейнера, и падение
+базы не должно делать приложение «нездоровым» — оно само вернётся в строй вместе с базой.
+Базу и миграции проверяет `GET /api/ready`.
 
 ```bash
 curl -s http://localhost:3000/api/health
 ```
 
 ```json
-{ "data": { "status": "ok", "database": "connected", "schema": "ready",
-            "time": "2026-09-21T07:24:47.059Z" } }
+{ "data": { "status": "ok", "uptimeSeconds": 5321, "time": "2026-09-25T20:35:05.744Z" } }
 ```
 
-Если миграции не применены — **503** и подсказка:
+`uptimeSeconds` — сколько работает процесс: после падения и перезапуска — снова с нуля.
+Не задан `AUTH_SECRET` (в промышленном режиме) или `DATABASE_URL` — **503**,
+`status: "misconfigured"` и `hint` с тем, что делать.
+
+### GET /api/ready
+
+Проверка **готовности**: можно ли обслуживать запросы. Авторизация не требуется.
+На неё смотрят проверка после выкладки (`remote-up.sh`, `check.sh`), сторож
+(`scripts/ops/watchdog.sh`) и «Стенд жив» (решение 118).
+
+- база отвечает на `SELECT 1` — время ответа в `latencyMs`;
+- последняя применённая миграция совпадает с последней в `prisma/migrations` запущенного
+  образа, и нет начатой и не законченной: пустая база отвечает на `SELECT 1` как ни в чём
+  не бывало, и без этой сверки стенд рапортовал бы «готов», пока приложение неработоспособно.
+
+```bash
+curl -s http://localhost:3000/api/ready
+```
 
 ```json
-{ "data": { "status": "degraded", "database": "connected", "schema": "missing",
-            "hint": "Примените миграции: npm run db:deploy", "time": "…" } }
+{ "data": { "status": "ok", "database": "connected", "schema": "ready",
+            "migration": { "applied": "20260925230200_contact_legal_basis",
+                           "expected": "20260925230200_contact_legal_basis" },
+            "latencyMs": 1.4, "time": "2026-09-25T20:36:07.035Z" } }
 ```
+
+Не готово — **503**, `status: "degraded"` и код причины `reason`:
+
+| `reason` | Когда | `schema` |
+| --- | --- | --- |
+| `database-unavailable` | база не ответила на `SELECT 1` | `unknown` |
+| `migrations-missing` | таблицы миграций нет — база пустая | `missing` |
+| `migrations-pending` | в коде есть миграции новее применённой | `mismatch` |
+| `migration-failed` | миграция начата и не закончена | `mismatch` |
+| `misconfigured` | не задан `AUTH_SECRET` или `DATABASE_URL` | `unknown` |
+
+В базе миграция **новее**, чем в коде (код откатили на версию до неё), — **200** со
+`schema: "ahead"`: откат кода — штатная операция, и 503 сделал бы его невозможным (проверка
+после выкладки отвергла бы откат). Сторож присылает об этом предупреждение.
 
 Поле `database` называет причину, а не просто «не работает»:
 
-| `database` | Когда | `status` |
-| --- | --- | --- |
-| `connected` | база отвечает | `ok`, либо `degraded`, если не применены миграции |
-| `unreachable` | сервер не отвечает: не запущен, не тот адрес или порт | `degraded` |
-| `auth-failed` | база отвергла пароль. `POSTGRES_PASSWORD` меняет пароль только при создании базы — существующему тому он ничего не меняет | `degraded` |
-| `database-missing` | сервер отвечает, но базы с таким именем нет | `degraded` |
-| `not-configured` | не задан `DATABASE_URL` | `misconfigured` |
-| `unknown` | до базы не дошло: не задан `AUTH_SECRET` в промышленном режиме | `misconfigured` |
+| `database` | Когда |
+| --- | --- |
+| `connected` | база отвечает |
+| `unreachable` | сервер не отвечает: не запущен, не тот адрес или порт |
+| `auth-failed` | база отвергла пароль. `POSTGRES_PASSWORD` меняет пароль только при создании базы — существующему тому он ничего не меняет |
+| `database-missing` | сервер отвечает, но базы с таким именем нет |
+| `not-configured` | не задан `DATABASE_URL` |
+| `unknown` | до базы не дошло: не задан `AUTH_SECRET` в промышленном режиме |
 
 Полная ошибка пишется в журнал приложения (`docker compose logs app`): подсказка
 отвечает на «что делать», а разбираться в неожиданном сбое нужно по ней.
 
 **В продакшене (`NODE_ENV=production`) подробностей нет** (с 25.09.2026): поля `hint` нет,
 `database` — только `connected`, `unknown` или `unavailable`, `status` — `ok` или `degraded`
-(вместо `misconfigured`). Подсказка пишется в журнал приложения. `status` и `schema`
-значат то же, что и вне продакшена: на них смотрят `scripts/deploy/check.sh` и Docker.
+(вместо `misconfigured`). Подсказка пишется в журнал приложения. `status`, `reason`,
+`schema`, `migration` и `latencyMs` значат то же, что и вне продакшена: на них смотрят
+проверки и сторож. Имена миграций секрета не составляют — они лежат в открытом репозитории.
 
 ---
 
@@ -1781,7 +1813,7 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 | --- | --- | --- |
 | `NEW`, `IN_PROGRESS`, `ACCEPTED` | обновляется текст, статус прежний | закрывается системой: `DONE`, `resolvedById` пуст |
 | `DONE` | открывается снова: `NEW` (кроме дефицита навыка, закрытого человеком) | без изменений |
-| `DISMISSED` | **без изменений** — решение человека с основанием | без изменений |
+| `DISMISSED` | **без изменений**, пока идёт пауза после отклонения (30 дн., решение 119); после паузы — открывается снова: `NEW` | без изменений |
 
 Закрытую человеком рекомендацию по дефициту навыка (`skill.critical-gap-with-product`)
 пересборка не открывает: её действие — предложить продукт вузам, а дефицит после этого
@@ -1794,6 +1826,12 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 не выдаёт давно известное за новое.
 
 `created` в ответе — созданные и открытые заново, `closed` — закрытые системой.
+
+**Обучение (решение 119).** Каждая созданная или открытая заново запись — «показ» в
+статистике своего правила; закрытая системой при действующем объекте и выполненная
+человеком — «успех». После пересборки у всех открытых пересчитываются `score`,
+`scoreBreakdown`, `reasons` и `isDeferred` (см. `GET /api/recommendations`).
+Формулы — [RECOMMENDATIONS_MODEL.md](RECOMMENDATIONS_MODEL.md).
 
 **Смена статуса или срока этапа и отметка в чек-листе** сразу сверяют открытые
 рекомендации этой связки (`stage.overdue`, `cooperation.stalled`, `cooperation.no-product`):
@@ -1834,7 +1872,14 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 Право: `ANALYTICS`. Представителю вуза недоступно.
 
 Параметры: `type[]`, `status[]`, `priority[]`, `cooperationId`, `region`,
-`sort` (`priority`, `createdAt`, `updatedAt`), пагинация.
+`deferred` (`true` / `false`, решение 119), `sort` (`priority`, `createdAt`, `updatedAt`, `score`), пагинация.
+
+**Лента по баллу — `sort=-score`** (решение 119, `RECOMMENDATION_SORT_BY_SCORE`): сверху то,
+что с наибольшей вероятностью окажется полезным. Отложенные защитой от перегрузки
+(`isDeferred: true`) — в конце, записи без балла (созданные до решения 119 и ещё не
+пересчитанные) — после оценённых. Сценарий показа (`demo:check`) держится на `-priority`,
+поэтому `RECOMMENDATION_SORT_MOST_IMPORTANT` не менялся: переключить ленту на балл — решение
+фронта и Артура.
 
 **Лента «сначала важное» — `sort=-priority`**, с минусом: приоритет —
 перечисление `LOW < MEDIUM < HIGH < CRITICAL`, и `sort=priority` ставит сверху
@@ -1860,9 +1905,112 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
   "resolutionComment": null,
   "target": { "objectType": "Skill", "objectId": "…", "label": "…" },
   "cooperationId": null,
-  "createdAt": "…", "updatedAt": "…", "resolvedAt": null
+  "createdAt": "…", "updatedAt": "…", "resolvedAt": null,
+  "score": 0.636,
+  "scoreBreakdown": {
+    "p": 0.647, "pSource": "global", "pLevel": "global", "sampling": "mean",
+    "trialsEff": 28.4, "successesEff": 18.7,
+    "value": 77, "valueLabel": "спрос на навык из 100", "valueAnchor": 50, "valueScore": 0.606,
+    "priority": 0.667, "weights": { "rule": 0.5, "value": 0.35, "priority": 0.15 },
+    "score": 0.636
+  },
+  "reasons": [
+    { "code": "demand_above_threshold", "pass": true, "label": "Спрос выше порога",
+      "detail": "Навык Kubernetes нужен рынку на 77 из 100 при пороге 50 (1840 в замере)",
+      "facts": { "skillName": "Kubernetes", "demand": 77, "threshold": 50, "vacancies": 1840 } },
+    { "code": "skill_not_taught", "pass": true, "label": "Навыка нет в программах", "detail": "…", "facts": {} },
+    { "code": "product_available", "pass": true, "label": "Есть наш продукт", "detail": "…", "facts": {} },
+    { "code": "gap_in_top", "pass": true, "label": "В числе самых востребованных", "detail": "…", "facts": {} },
+    { "code": "rule_weight_low", "pass": true, "label": "Вес правила",
+      "detail": "Вес правила 0,65: по решениям сотрудников рекомендации «Критичный дефицит и наш продукт» полезны примерно в 65 % случаев",
+      "facts": { "p": 0.647, "threshold": 0.35 } }
+  ],
+  "isDeferred": false
 }
 ```
+
+**Новые поля (решение 119), прежние не менялись:**
+
+- `score` — балл 0..1 или `null` (запись ещё не пересчитана);
+- `scoreBreakdown` — «почему эта выше»: `score = weights.rule·p + weights.value·valueScore + weights.priority·priority`;
+  `p` — вероятность полезности правила, `pSource` — `global` (своих данных нет), `pooled` (мало, смешаны
+  с общей оценкой), `local` (достаточно); `pLevel` — чьи счётчики: общий, вуз или менеджер;
+- `reasons` — проверки правила (все `pass: true`, раз рекомендация есть) и пометки обучения:
+  `rule_weight_low` (вес правила ниже 0,35 — `pass: false`), `manager_overloaded`
+  (рекомендация отложена — `pass: false`). Коды — `<предмет>_<состояние>`, тексты — из фактов,
+  словарь один: `recommendations.reasons.ts`;
+- `isDeferred` — отложена защитой от перегрузки: у ответственного за 30 дней не меньше 15 показов
+  и выполнено меньше 10 %, а балл ниже 0,6. Запись не удаляется.
+
+### GET /api/recommendations/why-not
+
+Право: `ANALYTICS`. Решение 119. Почему по объекту нет рекомендации — **те же функции
+проверок, что у правила при пересборке** (`evaluateCooperation`, `evaluateProgram`,
+`evaluateSkillGaps`), плюс общие: правило включено, объект в работе, пауза после отклонения.
+
+Параметры: `entity` — `program` | `cooperation` | `skill`, `id`, необязательный `rule` —
+одно правило (иначе все правила этого вида объекта). Неизвестный вид — 422, объект
+не найден или правило не того вида — 404.
+
+```bash
+curl -s 'http://localhost:3000/api/recommendations/why-not?entity=program&id=<id>'
+```
+
+```json
+{ "data": {
+  "entity": "program", "id": "…", "label": "Технологии разработки компьютерных игр · УрФУ",
+  "rules": [ {
+    "ruleKey": "program.missing-metrics", "ruleLabel": "Нет данных по программе",
+    "wouldRecommend": false,
+    "checks": [
+      { "ruleKey": "program.missing-metrics", "check": "rule_enabled", "pass": true, "label": "Правило включено", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "program_active", "pass": true, "label": "Программа действует", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "program_cooperation_exists", "pass": false, "label": "Есть сотрудничество",
+        "detail": "У программы «…» 0 действующих сотрудничеств — запрашивать показатели не у кого",
+        "facts": { "programName": "…", "cooperations": 0 } },
+      { "ruleKey": "program.missing-metrics", "check": "metrics_missing", "pass": true, "label": "Не заполнены показатели", "detail": "…", "facts": {} },
+      { "ruleKey": "program.missing-metrics", "check": "dismissed_recently", "pass": true, "label": "Пауза после отклонения",
+        "detail": "Рекомендацию по этому объекту не отклоняли", "facts": {} }
+    ],
+    "recommendation": null
+  } ],
+  "checks": [ "…все проверки всех правил подряд…" ],
+  "checkedAt": "…"
+} }
+```
+
+Коды проверок: `rule_enabled`, `dismissed_recently`; связка — `cooperation_open`, `stage_overdue`,
+`stage_unlocked`, `overdue_absent`, `stage_open`, `cooperation_stalled`, `product_missing`,
+`stage_needs_product`; программа — `program_active`, `program_cooperation_exists`, `metrics_missing`;
+навык — `demand_above_threshold`, `skill_not_taught`, `product_available`, `gap_in_top`.
+По объекту с открытой рекомендацией все проверки её правила — `pass: true` (проверяет пробник).
+
+### GET /api/recommendations/rules/stats
+
+Право: `ANALYTICS`. Решение 119. Вес каждого правила — для графика «как у отклоняемого
+правила падает вес».
+
+```json
+{ "data": {
+  "rules": [ {
+    "ruleKey": "cooperation.stalled", "ruleLabel": "Связка без движения", "enabled": true,
+    "scopeType": "global", "scopeId": "all", "scopeLabel": null,
+    "p": 0.121, "pSource": "global", "ci90": [0.017, 0.291],
+    "trials": 28, "successes": 3, "trialsEff": 10.95, "successesEff": 0.6,
+    "updatedAt": "…",
+    "scopes": [ { "scopeType": "university", "scopeId": "…", "scopeLabel": "СПбГУТ", "p": 0.2, "…": "…" } ]
+  } ],
+  "halfLifeDays": 30, "poolingStrength": 5, "sampling": "mean", "isMock": true, "computedAt": "…"
+} }
+```
+
+`isMock: true` — в базе демо-набор, и история решений в нём смоделирована сидом
+(`seedRecommendationStats`), а не накоплена: фронт показывает пометку, как у остальной аналитики.
+
+`p` — среднее Beta по эффективным (с затуханием) счётчикам на момент запроса, `ci90` —
+квантили 5 % и 95 % того же распределения (численно), `trials`/`successes` — полные
+счётчики без затухания. Уровни вузов и менеджеров пулятся с уровнем выше.
+Истории весов по дням сервер не хранит — ряды для графика даёт `npm run recs:simulate -- --json`.
 
 ### GET /api/recommendations/:id
 
@@ -1921,6 +2069,11 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 
 Комментарий сотрудника пишется в `resolutionComment`; `justification` — обоснование системы —
 не переписывается.
+
+**Решение 119.** `DONE` — успех правила в статистике (один раз на показ), вес правила
+и балл открытых рекомендаций пересчитываются сразу. `DISMISSED` — отдельного события нет:
+показ уже учтён при создании, успеха нет. После отклонения то же правило по тому же
+объекту молчит 30 дней (пауза), потом пересборка может открыть запись снова.
 
 ---
 
@@ -3438,14 +3591,16 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
       { "number": 6, "title": "Подписание документов", "phase": "FORMALIZATION", "phaseLabel": "Оформление",
         "normativeDays": 63, "isControlPoint": true, "isOptional": false, "isAutomatic": false,
         "requiredTaskCount": 3, "taskCount": 3, "isTemporary": true } ],
-    "temporaryCount": 43 } }
+    "temporaryCount": 42 } }
 ```
 
 - **Группы** (`id`): `programRating` — веса рейтинга, минимум показателей, шкала, способ
   рейтинга вуза; `skillGap` — порог востребованности и покрытие по уровням; `skillProfile` —
   области, где навыки сравниваются поимённо (`SKILL_PROFILE`); `workflow` — предупреждение
   о сроке и контрольные точки; `recommendations` — пороги правил (просрочка, застой, этап без
-  продукта, лимит дефицитов); `login` — попытки, окна, блокировка, проверка «не робот», длина
+  продукта, лимит дефицитов); `recommendationLearning` — обучение рекомендаций (решение 119):
+  полураспад, пулинг, веса балла, пауза после отклонения, защита от перегрузки, якоря ценности,
+  выключенные правила; `login` — попытки, окна, блокировка, проверка «не робот», длина
   пароля; `retention` — сроки хранения журнала и IP-адреса.
 - `value` — число, `true`/`false`, строка или массив; `unit` — `weight`, `share` (доля 0..1),
   `days`, `minutes`, `count`, `points`, `stage`, `flag`, `list`, `choice`. Для `choice`
