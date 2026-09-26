@@ -37,6 +37,8 @@
     "recs:experiment-sim": "tsx scripts/recs-experiment-sim.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts",
+    "forecast:train": "tsx scripts/forecast-train.ts",
+    "forecast:report": "tsx scripts/forecast-report.ts",
     "ai:evals": "tsx scripts/ai-evals.ts",
     "dq:report": "tsx scripts/dq-report.ts",
     "recs:simulate": "tsx scripts/recs-simulate.ts",

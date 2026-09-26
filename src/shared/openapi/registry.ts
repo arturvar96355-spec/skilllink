@@ -1201,6 +1201,42 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
   },
 
+  // ── Прогноз связок (решение 135) ─────────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/analytics/forecast/model',
+    tag: 'Прогноз',
+    summary: 'Метрики, статус ворот, коэффициенты и калибровка модели прогноза',
+    description:
+      'По обеим вехам (подписание договора, начало занятий). Представителю вуза недоступно, ' +
+      'как и остальная аналитика.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/analytics/forecast/train',
+    tag: 'Прогноз',
+    summary: 'Переобучить модель прогноза',
+    description:
+      'Только администратор. Читает всю историю связок — тяжёлый маршрут (группа `heavy`). ' +
+      'Публикует модель, только если она честно точнее простого правила (ворота — ' +
+      'docs/FORECAST_MODEL.md); иначе статус baseline_better или insufficient_data. Тело не нужно.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/forecast',
+    tag: 'Прогноз',
+    summary: 'Прогноз связки: вероятность, источник, объяснение',
+    description:
+      'Вероятность дойти до ближайшей ещё не пройденной вехи за горизонт прогноза, топ-3 ' +
+      '«за» и «против» обычными словами. Представителю вуза недоступно (право `ANALYTICS`).',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+
   // ── Рекомендации ──────────────────────────────────────────────────────────
   {
     method: 'post',

@@ -5732,6 +5732,80 @@ async function checkDataQuality(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+/**
+ * Прогноз связок (решение 135): права — как у остальной аналитики, а не своя лазейка;
+ * модель переобучается только администратором; ответ по конкретной связке отдаёт
+ * согласованные поля, а не абы что.
+ */
+async function checkForecast(ctx: ProbeContext): Promise<void> {
+  step('Прогноз связок: права и форма ответа')
+  const { rep, adminId, managerId, anyCooperation } = ctx
+
+  if (!rep || !adminId || !managerId || !anyCooperation) {
+    check('демо-данные готовы (представитель, администратор, менеджер, связка)', false, 'запустите npm run db:seed')
+    return
+  }
+
+  actAs(rep.id)
+  const repModel = await call('GET', '/api/analytics/forecast/model')
+  const repForecast = await call('GET', `/api/cooperations/${anyCooperation.id}/forecast`)
+  check(
+    'представителю вуза прогноз закрыт — 403 и по модели, и по связке',
+    repModel.status === 403 && repForecast.status === 403,
+    `${repModel.status}, ${repForecast.status}`,
+  )
+
+  actAs(managerId)
+  const managerTrain = await call('POST', '/api/analytics/forecast/train')
+  check('обучение — только администратору, менеджеру 403', managerTrain.status === 403, `статус ${managerTrain.status}`)
+
+  const managerModel = await call<{ models: Array<{ milestone: { stageNumber: number } }> }>(
+    'GET',
+    '/api/analytics/forecast/model',
+  )
+  check(
+    'менеджеру модель видна, по обеим вехам (этапы 6 и 11)',
+    managerModel.status === 200 &&
+      new Set((managerModel.body.data?.models ?? []).map((item) => item.milestone.stageNumber)).size === 2,
+    `статус ${managerModel.status}`,
+  )
+
+  actAs(adminId)
+  const adminTrain = await call<{ models: Array<{ status: string; version: number | null }> }>(
+    'POST',
+    '/api/analytics/forecast/train',
+  )
+  check(
+    'администратор переобучает модель — 200, версия у обеих вех проставлена',
+    adminTrain.status === 200 && (adminTrain.body.data?.models ?? []).every((item) => item.version !== null),
+    `статус ${adminTrain.status}`,
+  )
+
+  const forecast = await call<{
+    probability: number | null
+    source: string
+    status: string
+    explanation: unknown[]
+    horizonDays: number | null
+  }>('GET', `/api/cooperations/${anyCooperation.id}/forecast`)
+  const data = forecast.body.data
+  check(
+    'прогноз связки — согласованный ответ: source, статус и объяснение на месте',
+    forecast.status === 200 &&
+      data !== undefined &&
+      ['model', 'baseline'].includes(data.source) &&
+      typeof data.status === 'string' &&
+      Array.isArray(data.explanation) &&
+      (data.probability === null || (data.probability >= 0 && data.probability <= 1)),
+    `статус ${forecast.status}`,
+  )
+
+  const missing = await call('GET', '/api/cooperations/does-not-exist/forecast')
+  check('прогноз несуществующей связки — 404', missing.status === 404, `статус ${missing.status}`)
+
+  actAs(null)
+}
+
 async function main(): Promise<void> {
   console.log(`${BOLD}Пробник SkillLink${RESET}`)
   console.log(`${GREY}Сервер: ${BASE_URL}${RESET}`)
@@ -5806,6 +5880,7 @@ async function main(): Promise<void> {
   await checkRateLimit(ctx)
   await checkStageAnalytics(ctx)
   await checkDataQuality(ctx)
+  await checkForecast(ctx)
 
   printSummary()
 }

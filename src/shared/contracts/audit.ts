@@ -126,6 +126,12 @@ export const AUDIT_ACTIONS = [
    */
   'audit.verify',
   'import.apply',
+  /**
+   * Обучение модели прогноза (решение 135): в payload — число связок и по каждой
+   * вехе версия, статус ворот и AUC. Коэффициенты и метрики не персональные
+   * данные, но полный слепок в журнал не пишется — только сводка обучения.
+   */
+  'forecast.model.train',
   /** Загрузка вендоров (решение 132): только счётчики, без ФИО и контактов. */
   'import.vendors',
   /** Загрузка заказов с сайта (решение 132): счётчики и номер загрузки, без ПД слушателей. */
@@ -170,6 +176,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'ForecastModel',
   'DuplicateDismissal',
   'SchoolCourse',
   'SystemSecret',
