@@ -119,9 +119,18 @@ describe('число моделей и миграций в ключевых до
     const content = readFileSync(file, 'utf8')
 
     it(`${name}: утверждения о числе моделей/таблиц и миграций верны`, () => {
-      const claims = [...content.matchAll(/(\d+)\s+(модел[а-яё]*|миграци[а-яё]*)/gi)]
+      // Обычный вид: число перед словом («47 моделей»).
+      const proseClaims = [...content.matchAll(/(\d+)\s+(модел[а-яё]*|миграци[а-яё]*)/gi)]
 
-      for (const claim of claims) {
+      // Табличный вид: строка `| Моделей в схеме (...) | 47 |` — слово стоит в
+      // одной ячейке, число в следующей. Раньше это не матчилось вообще, и
+      // README держал устаревшее число только потому, что где-то дальше по
+      // тексту случайно нашлось другое число, совпавшее с правильным ответом.
+      const tableClaims = [
+        ...content.matchAll(/^\|[^|\n]*(модел[а-яё]*|миграци[а-яё]*)[^|\n]*\|\s*(\d+)\s*[^|\n]*\|/gim),
+      ].map((m) => [m[0], m[2], m[1]] as const)
+
+      for (const claim of [...proseClaims, ...tableClaims]) {
         const declared = Number(claim[1])
         const word = claim[2]!.toLowerCase()
         const expected = word.startsWith('миграци') ? migrationCount : modelCount

@@ -1,0 +1,6 @@
+# Один человек — под разными именами/почтами в разных коммитах (локальный git,
+# GitHub noreply, личный адрес). `.mailmap` сводит историю (`git shortlog -sne`)
+# к одному автору на человека, не переписывая сами коммиты.
+Inchains <306564010+Incha1ns@users.noreply.github.com> <dbck6pfyrc@privaterelay.appleid.com>
+Сергей Боровицкий <sborovickij545@gmail.com>
+Сергей Боровицкий <sborovickij545@gmail.com> <sergeyborovickij@MacBook-Air-Sergej.local>
