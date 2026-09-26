@@ -51,6 +51,7 @@ import {
   buildQuery,
   cooperationHref,
   deadlineBadgeText,
+  firstNameOf,
   formatNumber,
   formatPercent,
   formatScore,
@@ -401,7 +402,7 @@ function Dashboard() {
 
   const data = overview.data
   const cooperations = active.data ?? []
-  const firstName = user.fullName.split(' ')[1] ?? user.fullName
+  const firstName = firstNameOf(user.fullName)
 
   const numbers: RailNumber[] = (data?.metrics ?? []).map((metric) => ({
     key: metric.key,

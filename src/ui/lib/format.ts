@@ -219,9 +219,19 @@ export function formatFileSize(bytes: number): string {
   return `${text} ${ATTACHMENT_SIZE_UNITS[unitIndex]}`
 }
 
+/**
+ * Слово, похожее на часть имени — не голая пунктуация. У учётных записей
+ * экспертов (решение 147) ФИО — ярлык роли через тире («Эксперт — менеджер»):
+ * «—» — свой токен после разбиения по пробелам, и без этого фильтра он
+ * попадал бы в инициалы и в «имя» из ФИО вместо буквы.
+ */
+function isNameWord(word: string): boolean {
+  return /\p{L}/u.test(word)
+}
+
 /** Инициалы для аватара: «Иванов Иван Иванович» → «ИИ». */
 export function initials(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  const parts = fullName.trim().split(/\s+/).filter(isNameWord)
   if (parts.length === 0) return '—'
   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase()
   return `${parts[0]![0]!}${parts[1]![0]!}`.toUpperCase()
@@ -231,8 +241,23 @@ export function initials(fullName: string): string {
 export function formatPersonShort(fullName: string): string {
   const [surname, ...rest] = fullName.trim().split(/\s+/).filter(Boolean)
   if (!surname) return '—'
-  const letters = rest.map((part) => `${part[0]!.toUpperCase()}.`).join(' ')
+  const letters = rest
+    .filter(isNameWord)
+    .map((part) => `${part[0]!.toUpperCase()}.`)
+    .join(' ')
   return letters ? `${surname} ${letters}` : surname
+}
+
+/**
+ * Имя из ФИО «Фамилия Имя Отчество» → «Имя» (обращение на экране). Второе
+ * слово, если оно похоже на имя; иначе — ФИО целиком, как есть: у учётных
+ * записей экспертов (решение 147) ФИО — не Фамилия-Имя-Отчество, а ярлык роли
+ * через тире («Эксперт — менеджер»), и вторым словом там было бы само тире.
+ */
+export function firstNameOf(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  const candidate = parts[1]
+  return candidate && isNameWord(candidate) ? candidate : fullName
 }
 
 /** Короткая аббревиатура программы для иконки: «Программная инженерия» → «ПИ». */

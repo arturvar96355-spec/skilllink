@@ -121,6 +121,7 @@ export {
   pluralize,
   initials,
   formatPersonShort,
+  firstNameOf,
   abbreviate,
 } from './lib/format'
 export {
