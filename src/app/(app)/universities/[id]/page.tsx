@@ -892,6 +892,7 @@ export default function UniversityPage() {
           title={data.responsible ? 'Сменить ответственного за вуз' : 'Назначить ответственного за вуз'}
           description="Ответственный за вуз — сотрудник, который ведёт работу с ним в целом, отдельно от ответственных по конкретным связкам."
           endpoint={`/api/universities/${id}/responsible`}
+          consequence="Новый ответственный увидит назначение в своих уведомлениях, смена попадёт в журнал действий. Ответственные по связкам вуза не меняются."
           currentResponsibleId={data.responsible?.id ?? null}
           currentResponsibleName={data.responsible?.fullName ?? null}
           allowNone
