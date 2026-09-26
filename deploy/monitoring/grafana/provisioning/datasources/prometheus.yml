@@ -1,0 +1,12 @@
+# Источник данных Grafana — Prometheus того же профиля `monitoring` (решение 137).
+# Провижининг, а не ручная настройка: после `docker compose --profile monitoring up`
+# источник уже подключён.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

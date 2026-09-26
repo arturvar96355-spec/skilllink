@@ -4,6 +4,7 @@ import { isDemoAuthEnabled } from '@/shared/auth/demo-mode'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { RATE_LIMITS, RATE_LIMIT_TEST_HEADER, type RateLimitGroup } from '@/shared/config/rate-limit.config'
 import { describeForLog } from '@/shared/db/log'
+import { countSafely } from '@/shared/metrics/app-metrics'
 import {
   RateLimitStore,
   calendarFeedToken,
@@ -263,6 +264,7 @@ export function withRateLimit<Req extends Request, Args extends unknown[]>(
   return async (request, ...rest) => {
     const verdict = await consumeRateLimit(request)
     if (verdict && !verdict.decision.allowed) {
+      countSafely((metrics) => metrics.rateLimitRejections.inc({ group: verdict.group }))
       if (verdict.decision.firstRejection) await reportRejection(verdict)
       return rateLimitedResponse(request, verdict.decision)
     }

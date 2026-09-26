@@ -1,7 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
-import { describeForLog } from '@/shared/db/log'
 import type { AuditActionCode } from '@/shared/contracts/audit'
+import { log } from '@/shared/log/logger'
 
 /**
  * Действия, которые журналируются (раздел 15 ТЗ). Сам список — в
@@ -37,7 +37,8 @@ export async function writeAudit(entry: AuditEntry, client: Client = prisma): Pr
       },
     })
   } catch (error) {
-    // Без ошибки целиком: в её тексте повторяется payload, а в нём бывают ФИО и контакты.
-    console.error('[AUDIT] не удалось записать действие', entry.action, describeForLog(error))
+    // Ошибка — через общий журнал: текст Prisma с payload (в нём бывают ФИО и контакты)
+    // урезается до причины, почта и телефоны маскируются (решение 133).
+    log.error('[AUDIT] не удалось записать действие', { action: entry.action, err: error })
   }
 }

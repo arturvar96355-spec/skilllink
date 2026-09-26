@@ -1,17 +1,28 @@
 import { assertCan, can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { writeAudit } from '@/shared/audit/audit'
-import { TELEGRAM_DIGEST, TELEGRAM_WEBHOOK } from '@/shared/config/telegram.config'
-import type { TelegramConnectDto, TelegramStatusDto } from '@/shared/contracts/telegram'
-import { describeForLog } from '@/shared/db/log'
+import { randomBytes } from 'node:crypto'
+import { TELEGRAM_DIGEST, TELEGRAM_WEBHOOK, TELEGRAM_WEBHOOK_SECRET_NAME } from '@/shared/config/telegram.config'
+import type {
+  TelegramConnectDto,
+  TelegramStatusDto,
+  TelegramWebhookSecretRotatedDto,
+} from '@/shared/contracts/telegram'
 import { forbidden, integrationError } from '@/shared/http/errors'
+import { addDays } from '@/shared/utils/date'
 import { getIntegrationsConfig, type TelegramConfig } from '@/integrations/config'
 import { TelegramClient } from '@/integrations/telegram'
 import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
-import { consumeLinkToken, createLinkToken, isWebhookSecretValid } from './telegram.link-token'
+import {
+  consumeLinkToken,
+  createLinkToken,
+  matchesWebhookSecretHash,
+  webhookSecretHash,
+} from './telegram.link-token'
 import { BOT_REPLIES, buildDigest, parseCommand, type Digest } from './telegram.rules'
 import type { TelegramUpdate } from './telegram.schema'
+import { log } from '@/shared/log/logger'
 
 /**
  * Личные уведомления в Telegram (решение 102): «что горит у меня» — менеджеру
@@ -152,7 +163,7 @@ export async function sendDigests(options: {
         digest = await digestFor(recipient.user, now)
       } catch (error) {
         // Сводка одного человека не останавливает рассылку остальным.
-        console.error('[telegram] сводка не собрана:', describeForLog(error))
+        log.error('[telegram] сводка не собрана', { userId: recipient.user.id, err: error })
         summary.failed += 1
         continue
       }
@@ -178,33 +189,110 @@ export async function sendDigests(options: {
 
 // ─────────────────────────────── Вебхук ─────────────────────────────────────
 
+/**
+ * SHA-256 действующего секрета вебхука. Сменённый администратором (system_secrets,
+ * решение 133) главнее TELEGRAM_WEBHOOK_SECRET: переменная окружения статична,
+ * а после смены Telegram присылает уже новый секрет. Ни того ни другого — null,
+ * вебхук закрыт для всех.
+ */
+async function currentWebhookSecretHash(): Promise<string | null> {
+  const stored = await repo.findSecretHash(TELEGRAM_WEBHOOK_SECRET_NAME)
+  if (stored) return stored
+  const fromEnv = telegramConfig().webhookSecret
+  return fromEnv ? webhookSecretHash(fromEnv) : null
+}
+
 /** Без верного секрета — 403 до чтения тела. */
-export function assertWebhookSecret(received: string | null): void {
-  if (!isWebhookSecretValid(received, telegramConfig().webhookSecret)) {
+export async function assertWebhookSecret(received: string | null): Promise<void> {
+  // Заголовка нет — в базу не ходим: так отвечают все посторонние запросы.
+  if (received === null || !matchesWebhookSecretHash(received, await currentWebhookSecretHash())) {
     throw forbidden('Запрос не от Telegram')
   }
 }
 
-/**
- * Последние обработанные update_id. Telegram повторяет обновление, если не
- * дождался ответа; отвечаем мы сразу, но повтор после перезапуска сети возможен —
- * и «Готово: подключено» дважды или две сводки подряд ни к чему.
- */
-const seenUpdates = new Set<number>()
+/** Вставок отметок с момента последней чистки — чистим раз в N вставок. */
+let insertsSincePurge = 0
 
-function firstTime(updateId: number): boolean {
-  if (seenUpdates.has(updateId)) return false
-  if (seenUpdates.size >= TELEGRAM_WEBHOOK.rememberedUpdates) {
-    const oldest = seenUpdates.values().next().value
-    if (oldest !== undefined) seenUpdates.delete(oldest)
+/**
+ * Принять обновление к выполнению: true — впервые, false — повтор (решение 133).
+ *
+ * Отметка — в базе (telegram_updates_seen), а не в памяти: Telegram повторяет
+ * обновление, не дождавшись ответа, и повтор после перезапуска процесса больше
+ * не выполняется второй раз («Готово: подключено» дважды, две сводки подряд).
+ * Сбой базы — исключение: маршрут ответит 500, и Telegram повторит позже,
+ * когда будет где отметить.
+ */
+export async function acceptUpdate(updateId: number, now = new Date()): Promise<boolean> {
+  const first = await repo.markUpdateSeen(updateId)
+  insertsSincePurge += 1
+  if (insertsSincePurge >= TELEGRAM_WEBHOOK.purgeEveryInserts) {
+    insertsSincePurge = 0
+    try {
+      await repo.purgeSeenUpdates(addDays(now, -TELEGRAM_WEBHOOK.seenRetentionDays))
+    } catch (error) {
+      log.warn('[telegram] старые отметки обновлений не удалены', { err: error })
+    }
   }
-  seenUpdates.add(updateId)
-  return true
+  return first
 }
 
 /** Только для тестов. */
 export function resetSeenUpdates(): void {
-  seenUpdates.clear()
+  insertsSincePurge = 0
+}
+
+// ─────────────────────── Смена секрета вебхука (решение 133) ───────────────────────
+
+/** Одна смена за раз: две одновременные оставили бы в базе не тот секрет, что у Telegram. */
+let rotation: Promise<unknown> = Promise.resolve()
+
+function webhookUrl(): string | null {
+  const base = publicBaseUrl()
+  return base ? `${base}/api/telegram/webhook` : null
+}
+
+/**
+ * Новый секрет вебхука. Порядок важен: СНАЧАЛА setWebhook у Telegram, и только при
+ * успехе — запись SHA-256 в базу. Наоборот нельзя: при отказе Telegram база уже
+ * ждала бы новый секрет, а Telegram слал бы старый — вебхук встал бы. В короткое
+ * окно между ответом Telegram и записью обновления с новым секретом получают 403,
+ * и Telegram их повторяет.
+ *
+ * Сам секрет не возвращается и не пишется никуда, кроме запроса к Telegram:
+ * проверке входящих нужен только его хеш.
+ */
+export async function rotateWebhookSecret(
+  user: CurrentUser,
+  options: { client?: TelegramClient; now?: Date } = {},
+): Promise<TelegramWebhookSecretRotatedDto> {
+  assertCan(user, 'ADMIN')
+  const run = rotation.then(async () => {
+    const config = telegramConfig()
+    if (!config.enabled) throw integrationError('Бот Telegram не настроен: задайте токен, имя бота и секрет вебхука')
+    const url = webhookUrl()
+    if (!url) throw integrationError('Не задан публичный адрес стенда (AUTH_URL или APP_BASE_URL) — некуда направить вебхук')
+
+    const secret = randomBytes(32).toString('base64url')
+    const client = options.client ?? new TelegramClient(config)
+    const result = await client.setWebhook(url, secret)
+    if (!result.ok) {
+      throw integrationError('Telegram не принял новый секрет — прежний продолжает действовать', {
+        telegramStatus: result.status,
+      })
+    }
+
+    const rotatedAt = await repo.saveSecretHash(TELEGRAM_WEBHOOK_SECRET_NAME, webhookSecretHash(secret), user.id)
+    await writeAudit({
+      userId: user.id,
+      action: 'telegram.webhook_secret_rotated',
+      objectType: 'SystemSecret',
+      objectId: TELEGRAM_WEBHOOK_SECRET_NAME,
+      payload: { webhookHost: new URL(url).host },
+    })
+    return { rotatedAt: (options.now ?? rotatedAt).toISOString(), webhookUrl: url }
+  })
+  rotation = run.catch(() => undefined)
+  return run
 }
 
 async function replyTo(
@@ -264,7 +352,8 @@ async function replyTo(
 
 /**
  * Обработка обновления после ответа вебхука. Исключений наружу не бросает:
- * Telegram уже получил 200, и повторять ему нечего.
+ * Telegram уже получил 200, и повторять ему нечего. Повторы отсеяны раньше —
+ * `acceptUpdate` в маршруте, до ответа.
  */
 export async function handleUpdate(
   update: TelegramUpdate,
@@ -272,7 +361,6 @@ export async function handleUpdate(
 ): Promise<void> {
   const config = telegramConfig()
   if (!config.enabled) return
-  if (!firstTime(update.update_id)) return
   const client = options.client ?? new TelegramClient(config)
   const now = options.now ?? new Date()
 
@@ -280,7 +368,7 @@ export async function handleUpdate(
   try {
     reply = await replyTo(update, config, options.secret, now)
   } catch (error) {
-    console.error('[telegram] обновление не обработано:', describeForLog(error))
+    log.error('[telegram] обновление не обработано', { updateId: update.update_id, err: error })
     reply = BOT_REPLIES.unavailable
   }
   if (reply !== null && update.message) {
