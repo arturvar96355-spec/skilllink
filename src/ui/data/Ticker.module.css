@@ -1,4 +1,4 @@
-/* Бегущая строка событий (решение 79). */
+/* Бегущая строка событий (решение 79, перетаскивание — решение 186). */
 
 .root {
   position: relative;
@@ -8,33 +8,26 @@
   background: color-mix(in srgb, var(--accent-violet) 10%, var(--surface-1));
   /* Края растворяются — лента выходит из-за края, а не обрезается. */
   mask-image: linear-gradient(90deg, transparent 0, var(--canvas) 6%, var(--canvas) 94%, transparent 100%);
+  /* Тащить можно только по горизонтали — вертикальная прокрутка страницы пальцем работает как обычно. */
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+}
+
+.root.dragging {
+  cursor: grabbing;
 }
 
 .track {
   display: flex;
   width: max-content;
-  animation: ticker linear infinite;
-}
-
-.root:hover .track,
-.root:focus-within .track {
-  animation-play-state: paused;
-}
-
-@keyframes ticker {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .root {
-    overflow-x: auto;
-  }
-
-  .track {
-    animation: none;
-  }
+  /*
+   * Положение ведёт requestAnimationFrame (Ticker.tsx), а не эта анимация:
+   * так ленту можно остановить, перетащить и отпустить без прыжка на начало.
+   * Пауза при наведении/фокусе, перетаскивание и «уменьшить движение» —
+   * тоже там, в одном месте вместо CSS и JS порознь.
+   */
+  will-change: transform;
 }
 
 .item {
@@ -49,6 +42,8 @@
   text-transform: uppercase;
   white-space: nowrap;
   text-decoration: none;
+  /* Курсор ленты (grab/grabbing) — ссылка не перебивает его своим pointer. */
+  cursor: inherit;
 }
 
 .item:hover {
