@@ -337,3 +337,20 @@
   word-break: break-word;
   overflow-x: auto;
 }
+
+/* Пояснение к режиму ленты «По баллу» (решение 178, п. 3). */
+.sortNote {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Балл — под обоснованием, тем же полем «Как посчитан балл». */
+.score {
+  margin-top: var(--space-1);
+}
+
+.deferred {
+  font-size: var(--text-caption-size);
+  color: var(--status-warning);
+}

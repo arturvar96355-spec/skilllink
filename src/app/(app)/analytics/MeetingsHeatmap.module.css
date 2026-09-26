@@ -1,0 +1,55 @@
+/* Тепловая карта встреч 7×24 (решение 134, п. 7 решения 178). */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 40px repeat(24, minmax(20px, 1fr));
+  gap: 3px;
+  min-width: 640px;
+}
+
+.hourLabel {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.dayLabel {
+  display: flex;
+  align-items: center;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-weight: 600;
+}
+
+.cell {
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--surface-sunken);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legendScale {
+  display: flex;
+  gap: 2px;
+}
+
+.legendCell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}

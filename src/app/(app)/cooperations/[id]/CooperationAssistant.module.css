@@ -1,0 +1,177 @@
+/*
+ * ИИ-помощник карточки связки (решение 138): «История сотрудничества»,
+ * «Что мешает» и «Предложить план». Только токены из globals.css.
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.title svg {
+  color: var(--text-accent);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-line);
+  color: var(--text-primary);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.facts summary {
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.facts summary:hover {
+  color: var(--text-secondary);
+}
+
+.facts ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.blockers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.blocker[data-main] {
+  border-color: var(--danger-border);
+  background: var(--danger-surface);
+}
+
+.blockerMark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-pill);
+  color: var(--status-warning);
+  background: var(--surface-1);
+}
+
+.blocker[data-main] .blockerMark {
+  color: var(--status-danger);
+}
+
+.blockerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.blockerLabel {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.blockerDetail {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
+.proposal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.proposalFacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-card-muted);
+  border: 1px solid var(--border-subtle);
+}
+
+.agenda {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-caption-size);
+  color: var(--status-warning);
+}
+
+.expires {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

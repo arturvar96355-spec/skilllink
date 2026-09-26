@@ -69,6 +69,7 @@ import {
 import { AddProgramSkillModal } from '../AddProgramSkillModal'
 import { EditProgramModal } from '../EditProgramModal'
 import { WhyNoRecommendation } from '../../RuleChecks'
+import { SimilarPrograms } from './SimilarPrograms'
 import styles from './program.module.css'
 
 /**
@@ -704,6 +705,15 @@ export default function ProgramPage() {
               <Card>
                 <WhyNoRecommendation entity="program" id={data.id} />
               </Card>
+            </Section>
+          )}
+
+          {user.permissions.canSeeAnalytics && (
+            <Section
+              title="Похожие программы"
+              description="По навыкам: чем больше общих и чем важнее они для обеих программ, тем выше сходство."
+            >
+              <SimilarPrograms programId={data.id} />
             </Section>
           )}
         </>
