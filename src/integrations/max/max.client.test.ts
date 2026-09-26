@@ -25,15 +25,15 @@ function config(overrides: Partial<MaxConfig> = {}): MaxConfig {
 /** Ответ на каждый вызов по очереди; исключение — сбой сети. */
 function scripted(replies: Array<{ status: number; body: string } | Error>) {
   const calls: Array<{ url: string; init: RequestInit }> = []
-  const fetchImpl = vi.fn(async (url: string, init: RequestInit) => {
-    calls.push({ url, init })
+  const fetchImpl = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} })
     const reply = replies[calls.length - 1] ?? replies.at(-1)!
     if (reply instanceof Error) throw reply
     return {
       status: reply.status,
       text: async () => reply.body,
     } as Response
-  })
+  }) as unknown as typeof fetch
   return { fetchImpl, calls }
 }
 
@@ -109,7 +109,7 @@ describe('sendMessage', () => {
   it('токен не попадает в журнал, даже если он есть в тексте ошибки сети', async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error(`fetch failed: unauthorized with ${TOKEN}`)
-    })
+    }) as unknown as typeof fetch
     await new MaxClient(config(), { fetchImpl, wait: noWait }).sendMessage('42', 'секретный текст')
     const logged = warn.mock.calls
       .flat()
