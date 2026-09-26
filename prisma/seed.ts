@@ -16,6 +16,8 @@ import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
+import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
+import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
 
 const connectionString = process.env.DATABASE_URL
 if (!connectionString) throw new Error('Не задана переменная окружения DATABASE_URL')
@@ -23,9 +25,30 @@ if (!connectionString) throw new Error('Не задана переменная �
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 
 const DAY = 24 * 60 * 60 * 1000
+/**
+ * Якорная дата: все даты демо-набора считаются от момента заливки (решение 85),
+ * поэтому набор не стареет между перезаливками.
+ */
 const now = new Date()
 const daysAgo = (days: number) => new Date(now.getTime() - days * DAY)
 const daysAhead = (days: number) => new Date(now.getTime() + days * DAY)
+
+/**
+ * До какой даты стенд не должен «протухать» (решение 131): будущие сроки и следующие
+ * шаги сдвигаются за неё, прошедшие остаются на месте. По умолчанию — конец
+ * экспертизы; для следующего показа — SEED_STABLE_UNTIL (ISO-дата).
+ */
+function parseStableUntil(): Date {
+  const raw = process.env.SEED_STABLE_UNTIL?.trim()
+  if (!raw) return DEFAULT_STABLE_UNTIL
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) throw new Error(`SEED_STABLE_UNTIL не дата: ${raw}`)
+  return parsed
+}
+const STABLE_UNTIL = parseStableUntil()
+const STABLE_SHIFT = Math.max(0, STABLE_UNTIL.getTime() - now.getTime())
+/** Будущая дата — за окно стабильности; прошедшая не меняется. */
+const stabilize = (date: Date) => (date > now ? new Date(date.getTime() + STABLE_SHIFT) : date)
 
 /** Вуз, у которого в демо есть представитель в кабинете (rep@spbgu.example.invalid). */
 const UNIVERSITY_WITH_REP = 'spbgu'
@@ -1138,7 +1161,9 @@ async function seedCooperation(
         phase: definition.phase,
         status: finalStatus,
         responsibleId: item.responsibleId,
-        deadline,
+        // Открытый этап со сроком в будущем не должен стать просроченным за время
+        // экспертизы: срок — за окном стабильности (решение 131).
+        deadline: finalStatus === 'COMPLETED' ? deadline : stabilize(deadline),
         startedAt: dates.startedAt,
         completedAt: dates.completedAt,
         completedById: finalStatus === 'COMPLETED' && !isControl ? item.responsibleId : null,
@@ -1183,32 +1208,46 @@ async function seedCooperation(
     }
 
     if (finalStatus !== 'NOT_STARTED') {
-      const changedAt = dates.completedAt ?? dates.startedAt ?? startedAt
+      // История — переходами, как её пишет система: вход в этап и выход из него.
+      // По ним аналитика этапов (решение 120) считает длительности; одна запись
+      // «Не начат → Завершён» длительности не даёт.
+      const entered = dates.startedAt ?? startedAt
+      const transitions: Array<{ from: SeedStageStatus; to: SeedStageStatus; at: Date }> =
+        finalStatus === 'CANCELLED'
+          ? [{ from: 'NOT_STARTED', to: 'CANCELLED', at: dates.completedAt ?? entered }]
+          : [
+              { from: 'NOT_STARTED', to: 'IN_PROGRESS', at: entered },
+              ...(finalStatus === 'COMPLETED'
+                ? [{ from: 'IN_PROGRESS' as const, to: 'COMPLETED' as const, at: dates.completedAt ?? entered }]
+                : finalStatus === 'BLOCKED'
+                  ? [{ from: 'IN_PROGRESS' as const, to: 'BLOCKED' as const, at: new Date(entered.getTime() + 1000) }]
+                  : []),
+            ]
 
-      await prisma.stageHistory.create({
-        data: {
+      await prisma.stageHistory.createMany({
+        data: transitions.map((transition) => ({
           stageId: stage.id,
-          fromStatus: 'NOT_STARTED',
-          toStatus: finalStatus,
+          fromStatus: transition.from,
+          toStatus: transition.to,
           comment: 'Демонстрационные данные',
           changedById: item.responsibleId,
-          changedAt,
-        },
+          changedAt: transition.at,
+        })),
       })
 
       // То же событие пишется и в журнал действий — ровно как делает работающая
       // система. Иначе демо-набор внутренне противоречив: история этапов есть,
       // а журнал пуст, и администратор видит пустой раздел при десятках
       // завершённых этапов.
-      await prisma.auditLog.create({
-        data: {
+      await prisma.auditLog.createMany({
+        data: transitions.map((transition) => ({
           userId: item.responsibleId,
           action: 'stage.status.change',
           objectType: 'WorkflowStage',
           objectId: stage.id,
-          payload: { from: 'NOT_STARTED', to: finalStatus, stageNumber: number },
-          createdAt: changedAt,
-        },
+          payload: { from: transition.from, to: transition.to, stageNumber: number },
+          createdAt: transition.at,
+        })),
       })
     }
   }
@@ -1469,7 +1508,7 @@ async function seedMeetings(
         result: plan.result,
         nextAction: plan.nextAction,
         nextActionDueAt:
-          plan.nextActionInDays === null ? null : daysAhead(plan.nextActionInDays),
+          plan.nextActionInDays === null ? null : stabilize(daysAhead(plan.nextActionInDays)),
         responsibleId: manager.id,
         participants: {
           create: [
@@ -1644,8 +1683,11 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
     Связки: await prisma.cooperation.count(),
     Этапы: await prisma.workflowStage.count(),
     'Пункты чек-листов': await prisma.task.count(),
+    'История этапов': await prisma.stageHistory.count(),
     Документы: await prisma.document.count(),
     Встречи: await prisma.meeting.count(),
+    'Заявки на обучение': await prisma.application.count(),
+    'Записи журнала': await prisma.auditLog.count(),
     Пользователи: await prisma.user.count(),
     Рекомендации: await prisma.recommendation.count(),
   }
@@ -1669,6 +1711,7 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
 }
 
 async function main(): Promise<void> {
+  const startedAt = Date.now()
   console.log('Очистка демонстрационных данных...')
   await clean()
 
@@ -1685,10 +1728,29 @@ async function main(): Promise<void> {
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
+
+  // Расширенный набор (решение 131): ещё 12 вузов, 40 связок и полгода истории.
+  // Сценарные объекты выше не трогаются — это дополнение к ним.
+  console.log('Расширенный демо-набор...')
+  const extended = generateDemoData({ anchor: now, stableUntil: STABLE_UNTIL })
+  const inserted = await insertExtendedDemo(prisma, extended, {
+    users: { manager: users.manager, manager2: users.manager2 },
+    baseSkillId: skillId,
+    baseProducts: products,
+    baseUniversityId: universityId,
+    mockSource,
+  })
+
   await seedRecommendations(cooperations, users.manager)
+  const resolved = await insertResolvedRecommendations(prisma, extended, {
+    manager: users.manager,
+    cooperationId: inserted.cooperationId,
+  })
+  console.log(`  закрытых из прошлого: ${resolved}`)
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
   await printSummary(users, universityRep)
+  console.log(`\nЗаливка заняла ${((Date.now() - startedAt) / 1000).toFixed(1)} с.`)
 }
 
 main()
