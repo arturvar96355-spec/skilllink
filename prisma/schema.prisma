@@ -277,68 +277,71 @@ enum DsarRequestChannel {
 /// Сотрудник ИТ-Школы или представитель вуза. У представителя заполнен universityId —
 /// он ограничивает видимость его собственным вузом.
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  fullName       String   @map("full_name")
-  position       String?
-  role           UserRole @default(VIEWER)
+  id                  String             @id @default(cuid())
+  email               String             @unique
+  fullName            String             @map("full_name")
+  position            String?
+  role                UserRole           @default(VIEWER)
   /// Заполнен только у UNIVERSITY_REP: ограничивает видимость своим вузом.
-  universityId   String?  @map("university_id")
+  universityId        String?            @map("university_id")
   /// P1: NextAuth.js + bcrypt. На P0 не используется (mock-авторизация через cookie).
-  passwordHash   String?  @map("password_hash")
-  isActive       Boolean  @default(true) @map("is_active")
+  passwordHash        String?            @map("password_hash")
+  isActive            Boolean            @default(true) @map("is_active")
   /// Учётная запись эксперта хакатона (решение 147): необратимые и разрушающие действия
   /// запрещены на сервере независимо от роли (`shared/auth/permissions.ts`, `assertCan`).
   /// По умолчанию `false` — обычные сотрудники и представитель вуза не затронуты.
-  isReviewer     Boolean  @default(false) @map("is_reviewer")
+  isReviewer          Boolean            @default(false) @map("is_reviewer")
   /// Версия сессий (решение 109): кладётся в JWT при входе и сверяется на каждый запрос.
   /// Растёт при смене и сбросе пароля, блокировке и смене роли — выданные раньше сессии
   /// перестают действовать. Токен без версии (выдан до миграции) считается версией 0.
   /// CHECK в базе (миграция user_session_version): session_version ≥ 0.
-  sessionVersion Int      @default(0) @map("session_version")
+  sessionVersion      Int                @default(0) @map("session_version")
   /// Решение 139: время последнего просмотра ленты уведомлений — источник истины на сервере.
   /// Ставится `POST /api/notifications/seen`; `localStorage` на фронте остаётся быстрым кэшем,
   /// но не хранилищем — иначе прочитанность терялась при смене устройства или очистке хранилища.
-  notificationsSeenAt DateTime? @map("notifications_seen_at")
+  notificationsSeenAt DateTime?          @map("notifications_seen_at")
   /// Основной канал уведомлений (решение 144): куда уходит сводка «что горит у меня»
   /// и оповещения владельцу, когда настроено и привязано несколько каналов. Пусто —
   /// выбирается первый настроенный и привязанный по порядку Telegram → MAX → VK.
-  notifyChannel  NotifyChannelKind? @map("notify_channel")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  notifyChannel       NotifyChannelKind? @map("notify_channel")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
 
-  university             University?           @relation(fields: [universityId], references: [id], onDelete: SetNull)
-  cooperations           Cooperation[]         @relation("CooperationResponsible")
-  stagesResponsible      WorkflowStage[]       @relation("StageResponsible")
-  stagesCompleted        WorkflowStage[]       @relation("StageCompletedBy")
-  tasksDone              Task[]                @relation("TaskDoneBy")
-  stageHistoryEntries    StageHistory[]        @relation("StageHistoryAuthor")
-  documentsAuthored      Document[]            @relation("DocumentAuthor")
-  documentsResponsible   Document[]            @relation("DocumentResponsible")
-  documentHistoryEntries DocumentHistory[]     @relation("DocumentHistoryAuthor")
-  meetingsResponsible    Meeting[]             @relation("MeetingResponsible")
-  meetingParticipations  MeetingParticipant[]  @relation("MeetingParticipantUser")
-  recommendationsClosed  Recommendation[]      @relation("RecommendationResolver")
-  auditLogs              AuditLog[]            @relation("AuditLogUser")
-  applicationsCreated    Application[]         @relation("ApplicationAuthor")
-  telegramLink           TelegramLink?
-  notificationChannelLinks NotificationChannelLink[]
-  calendarFeed           CalendarFeed?
-  contactBasisChanges    ContactBasisHistory[] @relation("ContactBasisHistoryAuthor")
-  duplicateDismissals    DuplicateDismissal[]  @relation("DuplicateDismissalAuthor")
-  universityMerges       UniversityMerge[]     @relation("UniversityMergeAuthor")
-  universityMergeUndos   UniversityMerge[]     @relation("UniversityMergeUndoAuthor")
-  siteOrdersImported     SiteOrder[]           @relation("SiteOrderImporter")
-  secretsRotated         SystemSecret[]        @relation("SystemSecretRotatedBy")
-  approvalsRequested     Approval[]            @relation("ApprovalRequestedBy")
-  approvalsApproved      Approval[]            @relation("ApprovalApprovedBy")
-  approvalsRejected      Approval[]            @relation("ApprovalRejectedBy")
-  idempotencyKeys        IdempotencyKey[]
-  dsarRequestsMade       DsarRequest[]         @relation("DsarRequestAuthor")
+  university                    University?               @relation(fields: [universityId], references: [id], onDelete: SetNull)
+  cooperations                  Cooperation[]             @relation("CooperationResponsible")
+  stagesResponsible             WorkflowStage[]           @relation("StageResponsible")
+  stagesCompleted               WorkflowStage[]           @relation("StageCompletedBy")
+  tasksDone                     Task[]                    @relation("TaskDoneBy")
+  stageHistoryEntries           StageHistory[]            @relation("StageHistoryAuthor")
+  documentsAuthored             Document[]                @relation("DocumentAuthor")
+  documentsResponsible          Document[]                @relation("DocumentResponsible")
+  documentHistoryEntries        DocumentHistory[]         @relation("DocumentHistoryAuthor")
+  meetingsResponsible           Meeting[]                 @relation("MeetingResponsible")
+  meetingParticipations         MeetingParticipant[]      @relation("MeetingParticipantUser")
+  recommendationsClosed         Recommendation[]          @relation("RecommendationResolver")
+  auditLogs                     AuditLog[]                @relation("AuditLogUser")
+  applicationsCreated           Application[]             @relation("ApplicationAuthor")
+  telegramLink                  TelegramLink?
+  notificationChannelLinks      NotificationChannelLink[]
+  calendarFeed                  CalendarFeed?
+  contactBasisChanges           ContactBasisHistory[]     @relation("ContactBasisHistoryAuthor")
+  duplicateDismissals           DuplicateDismissal[]      @relation("DuplicateDismissalAuthor")
+  universityMerges              UniversityMerge[]         @relation("UniversityMergeAuthor")
+  universityMergeUndos          UniversityMerge[]         @relation("UniversityMergeUndoAuthor")
+  siteOrdersImported            SiteOrder[]               @relation("SiteOrderImporter")
+  secretsRotated                SystemSecret[]            @relation("SystemSecretRotatedBy")
+  approvalsRequested            Approval[]                @relation("ApprovalRequestedBy")
+  approvalsApproved             Approval[]                @relation("ApprovalApprovedBy")
+  approvalsRejected             Approval[]                @relation("ApprovalRejectedBy")
+  idempotencyKeys               IdempotencyKey[]
+  dsarRequestsMade              DsarRequest[]             @relation("DsarRequestAuthor")
   /// Вузы, где этот пользователь назначен ответственным (решение 146, роль «Руководитель»).
-  responsibleForUniversities University[]      @relation("UniversityResponsible")
-  workflowTemplatesEdited    WorkflowStageTemplate[] @relation("WorkflowStageTemplateUpdatedBy")
-  attachmentsUploaded    Attachment[]          @relation("AttachmentUploader")
+  responsibleForUniversities    University[]              @relation("UniversityResponsible")
+  workflowTemplatesEdited       WorkflowStageTemplate[]   @relation("WorkflowStageTemplateUpdatedBy")
+  attachmentsUploaded           Attachment[]              @relation("AttachmentUploader")
+  /// Письма вузов, которые этот пользователь проверил («Верно»/«Неверно», решение 170).
+  inboundLettersReviewed        InboundLetter[]           @relation("InboundLetterReviewer")
+  inboundLetterTasksResponsible InboundLetterTask[]       @relation("InboundLetterTaskResponsible")
 
   @@index([role])
   @@index([universityId])
@@ -383,18 +386,22 @@ model University {
   updatedAt      DateTime         @updatedAt @map("updated_at")
   archivedAt     DateTime?        @map("archived_at")
 
-  responsible  User?                @relation("UniversityResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
-  mergedInto   University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
-  mergedFrom   University[]         @relation("UniversityMergedInto")
-  contacts     Contact[]
-  programs     EducationalProgram[]
-  cooperations Cooperation[]
-  documents    Document[]
-  meetings     Meeting[]
-  applications Application[]
-  users        User[]
-  mergesAsSource UniversityMerge[] @relation("UniversityMergeSource")
-  mergesAsTarget UniversityMerge[] @relation("UniversityMergeTarget")
+  responsible        User?                @relation("UniversityResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  mergedInto         University?          @relation("UniversityMergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom         University[]         @relation("UniversityMergedInto")
+  contacts           Contact[]
+  programs           EducationalProgram[]
+  cooperations       Cooperation[]
+  documents          Document[]
+  meetings           Meeting[]
+  applications       Application[]
+  users              User[]
+  mergesAsSource     UniversityMerge[]    @relation("UniversityMergeSource")
+  mergesAsTarget     UniversityMerge[]    @relation("UniversityMergeTarget")
+  /// Письма вуза (решение 170), где этот вуз — действующий (не обязательно совпадает
+  /// с тем, что нашёл разбор, если решением «Неверно» его поправили).
+  inboundLetters     InboundLetter[]      @relation("InboundLetterUniversity")
+  inboundLetterTasks InboundLetterTask[]  @relation("InboundLetterTaskUniversity")
 
   @@index([status])
   @@index([region])
@@ -421,25 +428,25 @@ model Contact {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   /// Правовое основание обработки (решение 111). null — ещё не зафиксировано.
-  legalBasis          ContactLegalBasis? @map("legal_basis")
-  consentStatus       ConsentStatus      @default(NONE) @map("consent_status")
+  legalBasis           ContactLegalBasis? @map("legal_basis")
+  consentStatus        ConsentStatus      @default(NONE) @map("consent_status")
   /// Дата и форма согласия — ровно при consentStatus OBTAINED или WITHDRAWN.
-  consentObtainedAt   DateTime?          @map("consent_obtained_at")
-  consentForm         ConsentForm?       @map("consent_form")
+  consentObtainedAt    DateTime?          @map("consent_obtained_at")
+  consentForm          ConsentForm?       @map("consent_form")
   /// Дата получения отзыва — ровно при WITHDRAWN. От неё идут 30 дней ч. 5 ст. 21.
-  consentWithdrawnAt  DateTime?          @map("consent_withdrawn_at")
+  consentWithdrawnAt   DateTime?          @map("consent_withdrawn_at")
   /// Где лежит документ-основание: номер, дата, место хранения. Не файл и не ПД.
-  basisReference      String?            @map("basis_reference")
+  basisReference       String?            @map("basis_reference")
   /// Где лежит отзыв согласия (входящий номер письма). Ровно при WITHDRAWN.
-  withdrawalReference String?            @map("withdrawal_reference")
+  withdrawalReference  String?            @map("withdrawal_reference")
   /// Когда основание фиксировалось в последний раз; кто — в истории.
-  basisUpdatedAt      DateTime?          @map("basis_updated_at")
+  basisUpdatedAt       DateTime?          @map("basis_updated_at")
   /// Решение 123: редакция политики обработки ПД на момент согласия. Только при согласии.
-  consentPolicyVersion String?           @map("consent_policy_version")
+  consentPolicyVersion String?            @map("consent_policy_version")
   /// Решение 123: SHA-256 (hex) текста согласия, под которым человек подписался; текст не хранится.
-  consentTextHash     String?            @map("consent_text_hash")
+  consentTextHash      String?            @map("consent_text_hash")
   /// Решение 123: где получено согласие (встреча, письмо, подписание соглашения). Без ПД.
-  consentContext      String?            @map("consent_context")
+  consentContext       String?            @map("consent_context")
 
   university     University            @relation(fields: [universityId], references: [id], onDelete: Cascade)
   participations MeetingParticipant[]  @relation("MeetingParticipantContact")
@@ -826,12 +833,12 @@ model Cooperation {
   /// в связке. Все необязательны — миграция без риска для существующих строк, заполняются
   /// по мере появления данных у менеджера, сид заполняет только часть связок.
   /// Номер договора — реквизит, не идентификатор системы (текстовый, может содержать буквы).
-  contractNumber   String?        @map("contract_number")
+  contractNumber   String?         @map("contract_number")
   /// Дата подписания лицензии на IT-продукт (не путать с датой подписания договора —
   /// той служит `documents.signedAt` документа LICENSE).
-  licenseSignedAt  DateTime?      @map("license_signed_at")
+  licenseSignedAt  DateTime?       @map("license_signed_at")
   /// Срок действия лицензии в годах. CHECK в базе: NULL или 1..10 (решение 145).
-  licenseTermYears Int?           @map("license_term_years")
+  licenseTermYears Int?            @map("license_term_years")
   /// Статус передачи ПО вузу по каталогу ТЗ. null — не заполнено (демо и старые связки).
   transferStatus   TransferStatus? @map("transfer_status")
   /// Комментарий к каталожной карточке связки — тот же смысл, что везде: свободный текст,
@@ -843,15 +850,17 @@ model Cooperation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  university      University         @relation(fields: [universityId], references: [id], onDelete: Restrict)
-  program         EducationalProgram @relation(fields: [programId], references: [id], onDelete: Restrict)
-  product         ITProduct?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  responsible     User               @relation("CooperationResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
-  stages          WorkflowStage[]
-  documents       Document[]
-  meetings        Meeting[]
-  recommendations Recommendation[]
+  university          University           @relation(fields: [universityId], references: [id], onDelete: Restrict)
+  program             EducationalProgram   @relation(fields: [programId], references: [id], onDelete: Restrict)
+  product             ITProduct?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  responsible         User                 @relation("CooperationResponsible", fields: [responsibleId], references: [id], onDelete: Restrict)
+  stages              WorkflowStage[]
+  documents           Document[]
+  meetings            Meeting[]
+  recommendations     Recommendation[]
   externalImportLinks ExternalImportLink[]
+  inboundLetters      InboundLetter[]      @relation("InboundLetterCooperation")
+  inboundLetterTasks  InboundLetterTask[]  @relation("InboundLetterTaskCooperation")
 
   @@index([universityId])
   @@index([programId])
@@ -931,25 +940,25 @@ model WorkflowStage {
 /// не меняются: title там — своя копия, не ссылка на шаблон.
 /// API: `GET/PATCH /api/settings/workflow[...]`, только ADMIN.
 model WorkflowStageTemplate {
-  id            String     @id @default(cuid())
+  id             String     @id @default(cuid())
   /// 1..14, как WorkflowStage.stageNumber. CHECK в базе: 1–14.
-  stageNumber   Int        @unique @map("stage_number")
-  title         String
-  phase         StagePhase
-  normativeDays Int        @map("normative_days")
+  stageNumber    Int        @unique @map("stage_number")
+  title          String
+  phase          StagePhase
+  normativeDays  Int        @map("normative_days")
   /// Контрольная точка (решения 5/28) — через API только чтение с объяснением:
   /// правила порядка этапов (workflow.rules.ts, CONTROL_POINT_STAGES) завязаны на
   /// список номеров в коде, и снятие признака здесь молча сломало бы их.
-  isControlPoint Boolean   @default(false) @map("is_control_point")
+  isControlPoint Boolean    @default(false) @map("is_control_point")
   /// Пункты чек-листа по умолчанию — снимок TaskDefinition[] из конфига на момент
   /// заполнения, только для отображения в настройках (решение 146: полноценная
   /// правка состава пунктов — пункт дорожной карты, не этой версии).
-  defaultTasks  Json       @map("default_tasks")
+  defaultTasks   Json       @map("default_tasks")
   /// Кто последним менял название или срок. Правки признака контрольной точки нет,
   /// поэтому это не «кто последний менял шаблон» в общем смысле.
-  updatedById   String?    @map("updated_by_id")
-  createdAt     DateTime   @default(now()) @map("created_at")
-  updatedAt     DateTime   @updatedAt @map("updated_at")
+  updatedById    String?    @map("updated_by_id")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
 
   updatedBy User? @relation("WorkflowStageTemplateUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
@@ -1196,8 +1205,8 @@ model Recommendation {
   createdAt         DateTime               @default(now()) @map("created_at")
   updatedAt         DateTime               @updatedAt @map("updated_at")
 
-  cooperation Cooperation? @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
-  resolvedBy  User?        @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  cooperation Cooperation?           @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+  resolvedBy  User?                  @relation("RecommendationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
   signals     RecommendationSignal[]
 
   @@unique([ruleKey, objectType, objectId])
@@ -1592,8 +1601,8 @@ model TelegramUpdateSeen {
 /// CHECK в базе: ровно одно из value_hash/value заполнено; value_hash, если есть, —
 /// 64 шестнадцатеричных знака.
 model SystemSecret {
-  name        String  @id
-  valueHash   String? @map("value_hash")
+  name        String   @id
+  valueHash   String?  @map("value_hash")
   value       String?
   rotatedAt   DateTime @default(now()) @map("rotated_at")
   rotatedById String?  @map("rotated_by_id")
@@ -1702,4 +1711,192 @@ model DsarRequest {
   @@index([status, dueAt])
   @@index([requestedById])
   @@map("dsar_requests")
+}
+
+// ──────────────────────────── Письма вузов (решение 170) ────────────────────
+
+/// Как получено письмо: демо-набор или загруженный файл `.eml`. Живого почтового
+/// ящика нет (ни IMAP, ни SMTP) — ответ вузу остаётся черновиком (`replyDraft`).
+enum InboundLetterSource {
+  DEMO
+  EML_UPLOAD
+}
+
+/// Жизненный цикл обращения. `NEW` → `ANALYZED` (код и/или модель разобрали) →
+/// `CONFIRMED` («Верно») | `CORRECTED` («Неверно», с правкой) | `DISMISSED` (не по делу).
+/// Из `CONFIRMED`/`CORRECTED`/`DISMISSED` назад переходов нет — решение окончательное.
+enum InboundLetterStatus {
+  NEW
+  ANALYZED
+  CONFIRMED
+  CORRECTED
+  DISMISSED
+}
+
+/// Ровно шесть групп из решения 170 — с чем чаще всего пишут вузы.
+enum InboundLetterGroup {
+  STAGE_SHIFT
+  DOCUMENTS
+  MEETING
+  QUESTION
+  PAUSE_OR_REFUSAL
+  OTHER
+}
+
+/// Чем получен разбор: моделью (YandexGPT/GigaChat) или запасным путём по ключевым словам.
+enum InboundLetterAnalyzedBy {
+  MODEL
+  RULES
+}
+
+/// Итог проверки сотрудником: «Верно» — разбор принят как есть; «Неверно» — сотрудник
+/// указал правильные вуз/связку/группу/действие. Каждое решение — размеченный пример,
+/// на котором учится разбор следующих писем (обучение на примерах, не дообучение модели).
+enum InboundLetterVerdict {
+  CORRECT
+  INCORRECT
+}
+
+/// Задание ответственному за вуз, которое порождает проверенное письмо (решение 170).
+enum InboundLetterTaskStatus {
+  OPEN
+  DONE
+}
+
+/// Письмо вуза как обращение (решение 170, вариант 2 ТЗ «Письма вузов»).
+///
+/// Живого ящика нет: письмо приходит через демо-набор или загрузку `.eml`
+/// (`POST /api/inbound-letters/upload`). Код и, если подключена модель, YandexGPT
+/// определяют вуз/связку/этап и группу обращения; администратор или Руководитель
+/// подтверждают («Верно») или исправляют («Неверно», `POST …/{id}/review`) —
+/// это решение и создаёт задание ответственному (`InboundLetterTask`) и одновременно
+/// размеченный пример для следующего разбора (`InboundLetterGroupStats`, ai-подсказка
+/// «похожие письма»). Ответ вузу — только черновик (`replyDraft`), отправки нет.
+///
+/// `detected*` — что нашёл разбор (код + модель или правила), не меняется повторным
+/// разбором ничего, кроме себя же. `universityId`/`cooperationId`/`stageNumber`/`group`/
+/// `action` — действующая версия: сразу после разбора совпадает с `detected*`, после
+/// «Неверно» — то, что указал сотрудник. Разделение нужно для честной статистики
+/// точности: она считается по тому, угадал ли разбор, а не по тому, что действует сейчас.
+model InboundLetter {
+  id          String              @id @default(cuid())
+  senderEmail String              @map("sender_email")
+  senderName  String?             @map("sender_name")
+  subject     String
+  bodyText    String              @map("body_text")
+  receivedAt  DateTime            @map("received_at")
+  source      InboundLetterSource @default(DEMO)
+  /// Message-ID заголовка письма — для показа и как подсказка антидубля на глаз;
+  /// технической уникальности не требуется (демо-набор его не всегда придумывает).
+  messageId   String?             @map("message_id")
+  status      InboundLetterStatus @default(NEW)
+
+  /// Действующие вуз/связка/этап — совпадают с `detected*` до решения «Неверно».
+  universityId  String?             @map("university_id")
+  cooperationId String?             @map("cooperation_id")
+  stageNumber   Int?                @map("stage_number")
+  /// Действующие группа и предлагаемое действие.
+  group         InboundLetterGroup? @map("letter_group")
+  action        String?             @map("letter_action")
+
+  /// Снимок того, что нашёл разбор, — не переписывается решением «Неверно».
+  detectedUniversityId  String?                  @map("detected_university_id")
+  detectedCooperationId String?                  @map("detected_cooperation_id")
+  detectedStageNumber   Int?                     @map("detected_stage_number")
+  detectedGroup         InboundLetterGroup?      @map("detected_group")
+  detectedAction        String?                  @map("detected_action")
+  /// Уверенность разбора 0..1. CHECK в базе.
+  confidence            Float?
+  /// Цитаты-основания из текста письма — массив строк.
+  quotes                Json?
+  analyzedBy            InboundLetterAnalyzedBy? @map("analyzed_by")
+  /// Почему разбор ушёл на правила, а не на модель: `AiFallbackReason` строкой
+  /// (`disabled`, `not-configured`, `invalid` и так далее) — null у разбора моделью.
+  analyzedNote          String?                  @map("analyzed_note")
+  analyzedAt            DateTime?                @map("analyzed_at")
+
+  reviewedById  String?               @map("reviewed_by_id")
+  reviewedAt    DateTime?             @map("reviewed_at")
+  verdict       InboundLetterVerdict?
+  /// Комментарий сотрудника: что было не так в разборе (обязателен у «Неверно», см. схему запроса).
+  reviewComment String?               @map("review_comment")
+
+  /// Черновик ответа вузу — только черновик, отправки нет (живого ящика нет вовсе).
+  replyDraft          String?   @map("reply_draft")
+  /// `AiDraftSource` строкой (`yandexgpt` | `gigachat` | `template`) — как у ИИ-помощника
+  /// (решение 90). `template` — и у шаблона без модели, и у черновика, который сотрудник
+  /// написал или отредактировал вручную через `PATCH`.
+  replyDraftSource    String?   @map("reply_draft_source")
+  replyDraftUpdatedAt DateTime? @map("reply_draft_updated_at")
+
+  /// Демонстрационная запись. Фронт обязан показывать пометку.
+  isMock    Boolean  @default(false) @map("is_mock")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  university  University?        @relation("InboundLetterUniversity", fields: [universityId], references: [id], onDelete: SetNull)
+  cooperation Cooperation?       @relation("InboundLetterCooperation", fields: [cooperationId], references: [id], onDelete: SetNull)
+  reviewedBy  User?              @relation("InboundLetterReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  task        InboundLetterTask?
+
+  @@index([status])
+  @@index([universityId])
+  @@index([cooperationId])
+  @@index([receivedAt])
+  @@index([reviewedById])
+  @@map("inbound_letters")
+}
+
+/// Задание ответственному за вуз, которое порождает проверенное письмо (решение 170).
+///
+/// Отдельная простая таблица, а не рекомендация в общей ленте (`Recommendation`) —
+/// решение описано в `docs/TECHNICAL_DECISIONS.md`, пункт 170: пересборка рекомендаций
+/// (`recommendations.service.generate`) закрывает как «выполненные системой» любую
+/// открытую запись, чей ключ правила не оказался среди действующих черновиков этого
+/// прогона, — а письмо вуза не участвует в этом прогоне и было бы закрыто им ошибочно
+/// при первой же пересборке после появления задания.
+model InboundLetterTask {
+  id            String                  @id @default(cuid())
+  letterId      String                  @unique @map("letter_id")
+  universityId  String                  @map("university_id")
+  cooperationId String?                 @map("cooperation_id")
+  /// Ответственный на момент создания задания — по связке, иначе по вузу; null,
+  /// если ни у связки, ни у вуза он не назначен (задание видно только ADMIN/HEAD).
+  responsibleId String?                 @map("responsible_id")
+  title         String
+  description   String
+  group         InboundLetterGroup
+  action        String
+  status        InboundLetterTaskStatus @default(OPEN)
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  letter      InboundLetter @relation(fields: [letterId], references: [id], onDelete: Cascade)
+  university  University    @relation("InboundLetterTaskUniversity", fields: [universityId], references: [id], onDelete: Restrict)
+  cooperation Cooperation?  @relation("InboundLetterTaskCooperation", fields: [cooperationId], references: [id], onDelete: SetNull)
+  responsible User?         @relation("InboundLetterTaskResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+
+  @@index([universityId])
+  @@index([responsibleId])
+  @@index([status])
+  @@map("inbound_letter_tasks")
+}
+
+/// Точность разбора по группе с забыванием (решение 170, тот же принцип, что у обучения
+/// рекомендаций — решение 119, полупериод 30 дней): по каждой группе, которую угадал
+/// разбор (`InboundLetter.detectedGroup`), считается, подтвердил ли сотрудник эту же
+/// группу как правильную. `trials`/`successes` — счётчик за всё время (для «верно N
+/// из M последних»), `trialsEff`/`successesEff` — тот же счётчик с забыванием
+/// (`recommendations.learning.ts`, функция `applyEvent`, здесь переиспользована как есть).
+model InboundLetterGroupStats {
+  id           String             @id @default(cuid())
+  group        InboundLetterGroup @unique
+  trials       Int                @default(0)
+  successes    Int                @default(0)
+  trialsEff    Float              @default(0) @map("trials_eff")
+  successesEff Float              @default(0) @map("successes_eff")
+  effUpdatedAt DateTime           @default(now()) @map("eff_updated_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@map("inbound_letter_group_stats")
 }

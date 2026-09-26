@@ -196,6 +196,76 @@
   outline-offset: 2px;
 }
 
+.priorities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.prioritiesTitle {
+  font-size: var(--text-label-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.priorityRows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.priorityRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-card-sm);
+  color: var(--text-tertiary);
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
+}
+
+.priorityRow:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--text-primary);
+}
+
+.priorityRow:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.priorityCount {
+  margin-left: auto;
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* Телефон: бирка и число занимают всю ячейку — стрелку убираем, ячейка и так целиком ссылка. */
+@media (max-width: 480px) {
+  .priorityRow {
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .priorityRow > svg {
+    display: none;
+  }
+}
+
 .actionHead {
   display: flex;
   align-items: flex-start;
@@ -387,12 +457,22 @@
 }
 
 /* Тонкая линия к баллу дорисовывается при наведении. */
-.rankLine {
-  height: 1px;
-  background: var(--line-strong);
-  transform: scaleX(0.25);
-  transform-origin: left center;
-  transition: transform var(--motion-control) var(--ease-out);
+.rankBar {
+  position: relative;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--line-subtle);
+  overflow: hidden;
+}
+
+.rankBarFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--score, 0%);
+  border-radius: inherit;
+  background: var(--text-accent-pale);
+  opacity: 0.55;
+  transition: opacity var(--motion-control) var(--ease-out);
 }
 
 .rank:hover .rankNo,
@@ -404,8 +484,8 @@
   color: var(--text-secondary);
 }
 
-.rank:hover .rankLine {
-  transform: scaleX(1);
+.rank:hover .rankBarFill {
+  opacity: 1;
 }
 
 .score {
@@ -481,7 +561,7 @@
     grid-template-columns: 24px minmax(0, 1fr) auto;
   }
 
-  .rankLine {
+  .rankBar {
     display: none;
   }
 }
@@ -631,4 +711,16 @@
   flex-direction: column;
   justify-content: center;
   padding: var(--space-5);
+}
+
+/*
+ * Несколько действий в шапке блока (решение 172): «Печать / PDF» диаграммы
+ * рядом с обычной ссылкой раздела — своя группа, а не второй элемент прямо
+ * в `sectionHead`, иначе `justify-content: space-between` развело бы кнопки
+ * по разным краям вместо пары рядом.
+ */
+.sectionActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }

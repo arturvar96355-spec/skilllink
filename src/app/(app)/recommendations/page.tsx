@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import {
@@ -54,6 +55,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard, AiDraftLoading, AiDraftView } from '../AiDraft'
+import { WhyRecommended } from '../RuleChecks'
 import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
@@ -121,7 +123,12 @@ function RecommendationsContent() {
   const [tab, setTab] = useState<string>('all')
   // По умолчанию — открытые: «Новая» и «В работе» (решение 128). «all» — все статусы.
   const [status, setStatus] = useState<string>('open')
-  const [priority, setPriority] = useState('')
+  // Приоритет может прийти в адресе — с главной, из сводки «Открытые рекомендации»
+  // (ТЗ дизайна 26–29.09, п. 3.5). Неизвестное значение — без фильтра.
+  const [priority, setPriority] = useState(() => {
+    const fromUrl = searchParams.get('priority')
+    return fromUrl && (RECOMMENDATION_PRIORITIES as readonly string[]).includes(fromUrl) ? fromUrl : ''
+  })
   const [page, setPage] = useState(1)
   const [resolving, setResolving] = useState<{ item: RecommendationDto; status: RecommendationStatus } | null>(null)
   const [comment, setComment] = useState('')
@@ -349,9 +356,9 @@ function RecommendationsContent() {
                         {RECOMMENDATION_PRIORITY_LABELS[item.priority]} приоритет
                       </span>
                     </span>
-                    <a className={styles.title} href={`/recommendations?recommendation=${item.id}`}>
+                    <Link className={styles.title} href={`/recommendations?recommendation=${item.id}`} scroll={false}>
                       {item.title}
-                    </a>
+                    </Link>
                     <RecommendationDescription text={item.description} />
 
                     {/*
@@ -365,10 +372,10 @@ function RecommendationsContent() {
                     )}
 
                     <div className={styles.foot}>
-                      <a className={styles.target} href={recommendationTargetHref(item.target)}>
+                      <Link className={styles.target} href={recommendationTargetHref(item.target)}>
                         {item.target.label}
                         <Icon name="arrowRight" size={16} />
-                      </a>
+                      </Link>
                       <span className={styles.meta}>
                         {/* Код правила — в панели рекомендации, в «Служебном»: в ленте он ничего не говорит. */}
                         уверенность {CONFIDENCE_LABELS[item.confidence].toLowerCase()} ·{' '}
@@ -442,12 +449,19 @@ function RecommendationsContent() {
               <p className={styles.description}>{opened.justification}</p>
             </div>
 
+            {/* Не только балл и текст обоснования: условия правила по живым данным
+                (ТЗ дизайна 26–29.09, п. 4.1). */}
+            <div className={styles.block}>
+              <span className={styles.blockLabel}>Условия правила</span>
+              <WhyRecommended recommendation={opened} />
+            </div>
+
             <div className={styles.block}>
               <span className={styles.blockLabel}>К чему относится</span>
-              <a className={styles.target} href={recommendationTargetHref(opened.target)}>
+              <Link className={styles.target} href={recommendationTargetHref(opened.target)}>
                 {opened.target.label}
                 <Icon name="arrowRight" size={16} />
-              </a>
+              </Link>
             </div>
 
             {opened.relatedData && (

@@ -16,6 +16,12 @@ import type {
   DataSourceType,
   DocumentStatus,
   DocumentType,
+  InboundLetterAnalyzedBy,
+  InboundLetterGroup,
+  InboundLetterSource,
+  InboundLetterStatus,
+  InboundLetterTaskStatus,
+  InboundLetterVerdict,
   MeetingFormat,
   ProductSkillRelevance,
   ProductStatus,
@@ -280,6 +286,46 @@ export const VENDOR_CONTACT_CHANNEL_LABELS: Record<VendorContactChannel, string>
   PHONE: 'Телефон',
 }
 
+// ──────────────────────── Письма вузов (решение 170) ─────────────────────────
+
+export const INBOUND_LETTER_SOURCE_LABELS: Record<InboundLetterSource, string> = {
+  DEMO: 'Демо-набор',
+  EML_UPLOAD: 'Загружен файл .eml',
+}
+
+export const INBOUND_LETTER_STATUS_LABELS: Record<InboundLetterStatus, string> = {
+  NEW: 'Новое',
+  ANALYZED: 'Разобрано',
+  CONFIRMED: 'Подтверждено',
+  CORRECTED: 'Исправлено',
+  DISMISSED: 'Отклонено',
+}
+
+/** Ровно шесть групп из решения 170 — подписи дословно из ТЗ. */
+export const INBOUND_LETTER_GROUP_LABELS: Record<InboundLetterGroup, string> = {
+  STAGE_SHIFT: 'Сдвиг этапа',
+  DOCUMENTS: 'Документы',
+  MEETING: 'Встреча',
+  QUESTION: 'Вопрос',
+  PAUSE_OR_REFUSAL: 'Пауза или отказ',
+  OTHER: 'Прочее',
+}
+
+export const INBOUND_LETTER_ANALYZED_BY_LABELS: Record<InboundLetterAnalyzedBy, string> = {
+  MODEL: 'Модель',
+  RULES: 'Правила',
+}
+
+export const INBOUND_LETTER_VERDICT_LABELS: Record<InboundLetterVerdict, string> = {
+  CORRECT: 'Верно',
+  INCORRECT: 'Неверно',
+}
+
+export const INBOUND_LETTER_TASK_STATUS_LABELS: Record<InboundLetterTaskStatus, string> = {
+  OPEN: 'Открыто',
+  DONE: 'Выполнено',
+}
+
 /** Происхождение показателя: как объяснить пользователю, откуда взялось число. */
 export const METRIC_BASIS_LABELS = {
   actual: 'Фактические данные',
@@ -384,6 +430,12 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'telegram.token_changed': 'Сменён токен бота Telegram',
   'telegram.token_removed': 'Бот Telegram отключён (токен удалён)',
   'telegram.mode_switched': 'Изменён режим приёма обновлений Telegram',
+  'inbound_letter.upload': 'Загружено письмо вуза (.eml)',
+  'inbound_letter.analyze': 'Разбор письма вуза',
+  'inbound_letter.review': 'Проверка письма вуза',
+  'inbound_letter.dismiss': 'Письмо вуза отклонено как спам',
+  'inbound_letter.reply_draft': 'Собран черновик ответа вузу',
+  'inbound_letter.reply_draft.edit': 'Черновик ответа вузу отредактирован',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -412,6 +464,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Approval: 'Одобрение операции',
   WorkflowStageTemplate: 'Шаблон этапа workflow',
   Attachment: 'Файл',
+  InboundLetter: 'Письмо вуза',
 }
 
 /** Статус запроса на одобрение (решение 133). */
