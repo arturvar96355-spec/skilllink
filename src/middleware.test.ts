@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { middleware } from './middleware'
+import { config, middleware } from './middleware'
 
 function request(path: string, withSession: boolean): NextRequest {
   const req = new NextRequest(`https://skilllink.test${path}`)
@@ -17,13 +17,11 @@ describe('middleware', () => {
     )
   })
 
-  it('презентация открыта без сессии — вместе с её файлами', () => {
-    expect(redirectTarget(middleware(request('/presentation', false)))).toBeNull()
-    expect(redirectTarget(middleware(request('/presentation/scene.glb', false)))).toBeNull()
-  })
-
-  it('презентация открыта и с сессией: на главную не уводит', () => {
-    expect(redirectTarget(middleware(request('/presentation', true)))).toBeNull()
+  it('/presentation без страницы и файлов — не открытый путь, а обычная защищённая страница', () => {
+    // Страницы и public/presentation/ нет (риск 13 ревизии от 26.09.2026): открытый путь
+    // без ничего за ним был бы битой ссылкой, видной на стенде без входа. Появится
+    // страница — путь возвращается в OPEN_PATHS осознанным решением.
+    expect(redirectTarget(middleware(request('/presentation', false)))).toContain('/login')
   })
 
   it('политика обработки персональных данных открыта без сессии', () => {
@@ -42,12 +40,17 @@ describe('middleware', () => {
     expect(redirectTarget(middleware(request('/privacy-admin', false)))).toContain('/login')
   })
 
-  it('похожий адрес не открывается', () => {
-    expect(redirectTarget(middleware(request('/presentations-secret', false)))).toContain('/login')
-  })
-
   it('вошедшего со страницы входа уводит на главную', () => {
     expect(redirectTarget(middleware(request('/login', true)))).toBe('https://skilllink.test/')
+  })
+
+  it('robots.txt не проходит через middleware вовсе — matcher его исключает', () => {
+    // Рабочая система, индексировать не нужно (Disallow: / в public/robots.txt).
+    // Поисковый робот его не запрашивает как вошедший пользователь, поэтому файл
+    // должен отдаваться без похода в middleware и без редиректа на /login.
+    const pattern = new RegExp(config.matcher[0]!)
+    expect(pattern.test('/robots.txt')).toBe(false)
+    expect(pattern.test('/cooperations')).toBe(true)
   })
 })
 
@@ -88,7 +91,7 @@ describe('middleware: Content-Security-Policy с nonce (решение 112)', ()
   })
 
   it('открытые страницы и вход тоже под политикой', () => {
-    for (const path of ['/privacy', '/presentation', '/login']) {
+    for (const path of ['/privacy', '/login']) {
       expect(middleware(request(path, false)).headers.get('content-security-policy')).toContain("'strict-dynamic'")
     }
   })

@@ -6,9 +6,11 @@
  * Поэтому она не может разойтись с данными: этап, который закрыли, перестаёт
  * быть «просроченным» и в ленте тоже.
  *
- * Прочитанность хранит фронт — отметкой времени последнего просмотра. Её он
- * передаёт в `since`, а в ответе получает `isUnread` у каждого пункта и общий
- * `unreadCount`. «Отметить всё прочитанным» — записать текущее время.
+ * Прочитанность (решение 139) хранит сервер — `users.notifications_seen_at`,
+ * ставится через `POST /api/notifications/seen`. Клиент может по-прежнему
+ * прислать `since` (быстрый локальный кэш, обратная совместимость) — сервер
+ * берёт более позднее из двух значений. В ответе — `isUnread` у каждого пункта
+ * и общий `unreadCount`.
  */
 export const NOTIFICATION_KINDS = [
   'stage.overdue',
@@ -53,4 +55,9 @@ export interface NotificationFeedDto {
   items: NotificationDto[]
   unreadCount: number
   generatedAt: string
+}
+
+/** Ответ `POST /api/notifications/seen` — время, которое сервер записал как отметку просмотра. */
+export interface NotificationsSeenDto {
+  seenAt: string
 }

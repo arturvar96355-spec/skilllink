@@ -2939,6 +2939,24 @@ async function checkSearchAndNotifications(ctx: ProbeContext): Promise<void> {
     const later = new Date(Date.now() + 1000).toISOString()
     const read = await call<Feed>('GET', `/api/notifications?since=${encodeURIComponent(later)}`)
     check('после отметки «прочитано» непрочитанных нет', read.body.data?.unreadCount === 0)
+
+    // Отметка «прочитано» на сервере (решение 139): переживает смену устройства
+    // и очистку localStorage — GET без since сам видит серверную отметку.
+    const seen = await call<{ seenAt: string }>('POST', '/api/notifications/seen')
+    check(
+      'отметка «прочитано» на сервере принимается',
+      seen.status === 200 && typeof seen.body.data?.seenAt === 'string',
+      `статус ${seen.status}`,
+    )
+    const afterServerSeen = await call<Feed>('GET', '/api/notifications?limit=50')
+    check(
+      'после серверной отметки непрочитанных нет без since от клиента',
+      afterServerSeen.status === 200 && afterServerSeen.body.data?.unreadCount === 0,
+      `непрочитанных ${afterServerSeen.body.data?.unreadCount}`,
+    )
+    const future = new Date(Date.now() + 60_000).toISOString()
+    const rejectedFuture = await call('POST', '/api/notifications/seen', { seenAt: future })
+    check('отметка «прочитано» в будущем отклоняется', rejectedFuture.status === 422)
   }
 
   // Уведомления представителя вуза: ни сроков, ни рекомендаций — это внутреннее.
@@ -3544,7 +3562,7 @@ async function checkCalculationParameters(ctx: ProbeContext): Promise<void> {
     values.get('SKILL_GAP.demandThreshold')?.value === SKILL_GAP.demandThreshold &&
       values.get('PROGRAM_RATING_WEIGHTS.applicationCount')?.value === PROGRAM_RATING_WEIGHTS.applicationCount &&
       values.get('RECOMMENDATION_RULES.stalledDays')?.value === RECOMMENDATION_RULES.stalledDays &&
-      // Порог дефицита утверждён заказчиком, порог застоя — рабочее значение.
+      // Порог дефицита — решение команды (PM), порог застоя — рабочее значение.
       values.get('SKILL_GAP.demandThreshold')?.isTemporary === false &&
       values.get('RECOMMENDATION_RULES.stalledDays')?.isTemporary === true,
   )

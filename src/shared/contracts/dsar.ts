@@ -51,7 +51,7 @@ export interface DsarExportDto {
   generatedBy: { id: string; role: string; self: boolean }
   /** Запрос в реестре, который закрыт этой выгрузкой. */
   requestId: string | null
-  operator: { name: string; address: string | null; responsibleContact: string | null; note: string }
+  operator: { name: string; address: string; responsibleContact: string; note: string }
   purposes: readonly string[]
   legalBasis: readonly string[]
   categories: readonly string[]

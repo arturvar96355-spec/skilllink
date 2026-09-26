@@ -1574,6 +1574,12 @@ async function seedApplications(universityId: IdOf, programId: IdOf): Promise<vo
  * существующих (УрФУ с полным названием «имени…» и НГТУ с сокращениями «гос.», «ун-т»),
  * три навыка — синонимы (JS, Postgres, K8s). Без программ и связок: сценарий показа,
  * рейтинги и покрытие навыков они не меняют. Слить или отметить «не дубль» — на экране.
+ *
+ * Только с `SEED_DQ_CASES=1` (решение 139): экрана слияния во фронте ещё нет
+ * (раздел E ревизии от 26.09.2026), и по умолчанию эти записи на демонстрационном
+ * стенде — просто видимый эксперту мусор в реестрах вузов и навыков без способа
+ * его убрать. Нужны при работе с самим экраном качества данных и для `npm run dq:report`:
+ *   SEED_DQ_CASES=1 npm run db:seed
  */
 async function seedDataQualityCases(universityId: IdOf): Promise<void> {
   console.log('Почти дубли для проверки качества данных...')
@@ -1785,7 +1791,11 @@ async function main(): Promise<void> {
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
-  await seedDataQualityCases(universityId)
+  if (process.env.SEED_DQ_CASES?.trim() === '1') {
+    await seedDataQualityCases(universityId)
+  } else {
+    console.log('Почти дубли для проверки качества данных: пропущено (SEED_DQ_CASES=1 — включить)')
+  }
 
   // Расширенный набор (решение 131): ещё 12 вузов, 40 связок и полгода истории.
   // Сценарные объекты выше не трогаются — это дополнение к ним.

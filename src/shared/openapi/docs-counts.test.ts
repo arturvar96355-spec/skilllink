@@ -13,6 +13,8 @@ import { describe, expect, it } from 'vitest'
 
 const API_DIR = join(process.cwd(), 'src/app/api')
 const OPENAPI = join(process.cwd(), 'docs/openapi.json')
+const SCHEMA = join(process.cwd(), 'prisma/schema.prisma')
+const MIGRATIONS_DIR = join(process.cwd(), 'prisma/migrations')
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete']
 
 function countRouteFiles(directory: string): number {
@@ -38,6 +40,19 @@ function countOperations(): number {
     (sum, methods) => sum + Object.keys(methods).filter((key) => HTTP_METHODS.includes(key)).length,
     0,
   )
+}
+
+/** Модели схемы Prisma — по строкам `model Имя {`, без перечислений. */
+function countModels(): number {
+  const schema = readFileSync(SCHEMA, 'utf8')
+  return [...schema.matchAll(/^model\s+\w+\s*\{/gm)].length
+}
+
+/** Папки миграций в prisma/migrations, без служебного migration_lock.toml. */
+function countMigrations(): number {
+  return readdirSync(MIGRATIONS_DIR).filter(
+    (entry) => statSync(join(MIGRATIONS_DIR, entry)).isDirectory(),
+  ).length
 }
 
 function collectDocs(): string[] {
@@ -70,6 +85,46 @@ describe('числа в документации соответствуют ко
         const declared = Number(claim[1])
         const word = claim[2]!.toLowerCase()
         const expected = word.startsWith('операци') ? operationCount : routeCount
+
+        expect(
+          declared,
+          `${name}: «${claim[0]}» — в коде ${expected}. ` +
+            'Поправьте документ или пересчитайте, но не оставляйте расхождение.',
+        ).toBe(expected)
+      }
+    })
+  }
+})
+
+/**
+ * Модели/таблицы и миграции — та же проверка, что выше для маршрутов и операций,
+ * но только по документам, которые описывают *текущее* состояние: README, PROGRESS
+ * и DATABASE_ANSWERS. TECHNICAL_DECISIONS.md и DECISIONS.md — журналы решений: там
+ * число «на момент такого-то решения» законно расходится с сегодняшним и переписывать
+ * его — переписывать историю. У этих трёх документов такого оправдания нет:
+ * они читаются как «сейчас в системе».
+ */
+describe('число моделей и миграций в ключевых документах соответствует коду', () => {
+  const modelCount = countModels()
+  const migrationCount = countMigrations()
+  const CURRENT_STATE_DOCS = ['README.md', 'PROGRESS.md', 'DATABASE_ANSWERS.md']
+
+  it('моделей и миграций вообще нашлось — иначе считалка сломалась, а не код', () => {
+    expect(modelCount).toBeGreaterThan(20)
+    expect(migrationCount).toBeGreaterThan(10)
+  })
+
+  for (const file of collectDocs().filter((path) => CURRENT_STATE_DOCS.includes(path.split('/').slice(-1)[0]!))) {
+    const name = file.split('/').slice(-1)[0]!
+    const content = readFileSync(file, 'utf8')
+
+    it(`${name}: утверждения о числе моделей/таблиц и миграций верны`, () => {
+      const claims = [...content.matchAll(/(\d+)\s+(модел[а-яё]*|миграци[а-яё]*)/gi)]
+
+      for (const claim of claims) {
+        const declared = Number(claim[1])
+        const word = claim[2]!.toLowerCase()
+        const expected = word.startsWith('миграци') ? migrationCount : modelCount
 
         expect(
           declared,

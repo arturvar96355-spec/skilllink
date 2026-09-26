@@ -9,6 +9,11 @@ set -euo pipefail
 
 ENV_FILE=${ENV_FILE:?не задан ENV_FILE}
 SEED=${SEED:-0}
+# Короткий хеш коммита выкладки (риск 13 ревизии от 26.09.2026): deploy.sh считает его
+# на машине владельца — .git на сервере нет (git archive не берёт историю) — и передаёт
+# сюда переменной окружения. Пусто — контейнер поднят не через deploy.sh (например,
+# вручную на сервере); `GET /api/health` тогда отдаёт commit: null.
+APP_COMMIT=${APP_COMMIT:-}
 # Имя проекта, дополнительный файл compose и имена контейнеров меняются только для
 # локальной копии стенда (scripts/ops/compose.local.yml, docs/OPERATIONS_TESTS.md).
 COMPOSE_PROJECT=${COMPOSE_PROJECT:-skilllink}

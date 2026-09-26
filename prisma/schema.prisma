@@ -23,7 +23,7 @@ enum UserRole {
   UNIVERSITY_REP
 }
 
-/// Перечень статусов взаимодействия с вузом — утверждено заказчиком 26.09.2026.
+/// Перечень статусов взаимодействия с вузом — решение команды (PM) от 26.09.2026.
 enum UniversityStatus {
   NEW
   IN_PROGRESS
@@ -275,6 +275,10 @@ model User {
   /// перестают действовать. Токен без версии (выдан до миграции) считается версией 0.
   /// CHECK в базе (миграция user_session_version): session_version ≥ 0.
   sessionVersion Int      @default(0) @map("session_version")
+  /// Решение 139: время последнего просмотра ленты уведомлений — источник истины на сервере.
+  /// Ставится `POST /api/notifications/seen`; `localStorage` на фронте остаётся быстрым кэшем,
+  /// но не хранилищем — иначе прочитанность терялась при смене устройства или очистке хранилища.
+  notificationsSeenAt DateTime? @map("notifications_seen_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -767,7 +771,7 @@ model Cooperation {
   universityId  String            @map("university_id")
   programId     String            @map("program_id")
   /// Продукт может быть не выбран на ранних этапах.
-  /// Продукт при создании связки не обязателен — утверждено заказчиком 26.09.2026.
+  /// Продукт при создании связки не обязателен — решение команды (PM) от 26.09.2026.
   productId     String?           @map("product_id")
   status        CooperationStatus @default(DRAFT)
   responsibleId String            @map("responsible_id")

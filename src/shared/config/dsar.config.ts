@@ -56,15 +56,31 @@ export const GOVERNMENT_TRANSFERS: Record<number, { daysOff: readonly string[]; 
   2026: { daysOff: ['2026-01-09', '2026-12-31'], workdays: [] },
 }
 
-/** Оператор ПД. Реквизиты и контакт ответственного вписывает оператор (PRIVACY.md, раздел 10). */
-export const DSAR_OPERATOR = {
-  name: 'ИТ-Школа (заказчик SkillLink)',
-  address: null as string | null, // TODO: PM DECISION — адрес оператора для ответа субъекту
-  responsibleContact: null as string | null, // TODO: PM DECISION — контакт ответственного (ст. 22.1)
-  note:
-    'Реквизиты оператора и контакт ответственного за организацию обработки ПД вписывает оператор. ' +
-    'Сведения о работниках оператора, имеющих доступ к ПД, не предоставляются (п. 4 ч. 7 ст. 14 152-ФЗ).',
-} as const
+/**
+ * Понятная заглушка вместо `null` (решение 139, закрывает TODO: PM DECISION): система
+ * работает и без реальных реквизитов, но ответ на запрос субъекта ПД (ст. 14, 20 152-ФЗ)
+ * требует настоящих значений — их вписывает оператор при внедрении переменными
+ * окружения `OPERATOR_NAME`, `OPERATOR_ADDRESS`, `OPERATOR_CONTACT` (.env.example).
+ */
+const OPERATOR_PLACEHOLDER = 'ИТ-Школа РТК (реквизиты указываются при внедрении)'
+
+function operatorEnv(raw: string | undefined): string {
+  const value = raw?.trim()
+  return value ? value : OPERATOR_PLACEHOLDER
+}
+
+/** Оператор ПД. Реквизиты и контакт ответственного — переменные окружения, вписывает оператор. */
+export function dsarOperator(): { name: string; address: string; responsibleContact: string; note: string } {
+  return {
+    name: operatorEnv(process.env.OPERATOR_NAME),
+    address: operatorEnv(process.env.OPERATOR_ADDRESS),
+    responsibleContact: operatorEnv(process.env.OPERATOR_CONTACT),
+    note:
+      'Реквизиты оператора и контакт ответственного за организацию обработки ПД задаются ' +
+      'переменными окружения при внедрении (OPERATOR_NAME, OPERATOR_ADDRESS, OPERATOR_CONTACT). ' +
+      'Сведения о работниках оператора, имеющих доступ к ПД, не предоставляются (п. 4 ч. 7 ст. 14 152-ФЗ).',
+  }
+}
 
 /** Общее для обоих видов субъектов (ч. 7 ст. 14). */
 const COMMON = {

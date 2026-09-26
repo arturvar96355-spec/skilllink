@@ -174,7 +174,7 @@ git archive --format=tar HEAD | ssh_run "$TARGET" "
 # он уехал на сервер вместе с кодом.
 echo "── Поднимаю стенд (первый раз — несколько минут)"
 # Там же — проверка после выкладки (решение 118): приложение напрямую и через Caddy.
-if ! ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} bash scripts/deploy/remote-up.sh'"; then
+if ! ssh_run "$TARGET" "cd $REMOTE_DIR/app && sg docker -c 'ENV_FILE=$REMOTE_DIR/.env.cloud SEED=${SEED:-0} APP_COMMIT=$COMMIT bash scripts/deploy/remote-up.sh'"; then
   echo "━━ Стенд не поднялся или не прошёл проверку после выкладки" >&2
   rollback_hint
   exit 1

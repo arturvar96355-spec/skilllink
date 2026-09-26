@@ -111,9 +111,9 @@ describe('параметры расчётов совпадают с конста
     expect(result.stages.filter((stage) => stage.isAutomatic).map((stage) => stage.number)).toEqual([
       workflow.CONTROL_STAGE_NUMBER,
     ])
-    // Нормативы утверждены заказчиком: это записано в описании поля, а не у каждого числа.
+    // Нормативы — решение команды (PM): это записано в описании поля, а не у каждого числа.
     const source = readFileSync(join(process.cwd(), CONFIG_FILES['workflow.config.ts']!), 'utf8')
-    expect(source).toMatch(/Нормативы по всем этапам — утверждено заказчиком[\s\S]*?normativeDays: number/)
+    expect(source).toMatch(/Нормативы по всем этапам — решение команды \(PM\)[\s\S]*?normativeDays: number/)
   })
 
   it('счётчик рабочих значений сходится', () => {
