@@ -14,6 +14,7 @@ const BASE_FILTERS: LettersFilters = {
   group: '',
   universityId: '',
   cooperationId: '',
+  q: '',
   sort: '-receivedAt',
   page: 1,
   pageSize: 20,
@@ -26,6 +27,7 @@ describe('buildLettersFilterQuery', () => {
       group: undefined,
       universityId: undefined,
       cooperationId: undefined,
+      q: undefined,
       sort: '-receivedAt',
       page: 1,
       pageSize: 20,
@@ -39,6 +41,7 @@ describe('buildLettersFilterQuery', () => {
       group: 'MEETING',
       universityId: 'uni-1',
       cooperationId: 'coop-1',
+      q: 'перенести встречу',
       page: 3,
     })
     expect(query).toMatchObject({
@@ -46,6 +49,7 @@ describe('buildLettersFilterQuery', () => {
       group: 'MEETING',
       universityId: 'uni-1',
       cooperationId: 'coop-1',
+      q: 'перенести встречу',
       page: 3,
     })
   })

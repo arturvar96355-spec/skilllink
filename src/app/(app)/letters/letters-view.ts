@@ -18,6 +18,8 @@ export interface LettersFilters {
   group: string
   universityId: string
   cooperationId: string
+  /** Поиск по ключевым словам (решение 184) — уже с задержкой ввода, отдельно от адреса. */
+  q: string
   sort: string
   page: number
   pageSize: number
@@ -36,6 +38,7 @@ export function buildLettersFilterQuery(filters: LettersFilters): Record<string,
     group: filters.group || undefined,
     universityId: filters.universityId || undefined,
     cooperationId: filters.cooperationId || undefined,
+    q: filters.q || undefined,
     sort: filters.sort,
     page: filters.page,
     pageSize: filters.pageSize,
