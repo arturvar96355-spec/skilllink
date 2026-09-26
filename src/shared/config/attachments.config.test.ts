@@ -5,6 +5,7 @@ import {
   extensionOf,
   isAllowedExtension,
   matchesSignature,
+  mimeForExtension,
 } from './attachments.config'
 
 /**
@@ -82,5 +83,26 @@ describe('проверка сигнатуры (magic bytes)', () => {
 
   it('содержимое короче сигнатуры не проходит (не бросает, просто false)', () => {
     expect(matchesSignature('png', new Uint8Array([0x89, 0x50]))).toBe(false)
+  })
+})
+
+/**
+ * Content-Type при скачивании — по расширению, которое уже проверено сигнатурой,
+ * а не по тому, что прислал браузер клиента (решение 173, жёсткое ревью, проблема 16).
+ */
+describe('Content-Type по расширению — для каждого разрешённого формата', () => {
+  it('у каждого расширения из ТЗ есть непустой MIME-тип', () => {
+    for (const extension of ATTACHMENT_ALLOWED_EXTENSIONS) {
+      expect(mimeForExtension(extension), extension).toMatch(/\//)
+    }
+  })
+
+  it('несколько конкретных значений, чтобы регресс было видно построчно', () => {
+    expect(mimeForExtension('png')).toBe('image/png')
+    expect(mimeForExtension('pdf')).toBe('application/pdf')
+    expect(mimeForExtension('zip')).toBe('application/zip')
+    expect(mimeForExtension('docx')).toBe(
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    )
   })
 })

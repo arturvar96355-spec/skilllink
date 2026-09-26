@@ -1,6 +1,6 @@
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
-import { describeForLog } from '@/shared/db/log'
+import { log } from '@/shared/log'
 import { STALLED_THRESHOLD } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
@@ -92,7 +92,7 @@ export async function ensureStageDurations(now: Date = new Date()): Promise<Read
         setStageDurations(summaries, now.getTime())
         return summaries
       } catch (error) {
-        console.error('[ANALYTICS] не удалось посчитать длительность этапов', describeForLog(error))
+        log.error('[ANALYTICS] не удалось посчитать длительность этапов', { err: error })
         return cachedStageDurations() ?? new Map()
       } finally {
         inflight = null

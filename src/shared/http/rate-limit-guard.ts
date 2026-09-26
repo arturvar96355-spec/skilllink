@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { isDemoAuthEnabled } from '@/shared/auth/demo-mode'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { RATE_LIMITS, RATE_LIMIT_TEST_HEADER, type RateLimitGroup } from '@/shared/config/rate-limit.config'
-import { describeForLog } from '@/shared/db/log'
+import { log } from '@/shared/log'
 import { countSafely } from '@/shared/metrics/app-metrics'
 import {
   RateLimitStore,
@@ -167,7 +167,7 @@ export async function consumeRateLimit(
 
     return { decision: consumeMain(), group, subject }
   } catch (error) {
-    console.warn('[RATE_LIMIT] ограничитель не сработал, запрос пропущен:', describeForLog(error))
+    log.warn('[RATE_LIMIT] ограничитель не сработал, запрос пропущен', { err: error })
     return null
   }
 }
@@ -192,7 +192,7 @@ async function reportRejection(verdict: RateLimitVerdict): Promise<void> {
       },
     })
   } catch (error) {
-    console.warn('[RATE_LIMIT] не удалось записать превышение в журнал:', describeForLog(error))
+    log.warn('[RATE_LIMIT] не удалось записать превышение в журнал', { err: error })
   }
 }
 

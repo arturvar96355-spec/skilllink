@@ -100,3 +100,30 @@ export function matchesSignature(extension: AttachmentExtension, bytes: Uint8Arr
     (signature) => bytes.length >= signature.length && signature.every((byte, index) => bytes[index] === byte),
   )
 }
+
+/**
+ * Content-Type для скачивания — по расширению, которое уже подтверждено сигнатурой
+ * (решение 173, жёсткое ревью, проблема 16). Раньше сохранялся `file.type` со слов
+ * браузера/клиента как есть; на практике безобидно (расширение — из белого списка,
+ * `Content-Disposition: attachment` не даёт браузеру открыть файл как страницу), но
+ * доверять клиенту то, что сервер и так надёжно определяет сам, — лишний риск без
+ * причины. Одно значение на расширение — файл уже прошёл `assertValidAttachment`,
+ * так что более узкое сопоставление (различать `.doc`/`.xls` бинарно) не нужно.
+ */
+export const ATTACHMENT_MIME_TYPES: Record<AttachmentExtension, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  pdf: 'application/pdf',
+  zip: 'application/zip',
+  gzip: 'application/gzip',
+  rar: 'application/vnd.rar',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+}
+
+/** Content-Type по расширению, уже проверенному `assertValidAttachment` — не по словам клиента. */
+export function mimeForExtension(extension: AttachmentExtension): string {
+  return ATTACHMENT_MIME_TYPES[extension]
+}

@@ -102,7 +102,7 @@ export function redactString(text: string): string {
 
 /**
  * Текст ошибки для журнала. Сообщение Prisma повторяет весь вызов с аргументами
- * (ФИО, почта контакта) — от него остаётся последняя строка, как в describeForLog.
+ * (ФИО, почта контакта) — от него остаётся последняя строка.
  */
 function errorMessage(error: Error): string {
   if (!error.name.startsWith('PrismaClient')) return error.message

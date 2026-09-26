@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from '@/shared/zod'
 import { AppError } from './errors'
-import { describeForLog } from '@/shared/db/log'
 import { handle, toAppError } from './handle'
 import { MAX_JSON_BODY_BYTES, parseBody, parseOptionalBody, parseQuery } from './request'
 
@@ -69,12 +68,11 @@ describe('внутренняя ошибка', () => {
     { name: 'PrismaClientKnownRequestError' },
   )
 
-  it('в журнал — без данных запроса', () => {
-    const line = describeForLog(prismaError)
-    expect(line).toContain('Value out of range for the type.')
-    expect(line).not.toContain('Иванов')
-    expect(line).not.toContain('ivanov@')
-  })
+  // Что такая ошибка не попадает в журнал с данными запроса — проверяет
+  // src/shared/log/log.test.ts («ошибка Prisma: от сообщения — только последняя
+  // строка»): та же маскировка, но через единственный путь (`redact`/`log`,
+  // src/shared/log), решение 173 — до него здесь дублировался отдельный,
+  // более слабый `describeForLog` (`src/shared/db/log.ts`, удалён).
 
   it('клиенту не показывается', () => {
     expect(toAppError(prismaError)).toBeNull()
