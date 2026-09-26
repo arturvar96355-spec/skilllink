@@ -87,3 +87,37 @@ export function demoId(kind: string, key: string): string {
   const part = (seed: number) => fnv1a(text, seed).toString(36).padStart(7, '0').slice(-7)
   return `cd${part(0x811c9dc5)}${part(0x1b873593)}${part(0xcc9e2d51)}`.padEnd(25, '0').slice(0, 25)
 }
+
+/**
+ * ИНН и ОГРН демо-вузов с верной контрольной суммой (решение 134, решение 141).
+ *
+ * Веса и формулы — те же, что в `src/shared/validation/inn-ogrn.ts` (не импортируется
+ * напрямую: генератор живёт в `prisma/`, а не в `src/`, и дублирование десяти чисел
+ * читается понятнее, чем путь до модуля валидации через границу пакетов). Совпадение
+ * с проверкой подтверждает тест генератора: каждый выданный номер проверяется
+ * `isValidLegalEntityInn`/`isValidLegalEntityOgrn`.
+ *
+ * Первые цифры вуза детерминированы по его ключу, поэтому номер не меняется от
+ * перезаливки к перезаливке, но не претендует на существование в реальном ЕГРЮЛ.
+ */
+const INN10_WEIGHTS = [2, 4, 10, 3, 5, 9, 4, 6, 8] as const
+
+/** ИНН организации: 10 цифр, 10-я — контрольная. Первая цифра не 0 — как у реальных ИНН. */
+export function validInn(key: string): string {
+  const rng = new Rng(`inn:${key}`)
+  const digits = [rng.int(1, 9), ...Array.from({ length: 8 }, () => rng.int(0, 9))]
+  const control = (INN10_WEIGHTS.reduce((sum, weight, index) => sum + weight * digits[index]!, 0) % 11) % 10
+  return [...digits, control].join('')
+}
+
+/** ОГРН организации: 13 цифр, 13-я — контрольная (mod 11 mod 10 от первых 12). */
+export function validOgrn(key: string): string {
+  const rng = new Rng(`ogrn:${key}`)
+  // Первая цифра ОГРН юрлица — признак записи (1–9, кроме 0), год регистрации — 2 цифры.
+  const digits = [rng.int(1, 9), ...Array.from({ length: 11 }, () => rng.int(0, 9))]
+  const body = digits.join('')
+  let rest = 0
+  for (const char of body) rest = (rest * 10 + Number(char)) % 11
+  const control = rest % 10
+  return `${body}${control}`
+}
