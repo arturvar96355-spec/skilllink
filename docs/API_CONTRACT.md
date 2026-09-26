@@ -1506,6 +1506,164 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
 одного запроса. Программы без данных не выбрасываются: они уходят в конец со `score: null`
 и `basis: "none"`.
 
+### Аналитика этапов на статистике (решение 120)
+
+Право: `ANALYTICS` (представителю вуза — 403). Формулы — `docs/ANALYTICS_MODEL.md`.
+Доли — числа 0..1 (до четырёх знаков), дни — целые. `isMock` — есть демонстрационные записи.
+
+#### GET /api/analytics/stage-durations
+
+Длительность этапов 1–13 по Каплану–Мейеру и порог застоя, который сейчас берёт правило
+рекомендаций.
+
+```bash
+curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-durations
+```
+
+```json
+{
+  "data": {
+    "stages": [
+      {
+        "stageNumber": 6, "title": "Подписание документов", "status": "ok",
+        "n": 66, "events": 58, "censored": 8,
+        "median": 15, "p90": 62,
+        "ci": { "median": { "low": 12, "high": 16 }, "p90": { "low": 17, "high": 93 } },
+        "curve": [ { "day": 0, "F": 0, "lo": 0, "hi": 0 }, { "day": 5, "F": 0.0455, "lo": 0, "hi": 0.0957 } ],
+        "threshold": { "days": 62, "source": "km", "ci": { "low": 17, "high": 93 }, "n": 66, "events": 58, "reason": null }
+      }
+    ],
+    "minObservations": 30, "minEvents": 15, "quantile": 0.9, "fromData": true,
+    "generatedAt": "…", "isMock": true, "source": "История этапов и записи системы"
+  }
+}
+```
+
+- `n` — связок, входивших в этап; `events` — перешли дальше; `censored` — ещё на этапе,
+  на паузе или отменены на нём. `n = events + censored`.
+- `curve` — доля прошедших этап к дню `day` (`F`) с 95% интервалом `lo`..`hi`; ступенчатая,
+  начинается с дня 0.
+- `median`, `p90` — `null`, если кривая до 0,5 или 0,9 не дошла. В `ci` `high: null` —
+  «больше наблюдаемого».
+- `status: "insufficient_data"` — меньше `minObservations` наблюдений или `minEvents`
+  переходов: кривую можно показать с пометкой «данных мало», порог застоя ручной
+  (`threshold.source: "manual"`, `reason: "insufficient_data"`). Другие `reason`:
+  `disabled` (флаг выключен), `quantile_not_reached`, `not_computed`.
+
+#### GET /api/analytics/stalled-preview?stage=6&days=10
+
+Сколько открытых связок станут или перестанут быть «застрявшими», если порог этапа сделать
+`days` дней. Ничего не меняет. `stage` — 1..13, без него — все этапы (в ответе — только
+этапы, на которых есть открытые связки); `days` — 1..365. Некорректно — 422.
+
+```json
+{
+  "data": {
+    "proposedDays": 10, "before": 1, "after": 2, "suppressedByOverdue": 1, "isMock": true,
+    "stages": [
+      {
+        "stageNumber": 6, "title": "Подписание документов", "open": 2,
+        "current": { "days": 14, "source": "manual", "ci": null, "n": 6, "events": 4, "reason": "insufficient_data" },
+        "proposedDays": 10, "before": 1, "after": 2,
+        "becomeStalled": [ { "cooperationId": "…", "title": "УрФУ — Компьютерная безопасность",
+                             "stageNumber": 6, "idleDays": 12, "href": "/cooperations/…" } ],
+        "stopBeingStalled": []
+      }
+    ]
+  }
+}
+```
+
+`before` — сработавшее сейчас правило застоя (текущим порогом, тем же правилом, что
+у рекомендаций); `after` — дней без движения ≥ `days`. Связки с просрочкой в обоих не
+считаются: о застое при просрочке правило не говорит, их число — `suppressedByOverdue`.
+
+#### GET /api/analytics/funnel
+
+Параметры: `from`, `to` — дата начала связки (`ГГГГ-ММ-ДД` или ISO 8601; `from` включительно,
+`to` — нет); `groupBy` — `region` | `city` | `university` | `product` | `programLevel`;
+`milestones=true` — шесть вех вместо 14 этапов. Черновики не входят.
+
+```json
+{
+  "data": {
+    "milestones": true, "groupBy": "region", "from": null, "to": null, "total": 9,
+    "steps": [
+      { "key": "signed", "title": "Договор подписан", "fromStage": 7, "reached": 4,
+        "conversionFromPrevious": 0.5, "conversionFromStart": 0.4444, "medianDaysFromPrevious": 42,
+        "inProgress": 1, "droppedCount": 1,
+        "dropped": [ { "cooperationId": "…", "title": "ДГТУ — Информационные технологии и управление",
+                       "status": "PAUSED", "href": "/cooperations/…" } ] }
+    ],
+    "groups": [ { "key": "Москва", "label": "Москва", "total": 2,
+                  "steps": [ { "key": "start", "reached": 2, "conversionFromStart": 1 } ] } ],
+    "isMock": true
+  }
+}
+```
+
+Шаги идут по порядку этапов; `reached` не растёт от шага к шагу. `dropped` — отменённые
+и приостановленные, дальше шага не прошедшие (до 20; всего — `droppedCount`).
+`medianDaysFromPrevious` — медиана дней от предыдущего шага среди дошедших.
+Ключи вех: `start`, `meeting-done`, `signed`, `implemented`, `classes-done`, `done`;
+этапов — `stage-1` … `stage-14`.
+
+#### GET /api/analytics/cohorts
+
+Квартал старта × кварталы с начала → доля связок когорты с подписанным договором
+(закрыт этап 6) к концу квартала, накопительно.
+
+```json
+{
+  "data": {
+    "milestone": { "key": "signed", "title": "Договор подписан", "fromStage": 7 },
+    "cohorts": [
+      { "cohort": "2026-Q1", "size": 2,
+        "cells": [ { "offset": 0, "reached": 0, "share": 0, "complete": true },
+                   { "offset": 1, "reached": 2, "share": 1, "complete": true },
+                   { "offset": 2, "reached": 2, "share": 1, "complete": false } ] }
+    ],
+    "isMock": true
+  }
+}
+```
+
+`complete: false` — квартал ещё идёт, доля «пока». Будущих кварталов нет.
+
+#### GET /api/analytics/insights
+
+«Система заметила» — отклонения рядов (новые связки, закрытые этапы, встречи, отклонённые
+рекомендации; в целом и по вузам) и выводы по этапам. Тексты — по шаблонам, без ИИ;
+каждое число из текста есть в `facts`.
+
+```json
+{
+  "data": [
+    {
+      "code": "anomaly.stage_transitions.down", "severity": "warning",
+      "title": "Переходы этапов: за 7 дней на 80% меньше обычного",
+      "detail": "В среднем 1 в день против 5 за 28 дней до этого (z = −4). Активных вузов 2 → 1 …",
+      "facts": { "metric": "stage_transitions", "window": "day", "meanRecent": 1, "meanBase": 5, "z": -4,
+                 "countEffect": -1.5, "intensityEffect": -2.5,
+                 "slices": [ { "key": "…", "label": "УрФУ", "delta": -3, "share": 0.75 } ] },
+      "link": "/analytics?tab=insights"
+    },
+    {
+      "code": "stages.insufficient_data", "severity": "info",
+      "title": "Порог застоя пока ручной: истории этапов мало",
+      "detail": "…", "facts": { "minObservations": 30, "minEvents": 15, "manualDays": 14 },
+      "link": "/analytics?tab=stages"
+    }
+  ]
+}
+```
+
+`severity`: `critical` (|z| > 3), `warning`, `info`. Коды: `anomaly.<ряд>.up|down`,
+`anomaly.<ряд>.weekly.up|down`, `anomaly.university.<ряд>.up|down`, `stages.insufficient_data`,
+`stage.slowest`, `cooperations.stalled`, `funnel.bottleneck`; ряды — `new_cooperations`,
+`stage_transitions`, `meetings`, `dismissed_recommendations`. `link` — страница интерфейса
+(адреса `/analytics?tab=…` — предложение фронту).
+
 ---
 
 ## 10. Рекомендации
@@ -1558,7 +1716,7 @@ curl -s -X POST http://localhost:3000/api/recommendations/generate
 | `ruleKey` | Когда срабатывает | Приоритет |
 | --- | --- | --- |
 | `stage.overdue` | Срок этапа прошёл, этап не закрыт и может быть начат (не стоит не начатым за незавершённой контрольной точкой) | MEDIUM → HIGH (7 дн.) → CRITICAL (21 дн.) |
-| `cooperation.stalled` | По связке нет изменений 14 дн., текущий этап не закрыт | MEDIUM, для `BLOCKED` — HIGH |
+| `cooperation.stalled` | По связке нет изменений дольше порога этапа, текущий этап не закрыт. Порог — p90 длительности этапа по истории, пока её мало — 14 дн. (решение 120); в `relatedData` — `thresholdDays`, `thresholdSource` (`km` \| `manual`) | MEDIUM, для `BLOCKED` — HIGH |
 | `cooperation.no-product` | Связка дошла до этапа 4, продукт не выбран | HIGH |
 | `program.missing-metrics` | У программы с начатым сотрудничеством не заполнены показатели набора | MEDIUM, HIGH если пусто всё |
 | `skill.critical-gap-with-product` | Навык востребован, отсутствует во всех программах, и есть продукт, который его даёт | HIGH |
@@ -2298,6 +2456,35 @@ curl -X DELETE http://localhost:3000/api/me/telegram -H 'cookie: skilllink_user=
 `stagesOnTimePercent: null` — **«Нет данных»**: у пользователя ещё нет завершённых
 этапов со сроком. Не ноль. У представителя вуза и наблюдателя связок нет — нули
 здесь настоящие.
+
+### GET /api/me/pulse
+
+Право: `ANALYTICS` (представителю вуза — 403). Пульс по связкам текущего пользователя —
+то же содержимое, что сводка в Telegram (решение 120).
+
+```json
+{
+  "data": {
+    "generatedAt": "…", "checkedRules": 27, "isCalm": false, "calmText": null,
+    "sections": [
+      { "key": "attention", "title": "Внимание", "total": 4, "items": [
+        { "kind": "cooperation.stalled", "group": "Застряло дольше обычного", "severity": "warning",
+          "text": "Этап 7 «Передача учебных материалов…», ДГТУ — … Без движения 138 дней при пороге 14 (ручной порог)",
+          "href": "/cooperations/…", "cooperationId": "…" } ] },
+      { "key": "today", "title": "Сегодня", "total": 0, "items": [] },
+      { "key": "decide", "title": "Решить", "total": 3, "items": [ … ] },
+      { "key": "wins", "title": "Успехи", "total": 1, "items": [ … ] }
+    ]
+  }
+}
+```
+
+Разделы всегда четыре и в этом порядке; `items` — не больше 10, `total` — сколько всего.
+`kind`: `stage.overdue`, `stage.blocked`, `cooperation.stalled`, `meeting.no-result`,
+`insight` (Внимание); `meeting.today`, `meeting.action-due`, `stage.due-soon` (Сегодня);
+`recommendation.stale` («Новая» дольше 7 дней), `recommendation.open` (Решить);
+`stage.completed` (Успехи, за сутки). `isCalm` — пусто во «Внимании», «Сегодня» и «Решить»;
+тогда `calmText` — «Всё спокойно: проверено N правил…».
 
 ### GET, POST, DELETE /api/me/calendar — подписка на календарь
 
