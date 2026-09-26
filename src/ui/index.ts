@@ -39,6 +39,7 @@ export {
   PriorityBadge,
   RecommendationStatusBadge,
   TransferStatusBadge,
+  InboundLetterStatusBadge,
   DeadlineBadge,
 } from './data/status'
 
@@ -134,6 +135,7 @@ export {
   recommendationHref,
   productHref,
   skillHref,
+  letterHref,
   searchItemHref,
   notificationHref,
   recommendationTargetHref,
