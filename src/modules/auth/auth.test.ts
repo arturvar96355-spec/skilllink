@@ -91,4 +91,17 @@ describe('права текущего пользователя', () => {
     expect(describeCurrentUser(as('ANALYST')).permissions.canAssignResponsible).toBe(false)
     expect(describeCurrentUser(as('UNIVERSITY_REP')).permissions.canAssignResponsible).toBe(false)
   })
+
+  it('эксперту хакатона экран не показывает кнопок изменения (решение 147)', () => {
+    const expertAdmin = describeCurrentUser({ ...as('ADMIN'), isReviewer: true })
+    expect(expertAdmin.isReviewer).toBe(true)
+    expect(expertAdmin.permissions.canWrite).toBe(false)
+    expect(expertAdmin.permissions.canAssignResponsible).toBe(false)
+    expect(expertAdmin.permissions.isAdmin).toBe(false)
+    expect(expertAdmin.permissions.canSeeAnalytics).toBe(true)
+    expect(expertAdmin.permissions.canSeeContactDetails).toBe(true)
+    const expertRep = describeCurrentUser({ ...as('UNIVERSITY_REP'), isReviewer: true })
+    expect(expertRep.permissions.canUsePortal).toBe(true)
+    expect(expertRep.permissions.canWritePortal).toBe(false)
+  })
 })

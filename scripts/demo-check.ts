@@ -47,6 +47,21 @@ function check(name: string, actual: unknown, expected: unknown): void {
   }
 }
 
+/**
+ * Сверка числа с допуском: доли и средние по дням зависят от часа перезаливки
+ * и от набора демо-данных (решения 141, 145–147) — сотые не должны ронять сверку.
+ */
+function checkNear(name: string, actual: unknown, expected: number, tolerance: number): void {
+  const ok = typeof actual === 'number' && Math.abs(actual - expected) <= tolerance
+  if (ok) {
+    passed += 1
+    console.log(`  ${GREEN}OK${RESET}   ${name} ${GREY}${format(actual)} (сценарий ${expected} ± ${tolerance})${RESET}`)
+  } else {
+    failed += 1
+    console.log(`  ${RED}FAIL${RESET} ${name}: на стенде ${format(actual)}, в сценарии ${expected} ± ${tolerance}`)
+  }
+}
+
 function format(value: unknown): string {
   if (value === null) return '«Нет данных»'
   if (typeof value === 'string') return `«${value}»`
@@ -176,8 +191,8 @@ async function main(): Promise<void> {
   // черновиках, 4–7 на вуз вместо 2–3 — числа шага 1 пересчитаны заново.
   check('активные связи', metric('activeCooperations'), 65)
   check('вузы в работе', metric('universitiesInWork'), 14)
-  check('этапы в срок, %', metric('stagesOnTimePercent'), 83)
-  check('дней до начала занятий в среднем', metric('avgDaysToClasses'), 159.8)
+  checkNear('этапы в срок, %', metric('stagesOnTimePercent'), 82.5, 1.5)
+  checkNear('дней до начала занятий в среднем', metric('avgDaysToClasses'), 159.8, 1)
   // Больше связок — больше просрочек и блокировок в абсолютных числах;
   // на главной всё равно показывается верхние 10 (решение 84).
   check('проблемных этапов всего', overview.problemStageTotal, 21)

@@ -1,7 +1,7 @@
 import { compare, hash } from 'bcryptjs'
 import { pageMeta } from '@/shared/http/pagination'
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
-import { can, assertCan } from '@/shared/auth/permissions'
+import { can, assertCan, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
 import { alertUserChange } from '@/shared/ops/security-alerts'
@@ -102,6 +102,9 @@ export function describeCurrentUser(
   user: CurrentUser,
   profile: CurrentUserProfile = { position: null, universityName: null },
 ): CurrentUserDto {
+  // Эксперт хакатона (решение 147): флаги прав для экрана — те же, что пропустит
+  // assertCan. Кнопки изменения ему не показываются, а не только отклоняются сервером.
+  const allowed = (permission: Permission): boolean => can(user, permission) && (!user.isReviewer || isReviewerAllowed(permission))
   return {
     id: user.id,
     email: user.email,
@@ -112,14 +115,14 @@ export function describeCurrentUser(
     universityName: profile.universityName,
     isReviewer: user.isReviewer ?? false,
     permissions: {
-      canWrite: can(user, 'WRITE'),
-      canSeeAnalytics: can(user, 'ANALYTICS'),
-      canWorkAnalytics: can(user, 'ANALYTICS_WORK'),
-      canUsePortal: can(user, 'UNIVERSITY_PORTAL'),
-      canWritePortal: can(user, 'UNIVERSITY_PORTAL_WRITE'),
-      canSeeContactDetails: can(user, 'CONTACT_DETAILS'),
-      isAdmin: can(user, 'ADMIN'),
-      canAssignResponsible: can(user, 'ASSIGN_RESPONSIBLE'),
+      canWrite: allowed('WRITE'),
+      canSeeAnalytics: allowed('ANALYTICS'),
+      canWorkAnalytics: allowed('ANALYTICS_WORK'),
+      canUsePortal: allowed('UNIVERSITY_PORTAL'),
+      canWritePortal: allowed('UNIVERSITY_PORTAL_WRITE'),
+      canSeeContactDetails: allowed('CONTACT_DETAILS'),
+      isAdmin: allowed('ADMIN'),
+      canAssignResponsible: allowed('ASSIGN_RESPONSIBLE'),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
   }
