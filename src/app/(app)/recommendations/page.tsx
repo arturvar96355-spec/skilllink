@@ -54,6 +54,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard, AiDraftLoading, AiDraftView } from '../AiDraft'
+import { WhyRecommended } from '../RuleChecks'
 import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
@@ -445,6 +446,13 @@ function RecommendationsContent() {
             <div className={styles.block}>
               <span className={styles.blockLabel}>Почему система это предлагает</span>
               <p className={styles.description}>{opened.justification}</p>
+            </div>
+
+            {/* Не только балл и текст обоснования: условия правила по живым данным
+                (ТЗ дизайна 26–29.09, п. 4.1). */}
+            <div className={styles.block}>
+              <span className={styles.blockLabel}>Условия правила</span>
+              <WhyRecommended recommendation={opened} />
             </div>
 
             <div className={styles.block}>

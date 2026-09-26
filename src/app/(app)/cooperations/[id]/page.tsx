@@ -54,6 +54,7 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard } from '../../AiDraft'
+import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { CooperationChain } from './CooperationChain'
 import { CreateMeetingModal } from './CreateMeetingModal'
@@ -596,6 +597,13 @@ function CooperationContent() {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+          {/* «Почему нет» — по всем правилам связки: и когда предложений нет вовсе,
+              и когда видно не всё, что ожидали (ТЗ дизайна 26–29.09, п. 4.1). */}
+          {adviceScope === 'open' && !advice.isLoading && !advice.error && (
+            <div className={styles.whyNot}>
+              <WhyNoRecommendation entity="cooperation" id={params.id} />
             </div>
           )}
         </Card>

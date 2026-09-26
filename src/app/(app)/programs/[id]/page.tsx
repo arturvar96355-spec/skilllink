@@ -68,6 +68,7 @@ import {
 } from '@/ui'
 import { AddProgramSkillModal } from '../AddProgramSkillModal'
 import { EditProgramModal } from '../EditProgramModal'
+import { WhyNoRecommendation } from '../../RuleChecks'
 import styles from './program.module.css'
 
 /**
@@ -694,6 +695,17 @@ export default function ProgramPage() {
               {/* Пометка демо-данных — одна на экран, в шапке: вторая здесь была повтором. */}
             </Card>
           </Section>
+
+          {user.permissions.canSeeAnalytics && (
+            <Section
+              title="Рекомендации по программе"
+              description="Какие правила система проверяет по этой программе и что им сейчас мешает сработать."
+            >
+              <Card>
+                <WhyNoRecommendation entity="program" id={data.id} />
+              </Card>
+            </Section>
+          )}
         </>
       )}
 
