@@ -108,6 +108,9 @@ const MODELS: readonly ModelSpec[] = [
   { model: 'approval', label: 'Одобрения («четыре глаза»)' },
   { model: 'idempotencyKey', label: 'Ключи идемпотентности' },
   { model: 'dsarRequest', label: 'Запросы субъектов (DSAR)' },
+  { model: 'inboundLetter', label: 'Письма вузов (решение 170)' },
+  { model: 'inboundLetterTask', label: 'Задания по письмам вузов' },
+  { model: 'inboundLetterGroupStats', label: 'Точность разбора писем по группе' },
 ]
 
 async function main(): Promise<void> {

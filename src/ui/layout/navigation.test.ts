@@ -49,6 +49,7 @@ function user(role: UserRole): CurrentUserDto {
       canSeeContactDetails: role === 'ADMIN' || role === 'MANAGER',
       isAdmin: role === 'ADMIN',
       canAssignResponsible: role === 'ADMIN' || role === 'HEAD',
+      canReviewLetters: role === 'ADMIN' || role === 'HEAD',
     },
     passwordTemporary: false,
   }
