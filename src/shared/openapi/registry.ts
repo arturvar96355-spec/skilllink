@@ -2,6 +2,7 @@ import type { z } from '@/shared/zod'
 import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
+import { createProposalSchema } from '@/modules/ai-assist/ai-story.schema'
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
@@ -1326,6 +1327,70 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ANALYTICS',
     returnsOk: true,
     errors: COMMON_ERRORS,
+  },
+
+  // ── История сотрудничества и «Предложить план» (решение 138) ────────────────
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/story',
+    tag: 'История сотрудничества',
+    summary: 'История сотрудничества по связке: где она, что мешает, что сделать дальше',
+    description:
+      'Детерминированная сводка по этапам, встречам, документам и открытым рекомендациям; ' +
+      'числа считает код. Модель, если подключена, только формулирует уже собранные факты — без ' +
+      'персональных данных (ФИО, почта, телефон вырезаются перед отправкой и возвращаются в ответе). ' +
+      'Ответ модели с числом или датой, которых нет в фактах, отбрасывается. Модель выключена, ' +
+      'не настроена или подвела — тот же текст шаблоном, source: "template".',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/story',
+    tag: 'История сотрудничества',
+    summary: 'История сотрудничества с вузом: сколько связок, в каком они состоянии',
+    description: 'То же самое, что история связки, но по всем связкам вуза сразу.',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/blockers',
+    tag: 'История сотрудничества',
+    summary: 'Что мешает связке перейти к следующему этапу',
+    description:
+      'Список препятствий в порядке важности — по контрольным точкам, чек-листам этапа, ' +
+      'подписанным документам и статусу связки. Без модели: это уже посчитанные правилами факты.',
+    permission: 'ANALYTICS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/cooperations/{id}/proposals',
+    tag: 'История сотрудничества',
+    summary: 'Предложить план: проект встречи или новой даты этапа по препятствиям связки',
+    description:
+      'Ничего не сохраняет — только проект: тема и повестка встречи или новый срок этапа, ' +
+      'дата — ближайший рабочий день через 3–5 дней. Проект живёт час (`expiresAt`), применяет ' +
+      'его человек отдельным запросом. Вид проекта необязателен в теле: без него сервис сам ' +
+      'выбирает по препятствиям связки.',
+    permission: 'WRITE',
+    body: createProposalSchema,
+    bodyOptional: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/cooperations/{id}/proposals/{proposalId}/apply',
+    tag: 'История сотрудничества',
+    summary: 'Применить проект плана: создать встречу или перенести срок этапа',
+    description:
+      'Повторно проверяет права и версию связки (`sourceVersion` проекта): связка изменилась ' +
+      'после постройки проекта — 409 «данные изменились, обновите предложение». Запись — штатным ' +
+      'сервисом встреч или этапов, а не напрямую. Проект истёк или уже применён — 404. Тело не нужно.',
+    permission: 'WRITE',
+    pathParams: { proposalId: 'Идентификатор проекта плана, из ответа POST .../proposals' },
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
 
   // ── Документы ─────────────────────────────────────────────────────────────
