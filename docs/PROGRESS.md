@@ -4,6 +4,23 @@
 
 ## Состояние
 
+**Качество данных, поиск дублей, карточка 360, похожие программы (26.09.2026, решение 134,
+ветка `feat/data-quality`).** `GET /api/data-quality/report` — оценка справочника 0–100
+по пяти сущностям с прозрачной формулой (веса — `data-quality.config.ts`) и списком проблем
+со ссылками; `GET .../duplicates` — нечёткий поиск дублей вузов, навыков, программ, продуктов
+(нормализация, словарь сокращений и синонимов, триграммы pg_trgm с расчётом в приложении,
+Левенштейн для коротких названий), `POST .../duplicates/dismiss` — «не дубль». Слияние
+вузов-дублей — `POST /api/universities/merge` (только `ADMIN`, правила `non_null` /
+`most_recent` / `longest` / `manual` по полю, журнал выживания, отмена в течение 30 дней —
+`POST …/merge/:id/undo`), тот же подход, что у объединения навыков (решение 107). Лента 360
+вуза — `GET /api/universities/:id/timeline` (курсорная пагинация, university-scope).
+Похожие программы — `GET /api/programs/:id/similar` (косинус взвешенных векторов навыков,
+idf, подсказка «чего не хватает»). Тепловая карта встреч — `GET /api/analytics/meetings-heatmap`.
+ИНН/ОГРН — необязательные поля вуза с проверкой контрольной суммы (`src/shared/validation/inn-ogrn.ts`).
+`npm run dq:report` — тот же отчёт и топ дублей текстом, для слайда. Новые таблицы
+`duplicate_dismissals` и `university_merges` — на согласование с Тиграном; DSAR — при слиянии
+основной ветки (обе не хранят ПД: только идентификаторы, счётчики и служебные поля).
+
 **Больше демо-данных (26.09.2026, решение 131, ветка `feat/demo-data`).** Стенд
 с 7 вузами и 10 связками недоставало объёма для аналитики этапов (решение 120):
 ни на одном этапе не набиралось данных для оценки по Каплану–Мейеру, детектор
@@ -298,20 +315,23 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 105 маршрутов, 130 операций
+### Модули и эндпоинты
+
+### Модули и эндпоинты — 113 маршрутов, 138 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
 | health | `GET /api/health` — живость; `GET /api/ready` — готовность: база и миграции (решение 118) |
 | auth | `GET /api/me`; `POST /api/me/password`; `GET /api/login-challenge`; `GET`, `POST /api/users`; `GET`, `PATCH /api/users/:id`; `POST …/password-reset`; маршруты NextAuth в `/api/auth/*` |
-| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111) |
-| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore` |
+| universities | `GET`, `POST /api/universities`; `GET`, `PATCH /api/universities/:id`; `POST …/archive`; `POST …/restore`; `POST …/contacts/:contactId/anonymize`; `PUT …/contacts/:contactId/legal-basis`, `GET …/legal-basis/history`, `POST …/consent/withdraw` (решение 111); `GET …/timeline` — лента 360 (решение 134); `POST /api/universities/merge`, `POST …/merge/:id/undo` — слияние дублей (решение 134) |
+| programs | `GET`, `POST /api/programs`; `GET`, `PATCH /api/programs/:id`; `PUT …/skills`; `POST …/archive`; `POST …/restore`; `GET …/similar` — похожие программы (решение 134) |
 | skills | `GET`, `POST /api/skills`; `PATCH`, `DELETE /api/skills/:id`; `POST …/merge`; `GET /api/skills/demand`; `GET /api/skills/gaps` |
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
+| data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
@@ -485,7 +505,9 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 104 пути, 130 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
+
+`docs/openapi.json` и `GET /api/openapi.json` — 112 путей, 138 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

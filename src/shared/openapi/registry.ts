@@ -93,6 +93,11 @@ import {
   updateUniversitySchema,
   withdrawConsentSchema,
 } from '@/modules/universities/universities.schema'
+import { dismissDuplicateSchema, duplicatesQuerySchema } from '@/modules/data-quality/data-quality.schema'
+import { mergeUniversitiesSchema } from '@/modules/universities/merge.schema'
+import { timelineQuerySchema } from '@/modules/universities/timeline.schema'
+import { similarProgramsQuerySchema } from '@/modules/programs/similar.service'
+import { meetingsHeatmapQuerySchema } from '@/modules/analytics/meetings-heatmap.service'
 import {
   stageListQuerySchema,
   updateStageSchema,
@@ -1056,6 +1061,123 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'шаблонам, каждое число из текста есть в facts. Без ИИ.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
+  },
+
+  // ── Качество данных (решение 134) ────────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/data-quality/duplicates',
+    tag: 'Качество данных',
+    summary: 'Кандидаты в дубли: вузы, навыки, программы или продукты',
+    description:
+      'Пары { a, b, score, method, reasons } — самые похожие первыми, не больше 200. Названия ' +
+      'нормализуются (регистр, «ё», кавычки, сокращения, синонимы навыков), сходство — триграммы ' +
+      'как в pg_trgm, у коротких названий — число правок; у вузов — ещё ИНН, аббревиатура, город. ' +
+      'Программы сравниваются только внутри вуза. Пары «не дубль» скрыты (includeDismissed=true — ' +
+      'показать с признаком). В meta — порог, число сравненных записей, откуда взяты кандидаты ' +
+      'и сколько пар скрыто как «не дубль».',
+    permission: 'ANALYTICS',
+    query: duplicatesQuerySchema,
+    list: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/data-quality/duplicates/dismiss',
+    tag: 'Качество данных',
+    summary: 'Отметить пару «не дубль»',
+    description:
+      'ADMIN и MANAGER. Порядок записей не важен; повтор возвращает сохранённую отметку и журнал ' +
+      'не пишет. Обе записи должны существовать — иначе 422.',
+    body: dismissDuplicateSchema,
+    permission: 'WRITE',
+    returnsOk: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/data-quality/report',
+    tag: 'Качество данных',
+    summary: 'Отчёт «Качество справочника»: оценка 0–100 и проблемы',
+    description:
+      'По сущностям: score = 100 × (1 − Σ вес × доля записей с проблемой); итог — взвешенное среднее. ' +
+      'Проблемы — с числом, долей, штрафом и примерами со ссылками. Веса — data-quality.config.ts, ' +
+      'формула словами — в поле explanation.',
+    permission: 'ANALYTICS',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/universities/merge',
+    tag: 'Университеты',
+    summary: 'Слить вуз-дубль в другой',
+    description:
+      'Только администратор. Одной транзакцией программы, контакты, связки, встречи, документы, заявки ' +
+      'и представители дубля (sourceId) переходят к targetId. Значение каждого поля выбирает правило ' +
+      '(fieldRules): non_null — по умолчанию, most_recent, longest, manual (значение в manualValues); ' +
+      'пустое не побеждает. Журнал выживания — в ответе (survivorship). Дубль уходит в архив со ссылкой ' +
+      'mergedIntoId и не удаляется; отмена — /api/universities/merge/{id}/undo в течение 30 дней. ' +
+      'Разные ИНН — 409: это разные организации.',
+    body: mergeUniversitiesSchema,
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/universities/merge/{id}/undo',
+    tag: 'Университеты',
+    summary: 'Отменить слияние вузов',
+    description:
+      'Только администратор, в пределах срока (undoUntil). Объекты из журнала слияния возвращаются ' +
+      'дублю вместе с появившимися после слияния на его программах и связках; поля цели ' +
+      'откатываются, если их не меняли после слияния (restoredFields), изменённые — остаются (keptFields). ' +
+      'Повторная отмена и истёкший срок — 409.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    pathParams: { id: 'Идентификатор слияния (id из ответа слияния)' },
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/timeline',
+    tag: 'Университеты',
+    summary: 'Лента 360 вуза: все события одной лентой',
+    description:
+      'Смены этапов, проведённые встречи, статусы документов, заявки, связки — всем, кто видит вуз; ' +
+      'рекомендации и их статусы — ANALYTICS; факты по основаниям обработки ПД контактов (без ФИО) — ' +
+      'ADMIN и MANAGER; правки записи вуза и слияния — WRITE. Представитель вуза — только свой вуз, ' +
+      'без внутренних комментариев. Новые сверху, курсор: meta.nextCursor → ?cursor=. ' +
+      'types=stage,meeting — отбор; недоступные роли типы просто не входят (meta.types).',
+    permission: 'READ',
+    query: timelineQuerySchema,
+    list: true,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/programs/{id}/similar',
+    tag: 'Программы',
+    summary: 'Похожие программы и чего не хватает этой',
+    description:
+      'Косинус векторов навыков (вес = важность × idf) + 0,1 за направление + 0,05 за уровень. ' +
+      'В ответе — общие навыки и навыки похожих, которых у программы нет; missingSummary — подсказка ' +
+      'для skill gap. Программы без общих навыков не показываются.',
+    permission: 'ANALYTICS',
+    query: similarProgramsQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/meetings-heatmap',
+    tag: 'Аналитика',
+    summary: 'Тепловая карта проведённых встреч: день недели × час (МСК)',
+    description:
+      'cells — 7 строк (пн … вс) × 24 часа. Проведённые — не позже текущего момента. ' +
+      'Фильтры from, to, universityId; область видимости — как у встреч.',
+    permission: 'ANALYTICS',
+    query: meetingsHeatmapQuerySchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
   },
 
   // ── Рекомендации ──────────────────────────────────────────────────────────
