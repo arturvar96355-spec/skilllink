@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useState } from 'react'
 import {
@@ -349,9 +350,9 @@ function RecommendationsContent() {
                         {RECOMMENDATION_PRIORITY_LABELS[item.priority]} приоритет
                       </span>
                     </span>
-                    <a className={styles.title} href={`/recommendations?recommendation=${item.id}`}>
+                    <Link className={styles.title} href={`/recommendations?recommendation=${item.id}`} scroll={false}>
                       {item.title}
-                    </a>
+                    </Link>
                     <RecommendationDescription text={item.description} />
 
                     {/*
