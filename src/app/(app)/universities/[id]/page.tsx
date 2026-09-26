@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
 import type {
@@ -790,7 +791,7 @@ export default function UniversityPage() {
                     <span className={styles.eventText}>
                       <span className={styles.eventTitle}>
                         {event.cooperationId ? (
-                          <a href={cooperationHref(event.cooperationId)}>{event.title}</a>
+                          <Link href={cooperationHref(event.cooperationId)}>{event.title}</Link>
                         ) : (
                           event.title
                         )}

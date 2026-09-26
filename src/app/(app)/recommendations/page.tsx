@@ -366,10 +366,10 @@ function RecommendationsContent() {
                     )}
 
                     <div className={styles.foot}>
-                      <a className={styles.target} href={recommendationTargetHref(item.target)}>
+                      <Link className={styles.target} href={recommendationTargetHref(item.target)}>
                         {item.target.label}
                         <Icon name="arrowRight" size={16} />
-                      </a>
+                      </Link>
                       <span className={styles.meta}>
                         {/* Код правила — в панели рекомендации, в «Служебном»: в ленте он ничего не говорит. */}
                         уверенность {CONFIDENCE_LABELS[item.confidence].toLowerCase()} ·{' '}
@@ -445,10 +445,10 @@ function RecommendationsContent() {
 
             <div className={styles.block}>
               <span className={styles.blockLabel}>К чему относится</span>
-              <a className={styles.target} href={recommendationTargetHref(opened.target)}>
+              <Link className={styles.target} href={recommendationTargetHref(opened.target)}>
                 {opened.target.label}
                 <Icon name="arrowRight" size={16} />
-              </a>
+              </Link>
             </div>
 
             {opened.relatedData && (
