@@ -665,6 +665,41 @@ export const EXTRA_PROGRAMS: readonly ProgramSpec[] = [
     skills: [['Информационная безопасность', 'ADVANCED', 'CRITICAL'], ['Сетевые технологии', 'ADVANCED', 'HIGH']] },
   { key: 'tomsk-soft', university: 'tomsk', status: 'ARCHIVED', name: 'Программная инженерия', code: SE[0], direction: SE[1], level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
     skills: [['Java', 'INTERMEDIATE', 'HIGH'], ['Тестирование ПО', 'BASIC', 'MEDIUM']] },
+
+  // ─── Решение 141: сеть общих направлений на несколько вузов, а не звезда
+  // уникальных названий — у каждого направления (код ФГОС) свои 3–8 вузов,
+  // одни коды переиспользуются намеренно. Новые связки на эти программы — ниже,
+  // в MORE_COOPERATIONS. Kubernetes/PostgreSQL/MLOps по-прежнему нигде не заведены.
+  { key: 'vsu-networks', university: 'vsu', name: 'Инфокоммуникационные системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 190, studentCount: 80, groupCount: 3,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'dvfu-isit', university: 'dvfu', name: 'Информационные системы и технологии', code: '09.03.02', direction: 'Информационные системы и технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 200, studentCount: 84, groupCount: 3,
+    skills: [['JavaScript', 'INTERMEDIATE', 'HIGH'], ['SQL', 'INTERMEDIATE', 'HIGH']] },
+  { key: 'dvfu-appl', university: 'dvfu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 175, studentCount: 70, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'innopolis-pmi', university: 'innopolis', name: 'Прикладная математика и информатика', code: '01.03.02', direction: 'Прикладная математика и информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 210, studentCount: 88, groupCount: 3,
+    skills: [['Python', 'ADVANCED', 'HIGH'], ['SQL', 'INTERMEDIATE', 'HIGH']] },
+  { key: 'kubstu-networks', university: 'kubstu', status: 'ARCHIVED', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'kubstu-pmi', university: 'kubstu', status: 'ARCHIVED', name: 'Прикладная математика и информатика', code: '01.03.02', direction: 'Прикладная математика и информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Python', 'BASIC', 'MEDIUM'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-networks', university: 'omgtu', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 150, studentCount: 62, groupCount: 2,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-appl', university: 'omgtu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 165, studentCount: 68, groupCount: 3,
+    skills: [['Аналитика данных', 'BASIC', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'omgtu-master', university: 'omgtu', name: 'Информатика и вычислительная техника', code: '09.04.01', direction: 'Информатика и вычислительная техника', level: 'MASTER', durationMonths: 24, applicationCount: 80, studentCount: 32, groupCount: 2,
+    skills: [['Python', 'INTERMEDIATE', 'HIGH'], ['Машинное обучение', 'BASIC', 'MEDIUM']] },
+  { key: 'psuti-appl', university: 'psuti', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 195, studentCount: 82, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'INTERMEDIATE', 'MEDIUM']] },
+  { key: 'pnipu-appl', university: 'pnipu', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 185, studentCount: 76, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['Бизнес-анализ', 'BASIC', 'MEDIUM'], ['Бизнес-аналитика (BI)', 'BASIC', 'MEDIUM']] },
+  { key: 'pnipu-networks', university: 'pnipu', name: 'Инфокоммуникационные технологии и системы связи', code: '11.03.02', direction: 'Инфокоммуникационные технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: 160, studentCount: 66, groupCount: 2,
+    skills: [['Сетевые технологии', 'INTERMEDIATE', 'HIGH'], ['Linux', 'BASIC', 'MEDIUM']] },
+  { key: 'tomsk-isit', university: 'tomsk', status: 'ARCHIVED', name: 'Информационные системы и технологии', code: '09.03.02', direction: 'Информационные системы и технологии', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['JavaScript', 'BASIC', 'MEDIUM'], ['SQL', 'BASIC', 'MEDIUM']] },
+  { key: 'tomsk-business', university: 'tomsk', status: 'ARCHIVED', name: 'Бизнес-информатика и анализ данных', code: '38.03.05', direction: 'Бизнес-информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: null, studentCount: null, groupCount: null,
+    skills: [['Аналитика данных', 'BASIC', 'MEDIUM'], ['Управление проектами', 'BASIC', 'LOW']] },
+  { key: 'kantiana-appl', university: 'kantiana', name: 'Прикладная информатика', code: '09.03.03', direction: 'Прикладная информатика', level: 'BACHELOR', durationMonths: 48, applicationCount: 170, studentCount: 70, groupCount: 3,
+    skills: [['Аналитика данных', 'INTERMEDIATE', 'HIGH'], ['SQL', 'BASIC', 'MEDIUM']] },
 ]
 
 // ─────────────────────────────── Связки ───────────────────────────────────────
@@ -708,6 +743,7 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'unn-soft', university: 'unn', program: 'unn-soft', product: 'teamDev', responsible: 'manager2', status: 'COMPLETED', stage: 14, pattern: 'regular', goal: 'Командная разработка в курсе программной инженерии: курс прочитан' },
   { key: 'unn-infosec', university: 'unn', program: 'unn-infosec', product: 'cyberRange', responsible: 'manager', status: 'ACTIVE', stage: 7, pattern: 'demandBase', goal: 'Киберполигон для практикума по безопасности' },
   { key: 'unn-data', university: 'unn', program: 'unn-data', product: 'dbms', responsible: 'manager2', status: 'ACTIVE', stage: 11, pattern: 'regular', goal: 'Учебный стенд СУБД в курсе баз данных' },
+  { key: 'unn-dpo', university: 'unn', program: 'unn-dpo', product: null, responsible: 'manager', status: 'ACTIVE', stage: 3, pattern: 'regular', goal: 'Курс анализа данных для инженеров' },
   // ПГУТИ
   { key: 'psuti-networks', university: 'psuti', program: 'psuti-networks', product: 'iot', responsible: 'manager', status: 'ACTIVE', stage: 12, pattern: 'regular', goal: 'Платформа интернета вещей в лабораторном практикуме' },
   { key: 'psuti-soft', university: 'psuti', program: 'psuti-soft', product: 'cloud', responsible: 'manager2', status: 'ACTIVE', stage: 10, pattern: 'regular', overdue: true, goal: 'Облачная платформа в курсе распределённых систем' },
@@ -755,4 +791,41 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'innopolis-mobile', university: 'innopolis', program: 'innopolis-mobile', product: 'mobile', responsible: 'manager2', status: 'ACTIVE', stage: 7, pattern: 'regular', blocked: 'Лицензия не подписана: проректор в командировке до середины октября', goal: 'Платформа мобильной разработки в программе ДПО' },
   // КубГТУ — переговоры не вышли из этапа 6, вуз в архиве
   { key: 'kubstu-soft', university: 'kubstu', program: 'kubstu-soft', product: 'cloud', responsible: 'manager', status: 'CANCELLED', stage: 6, pattern: 'stuck', goal: 'Облачная платформа в курсе ИС', notes: 'Отменена: за четыре месяца договор так и не согласовали, вуз прекратил переговоры.' },
+
+  // ─── Решение 141: 4–7 связок на вуз (было 2–3) — те же продукты на программах
+  // общих направлений в нескольких вузах, разные статусы и этапы.
+  // ВГУ — вторая и третья связки
+  { key: 'vsu-ai', university: 'vsu', program: 'vsu-ai', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичные переговоры по магистратуре ИИ: направление ещё черновик' },
+  { key: 'vsu-networks', university: 'vsu', program: 'vsu-networks', product: 'monitoring', responsible: 'manager', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Мониторинг инфраструктуры в курсе связи' },
+  // ДВФУ
+  { key: 'dvfu-isit', university: 'dvfu', program: 'dvfu-isit', product: 'devops', responsible: 'manager', status: 'ACTIVE', stage: 5, pattern: 'regular', goal: 'Конвейер сборки в информационных системах' },
+  { key: 'dvfu-appl', university: 'dvfu', program: 'dvfu-appl', product: 'dataLab', responsible: 'manager2', status: 'COMPLETED', stage: 14, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике: курс прочитан' },
+  // ИРНИТУ — программа доп. образования закрыта вместе со связкой
+  { key: 'irnitu-dpo', university: 'irnitu', program: 'irnitu-dpo', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 3, pattern: 'regular', goal: 'Курс промышленной аналитики данных', notes: 'Отменена: программу доп. образования закрыли за недобором слушателей.' },
+  // Иннополис
+  { key: 'innopolis-pmi', university: 'innopolis', program: 'innopolis-pmi', product: 'dbms', responsible: 'manager', status: 'ACTIVE', stage: 8, pattern: 'regular', goal: 'Учебный стенд СУБД в прикладной математике' },
+  // КубГТУ — вуз в архиве, остальные связки тоже не пошли дальше
+  { key: 'kubstu-data', university: 'kubstu', program: 'kubstu-data', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 4, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике', notes: 'Отменена вместе с остальными переговорами при закрытии сотрудничества.' },
+  { key: 'kubstu-networks', university: 'kubstu', program: 'kubstu-networks', product: null, responsible: 'manager', status: 'CANCELLED', stage: 2, pattern: 'regular', goal: 'Сети связи в инфокоммуникационных технологиях', notes: 'Отменена вместе с остальными переговорами при закрытии сотрудничества.' },
+  { key: 'kubstu-pmi', university: 'kubstu', program: 'kubstu-pmi', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичная заявка по прикладной математике' },
+  // ОмГТУ — новый вуз, разные стадии знакомства
+  { key: 'omgtu-networks', university: 'omgtu', program: 'omgtu-networks', product: 'iot', responsible: 'manager', status: 'ACTIVE', stage: 3, pattern: 'regular', goal: 'Платформа интернета вещей в инфокоммуникационных технологиях' },
+  { key: 'omgtu-appl', university: 'omgtu', program: 'omgtu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'regular', overdue: true, goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'omgtu-master', university: 'omgtu', program: 'omgtu-master', product: null, responsible: 'manager', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичные переговоры по магистратуре ИВТ' },
+  // ПГУТИ
+  { key: 'psuti-appl', university: 'psuti', program: 'psuti-appl', product: 'dataLab', responsible: 'manager', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
+  // ПНИПУ — активность падает, как и у остальных связок вуза
+  { key: 'pnipu-appl', university: 'pnipu', program: 'pnipu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'fading', idle: true, goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'pnipu-networks', university: 'pnipu', program: 'pnipu-networks', product: 'monitoring', responsible: 'manager', status: 'PAUSED', stage: 4, pattern: 'fading', goal: 'Мониторинг инфраструктуры в инфокоммуникационных технологиях', notes: 'Пауза: та же причина, что и у остальных связок вуза — активность падает.' },
+  // СФУ — аспирантура, некрупная связка
+  { key: 'sfu-phd', university: 'sfu', program: 'sfu-phd', product: null, responsible: 'manager2', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Научный семинар по системному ПО в аспирантуре' },
+  // ТУСУР — вуз в архиве, ни одна связка не пошла дальше первых этапов
+  { key: 'tomsk-infosec', university: 'tomsk', program: 'tomsk-infosec', product: null, responsible: 'manager', status: 'CANCELLED', stage: 3, pattern: 'regular', goal: 'Защищённые сети связи', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-soft', university: 'tomsk', program: 'tomsk-soft', product: null, responsible: 'manager2', status: 'CANCELLED', stage: 2, pattern: 'regular', goal: 'Программная инженерия', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-isit', university: 'tomsk', program: 'tomsk-isit', product: null, responsible: 'manager', status: 'CANCELLED', stage: 1, pattern: 'regular', goal: 'Информационные системы и технологии', notes: 'Отменена: переговоры не пошли дальше знакомства.' },
+  { key: 'tomsk-business', university: 'tomsk', program: 'tomsk-business', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичная заявка по бизнес-информатике' },
+  // УУНиТ — приостановленная программа даёт связке на паузе
+  { key: 'uust-embedded', university: 'uust', program: 'uust-embedded', product: 'iot', responsible: 'manager2', status: 'PAUSED', stage: 4, pattern: 'regular', idle: true, goal: 'Платформа интернета вещей во встраиваемых системах', notes: 'Пауза: программа приостановлена, набор не объявлен.' },
+  // БФУ им. И. Канта
+  { key: 'kantiana-appl', university: 'kantiana', program: 'kantiana-appl', product: 'dataLab', responsible: 'manager', status: 'ACTIVE', stage: 11, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
 ]
