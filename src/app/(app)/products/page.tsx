@@ -33,13 +33,16 @@ import {
   Toolbar,
   ToolbarItem,
   ToolbarSearch,
+  apiPut,
   buildQuery,
   formatDate,
   formatNumber,
   productHref,
   useCurrentUser,
   useDebounced,
+  useMutation,
   useResource,
+  useToast,
   usePageInRange,
   CellText,
   type BadgeTone,
@@ -48,6 +51,7 @@ import {
   Avatar,
   pluralize,
 } from '@/ui'
+import { AddProductSkillModal } from './AddProductSkillModal'
 import { ProductFormModal } from './ProductFormModal'
 import styles from './products.module.css'
 
@@ -322,9 +326,33 @@ function ProductDrawer({
   /** Реестр перечитывается после правки: в строке те же название, версия и статус. */
   onSaved: () => void
 }) {
+  const toast = useToast()
   const product = useResource<ProductDto>(`/api/products/${productId}`)
   const data = product.data
   const [isEditOpen, setIsEditOpen] = useState(false)
+  // Навыки продукта (задача «Данные без экрана», пункт 4) — по образцу навыков программы (решение 152).
+  const [isAddSkillOpen, setIsAddSkillOpen] = useState(false)
+  const [removingSkillId, setRemovingSkillId] = useState<string | null>(null)
+  const removeSkill = useMutation(async (skillId: string) => {
+    const skills = (data?.skills ?? [])
+      .filter((skill) => skill.skillId !== skillId)
+      .map((skill) => ({ skillId: skill.skillId, relevance: skill.relevance }))
+    const result = await apiPut<ProductDto>(`/api/products/${productId}/skills`, { skills })
+    return result.data
+  })
+
+  async function onRemoveSkill(skillId: string) {
+    setRemovingSkillId(skillId)
+    const result = await removeSkill.run(skillId)
+    setRemovingSkillId(null)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Навык убран из продукта')
+    product.reload()
+    onSaved()
+  }
 
   return (
     <Drawer
@@ -380,7 +408,14 @@ function ProductDrawer({
           </dl>
 
           <div className={styles.skills}>
-            <h3 className={styles.skillsTitle}>Навыки продукта</h3>
+            <div className={styles.skillsHead}>
+              <h3 className={styles.skillsTitle}>Навыки продукта</h3>
+              {canEdit && (
+                <Button variant="secondary" size="sm" icon="plus" onClick={() => setIsAddSkillOpen(true)}>
+                  Добавить навык
+                </Button>
+              )}
+            </div>
             {data.skills.length === 0 ? (
               <p className={styles.empty}>Навыки продукта не заданы.</p>
             ) : (
@@ -394,6 +429,17 @@ function ProductDrawer({
                     <Badge tone={skill.relevance === 'CORE' ? 'accent' : 'neutral'}>
                       {PRODUCT_SKILL_RELEVANCE_LABELS[skill.relevance]}
                     </Badge>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRemoveSkill(skill.skillId)}
+                        isLoading={removeSkill.isPending && removingSkillId === skill.skillId}
+                        disabled={removeSkill.isPending}
+                      >
+                        Убрать
+                      </Button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -424,6 +470,19 @@ function ProductDrawer({
           onClose={(saved) => {
             setIsEditOpen(false)
             if (!saved) return
+            product.reload()
+            onSaved()
+          }}
+        />
+      )}
+
+      {isAddSkillOpen && data && (
+        <AddProductSkillModal
+          productId={productId}
+          existingSkills={data.skills}
+          onClose={(added) => {
+            setIsAddSkillOpen(false)
+            if (!added) return
             product.reload()
             onSaved()
           }}

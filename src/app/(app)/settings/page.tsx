@@ -30,7 +30,9 @@ import {
 } from '@/ui'
 import { AdminChannelsSection } from './AdminChannelsSection'
 import { AuditSection } from './AuditSection'
+import { CalculationParametersSection } from './CalculationParametersSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
+import { SkillsSection } from './SkillsSection'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
 import { WorkflowStagesSection } from './WorkflowStagesSection'
@@ -77,6 +79,8 @@ const SECTIONS = [
   { key: 'integrations', label: 'Интеграции', icon: 'cooperation', adminOnly: false },
   { key: 'users', label: 'Пользователи', icon: 'user', adminOnly: true },
   { key: 'workflow', label: 'Этапы работы', icon: 'calendar', adminOnly: true },
+  { key: 'skills', label: 'Справочник навыков', icon: 'skill', adminOnly: true },
+  { key: 'parameters', label: 'Параметры расчётов', icon: 'analytics', adminOnly: false },
   { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
   { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
 ] as const
@@ -85,7 +89,7 @@ type SectionKey = (typeof SECTIONS)[number]['key']
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
-const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'audit']
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'parameters', 'audit']
 
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
@@ -272,6 +276,10 @@ export default function SettingsPage() {
       'Сотрудники ИТ-Школы и представители вузов. Пароль нового пользователя система придумывает сама и показывает один раз; блокировка действует сразу, в том числе на открытые сессии.',
     workflow:
       'Шаблон 14 этапов, по которому заводятся новые связки. Правка названия и срока касается только новых связок — уже заведённые остаются как есть, если явно не попросить пересчитать.',
+    skills:
+      'Общий справочник навыков для программ и продуктов. Объединение дубля переносит его связи на выбранный навык; удалить можно только тот, которым нигде не пользуются.',
+    parameters:
+      'Коэффициенты, пороги и нормативы, с которыми сейчас считает код — только чтение. Значения меняются правкой конфигурации на сервере, рабочие значения (TEMP) утверждаются с заказчиком отдельно.',
     audit:
       'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
   }
@@ -384,6 +392,13 @@ export default function SettingsPage() {
 
       case 'workflow':
         return isAdmin ? <WorkflowStagesSection /> : null
+
+      case 'skills':
+        return isAdmin ? <SkillsSection /> : null
+
+      case 'parameters':
+        if (!canSeeSources) return <Locked what="Параметры расчётов" />
+        return <CalculationParametersSection />
 
       case 'audit':
         return isAdmin ? <AuditSection /> : null
