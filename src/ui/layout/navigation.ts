@@ -50,6 +50,7 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   const tools: NavItem[] = []
   if (user.permissions.canSeeAnalytics) {
     tools.push({ href: ROUTES.analytics, label: 'Аналитика', icon: 'analytics' })
+    tools.push({ href: ROUTES.dataQuality, label: 'Качество данных', icon: 'check' })
   }
   // Отчёт руководителю, отчёт и каталог по ТЗ живут под одним общим адресом
   // (решение 150) — пункт меню ведёт на раздел, подсвечивается на любой его странице.
@@ -139,6 +140,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.settings, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
 ]
 

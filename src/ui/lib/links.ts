@@ -34,6 +34,8 @@ export const ROUTES = {
   privacy: '/privacy',
   /** Состояние системы словами — вместо сырого JSON /api/health (решение 126). */
   status: '/status',
+  /** Качество данных: пробелы, устаревшее, дубли (ТЗ дизайна 26–29.09, п. 4.4). */
+  dataQuality: '/data-quality',
 } as const
 
 /**
