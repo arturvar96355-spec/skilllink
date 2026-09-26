@@ -50,6 +50,11 @@ export interface CurrentUserDto {
      */
     canSeeContactDetails: boolean
     isAdmin: boolean
+    /**
+     * Назначить, сменить или снять ответственного за вуз, сменить ответственного
+     * у связки (решение 146, роль «Руководитель»): `ADMIN`, `HEAD`.
+     */
+    canAssignResponsible: boolean
   }
   /**
    * Действующий пароль выдан администратором как временный:

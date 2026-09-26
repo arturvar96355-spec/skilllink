@@ -83,4 +83,12 @@ describe('права текущего пользователя', () => {
     expect(describeCurrentUser(as('VIEWER')).permissions.canSeeContactDetails).toBe(false)
     expect(describeCurrentUser(as('UNIVERSITY_REP')).permissions.canSeeContactDetails).toBe(false)
   })
+
+  it('переназначать ответственного за вуз и связку может только ADMIN и HEAD (решение 146)', () => {
+    expect(describeCurrentUser(as('ADMIN')).permissions.canAssignResponsible).toBe(true)
+    expect(describeCurrentUser(as('HEAD')).permissions.canAssignResponsible).toBe(true)
+    expect(describeCurrentUser(as('MANAGER')).permissions.canAssignResponsible).toBe(false)
+    expect(describeCurrentUser(as('ANALYST')).permissions.canAssignResponsible).toBe(false)
+    expect(describeCurrentUser(as('UNIVERSITY_REP')).permissions.canAssignResponsible).toBe(false)
+  })
 })
