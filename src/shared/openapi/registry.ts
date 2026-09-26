@@ -11,6 +11,13 @@ import {
   eraseSubjectSchema,
 } from '@/modules/dsar/dsar.schema'
 import { importQuerySchema } from '@/modules/import/import.schema'
+import { vendorImportQuerySchema, vendorListQuerySchema } from '@/modules/vendors/vendors.schema'
+import {
+  createSchoolCourseSchema,
+  lmsFileQuerySchema,
+  schoolCourseListQuerySchema,
+  siteOrdersQuerySchema,
+} from '@/modules/enrollment/enrollment.schema'
 import { notificationFeedQuerySchema } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
@@ -1395,6 +1402,100 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'WRITE',
     query: importQuerySchema,
     errors: WRITE_ERRORS,
+  },
+
+  // ── Вендоры, курсы ИТ-Школы, заказы с сайта → LMS (решение 132) ─────────────
+  {
+    method: 'get',
+    path: '/api/vendors',
+    tag: 'Вендоры',
+    summary: 'Реестр вендоров IT-продуктов',
+    description: 'Компании-вендоры с продуктами, числом контактов и связок. Поиск q — по названию вендора или продукта.',
+    permission: 'VENDORS',
+    query: vendorListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/vendors/{id}',
+    tag: 'Вендоры',
+    summary: 'Карточка вендора',
+    description:
+      'Продукты, контакты (почта и телефон — только ADMIN и MANAGER, иначе null и contactDetailsHidden), ' +
+      'связки с продуктами вендора, курсы ИТ-Школы на базе его продуктов.',
+    permission: 'VENDORS',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/vendors',
+    tag: 'Вендоры',
+    summary: 'Загрузка вендоров, продуктов и контактов (xlsx или CSV)',
+    description:
+      'Тело — сам файл: книга Excel или CSV с колонками Компания, Продукт, ФИО, Телефон, Почта, Способ связи. ' +
+      'По умолчанию предпросмотр {toCreate, toUpdate, errors[{row, column, message}]}; запись — mode=apply. ' +
+      'Несколько продуктов в ячейке — «A», «B». Телефон → +7XXXXXXXXXX, почта — нижний регистр. ' +
+      'Продукт сопоставляется по названию без кавычек, регистра и пробелов; недостающий заводится.',
+    permission: 'WRITE',
+    query: vendorImportQuerySchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/site-orders',
+    tag: 'Набор на курсы',
+    summary: 'Загрузка заказов с сайта',
+    description:
+      'Тело — JSON-массив заказов, как выгружает сайт (ключи: Номер заявки, Курс, Фамилия, Имя, Отчество, ' +
+      'Телефон, Email, Номер потока; null пропускается). По умолчанию предпросмотр с отчётом о качестве данных; ' +
+      'запись — mode=apply. В базе и в ответе нет ФИО, почты и телефона: хранятся номер заявки, курс, поток, ' +
+      'дата из номера и HMAC почты и телефона. Повторная загрузка того же файла ничего не создаёт.',
+    permission: 'SITE_ORDERS',
+    query: siteOrdersQuerySchema,
+    returnsOk: true,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/import/site-orders/lms-file',
+    tag: 'Набор на курсы',
+    summary: 'Файл «Загрузка пользователей» для LMS',
+    description:
+      'Тело — тот же JSON заказов. Ответ — книга Excel по шаблону LMS (30 колонок, Лист2 со справочниками); ' +
+      'заполнены Фамилия, Имя, Отчество, Номер телефона (7XXXXXXXXXX), Email. Только уже загруженные заказы, ' +
+      'один человек — одна строка. scope=new — без тех, кто уже уходил в LMS; фильтр courseId и stream. ' +
+      'Заголовки ответа: x-total-rows, x-skipped-not-imported, x-skipped-already-exported, x-duplicates-merged. ' +
+      'Cache-Control: no-store.',
+    permission: 'SITE_ORDERS',
+    query: lmsFileQuerySchema,
+    returnsOk: true,
+    fileContentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/school-courses',
+    tag: 'Набор на курсы',
+    summary: 'Курсы ИТ-Школы с показателями набора',
+    description:
+      'Заявки (заказы), слушатели (разные люди по HMAC почты или телефона), группы (потоки) — по курсу и потоку. ' +
+      'meta.totals — итог по всем курсам.',
+    permission: 'VENDORS',
+    query: schoolCourseListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/school-courses',
+    tag: 'Набор на курсы',
+    summary: 'Завести курс ИТ-Школы',
+    description: 'Название уникально без учёта регистра, пробелов и кавычек — дубль CONFLICT. productId — курс на базе продукта.',
+    permission: 'WRITE',
+    body: createSchoolCourseSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
   {
     method: 'get',

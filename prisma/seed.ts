@@ -16,6 +16,7 @@ import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
+import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
 
@@ -62,6 +63,7 @@ const DAYS_AFTER_CLASSES_START: Partial<Record<number, number>> = { 11: 30, 12: 
 
 /** Порядок важен: сначала зависимые таблицы. */
 async function clean(): Promise<void> {
+  await cleanVendorData(prisma)
   // Журнал, его печати и точки чистки только дописываются (решение 115): перезаливка
   // демо — осознанный обход, одной транзакцией. Цепочка начинается заново с № 1,
   // печати прежнего журнала вместе с ним теряют смысл и удаляются.
@@ -1721,6 +1723,9 @@ async function main(): Promise<void> {
   const skillId = await seedSkills()
   await seedMarket(mockSource, skillId)
   const products = await seedProducts(skillId)
+  const vendors = await seedVendors(prisma)
+  const courses = await seedSchoolCourses(prisma, now)
+  console.log(`  вендоры (решение 132): ${vendors.vendors}, их продуктов ${vendors.products}, контактов ${vendors.contacts}; курсов ${courses.courses}, заказов с сайта ${courses.orders}`)
   const { universityId, universityCreatedAt } = await seedUniversities()
   await seedContactBases(users.manager, universityId, universityCreatedAt)
   const programId = await seedPrograms(skillId, universityId, universityCreatedAt)
