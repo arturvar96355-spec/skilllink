@@ -2299,7 +2299,7 @@ async function seedHeadUser(demoPasswordHash: string): Promise<SeedUser> {
     data: {
       email: 'head@skilllink.demo',
       passwordHash: demoPasswordHash,
-      fullName: 'Воронцова Ирина Павловна',
+      fullName: 'Тимофеев Аркадий Семёнович',
       position: 'Руководитель направления сотрудничества с вузами',
       role: 'HEAD',
     },
