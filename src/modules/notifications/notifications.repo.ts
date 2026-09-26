@@ -8,6 +8,7 @@ import type {
   DocumentChangeSource,
   FeedSources,
   RecommendationSource,
+  ResponsibleAssignedSource,
   StageChangeSource,
   StageDeadlineSource,
 } from './notifications.rules'
@@ -103,6 +104,54 @@ function toDocumentChange(row: DocumentChangeRow): DocumentChangeSource {
 }
 
 /**
+ * Пользователя назначили или сняли ответственным за вуз (решение 146, роль
+ * «Руководитель»): читается из журнала действий (`university.responsible.set`),
+ * отдельной таблицы нет — тот же приём, что у остальной ленты (решение 139).
+ * `notBy` не нужен: событие всегда решение другого (ADMIN/HEAD), не самого себя,
+ * а если и своё — увидеть подтверждение назначения самому себе не вредно.
+ */
+async function loadResponsibleAssignments(userId: string, since: Date): Promise<ResponsibleAssignedSource[]> {
+  const rows = await prisma.auditLog.findMany({
+    where: {
+      action: 'university.responsible.set',
+      createdAt: { gte: since },
+      OR: [
+        { payload: { path: ['responsibleId'], equals: userId } },
+        { payload: { path: ['previousResponsibleId'], equals: userId } },
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: PER_SOURCE,
+    select: { id: true, objectId: true, payload: true, createdAt: true },
+  })
+  if (rows.length === 0) return []
+
+  const universities = await prisma.university.findMany({
+    where: { id: { in: [...new Set(rows.map((row) => row.objectId))] } },
+    select: { id: true, name: true, shortName: true },
+  })
+  const nameById = new Map(universities.map((u) => [u.id, u.shortName ?? u.name]))
+
+  return rows.flatMap((row): ResponsibleAssignedSource[] => {
+    const payload = row.payload as { responsibleId?: string | null; previousResponsibleId?: string | null } | null
+    const universityName = nameById.get(row.objectId)
+    if (!payload || !universityName) return []
+    // Один и тот же ADMIN/HEAD снял пользователя и в этом же действии назначил
+    // его же обратно — событие «назначен» важнее «снят», второго не показываем.
+    const assigned = payload.responsibleId === userId
+    return [
+      {
+        auditLogId: row.id,
+        universityId: row.objectId,
+        universityName,
+        assigned,
+        changedAt: row.createdAt,
+      },
+    ]
+  })
+}
+
+/**
  * Лента сотрудника: его этапы со сроками, изменения других людей в его связках
  * и документах, важные открытые рекомендации по его связкам. Общие рекомендации,
  * не привязанные к связке, — только тем, кому открыта аналитика.
@@ -112,7 +161,7 @@ export async function loadForStaff(
   since: Date,
   includeGlobalRecommendations: boolean,
 ): Promise<FeedSources> {
-  const [deadlines, stageChanges, documentChanges, recommendations] = await Promise.all([
+  const [deadlines, stageChanges, documentChanges, recommendations, responsibleAssignments] = await Promise.all([
     prisma.workflowStage.findMany({
       where: {
         responsibleId: userId,
@@ -184,6 +233,7 @@ export async function loadForStaff(
         cooperationId: true,
       },
     }),
+    loadResponsibleAssignments(userId, since),
   ])
 
   const labels = await resolveTargetLabels(recommendations)
@@ -220,6 +270,7 @@ export async function loadForStaff(
         cooperationId: row.cooperationId,
       }),
     ),
+    responsibleAssignments,
   }
 }
 
@@ -268,6 +319,9 @@ export async function loadForUniversity(
     stageChanges: stageChanges.map(toStageChange),
     documentChanges: documentChanges.map(toDocumentChange),
     recommendations: [],
+    // Ответственный назначается только сотруднику (assertStaffResponsible, RESPONSIBLE_ROLES):
+    // представитель вуза им не бывает, событию в его ленте взяться неоткуда.
+    responsibleAssignments: [],
   }
 }
 

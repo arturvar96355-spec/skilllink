@@ -18,6 +18,12 @@ export const NOTIFICATION_KINDS = [
   'stage.changed',
   'document.changed',
   'recommendation',
+  /**
+   * Пользователя назначили (или сняли) ответственным за вуз (решение 146,
+   * роль «Руководитель»). Источник — журнал действий (audit.university.responsible.set),
+   * а не отдельная таблица (тот же приём, что у остальной ленты).
+   */
+  'university.responsible-changed',
 ] as const
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 
@@ -30,7 +36,7 @@ export type NotificationSeverity = 'critical' | 'warning' | 'info'
  * сразу к нужному этапу связки.
  */
 export interface NotificationTargetDto {
-  type: 'cooperation' | 'document' | 'recommendation'
+  type: 'cooperation' | 'document' | 'recommendation' | 'university'
   id: string
   cooperationId: string | null
   stageId: string | null

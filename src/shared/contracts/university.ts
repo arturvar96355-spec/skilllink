@@ -116,6 +116,13 @@ export interface UniversityListItemDto {
    * внутри объекта, а не сам `null`.
    */
   rating: UniversityRatingDto | null
+  /**
+   * Ответственный за вуз (ТЗ — роль «Руководитель», решение 146). `null` — не назначен,
+   * это не ошибка настройки: в отличие от связки, у вуза ответственный необязателен.
+   * Назначает, меняет и снимает `PATCH /api/universities/:id/responsible` — только
+   * право `ASSIGN_RESPONSIBLE` (роли ADMIN, HEAD).
+   */
+  responsible: UserRefDto | null
   updatedAt: string
   archivedAt: string | null
 }

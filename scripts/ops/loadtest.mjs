@@ -20,10 +20,29 @@
  * Для каждого: прогрев (--warmup запросов, в замер не идут), затем --requests запросов
  * при --concurrency одновременно. Итог: p50/p95/p99, среднее, RPS, коды ответов.
  *
+ *   --scenario tz  сценарий буквально по ТЗ (раздел «Приоритет 1», п. 9; решение 146):
+ *                  --vusers (по умолчанию 50) виртуальных пользователей, каждый со
+ *                  своей сессией под демо-учётками разных ролей (вход один раз —
+ *                  не входит в замер), затем цикл «главная → реестр вузов → карточка →
+ *                  связка → рекомендации» с паузами 1–3 с между шагами; одновременно
+ *                  --reportWorkers (по умолчанию 10) воркеров подряд формируют отчёт
+ *                  (GET /api/export?dataset=cooperations — самая тяжёлая выгрузка
+ *                  из тех, что есть; готового PDF или отдельного «отчёта руководителю»
+ *                  в системе сейчас нет — см. docs/OPERATIONS_TESTS.md). Всё это —
+ *                  --duration секунд (по умолчанию 240 — середина диапазона 3–5 минут
+ *                  из ТЗ). Метрики и вердикт «требование ТЗ выполнено» — отдельно по
+ *                  50 пользователям и по 10 отчётам.
+ *
  * Вход — LOADTEST_EMAIL / LOADTEST_PASSWORD (по умолчанию admin@skilllink.demo /
- * SEED_DEMO_PASSWORD или «skilllink»). Если в сборке есть ограничение частоты
+ * SEED_DEMO_PASSWORD или «skilllink»); сценарий tz входит под несколькими демо-учётками
+ * с тем же паролем (SEED_DEMO_PASSWORD). Если в сборке есть ограничение частоты
  * запросов (решение 117), для прогона его предел поднимают через env — иначе
- * в итоге будут 429, и тест измерит ограничитель, а не приложение.
+ * в итоге будут 429, и тест измерит ограничитель, а не приложение. Для сценария tz
+ * используется тот же приём, что и у остальных сценариев: DEMO_AUTH_ENABLED=true
+ * (значение .env по умолчанию для локальной сборки, на стенде экспертов оно всегда
+ * false) переводит ограничитель в режим только наблюдения (rate-limit-guard.ts,
+ * `enforce = !isDemoAuthEnabled()`) — реальный предел прогону не мешает, а его
+ * значения из решения 117 продолжают действовать на стенде без каких-либо изменений.
  *
  * --json <файл> — сохранить итог машиночитаемо.
  */
@@ -45,6 +64,14 @@ const JSON_OUT = option('json', '')
 const EMAIL = process.env.LOADTEST_EMAIL ?? 'admin@skilllink.demo'
 const PASSWORD = process.env.LOADTEST_PASSWORD ?? process.env.SEED_DEMO_PASSWORD ?? 'skilllink'
 
+// ── Сценарий tz (ТЗ, п. 9; решение 146) ───────────────────────────────────────
+const TZ_DURATION_SECONDS = Number(option('duration', '240'))
+const TZ_VUSERS = Number(option('vusers', '50'))
+const TZ_REPORT_WORKERS = Number(option('reportWorkers', '10'))
+const TZ_REPORT_DATASET = option('reportDataset', 'cooperations')
+const TZ_REPORT_LIMIT = Number(option('reportLimit', '5000'))
+const TZ_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? PASSWORD
+
 const host = new URL(BASE).hostname
 if (!['localhost', '127.0.0.1', '::1', '[::1]'].includes(host)) {
   console.error(`Отказ: ${host} — не эта машина. Нагрузочный тест запускается только локально.`)
@@ -64,7 +91,12 @@ function mergeCookies(jar, response) {
 }
 const cookieHeader = (jar) => [...jar].map(([name, value]) => `${name}=${value}`).join('; ')
 
-async function login() {
+/**
+ * Вход по паролю через NextAuth. Каждый вызов — свой `jar`, то есть своя сессия
+ * (свой токен), даже если несколько вызовов входят под одной и той же демо-учёткой —
+ * ровно это нужно для «50 пользователей, каждый со своей сессией» (ТЗ, п. 9).
+ */
+async function loginAs(email, password) {
   const jar = new Map()
   const csrfResponse = await fetch(`${BASE}/api/auth/csrf`)
   mergeCookies(jar, csrfResponse)
@@ -73,17 +105,21 @@ async function login() {
     method: 'POST',
     redirect: 'manual',
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: cookieHeader(jar) },
-    body: new URLSearchParams({ csrfToken, email: EMAIL, password: PASSWORD }),
+    body: new URLSearchParams({ csrfToken, email, password }),
   })
   mergeCookies(jar, response)
   const session = [...jar.keys()].find((name) => name.endsWith('authjs.session-token'))
   if (!session) {
     throw new Error(
-      `Вход не удался (${response.status} → ${response.headers.get('location')}). ` +
-        'Проверьте LOADTEST_EMAIL / LOADTEST_PASSWORD (SEED_DEMO_PASSWORD).',
+      `Вход не удался для ${email} (${response.status} → ${response.headers.get('location')}). ` +
+        'Проверьте пароль (SEED_DEMO_PASSWORD) и что npm run db:seed отработал.',
     )
   }
   return cookieHeader(jar)
+}
+
+async function login() {
+  return loginAs(EMAIL, PASSWORD)
 }
 
 // ── Замер ────────────────────────────────────────────────────────────────────
@@ -170,7 +206,206 @@ function scenarios(cookie, universityId) {
   }
 }
 
+// ── Сценарий tz: буквально по ТЗ (п. 9; решение 146) ─────────────────────────
+
+/** Демо-учётки разных ролей (сид, seedUsers/seedHeadUser) — по ним распределяются VU. */
+const TZ_STAFF_ACCOUNTS = [
+  'admin@skilllink.demo',
+  'manager@skilllink.demo',
+  'manager2@skilllink.demo',
+  'analyst@skilllink.demo',
+  'viewer@skilllink.demo',
+  'head@skilllink.demo',
+]
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const randomPauseMs = () => 1000 + Math.random() * 2000 // 1–3 с, как в ТЗ
+const pick = (list) => list[Math.floor(Math.random() * list.length)]
+
+/** Копит латентность и коды по одному виду нагрузки (VU-сценарий или отчёты) — без фиксированного числа запросов, а по времени. */
+class StatTracker {
+  constructor() {
+    this.latencies = []
+    this.codes = {}
+  }
+  record(ms, code) {
+    this.latencies.push(ms)
+    this.codes[code] = (this.codes[code] ?? 0) + 1
+  }
+  summary(wallSeconds) {
+    const sorted = [...this.latencies].sort((a, b) => a - b)
+    const total = sorted.length
+    const errorRequests = Object.entries(this.codes)
+      .filter(([code]) => code === 'ERR' || code === 'LOGIN_ERR' || Number(code) >= 400)
+      .reduce((sum, [, count]) => sum + count, 0)
+    return {
+      requests: total,
+      errorRequests,
+      wallSeconds: Number(wallSeconds.toFixed(1)),
+      rps: total > 0 ? Number((total / wallSeconds).toFixed(1)) : 0,
+      p50: total > 0 ? Number(percentile(sorted, 50).toFixed(1)) : null,
+      p95: total > 0 ? Number(percentile(sorted, 95).toFixed(1)) : null,
+      p99: total > 0 ? Number(percentile(sorted, 99).toFixed(1)) : null,
+      mean: total > 0 ? Number((sorted.reduce((sum, value) => sum + value, 0) / total).toFixed(1)) : null,
+      max: total > 0 ? Number(sorted.at(-1).toFixed(1)) : null,
+      codes: this.codes,
+    }
+  }
+}
+
+/** Как `run()`, но пишет в общий трекер вместо возврата отдельного итога — для сценария по времени. */
+async function timed(tracker, operation) {
+  const t0 = performance.now()
+  try {
+    const result = await operation()
+    const ms = performance.now() - t0
+    for (const code of [result].flat()) tracker.record(ms, code)
+  } catch {
+    tracker.record(performance.now() - t0, 'ERR')
+  }
+}
+
+/**
+ * Один виртуальный пользователь: вход один раз (не входит в замер — измеряется
+ * только цикл), затем «главная → реестр вузов → карточка → связка → рекомендации»
+ * с паузами 1–3 с между шагами до дедлайна (ТЗ, п. 9). Страницы — HTML: одним
+ * запросом клиента тянется весь серверный рендер страницы, как у настоящего браузера.
+ */
+async function vuserLoop(index, deadline, tracker, universityIds, cooperationIds) {
+  const email = TZ_STAFF_ACCOUNTS[index % TZ_STAFF_ACCOUNTS.length]
+  let cookie
+  try {
+    cookie = await loginAs(email, TZ_PASSWORD)
+  } catch {
+    tracker.record(0, 'LOGIN_ERR')
+    return
+  }
+
+  while (Date.now() < deadline) {
+    const universityId = pick(universityIds)
+    const cooperationId = pick(cooperationIds)
+    const steps = [
+      () => get('/', cookie),
+      () => get('/universities', cookie),
+      () => get(`/universities/${universityId}`, cookie),
+      () => get(`/cooperations/${cooperationId}`, cookie),
+      () => get('/recommendations', cookie),
+    ]
+    for (const step of steps) {
+      if (Date.now() >= deadline) break
+      await timed(tracker, step)
+      await sleep(randomPauseMs())
+    }
+  }
+}
+
+/**
+ * Один из --reportWorkers воркеров: формирует отчёт подряд, без паузы, до дедлайна —
+ * так в любой момент внутри окна прогона одновременно выполняется --reportWorkers
+ * формирований (ТЗ, п. 9: «10 параллельных отчётов»). Датасет и предел — --reportDataset
+ * / --reportLimit: самая тяжёлая выгрузка из тех, что есть (см. заголовок файла).
+ */
+async function reportWorkerLoop(deadline, tracker) {
+  let cookie
+  try {
+    cookie = await loginAs('admin@skilllink.demo', TZ_PASSWORD)
+  } catch {
+    tracker.record(0, 'LOGIN_ERR')
+    return
+  }
+  while (Date.now() < deadline) {
+    await timed(tracker, () => get(`/api/export?dataset=${TZ_REPORT_DATASET}&limit=${TZ_REPORT_LIMIT}`, cookie))
+  }
+}
+
+function printTzSummary(title, requirement, summary) {
+  const errors = summary.errorRequests
+  const ok = errors === 0
+  console.log(`\n${title}`)
+  console.log(
+    `  запросов: ${summary.requests}  RPS: ${summary.rps}  ` +
+      `p50 ${summary.p50 ?? '—'} мс  p95 ${summary.p95 ?? '—'} мс  p99 ${summary.p99 ?? '—'} мс  ` +
+      `ошибок: ${errors}`,
+  )
+  console.log(`  ${requirement} — требование ТЗ выполнено: ${ok ? 'да' : 'нет'}`)
+  return ok
+}
+
+async function runTzScenario() {
+  console.log(`Нагрузочный тест «tz» (буквально по ТЗ, п. 9): ${BASE}`)
+  console.log(
+    `${TZ_VUSERS} виртуальных пользователей + ${TZ_REPORT_WORKERS} параллельных отчётов, ` +
+      `${TZ_DURATION_SECONDS} с (${(TZ_DURATION_SECONDS / 60).toFixed(1)} мин)\n`,
+  )
+
+  const setupCookie = await loginAs('admin@skilllink.demo', TZ_PASSWORD)
+  const [universities, cooperations] = await Promise.all([
+    fetch(`${BASE}/api/universities?pageSize=50`, { headers: { cookie: setupCookie } }).then((r) => r.json()),
+    fetch(`${BASE}/api/cooperations?pageSize=50`, { headers: { cookie: setupCookie } }).then((r) => r.json()),
+  ])
+  const universityIds = (universities?.data ?? []).map((row) => row.id)
+  const cooperationIds = (cooperations?.data ?? []).map((row) => row.id)
+  if (universityIds.length === 0 || cooperationIds.length === 0) {
+    throw new Error('Нет вузов или связок в базе — сначала npm run db:seed')
+  }
+
+  const deadline = Date.now() + TZ_DURATION_SECONDS * 1000
+  const vuserTracker = new StatTracker()
+  const reportTracker = new StatTracker()
+  const started = performance.now()
+
+  await Promise.all([
+    ...Array.from({ length: TZ_VUSERS }, (_, index) =>
+      vuserLoop(index, deadline, vuserTracker, universityIds, cooperationIds),
+    ),
+    ...Array.from({ length: TZ_REPORT_WORKERS }, () => reportWorkerLoop(deadline, reportTracker)),
+  ])
+
+  const wallSeconds = (performance.now() - started) / 1000
+  const vuserSummary = vuserTracker.summary(wallSeconds)
+  const reportSummary = reportTracker.summary(wallSeconds)
+
+  const vuserOk = printTzSummary(
+    `${TZ_VUSERS} параллельных пользователей (главная → реестр вузов → карточка → связка → рекомендации):`,
+    `${TZ_VUSERS} параллельных пользователей`,
+    vuserSummary,
+  )
+  const reportOk = printTzSummary(
+    `${TZ_REPORT_WORKERS} параллельных формирований отчёта (GET /api/export?dataset=${TZ_REPORT_DATASET}):`,
+    `${TZ_REPORT_WORKERS} параллельных отчётов`,
+    reportSummary,
+  )
+
+  if (JSON_OUT) {
+    writeFileSync(
+      JSON_OUT,
+      JSON.stringify(
+        {
+          base: BASE,
+          scenario: 'tz',
+          vusers: TZ_VUSERS,
+          reportWorkers: TZ_REPORT_WORKERS,
+          durationSeconds: TZ_DURATION_SECONDS,
+          vuserSummary,
+          reportSummary,
+          vuserOk,
+          reportOk,
+        },
+        null,
+        2,
+      ),
+    )
+  }
+
+  process.exitCode = vuserOk && reportOk ? 0 : 2
+}
+
 async function main() {
+  if (ONLY === 'tz') {
+    await runTzScenario()
+    return
+  }
+
   const cookie = await login()
   const list = await fetch(`${BASE}/api/universities?pageSize=1`, { headers: { cookie } }).then((r) => r.json())
   const universityId = list?.data?.[0]?.id

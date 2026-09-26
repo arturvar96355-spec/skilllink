@@ -33,6 +33,8 @@ const listSelect = {
   region: true,
   status: true,
   isMock: true,
+  responsibleId: true,
+  responsible: { select: { id: true, fullName: true, role: true } },
   createdAt: true,
   updatedAt: true,
   archivedAt: true,

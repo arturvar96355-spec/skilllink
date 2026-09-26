@@ -183,7 +183,7 @@ export function assertUserChangeAllowed(facts: UserChangeFacts): void {
   ) {
     throw conflict(
       `Сначала передайте связки: сотрудник отвечает за ${describeOpenWork(facts.openWork)}. ` +
-        'Ответственным может быть только менеджер или администратор',
+        'Ответственным может быть только менеджер, руководитель или администратор',
       { openCooperations: cooperations, openStages: stages },
     )
   }

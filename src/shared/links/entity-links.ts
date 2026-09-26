@@ -111,7 +111,7 @@ export async function assertStaffResponsible(responsibleId: string): Promise<voi
     throw validationError('Этого пользователя нельзя назначить ответственным', [
       {
         field: 'responsibleId',
-        message: 'Ответственным может быть только менеджер или администратор ИТ-Школы',
+        message: 'Ответственным может быть только менеджер, руководитель или администратор ИТ-Школы',
       },
     ])
   }

@@ -23,6 +23,7 @@ import {
 } from '@/modules/workflow/workflow.rules'
 import { toStageDto } from '@/modules/workflow/workflow.service'
 import * as workflowRepo from '@/modules/workflow/workflow.repo'
+import { loadDefaultsByNumber } from '@/modules/workflow/workflow-templates.repo'
 import * as repo from './cooperation.repo'
 import {
   assertCooperationEditable,
@@ -183,6 +184,10 @@ export async function create(
   }
 
   const startedAt = new Date()
+  // Шаблон этапов из настроек (ТЗ, п. 4; решение 146) — читается до транзакции:
+  // это чтение справочника, не часть проверки дубля, блокировать программу ради
+  // него незачем.
+  const stageOverrides = await loadDefaultsByNumber()
   // Проверка дубля и создание — одной транзакцией в очереди программы: иначе
   // двойное «Создать» прошло бы проверку дважды и завело две одинаковые связки.
   const id = await prisma.$transaction(async (tx) => {
@@ -209,7 +214,7 @@ export async function create(
         targetDate: input.targetDate ? new Date(input.targetDate) : null,
         startedAt,
       },
-      buildStages(startedAt, input.responsibleId),
+      buildStages(startedAt, input.responsibleId, stageOverrides),
     )
   })
 
@@ -230,6 +235,10 @@ export async function update(
   input: UpdateCooperationInput,
 ): Promise<CooperationDto> {
   assertCan(user, 'WRITE')
+  // Смена ответственного за связку — привилегия «Руководителя» из ТЗ (решение 146),
+  // а не обычного WRITE: менеджер ведёт свои связки, но не переставляет чужие.
+  // Поле не передано (undefined) — ответственный не меняется, право не нужно.
+  if (input.responsibleId !== undefined) assertCan(user, 'ASSIGN_RESPONSIBLE')
 
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Связка не найдена')

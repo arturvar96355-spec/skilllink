@@ -13,25 +13,44 @@ export interface NewStageData {
   tasks: Array<{ title: string; isRequired: boolean; isUniversityItem: boolean; sortOrder: number }>
 }
 
+/** Название и нормативный срок этапа из хранимого шаблона (workflow-templates.repo.ts). */
+export interface StageTemplateOverride {
+  title: string
+  normativeDays: number
+}
+
 /**
  * Полный набор из 14 этапов для новой связки: все создаются сразу.
- * Сроки считаются от даты старта по нормативам из shared/config/workflow.config.ts.
+ *
+ * Название и нормативный срок берутся из `overrides` (хранимый шаблон в базе,
+ * настройки ADMIN — ТЗ, п. 4; решение 146) по номеру этапа; для номера, которого
+ * в `overrides` нет (пустая таблица на свежей базе до сида, или её вовсе не
+ * передали — совместимость с прежними вызовами и тестами), — из статического
+ * запасного значения `shared/config/workflow.config.ts`. Фаза и чек-лист всегда
+ * из конфига: их правка через API этой версии не реализована (см. решение 146).
  */
-export function buildStages(startedAt: Date, responsibleId: string): NewStageData[] {
-  return WORKFLOW_STAGES.map((definition) => ({
-    stageNumber: definition.number,
-    title: definition.title,
-    phase: definition.phase,
-    deadline: addDays(startedAt, definition.normativeDays),
-    responsibleId,
-    tasks: definition.tasks.map((task, index) => ({
-      title: task.title,
-      isRequired: task.isRequired,
-      // Пункт вуза (решение 103): кто его отмечает, решает признак, а не заголовок.
-      isUniversityItem: task.universityItem === true,
-      sortOrder: index,
-    })),
-  }))
+export function buildStages(
+  startedAt: Date,
+  responsibleId: string,
+  overrides?: ReadonlyMap<number, StageTemplateOverride>,
+): NewStageData[] {
+  return WORKFLOW_STAGES.map((definition) => {
+    const override = overrides?.get(definition.number)
+    return {
+      stageNumber: definition.number,
+      title: override?.title ?? definition.title,
+      phase: definition.phase,
+      deadline: addDays(startedAt, override?.normativeDays ?? definition.normativeDays),
+      responsibleId,
+      tasks: definition.tasks.map((task, index) => ({
+        title: task.title,
+        isRequired: task.isRequired,
+        // Пункт вуза (решение 103): кто его отмечает, решает признак, а не заголовок.
+        isUniversityItem: task.universityItem === true,
+        sortOrder: index,
+      })),
+    }
+  })
 }
 
 /** Программа должна принадлежать выбранному вузу, иначе связка бессмысленна. */

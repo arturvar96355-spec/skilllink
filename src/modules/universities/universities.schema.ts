@@ -202,3 +202,12 @@ export const revealContactSchema = z.object({
     .max(CONTACT_REVEAL.reasonMaxLength),
 })
 export type RevealContactBody = z.infer<typeof revealContactSchema>
+
+/**
+ * PATCH /api/universities/:id/responsible (ТЗ, роль «Руководитель», решение 146).
+ * `null` — снять ответственного; отсутствие поля отклоняется схемой (нечего менять).
+ */
+export const setUniversityResponsibleSchema = z.object({
+  responsibleId: z.string().trim().min(1).nullable(),
+})
+export type SetUniversityResponsibleBody = z.infer<typeof setUniversityResponsibleSchema>
