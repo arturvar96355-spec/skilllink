@@ -151,6 +151,16 @@ export const AUDIT_ACTIONS = [
   'approval.consumed',
   /** Выгрузка журнала для внешней системы сбора событий: курсор, число строк, последний id. */
   'audit.export',
+  // ── Решение 142: админка бота Telegram ──
+  /** Токен бота сменён администратором. objectId — 'telegram.bot_token'; без самого токена. */
+  'telegram.token_changed',
+  /** Токен бота отключён администратором (удалён из базы). */
+  'telegram.token_removed',
+  /**
+   * Режим приёма обновлений (webhook/polling/auto) изменён — вручную администратором
+   * или автоматически (payload.by: 'admin' | 'auto'), когда вебхук перестал отвечать.
+   */
+  'telegram.mode_switched',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 

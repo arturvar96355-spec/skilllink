@@ -10,8 +10,8 @@ import type {
 } from '@/shared/contracts/telegram'
 import { forbidden, integrationError } from '@/shared/http/errors'
 import { addDays } from '@/shared/utils/date'
-import { getIntegrationsConfig, type TelegramConfig } from '@/integrations/config'
-import { TelegramClient } from '@/integrations/telegram'
+import type { TelegramConfig } from '@/integrations/config'
+import { effectiveTelegramConfig, TelegramClient } from '@/integrations/telegram'
 import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
 import {
@@ -37,7 +37,7 @@ import { log } from '@/shared/log/logger'
  */
 
 function telegramConfig(): TelegramConfig {
-  return getIntegrationsConfig().telegram
+  return effectiveTelegramConfig()
 }
 
 /**
@@ -300,6 +300,7 @@ async function replyTo(
   config: TelegramConfig,
   secret: string,
   now: Date,
+  client: TelegramClient,
 ): Promise<string | null> {
   const message = update.message
   if (!message || message.text === undefined) return null
@@ -316,13 +317,25 @@ async function replyTo(
       const user = verified ? await repo.findActiveUser(verified.userId) : null
       // Заблокированному, сменившему роль и с чужой ссылкой — один ответ: подробности не нужны.
       if (!user || !can(user, 'ANALYTICS')) return BOT_REPLIES.invalidToken
+      // Чат уже привязан к активному сотруднику — не другому этому же (перепривязка
+      // своего чата — обычное дело), а именно другому: не отбираем чат молча,
+      // владелец чата должен сам отключиться (/stop) или обратиться к администратору.
+      const chatOwner = await repo.findActiveUserByChat(chatId)
+      if (chatOwner && chatOwner.id !== user.id) return BOT_REPLIES.chatTakenByOther
+      // Перепривязка на другой чат («Перепривязать» в личном кабинете — новая ссылка
+      // работает и при уже существующей привязке): прежний чат узнаётся ДО upsert,
+      // чтобы после переноса отправить туда одно уведомление. Доставка недоступна
+      // (человек мог сам остановить бота там) — не страшно, sendMessage не бросает исключений.
+      const previousLink = (await repo.findLinkByUser(user.id)) ?? null
+      const relinked = previousLink !== null && previousLink.chatId !== chatId
       await repo.linkChat(user.id, chatId, message.from?.username ?? null)
+      if (relinked) await client.sendMessage(previousLink.chatId, BOT_REPLIES.movedElsewhere)
       await writeAudit({
         userId: user.id,
         action: 'telegram.link',
         objectType: 'User',
         objectId: user.id,
-        payload: { source: 'telegram' },
+        payload: { source: 'telegram', relinked },
       })
       return BOT_REPLIES.linked
     }
@@ -366,7 +379,7 @@ export async function handleUpdate(
 
   let reply: string | null
   try {
-    reply = await replyTo(update, config, options.secret, now)
+    reply = await replyTo(update, config, options.secret, now, client)
   } catch (error) {
     log.error('[telegram] обновление не обработано', { updateId: update.update_id, err: error })
     reply = BOT_REPLIES.unavailable

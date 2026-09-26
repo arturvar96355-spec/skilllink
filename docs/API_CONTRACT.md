@@ -3872,6 +3872,73 @@ curl -s -X POST "http://localhost:3000/api/import?dataset=universities&mode=appl
 Самого секрета нет ни в ответе, ни в журнале: `telegram.webhook_secret_rotated`
 с `{ webhookHost }`.
 
+## 15б-3. Администрирование: бот Telegram (решение 142)
+
+Право везде — `ADMIN`. Токен никогда не появляется ни в одном ответе и не пишется
+в журнал — только служебные поля (имя бота, режим, причина). Токен, имя бота и
+режим приёма могут храниться в базе (токен — зашифрован, AES-256-GCM, ключ —
+HKDF от `AUTH_SECRET`) и тогда главнее одноимённых переменных окружения.
+
+### GET /api/admin/telegram
+
+Полная картина состояния — для «Настройки → Интеграции».
+
+```json
+{
+  "data": {
+    "configured": true,
+    "botUsername": "skilllink_robot",
+    "mode": "auto",
+    "running": "webhook",
+    "webhookUrl": "https://skilllink.example/api/telegram/webhook",
+    "pendingUpdateCount": 0,
+    "lastErrorMessage": null,
+    "lastErrorAt": null,
+    "linkedEmployeeCount": 3,
+    "tokenSource": "database",
+    "ownerChatConfigured": true
+  }
+}
+```
+
+`mode` — что выбрано (`webhook`/`polling`/`auto`, переменная `TELEGRAM_MODE` или админка);
+`running` — что происходит фактически прямо сейчас (`webhook`/`polling`/`off`): в режиме
+`auto` они могут разойтись, если процесс сам переключился на polling. `webhookUrl` и
+`pendingUpdateCount` — живой запрос к Telegram (`getWebhookInfo`); бот не настроен —
+все поля состояния вебхука `null`. `tokenSource` — `env`, `database` или `none`.
+
+### PUT /api/admin/telegram/token
+
+Тело — `{ "token": "123456789:AA..." }`. Токен проверяется у Telegram (`getMe`) до
+сохранения: неверный — `502 INTEGRATION_ERROR`, старый токен продолжает действовать.
+При успехе: токен сохраняется зашифрованным в базе (главнее `TELEGRAM_BOT_TOKEN`),
+дальше — новый секрет вебхука и `setWebhook` (тот же механизм, что у
+`rotate-webhook-secret`), либо, если выбран режим `polling`, перезапуск цикла приёма
+новым токеном. Журнал: `telegram.token_changed` (без токена). Ответ — обновлённый
+статус, как у `GET /api/admin/telegram`.
+
+### DELETE /api/admin/telegram/token
+
+Тело не нужно. Снимает вебхук у Telegram (по возможности), удаляет токен из базы,
+останавливает polling. Токен также задан переменной окружения — бот остаётся
+настроенным им (`tokenSource: "env"` в ответе). Журнал: `telegram.token_removed`.
+
+### PUT /api/admin/telegram/mode
+
+Тело — `{ "mode": "webhook" | "polling" | "auto" }`. Бот не настроен —
+`502 INTEGRATION_ERROR`. Журнал: `telegram.mode_switched` (`by: "admin"`). Ответ —
+обновлённый статус.
+
+### POST /api/admin/telegram/test
+
+Тело не нужно. Проверочное сообщение — в чат администратора, который вызвал операцию
+(если он сам подключил личные уведомления в личном кабинете), иначе — в чат владельца
+(`TELEGRAM_OWNER_CHAT_ID`). Ни того ни другого — `502 INTEGRATION_ERROR`.
+
+```json
+{ "data": { "sentTo": "admin" } }
+```
+
 ### Одобрения опасных операций: GET, POST /api/admin/approvals
 
 Право: `ADMIN`. «Четыре глаза» — одобрение второго администратора для назначения

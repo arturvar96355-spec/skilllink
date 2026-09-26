@@ -30,6 +30,7 @@ import {
 } from '@/ui'
 import { AuditSection } from './AuditSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
+import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
 import styles from './settings.module.css'
 
@@ -366,6 +367,7 @@ export default function SettingsPage() {
                 </Row>
               )
             })()}
+            {isAdmin && <TelegramBotAdminSection />}
           </>
         )
 

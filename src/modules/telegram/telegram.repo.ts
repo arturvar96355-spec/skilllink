@@ -23,6 +23,11 @@ export interface TelegramLinkRow {
   linkedAt: Date
 }
 
+/** Сколько сотрудников подключили бота — для админки (решение 142). */
+export async function countLinks(): Promise<number> {
+  return prisma.telegramLink.count()
+}
+
 export async function findLinkByUser(userId: string): Promise<TelegramLinkRow | null> {
   return prisma.telegramLink.findUnique({
     where: { userId },
