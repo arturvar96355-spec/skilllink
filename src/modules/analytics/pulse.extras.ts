@@ -1,7 +1,7 @@
 import { universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { INSIGHTS } from '@/shared/config/analytics.config'
-import { describeForLog } from '@/shared/db/log'
+import { log } from '@/shared/log'
 import { moscowDayStart } from '@/shared/utils/date'
 import * as repo from './stage-analytics.repo'
 import { computeInsights, stalledStates } from './stage-analytics.service'
@@ -103,7 +103,7 @@ export async function loadPulseExtras(user: CurrentUser, now: Date): Promise<Pul
       insightChecks: insights.checks,
     }
   } catch (error) {
-    console.error('[PULSE] не удалось собрать расширения пульса', describeForLog(error))
+    log.error('[PULSE] не удалось собрать расширения пульса', { err: error })
     return null
   }
 }

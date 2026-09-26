@@ -1,5 +1,5 @@
 import { assertCan } from '@/shared/auth/permissions'
-import { describeForLog } from '@/shared/db/log'
+import { log } from '@/shared/log'
 import { RECOMMENDATION_EXPERIMENT } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type {
@@ -147,7 +147,7 @@ export async function withControlGroup<T extends UpsertLike>(
   try {
     routing = await routeDrafts(drafts, now)
   } catch (error) {
-    console.error('[RECOMMENDATIONS] журнал сигналов недоступен, показываем всё', describeForLog(error))
+    log.error('[RECOMMENDATIONS] журнал сигналов недоступен, показываем всё', { err: error })
     return { ...(await upsert(drafts)), withheld: 0 }
   }
 
@@ -156,7 +156,7 @@ export async function withControlGroup<T extends UpsertLike>(
     await repo.linkRecommendations()
     await refreshOutcomes(now)
   } catch (error) {
-    console.error('[RECOMMENDATIONS] не удалось обновить исходы сигналов', describeForLog(error))
+    log.error('[RECOMMENDATIONS] не удалось обновить исходы сигналов', { err: error })
   }
   return {
     ...result,
