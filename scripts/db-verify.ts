@@ -280,6 +280,30 @@ const RULES: Rule[] = [
           WHERE (success_at IS NOT NULL AND shown_at IS NULL)
              OR score < 0 OR score > 1`,
   },
+  {
+    // Решение 143: CHECK держит source_id <> target_id и пару (undone_at, undone_by_id),
+    // но не то, что действующее (не отменённое) слияние согласовано с самим вузом-источником —
+    // внешних ключей для этого мало. merge.repo.ts архивирует источник и ставит merged_into_id
+    // на цель одним и тем же шагом, отмена возвращает оба поля обратно.
+    name: 'Активное слияние вуза: источник ссылается на цель и архивирован',
+    sql: `SELECT m.id FROM university_merges m
+          JOIN universities u ON u.id = m.source_id
+          WHERE m.undone_at IS NULL
+            AND (u.merged_into_id IS DISTINCT FROM m.target_id OR u.archived_at IS NULL)`,
+  },
+  {
+    // Решение 119: scope_id — не внешний ключ (его смысл зависит от scope_type), но
+    // GLOBAL_SCOPE_ID = 'all' и id вуза/менеджера должны существовать по-настоящему,
+    // иначе разбор статистики (recommendations.learning.service.ts) молча потеряет строку.
+    name: 'Статистика правил рекомендаций: scope_id соответствует scope_type',
+    sql: `SELECT rule_type || '|' || scope_type || '|' || scope_id AS id FROM recommendation_rule_stats
+          WHERE NOT CASE scope_type
+            WHEN 'global' THEN scope_id = 'all'
+            WHEN 'university' THEN EXISTS (SELECT 1 FROM universities u WHERE u.id = scope_id)
+            WHEN 'manager' THEN EXISTS (SELECT 1 FROM users u WHERE u.id = scope_id)
+            ELSE false
+          END`,
+  },
 ]
 
 /** Демо-набор помечен целиком: требование ТЗ, а не оформление (FRONTEND.md, правило 4). */
