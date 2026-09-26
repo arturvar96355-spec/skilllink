@@ -829,6 +829,7 @@ model Cooperation {
   documents       Document[]
   meetings        Meeting[]
   recommendations Recommendation[]
+  externalImportLinks ExternalImportLink[]
 
   @@index([universityId])
   @@index([programId])
@@ -836,6 +837,27 @@ model Cooperation {
   @@index([status])
   @@index([responsibleId])
   @@map("cooperations")
+}
+
+/// Приём данных извне — сайт и LMS (решение 145, ТЗ функц. требования п.5: `POST
+/// /api/import/external`). Ключ идемпотентности повторной загрузки — пара
+/// (source, externalId): тот же запрос второй раз находит ту же связку вместо
+/// создания дубля. `source` — свободная строка («site», «lms» и другое, что
+/// подключат позже): реальный контракт с внешней стороной ещё не согласован
+/// (сказано в самом ТЗ), заводить под него перечисление рано.
+model ExternalImportLink {
+  id            String   @id @default(cuid())
+  source        String
+  externalId    String   @map("external_id")
+  cooperationId String   @map("cooperation_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  cooperation Cooperation @relation(fields: [cooperationId], references: [id], onDelete: Cascade)
+
+  @@unique([source, externalId])
+  @@index([cooperationId])
+  @@map("external_import_links")
 }
 
 /// Один из 14 этапов конвейера. Создаются все сразу при заведении связки.

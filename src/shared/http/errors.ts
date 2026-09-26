@@ -12,6 +12,13 @@ export const ERROR_STATUS = {
   /** Превышен предел частоты запросов (решение 117). Ответ несёт `Retry-After`. */
   RATE_LIMITED: 429,
   INTERNAL: 500,
+  /**
+   * Функция включается переменной окружения, а она не задана (решение 145: приём
+   * данных извне без INTEGRATION_TOKEN). Не 500 — это ожидаемое, а не аварийное
+   * состояние, и не 401/403 — обращение не отвергнуто по правам, самой функции
+   * ещё нет.
+   */
+  SERVICE_UNAVAILABLE: 503,
 } as const
 
 export type ErrorCode = keyof typeof ERROR_STATUS
@@ -58,6 +65,9 @@ export const validationError = (message: string, details?: unknown): AppError =>
 
 export const integrationError = (message: string, details?: unknown): AppError =>
   new AppError('INTEGRATION_ERROR', message, details)
+
+export const serviceUnavailable = (message: string, details?: unknown): AppError =>
+  new AppError('SERVICE_UNAVAILABLE', message, details)
 
 /** Разворачивает ошибку Zod в плоский список «поле — сообщение». */
 export function zodDetails(error: z.ZodError): ErrorDetail[] {
