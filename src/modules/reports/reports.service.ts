@@ -1,4 +1,4 @@
-import { assertCan, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, universityScope } from '@/shared/auth/permissions'
 import { COOPERATION_STATUS_LABELS, TRANSFER_STATUS_LABELS } from '@/shared/contracts/labels'
 import { csvDate } from '@/modules/export/export.rules'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -28,7 +28,10 @@ export async function buildTzReport(user: CurrentUser, filters: ReportFilters): 
   const scope = universityScope(user)
   const [rows, labels] = await Promise.all([
     repo.findTzRows(filters, scope),
-    repo.resolveFilterLabels(filters, scope),
+    // ФИО ответственного в шапке — только тем, кому доступен справочник
+    // пользователей (то же право, что у GET /api/users), иначе представитель
+    // вуза получил бы ФИО по произвольному responsibleId.
+    repo.resolveFilterLabels(filters, scope, can(user, 'ANALYTICS')),
   ])
   return {
     filters,
@@ -51,7 +54,7 @@ export async function buildCatalogReport(user: CurrentUser, filters: ReportFilte
   const scope = universityScope(user)
   const [rows, labels] = await Promise.all([
     repo.findCatalogRows(filters, scope),
-    repo.resolveFilterLabels(filters, scope),
+    repo.resolveFilterLabels(filters, scope, can(user, 'ANALYTICS')),
   ])
   return {
     filters,
