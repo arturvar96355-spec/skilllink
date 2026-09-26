@@ -1,0 +1,42 @@
+/* «Как посчитан балл» рекомендации (решение 119, п. 3 решения 178). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.value {
+  font-size: var(--text-body-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.source {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.noData {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.detailList {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}

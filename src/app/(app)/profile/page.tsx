@@ -40,6 +40,8 @@ import { ChangePasswordModal } from './ChangePasswordModal'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { Orb } from './Orb'
 import { ChannelsBlock } from './ChannelsBlock'
+import { ProfileInsights } from './ProfileInsights'
+import { ProfilePulse } from './ProfilePulse'
 import styles from './profile.module.css'
 
 /**
@@ -267,6 +269,19 @@ export default function ProfilePage() {
           </div>
         ) : null}
       </section>
+
+      {/*
+        «Система заметила» и «Пульс» (решение 120) — раньше были только
+        в сводке Telegram-бота (решение 178, п. 6). Право ANALYTICS —
+        представителю вуза они и так закрыты сервером (403), поэтому здесь
+        дополнительно скрыты, а не показывают панель с отказом.
+      */}
+      {user.permissions.canSeeAnalytics && !isRep && (
+        <>
+          <ProfilePulse />
+          <ProfileInsights />
+        </>
+      )}
 
       {!isRep && (
         <div className={styles.columns}>

@@ -1,0 +1,94 @@
+/* Прогноз связки (решение 135): вероятность, статус модели, доводы за/против. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.probabilityRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.probability {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.goal {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.summary {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-caption-size);
+  color: var(--status-warning);
+}
+
+.explanation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explanationItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.explanationMark {
+  flex: none;
+  font-weight: 700;
+  width: 16px;
+  text-align: center;
+}
+
+.explanationItem[data-direction='for'] .explanationMark {
+  color: var(--status-success);
+}
+
+.explanationItem[data-direction='against'] .explanationMark {
+  color: var(--status-danger);
+}
+
+.explanationItem[data-direction='info'] .explanationMark {
+  color: var(--text-tertiary);
+}
+
+.meta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
