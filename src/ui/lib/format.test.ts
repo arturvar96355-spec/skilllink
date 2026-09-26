@@ -5,6 +5,7 @@ import {
   abbreviate,
   deadlineBadgeText,
   formatDeadlineDistance,
+  formatFileSize,
   formatMetric,
   formatNumber,
   formatPercent,
@@ -185,5 +186,35 @@ describe('formatPersonShort', () => {
     expect(formatPersonShort('  Савельева   Ольга ')).toBe('Савельева О.')
     expect(formatPersonShort('Орлов')).toBe('Орлов')
     expect(formatPersonShort('   ')).toBe('—')
+  })
+})
+
+/**
+ * Размер файла — вложения к документам и этапам (решение 145/149).
+ * Ниже 10 в единице — один знак после запятой, от 10 — целое: доля мегабайта
+ * у файла на 18 МБ не читается как полезная точность.
+ */
+describe('formatFileSize', () => {
+  it('байты — целым числом', () => {
+    expect(formatFileSize(0)).toBe('0 Б')
+    expect(formatFileSize(512)).toBe('512 Б')
+    // 1023 — ещё байты, не «1 КБ»: с округлением вверх это выглядело бы точнее, чем есть.
+    expect(formatFileSize(1023).endsWith(' Б')).toBe(true)
+  })
+
+  it('килобайты и мегабайты — с одним знаком после запятой, если значение меньше 10', () => {
+    expect(formatFileSize(1024)).toBe('1,0 КБ')
+    expect(formatFileSize(1536)).toBe('1,5 КБ')
+    expect(formatFileSize(5 * 1024 * 1024)).toBe('5,0 МБ')
+  })
+
+  it('от 10 в единице — целым числом, без десятых', () => {
+    expect(formatFileSize(25 * 1024)).toBe('25 КБ')
+    expect(formatFileSize(20 * 1024 * 1024)).toBe('20 МБ')
+  })
+
+  it('отрицательное или не число — «Нет данных», а не отрицательный размер', () => {
+    expect(formatFileSize(-5)).toBe(NO_DATA)
+    expect(formatFileSize(Number.NaN)).toBe(NO_DATA)
   })
 })

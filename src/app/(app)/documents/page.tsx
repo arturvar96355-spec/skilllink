@@ -64,6 +64,7 @@ import {
   formatPersonShort,
   ListTitle,
 } from '@/ui'
+import { Attachments } from '../Attachments'
 import styles from './documents.module.css'
 
 const PAGE_SIZE = 20
@@ -133,9 +134,11 @@ export default function DocumentsPage() {
 /**
  * Реестр документов.
  *
- * Файлы не загружаются и не хранятся: в системе есть ссылка на внешний документ
- * и текст, собранный из шаблона (решение 14). Поэтому здесь нет ни кнопки
- * загрузки, ни столбца с размером файла — их нечем наполнить.
+ * Сам документ — реквизиты, ссылка на внешний файл и текст, собранный из
+ * шаблона (решение 14): столбца с размером файла в реестре по-прежнему нет,
+ * его нечем наполнить для всех документов сразу. Файлы, приложенные вручную
+ * (сканы, подписанные экземпляры — ТЗ, функц. требования п.3, решение 145),
+ * смотрят и загружают в карточке документа, не в самом реестре.
  */
 function DocumentsView() {
   const user = useCurrentUser()
@@ -271,7 +274,7 @@ function DocumentsView() {
     <>
       <PageHeader
         title="Документы"
-        description="Договоры, соглашения и приложения по связкам. В системе хранятся реквизиты, ссылка на внешний документ и текст, собранный из шаблона: файлы не загружаются."
+        description="Договоры, соглашения и приложения по связкам. Реквизиты, ссылка на внешний документ, текст, собранный из шаблона, и файлы, приложенные к документу вручную."
       />
 
       <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
@@ -571,11 +574,13 @@ function DocumentDrawer({
                 {card.fileReference}
               </a>
             ) : (
-              <p className={styles.note}>
-                Ссылки нет. Файлы в системе не хранятся — только ссылка на внешний документ
-                и текст, собранный из шаблона.
-              </p>
+              <p className={styles.note}>Ссылки на внешний документ нет.</p>
             )}
+          </section>
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>Файлы</h3>
+            <Attachments ownerType="DOCUMENT" ownerId={card.id} canWrite={canWrite} />
           </section>
 
           {card.content && (

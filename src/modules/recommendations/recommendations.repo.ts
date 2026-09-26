@@ -1,7 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import { ACTIVE_PROGRAM_WHERE } from '@/modules/programs/programs.rules'
 import { latestPeriod } from '@/modules/skills/skills.repo'
-import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
+import { TIE_BREAKER, buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
 import type { Prisma } from '@/generated/prisma/client'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import type { RecommendationStatus } from '@/shared/contracts/enums'
@@ -67,16 +67,32 @@ export async function findMany(
   // Здесь фильтр остаётся на случай, если право когда-нибудь будет выдано.
   if (scope.universityId) where.cooperation = { universityId: scope.universityId }
 
+  // Без `sort` в запросе — гибрид по умолчанию (решение 147): приоритет, критичные
+  // сверху (как ждёт фронт и отрепетированный сценарий показа; они всё равно
+  // передают `sort=-priority` сами — это подстраховка для любого другого клиента).
   const { field, direction } = parseSort(query.sort, RECOMMENDATION_SORT_FIELDS, {
-    field: 'createdAt',
+    field: 'priority',
     direction: 'desc',
   })
   // По баллу (решение 119): отложенные защитой от перегрузки — в конце, записи
   // без балла (ещё не пересчитаны) — после оценённых.
+  //
+  // По приоритету (умолчание ленты, решение 147) — гибрид: приоритет первым ключом
+  // (критичные сверху), обучаемый балл (решение 119) — тай-брейк внутри одного
+  // уровня приоритета, а не отдельная сортировка. Запись без балла (ещё не
+  // пересчитана) — после оценённых того же приоритета; дата создания — последний
+  // тай-брейк на случай точного совпадения балла (например, у обеих его ещё нет).
   const orderBy =
     field === 'score'
       ? [{ isDeferred: 'asc' as const }, ...buildOrderBy({ field, direction }, ['score'], [{ createdAt: 'desc' }])]
-      : buildOrderBy({ field, direction }, [], [{ createdAt: 'desc' }])
+      : field === 'priority'
+        ? [
+            { priority: direction },
+            { score: { sort: 'desc' as const, nulls: 'last' as const } },
+            { createdAt: 'desc' as const },
+            TIE_BREAKER,
+          ]
+        : buildOrderBy({ field, direction }, [], [{ createdAt: 'desc' }])
 
   const [rows, total] = await Promise.all([
     prisma.recommendation.findMany({
