@@ -1,4 +1,5 @@
 export * from './ai-assist'
+export * from './ai-story'
 export * from './analytics'
 export * from './audit'
 export * from './calendar'
