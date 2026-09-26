@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { CONTROL_POINT_STAGES, SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
@@ -617,9 +618,9 @@ function CooperationContent() {
             <div className={styles.block}>
               <span className={styles.blockLabel}>Создано документов: {packageResult.created.length}</span>
               {packageResult.created.map((item) => (
-                <a key={item.document.id} className={styles.factLink} href={documentHref(item.document.id)}>
+                <Link key={item.document.id} className={styles.factLink} href={documentHref(item.document.id)}>
                   {item.document.title}
-                </a>
+                </Link>
               ))}
             </div>
           ) : (

@@ -708,14 +708,14 @@ function Dashboard() {
                   <ul className={styles.actions}>
                     {data.priorityActions.map((action) => (
                       <li key={action.id}>
-                        <a className={styles.action} href={recommendationHref(action.id)}>
+                        <Link className={styles.action} href={recommendationHref(action.id)}>
                           <span className={styles.actionHead}>
                             <span className={styles.actionTitle}>{action.title}</span>
                             <PriorityBadge priority={action.priority} />
                           </span>
                           <ActionJustification text={action.justification} />
                           <span className={styles.actionTarget}>{action.target.label}</span>
-                        </a>
+                        </Link>
                       </li>
                     ))}
                   </ul>
