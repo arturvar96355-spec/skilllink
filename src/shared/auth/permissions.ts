@@ -115,6 +115,11 @@ const REVIEWER_ALLOWED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission
   'VENDORS',
 ])
 
+/** Открыто ли право эксперту (решение 147): только чтение и выгрузки. */
+export function isReviewerAllowed(permission: Permission): boolean {
+  return REVIEWER_ALLOWED_PERMISSIONS.has(permission)
+}
+
 /** Текст отказа для эксперта — единый на все маршруты (решение 147). */
 export const REVIEWER_FORBIDDEN_MESSAGE = 'Недоступно в учётной записи эксперта: действие необратимо'
 
