@@ -1,5 +1,6 @@
 import { publicLiveness, type LivenessReport } from './report'
 import { handle, ok } from '@/shared/http'
+import { log } from '@/shared/log/logger'
 
 /**
  * Проверка живости: процесс жив и настроен. **Базу не трогает** (решение 118).
@@ -21,7 +22,7 @@ export const GET = handle(async () => {
   const base = { uptimeSeconds: Math.round(process.uptime()), time: new Date().toISOString() }
 
   const respond = (report: LivenessReport, status: number) => {
-    if (report.hint && production) console.error('Проверка живости:', report.hint)
+    if (report.hint && production) log.error('Проверка живости: стенд не готов', { hint: report.hint })
     return ok(publicLiveness(report, production), status)
   }
 

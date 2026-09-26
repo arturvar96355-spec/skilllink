@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as enums from './enums'
 import * as labels from './labels'
 import * as audit from './audit'
+import * as approval from './approval'
 import * as dsar from './dsar'
 
 /**
@@ -37,6 +38,8 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['ConsentForm', enums.CONSENT_FORMS, labels.CONSENT_FORM_LABELS],
   ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
   ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
+  ['ApprovalStatus', approval.APPROVAL_STATUSES, labels.APPROVAL_STATUS_LABELS],
+  ['ApprovalAction', approval.APPROVAL_ACTIONS, labels.APPROVAL_ACTION_LABELS],
   ['AuditChainBreakCode', audit.AUDIT_CHAIN_BREAK_CODES, labels.AUDIT_CHAIN_BREAK_LABELS],
   ['DsarSubjectType', dsar.DSAR_SUBJECT_TYPES, labels.DSAR_SUBJECT_TYPE_LABELS],
   ['DsarRequestKind', dsar.DSAR_REQUEST_KINDS, labels.DSAR_REQUEST_KIND_LABELS],

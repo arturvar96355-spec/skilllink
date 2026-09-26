@@ -25,3 +25,13 @@ export interface TelegramConnectDto {
   /** Когда ссылка перестанет работать (ISO 8601). */
   expiresAt: string
 }
+
+/**
+ * POST /api/admin/telegram/rotate-webhook-secret (решение 133): секрет вебхука сменён.
+ * Самого секрета в ответе нет — его знает только Telegram, у нас хранится хеш.
+ */
+export interface TelegramWebhookSecretRotatedDto {
+  rotatedAt: string
+  /** Адрес, на который Telegram теперь шлёт обновления. */
+  webhookUrl: string
+}

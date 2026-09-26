@@ -1,5 +1,6 @@
 import { integrationError } from '@/shared/http/errors'
 import type { IntegrationCommonConfig } from './config'
+import { log } from '@/shared/log/logger'
 
 /**
  * Клиент внешних интеграций: таймаут, повторы, ограничение частоты и журналирование.
@@ -78,7 +79,7 @@ export async function requestJson<T>(options: RequestOptions): Promise<T> {
       if (!response.ok) {
         lastError = `HTTP ${response.status}`
         // Журналируем без тела ответа: в нём могут быть персональные данные.
-        console.warn(`[integration:${service}] попытка ${attempt}/${attempts}: ${lastError}`)
+        log.warn(`[integration:${service}] попытка не удалась`, { service, attempt, attempts, reason: lastError })
 
         if (isRetryable(response.status) && attempt < attempts) {
           await sleep(config.minIntervalMs * attempt)
@@ -93,7 +94,7 @@ export async function requestJson<T>(options: RequestOptions): Promise<T> {
       if (error instanceof Error && error.name === 'AppError') throw error
 
       lastError = error instanceof Error ? error.message : 'неизвестная ошибка'
-      console.warn(`[integration:${service}] попытка ${attempt}/${attempts}: ${lastError}`)
+      log.warn(`[integration:${service}] попытка не удалась`, { service, attempt, attempts, reason: lastError })
 
       if (attempt < attempts) {
         await sleep(config.minIntervalMs * attempt)
