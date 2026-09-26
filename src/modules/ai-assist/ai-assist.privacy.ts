@@ -44,25 +44,25 @@ const NOT_LETTER_AFTER = `(?![${LETTERS}])`
 const RESPONSIBLE_CLAUSE =
   /\s*[Оо]тветственн(?:ый|ая|ое|ые)\s*[:—–-]\s*[А-ЯЁ][а-яё-]+(?:\s+[А-ЯЁ][а-яё-]+){0,2}(?:\s+[А-ЯЁ]\.\s?(?:[А-ЯЁ]\.)?)?[.;]?/g
 
-const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/gu
+export const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/gu
 
 /** Кандидат в телефон: цифры со скобками, пробелами и дефисами. Точек нет — это даты. */
-const PHONE_CANDIDATE = /(?:\+\s?)?\d[\d\s()\-–]{8,}\d/g
-const MIN_PHONE_DIGITS = 10
-const MAX_PHONE_DIGITS = 15
+export const PHONE_CANDIDATE = /(?:\+\s?)?\d[\d\s()\-–]{8,}\d/g
+export const MIN_PHONE_DIGITS = 10
+export const MAX_PHONE_DIGITS = 15
 
 /** «Иванов И. И.», «Иванов И.И.» */
-const SURNAME_WITH_INITIALS = new RegExp(
+export const SURNAME_WITH_INITIALS = new RegExp(
   `${NOT_LETTER_BEFORE}[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?\\s+[А-ЯЁ]\\.\\s?(?:[А-ЯЁ]\\.)?`,
   'g',
 )
 /** «И. И. Иванов», «И.И. Иванов» */
-const INITIALS_WITH_SURNAME = new RegExp(
+export const INITIALS_WITH_SURNAME = new RegExp(
   `${NOT_LETTER_BEFORE}[А-ЯЁ]\\.\\s?(?:[А-ЯЁ]\\.\\s?)?[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?${NOT_LETTER_AFTER}`,
   'g',
 )
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
@@ -76,7 +76,7 @@ function stem(word: string): string {
  * «е» и «ё» взаимозаменяемы. Первая буква — как в базе: имена пишутся с заглавной,
  * и строчное «белых» не спутается с фамилией «Белых».
  */
-function namePartPattern(part: string): string | null {
+export function namePartPattern(part: string): string | null {
   const clean = part.replace(/[^A-Za-zА-Яа-яЁё-]/g, '')
   if (clean.length < 3) return null
   const base = escapeRegExp(stem(clean)).replace(/[её]/g, '[её]').replace(/[ЕЁ]/g, '[ЕЁ]')
