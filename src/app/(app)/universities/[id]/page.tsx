@@ -64,6 +64,7 @@ import {
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
+import { UniversityAssistant } from './UniversityAssistant'
 import styles from './university.module.css'
 
 type TabKey =
@@ -536,6 +537,8 @@ export default function UniversityPage() {
           />
         </Section>
       )}
+
+      {tab === 'overview' && user.permissions.canSeeAnalytics && <UniversityAssistant universityId={data.id} />}
 
       {tab === 'overview' && (
         <div className={styles.grid}>
