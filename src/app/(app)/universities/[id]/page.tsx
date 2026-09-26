@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type {
-  ContactDto,
   CooperationListItemDto,
   DocumentListItemDto,
   MeetingDto,
@@ -72,6 +71,7 @@ import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
 import { EditMeetingModal } from '../../EditMeetingModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
+import { ContactsCard } from './ContactsCard'
 import { UniversityAssistant } from './UniversityAssistant'
 import styles from './university.module.css'
 
@@ -127,30 +127,6 @@ export default function UniversityPage() {
 
   const university = useResource<UniversityDto>(`/api/universities/${id}`)
   const toast = useToast()
-
-  /**
-   * Обезличивание контакта по запросу субъекта ПД (docs/PRIVACY.md) — только
-   * администратор, с подтверждением: действие необратимо.
-   */
-  const [anonymizing, setAnonymizing] = useState<ContactDto | null>(null)
-  const anonymize = useMutation(async (contactId: string) => {
-    const result = await apiPost<ContactDto>(
-      `/api/universities/${id}/contacts/${contactId}/anonymize`,
-    )
-    return result.data
-  })
-
-  async function confirmAnonymize() {
-    if (!anonymizing) return
-    const result = await anonymize.run(anonymizing.id)
-    if (!result.ok) {
-      toast.error(result.error.message)
-      return
-    }
-    toast.success('Персональные данные контакта удалены')
-    setAnonymizing(null)
-    university.reload()
-  }
 
   /**
    * Правка карточки вуза и архивация (решение 152, пробел ТЗ РТК): карточки
@@ -612,41 +588,7 @@ export default function UniversityPage() {
         <div className={styles.grid}>
           <Card>
             <Section title="Контакты">
-              {data.contacts.length === 0 ? (
-                <p className={styles.rowMeta}>Контактные лица не заведены.</p>
-              ) : (
-                <div className={styles.contacts}>
-                  {data.contacts.map((contact) => (
-                    <span key={contact.id} className={styles.contact}>
-                      <Avatar name={contact.fullName} size="sm" />
-                      <span className={styles.contactText}>
-                        <span className={styles.contactName}>
-                          {contact.fullName}
-                          {/* Текстовая метка, не бирка (решение 140, п. 9): плашка выглядела
-                              как кнопка, хотя нажать её было нельзя. */}
-                          {contact.isPrimary && <span className={styles.primaryTag}> · основной</span>}
-                        </span>
-                        <span className={styles.contactMeta}>{contact.position ?? 'должность не указана'}</span>
-                        <span className={styles.contactLinks}>
-                          {contact.email && (
-                            <a className={styles.factLink} href={`mailto:${contact.email}`}>
-                              {contact.email}
-                            </a>
-                          )}
-                          {contact.phone && <span className={styles.rowMeta}>{contact.phone}</span>}
-                        </span>
-                        {user.permissions.isAdmin && !contact.isAnonymized && (
-                          <span>
-                            <Button variant="ghost" size="sm" onClick={() => setAnonymizing(contact)}>
-                              Удалить персональные данные
-                            </Button>
-                          </span>
-                        )}
-                      </span>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <ContactsCard universityId={data.id} contacts={data.contacts} onChanged={() => university.reload()} />
             </Section>
           </Card>
 
@@ -1000,31 +942,6 @@ export default function UniversityPage() {
             if (updated) meetings.reload()
           }}
         />
-      )}
-      {anonymizing && (
-        <Modal
-          isOpen
-          onClose={() => setAnonymizing(null)}
-          title="Удалить персональные данные контакта"
-          description="Необратимо. ФИО, должность, почта, телефон и заметки будут стёрты, запись останется как «Контакт удалён» — ради встреч и истории работы с вузом."
-          closeOnBackdrop={false}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setAnonymizing(null)}>
-                Отмена
-              </Button>
-              <Button variant="danger" onClick={confirmAnonymize} isLoading={anonymize.isPending}>
-                Удалить данные
-              </Button>
-            </>
-          }
-        >
-          <p className={styles.rowMeta}>
-            Контакт: {anonymizing.fullName}
-            {anonymizing.position ? `, ${anonymizing.position}` : ''}. Делайте это по запросу
-            самого человека или когда сотрудничество с вузом прекращено и срок хранения истёк.
-          </p>
-        </Modal>
       )}
     </>
   )
