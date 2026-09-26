@@ -7,7 +7,9 @@
  *
  * Только чтение: входит менеджером и представителем вуза и делает GET-запросы.
  * Против живого стенда запускать можно — в отличие от smoke и probe,
- * которые создают записи.
+ * которые создают записи. Исключение — шаг 6: `DELETE` эксперта (решение 147) на
+ * несуществующий id, права проверяются раньше обращения к базе (`assertCan` в начале
+ * сервиса) — до записи не доходит и на живом стенде, отказ 403 гарантирован.
  *
  * Зачем отдельная проверка. Демонстрационные даты считаются от момента
  * заливки (prisma/seed.ts), а время идёт. С решения 121 будущие сроки и встречи
@@ -23,6 +25,7 @@ const PASSWORD = process.env.SEED_DEMO_PASSWORD?.trim() || 'skilllink'
 
 const MANAGER_EMAIL = 'manager@skilllink.demo'
 const REP_EMAIL = 'rep@spbgu.example.invalid'
+const EXPERT_ADMIN_EMAIL = 'expert-admin@skilllink.demo'
 
 const GREEN = '\u001b[32m'
 const RED = '\u001b[31m'
@@ -103,6 +106,14 @@ class Session {
     this.remember(response)
     const body = (await response.json().catch(() => ({}))) as { data: T; meta?: { total?: number } }
     return { status: response.status, data: body.data, meta: body.meta }
+  }
+
+  /** Только для шага 6: право проверяется до обращения к базе — см. заголовок файла. */
+  async del(path: string): Promise<{ status: number; code?: string }> {
+    const response = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: this.header(), redirect: 'manual' })
+    this.remember(response)
+    const body = (await response.json().catch(() => ({}))) as { error?: { code?: string } }
+    return { status: response.status, code: body.error?.code }
   }
 }
 
@@ -251,21 +262,25 @@ async function main(): Promise<void> {
   // Решение 141: 89 связок вместо 50 дают больше просрочек, чем 6 верхних мест —
   // дефициты навыков (Kubernetes/PostgreSQL/MLOps, тоже HIGH) сдвинуты глубже
   // в ленту (позиции 11-13 из 20 на первой странице), но никуда не пропали.
+  //
+  // Решение 147: порядок внутри CRITICAL — гибрид (приоритет первым ключом, балл —
+  // тай-брейк), а не по дате создания, как было. Три верхние строки и следующие
+  // три — те же семь просрочек, что и раньше, но в другом порядке внутри уровня.
   check(
-    'сверху три критичные просрочки, от самой давней',
+    'сверху три критичные просрочки — гибрид приоритет+балл (решение 147)',
     recommendations.slice(0, 3).map((item) => [item.priority, item.title]),
     [
-      ['CRITICAL', 'Просрочен этап 6: Подписание документов'],
       ['CRITICAL', 'Просрочен этап 10: Обновление образовательной программы'],
-      ['CRITICAL', 'Просрочен этап 9: Обучение преподавателей'],
+      ['CRITICAL', 'Просрочен этап 7: Передача учебных материалов, лицензии и документации'],
+      ['CRITICAL', 'Просрочен этап 6: Подписание документов'],
     ],
   )
   check(
     'под ними — ещё критичные и важные просрочки расширенного набора',
     recommendations.slice(3, 6).map((item) => item.title),
     [
-      'Просрочен этап 7: Передача учебных материалов, лицензии и документации',
       'Просрочен этап 6: Подписание документов',
+      'Просрочен этап 9: Обучение преподавателей',
       'Просрочен этап 3: Организация встречи',
     ],
   )
@@ -317,6 +332,15 @@ async function main(): Promise<void> {
   )
   check('аналитика закрыта', (await rep.get('/api/analytics/overview')).status, 403)
   check('рекомендации закрыты', (await rep.get('/api/recommendations')).status, 403)
+
+  // ── Шаг 6. Учётная запись эксперта (решение 147) ──
+  step('Шаг 6. Учётная запись эксперта — только чтение')
+  const expertAdmin = new Session()
+  await expertAdmin.login(EXPERT_ADMIN_EMAIL)
+  check('чтение доступно эксперту-администратору', (await expertAdmin.get('/api/universities')).status, 200)
+  const deleteAttempt = await expertAdmin.del('/api/skills/demo-check-does-not-exist')
+  check('разрушающий маршрут отдаёт 403 эксперту', deleteAttempt.status, 403)
+  check('причина отказа — учётная запись эксперта', deleteAttempt.code, 'FORBIDDEN')
 
   console.log()
   if (failed > 0) {
