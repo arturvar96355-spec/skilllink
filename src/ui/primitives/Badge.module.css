@@ -1,5 +1,12 @@
 /* Статусы. Цвет никогда не единственный носитель смысла — рядом всегда текст (раздел 20). */
 
+/*
+ * Бирка — не кнопка (решение 182, п. 1). Кнопки дизайн-системы (Button.module.css,
+ * .secondary) стоят на границе `1px solid rgb(ink/0.1…)` — тот же приём здесь
+ * заставлял бирку выглядеть как маленькая кнопка, которая никуда не ведёт.
+ * Граница везде прозрачная (border остаётся в разметке, чтобы не смещать размер
+ * без него), носитель формы — только заливка и текст.
+ */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -11,6 +18,7 @@
   font-weight: 650;
   line-height: 1;
   white-space: nowrap;
+  cursor: default;
 }
 
 .dot {
@@ -23,43 +31,43 @@
 
 .neutral {
   background: rgba(119, 112, 143, 0.16);
-  border-color: rgba(119, 112, 143, 0.3);
+  border-color: transparent;
   color: var(--text-muted-cool);
 }
 
 .success {
   background: rgba(85, 200, 194, 0.12);
-  border-color: rgba(85, 200, 194, 0.32);
+  border-color: transparent;
   color: var(--status-success);
 }
 
 .warning {
   background: rgba(242, 193, 78, 0.12);
-  border-color: rgba(242, 193, 78, 0.32);
+  border-color: transparent;
   color: var(--status-warning);
 }
 
 .danger {
   background: rgba(240, 97, 111, 0.12);
-  border-color: rgba(240, 97, 111, 0.34);
+  border-color: transparent;
   color: var(--status-danger);
 }
 
 .accent {
   background: rgb(var(--ink-rgb) / 0.07);
-  border-color: rgb(var(--ink-rgb) / 0.14);
+  border-color: transparent;
   color: var(--text-accent);
 }
 
 .info {
   background: rgb(var(--ink-rgb) / 0.05);
-  border-color: rgb(var(--ink-rgb) / 0.14);
+  border-color: transparent;
   color: var(--text-violet);
 }
 
 /* Демонстрационные данные помечаются всегда: выдавать их за настоящие нельзя. */
 .mock {
   background: rgba(242, 138, 82, 0.12);
-  border-color: rgba(242, 138, 82, 0.3);
+  border-color: transparent;
   color: var(--text-warm);
 }

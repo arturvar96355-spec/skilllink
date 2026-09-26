@@ -5,10 +5,14 @@ import { useState } from 'react'
 import {
   AUDIT_ACTIONS,
   AUDIT_OBJECT_TYPES,
+  type AuditChainVerifyDto,
   type AuditLogEntryDto,
   type UserDto,
 } from '@/shared/contracts'
 import {
+  Badge,
+  Button,
+  DownloadButton,
   EmptyState,
   ResetFilters,
   ErrorState,
@@ -19,12 +23,15 @@ import {
   Select,
   Toolbar,
   ToolbarItem,
+  apiGet,
   buildQuery,
   formatDateTime,
+  useMutation,
   usePageInRange,
   useResource,
 } from '@/ui'
 import { Row, RowsSkeleton } from './SettingsRow'
+import { describeChainVerify } from './audit-chain-view'
 import {
   auditActionLabel,
   auditActorLabel,
@@ -36,6 +43,75 @@ import {
 } from './audit-view'
 import settings from './settings.module.css'
 import styles from './admin.module.css'
+
+/** Максимум для «Выгрузить журнал» одним файлом (`AUDIT_EXPORT_MAX_LIMIT` на сервере). */
+const AUDIT_EXPORT_LIMIT = 5000
+
+/**
+ * Проверка целостности и выгрузка журнала (решение 115/133, экраны — решение 181).
+ *
+ * «Проверить целостность» — `GET /api/audit/verify`: цепочка хешей и печати,
+ * итог — одной фразой (`describeChainVerify`), без хешей на экране.
+ *
+ * «Выгрузить журнал» — `GET /api/admin/audit/export`: файл для внешней системы
+ * контроля (решение 133, п. 9), одним файлом до `AUDIT_EXPORT_LIMIT` последних
+ * записей. Эндпоинт постраничный (`after_id`/`limit`) и фильтров списка выше
+ * не принимает — фильтры «Сотрудник/Действие/Объект/Период» на эту выгрузку
+ * не распространяются, о чём говорит подсказка рядом с кнопкой.
+ */
+function IntegritySection() {
+  const [result, setResult] = useState<AuditChainVerifyDto | null>(null)
+  const check = useMutation(async () => {
+    const response = await apiGet<AuditChainVerifyDto>('/api/audit/verify')
+    return response.data
+  })
+
+  async function run() {
+    const outcome = await check.run(undefined)
+    if (outcome.ok) setResult(outcome.data)
+  }
+
+  const caption = check.error
+    ? check.error.message
+    : result
+      ? describeChainVerify(result)
+      : 'Пока не проверялась в этом сеансе.'
+
+  return (
+    <>
+      <Row
+        title="Целостность журнала"
+        caption={
+          result ? (
+            <Badge tone={result.ok ? 'success' : 'danger'} withDot>
+              {caption}
+            </Badge>
+          ) : (
+            caption
+          )
+        }
+        hint="Проверка сверяет цепочку хешей записей и печати (решение 115): владелец базы не может незаметно изменить или удалить записи журнала."
+      >
+        <Button variant="secondary" size="sm" icon="refresh" onClick={run} isLoading={check.isPending}>
+          Проверить
+        </Button>
+      </Row>
+      <Row
+        title="Выгрузка журнала"
+        caption={`Файл для внешней системы контроля: до ${AUDIT_EXPORT_LIMIT} последних записей, все поля. Фильтры списка ниже на неё не действуют.`}
+      >
+        <DownloadButton
+          href={`/api/admin/audit/export${buildQuery({ limit: AUDIT_EXPORT_LIMIT })}`}
+          fallbackName="skilllink-audit-log.ndjson"
+          variant="secondary"
+          size="sm"
+        >
+          Выгрузить журнал
+        </DownloadButton>
+      </Row>
+    </>
+  )
+}
 
 /**
  * Вкладка «Журнал действий» (раздел 15 ТЗ): кто, что и над чем сделал.
@@ -142,6 +218,8 @@ export function AuditSection() {
 
   return (
     <>
+      <IntegritySection />
+
       <div className={styles.filters}>
         <Toolbar
           actions={hasFilters ? <ResetFilters active onReset={reset} /> : undefined}

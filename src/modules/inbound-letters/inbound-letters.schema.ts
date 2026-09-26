@@ -12,6 +12,8 @@ export const inboundLetterListQuerySchema = paginationSchema.extend({
   group: multi(z.enum(INBOUND_LETTER_GROUPS)).optional(),
   universityId: z.string().trim().min(1).max(64).optional(),
   cooperationId: z.string().trim().min(1).max(64).optional(),
+  // Поиск по ключевым словам (решение 184) — тема, текст, отправитель, вуз.
+  q: z.string().trim().min(1).max(200).optional(),
   sort: z.string().optional(),
 })
 

@@ -31,6 +31,7 @@ import {
 import { AdminChannelsSection } from './AdminChannelsSection'
 import { AuditSection } from './AuditSection'
 import { CalculationParametersSection } from './CalculationParametersSection'
+import { DsarSection } from './DsarSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
 import { SkillsSection } from './SkillsSection'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
@@ -82,6 +83,7 @@ const SECTIONS = [
   { key: 'skills', label: 'Справочник навыков', icon: 'skill', adminOnly: true },
   { key: 'parameters', label: 'Параметры расчётов', icon: 'analytics', adminOnly: false },
   { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
+  { key: 'dsar', label: 'Запросы субъектов', icon: 'lock', adminOnly: true },
   { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
 ] as const
 
@@ -89,7 +91,7 @@ type SectionKey = (typeof SECTIONS)[number]['key']
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
-const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'parameters', 'audit']
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'parameters', 'audit', 'dsar']
 
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
@@ -282,6 +284,8 @@ export default function SettingsPage() {
       'Коэффициенты, пороги и нормативы, с которыми сейчас считает код — только чтение. Значения меняются правкой конфигурации на сервере, рабочие значения (TEMP) утверждаются с заказчиком отдельно.',
     audit:
       'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
+    dsar:
+      'Запросы субъектов персональных данных по 152-ФЗ: сведения о себе (ст. 14), уничтожение (ст. 20, 21). Открытые запросы закрываются выгрузкой или обезличиванием.',
   }
 
   function body(): ReactNode {
@@ -402,6 +406,9 @@ export default function SettingsPage() {
 
       case 'audit':
         return isAdmin ? <AuditSection /> : null
+
+      case 'dsar':
+        return isAdmin ? <DsarSection /> : null
 
       case 'about':
         return (
