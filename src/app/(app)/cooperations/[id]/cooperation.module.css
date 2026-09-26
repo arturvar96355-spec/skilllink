@@ -196,6 +196,21 @@
   white-space: nowrap;
 }
 
+.metaOverdue {
+  font-weight: 600;
+  color: var(--status-danger);
+}
+
+.metaDueSoon {
+  font-weight: 600;
+  color: var(--status-warning);
+}
+
+.metaResponsible {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .stageBadges {
   display: flex;
   align-items: center;
