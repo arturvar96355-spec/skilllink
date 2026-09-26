@@ -16,6 +16,8 @@ import {
   shouldReopen,
   type RecommendationDraft,
 } from './recommendations.rules'
+import { isPauseOver } from './recommendations.learning'
+import type { ScopeSource } from './recommendations.stats.repo'
 
 export const recommendationSelect = {
   id: true,
@@ -35,6 +37,10 @@ export const recommendationSelect = {
   createdAt: true,
   updatedAt: true,
   resolvedAt: true,
+  score: true,
+  scoreBreakdown: true,
+  reasons: true,
+  isDeferred: true,
 } satisfies Prisma.RecommendationSelect
 
 export type RecommendationRow = Prisma.RecommendationGetPayload<{
@@ -51,6 +57,7 @@ export async function findMany(
   if (query.status?.length) where.status = { in: query.status }
   if (query.priority?.length) where.priority = { in: query.priority }
   if (query.cooperationId) where.cooperationId = query.cooperationId
+  if (query.deferred !== undefined) where.isDeferred = query.deferred
 
   // Фильтр по региону работает только для рекомендаций, привязанных к связке:
   // у рекомендации по навыку своего региона нет.
@@ -64,6 +71,12 @@ export async function findMany(
     field: 'createdAt',
     direction: 'desc',
   })
+  // По баллу (решение 119): отложенные защитой от перегрузки — в конце, записи
+  // без балла (ещё не пересчитаны) — после оценённых.
+  const orderBy =
+    field === 'score'
+      ? [{ isDeferred: 'asc' as const }, ...buildOrderBy({ field, direction }, ['score'], [{ createdAt: 'desc' }])]
+      : buildOrderBy({ field, direction }, [], [{ createdAt: 'desc' }])
 
   const [rows, total] = await Promise.all([
     prisma.recommendation.findMany({
@@ -74,7 +87,7 @@ export async function findMany(
       //
       // При равном значении — сначала новые, как в блоке приоритетных действий
       // на главной.
-      orderBy: buildOrderBy({ field, direction }, [], [{ createdAt: 'desc' }]),
+      orderBy,
       ...toSkipTake({ page: query.page, pageSize: query.pageSize }),
     }),
     prisma.recommendation.count({ where }),
@@ -99,6 +112,8 @@ export interface UpsertResult {
   created: number
   updated: number
   keys: string[]
+  /** Показанные в этой пересборке — новые и открытые снова (решение 119: показ в статистике правила). */
+  shown: ScopeSource[]
 }
 
 /** Поля, которые пересборка переписывает у существующей записи: текст и данные правила. */
@@ -112,6 +127,7 @@ function draftFields(draft: RecommendationDraft) {
     relatedData: draft.relatedData as Prisma.InputJsonValue,
     confidence: draft.confidence,
     cooperationId: draft.cooperationId,
+    ...(draft.reasons ? { reasons: draft.reasons as unknown as Prisma.InputJsonValue } : {}),
   }
 }
 
@@ -135,6 +151,14 @@ export async function upsertDrafts(
   let created = 0
   let updated = 0
   const keys: string[] = []
+  const shown: ScopeSource[] = []
+  const shownOf = (row: { id: string }, draft: RecommendationDraft): ScopeSource => ({
+    id: row.id,
+    ruleKey: draft.ruleKey,
+    objectType: draft.objectType,
+    objectId: draft.objectId,
+    cooperationId: draft.cooperationId,
+  })
 
   for (const [index, draft] of drafts.entries()) {
     const key = recommendationKey(draft)
@@ -148,11 +172,13 @@ export async function upsertDrafts(
           objectId: draft.objectId,
         },
       },
-      select: { id: true, status: true, resolvedById: true, ruleKey: true, relatedData: true },
+      select: { id: true, status: true, resolvedById: true, resolvedAt: true, ruleKey: true, relatedData: true },
     })
 
     if (existing) {
-      const reopen = shouldReopen(existing)
+      // Отклонённая открывается снова, только когда кончилась пауза после отклонения
+      // (решение 119); до того то же правило по тому же объекту молчит.
+      const reopen = shouldReopen(existing) || isPauseOver(existing, generatedAt)
       // Тот же случай проблемы — время создания прежнее, иначе лента уведомлений
       // показала бы давно известную просрочку новой.
       const sameOccurrence = isSameOccurrence(existing, draft)
@@ -166,14 +192,17 @@ export async function upsertDrafts(
                 resolvedAt: null,
                 resolvedById: null,
                 resolutionComment: null,
+                shownAt: generatedAt,
                 ...(sameOccurrence ? {} : { createdAt: new Date(generatedAt.getTime() - index) }),
               }
             : {}),
           ...draftFields(draft),
         },
       })
-      if (reopen) created += 1
-      else updated += 1
+      if (reopen) {
+        created += 1
+        shown.push(shownOf(existing, draft))
+      } else updated += 1
       continue
     }
 
@@ -181,7 +210,8 @@ export async function upsertDrafts(
     // Уникальный ключ отсечёт второго — это штатная гонка, а не ошибка пользователя:
     // проигравший просто обновляет уже созданную запись.
     try {
-      await prisma.recommendation.create({
+      const row = await prisma.recommendation.create({
+        select: { id: true },
         data: {
           ruleKey: draft.ruleKey,
           type: draft.type,
@@ -194,10 +224,13 @@ export async function upsertDrafts(
           relatedData: draft.relatedData as Prisma.InputJsonValue,
           confidence: draft.confidence,
           cooperationId: draft.cooperationId,
+          ...(draft.reasons ? { reasons: draft.reasons as unknown as Prisma.InputJsonValue } : {}),
+          shownAt: generatedAt,
           createdAt: new Date(generatedAt.getTime() - index),
         },
       })
       created += 1
+      shown.push(shownOf(row, draft))
     } catch (error) {
       if (!isUniqueViolation(error)) throw error
 
@@ -223,7 +256,7 @@ export async function upsertDrafts(
     }
   }
 
-  return { created, updated, keys }
+  return { created, updated, keys, shown }
 }
 
 /**
@@ -237,7 +270,7 @@ export async function upsertDrafts(
  * проблеме оставляло бы в работе то, что уже неправда. Отклонённые не трогаются —
  * это решение человека с основанием. Закрывает система: `resolvedById` пуст.
  */
-export async function closeObsolete(actualKeys: string[]): Promise<number> {
+export async function closeObsolete(actualKeys: string[]): Promise<ScopeSource[]> {
   const open = await prisma.recommendation.findMany({
     where: { status: { in: [...OPEN_RECOMMENDATION_STATUSES] } },
     select: { id: true, ruleKey: true, objectType: true, objectId: true },
@@ -246,14 +279,22 @@ export async function closeObsolete(actualKeys: string[]): Promise<number> {
   return closeBySystem(findObsolete(open, actualKeys))
 }
 
-async function closeBySystem(ids: string[]): Promise<number> {
-  if (ids.length === 0) return 0
-  const result = await prisma.recommendation.updateMany({
-    // Статус проверяется ещё раз: между чтением и записью сотрудник мог отклонить её сам.
-    where: { id: { in: ids }, status: { in: [...OPEN_RECOMMENDATION_STATUSES] } },
-    data: { status: 'DONE', resolvedAt: new Date(), resolvedById: null },
-  })
-  return result.count
+/** Закрывает системой; возвращает, что действительно закрыто, — для статистики правил. */
+async function closeBySystem(ids: string[]): Promise<ScopeSource[]> {
+  if (ids.length === 0) return []
+  // Статус проверяется ещё раз: между чтением и записью сотрудник мог отклонить её сам.
+  return prisma.$queryRawUnsafe<ScopeSource[]>(
+    `UPDATE recommendations
+        SET status = 'DONE', resolved_at = $3::timestamp, resolved_by_id = NULL, updated_at = $3::timestamp
+      WHERE id = ANY($1::text[]) AND status::text = ANY($2::text[])
+      RETURNING id, rule_key AS "ruleKey", object_type AS "objectType", object_id AS "objectId",
+                cooperation_id AS "cooperationId"`,
+    ids,
+    [...OPEN_RECOMMENDATION_STATUSES],
+    // Колонки без часового пояса хранят UTC (как пишет Prisma): время — из приложения,
+    // а не now() базы, которое зависело бы от часового пояса сеанса.
+    new Date().toISOString(),
+  )
 }
 
 /**
@@ -267,7 +308,7 @@ async function closeBySystem(ids: string[]): Promise<number> {
 export async function syncCooperation(
   cooperationId: string,
   drafts: readonly RecommendationDraft[],
-): Promise<{ updated: number; closed: number }> {
+): Promise<{ updated: number; closed: ScopeSource[] }> {
   const open = await prisma.recommendation.findMany({
     where: {
       objectType: 'Cooperation',
@@ -369,6 +410,51 @@ export async function loadProgramForRules(id: string) {
   return prisma.educationalProgram.findFirst({
     where: { id, ...ACTIVE_PROGRAM_WHERE },
     select: programRuleSelect,
+  })
+}
+
+/**
+ * Связка для «почему нет рекомендации» — в любом статусе, с тем же набором полей,
+ * что у правил: проверки прогоняются той же функцией (решение 119).
+ */
+export async function loadCooperationAnyStatus(id: string) {
+  return prisma.cooperation.findUnique({
+    where: { id },
+    select: { ...cooperationRuleSelect, status: true },
+  })
+}
+
+/** Программа для «почему нет рекомендации» — в любом статусе. */
+export async function loadProgramAnyStatus(id: string) {
+  return prisma.educationalProgram.findUnique({ where: { id }, select: programRuleSelect })
+}
+
+export async function findSkill(id: string) {
+  return prisma.skill.findUnique({ where: { id }, select: { id: true, name: true } })
+}
+
+/** Все рекомендации по объекту — какие правила уже высказались о нём. */
+export async function findByObject(objectType: string, objectId: string) {
+  return prisma.recommendation.findMany({
+    where: { objectType, objectId },
+    select: { id: true, ruleKey: true, status: true, resolvedAt: true, isDeferred: true },
+  })
+}
+
+/**
+ * Открытые и не засчитанные рекомендации связки, показанные с `since`, — кандидаты
+ * на бонус «связка сдвинулась на следующий этап» (решение 119). Отклонённые — нет:
+ * сотрудник прямо сказал, что совет не помог.
+ */
+export async function findProgressCandidates(cooperationId: string, since: Date) {
+  return prisma.recommendation.findMany({
+    where: {
+      cooperationId,
+      objectType: 'Cooperation',
+      status: { not: 'DISMISSED' },
+      shownAt: { gte: since },
+    },
+    select: { id: true, ruleKey: true, relatedData: true },
   })
 }
 

@@ -11,6 +11,7 @@ import 'dotenv/config'
 import { hash } from 'bcryptjs'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { generate as generateRecommendations } from '@/modules/recommendations/recommendations.service'
+import { seedRecommendationStats } from '@/modules/recommendations/recommendations.seed'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.rules'
 import { PrismaClient } from '../src/generated/prisma/client'
@@ -1685,6 +1686,8 @@ async function main(): Promise<void> {
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
   await seedRecommendations(cooperations, users.manager)
+  // Решение 119: история решений по правилам — обучение видно на стенде сразу.
+  await seedRecommendationStats(now)
   await printSummary(users, universityRep)
 }
 

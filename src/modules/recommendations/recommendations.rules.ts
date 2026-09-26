@@ -1,4 +1,4 @@
-import { RECOMMENDATION_RULES } from '@/shared/config/analytics.config'
+import { RECOMMENDATION_RULES, SKILL_GAP } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
 import {
   PROGRAM_METRIC_LABELS,
@@ -19,9 +19,13 @@ import type {
   RecommendationType,
   StageStatus,
 } from '@/shared/contracts/enums'
+import type { RecommendationReasonDto } from '@/shared/contracts/recommendation'
+import type { SkillLevel } from '@/shared/contracts/enums'
 import { daysBetween } from '@/shared/utils/date'
 import { getStalledThreshold, stalledThresholdText } from '@/modules/analytics/stalled-threshold'
 import { outOf100 } from '@/shared/utils/number'
+import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
+import { allPass, reason } from './recommendations.reasons'
 
 /**
  * Черновик рекомендации — результат работы правила.
@@ -40,6 +44,46 @@ export interface RecommendationDraft {
   relatedData: Record<string, unknown>
   confidence: ConfidenceLevel
   cooperationId: string | null
+  /**
+   * Проверки правила, которые выдали эту рекомендацию (решение 119), — все пройдены.
+   * Те же проверки отвечают на «почему нет рекомендации».
+   */
+  reasons?: RecommendationReasonDto[]
+}
+
+/**
+ * Результат одного правила по одному объекту: проверки и черновик. Черновик есть
+ * ровно тогда, когда пройдены все проверки, — пересборка берёт черновики,
+ * «почему нет рекомендации» показывает проверки. Функция одна, логика не двоится.
+ */
+export interface RuleEvaluation {
+  ruleKey: string
+  objectType: RecommendationDraft['objectType']
+  objectId: string
+  checks: RecommendationReasonDto[]
+  draft: RecommendationDraft | null
+}
+
+function evaluation(
+  ruleKey: string,
+  objectType: RecommendationDraft['objectType'],
+  objectId: string,
+  checks: RecommendationReasonDto[],
+  build: () => RecommendationDraft | null,
+): RuleEvaluation {
+  const draft = allPass(checks) ? build() : null
+  return { ruleKey, objectType, objectId, checks, draft: draft ? { ...draft, reasons: checks } : null }
+}
+
+/**
+ * Порог «связка без движения», дней, для этапа `stage`. Единственная точка чтения
+ * параметра: правило, текст, проверки и «почему нет рекомендации» берут его отсюда,
+ * поэтому подмена порога происходит в одном месте. С решения 120 сам порог считает
+ * `getStalledThreshold` (`analytics/stalled-threshold.ts`) — по данным (p90 длительности
+ * этапа) или ручной `RECOMMENDATION_RULES.stalledDays`, если данных недостаточно.
+ */
+export function stalledDaysThreshold(stage: number): number {
+  return getStalledThreshold(stage).days
 }
 
 // ─────────────────────────── Порядок ленты ──────────────────────────────────
@@ -55,13 +99,13 @@ const PRIORITY_RANK: Record<RecommendationPriority, number> = {
  * Порядок правил при равной важности: просрочка — работа, которая уже горит;
  * дефицит навыка — то, ради чего существует продукт; дальше — оформление.
  */
-const RULE_DISPLAY_ORDER = [
+export const RULE_DISPLAY_ORDER = [
   'stage.overdue',
   'skill.critical-gap-with-product',
   'cooperation.no-product',
   'program.missing-metrics',
   'cooperation.stalled',
-]
+] as const
 
 /** Внутри правила — сначала самое острое: давнее просроченное, самое востребованное. */
 function urgency(draft: RecommendationDraft): number {
@@ -82,7 +126,7 @@ function urgency(draft: RecommendationDraft): number {
  */
 export function compareDraftsByImportance(a: RecommendationDraft, b: RecommendationDraft): number {
   const rank = (draft: RecommendationDraft) => {
-    const index = RULE_DISPLAY_ORDER.indexOf(draft.ruleKey)
+    const index = (RULE_DISPLAY_ORDER as readonly string[]).indexOf(draft.ruleKey)
     return index === -1 ? RULE_DISPLAY_ORDER.length : index
   }
   return (
@@ -399,8 +443,13 @@ export interface MissingMetricsInput {
 export function ruleMissingProgramMetrics(
   input: MissingMetricsInput,
 ): RecommendationDraft | null {
-  if (!input.hasCooperation) return null
+  return evaluateMissingMetrics(input).draft
+}
 
+/** Проверки правила «нет данных по программе» и его черновик. */
+export function evaluateMissingMetrics(
+  input: MissingMetricsInput & { cooperationCount?: number },
+): RuleEvaluation {
   const missing = (
     [
       ['applicationCount', input.applicationCount],
@@ -410,12 +459,21 @@ export function ruleMissingProgramMetrics(
   )
     .filter(([, value]) => value === null)
     .map(([key]) => key)
-
-  if (missing.length === 0) return null
-
   const labels = missing.map((key) => PROGRAM_METRIC_LABELS[key].toLowerCase()).join(', ')
 
-  return {
+  const checks = [
+    reason('program_cooperation_exists', input.hasCooperation, {
+      programName: input.programName,
+      cooperations: input.cooperationCount ?? (input.hasCooperation ? 1 : 0),
+    }),
+    reason('metrics_missing', missing.length > 0, {
+      missing,
+      missingCount: missing.length,
+      missingLabels: labels,
+    }),
+  ]
+
+  return evaluation('program.missing-metrics', 'EducationalProgram', input.programId, checks, () => ({
     ruleKey: 'program.missing-metrics',
     type: 'PROGRAM',
     objectType: 'EducationalProgram',
@@ -432,7 +490,32 @@ export function ruleMissingProgramMetrics(
     relatedData: { programId: input.programId, missing },
     confidence: 'HIGH',
     cooperationId: null,
-  }
+  }))
+}
+
+/** Программа в том виде, в каком её отдаёт выборка для правил. */
+export type ProgramForRules = {
+  id: string
+  name: string
+  applicationCount: number | null
+  studentCount: number | null
+  groupCount: number | null
+  university: { name: string }
+  _count: { cooperations: number }
+}
+
+/** Правило «нет данных по программе» с проверками — для пересборки, закрытия и «почему нет». */
+export function evaluateProgram(program: ProgramForRules): RuleEvaluation {
+  return evaluateMissingMetrics({
+    programId: program.id,
+    programName: program.name,
+    universityName: program.university.name,
+    applicationCount: program.applicationCount,
+    studentCount: program.studentCount,
+    groupCount: program.groupCount,
+    hasCooperation: program._count.cooperations > 0,
+    cooperationCount: program._count.cooperations,
+  })
 }
 
 // ───────────────── Правило 5: связка дошла до оформления без продукта ────────
@@ -510,21 +593,34 @@ export function draftsForCooperation(
   cooperation: CooperationRuleInput,
   now: Date,
 ): RecommendationDraft[] {
-  const drafts: RecommendationDraft[] = []
-  let hasOverdueDraft = false
+  return evaluateCooperation(cooperation, now).flatMap((item) => (item.draft ? [item.draft] : []))
+}
 
+/**
+ * Три правила по связке — с проверками (решение 119). Порядок и условия те же,
+ * что у пересборки: просрочка, затем застой (только без просрочки), затем продукт.
+ */
+export function evaluateCooperation(cooperation: CooperationRuleInput, now: Date): RuleEvaluation[] {
+  const objectId = cooperation.id
+  const place = { universityName: cooperation.university.name, programName: cooperation.program.name }
+
+  // ── Просрочка: самый ранний просроченный этап, который можно начать ──
+  let overdueDraft: RecommendationDraft | null = null
+  let lockedStageNumber: number | null = null
   for (const stage of cooperation.stages) {
     if (!stage.deadline) continue
     if (!isOverdue(stage.deadline, stage.status, now)) continue
     // Этап за незавершённой контрольной точкой начать нельзя — просить «закройте
     // этап 7», пока не подписан договор, значит советить запрещённое.
-    if (isLockedByControlPoint(stage, cooperation.stages)) continue
-
-    const draft = ruleOverdueStage(
+    if (isLockedByControlPoint(stage, cooperation.stages)) {
+      lockedStageNumber ??= stage.stageNumber
+      continue
+    }
+    // Достаточно одной рекомендации о просрочке на связку: самый ранний просроченный этап.
+    overdueDraft = ruleOverdueStage(
       {
         cooperationId: cooperation.id,
-        universityName: cooperation.university.name,
-        programName: cooperation.program.name,
+        ...place,
         stageNumber: stage.stageNumber,
         stageTitle: stage.title,
         status: stage.status,
@@ -533,45 +629,212 @@ export function draftsForCooperation(
       },
       now,
     )
-    // Достаточно одной рекомендации о просрочке на связку: самый ранний просроченный этап.
-    if (draft) {
-      drafts.push(draft)
-      hasOverdueDraft = true
-      break
-    }
+    if (overdueDraft) break
   }
+  const overdueFacts = overdueDraft?.relatedData ?? { stageNumber: lockedStageNumber }
+  const overdueChecks = [reason('stage_overdue', overdueDraft !== null || lockedStageNumber !== null, overdueFacts)]
+  if (overdueDraft !== null || lockedStageNumber !== null) {
+    overdueChecks.push(reason('stage_unlocked', overdueDraft !== null, overdueFacts))
+  }
+  const overdue = evaluation('stage.overdue', 'Cooperation', objectId, overdueChecks, () => overdueDraft)
 
   const current = findCurrentStage(cooperation.stages)
-  if (!current) return drafts
+  const stageOpen = reason('stage_open', current !== null, {
+    stageNumber: current?.stageNumber ?? null,
+    stageTitle: current?.title ?? null,
+  })
 
-  // Просрочка уже говорит «займитесь этой связкой». Добавлять поверх неё «связка
-  // без движения» — шум: сотрудник получит два пункта об одной и той же проблеме.
-  if (!hasOverdueDraft) {
-    const stalled = ruleStalledCooperation(
-      {
-        cooperationId: cooperation.id,
-        universityName: cooperation.university.name,
-        programName: cooperation.program.name,
-        stageNumber: current.stageNumber,
-        stageTitle: current.title,
-        stageStatus: current.status,
-        lastActivityAt: lastCooperationActivity(cooperation),
-      },
-      now,
+  // ── Застой. Просрочка уже говорит «займитесь этой связкой»: добавлять поверх неё
+  // «связка без движения» — шум, два пункта об одной проблеме. ──
+  const stalledChecks = [
+    reason('overdue_absent', overdueDraft === null, { stageNumber: overdueDraft?.relatedData.stageNumber ?? null }),
+    stageOpen,
+  ]
+  const lastActivityAt = lastCooperationActivity(cooperation)
+  if (current) {
+    const idleDays = daysBetween(lastActivityAt, now)
+    const threshold = stalledDaysThreshold(current.stageNumber)
+    stalledChecks.push(
+      reason('cooperation_stalled', idleDays >= threshold, {
+        idleDays,
+        threshold,
+        lastActivityAt: lastActivityAt.toISOString(),
+      }),
     )
-    if (stalled) drafts.push(stalled)
+  }
+  const stalled = evaluation('cooperation.stalled', 'Cooperation', objectId, stalledChecks, () =>
+    current
+      ? ruleStalledCooperation(
+          {
+            cooperationId: cooperation.id,
+            ...place,
+            stageNumber: current.stageNumber,
+            stageTitle: current.title,
+            stageStatus: current.status,
+            lastActivityAt,
+          },
+          now,
+        )
+      : null,
+  )
+
+  // ── Связка на оформлении без продукта ──
+  const productChecks = [stageOpen, reason('product_missing', cooperation.productId === null)]
+  if (current) {
+    productChecks.push(
+      reason(
+        'stage_needs_product',
+        current.stageNumber >= RECOMMENDATION_RULES.productRequiredFromStage &&
+          current.stageNumber < CONTROL_STAGE_NUMBER,
+        { stageNumber: current.stageNumber, fromStage: RECOMMENDATION_RULES.productRequiredFromStage },
+      ),
+    )
+  }
+  const noProduct = evaluation('cooperation.no-product', 'Cooperation', objectId, productChecks, () =>
+    current
+      ? ruleCooperationWithoutProduct({
+          cooperationId: cooperation.id,
+          ...place,
+          currentStageNumber: current.stageNumber,
+          hasProduct: cooperation.productId !== null,
+        })
+      : null,
+  )
+
+  return [overdue, stalled, noProduct]
+}
+
+/**
+ * Связка сдвинулась на следующий этап с момента рекомендации: текущий этап
+ * теперь дальше того, о котором она говорила, или закрыты все. Для бонуса
+ * «рекомендация помогла» (решение 119); у правил без номера этапа — нет.
+ */
+export function progressedSince(
+  ruleKey: string,
+  relatedData: unknown,
+  currentStageNumber: number | null,
+): boolean {
+  if (typeof relatedData !== 'object' || relatedData === null) return false
+  const data = relatedData as Record<string, unknown>
+  const key = ruleKey === 'cooperation.no-product' ? 'currentStageNumber' : 'stageNumber'
+  if (!(COOPERATION_RULE_KEYS as readonly string[]).includes(ruleKey)) return false
+  const then = Number(data[key])
+  if (!Number.isFinite(then)) return false
+  return currentStageNumber === null || currentStageNumber > then
+}
+
+// ─────────────────── Дефициты навыков: все навыки разом ──────────────────────
+
+export interface SkillGapInput {
+  demand: ReadonlyArray<{ skillId: string; value: number; region: string; skill: { id: string; name: string } }>
+  programs: ReadonlyArray<{ id: string; name: string; university: { name: string } }>
+  programSkills: ReadonlyArray<{ programId: string; skillId: string; level: SkillLevel }>
+  productSkills: ReadonlyArray<{ skillId: string; relevance: string; product: { id: string; name: string } }>
+}
+
+export interface SkillGapEvaluation {
+  /** По навыку с рыночными данными — проверки и черновик (есть, если навык в числе показанных). */
+  evaluations: RuleEvaluation[]
+  /** Показанные дефициты — в порядке спроса. */
+  shown: RecommendationDraft[]
+  /** Актуальные, но за лимитом показа: их записи не закрываются как выполненные. */
+  deferred: RecommendationDraft[]
+}
+
+/**
+ * Правило «критичный дефицит и наш продукт» по всем навыкам сразу: спрос
+ * нормируется по всем навыкам периода, а лимит показа — общий.
+ *
+ * Одна строка на навык — как в списке дефицитов (`demandPerSkill`): иначе два
+ * региональных замера одного навыка дали бы две рекомендации с одним ключом,
+ * и вторая молча затёрла бы первую.
+ */
+export function evaluateSkillGaps(input: SkillGapInput): SkillGapEvaluation {
+  const demand = demandPerSkill(input.demand)
+  const normalizeValue = demandNormalizer(demand.map((row) => row.value))
+
+  const programsBySkill = new Map<string, Set<string>>()
+  for (const row of input.programSkills) {
+    const set = programsBySkill.get(row.skillId) ?? new Set<string>()
+    set.add(row.programId)
+    programsBySkill.set(row.skillId, set)
   }
 
-  const withoutProduct = ruleCooperationWithoutProduct({
-    cooperationId: cooperation.id,
-    universityName: cooperation.university.name,
-    programName: cooperation.program.name,
-    currentStageNumber: current.stageNumber,
-    hasProduct: cooperation.productId !== null,
-  })
-  if (withoutProduct) drafts.push(withoutProduct)
+  const productsBySkill = new Map<string, Array<{ id: string; name: string; relevance: string }>>()
+  for (const row of input.productSkills) {
+    const list = productsBySkill.get(row.skillId) ?? []
+    list.push({ id: row.product.id, name: row.product.name, relevance: row.relevance })
+    productsBySkill.set(row.skillId, list)
+  }
 
-  return drafts
+  const candidates: Array<{ checks: RecommendationReasonDto[]; draft: RecommendationDraft; skillId: string }> = []
+  const evaluations: RuleEvaluation[] = []
+  for (const row of demand) {
+    const normalized = normalizeValue(row.value)
+    const products = productsBySkill.get(row.skillId) ?? []
+    const withSkill = programsBySkill.get(row.skillId)?.size ?? 0
+    // Навык считается дефицитным только если его нет НИ В ОДНОЙ программе:
+    // иначе это не дефицит, а неравномерное покрытие.
+    const programsWithoutSkill = input.programs.filter((program) => !programsBySkill.get(row.skillId)?.has(program.id))
+    const checks = [
+      reason('demand_above_threshold', normalized !== null && normalized >= SKILL_GAP.demandThreshold, {
+        skillName: row.skill.name,
+        demand: normalized === null ? null : outOf100(normalized),
+        threshold: outOf100(SKILL_GAP.demandThreshold),
+        vacancies: row.value,
+      }),
+      reason('skill_not_taught', input.programs.length > 0 && withSkill === 0, {
+        skillName: row.skill.name,
+        programs: input.programs.length,
+        programsWithSkill: withSkill,
+      }),
+      reason('product_available', products.length > 0, {
+        productNames: products.map((product) => product.name).join(', '),
+      }),
+    ]
+    const draft = allPass(checks)
+      ? ruleCriticalGapWithProduct({
+          skillId: row.skillId,
+          skillName: row.skill.name,
+          demandNormalized: normalized ?? 0,
+          products,
+          programs: programsWithoutSkill.map((program) => ({
+            id: program.id,
+            name: program.name,
+            universityName: program.university.name,
+          })),
+        })
+      : null
+    if (draft) candidates.push({ checks, draft, skillId: row.skillId })
+    else evaluations.push({ ruleKey: 'skill.critical-gap-with-product', objectType: 'Skill', objectId: row.skillId, checks, draft: null })
+  }
+
+  // Самые востребованные — первыми; сортировка устойчивая, при равном спросе порядок прежний.
+  candidates.sort(
+    (a, b) => Number(b.draft.relatedData.demandNormalized ?? 0) - Number(a.draft.relatedData.demandNormalized ?? 0),
+  )
+
+  // Лимит ограничивает, сколько дефицитов попадёт в список за раз. Те, что за лимитом,
+  // остаются актуальными: их ключи всё равно уходят в проверку на устаревание, иначе
+  // система закрыла бы их как выполненные, хотя дефицит никуда не делся.
+  const limit = RECOMMENDATION_RULES.criticalGapLimit
+  const shown: RecommendationDraft[] = []
+  const deferred: RecommendationDraft[] = []
+  for (const [index, candidate] of candidates.entries()) {
+    const inTop = index < limit
+    const checks = [...candidate.checks, reason('gap_in_top', inTop, { rank: index + 1, limit })]
+    const draft = { ...candidate.draft, reasons: checks }
+    if (inTop) shown.push(draft)
+    else deferred.push(draft)
+    evaluations.push({
+      ruleKey: 'skill.critical-gap-with-product',
+      objectType: 'Skill',
+      objectId: candidate.skillId,
+      checks,
+      draft: inTop ? draft : null,
+    })
+  }
+  return { evaluations, shown, deferred }
 }
 
 // ─────────────────── Закрытие и переоткрытие по условию ──────────────────────
