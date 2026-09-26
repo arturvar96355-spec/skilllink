@@ -39,7 +39,7 @@ export function resolveOrdersHmacKey(): string {
   // лежит вне базы. Отдельная метка не даёт ключу совпасть с ключом подписи сессий.
   // Смена AUTH_SECRET тогда тоже делает старые хеши несравнимыми (см. выше).
   const authSecret = process.env.AUTH_SECRET?.trim()
-  if (authSecret && authSecret.length >= MIN_ORDERS_HMAC_KEY_LENGTH) {
+  if (authSecret) {
     return createHmac('sha256', authSecret).update('skilllink:site-orders:hmac:v1').digest('base64')
   }
   if (process.env.NODE_ENV === 'production') {
