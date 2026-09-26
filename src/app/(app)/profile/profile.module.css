@@ -624,6 +624,62 @@ a.chip:hover {
   text-align: center;
 }
 
+/* Окно ссылки на календарь (решение 182, п. 4) — тот же приём, что у одноразового
+   пароля: значение выделяется целиком, копируется одним щелчком. */
+.calendarField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.calendarFieldLabel {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.calendarValue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--surface-sunken);
+  border: 1px dashed var(--border-accent);
+}
+
+.calendarValueText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-size);
+  color: var(--text-primary);
+  user-select: all;
+}
+
+.warning {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--status-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-warning) 32%, transparent);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+.warning > svg:first-child {
+  flex: none;
+  color: var(--status-warning);
+}
+
+.warning p {
+  margin: 0;
+}
+
 /* ——— Спокойно: рабочий режим и «уменьшить движение» ——— */
 
 :global(html[data-mode='work']) .aurora {
@@ -670,6 +726,11 @@ a.chip:hover {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-3);
+  }
+
+  .calendarValue {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .tempPassword {
