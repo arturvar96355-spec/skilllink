@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
@@ -166,9 +167,9 @@ export default function LetterPage() {
                   label="Вуз"
                   value={
                     card.current.universityId ? (
-                      <a className={styles.link} href={universityHref(card.current.universityId)}>
+                      <Link className={styles.link} href={universityHref(card.current.universityId)}>
                         {card.current.universityName ?? 'Вуз'}
-                      </a>
+                      </Link>
                     ) : (
                       NO_DATA
                     )
@@ -178,9 +179,9 @@ export default function LetterPage() {
                   label="Связка"
                   value={
                     card.current.cooperationId ? (
-                      <a className={styles.link} href={cooperationHref(card.current.cooperationId)}>
+                      <Link className={styles.link} href={cooperationHref(card.current.cooperationId)}>
                         Открыть связку
-                      </a>
+                      </Link>
                     ) : (
                       NO_DATA
                     )
