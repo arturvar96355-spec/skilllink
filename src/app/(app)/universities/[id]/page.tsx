@@ -62,6 +62,7 @@ import {
   formatPlace,
 } from '@/ui'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
 import styles from './university.module.css'
 
@@ -119,6 +120,46 @@ export default function UniversityPage() {
     }
     toast.success('Персональные данные контакта удалены')
     setAnonymizing(null)
+    university.reload()
+  }
+
+  /**
+   * Правка карточки вуза и архивация (решение 152, пробел ТЗ РТК): карточки
+   * должны изменяться, а не только создаваться. Обе кнопки — только при
+   * `canWrite`; архивация и возврат — с подтверждением, действие обратимо,
+   * но затрагивает видимость записи в реестре и запрет менять её дальше.
+   */
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const archive = useMutation(async () => {
+    const result = await apiPost<UniversityDto>(`/api/universities/${id}/archive`)
+    return result.data
+  })
+  const restore = useMutation(async () => {
+    const result = await apiPost<UniversityDto>(`/api/universities/${id}/restore`)
+    return result.data
+  })
+
+  async function confirmArchive() {
+    const result = await archive.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Вуз перенесён в архив')
+    setIsArchiving(false)
+    university.reload()
+  }
+
+  async function confirmRestore() {
+    const result = await restore.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Вуз возвращён из архива')
+    setIsRestoring(false)
     university.reload()
   }
 
@@ -385,10 +426,29 @@ export default function UniversityPage() {
           </>
         }
         actions={
-          data.website ? (
-            <Button href={data.website} icon="external" iconPosition="right" variant="secondary">
-              Сайт вуза
-            </Button>
+          user.permissions.canWrite || data.website ? (
+            <>
+              {user.permissions.canWrite && data.archivedAt === null && (
+                <>
+                  <Button variant="secondary" onClick={() => setIsEditOpen(true)}>
+                    Изменить
+                  </Button>
+                  <Button variant="secondary" onClick={() => setIsArchiving(true)}>
+                    В архив
+                  </Button>
+                </>
+              )}
+              {user.permissions.canWrite && data.archivedAt !== null && (
+                <Button variant="secondary" onClick={() => setIsRestoring(true)}>
+                  Вернуть из архива
+                </Button>
+              )}
+              {data.website && (
+                <Button href={data.website} icon="external" iconPosition="right" variant="secondary">
+                  Сайт вуза
+                </Button>
+              )}
+            </>
           ) : undefined
         }
       />
@@ -775,6 +835,57 @@ export default function UniversityPage() {
             <span>Рейтинг вуза скрыт для вашей роли.</span>
           </Tooltip>
         </p>
+      )}
+      {isEditOpen && (
+        <EditUniversityModal
+          university={data}
+          onClose={(changed) => {
+            setIsEditOpen(false)
+            if (changed) university.reload()
+          }}
+        />
+      )}
+      {isArchiving && (
+        <Modal
+          isOpen
+          onClose={() => setIsArchiving(false)}
+          title="Перенести вуз в архив"
+          description="Вуз пропадёт из активных списков и его нельзя будет изменять, пока не вернёте из архива. Программы, связки и история сотрудничества останутся."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setIsArchiving(false)}>
+                Отмена
+              </Button>
+              <Button variant="danger" onClick={confirmArchive} isLoading={archive.isPending}>
+                В архив
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.rowMeta}>Вуз: {data.shortName ?? data.name}.</p>
+        </Modal>
+      )}
+      {isRestoring && (
+        <Modal
+          isOpen
+          onClose={() => setIsRestoring(false)}
+          title="Вернуть вуз из архива"
+          description="Вуз снова появится в активных списках, и его можно будет изменять."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setIsRestoring(false)}>
+                Отмена
+              </Button>
+              <Button variant="primary" onClick={confirmRestore} isLoading={restore.isPending}>
+                Вернуть из архива
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.rowMeta}>Вуз: {data.shortName ?? data.name}.</p>
+        </Modal>
       )}
       {changingResponsible && (
         <ChangeResponsibleModal

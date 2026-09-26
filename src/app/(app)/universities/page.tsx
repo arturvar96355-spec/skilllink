@@ -104,6 +104,9 @@ export default function UniversitiesPage() {
     region: region || undefined,
     minRating: minRating || undefined,
     sort,
+    // Архивные вузы скрыты по умолчанию (решение 152): без этого статус
+    // «В архиве» в фильтре всегда возвращал бы пустой список.
+    includeArchived: status === 'ARCHIVED' ? 'true' : undefined,
   }
   const path = `/api/universities${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`
   const universities = useResource<UniversityListItemDto[]>(path, { keepPreviousData: true })

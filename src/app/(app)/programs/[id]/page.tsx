@@ -33,6 +33,7 @@ import {
   Icon,
   MetricValue,
   MockBadge,
+  Modal,
   mockMarks,
   NO_DATA,
   PageHeader,
@@ -44,6 +45,8 @@ import {
   StageStatusBadge,
   TableSkeleton,
   Tabs,
+  apiPost,
+  apiPut,
   buildQuery,
   cooperationHref,
   documentHref,
@@ -53,13 +56,17 @@ import {
   pluralize,
   universityHref,
   useCurrentUser,
+  useMutation,
   useResource,
+  useToast,
   type Column,
   type Resource,
   type TabItem,
   formatShare,
   formatDemand,
 } from '@/ui'
+import { AddProgramSkillModal } from '../AddProgramSkillModal'
+import { EditProgramModal } from '../EditProgramModal'
 import styles from './program.module.css'
 
 /**
@@ -123,12 +130,82 @@ export default function ProgramPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
   const user = useCurrentUser()
+  const toast = useToast()
   const [tab, setTab] = useState('overview')
   const [isRatingOpen, setRatingOpen] = useState(false)
 
   const program = useResource<ProgramDto>(`/api/programs/${id}`)
   // Соседи по реестру — для «Следующей программы» внизу (решение 79).
   const data = program.data
+
+  /**
+   * Правка карточки программы и архивация (решение 152, пробел ТЗ РТК): карточки
+   * должны изменяться, а не только создаваться. Кнопки — только при `canWrite`;
+   * архивация и возврат — с подтверждением.
+   */
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
+  const archive = useMutation(async () => {
+    const result = await apiPost<ProgramDto>(`/api/programs/${id}/archive`)
+    return result.data
+  })
+  const restore = useMutation(async () => {
+    const result = await apiPost<ProgramDto>(`/api/programs/${id}/restore`)
+    return result.data
+  })
+
+  async function confirmArchive() {
+    const result = await archive.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Программа перенесена в архив')
+    setIsArchiving(false)
+    program.reload()
+  }
+
+  async function confirmRestore() {
+    const result = await restore.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Программа возвращена из архива')
+    setIsRestoring(false)
+    program.reload()
+  }
+
+  /** Привязка навыков к программе (решение 152, раздел ТЗ «Привязка навыков»). */
+  const [isAddSkillOpen, setIsAddSkillOpen] = useState(false)
+  const [removingSkillId, setRemovingSkillId] = useState<string | null>(null)
+  const removeSkill = useMutation(async (skillId: string) => {
+    const skills = (data?.skills ?? [])
+      .filter((skill) => skill.skillId !== skillId)
+      .map((skill) => ({
+        skillId: skill.skillId,
+        level: skill.level,
+        importance: skill.importance,
+        source: skill.source,
+        confidence: skill.confidence,
+        comment: skill.comment,
+      }))
+    const result = await apiPut<ProgramDto>(`/api/programs/${id}/skills`, { skills })
+    return result.data
+  })
+
+  async function onRemoveSkill(skillId: string) {
+    setRemovingSkillId(skillId)
+    const result = await removeSkill.run(skillId)
+    setRemovingSkillId(null)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Навык убран из программы')
+    program.reload()
+  }
 
   // Связки и документы запрашиваются только после того, как программа нашлась:
   // на 404 незачем слать ещё два запроса про несуществующий объект.
@@ -181,7 +258,11 @@ export default function ProgramPage() {
   // Вкладка показывается только там, где за ней действительно что-то есть
   // (раздел 21 шаблона): пустая вкладка выглядит как сломанный раздел.
   const tabs: TabItem[] = [{ key: 'overview', label: 'Обзор' }]
-  if (skills.length > 0) tabs.push({ key: 'skills', label: 'Навыки', count: skills.length })
+  // Пустая вкладка навыков остаётся видна тому, кто вправе их привязывать:
+  // иначе первый навык программе взять было бы неоткуда.
+  if (skills.length > 0 || user.permissions.canWrite) {
+    tabs.push({ key: 'skills', label: 'Навыки', count: skills.length })
+  }
   // Дефициты считаются по рыночному спросу: роли без аналитики эндпоинт закрыт.
   if (user.permissions.canSeeAnalytics && skills.length > 0) {
     tabs.push({ key: 'gaps', label: 'Дефициты' })
@@ -355,6 +436,25 @@ export default function ProgramPage() {
     },
   ]
 
+  if (user.permissions.canWrite) {
+    skillColumns.push({
+      key: 'actions',
+      title: '',
+      width: '100px',
+      render: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onRemoveSkill(row.skillId)}
+          isLoading={removeSkill.isPending && removingSkillId === row.skillId}
+          disabled={removeSkill.isPending}
+        >
+          Убрать
+        </Button>
+      ),
+    })
+  }
+
   const cooperationColumns: Column<CooperationListItemDto>[] = [
     {
       key: 'product',
@@ -469,6 +569,24 @@ export default function ProgramPage() {
         title={data.name}
         description={data.direction ?? undefined}
         meta={data.isMock ? <MockBadge /> : undefined}
+        actions={
+          user.permissions.canWrite ? (
+            data.archivedAt === null ? (
+              <>
+                <Button variant="secondary" onClick={() => setIsEditOpen(true)}>
+                  Изменить
+                </Button>
+                <Button variant="secondary" onClick={() => setIsArchiving(true)}>
+                  В архив
+                </Button>
+              </>
+            ) : (
+              <Button variant="secondary" onClick={() => setIsRestoring(true)}>
+                Вернуть из архива
+              </Button>
+            )
+          ) : undefined
+        }
       />
 
       <Card>
@@ -571,14 +689,35 @@ export default function ProgramPage() {
       )}
 
       {activeTab === 'skills' && (
-        <Card padding="none">
-          <DataTable
-            rows={skills}
-            columns={skillColumns}
-            getRowKey={(row) => row.skillId}
-            caption="Навыки программы"
-          />
-        </Card>
+        <Section
+          title="Навыки программы"
+          action={
+            user.permissions.canWrite ? (
+              <Button variant="secondary" size="sm" icon="plus" onClick={() => setIsAddSkillOpen(true)}>
+                Добавить навык
+              </Button>
+            ) : undefined
+          }
+        >
+          {skills.length === 0 ? (
+            <Card muted>
+              <EmptyState
+                icon="skill"
+                title="Навыков нет"
+                description="К программе ещё не привязан ни один навык."
+              />
+            </Card>
+          ) : (
+            <Card padding="none">
+              <DataTable
+                rows={skills}
+                columns={skillColumns}
+                getRowKey={(row) => row.skillId}
+                caption="Навыки программы"
+              />
+            </Card>
+          )}
+        </Section>
       )}
 
       {activeTab === 'gaps' && gapMarks.section && (
@@ -680,6 +819,68 @@ export default function ProgramPage() {
             />
           </Card>
         ))}
+
+      {isEditOpen && (
+        <EditProgramModal
+          program={data}
+          onClose={(changed) => {
+            setIsEditOpen(false)
+            if (changed) program.reload()
+          }}
+        />
+      )}
+      {isAddSkillOpen && (
+        <AddProgramSkillModal
+          programId={id}
+          existingSkills={skills}
+          onClose={(added) => {
+            setIsAddSkillOpen(false)
+            if (added) program.reload()
+          }}
+        />
+      )}
+      {isArchiving && (
+        <Modal
+          isOpen
+          onClose={() => setIsArchiving(false)}
+          title="Перенести программу в архив"
+          description="Программа пропадёт из активных списков. Связки, документы и история останутся, вернуть можно в любой момент."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setIsArchiving(false)}>
+                Отмена
+              </Button>
+              <Button variant="danger" onClick={confirmArchive} isLoading={archive.isPending}>
+                В архив
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.note}>Программа: {data.name}.</p>
+        </Modal>
+      )}
+      {isRestoring && (
+        <Modal
+          isOpen
+          onClose={() => setIsRestoring(false)}
+          title="Вернуть программу из архива"
+          description="Программа снова появится в активных списках."
+          closeOnBackdrop={false}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setIsRestoring(false)}>
+                Отмена
+              </Button>
+              <Button variant="primary" onClick={confirmRestore} isLoading={restore.isPending}>
+                Вернуть из архива
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.note}>Программа: {data.name}.</p>
+        </Modal>
+      )}
     </>
   )
 }
