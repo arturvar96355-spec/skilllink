@@ -231,6 +231,57 @@
   overflow-wrap: anywhere;
 }
 
+/* «Параметры расчётов» (решение 177): группы показателей — своим заголовком
+   и методикой над строками группы; сама строка — общий .row / Row.tsx. */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-5);
+}
+
+.group:first-child {
+  padding-top: 0;
+}
+
+.groupTitle {
+  font-size: var(--text-h3-size);
+  font-weight: var(--text-h3-weight);
+  line-height: var(--text-h3-line);
+  color: var(--text-primary);
+  margin-top: var(--space-2);
+}
+
+.paramValue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-body-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.stalledForm {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  max-width: 320px;
+}
+
+.stalledForm > *:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stalledResult {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 .refreshing {
   opacity: 0.6;
   transition: opacity var(--motion-micro) var(--ease-out);

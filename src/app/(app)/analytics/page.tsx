@@ -52,6 +52,7 @@ import {
   formatShare,
   ListTitle,
 } from '@/ui'
+import { MeetingsHeatmap } from './MeetingsHeatmap'
 import { StagesTab } from './StagesTab'
 import styles from './analytics.module.css'
 
@@ -61,12 +62,20 @@ const TABS: TabItem[] = [
   { key: 'demand', label: 'Спрос рынка' },
   // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
   { key: 'stages', label: 'Этапы' },
+  // Тепловая карта встреч 7×24 (решение 178, п. 7).
+  { key: 'meetings', label: 'Встречи' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand' | 'stages'
+type TabKey = 'rating' | 'skills' | 'demand' | 'stages' | 'meetings'
 
 function isTabKey(value: string | null): value is TabKey {
-  return value === 'rating' || value === 'skills' || value === 'demand' || value === 'stages'
+  return (
+    value === 'rating' ||
+    value === 'skills' ||
+    value === 'demand' ||
+    value === 'stages' ||
+    value === 'meetings'
+  )
 }
 
 /** Период замера: `2026-Q1` или `2026-03` — та же проверка, что в схеме модуля навыков. */
@@ -138,6 +147,7 @@ function AnalyticsView() {
       )}
       {tab === 'demand' && <DemandTab />}
       {tab === 'stages' && <StagesTab />}
+      {tab === 'meetings' && <MeetingsHeatmap />}
     </>
   )
 }

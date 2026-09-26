@@ -1,0 +1,62 @@
+/* «Работают ли рекомендации» (решение 136, п. 4 решения 178). */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--text-card-title-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-4);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.value {
+  font-size: var(--text-kpi-sm-size);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.label {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.warnings {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-caption-size);
+  color: var(--status-warning);
+}

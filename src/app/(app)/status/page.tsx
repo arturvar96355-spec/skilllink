@@ -20,7 +20,7 @@ import styles from './status.module.css'
 interface Health {
   status: 'ok' | 'degraded' | 'misconfigured'
   database: string
-  schema: 'ready' | 'missing' | 'unknown'
+  schema: 'ready' | 'missing' | 'ahead' | 'unknown'
   time: string
 }
 
@@ -38,6 +38,7 @@ const DATABASE_TEXT: Record<string, { ok: boolean | null; text: string }> = {
 const SCHEMA_TEXT: Record<Health['schema'], { ok: boolean | null; text: string }> = {
   ready: { ok: true, text: 'Применена' },
   missing: { ok: false, text: 'Не применена' },
+  ahead: { ok: true, text: 'Применена (новее кода)' },
   unknown: { ok: null, text: 'Не проверялась' },
 }
 
@@ -48,7 +49,9 @@ export default function StatusPage() {
   const check = useCallback(async () => {
     setChecking(true)
     try {
-      const response = await fetch('/api/health', { cache: 'no-store' })
+      // База и схема — в проверке готовности (/api/ready); /api/health отвечает
+      // только за сам процесс сервера и полей database/schema не содержит.
+      const response = await fetch('/api/ready', { cache: 'no-store' })
       const body = (await response.json()) as { data?: Health }
       if (body.data) setLoad({ state: 'ready', health: body.data })
       else setLoad({ state: 'unreachable', at: new Date().toISOString() })
@@ -77,7 +80,7 @@ export default function StatusPage() {
           : { tone: 'bad', title: 'Работает с ошибками', text: 'Сервер отвечает, но часть проверок не прошла — подробности ниже.' }
 
   const database = health ? (DATABASE_TEXT[health.database] ?? { ok: false, text: health.database }) : null
-  const schema = health ? SCHEMA_TEXT[health.schema] : null
+  const schema = health ? (SCHEMA_TEXT[health.schema] ?? SCHEMA_TEXT.unknown) : null
   const checkedAt = health?.time ?? (load.state === 'unreachable' ? load.at : null)
 
   return (

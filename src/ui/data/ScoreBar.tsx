@@ -20,11 +20,19 @@ export interface ScorePart {
   value: number | null
 }
 
-/** Цвета факторов — те же, что в разборе рейтинга на странице аналитики. */
+/**
+ * Цвета факторов — те же, что в разборе рейтинга на странице аналитики.
+ * `rule`/`value`/`priority` — те же три цвета для разбора балла рекомендации
+ * (решение 119, «Как посчитан балл»): рейтинг программы и балл рекомендации
+ * не показываются рядом, переиспользование цветов не путает.
+ */
 const TONE: Record<string, string> = {
   applicationCount: styles.violet!,
   studentCount: styles.pink!,
   groupCount: styles.cyan!,
+  rule: styles.violet!,
+  value: styles.pink!,
+  priority: styles.cyan!,
 }
 
 export function ScoreBar({ parts, delay = 0 }: { parts: ScorePart[]; delay?: number }) {

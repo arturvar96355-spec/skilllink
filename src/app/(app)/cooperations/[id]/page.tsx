@@ -57,9 +57,15 @@ import {
   type TabItem,
 } from '@/ui'
 import { AiAssistCard } from '../../AiDraft'
+import { RecommendationScore } from '../../RecommendationScore'
 import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { EditMeetingModal } from '../../EditMeetingModal'
+import { ChangeCooperationStatusModal } from './ChangeCooperationStatusModal'
+import { CooperationBlockers, CooperationProposalAction, CooperationStory } from './CooperationAssistant'
 import { CooperationChain } from './CooperationChain'
+import { CooperationForecast } from './CooperationForecast'
+import { CreateDocumentModal } from '../../documents/CreateDocumentModal'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { LicenseModal } from './LicenseModal'
 import { licenseTermYearsText } from './license'
@@ -81,9 +87,12 @@ function CooperationContent() {
   const user = useCurrentUser()
   const toast = useToast()
 
-  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
+  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'assistant' | 'recommendations'>('stages')
   const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   const [isLicenseOpen, setIsLicenseOpen] = useState(false)
+  // Смена статуса связки (задача «Данные без экрана», пункт 1) — по праву canWrite,
+  // как и остальные правки связки.
+  const [isStatusOpen, setIsStatusOpen] = useState(false)
   // Смена ответственного связки (ТЗ — роль «Руководитель», решение 146):
   // кнопка видна только с правом ASSIGN_RESPONSIBLE (ADMIN, HEAD).
   const [changingResponsible, setChangingResponsible] = useState(false)
@@ -150,6 +159,10 @@ function CooperationContent() {
   const [patchedStages, setPatchedStages] = useState<Record<string, WorkflowStageDto>>({})
   useEffect(() => setPatchedStages({}), [cooperation.data])
   const [packageResult, setPackageResult] = useState<DocumentPackageResultDto | null>(null)
+  // Правка встречи (задача «Данные без экрана», пункт 2) — по образцу CreateMeetingModal.
+  const [editingMeeting, setEditingMeeting] = useState<MeetingDto | null>(null)
+  // Добавление документа вручную (задача «Данные без экрана», пункт 3).
+  const [isDocumentOpen, setIsDocumentOpen] = useState(false)
 
   const generatePackage = useMutation(async () => {
     const result = await apiPost<DocumentPackageResultDto>(
@@ -210,6 +223,7 @@ function CooperationContent() {
     { key: 'meetings', label: 'Встречи' },
   ]
   if (user.permissions.canSeeAnalytics) {
+    tabs.push({ key: 'assistant', label: 'Помощник' })
     tabs.push({ key: 'recommendations', label: 'Рекомендации' })
   }
 
@@ -250,6 +264,11 @@ function CooperationContent() {
         meta={
           <>
             <CooperationStatusBadge status={data.status} />
+            {user.permissions.canWrite && (
+              <Button size="sm" variant="ghost" onClick={() => setIsStatusOpen(true)}>
+                Сменить статус
+              </Button>
+            )}
             {data.isMock && <MockBadge />}
           </>
         }
@@ -410,6 +429,16 @@ function CooperationContent() {
         />
       )}
 
+      {isStatusOpen && (
+        <ChangeCooperationStatusModal
+          cooperation={data}
+          onClose={(updated) => {
+            setIsStatusOpen(false)
+            if (updated) cooperation.reload()
+          }}
+        />
+      )}
+
       <Section
         title="Ход работы"
         description="Четырнадцатый этап система закрывает сама, когда закрыты остальные. Этапы 6, 7 и 11 — контрольные точки: их не начать, пока не закрыты предыдущие, а следующие за ними — пока точка не завершена."
@@ -446,6 +475,14 @@ function CooperationContent() {
         </div>
       )}
 
+      {tab === 'documents' && user.permissions.canWrite && (
+        <div className={styles.tabActions}>
+          <Button icon="plus" variant="secondary" onClick={() => setIsDocumentOpen(true)}>
+            Добавить документ
+          </Button>
+        </div>
+      )}
+
       {tab === 'documents' && (
         <Card padding="none">
           {documents.isLoading ? (
@@ -456,7 +493,7 @@ function CooperationContent() {
             <EmptyState
               icon="document"
               title="Документов нет"
-              description="По связке ещё не заведено ни одного документа. Пакет можно собрать из шаблонов кнопкой в заголовке страницы."
+              description="По связке ещё не заведено ни одного документа. Пакет можно собрать из шаблонов кнопкой в заголовке страницы или добавить документ вручную кнопкой выше."
             />
           ) : (
             <DataTable
@@ -469,6 +506,16 @@ function CooperationContent() {
             />
           )}
         </Card>
+      )}
+
+      {isDocumentOpen && (
+        <CreateDocumentModal
+          cooperationId={params.id}
+          onClose={(created) => {
+            setIsDocumentOpen(false)
+            if (created) documents.reload()
+          }}
+        />
       )}
 
       {tab === 'meetings' && user.permissions.canWrite && (
@@ -515,6 +562,11 @@ function CooperationContent() {
                     {formatDateTime(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                     {meeting.responsible.fullName}
                   </span>
+                  {user.permissions.canWrite && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditingMeeting(meeting)}>
+                      Изменить
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -532,6 +584,17 @@ function CooperationContent() {
         />
       )}
 
+      {editingMeeting && (
+        <EditMeetingModal
+          key={editingMeeting.id}
+          meeting={editingMeeting}
+          onClose={(updated) => {
+            setEditingMeeting(null)
+            if (updated) meetings.reload()
+          }}
+        />
+      )}
+
       {changingResponsible && (
         <ChangeResponsibleModal
           title="Сменить ответственного связки"
@@ -545,6 +608,52 @@ function CooperationContent() {
             if (changed) cooperation.reload()
           }}
         />
+      )}
+
+      {tab === 'assistant' && (
+        <div className={styles.stages}>
+          <Section
+            title="Прогноз"
+            description="Дойдёт ли связка до ближайшей ещё не пройденной вехи — оценка модели или простого правила, если модель не прошла проверку качества (решение 135)."
+          >
+            <CooperationForecast cooperationId={params.id} />
+          </Section>
+
+          <Section
+            title="Что мешает"
+            description="Список уже посчитанных препятствий по контрольным точкам, чек-листу и статусу связки — без модели."
+          >
+            <Card>
+              <CooperationBlockers cooperationId={params.id} />
+            </Card>
+          </Section>
+
+          <Section
+            title="История сотрудничества"
+            description="Короткая сводка вместо ручного пересказа карточки. Составляется по нажатию — обращение к модели не бесплатно."
+          >
+            <Card>
+              <CooperationStory cooperationId={params.id} />
+            </Card>
+          </Section>
+
+          {user.permissions.canWrite && (
+            <Section
+              title="Предложить план"
+              description="Проект встречи по препятствиям или новый срок текущего этапа. Ничего не сохраняется, пока план не подтверждён."
+            >
+              <Card>
+                <CooperationProposalAction
+                  cooperationId={params.id}
+                  onApplied={() => {
+                    cooperation.reload()
+                    setTab('stages')
+                  }}
+                />
+              </Card>
+            </Section>
+          )}
+        </div>
       )}
 
       {tab === 'recommendations' && (
@@ -594,6 +703,7 @@ function CooperationContent() {
                   </div>
                   <span className={styles.blockText}>{item.description}</span>
                   <span className={styles.adviceWhy}>{item.justification}</span>
+                  <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
                   <Button
                     href={recommendationHref(item.id)}
                     variant="ghost"

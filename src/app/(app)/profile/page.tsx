@@ -5,9 +5,12 @@ import { signOut } from 'next-auth/react'
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   USER_ROLE_LABELS,
+  type CalendarFeedStatusDto,
   type CooperationListItemDto,
   type CurrentUserStatsDto,
+  type IssuedCalendarFeedDto,
   type NotificationFeedDto,
+  type RevokedCalendarFeedDto,
 } from '@/shared/contracts'
 import {
   Button,
@@ -22,10 +25,13 @@ import {
   StageBar,
   Tooltip,
   UiModeSwitch,
+  apiDelete,
+  apiPost,
   buildQuery,
   cooperationHref,
   firstNameOf,
   formatCount,
+  formatDate,
   formatDateTime,
   formatNumber,
   formatRelative,
@@ -33,13 +39,18 @@ import {
   pluralize,
   useCountUp,
   useCurrentUser,
+  useMutation,
   useResource,
+  useToast,
   type IconName,
 } from '@/ui'
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
 import { Orb } from './Orb'
+import { CalendarFeedModal } from './CalendarFeedModal'
 import { ChannelsBlock } from './ChannelsBlock'
+import { ProfileInsights } from './ProfileInsights'
+import { ProfilePulse } from './ProfilePulse'
 import styles from './profile.module.css'
 
 /**
@@ -90,6 +101,38 @@ export default function ProfilePage() {
   const feed = useResource<NotificationFeedDto>(isRep ? null : '/api/notifications?limit=6')
   const [isLeaving, setIsLeaving] = useState(false)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const toast = useToast()
+
+  /**
+   * Подписка на календарь (решение 182, п. 4; `GET/POST/DELETE /api/me/calendar`,
+   * решение 105). Право `CALENDAR` — все роли сотрудников, кроме представителя
+   * вуза (`/api/me` отдельного флага под него не заводит — граница ровно
+   * по `!isRep`, как у остальных внутренних разделов на этой странице).
+   */
+  const calendar = useResource<CalendarFeedStatusDto>(isRep ? null : '/api/me/calendar')
+  const [issuedFeed, setIssuedFeed] = useState<IssuedCalendarFeedDto | null>(null)
+  const issueCalendar = useMutation(async () => (await apiPost<IssuedCalendarFeedDto>('/api/me/calendar')).data)
+  const revokeCalendar = useMutation(async () => (await apiDelete<RevokedCalendarFeedDto>('/api/me/calendar')).data)
+
+  async function onIssueCalendar() {
+    const result = await issueCalendar.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    setIssuedFeed(result.data)
+    calendar.reload()
+  }
+
+  async function onRevokeCalendar() {
+    const result = await revokeCalendar.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Подписка на календарь отозвана')
+    calendar.reload()
+  }
   // Временный пароль от администратора (по журналу, GET /api/me): просим сменить.
   // После смены плашка прячется сразу, не дожидаясь перезагрузки страницы.
   const [passwordChanged, setPasswordChanged] = useState(false)
@@ -268,6 +311,19 @@ export default function ProfilePage() {
         ) : null}
       </section>
 
+      {/*
+        «Система заметила» и «Пульс» (решение 120) — раньше были только
+        в сводке Telegram-бота (решение 178, п. 6). Право ANALYTICS —
+        представителю вуза они и так закрыты сервером (403), поэтому здесь
+        дополнительно скрыты, а не показывают панель с отказом.
+      */}
+      {user.permissions.canSeeAnalytics && !isRep && (
+        <>
+          <ProfilePulse />
+          <ProfileInsights />
+        </>
+      )}
+
       {!isRep && (
         <div className={styles.columns}>
           {/* Мои связки: сами связки с лентой этапов, а не только их число. */}
@@ -403,6 +459,38 @@ export default function ProfilePage() {
           {/* Каналы уведомлений (решение 144): Telegram (решение 102), MAX и VK рядом — без
               настроенного бота каждый честно пишет «Не настроено администратором». */}
           <ChannelsBlock />
+          {!isRep && (
+            <Row
+              title="Календарь"
+              caption={
+                calendar.data?.active
+                  ? `Подписка выпущена ${formatDate(calendar.data.createdAt!)}. Сроки этапов и встречи — в вашем календаре (Google, Яндекс, Apple, Outlook).`
+                  : 'Ссылка для подписки календаря на сроки ваших этапов и встречи — без входа в систему.'
+              }
+            >
+              <div className={styles.rowActions}>
+                {calendar.data?.active && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => void onRevokeCalendar()}
+                    isLoading={revokeCalendar.isPending}
+                    disabled={revokeCalendar.isPending || issueCalendar.isPending}
+                  >
+                    Отозвать
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  icon="calendar"
+                  onClick={() => void onIssueCalendar()}
+                  isLoading={issueCalendar.isPending}
+                  disabled={issueCalendar.isPending || revokeCalendar.isPending}
+                >
+                  {calendar.data?.active ? 'Перевыпустить' : 'Выпустить ссылку'}
+                </Button>
+              </div>
+            </Row>
+          )}
           <Row title="Выход из системы" caption="Сессия закроется на этом устройстве, вход понадобится заново.">
             <Button variant="danger" icon="logout" onClick={onSignOut} isLoading={isLeaving} disabled={isLeaving}>
               Выйти
@@ -416,6 +504,7 @@ export default function ProfilePage() {
       {isChangingPassword && (
         <ChangePasswordModal onClose={() => setIsChangingPassword(false)} onChanged={() => setPasswordChanged(true)} />
       )}
+      {issuedFeed && <CalendarFeedModal issued={issuedFeed} onClose={() => setIssuedFeed(null)} />}
     </>
   )
 }

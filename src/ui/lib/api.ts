@@ -86,7 +86,12 @@ async function sendRequest(path: string, init?: RequestInit): Promise<{ response
         // Тело формы (загрузка файла, решение 145/149) браузер отправляет сам,
         // с границей (boundary) в заголовке — проставленный вручную
         // Content-Type: application/json сломал бы разбор multipart на сервере.
-        ...(init?.body && !(init.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+        // Файл целиком как тело (импорт реестров и вендоров, решение 177) — по той же
+        // причине: `/api/import*` читает сырые байты и сам решает кодировку/формат,
+        // навязанный application/json тут просто неверен.
+        ...(init?.body && !(init.body instanceof FormData) && !(init.body instanceof Blob)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
         ...init?.headers,
       },
       // Куки сессии идут с каждым запросом: без них сервер ответит 401.
@@ -141,11 +146,22 @@ export function filenameFromDisposition(header: string | null, fallback: string)
  * Скачивание файла выгрузки (ТЗ дизайна 26–29.09, п. 2.2): файл забирается
  * запросом, а не переходом по ссылке, — так у кнопки есть «готовим», «готово»
  * и русский текст ошибки вместо JSON на пустой вкладке.
+ *
+ * По умолчанию — `GET` (реестры, отчёты). Файл для LMS (решение 182, п. 5,
+ * `POST /api/import/site-orders/lms-file`) собирается из того же файла заказов,
+ * что и предпросмотр загрузки, — серверу заново нужно его тело (ФИО, почта и
+ * телефон слушателей нигде, кроме этого запроса и файла для LMS, не хранятся,
+ * `docs/PRIVACY.md`), поэтому `init` даёт передать метод и тело без второй
+ * функции ради одного отличия.
  */
-export async function apiDownload(path: string, fallbackName: string): Promise<{ filename: string }> {
+export async function apiDownload(
+  path: string,
+  fallbackName: string,
+  init?: { method?: 'GET' | 'POST'; body?: BodyInit },
+): Promise<{ filename: string }> {
   let response: Response
   try {
-    response = await fetch(path, { credentials: 'same-origin' })
+    response = await fetch(path, { credentials: 'same-origin', method: init?.method, body: init?.body })
   } catch {
     throw new ApiRequestError('Нет связи с сервером. Проверьте подключение.', 'NETWORK', 0)
   }
@@ -222,4 +238,14 @@ export function apiUpload<T>(path: string, file: File): Promise<ApiResult<T>> {
   const body = new FormData()
   body.append('file', file)
   return request<T>(path, { method: 'POST', body })
+}
+
+/**
+ * Загрузка файла как есть, без `multipart/form-data` (решение 177): тот же
+ * контракт, что у `POST /api/import`, `/api/import/vendors`, `/api/import/site-orders` —
+ * тело запроса это сам файл (CSV, книга Excel или JSON-массив), сервер читает его байты
+ * потоково (`readBodyBytes`) и сам решает, что в них: кодировку CSV, лист книги, JSON.
+ */
+export function apiUploadRaw<T>(path: string, file: File | Blob): Promise<ApiResult<T>> {
+  return request<T>(path, { method: 'POST', body: file })
 }
