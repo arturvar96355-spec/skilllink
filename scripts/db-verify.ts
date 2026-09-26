@@ -27,6 +27,7 @@ import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
 import { ERASED_USER_NAME } from '@/modules/dsar/dsar.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
+import { catalogNameKey } from '@/shared/utils/contacts'
 import { SKILL_NAME_KEY_SAMPLES } from '@/modules/skills/skill-name-key.samples'
 import { verifyChain } from '@/modules/audit/chain.service'
 
@@ -241,6 +242,20 @@ const RULES: Rule[] = [
              OR last.to_consent_status <> c.consent_status`,
   },
   {
+    // Решение 132: поток заказа — поток того же курса. Внешние ключи этого не держат.
+    name: 'Заказ с сайта: поток относится к курсу заказа',
+    sql: `SELECT o.id FROM site_orders o
+          JOIN course_streams s ON s.id = o.stream_id
+          WHERE s.course_id <> o.course_id`,
+  },
+  {
+    name: 'Контакт вендора отвечает только за продукты своего вендора',
+    sql: `SELECT DISTINCT c.id FROM vendor_contacts c
+          JOIN vendor_contact_products l ON l.contact_id = c.id
+          JOIN it_products p ON p.id = l.product_id
+          WHERE p.vendor_id IS DISTINCT FROM c.vendor_id`,
+  },
+  {
     name: 'Рекомендация ссылается на существующий объект',
     sql: `SELECT r.id FROM recommendations r
           WHERE NOT CASE r.object_type
@@ -275,6 +290,10 @@ const DEMO_TABLES = [
   'it_products',
   'market_demand',
   'data_sources',
+  'vendors',
+  'vendor_contacts',
+  'school_courses',
+  'site_orders',
 ]
 
 const DEMO_RULES: Rule[] = DEMO_TABLES.map((table) => ({
@@ -340,6 +359,19 @@ async function main(): Promise<void> {
         // считают ключ одинаково — на трудных примерах и на всех названиях справочника.
         total += 1
         report('Ключ названия навыка в базе совпадает с кодом (skillNameKey)', await skillKeyMismatches(tx), failures)
+
+        // Решение 132: ключ названия вендора и курса хранится колонкой и считается кодом —
+        // запись в обход сервиса с другим ключом пропустила бы дубль мимо уникальности.
+        total += 1
+        const named = [
+          ...(await tx.vendor.findMany({ select: { id: true, name: true, nameKey: true } })),
+          ...(await tx.schoolCourse.findMany({ select: { id: true, name: true, nameKey: true } })),
+        ]
+        report(
+          'Ключ названия вендора и курса совпадает с кодом (catalogNameKey)',
+          named.filter((row) => row.nameKey !== catalogNameKey(row.name)).map((row) => row.id),
+          failures,
+        )
       },
       { timeout: 120_000 },
     )

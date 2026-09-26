@@ -38,6 +38,7 @@ const listSelect = (scope: ProductScope) =>
     isMock: true,
     createdAt: true,
     updatedAt: true,
+    vendor: { select: { id: true, name: true } },
     _count: scopedCounts(scope),
   }) satisfies Prisma.ITProductSelect
 

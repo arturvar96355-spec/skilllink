@@ -30,6 +30,7 @@ import type {
   StageStatus,
   UniversityStatus,
   UserRole,
+  VendorContactChannel,
 } from './enums'
 import type { AuditActionCode, AuditChainBreakCode, AuditObjectType } from './audit'
 
@@ -262,6 +263,13 @@ export const CONSENT_FORM_LABELS: Record<ConsentForm, string> = {
   ORAL_CONFIRMED_BY_EMAIL: 'Устное, подтверждено письмом по почте',
 }
 
+/** Канал связи с контактом вендора (решение 132) — как в колонке «Способ связи» файла вендоров. */
+export const VENDOR_CONTACT_CHANNEL_LABELS: Record<VendorContactChannel, string> = {
+  EMAIL: 'Почта',
+  TELEGRAM: 'Чат в Telegram',
+  PHONE: 'Телефон',
+}
+
 /** Происхождение показателя: как объяснить пользователю, откуда взялось число. */
 export const METRIC_BASIS_LABELS = {
   actual: 'Фактические данные',
@@ -337,6 +345,10 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'audit.retention': 'Очистка журнала по сроку хранения',
   'audit.verify': 'Проверка целостности журнала',
   'import.apply': 'Загрузка реестра из CSV',
+  'import.vendors': 'Загрузка вендоров и их контактов',
+  'import.site_orders': 'Загрузка заказов с сайта',
+  'export.lms_users': 'Файл «Загрузка пользователей» для LMS',
+  'school_course.create': 'Заведён курс ИТ-Школы',
   'telegram.webhook_secret_rotated': 'Сменён секрет вебхука Telegram',
   'contact.revealed': 'Раскрыты почта или телефон контакта',
   'approval.requested': 'Запрошено одобрение опасной операции',
@@ -365,6 +377,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+  SchoolCourse: 'Курс ИТ-Школы',
   SystemSecret: 'Секрет системы',
   Approval: 'Одобрение операции',
 }

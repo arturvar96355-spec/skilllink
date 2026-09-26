@@ -340,6 +340,31 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_REFERENCE,
   },
   {
+    section: 'siteOrdersImported',
+    model: 'SiteOrder',
+    title: 'Заказы с сайта, загруженные пользователем (решение 132)',
+    links: ['importedById'],
+    // ФИО, почта и телефон слушателя в SiteOrder не хранятся вовсе (docs/PRIVACY.md, 2.4) —
+    // только HMAC-хеш, который сюда не выбирается: он не про этого пользователя (импортировавшего
+    // сотрудника), а про слушателя, и без ключа ORDERS_HMAC_KEY необратим.
+    select: {
+      id: true,
+      orderNo: true,
+      course: { select: { name: true } },
+      stream: { select: { number: true } },
+      orderedAt: true,
+      importedAt: true,
+      lmsExportedAt: true,
+    },
+    omitted: {
+      emailHash: 'HMAC слушателя — не ПД импортировавшего сотрудника, необратим без ключа (docs/PRIVACY.md, 2.4)',
+      phoneHash: 'HMAC слушателя — не ПД импортировавшего сотрудника, необратим без ключа (docs/PRIVACY.md, 2.4)',
+    },
+    orderBy: { importedAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
     section: 'dsarRequestsAbout',
     model: 'DsarRequest',
     title: 'Запросы субъекта ПД о себе',
@@ -534,6 +559,36 @@ const CONTACT_ENTRIES: readonly DsarEntry[] = [
     erase: 'keep',
     reason: KEEP_AUDIT,
   },
+  {
+    // Контактное лицо вендора (решение 132) — деловой контакт компании-подрядчика, той же
+    // природы, что контакт вуза (решение 111), но без своего запроса субъекта: маршрута
+    // «выгрузка/обезличивание по contactId вендора» пока нет (docs/PRIVACY.md, раздел 11 —
+    // правка и удаление делаются вручную в карточке вендора). Запись здесь — для полноты
+    // реестра: почта, телефон и ФИО не остаются незамеченными тестом `dsar.registry.test.ts`.
+    // По `id` контакта вуза строка не находится — идентификаторы контактов вузов и вендоров
+    // из разных таблиц не совпадают, раздел выгрузки контакта вуза будет пустым.
+    section: 'vendorContactProfile',
+    model: 'VendorContact',
+    title: 'Контактное лицо вендора (для полноты реестра, решение 132)',
+    links: ['id'],
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      preferredChannels: true,
+      legalBasis: true,
+      vendor: { select: { name: true } },
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+    erase: 'keep',
+    reason:
+      'своего запроса субъекта для контактов вендоров нет — правка и удаление вручную ' +
+      'в карточке вендора (docs/PRIVACY.md, раздел 11); модель учтена в реестре, чтобы новая ' +
+      'таблица с ПД не осталась незамеченной',
+  },
 ]
 
 export const DSAR_REGISTRY: Readonly<Record<DsarSubjectKind, readonly DsarEntry[]>> = {
@@ -557,6 +612,12 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   DataSource: 'источник рыночных данных',
   AuditSeal: 'печать журнала: номер и хеш последней записи, число строк — без ссылок на людей (решение 115)',
   AuditChainCut: 'точка чистки журнала по сроку: номер, хеш и дата — без ссылок на людей (решение 115)',
+  Vendor: 'компания-вендор, не человек (решение 132)',
+  VendorContactProduct: 'связь контакта вендора и продукта — своих ПД и ссылок на людей нет (решение 132)',
+  SchoolCourse: 'курс ИТ-Школы — справочник, без ПД (решение 132)',
+  CourseStream: 'поток курса — справочник, без ПД (решение 132)',
+  // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
+  // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
   TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',
   RecommendationRuleStats: 'счётчики обучения правила (показы, успехи) по общей/вузовской/менеджерской области; ' +
     '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',

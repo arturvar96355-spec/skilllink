@@ -102,6 +102,13 @@ export const AUDIT_ACTIONS = [
    */
   'audit.verify',
   'import.apply',
+  /** Загрузка вендоров (решение 132): только счётчики, без ФИО и контактов. */
+  'import.vendors',
+  /** Загрузка заказов с сайта (решение 132): счётчики и номер загрузки, без ПД слушателей. */
+  'import.site_orders',
+  /** Файл «Загрузка пользователей» для LMS: сколько строк, без ПД. */
+  'export.lms_users',
+  'school_course.create',
   // ── Решение 123: безопасность, волна 2 ──
   /** Сменён секрет вебхука Telegram. Без самого секрета — только хост вебхука. */
   'telegram.webhook_secret_rotated',
@@ -139,6 +146,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'SchoolCourse',
   'SystemSecret',
   'Approval',
 ] as const
