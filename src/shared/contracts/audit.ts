@@ -29,6 +29,15 @@ export const AUDIT_ACTIONS = [
   'university.update',
   'university.archive',
   'university.restore',
+  /**
+   * Вуз-дубль слит в другой (решение 134): objectId — оставшийся вуз, в payload —
+   * слитый, счётчики перенесённого и поля, взятые из дубля (имена полей, не значения).
+   */
+  'university.merge',
+  /** Слияние отменено: объекты возвращены дублю, дубль восстановлен из архива. */
+  'university.merge.undo',
+  /** Пара записей отмечена «не дубль» (решение 134). */
+  'duplicate.dismiss',
   'contact.anonymize',
   /**
    * Основание обработки ПД контакта и согласие (решение 111). В журнале — коды
@@ -110,6 +119,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'DuplicateDismissal',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

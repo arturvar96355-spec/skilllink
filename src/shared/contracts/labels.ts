@@ -283,6 +283,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'university.update': 'Изменён вуз',
   'university.archive': 'Вуз отправлен в архив',
   'university.restore': 'Вуз возвращён из архива',
+  'university.merge': 'Вуз-дубль слит с другим',
+  'university.merge.undo': 'Отменено слияние вузов',
+  'duplicate.dismiss': 'Пара отмечена «не дубль»',
   'contact.anonymize': 'Контакт вуза обезличен',
   'contact.basis.set': 'Зафиксировано основание обработки ПД контакта',
   'contact.consent.withdraw': 'Отозвано согласие контакта на обработку ПД',
@@ -346,4 +349,5 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+  DuplicateDismissal: 'Отметка «не дубль»',
 }

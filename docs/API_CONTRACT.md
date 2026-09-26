@@ -2979,6 +2979,176 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 - `stages` — все 14 этапов: нормативный срок в днях от создания связки, контрольная точка,
   можно ли отменить как «не требуется», этап 14 — автоматический.
 
+## 15ж. Качество данных: отчёт, поиск дублей, слияние вузов (решение 134)
+
+Формулы и пороги — [ANALYTICS_METHODOLOGY.md](ANALYTICS_METHODOLOGY.md), раздел 8.
+Отчёт и поиск дублей — право `ANALYTICS` (сравнение и оценка чужих вузов, представителю
+вуза недоступно — `FORBIDDEN` 403); слияние и его отмена — только `ADMIN`.
+
+### GET /api/data-quality/report
+
+Оценка справочника 0–100 по пяти сущностям (вузы, программы, навыки, IT-продукты,
+связки) с прозрачной формулой и списком проблем со ссылками. Без параметров.
+
+```json
+{ "data": {
+    "score": 83.8,
+    "entities": [
+      { "entity": "university", "title": "Вузы", "total": 8, "score": 72.5, "weight": 0.25,
+        "issues": [
+          { "code": "university.noContacts", "title": "Вуз без контактных лиц", "count": 1,
+            "share": 0.125, "weight": 0.4, "penalty": 5,
+            "items": [{ "id": "…", "name": "…", "href": "/universities/…" }] } ] } ],
+    "duplicates": { "university": 2, "skill": 3, "program": 0, "product": 0 },
+    "explanation": "Оценка сущности = 100 × (1 − Σ вес проблемы × доля записей с ней); …",
+    "generatedAt": "2026-09-26T…", "isMock": true } }
+```
+
+`score` сущности — `null`, если записей нет: она не участвует в среднем. `explanation` —
+для показа под общей оценкой, слово в слово повторяет формулу выше.
+
+### GET /api/data-quality/duplicates
+
+Параметры: `entity` (`university` \| `skill` \| `program` \| `product`, обязателен),
+`threshold` (0,1–1, по умолчанию 0,4), `includeDismissed`, `includeArchived`. Пары —
+самые похожие первыми, не «страница», а список целиком (`meta.total` — сколько найдено,
+без пагинации).
+
+```json
+{ "data": [
+    { "entity": "skill", "a": { "id": "…", "name": "JavaScript", "hint": "Языки программирования", "href": "/settings" },
+      "b": { "id": "…", "name": "JS", "hint": "Языки программирования", "href": "/settings" },
+      "score": 0.95, "method": "synonym",
+      "reasons": ["Синонимы по словарю: «JavaScript» и «JS» — это javascript", "Одна категория: Языки программирования"],
+      "dismissed": false } ],
+  "meta": { "entity": "skill", "threshold": 0.4, "compared": 21, "candidateSource": "all-pairs",
+            "total": 3, "dismissedHidden": 0 } }
+```
+
+`method` — как найдено сходство: `inn`, `normalized`, `synonym`, `abbreviation`, `trigram`
+или `levenshtein`. `candidateSource` — `all-pairs` (сравнили все со всеми, справочник
+небольшой) или `pg_trgm` (кандидатов отобрала база по индексу на большом справочнике).
+
+### POST /api/data-quality/duplicates/dismiss
+
+Отметить пару «не дубль»: `{ "entity": "skill", "firstId": "…", "secondId": "…", "comment": "…?" }`.
+Право `WRITE`. Порядок `firstId`/`secondId` не важен — пара хранится упорядоченной.
+Повтор — та же запись, журнал не растёт. Одной из записей нет в справочнике — `422`.
+
+```json
+{ "data": { "id": "…", "entity": "skill", "firstId": "…", "secondId": "…",
+    "comment": "Разные технологии", "dismissedBy": { "id": "…", "fullName": "…", "role": "MANAGER" },
+    "createdAt": "2026-09-26T…" } }
+```
+
+Журнал: `duplicate.dismiss` с `{ entity, firstId, secondId }`.
+
+### POST /api/universities/merge
+
+Слить вуз-дубль (`sourceId`) в целевой (`targetId`) одной транзакцией — тот же подход,
+что у объединения навыков (решение 107), но с правилом на каждое поле: `fieldRules`
+(необязательно) — `{ "website": "most_recent", "description": "longest" }`, поле без
+правила — `non_null` (значение цели, а если пусто — источника; пустое никогда не
+побеждает). Правило `manual` требует значения в `manualValues` той же схемой, что при
+обычной правке вуза.
+
+```json
+{ "sourceId": "…", "targetId": "…",
+  "fieldRules": { "website": "non_null", "studentCount": "longest" },
+  "manualValues": { "city": "Верхнеуслонский район" } }
+```
+
+Источник уходит в архив со ссылкой `mergedIntoId` (не удаляется); программы, контакты,
+связки, встречи, документы, заявки и учётные записи представителей переносятся к цели.
+Ответ `200`:
+
+```json
+{ "data": { "id": "…", "sourceId": "…", "targetId": "…",
+    "mergedBy": { "id": "…", "fullName": "…", "role": "ADMIN" }, "mergedAt": "2026-09-26T…",
+    "undoUntil": "2026-10-26T…", "undoneAt": null,
+    "moved": { "programs": 1, "contacts": 1, "cooperations": 0, "meetings": 0, "documents": 0, "applications": 0, "users": 0 },
+    "survivorship": [ { "field": "website", "rule": "non_null", "chosen": "source", "changed": true,
+                         "targetValue": null, "sourceValue": "https://…", "resultValue": "https://…" } ],
+    "demotedPrimaryContacts": 0 } }
+```
+
+`sourceId === targetId` — `422`; вуз уже слит с другим — `409`; цель в архиве — `422`;
+разные ИНН у обоих — `409` (это разные организации, не дубли). Только `ADMIN` —
+остальным `403`. Журнал: `university.merge`, `objectId` — цель, в `payload` — `sourceId`,
+`sourceName`, счётчики `moved`, список изменившихся полей (без значений — они в самом
+журнале слияния, а среди перенесённого могут быть контакты с ПД).
+
+### POST /api/universities/merge/:id/undo
+
+Отменить слияние в течение `undoUntil` (по умолчанию 30 дней). Объекты возвращаются
+источнику по списку из журнала — включая то, что появилось на перенесённых программах
+и связках уже после слияния. Поле цели возвращается к значению до слияния, только
+если его не меняли с тех пор — иначе остаётся как есть.
+
+```json
+{ "data": { "merge": { "…": "…", "undoneAt": "2026-09-27T…" },
+    "returned": { "programs": 1, "contacts": 1, "cooperations": 0, "meetings": 0, "documents": 0, "applications": 0, "users": 0 },
+    "restoredFields": ["website"], "keptFields": [] } }
+```
+
+Срок истёк или уже отменено — `409`; слияния нет — `404`. Только `ADMIN`. Журнал:
+`university.merge.undo`.
+
+## 15з. Лента 360 вуза, похожие программы, тепловая карта встреч (решение 134)
+
+### GET /api/universities/:id/timeline
+
+Единая лента вуза: смены этапов, встречи, документы, заявки, связки, рекомендации
+и их статусы, факты по основаниям обработки ПД контактов (без ФИО), правки записи
+вуза и слияния — новые сверху. Курсорная пагинация: `cursor` (из `meta.nextCursor`
+прошлого ответа), `limit` (1–100, по умолчанию 20), `types` (список через запятую или
+повторяющийся параметр). Право `READ`; представитель вуза видит только свой вуз (чужой —
+`404`, как и везде) и только разрешённые его роли типы (`meta.types` называет, какие
+вошли); внутренние комментарии сотрудников ему не показываются.
+
+```json
+{ "data": [
+    { "id": "stage:…", "type": "stage", "kind": "stage.status", "title": "Этап 3 «…»: в работе",
+      "details": "Итог этапа", "cooperationId": "…", "programName": "…", "href": "/cooperations/…",
+      "author": { "id": "…", "fullName": "…", "role": "MANAGER" }, "occurredAt": "2026-09-26T…" } ],
+  "meta": { "limit": 20, "nextCursor": "MjAyNi0…", "hasMore": true,
+            "types": ["cooperation", "stage", "meeting", "document", "application"] } }
+```
+
+Вуза нет или он чужой представителю — `404`.
+
+### GET /api/programs/:id/similar
+
+Похожие программы по навыкам: косинус взвешенных векторов (вес = важность × idf) плюс
+бонусы за то же направление и уровень. Параметр `limit` (1–20, по умолчанию 5).
+Право `ANALYTICS`. Считается на лету, снимок не хранится.
+
+```json
+{ "data": { "programId": "…",
+    "items": [ { "program": { "id": "…", "name": "…", "universityId": "…", "universityName": "…",
+                               "level": "BACHELOR", "direction": "…" },
+                 "score": 0.71, "cosine": 0.66, "sameDirection": true, "sameLevel": true,
+                 "sharedSkills": [{ "id": "…", "name": "JavaScript" }],
+                 "missingSkills": [{ "id": "…", "name": "Docker" }] } ],
+    "missingSummary": [ { "id": "…", "name": "Docker", "programCount": 2, "weight": 1.4 } ],
+    "explanation": "Сходство = 0,85 × косинус векторов навыков + 0,1 за то же направление + …" } }
+```
+
+Программы без общих навыков не попадают в `items`, каким бы ни был бонус. Программы
+нет — `404`.
+
+### GET /api/analytics/meetings-heatmap
+
+7 (дни недели, понедельник первым) × 24 (часы, московское время) — число проведённых
+встреч. Параметры: `from`, `to` (ISO 8601, по умолчанию — от начала данных до сейчас),
+`universityId`. Право `ANALYTICS`, область видимости — как у остальной аналитики.
+
+```json
+{ "data": { "cells": [[0,0,1,"…"]], "dayLabels": ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],
+    "timeZone": "Europe/Moscow", "total": 5, "max": 2,
+    "from": null, "to": "2026-09-26T…", "isMock": true } }
+```
+
 ## 16. Чего ещё нет
 
 - внешние уведомления — личная сводка в Telegram (решение 102, по умолчанию выключена,

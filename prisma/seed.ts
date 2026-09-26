@@ -39,6 +39,8 @@ const DAYS_AFTER_CLASSES_START: Partial<Record<number, number>> = { 11: 30, 12: 
 /** Порядок важен: сначала зависимые таблицы. */
 async function clean(): Promise<void> {
   await prisma.auditLog.deleteMany()
+  await prisma.universityMerge.deleteMany()
+  await prisma.duplicateDismissal.deleteMany()
   await prisma.contactBasisHistory.deleteMany()
   await prisma.stageHistory.deleteMany()
   await prisma.task.deleteMany()
@@ -1513,6 +1515,54 @@ async function seedApplications(universityId: IdOf, programId: IdOf): Promise<vo
 }
 
 /**
+ * Намеренные «почти дубли» для экрана «Качество данных» (решение 134): так справочник
+ * выглядит после ручного ввода и загрузок из разных источников. Два вуза — дубли
+ * существующих (УрФУ с полным названием «имени…» и НГТУ с сокращениями «гос.», «ун-т»),
+ * три навыка — синонимы (JS, Postgres, K8s). Без программ и связок: сценарий показа,
+ * рейтинги и покрытие навыков они не меняют. Слить или отметить «не дубль» — на экране.
+ */
+async function seedDataQualityCases(universityId: IdOf): Promise<void> {
+  console.log('Почти дубли для проверки качества данных...')
+  const urfu = await prisma.university.findUniqueOrThrow({ where: { id: universityId('urfu') } })
+  await prisma.university.create({
+    data: {
+      createdAt: daysAgo(3),
+      updatedAt: daysAgo(3),
+      name: 'Уральский федеральный университет имени первого Президента России Б.Н. Ельцина',
+      city: urfu.city,
+      region: urfu.region,
+      website: 'https://example.invalid/urfu-dup',
+      status: 'NEW',
+      description: 'Демонстрационная запись: дубль, заведённый с полным названием.',
+      isMock: true,
+      contacts: {
+        create: [{ fullName: 'Соколов Павел Андреевич', position: 'Специалист отдела партнёрств', isPrimary: true }],
+      },
+    },
+  })
+  const nsu = await prisma.university.findUniqueOrThrow({ where: { id: universityId('nsu') } })
+  await prisma.university.create({
+    data: {
+      createdAt: daysAgo(2),
+      updatedAt: daysAgo(2),
+      name: 'Новосибирский гос. технический ун-т',
+      city: nsu.city,
+      region: nsu.region,
+      status: 'NEW',
+      description: 'Демонстрационная запись: дубль из загрузки с сокращениями.',
+      isMock: true,
+    },
+  })
+  await prisma.skill.createMany({
+    data: [
+      { name: 'JS', category: 'Языки программирования', description: 'Дубль «JavaScript» из загрузки' },
+      { name: 'Postgres', category: 'Базы данных', description: 'Дубль «PostgreSQL» из загрузки' },
+      { name: 'K8s', category: 'DevOps', description: 'Дубль «Kubernetes» из загрузки' },
+    ],
+  })
+}
+
+/**
  * Рекомендации: настоящий движок правил по посеянным данным, а не сочинённые записи.
  *
  * Без этого шага свежая демонстрация открывается с пустым блоком «приоритетные
@@ -1674,6 +1724,7 @@ async function main(): Promise<void> {
   await seedDocuments(cooperations, users.manager, universityId)
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
+  await seedDataQualityCases(universityId)
   await seedRecommendations(cooperations, users.manager)
   await printSummary(users, universityRep)
 }

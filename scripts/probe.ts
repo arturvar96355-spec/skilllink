@@ -4452,6 +4452,168 @@ async function checkCalendarFeed(ctx: ProbeContext): Promise<void> {
   }
 }
 
+/**
+ * Качество данных (решение 134): формы ответов и права — представителю вуза
+ * закрыты отчёт, дубли и слияние (это сравнение и правка чужих вузов), а лента 360
+ * своего вуза и похожие программы ходят через обычные права READ / ANALYTICS.
+ * Числа самого отчёта и дублей проверяют юнит-тесты (data-quality.service.test.ts,
+ * quality.test.ts, duplicates.test.ts) на подменённой базе — здесь только контракт.
+ */
+async function checkDataQuality(ctx: ProbeContext): Promise<void> {
+  step('Качество данных: формы ответов и права')
+  const { rep, adminId, managerId, universities } = ctx
+
+  type QualityReport = { score: number | null; entities: Array<{ entity: string; score: number | null }>; duplicates: Record<string, number>; explanation: string }
+  type DuplicatePair = { a: { id: string; name: string }; b: { id: string; name: string }; score: number; method: string; reasons: string[]; dismissed: boolean }
+
+  if (!rep) {
+    check('в демо-данных есть представитель вуза для проверки прав', false, 'запустите npm run db:seed')
+  } else {
+    actAs(rep.id)
+    const reportAsRep = await call('GET', '/api/data-quality/report')
+    check('отчёт «Качество справочника» закрыт от представителя вуза — 403', reportAsRep.status === 403, `статус ${reportAsRep.status}`)
+
+    const duplicatesAsRep = await call('GET', '/api/data-quality/duplicates?entity=skill')
+    check('поиск дублей закрыт от представителя вуза — 403', duplicatesAsRep.status === 403, `статус ${duplicatesAsRep.status}`)
+
+    const mergeAsRep = await call('POST', '/api/universities/merge', { sourceId: 'x', targetId: 'y' })
+    check('слияние вузов закрыто от представителя вуза — 403', mergeAsRep.status === 403, `статус ${mergeAsRep.status}`)
+    actAs(null)
+  }
+
+  if (!managerId) {
+    check('в демо-данных есть менеджер для проверки отчёта и дублей', false, 'запустите npm run db:seed')
+    return
+  }
+
+  actAs(managerId)
+  const report = await call<QualityReport>('GET', '/api/data-quality/report')
+  const score = report.body.data?.score ?? null
+  const entityTypes = report.body.data?.entities ?? []
+  const duplicateCounts = report.body.data?.duplicates ?? {}
+  check(
+    'отчёт менеджеру открыт: оценка 0..100 или null, есть все пять сущностей',
+    report.status === 200 &&
+      (score === null || (score >= 0 && score <= 100)) &&
+      new Set(entityTypes.map((entity) => entity.entity)).size === 5,
+    `статус ${report.status}`,
+  )
+  check('в отчёте — счётчики дублей по всем четырём сущностям', ['university', 'skill', 'program', 'product'].every((entity) => typeof duplicateCounts[entity] === 'number'))
+
+  const duplicates = await call<DuplicatePair[]>('GET', '/api/data-quality/duplicates?entity=skill')
+  check(
+    'дубли навыков менеджеру открыты: пары упорядочены по убыванию сходства',
+    duplicates.status === 200 &&
+      (duplicates.body.data ?? []).every((pair, index, all) => index === 0 || all[index - 1]!.score >= pair.score) &&
+      (duplicates.body.data ?? []).every((pair) => pair.score >= 0 && pair.score <= 1 && pair.reasons.length > 0),
+    `статус ${duplicates.status}, пар ${duplicates.body.data?.length ?? 0}`,
+  )
+
+  const badEntity = await call('GET', '/api/data-quality/duplicates?entity=nonsense')
+  check('неизвестная сущность в запросе дублей — ошибка ввода, не 500', badEntity.status >= 400 && badEntity.status < 500, `статус ${badEntity.status}`)
+
+  const pair = duplicates.body.data?.[0]
+  if (pair) {
+    const dismissed = await call<{ dismissed: boolean }>('POST', '/api/data-quality/duplicates/dismiss', {
+      entity: 'skill',
+      firstId: pair.a.id,
+      secondId: pair.b.id,
+      comment: 'Пробник: разные навыки, не дубль',
+    })
+    check('пара отмечена «не дубль» — 200', dismissed.status === 200, `статус ${dismissed.status}`)
+    const afterDismiss = await call<DuplicatePair[]>('GET', '/api/data-quality/duplicates?entity=skill&includeDismissed=true')
+    const found = (afterDismiss.body.data ?? []).find((row) => row.a.id === pair.a.id && row.b.id === pair.b.id)
+    check('в списке с includeDismissed пара помечена dismissed=true', found?.dismissed === true)
+    const withoutDismissed = await call<DuplicatePair[]>('GET', '/api/data-quality/duplicates?entity=skill')
+    check('по умолчанию отмеченная «не дубль» пара скрыта', !(withoutDismissed.body.data ?? []).some((row) => row.a.id === pair.a.id && row.b.id === pair.b.id))
+  }
+
+  // Слияние: сама операция необратимо переносит демо-данные, поэтому пробник только
+  // проверяет, что запрос доходит до бизнес-логики (не 403) и что она отвергает
+  // несуществующий вуз — реального слияния не делает.
+  if (adminId) {
+    actAs(adminId)
+    const bogusMerge = await call('POST', '/api/universities/merge', { sourceId: 'нет-такого-id', targetId: 'тоже-нет' })
+    check('администратору слияние доступно: несуществующий вуз — ошибка ввода, а не 403', bogusMerge.status !== 403 && bogusMerge.status >= 400 && bogusMerge.status < 500, `статус ${bogusMerge.status}`)
+    const bogusUndo = await call('POST', '/api/universities/merge/несуществующий-id/undo')
+    check('администратору отмена слияния доступна: несуществующее слияние — 404, не 403', bogusUndo.status === 404, `статус ${bogusUndo.status}`)
+  }
+
+  // Лента 360: представитель видит только свой вуз и без внутренних типов.
+  const anyUniversity = universities.body.data?.[0]
+  if (rep?.universityId) {
+    actAs(rep.id)
+    const ownTimeline = await call<unknown[]>('GET', `/api/universities/${rep.universityId}/timeline?limit=5`)
+    check('лента 360 своего вуза представителю открыта', ownTimeline.status === 200, `статус ${ownTimeline.status}`)
+    check(
+      'в разрешённых типах ленты нет рекомендаций, ПД-фактов и внутреннего журнала',
+      Array.isArray(ownTimeline.body.meta?.types) && !['recommendation', 'contact', 'audit'].some((type) => (ownTimeline.body.meta!.types as string[]).includes(type)),
+    )
+    const foreignId = ctx.foreignUniversity?.id
+    if (foreignId) {
+      const foreignTimeline = await call('GET', `/api/universities/${foreignId}/timeline`)
+      check('чужой вуз в ленте 360 — 404, а не 403', foreignTimeline.status === 404, `статус ${foreignTimeline.status}`)
+    }
+    actAs(null)
+  }
+  if (anyUniversity) {
+    actAs(managerId)
+    const managerTimeline = await call<Array<{ occurredAt: string }>>('GET', `/api/universities/${anyUniversity.id}/timeline?limit=5`)
+    const items = managerTimeline.body.data ?? []
+    check(
+      'менеджеру лента открыта, новые события сверху',
+      managerTimeline.status === 200 && items.every((item, index) => index === 0 || item.occurredAt <= items[index - 1]!.occurredAt),
+      `статус ${managerTimeline.status}, событий ${items.length}`,
+    )
+    const unknownTimeline = await call('GET', '/api/universities/несуществующий-вуз/timeline')
+    check('несуществующий вуз в ленте — 404', unknownTimeline.status === 404, `статус ${unknownTimeline.status}`)
+  }
+
+  // Похожие программы: программа без общих навыков ни с кем — не ошибка, а пустой список.
+  const programs = await call<Array<{ id: string }>>('GET', '/api/programs?pageSize=1')
+  const programId = programs.body.data?.[0]?.id
+  if (programId) {
+    if (rep) {
+      actAs(rep.id)
+      const similarAsRep = await call('GET', `/api/programs/${programId}/similar`)
+      check('похожие программы закрыты от представителя вуза — 403', similarAsRep.status === 403, `статус ${similarAsRep.status}`)
+      actAs(null)
+    }
+
+    actAs(managerId)
+    const similar = await call<{ items: Array<{ score: number; sharedSkills: unknown[] }>; missingSummary: unknown[] }>('GET', `/api/programs/${programId}/similar?limit=3`)
+    check(
+      'похожие программы: не больше limit, сходство убывает и лежит в 0..1',
+      similar.status === 200 &&
+        (similar.body.data?.items.length ?? 0) <= 3 &&
+        (similar.body.data?.items ?? []).every((item, index, all) => item.score >= 0 && item.score <= 1 && (index === 0 || all[index - 1]!.score >= item.score)),
+      `статус ${similar.status}, найдено ${similar.body.data?.items.length ?? 0}`,
+    )
+    const unknownProgram = await call('GET', '/api/programs/несуществующая-программа/similar')
+    check('несуществующая программа в похожих — 404', unknownProgram.status === 404, `статус ${unknownProgram.status}`)
+  }
+
+  // Тепловая карта встреч: та же аналитика, что и отчёт — представителю вуза закрыта.
+  const heatmap = await call<{ cells: number[][]; dayLabels: string[]; total: number; max: number }>('GET', '/api/analytics/meetings-heatmap')
+  const cells = heatmap.body.data?.cells ?? []
+  check(
+    'тепловая карта встреч: форма 7×24, max — наибольшее значение клетки',
+    heatmap.status === 200 &&
+      cells.length === 7 &&
+      cells.every((row) => row.length === 24) &&
+      heatmap.body.data?.max === Math.max(0, ...cells.flat()),
+    `статус ${heatmap.status}`,
+  )
+  if (rep) {
+    actAs(rep.id)
+    const heatmapAsRep = await call('GET', '/api/analytics/meetings-heatmap')
+    check('тепловая карта закрыта от представителя вуза — 403', heatmapAsRep.status === 403, `статус ${heatmapAsRep.status}`)
+    actAs(null)
+  }
+
+  actAs(null)
+}
+
 /** Итог прогона: число проверок и список провалившихся. */
 function printSummary(): void {
   console.log(`\n${BOLD}Итог${RESET}`)
@@ -4527,6 +4689,7 @@ async function main(): Promise<void> {
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)
+  await checkDataQuality(ctx)
 
   printSummary()
 }

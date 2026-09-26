@@ -1,5 +1,6 @@
 import { countSchema, webUrlSchema, z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
+import { legalEntityInnSchema, legalEntityOgrnSchema } from '@/shared/validation/inn-ogrn'
 import { CONSENT_FORMS, CONTACT_LEGAL_BASES, UNIVERSITY_STATUSES } from '@/shared/contracts/enums'
 
 const statusSchema = z.enum(UNIVERSITY_STATUSES)
@@ -116,7 +117,13 @@ const universityFields = {
   directionCount: countSchema().nullish(),
   studentCount: countSchema().nullish(),
   description: z.string().trim().max(2000).nullish(),
+  /** ИНН и ОГРН организации (решение 134): контрольная цифра проверяется здесь, формат — ещё и CHECK базы. */
+  inn: legalEntityInnSchema.nullish(),
+  ogrn: legalEntityOgrnSchema.nullish(),
 }
+
+/** Схемы полей вуза — для значений, которые администратор задаёт вручную при слиянии. */
+export const universityFieldSchemas = universityFields
 
 export const createUniversitySchema = z.object({
   ...universityFields,

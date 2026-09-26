@@ -57,6 +57,35 @@ describe('ограничения схемы, которые живут толь�
     expect(backfill).toBeGreaterThan(-1)
     expect(backfill).toBeLessThan(index)
   })
+
+  it('решение 134: слитый вуз — только архивный и не на себя', () => {
+    // Prisma не умеет CHECK на комбинацию своих же полей — только SQL миграция.
+    expect(migrations).toContain('universities_merged_into_check')
+    expect(migrations).toMatch(/"merged_into_id" <> "id" AND "archived_at" IS NOT NULL/)
+  })
+
+  it('решение 134: пара «не дубль» хранится упорядоченной', () => {
+    // Иначе «A, B» и «B, A» были бы двумя разными исключениями из поиска дублей.
+    expect(migrations).toContain('duplicate_dismissals_order_check')
+    expect(migrations).toMatch(/"first_id" < "second_id"/)
+  })
+
+  it('решение 134: вуз не может быть слит сам с собой, отмена слияния всегда с датой', () => {
+    expect(migrations).toContain('university_merges_distinct_check')
+    expect(migrations).toContain('university_merges_undone_check')
+  })
+
+  it('решение 134: ИНН и ОГРН вуза — ровно нужное число цифр', () => {
+    // Контрольную цифру CHECK не проверяет (нечитаемое выражение) — это делает
+    // src/shared/validation/inn-ogrn.ts на вводе; здесь только длина и что это цифры.
+    expect(migrations).toMatch(/"inn" ~ '\^\[0-9\]\{10\}\$'/)
+    expect(migrations).toMatch(/"ogrn" ~ '\^\[0-9\]\{13\}\$'/)
+  })
+
+  it('решение 134: схема упоминает CHECK-ограничения вуза — иначе их не найти при следующей правке', () => {
+    expect(schema).toContain('CHECK в базе: NULL или ровно 10 цифр')
+    expect(schema).toContain('CHECK: не на себя; только у архивной записи')
+  })
 })
 
 /**

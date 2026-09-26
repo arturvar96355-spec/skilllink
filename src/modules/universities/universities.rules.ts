@@ -6,6 +6,19 @@ import type {
   UniversityStatus,
 } from '@/shared/contracts/enums'
 
+/**
+ * Слитый дубль (решение 134) из архива не возвращается: его программы, связки и контакты
+ * у другого вуза. Вернуть можно только отменой слияния.
+ */
+export function assertNotMerged(mergedIntoId: string | null): void {
+  if (mergedIntoId) {
+    throw conflict(
+      'Вуз слит с другим как дубль. Чтобы вернуть его, отмените слияние: POST /api/universities/merge/:id/undo.',
+      { mergedIntoId },
+    )
+  }
+}
+
 /** Статусы, при которых вуз считается «в работе» (показатель дашборда 7.1). */
 export const ACTIVE_UNIVERSITY_STATUSES: readonly UniversityStatus[] = ['IN_PROGRESS', 'ACTIVE']
 
