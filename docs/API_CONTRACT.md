@@ -1981,6 +1981,112 @@ no-store`** (в файле ФИО, телефоны и почты слушате
 
 ---
 
+## 9б. Прогноз связок (решение 135)
+
+Прогноз «дойдёт ли связка до подписанного договора» (этап 6) и дальше — до начала занятий
+(этап 11). Формулы, ворота публикации и честные ограничения — [FORECAST_MODEL.md](FORECAST_MODEL.md).
+Право везде — `ANALYTICS`: представителю вуза недоступно, как и остальная аналитика.
+
+### GET /api/analytics/forecast/model
+
+Метрики, статус ворот, коэффициенты и калибровка по обеим вехам — для слайда с объяснением модели.
+
+```json
+{
+  "data": {
+    "models": [
+      {
+        "milestone": { "stageNumber": 6, "stageTitle": "Подписание документов", "goal": "подписанного договора" },
+        "horizonDays": 60,
+        "version": 3,
+        "trainedAt": "2026-09-25T09:00:00.000Z",
+        "status": "insufficient_data",
+        "statusLabel": "Недостаточно данных",
+        "isStale": false,
+        "staleReasons": [],
+        "metrics": {
+          "auc": 0.61, "aucLower": 0.42, "baselineAuc": 0.58,
+          "brier": 0.21, "baselineBrier": 0.22,
+          "n": 18, "positives": 5, "cooperations": 9,
+          "trainN": 24, "trainPositives": 6,
+          "splitAt": "2026-07-01T00:00:00.000Z",
+          "calibration": [
+            { "from": 0, "to": 0.2, "count": 6, "meanPredicted": 0.11, "observedRate": 0.17 }
+          ],
+          "gate": [
+            { "key": "training", "passed": true, "text": "На ранних снимках хватило данных обоих исходов, чтобы обучить модель" },
+            { "key": "snapshots", "passed": false, "text": "Снимков на проверке: 18, нужно не меньше 60" }
+          ],
+          "iterations": 12, "converged": true, "lambda": 1
+        },
+        "intercept": -0.42,
+        "coefficients": [
+          { "feature": "daysSinceActivity", "title": "Дней с последней активности", "weight": -0.53, "oddsRatio": 0.59, "mean": 12.4, "std": 9.1 }
+        ],
+        "drift": [
+          { "feature": "daysSinceActivity", "title": "Дней с последней активности", "psi": null }
+        ],
+        "driftSample": 9,
+        "isMock": true
+      }
+    ],
+    "generatedAt": "2026-09-26T08:00:00.000Z"
+  }
+}
+```
+
+`status`: `published` — модель прошла ворота и используется; `baseline_better` — не прошла,
+используется частота вехи по этапу; `insufficient_data` — либо обучающих данных не хватило
+совсем (тогда `coefficients: []` и `intercept: null`), либо коэффициенты посчитаны на всей
+истории, но проверочной выборки мало для доверия метрикам (тогда коэффициенты в ответе
+есть — это ожидаемо на демонстрационном наборе, но `POST …/train` их пока не публикует).
+`drift[].psi: null` — текущих открытых связок меньше `psiMinCurrent` (`forecast.config.ts`):
+сдвиг не считается, а не «сдвига нет».
+
+### POST /api/analytics/forecast/train
+
+Право: `ADMIN`. Переобучает модель по обеим вехам разом на всей истории связок и сохраняет
+последнюю запись каждой вехи (`forecast_models`, старая заменяется). Тяжёлый маршрут (группа
+`heavy`, 10 запросов в минуту, решение 117). Тело не нужно, ответ — как у `GET …/model`.
+Можно вызывать по расписанию: `npm run forecast:train`.
+
+### GET /api/cooperations/:id/forecast
+
+Прогноз для одной связки — плашка на её карточке.
+
+```json
+{
+  "data": {
+    "cooperationId": "…",
+    "milestone": { "stageNumber": 6, "stageTitle": "Подписание документов", "goal": "подписанного договора" },
+    "horizonDays": 60,
+    "probability": 0.34,
+    "source": "baseline",
+    "status": "insufficient_data",
+    "statusLabel": "Недостаточно данных",
+    "summary": "Оценка по правилу: для модели пока мало данных",
+    "explanation": [
+      { "feature": "stageNumber", "title": "Номер текущего этапа", "value": 4, "contribution": null,
+        "direction": "info", "text": "Из 7 случаев, когда связка была на этапе 4, до подписанного договора за 60 дней дошли 2" }
+    ],
+    "notes": [],
+    "modelVersion": 3,
+    "trainedAt": "2026-09-25T09:00:00.000Z",
+    "isMock": true,
+    "generatedAt": "2026-09-26T08:00:00.000Z"
+  }
+}
+```
+
+`source`: `model` — вероятность модели (`status` тогда `preliminary` или `stale`); `baseline` —
+простое правило (частота вехи среди связок на том же этапе). `probability: null` и
+`milestone: null` — связка закрыта (`status: "not_applicable"`) или уже прошла все вехи
+(`status: "reached"`). `explanation` — до трёх причин «за» и до трёх «против» обычными
+словами; у оценки правилом вклада нет, `direction: "info"` поясняет саму оценку. `notes` —
+оговорки: связка на паузе, модель устарела и почему.
+
+---
+
 ## 10. Рекомендации
 
 Рекомендация не заменяет решение сотрудника (раздел 4 ТЗ): она объясняет, почему система
