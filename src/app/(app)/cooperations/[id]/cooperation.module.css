@@ -182,6 +182,12 @@
   color: var(--text-tertiary);
 }
 
+/* Каждая подпись — целиком в один приём: строка переносится по подписям
+   («срок …», «чек-лист 2/2»), а не по слогам внутри одной (решение 140, п. 2). */
+.stageMeta > span {
+  white-space: nowrap;
+}
+
 .stageBadges {
   display: flex;
   align-items: center;
@@ -194,6 +200,24 @@
   transition: transform var(--motion-micro) var(--ease-out);
   flex: none;
   margin-top: var(--space-1);
+}
+
+/*
+ * Узкий экран (решение 140, п. 2): бирки срока и статуса раньше стояли в одном
+ * ряду с названием этапа и сжимали его до 3–4 слов в строке, а сами при этом
+ * налезали на текст. Ряд переносится, и бирки уходят отдельной строкой под
+ * названием на всю ширину — название получает всю ширину карточки.
+ */
+@media (max-width: 640px) {
+  .stageHead {
+    flex-wrap: wrap;
+  }
+
+  .stageBadges {
+    flex-basis: 100%;
+    /* Отступ как у названия — под ним, а не под номером этапа слева. */
+    margin-left: calc(28px + var(--space-3));
+  }
 }
 
 .chevronOpen {
@@ -257,9 +281,17 @@
 }
 
 .taskText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   flex: 1;
   min-width: 0;
   font-size: var(--text-body-sm-size);
+}
+
+.taskTitle {
+  min-width: 0;
 }
 
 .taskMeta {

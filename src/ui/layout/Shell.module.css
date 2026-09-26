@@ -730,9 +730,15 @@
     bottom: 0;
     left: 0;
     z-index: var(--z-header);
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
+    /*
+     * Колонки по ширине содержимого, не поровну (решение 140, п. 8): при
+     * равных долях самая длинная подпись («Рекомендации») не помещалась
+     * в свою пятую ширины и обрезалась многоточием, хотя все пять подписей
+     * вместе легко умещаются в 375 px. justify-content раздаёт остаток.
+     */
+    display: flex;
+    justify-content: space-between;
+    gap: 2px;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line-subtle);
     background: var(--bg-header);
@@ -740,8 +746,15 @@
     -webkit-backdrop-filter: blur(14px);
   }
 
-  /* Содержимое не прячется под панелью. */
-  .main {
+  /*
+   * Отступ под нижнюю панель — на подвале, не на содержимом (решение 140, п. 6).
+   * `.main` растягивается `flex: 1` и на короткой странице подвал и так стоит
+   * у самого низа; отступ на `.main` не защищал подвал, а лишь раздувал пустое
+   * место перед ним. Внизу должен быть именно подвал — только он и получает
+   * запас высоты панели плюс безопасную зону, чтобы не уезжать под неё
+   * при прокрутке до конца.
+   */
+  .footer {
     padding-bottom: calc(76px + env(safe-area-inset-bottom));
   }
 }
@@ -751,9 +764,9 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  flex: 0 1 auto;
   min-width: 0;
-  /* Без боковых полей и чуть плотнее: «Программы» целиком влезает на 375 px (решение 129). */
-  padding: 6px 0;
+  padding: 6px 4px;
   border-radius: var(--radius-control);
   color: var(--text-tertiary);
   font-size: var(--text-caption-size);

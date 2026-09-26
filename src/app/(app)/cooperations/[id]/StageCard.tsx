@@ -353,13 +353,11 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                       <Checkbox
                         label={
                           <span className={styles.taskText}>
-                            {task.title}
-                            {task.isRequired && (
-                              <>
-                                {' '}
-                                <Badge tone="accent">обязательный</Badge>
-                              </>
-                            )}
+                            <span className={styles.taskTitle}>{task.title}</span>
+                            {/* Бирка — своей строкой с постоянным отступом, а не после текста
+                                (решение 140, п. 3): раньше положение зависело от того, влез ли
+                                текст на первую строку, и «обязательный» стоял то рядом, то ниже. */}
+                            {task.isRequired && <Badge tone="accent">обязательный</Badge>}
                           </span>
                         }
                         checked={task.isDone}

@@ -179,22 +179,29 @@ export function Tabs({
   onChange: (key: string) => void
 }) {
   return (
-    <div className={styles.tabs} role="tablist">
-      {items.map((item) => (
-        <button
-          key={item.key}
-          type="button"
-          role="tab"
-          aria-selected={item.key === active}
-          className={[styles.tab, item.key === active ? styles.tabActive : ''].filter(Boolean).join(' ')}
-          onClick={() => onChange(item.key)}
-        >
-          {item.label}
-          {item.count !== undefined && item.count !== null && (
-            <span className={styles.tabCount}>{item.count}</span>
-          )}
-        </button>
-      ))}
+    // Обёртка обрезает то, что уезжает под неё (решение 140, п. 4): у полосы
+    // прокрутки ряда на телефоне снизу растёт нативный индикатор, который
+    // `scrollbar-width`/`::-webkit-scrollbar` не прячут на iOS. Ряд ниже —
+    // с лишним полем понизу и таким же отрицательным отступом: индикатор
+    // рисуется в этом поле, а обёртка без лишней высоты его обрезает.
+    <div className={styles.tabsWrap}>
+      <div className={styles.tabs} role="tablist">
+        {items.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            role="tab"
+            aria-selected={item.key === active}
+            className={[styles.tab, item.key === active ? styles.tabActive : ''].filter(Boolean).join(' ')}
+            onClick={() => onChange(item.key)}
+          >
+            {item.label}
+            {item.count !== undefined && item.count !== null && (
+              <span className={styles.tabCount}>{item.count}</span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

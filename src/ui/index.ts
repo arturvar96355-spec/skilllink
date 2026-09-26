@@ -74,6 +74,7 @@ export {
   useMediaQuery,
   useCountUp,
   usePrefersReducedMotion,
+  useIsTruncated,
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'

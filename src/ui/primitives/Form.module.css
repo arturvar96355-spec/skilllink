@@ -70,6 +70,25 @@
   cursor: not-allowed;
 }
 
+/*
+ * `input[type=date]` — свой встроенный виджет с минимальной шириной, которая
+ * не считается с `width: 100%` и на телефоне раздвигала поле за правый край
+ * модального окна (решение 140, п. 5). `-webkit-appearance: none` снимает
+ * системную минимальную ширину, `max-width`/`min-width: 0` не дают полю
+ * requested-размером вылезти за родителя, `box-sizing` учитывает паддинг
+ * в тех же 100%.
+ */
+.control[type='date'],
+.control[type='time'],
+.control[type='datetime-local'] {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .invalid,
 .invalid:focus {
   border-color: rgba(240, 97, 111, 0.55);
