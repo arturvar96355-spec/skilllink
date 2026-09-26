@@ -2398,6 +2398,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     body: updateReplyDraftSchema,
     errors: WRITE_ERRORS,
   },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/task/done',
+    tag: 'Письма вузов',
+    summary: 'Отметить задание по письму выполненным',
+    description:
+      'Тело не нужно. Право шире, чем INBOUND_REVIEW: ответственный за задание (по связке или ' +
+      'по вузу) может отметить его сам, даже если он MANAGER и разбор писем ему недоступен; ' +
+      'ADMIN и HEAD — любое (решение 183). Письмо без задания — NOT_FOUND; задание уже DONE — CONFLICT.',
+    permission: 'INBOUND_READ',
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
 ]
 
 /**

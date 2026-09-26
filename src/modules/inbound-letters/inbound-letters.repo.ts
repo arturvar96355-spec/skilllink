@@ -347,6 +347,28 @@ export async function findResponsible(
   return university?.responsibleId ?? null
 }
 
+// ─────────────────────────── Уведомление о новом письме ──────────────────────
+
+/** ADMIN и HEAD активные — получатели уведомления о новом обращении (решение 183). */
+export async function listNoticeRecipientIds(): Promise<string[]> {
+  const rows = await prisma.user.findMany({
+    where: { role: { in: ['ADMIN', 'HEAD'] }, isActive: true },
+    select: { id: true },
+  })
+  return rows.map((row) => row.id)
+}
+
+// ──────────────────────────────── Задание по письму ───────────────────────────
+
+/** «Задание выполнено» (решение 183) — у письма ровно одно задание, обновление по `letterId`. */
+export async function completeTask(letterId: string, now: Date): Promise<LetterRow> {
+  await prisma.inboundLetterTask.update({
+    where: { letterId },
+    data: { status: 'DONE', updatedAt: now },
+  })
+  return (await findById(letterId))!
+}
+
 // ────────────────────────────── Отклонение (спам) ────────────────────────────
 
 export async function dismiss(id: string, userId: string, now: Date, comment: string | null): Promise<LetterRow> {

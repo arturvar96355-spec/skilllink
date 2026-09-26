@@ -4916,6 +4916,13 @@ INTEGRATION_TOKEN»; не прислан или неверен — `401 UNAUTHOR
 (ANALYST, VIEWER, UNIVERSITY_REP) — 403. `INBOUND_REVIEW` (ADMIN, HEAD) — загрузка,
 повторный разбор, проверка, отклонение, черновик ответа: MANAGER эти действия не выполняет,
 только читает и видит черновик. Флаг `permissions.canReviewLetters` в `GET /api/me`.
+Исключение — «Задание выполнено» (решение 183): его отмечает и ответственный MANAGER,
+не только ADMIN/HEAD (см. `POST …/:id/task/done` ниже).
+
+**Уведомление** (решение 183): по загрузке нового письма (`POST …/upload`) ADMIN и HEAD
+получают короткое сообщение через уже подключённый ими канал (`sendToUser`, решение 144;
+никто ничего не подключил — тихо не уходит) — «Новое письмо от вуза X: группа Y», без ФИО,
+почты и текста письма.
 
 **Группы обращения** — ровно шесть: `STAGE_SHIFT` «Сдвиг этапа», `DOCUMENTS` «Документы»,
 `MEETING` «Встреча», `QUESTION` «Вопрос», `PAUSE_OR_REFUSAL` «Пауза или отказ», `OTHER`
@@ -5036,9 +5043,20 @@ curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/analyze
 **Задание** (`task` в ответе) — сущность `InboundLetterTask`, отдельная от рекомендаций
 (`docs/TECHNICAL_DECISIONS.md`, решение 170): заголовок «Письмо вуза: <группа>», описание —
 действие, ответственный — по связке (`responsibleId` связки), иначе по вузу
-(`University.responsibleId`), иначе `null`. У задания нет отдельного маршрута — оно
-целиком видно в `task` карточки письма; управляет им тот, кто ведёт связку или вуз
-обычными средствами системы.
+(`University.responsibleId`), иначе `null`. Оно целиком видно в `task` карточки письма;
+отметить его выполненным — `POST …/:id/task/done` (решение 183, ниже).
+
+### POST /api/inbound-letters/:id/task/done
+
+Право шире, чем `INBOUND_REVIEW`: MANAGER, который назначен ответственным за это
+задание (`task.responsibleId === user.id`), отмечает его сам, хотя разбор писем ему
+недоступен; ADMIN и HEAD — любое задание. Тело не нужно. `task.status` → `DONE`.
+Задания нет (письмо без вуза/связки — ответственный не назначен и его некому отметить
+с чужого аккаунта) — `NOT_FOUND`; уже `DONE` — `CONFLICT`.
+
+```bash
+curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/task/done
+```
 
 ### POST /api/inbound-letters/:id/dismiss
 

@@ -6,7 +6,9 @@ import { useEffect, useState, type ReactNode } from 'react'
 import {
   INBOUND_LETTER_GROUP_LABELS,
   INBOUND_LETTER_SOURCE_LABELS,
+  INBOUND_LETTER_TASK_STATUS_LABELS,
   INBOUND_LETTER_VERDICT_LABELS,
+  type CurrentUserDto,
   type InboundLetterDto,
 } from '@/shared/contracts'
 import {
@@ -211,7 +213,7 @@ export default function LetterPage() {
               )}
 
               {card.review && (
-                <ReviewSummary card={card} />
+                <ReviewSummary card={card} user={user} onChanged={letter.reload} />
               )}
             </Card>
             </div>
@@ -256,9 +258,30 @@ export default function LetterPage() {
   )
 }
 
-/** Блок итога проверки: кто, когда, вердикт, задание; для исправленных — «было → стало». */
-function ReviewSummary({ card }: { card: InboundLetterDto }) {
+/**
+ * Блок итога проверки: кто, когда, вердикт, задание; для исправленных — «было → стало».
+ *
+ * «Задание выполнено» (решение 183) — ответственный за задание либо ADMIN/HEAD; кнопка
+ * прячется раньше отказа сервера так же, как остальные действия карточки, но право
+ * проверяет только сервер (`inbound-letters.service.ts`, `completeTask`).
+ */
+function ReviewSummary({ card, user, onChanged }: { card: InboundLetterDto; user: CurrentUserDto; onChanged: () => void }) {
   const review = card.review
+  const toast = useToast()
+  const completeTask = useMutation(
+    async () => (await apiPost<InboundLetterDto>(`/api/inbound-letters/${card.id}/task/done`)).data,
+  )
+
+  async function onCompleteTask() {
+    const result = await completeTask.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success('Задание отмечено выполненным')
+    onChanged()
+  }
+
   if (!review) return null
 
   const changes: Array<{ label: string; before: string; after: string }> = []
@@ -308,7 +331,23 @@ function ReviewSummary({ card }: { card: InboundLetterDto }) {
       {review.comment && <p className={styles.comment}>«{review.comment}»</p>}
       {card.task && (
         <p className={styles.reviewLine}>
-          Задание: {card.task.title} — {card.task.responsibleName ?? 'без ответственного'}
+          Задание: {card.task.title} — {card.task.responsibleName ?? 'без ответственного'} ·{' '}
+          <Badge tone={card.task.status === 'DONE' ? 'success' : 'neutral'} withDot>
+            {INBOUND_LETTER_TASK_STATUS_LABELS[card.task.status]}
+          </Badge>
+          {card.task.status === 'OPEN' &&
+            (user.role === 'ADMIN' || user.role === 'HEAD' || user.id === card.task.responsibleId) && (
+              <Button
+                className={styles.taskDoneButton}
+                variant="secondary"
+                size="sm"
+                icon="check"
+                onClick={onCompleteTask}
+                isLoading={completeTask.isPending}
+              >
+                Задание выполнено
+              </Button>
+            )}
         </p>
       )}
     </div>

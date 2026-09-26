@@ -1,7 +1,8 @@
-import { conflict, notFound, validationError } from '@/shared/http/errors'
+import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { log } from '@/shared/log/logger'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { UploadedFile } from '@/shared/http/request'
@@ -26,6 +27,7 @@ import { compose } from '@/modules/ai-assist/ai-assist.service'
 import { findRedactionContext } from '@/modules/ai-assist/ai-assist.repo'
 import { createRedactor, type Redact } from '@/modules/ai-assist/ai-assist.privacy'
 import { coolDown } from '@/modules/recommendations/recommendations.learning'
+import { sendToUser } from '@/modules/notify-channels/notify-channels.service'
 import * as repo from './inbound-letters.repo'
 import { parseEml } from './inbound-letters.eml'
 import { matchUniversityByDomain } from './inbound-letters.match'
@@ -54,6 +56,30 @@ import type {
 async function redactorFor(universityIds: readonly string[], names: readonly string[]): Promise<Redact> {
   const context = await findRedactionContext(universityIds)
   return createRedactor(context.people, [...context.universityNames, ...names])
+}
+
+// ─────────────────────────── Уведомление о новом письме ──────────────────────
+
+/** Только название вуза и группа обращения — без ФИО, почты, текста письма (решение 183). */
+function newLetterNoticeText(universityName: string | null, group: InboundLetterGroup): string {
+  return `Новое письмо от вуза ${universityName ?? 'неизвестного вуза'}: ${groupLabel(group)}`
+}
+
+/**
+ * ADMIN и HEAD — о каждом новом обращении (решение 183), через уже подключённый
+ * ими канал (`sendToUser`, решение 144): ничего не подключено — тихо не уходит,
+ * как и у сводки «что горит у меня». Только по загрузке письма — не по повторному
+ * разбору (`POST …/:id/analyze` вызывает тот же `analyzeLetter`, но это не новое
+ * письмо). Сбой отправки не должен ронять загрузку — best-effort, ошибка в журнал.
+ */
+async function notifyNewLetter(universityName: string | null, group: InboundLetterGroup): Promise<void> {
+  try {
+    const recipients = await repo.listNoticeRecipientIds()
+    const text = newLetterNoticeText(universityName, group)
+    await Promise.all(recipients.map((userId) => sendToUser(userId, text)))
+  } catch (error) {
+    log.warn('[inbound-letters] уведомление о новом письме не отправлено', { err: error })
+  }
 }
 
 // ─────────────────────────────────── DTO ─────────────────────────────────────
@@ -243,7 +269,9 @@ export async function uploadEml(user: CurrentUser, file: UploadedFile): Promise<
     payload: { source: 'EML_UPLOAD', bytes: file.size },
   })
 
-  return analyzeLetter(user, row.id)
+  const analyzed = await analyzeLetter(user, row.id)
+  await notifyNewLetter(analyzed.current.universityName, analyzed.current.group ?? 'OTHER')
+  return analyzed
 }
 
 // ──────────────────────────────────── Разбор ─────────────────────────────────
@@ -435,6 +463,43 @@ export async function dismissLetter(user: CurrentUser, id: string, input: Dismis
   await writeAudit({
     userId: user.id,
     action: 'inbound_letter.dismiss',
+    objectType: 'InboundLetter',
+    objectId: id,
+    payload: {},
+  })
+
+  const universityNames = await withUniversityNames([row])
+  return toDto(row, universityNames)
+}
+
+// ──────────────────────────────── Задание по письму ───────────────────────────
+
+/**
+ * «Задание выполнено» (решение 183, дополняет решение 170: там у задания намеренно
+ * не было отдельного маршрута — здесь он появляется, `docs/TECHNICAL_DECISIONS.md`).
+ *
+ * Право — ответственный за задание либо ADMIN/HEAD: `INBOUND_READ` пропускает и
+ * MANAGER (он читает письма своих вузов), но отметить чужое задание манагер
+ * не может — только своё, если оно на нём.
+ */
+export async function completeTask(user: CurrentUser, id: string, now: Date = new Date()): Promise<InboundLetterDto> {
+  assertCan(user, 'INBOUND_READ')
+  const existing = await repo.findById(id)
+  if (!existing) throw notFound('Обращение не найдено')
+  await assertVisible(user, existing)
+  if (!existing.task) throw notFound('У письма нет задания')
+  if (existing.task.status === 'DONE') throw conflict('Задание уже отмечено выполненным')
+
+  const isReviewer = user.role === 'ADMIN' || user.role === 'HEAD'
+  if (!isReviewer && existing.task.responsibleId !== user.id) {
+    throw forbidden('Отметить задание может только ответственный за него, ADMIN или HEAD')
+  }
+
+  const row = await repo.completeTask(id, now)
+
+  await writeAudit({
+    userId: user.id,
+    action: 'inbound_letter.task.done',
     objectType: 'InboundLetter',
     objectId: id,
     payload: {},

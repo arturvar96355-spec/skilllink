@@ -436,6 +436,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'inbound_letter.dismiss': 'Письмо вуза отклонено как спам',
   'inbound_letter.reply_draft': 'Собран черновик ответа вузу',
   'inbound_letter.reply_draft.edit': 'Черновик ответа вузу отредактирован',
+  'inbound_letter.task.done': 'Задание по письму вуза отмечено выполненным',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
