@@ -130,6 +130,15 @@ export async function isVisibleTo(id: string, userId: string): Promise<boolean> 
   return (await prisma.inboundLetter.count({ where: { id, ...managerScope(userId) } })) > 0
 }
 
+/**
+ * Письмо с тем же `messageId` от того же отправителя — для отказа при повторной
+ * загрузке одного и того же .eml (решение 187). Оба поля вместе: `messageId`
+ * заголовка Message-ID может в теории повториться у разных отправителей.
+ */
+export async function findByMessageId(messageId: string, senderEmail: string): Promise<LetterRow | null> {
+  return prisma.inboundLetter.findFirst({ where: { messageId, senderEmail }, select: letterSelect })
+}
+
 export interface CreateLetterInput {
   senderEmail: string
   senderName: string | null

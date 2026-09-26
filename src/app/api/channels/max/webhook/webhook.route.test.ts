@@ -116,4 +116,39 @@ describe('POST /api/channels/max/webhook', () => {
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: { accepted: false } })
   })
+
+  describe('дедупликация события без mid и без timestamp (решение 187)', () => {
+    // «Бот запущен» не несёт mid, а timestamp в вебхуке MAX не гарантирован.
+    // До исправления ключ в этом случае был `${update_type}:${Date.now()}` —
+    // свой при каждом вызове, поэтому один и тот же повтор вебхука (MAX
+    // повторяет его, если не дождался 200 вовремя) обрабатывался дважды.
+    const botStarted = { update_type: 'bot_started', chat_id: 555, user: { user_id: 555 }, payload: 'CODE123' }
+
+    it('повтор того же события — тихий 200, обработка один раз', async () => {
+      mocks.max = maxConfig()
+      const headers = { 'x-max-bot-api-secret': 'wh-secret' }
+      await POST(request(botStarted, headers), {})
+      expect(mocks.after).toHaveBeenCalledTimes(1)
+      const second = await POST(request(botStarted, headers), {})
+      expect(second.status).toBe(200)
+      expect(mocks.after).toHaveBeenCalledTimes(1)
+    })
+
+    it('другой пользователь с тем же типом события и payload — не считается повтором', async () => {
+      mocks.max = maxConfig()
+      const headers = { 'x-max-bot-api-secret': 'wh-secret' }
+      await POST(request(botStarted, headers), {})
+      const other = { ...botStarted, chat_id: 999, user: { user_id: 999 } }
+      await POST(request(other, headers), {})
+      expect(mocks.after).toHaveBeenCalledTimes(2)
+    })
+
+    it('другой payload у того же пользователя — не считается повтором', async () => {
+      mocks.max = maxConfig()
+      const headers = { 'x-max-bot-api-secret': 'wh-secret' }
+      await POST(request(botStarted, headers), {})
+      await POST(request({ ...botStarted, payload: 'CODE456' }, headers), {})
+      expect(mocks.after).toHaveBeenCalledTimes(2)
+    })
+  })
 })

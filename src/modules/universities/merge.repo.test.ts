@@ -240,4 +240,16 @@ describe('undoMerge', () => {
     db.tx.universityMerge.findUniqueOrThrow.mockResolvedValue({ ...baseMerge, undoneAt: new Date('2026-01-15') })
     await expect(repo.undoMerge('merge1', 'admin', new Date('2026-02-01'))).rejects.toMatchObject({ status: 409 })
   })
+
+  it('цель (B) уже слита дальше в E (A→B, затем B→E) — отмена A→B отказывает, ничего не переносит', async () => {
+    // До исправления: поиск объектов по B (уже пустому — они у E) не находил строк,
+    // но undoneAt всё равно проставлялся, и слияние молча считалось отменённым.
+    db.tx.universityMerge.findUnique.mockResolvedValue({ sourceId: 'source', targetId: 'target' })
+    db.tx.universityMerge.findUniqueOrThrow.mockResolvedValue(baseMerge)
+    db.tx.university.findUniqueOrThrow.mockResolvedValue(university({ id: 'target', mergedIntoId: 'E' }))
+
+    await expect(repo.undoMerge('merge1', 'admin', new Date('2026-02-01'))).rejects.toMatchObject({ status: 409 })
+    expect(db.tx.educationalProgram.updateMany).not.toHaveBeenCalled()
+    expect(db.tx.universityMerge.update).not.toHaveBeenCalled()
+  })
 })

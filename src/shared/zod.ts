@@ -28,3 +28,20 @@ export const countSchema = () => z.number().int().min(0).max(PG_INT_MAX, 'Сли
  */
 export const webUrlSchema = (message: string) =>
   z.url({ protocol: /^https?$/, message }).max(2000, 'Слишком длинная ссылка')
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Граница периода запроса: дата без времени («2026-01-01») или полный ISO 8601.
+ * Дата без времени разворачивается в начало или конец московских суток —
+ * иначе связка, начатая в 01:00 по Москве 1 января (22:00 UTC 31 декабря),
+ * не попадала бы в период «с 1 января» (решение 187, находилось и в отчётах,
+ * и в воронке этапов — теперь оба места используют одну функцию).
+ */
+export function dateBoundarySchema(edge: 'start' | 'end') {
+  const message = 'Дата должна быть в формате ГГГГ-ММ-ДД или ISO 8601'
+  const time = edge === 'start' ? '00:00:00.000+03:00' : '23:59:59.999+03:00'
+  return z
+    .union([z.iso.date({ message }), z.iso.datetime({ message })])
+    .transform((value) => (DATE_ONLY.test(value) ? new Date(`${value}T${time}`).toISOString() : value))
+}

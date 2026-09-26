@@ -8,7 +8,7 @@ import { COOPERATION_SORT_FIELDS, type CooperationListQuery } from './cooperatio
 /** Контрольные даты заполнены не у всех связок. */
 const NULLABLE_SORT_FIELDS = ['targetDate', 'classesStartAt'] as const
 import type { DuplicateCooperation, NewStageData } from './cooperation.rules'
-import { OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { OPEN_COOPERATION_STATUSES, type CooperationStatus } from '@/shared/contracts/enums'
 import { OVERDUE_STAGE_STATUSES } from '@/modules/workflow/workflow.rules'
 
 const userRefSelect = { id: true, fullName: true, role: true } satisfies Prisma.UserSelect
@@ -227,10 +227,23 @@ export async function createWithStages(
   return cooperation.id
 }
 
+/**
+ * Обновление условное — так же, как у этапов (`workflow.repo.ts`): статус
+ * связки меняется, только если он всё ещё тот, который прочитал вызывающий
+ * сервис (решение 187, находка ревью 27.09). Раньше `update` писал безусловно:
+ * два одновременных PATCH одной связки оба проходили проверку перехода по
+ * прочитанному статусу и оба писали — какой запрос выполнился последним,
+ * тот и остался, без ошибки и следа, что решение конфликтовало со вторым.
+ *
+ * Возвращает число изменённых строк: 0 — статус успели сменить с момента
+ * чтения, вызывающий сервис отвечает 409.
+ */
 export async function update(
   id: string,
-  data: Prisma.CooperationUpdateInput,
+  expectedStatus: CooperationStatus,
+  data: Prisma.CooperationUncheckedUpdateManyInput,
   client: Prisma.TransactionClient = prisma,
-): Promise<void> {
-  await client.cooperation.update({ where: { id }, data })
+): Promise<number> {
+  const result = await client.cooperation.updateMany({ where: { id, status: expectedStatus }, data })
+  return result.count
 }
