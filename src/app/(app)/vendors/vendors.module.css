@@ -1,0 +1,108 @@
+/* Вендоры (ТЗ дизайна 26–29.09, п. 4.5): реестр и карточка в боковой панели. */
+
+.count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.blockTitle {
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.empty {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.row:hover {
+  background: var(--surface-2);
+  border-color: var(--line-strong);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.rowMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.rowMeta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.rowCount {
+  flex: none;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--line-subtle);
+}
+
+.courses {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.updated {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

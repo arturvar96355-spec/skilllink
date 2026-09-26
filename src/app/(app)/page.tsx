@@ -18,6 +18,7 @@ import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
+import { usePrintBlock } from './print-block'
 import {
   Badge,
   Button,
@@ -70,6 +71,7 @@ import {
   type Pie3DSlice,
   type Pie3DTone,
 } from '@/ui'
+import { PriorityBreakdown } from './PriorityBreakdown'
 import styles from './dashboard.module.css'
 
 /** Знаков после запятой у показателей главной. Остальные — целые. */
@@ -181,7 +183,7 @@ const FACTOR_SHORT: Record<string, string> = {
 }
 
 /** Сколько связок показывать строками маршрута под главным блоком. */
-const ROUTE_ROWS = 6
+const ROUTE_ROWS = 8
 
 /**
  * «7 активных связей (6 в работе, 1 черновик)». Шапка, блок «Связки в работе»
@@ -242,6 +244,13 @@ function Dashboard() {
   // Рабочий режим (решение 80): без бегущей строки, колец и карты — «Требует
   // внимания» и «Приоритетные действия» сразу под полосой «Активно сейчас».
   const { isWork } = useUiMode()
+
+  // Печать одной диаграммы (решение 172, ТЗ — выгрузка диаграмм в png/pdf):
+  // каждый блок ниже печатается независимо от остальных.
+  const phasePiePrint = usePrintBlock<HTMLDivElement>()
+  const universityMapPrint = usePrintBlock<HTMLDivElement>()
+  const universityBarsPrint = usePrintBlock<HTMLDivElement>()
+  const funnelPrint = usePrintBlock<HTMLDivElement>()
 
   // Представителю вуза аналитика закрыта — у него свой кабинет.
   useEffect(() => {
@@ -498,7 +507,7 @@ function Dashboard() {
           {showcase && (
             <>
               <div className={styles.reveal} data-assemble="center" style={{ '--delay': '380ms' } as CSSProperties}>
-                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Кольцо можно покрутить.">
+                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение.">
                   <div className={styles.health}>
                     <HealthPie
                       title="Этапы в срок"
@@ -545,8 +554,16 @@ function Dashboard() {
 
               <div className={styles.bento}>
                 <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
-                  <Section title="Где сейчас связки" description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись.">
-                    <div className={styles.panel3d}>
+                  <Section
+                    title="Где сейчас связки"
+                    description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись."
+                    action={
+                      <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
+                        Печать / PDF
+                      </Button>
+                    }
+                  >
+                    <div className={styles.panel3d} ref={phasePiePrint.ref}>
                       <Pie3D slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
                     </div>
                   </Section>
@@ -556,12 +573,17 @@ function Dashboard() {
                     title="Вузы на карте"
                     description="Размер точки — число связок. Щелчок — страница вуза."
                     action={
-                      <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                        Все вузы
-                      </Button>
+                      <div className={styles.sectionActions}>
+                        <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                          Все вузы
+                        </Button>
+                        <Button variant="secondary" size="sm" icon="download" onClick={universityMapPrint.print}>
+                          Печать / PDF
+                        </Button>
+                      </div>
                     }
                   >
-                    <div className={styles.mapPanel}>
+                    <div className={styles.mapPanel} ref={universityMapPrint.ref}>
                       {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
                       <RussiaMap
                         points={mapPoints}
@@ -709,18 +731,19 @@ function Dashboard() {
                   <ul className={styles.actions}>
                     {data.priorityActions.map((action) => (
                       <li key={action.id}>
-                        <a className={styles.action} href={recommendationHref(action.id)}>
+                        <Link className={styles.action} href={recommendationHref(action.id)}>
                           <span className={styles.actionHead}>
                             <span className={styles.actionTitle}>{action.title}</span>
                             <PriorityBadge priority={action.priority} />
                           </span>
                           <ActionJustification text={action.justification} />
                           <span className={styles.actionTarget}>{action.target.label}</span>
-                        </a>
+                        </Link>
                       </li>
                     ))}
                   </ul>
                 )}
+                {data.priorityActions.length > 0 && <PriorityBreakdown />}
               </Section>
             </div>
           </div>
@@ -730,8 +753,13 @@ function Dashboard() {
               <Section
                 title="Связки по вузам"
                 description="Высота колонки — число связок вуза, красная часть — сколько из них требует внимания. Щелчок — страница вуза."
+                action={
+                  <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
+                    Печать / PDF
+                  </Button>
+                }
               >
-                <div className={styles.panel3d}>
+                <div className={styles.panel3d} ref={universityBarsPrint.ref}>
                   <Bars3D groups={universityBars} label="Связки по вузам" unit={['связка', 'связки', 'связок']} />
                 </div>
               </Section>
@@ -743,9 +771,14 @@ function Dashboard() {
               title="Воронка связок"
               description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы. Отменённые не входят."
               action={
-                <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
-                  Все связки
-                </Button>
+                <div className={styles.sectionActions}>
+                  <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                    Все связки
+                  </Button>
+                  <Button variant="secondary" size="sm" icon="download" onClick={funnelPrint.print}>
+                    Печать / PDF
+                  </Button>
+                </div>
               }
             >
               {funnelSource.isLoading ? (
@@ -755,7 +788,7 @@ function Dashboard() {
               ) : funnelCounted === 0 ? (
                 <EmptyState title="Связок пока нет" description="Воронка появится, когда будет заведена первая связка." />
               ) : (
-                <>
+                <div ref={funnelPrint.ref}>
                   <Funnel steps={funnelSteps} label="Воронка связок по фазам работы" />
                   <p className={styles.funnelNote}>{funnelComposition(data.cooperationCounts)}</p>
                   {funnelTotal !== null && funnelTotal > funnelCounted && (
@@ -763,7 +796,7 @@ function Dashboard() {
                       Посчитано по {formatNumber(funnelCounted)} связкам из {formatNumber(funnelTotal)}.
                     </p>
                   )}
-                </>
+                </div>
               )}
             </Section>
           </div>
@@ -906,7 +939,16 @@ function Dashboard() {
                                 </span>
                               )}
                             </span>
-                            <span className={styles.rankLine} aria-hidden />
+                            {/* Полоска балла вместо декоративной черты: в покое та выглядела
+                                обломком посреди строки (ТЗ дизайна 26–29.09, п. 1.2). */}
+                            <span className={styles.rankBar} aria-hidden>
+                              {row.score !== null && (
+                                <span
+                                  className={styles.rankBarFill}
+                                  style={{ '--score': `${Math.max(0, Math.min(100, row.score))}%` } as CSSProperties}
+                                />
+                              )}
+                            </span>
                             <span className={row.score === null ? styles.scoreEmpty : styles.score}>
                               {row.score === null ? 'Нет данных' : formatScore(row.score)}
                             </span>

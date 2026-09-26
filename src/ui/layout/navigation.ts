@@ -68,12 +68,17 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   const tools: NavItem[] = []
   if (user.permissions.canSeeAnalytics) {
     tools.push({ href: ROUTES.analytics, label: 'Аналитика', icon: 'analytics' })
+    tools.push({ href: ROUTES.dataQuality, label: 'Качество данных', icon: 'check' })
   }
   // Отчёт руководителю, отчёт и каталог по ТЗ живут под одним общим адресом
   // (решение 150) — пункт меню ведёт на раздел, подсвечивается на любой его странице.
   tools.push({ href: ROUTES.reports, label: 'Отчёты', icon: 'report' })
   tools.push({ href: ROUTES.documents, label: 'Документы', icon: 'document' })
   tools.push({ href: ROUTES.products, label: 'IT-продукты', icon: 'product' })
+  // Вендоры — то же право, что у аналитики (VENDORS = ANALYTICS по составу ролей).
+  if (user.permissions.canSeeAnalytics) {
+    tools.push({ href: ROUTES.vendors, label: 'Вендоры', icon: 'building' })
+  }
   tools.push({ href: ROUTES.settings, label: 'Настройки', icon: 'settings' })
 
   return [
@@ -99,6 +104,7 @@ export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
     // Не сырой JSON: контракт — документом в новой вкладке, состояние — страницей
     // внутри приложения (решение 126).
     { href: API_CONTRACT_URL, label: 'Контракт API', external: true },
+    { href: ROUTES.help, label: 'Справка' },
     { href: ROUTES.status, label: 'Состояние системы' },
   ]
   if (user.role !== 'UNIVERSITY_REP') {
@@ -158,13 +164,15 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.letters, allowed: canReadLetters },
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
 ]
 
 /**
  * Пути, открытые любой роли независимо от `SECTION_GUARDS`: личный кабинет
- * (не в меню сотрудника, но доступен всем через шапку), служебные страницы
- * подвала (`serviceLinksFor` — они и представителю вуза открыты) и сама
+ * (не в меню сотрудника, но доступен всем через шапку), справка (решение 154),
+ * служебные страницы подвала (`serviceLinksFor` — они и представителю вуза открыты) и сама
  * главная (`/`): у неё свой редирект на `/portal` для представителя вуза
  * внутри страницы (`page.tsx`), который должен успеть отработать, а не быть
  * перехваченным охранником раньше.
@@ -174,6 +182,7 @@ const ALWAYS_ALLOWED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.profile,
   ROUTES.privacy,
   ROUTES.status,
+  ROUTES.help,
 ])
 
 /** Доступен ли пользователю раздел по адресу `pathname` — без учёта хвоста после `?`/`#`. */

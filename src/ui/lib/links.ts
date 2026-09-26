@@ -20,6 +20,8 @@ export const ROUTES = {
   products: '/products',
   settings: '/settings',
   profile: '/profile',
+  /** Что система хранит о пользователе и выгрузка «всё обо мне» (ТЗ дизайна 26–29.09, п. 4.6). */
+  myData: '/profile/data',
   portal: '/portal',
   /** Раздел отчётов: отчёт руководителю, отчёт и каталог по ТЗ (решение 150). */
   reports: '/reports',
@@ -36,6 +38,12 @@ export const ROUTES = {
   privacy: '/privacy',
   /** Состояние системы словами — вместо сырого JSON /api/health (решение 126). */
   status: '/status',
+  /** Справка внутри приложения: ТЗ требует документацию, встроенную в платформу. */
+  help: '/help',
+  /** Качество данных: пробелы, устаревшее, дубли (ТЗ дизайна 26–29.09, п. 4.4). */
+  dataQuality: '/data-quality',
+  /** Вендоры — компании-владельцы IT-продуктов (ТЗ дизайна 26–29.09, п. 4.5). */
+  vendors: '/vendors',
 } as const
 
 /**
@@ -62,6 +70,11 @@ export function documentHref(id: string): string {
 
 export function recommendationHref(id: string): string {
   return `${ROUTES.recommendations}?recommendation=${id}`
+}
+
+/** Карточка вендора — боковой панелью в реестре вендоров, как у продукта. */
+export function vendorHref(id: string): string {
+  return `${ROUTES.vendors}?vendor=${id}`
 }
 
 export function productHref(id: string): string {

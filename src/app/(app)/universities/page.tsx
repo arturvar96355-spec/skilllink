@@ -41,6 +41,7 @@ import {
   type Column,
   ListTitle,
   formatPlace,
+  DownloadButton,
 } from '@/ui'
 import { CreateUniversityModal } from './CreateUniversityModal'
 import { UniversityTag } from './UniversityTag'
@@ -91,8 +92,13 @@ export default function UniversitiesPage() {
   // в рабочем список, в презентационном бирки.
   const { isWork } = useUiMode()
   const storedView = useStoredValue('skilllink.universities.view')
-  const view =
-    storedView.value === 'list' || storedView.value === 'cards' ? storedView.value : isWork ? 'list' : 'cards'
+  // В рабочем режиме — всегда плотный список, бирок нет (решение 44: 20–25 строк на экран);
+  // бирки — только в презентационном, там выбор «Бирки / Список» запоминается.
+  const view = isWork
+    ? 'list'
+    : storedView.value === 'list' || storedView.value === 'cards'
+      ? storedView.value
+      : 'cards'
   // Щелчок по центральной бирке раскрывает граф связей вуза (решение 79).
 
   const query = useDebounced(search.trim(), 300)
@@ -263,15 +269,13 @@ export default function UniversitiesPage() {
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же вузы, что в реестре. */}
-            <Button
-              variant="secondary"
-              icon="download"
+            <DownloadButton
               href={`/api/export${buildQuery({ dataset: 'universities', ...listFilters })}`}
-              external
+              fallbackName="universities.csv"
               title="Вузы с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
-            </Button>
+            </DownloadButton>
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Добавить вуз
@@ -282,26 +286,28 @@ export default function UniversitiesPage() {
       />
 
       <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
-        <ToolbarItem>
-          <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
-            <Button
-              size="sm"
-              variant={view === 'cards' ? 'primary' : 'secondary'}
-              aria-pressed={view === 'cards'}
-              onClick={() => storedView.store('cards')}
-            >
-              Бирки
-            </Button>
-            <Button
-              size="sm"
-              variant={view === 'list' ? 'primary' : 'secondary'}
-              aria-pressed={view === 'list'}
-              onClick={() => storedView.store('list')}
-            >
-              Список
-            </Button>
-          </div>
-        </ToolbarItem>
+        {!isWork && (
+          <ToolbarItem>
+            <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">
+              <Button
+                size="sm"
+                variant={view === 'cards' ? 'primary' : 'secondary'}
+                aria-pressed={view === 'cards'}
+                onClick={() => storedView.store('cards')}
+              >
+                Бирки
+              </Button>
+              <Button
+                size="sm"
+                variant={view === 'list' ? 'primary' : 'secondary'}
+                aria-pressed={view === 'list'}
+                onClick={() => storedView.store('list')}
+              >
+                Список
+              </Button>
+            </div>
+          </ToolbarItem>
+        )}
         <ToolbarSearch>
           <Input
             label="Поиск"
