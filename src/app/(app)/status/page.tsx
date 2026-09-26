@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button, Icon, PageHeader, formatDateTime, formatRelative } from '@/ui'
 import styles from './status.module.css'
 
@@ -45,27 +45,37 @@ const SCHEMA_TEXT: Record<Health['schema'], { ok: boolean | null; text: string }
 export default function StatusPage() {
   const [load, setLoad] = useState<Load>({ state: 'loading' })
   const [checking, setChecking] = useState(false)
+  const abortRef = useRef<AbortController | null>(null)
 
   const check = useCallback(async () => {
+    // Новая проверка отменяет предыдущую в полёте — так же, как useResource
+    // отменяет устаревший запрос (docs/FRONTEND.md).
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
     setChecking(true)
     try {
       // База и схема — в проверке готовности (/api/ready); /api/health отвечает
       // только за сам процесс сервера и полей database/schema не содержит.
-      const response = await fetch('/api/ready', { cache: 'no-store' })
+      const response = await fetch('/api/ready', { cache: 'no-store', signal: controller.signal })
       const body = (await response.json()) as { data?: Health }
       if (body.data) setLoad({ state: 'ready', health: body.data })
       else setLoad({ state: 'unreachable', at: new Date().toISOString() })
     } catch {
+      if (controller.signal.aborted) return
       setLoad({ state: 'unreachable', at: new Date().toISOString() })
     } finally {
-      setChecking(false)
+      if (!controller.signal.aborted) setChecking(false)
     }
   }, [])
 
   useEffect(() => {
     void check()
     const timer = window.setInterval(() => void check(), REFRESH_MS)
-    return () => window.clearInterval(timer)
+    return () => {
+      window.clearInterval(timer)
+      abortRef.current?.abort()
+    }
   }, [check])
 
   const health = load.state === 'ready' ? load.health : null
