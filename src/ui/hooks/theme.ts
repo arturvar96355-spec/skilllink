@@ -67,28 +67,39 @@ export function setTheme(theme: Theme, origin?: { x: number; y: number }): void 
     applyTheme(theme)
     window.dispatchEvent(new Event(CHANGE_EVENT))
   }
+  const root = document.documentElement
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const doc = document as Document & { startViewTransition?: (callback: () => void) => { ready: Promise<void> } }
-  if (!doc.startViewTransition || reduced) {
+  const doc = document as Document & {
+    startViewTransition?: (callback: () => void) => { ready: Promise<void>; finished: Promise<void> }
+  }
+  if (reduced) {
     apply()
+    return
+  }
+  if (!doc.startViewTransition) {
+    // Без View Transitions цвета перетекают (globals.css, `data-theme-switch='fade'`).
+    root.dataset.themeSwitch = 'fade'
+    apply()
+    window.setTimeout(() => delete root.dataset.themeSwitch, 600)
     return
   }
   const x = origin?.x ?? window.innerWidth - 80
   const y = origin?.y ?? 32
   const radius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-  document.documentElement.dataset.themeSwitch = ''
+  // Метка отключает у снимков хореографию перехода между страницами (globals.css):
+  // старая тема стоит на месте, новая открывается кругом поверх неё — и сразу
+  // в своих цветах, без перелива внутри круга.
+  root.dataset.themeSwitch = 'reveal'
   const transition = doc.startViewTransition(apply)
   transition.ready
     .then(() => {
-      document.documentElement.animate(
+      root.animate(
         { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
         { duration: 520, easing: 'cubic-bezier(0.65, 0, 0.35, 1)', pseudoElement: '::view-transition-new(root)' },
       )
     })
     .catch(() => undefined)
-    .finally(() => {
-      window.setTimeout(() => delete document.documentElement.dataset.themeSwitch, 600)
-    })
+  transition.finished.catch(() => undefined).finally(() => delete root.dataset.themeSwitch)
 }
 
 /** Тема интерфейса (решение 122): одна на всё приложение и все вкладки. */

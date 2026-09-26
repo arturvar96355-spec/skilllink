@@ -417,9 +417,9 @@
 }
 
 /* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */
-html[data-theme-switch] *,
-html[data-theme-switch] *::before,
-html[data-theme-switch] *::after {
+html[data-theme-switch='fade'] *,
+html[data-theme-switch='fade'] *::before,
+html[data-theme-switch='fade'] *::after {
   transition:
     background-color var(--motion-surface) var(--ease-out),
     color var(--motion-surface) var(--ease-out),
@@ -571,6 +571,17 @@ textarea {
 
 ::view-transition-new(root) {
   animation: nav-root-in var(--motion-page) var(--ease-out) 360ms both;
+}
+
+/*
+ * Смена темы (ui/hooks/theme.ts) идёт тем же снимком root, но хореография
+ * перехода между страницами ей чужая: старый экран не отступает и не гаснет,
+ * новый не ждёт. Круг новой темы раскрывает скрипт — здесь только покой.
+ */
+html[data-theme-switch='reveal']::view-transition-old(root),
+html[data-theme-switch='reveal']::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
 
 @keyframes nav-recede {

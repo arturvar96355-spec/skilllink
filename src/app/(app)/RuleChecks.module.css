@@ -1,0 +1,127 @@
+/* Проверки правила: «почему рекомендует» и «почему нет» (ТЗ дизайна 26–29.09, п. 4.1). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lead {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.meta {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+}
+
+.check[data-pass='yes'] .mark {
+  color: var(--status-success);
+  background: var(--success-surface);
+}
+
+.check[data-pass='no'] .mark {
+  color: var(--status-danger);
+  background: var(--danger-surface);
+}
+
+.checkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.checkLabel {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.check[data-pass='yes'] .checkLabel {
+  color: var(--text-secondary);
+}
+
+.checkDetail {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
+.rule {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+}
+
+.ruleHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.ruleTitle {
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ruleVerdict {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+}
+
+.ruleVerdict[data-pass='yes'] {
+  color: var(--status-success);
+}
+
+.ruleVerdict[data-pass='no'] {
+  color: var(--text-tertiary);
+}
+
+.ruleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-accent);
+}
+
+.ruleLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
