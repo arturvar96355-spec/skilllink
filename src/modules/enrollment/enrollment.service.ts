@@ -418,16 +418,20 @@ export async function listCourses(
   query: SchoolCourseListQuery,
 ): Promise<{ data: SchoolCourseDto[]; meta: PageMeta & { totals: SchoolCoursesTotalsDto } }> {
   assertCan(user, 'VENDORS')
-  const [{ rows, total }, hashes, streamCount] = await Promise.all([
+  // orderCount — обычный COUNT: не гонять всю таблицу заказов ради счётчика.
+  // Для listenerCount данные всё равно нужны целиком — дедупликация людей
+  // по цепочке общих хешей не считается агрегатом СУБД (repo.findAllOrderHashes).
+  const [{ rows, total }, hashes, orderCount, streamCount] = await Promise.all([
     repo.findCourses(query),
     repo.findAllOrderHashes(),
+    repo.countOrders(),
     repo.countStreams(),
   ])
   return {
     data: rows.map(toCourseDto),
     meta: {
       ...pageMeta(query, total),
-      totals: { orderCount: hashes.length, listenerCount: countListeners(hashes), streamCount },
+      totals: { orderCount, listenerCount: countListeners(hashes), streamCount },
     },
   }
 }

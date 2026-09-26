@@ -151,7 +151,17 @@ WHERE c.contype = 'f'
 | archived_at | timestamptz? | признак архива |
 
 Индексы: `status`, `region`, `city`, `merged_into_id`, `inn`, GIN по `name` (`gin_trgm_ops`,
-решение 134) — кандидатов в дубли по названию отбирает оператор `%`.
+решение 134) — кандидатов в дубли по названию отбирает оператор `%`; индекс по выражению
+`lower(name)` (решение 190, ревью базы 26.09.2026, миграция `20260926230717_review_indexes`) —
+под пакетный поиск вузов при импорте (`findUniversitiesByNames`/`findUniversityRefsByNames`,
+`import.repo.ts`): `name: { in: […], mode: 'insensitive' }` Prisma переводит в
+`lower(name) IN (…)`, и индекс по выражению его использует. Обычный B-tree по `name` для этого
+бесполезен и не заведён: единственный в коде поиск точного совпадения названия — всегда без
+учёта регистра, а одиночный `equals + mode: 'insensitive'` Prisma переводит в `name ILIKE $1`
+без шаблонных символов — по такому условию Postgres B-tree не использует ни по `name`, ни по
+`lower(name)` (проверено `EXPLAIN` на 5000 строк: план остаётся `Seq Scan`). В `schema.prisma`
+индекса нет — Prisma индексы по выражению не описывает, как и у `skills_name_key_ci`; у модели
+комментарий, `prisma migrate diff` его не видит и не предложит удалить.
 
 Рейтинг вуза **не хранится**: он вычисляется из показателей его программ. Хранить его —
 значит получить два источника правды.
@@ -336,7 +346,10 @@ UNIQUE: (`skill_id`, `period`, `source`, `region`). Индексы: `period`, `d
 | started_at, closed_at | timestamptz? | |
 | is_mock | boolean | |
 
-Индексы: `university_id`, `program_id`, `product_id`, `status`, `responsible_id`.
+Индексы: `university_id`, `program_id`, `product_id`, `status`, `responsible_id`,
+(`status`, `created_at`) — под `countCooperationsOpenAt` (`analytics.repo.ts`): тренд «связки
+в работе на дату» дашборда фильтрует по `status <> PAUSED` и `created_at <= at` (решение 190,
+ревью базы 26.09.2026, миграция `20260926230717_review_indexes`).
 
 `first_contact_at` и `classes_start_at` нужны показателю «среднее время до начала занятий»
 из раздела 7.1 ТЗ и метрике эффекта из концепции.
@@ -492,7 +505,10 @@ PK: (`rule_type`, `scope_type`, `scope_id`). Пишется только одн�
 
 `user_id?` (RESTRICT, до решения 115 — SET NULL), `action`, `object_type`, `object_id`,
 `payload` (jsonb?), `created_at`, `chain_seq` (bigint UNIQUE), `prev_hash`, `row_hash` (bytea).
-Индексы: (`object_type`, `object_id`), `created_at`, `user_id`, уникальный `chain_seq`.
+Индексы: (`object_type`, `object_id`), `created_at`, `user_id`, уникальный `chain_seq`,
+(`action`, `created_at`) — под `GET /api/audit`: `findAuditEntries` (`audit.repo.ts`) фильтрует
+по `action` и сортирует по `created_at` (решение 190, ревью базы 26.09.2026, миграция
+`20260926230717_review_indexes`).
 
 Персональные данные в `payload` не пишутся — только служебные поля.
 
