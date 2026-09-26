@@ -31,7 +31,7 @@ export function ThemeToggle() {
       <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
         <mask id={mask}>
           <rect x="0" y="0" width="24" height="24" fill="white" />
-          <circle className={styles.bite} cx="24" cy="4" r="8" fill="black" />
+          <circle className={styles.bite} cx="24" cy="2" r="6.5" fill="black" />
         </mask>
         <circle className={styles.core} cx="12" cy="12" r="5" mask={`url(#${mask})`} />
         <g className={styles.rays}>
