@@ -44,6 +44,8 @@ export const ROUTES = {
   dataQuality: '/data-quality',
   /** Вендоры — компании-владельцы IT-продуктов (ТЗ дизайна 26–29.09, п. 4.5). */
   vendors: '/vendors',
+  /** Импорт каталогов, вендоров и заказов из файла (ТЗ, актуализация через xls/xlsx). */
+  import: '/import',
 } as const
 
 /**

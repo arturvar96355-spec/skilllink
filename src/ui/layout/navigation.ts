@@ -79,6 +79,13 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   if (user.permissions.canSeeAnalytics) {
     tools.push({ href: ROUTES.vendors, label: 'Вендоры', icon: 'building' })
   }
+  // Импорт каталогов, вендоров и заказов (решение 177) — тот же WRITE, что и у
+  // самих загрузок (`assertCanImport`, `assertCanImportVendors`, `SITE_ORDERS`
+  // совпадает с WRITE по составу ролей): показывать раздел тому, кто в нём
+  // ничего не может отправить, только запутывает.
+  if (user.permissions.canWrite) {
+    tools.push({ href: ROUTES.import, label: 'Импорт', icon: 'attach' })
+  }
   tools.push({ href: ROUTES.settings, label: 'Настройки', icon: 'settings' })
 
   return [
@@ -166,6 +173,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.import, allowed: (user) => user.permissions.canWrite },
   { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
 ]
 

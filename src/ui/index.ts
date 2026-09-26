@@ -94,6 +94,7 @@ export {
   apiPost,
   apiPut,
   apiUpload,
+  apiUploadRaw,
   buildQuery,
   fieldErrors,
   ApiRequestError,
