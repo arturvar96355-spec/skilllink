@@ -123,6 +123,7 @@ export function describeCurrentUser(
       canSeeContactDetails: allowed('CONTACT_DETAILS'),
       isAdmin: allowed('ADMIN'),
       canAssignResponsible: allowed('ASSIGN_RESPONSIBLE'),
+      canReviewLetters: allowed('INBOUND_REVIEW'),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
   }

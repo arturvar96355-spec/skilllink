@@ -80,6 +80,21 @@ export const PERMISSIONS = {
    * их специально дали более узкой роли.
    */
   ASSIGN_RESPONSIBLE: ['ADMIN', 'HEAD'],
+  /**
+   * Письма вузов (решение 170): список и карточка обращения. ADMIN и HEAD видят все;
+   * MANAGER — только обращения своих вузов (где он ответственный за вуз или за связку,
+   * фильтр — в `inbound-letters.repo.ts`, тем же приёмом, что `universityScope` для
+   * представителя вуза, но по ответственности, а не по роли). ANALYST, VIEWER и
+   * представитель вуза — нет: переписка с вузом не входит ни в аналитику, ни в кабинет.
+   */
+  INBOUND_READ: ['ADMIN', 'MANAGER', 'HEAD'],
+  /**
+   * Разбор писем вузов (решение 170): загрузка `.eml`, повторный разбор, проверка
+   * («Верно»/«Неверно»), отклонение как спама, черновик ответа. Только ADMIN и HEAD —
+   * MANAGER лишь читает обращения своих вузов и черновик ответа (`INBOUND_READ`),
+   * само решение о разборе не принимает.
+   */
+  INBOUND_REVIEW: ['ADMIN', 'HEAD'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
@@ -99,6 +114,8 @@ export function can(user: CurrentUser, permission: Permission): boolean {
  * просмотр кабинета вуза (запись — `UNIVERSITY_PORTAL_WRITE`, не в списке). `CALENDAR` —
  * личная подписка на календарь (решение 105): не про данные системы, эксперту не мешает.
  * `CONTACT_DETAILS`, `VENDORS` — тоже только чтение (решение 106, решение 132).
+ * `INBOUND_READ` — тоже только чтение (решение 170): разбор и решение по письму
+ * (`INBOUND_REVIEW`) в списке нет — это как раз необратимое решение о письме.
  *
  * Экспертам эта версия отдаёт меньше, чем разрешил Артур 26.09.2026 (там же — чек-лист,
  * «взять рекомендацию в работу», встреча/документ), — выбрана более простая и надёжная
@@ -113,6 +130,7 @@ const REVIEWER_ALLOWED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission
   'CALENDAR',
   'CONTACT_DETAILS',
   'VENDORS',
+  'INBOUND_READ',
 ])
 
 /** Открыто ли право эксперту (решение 147): только чтение и выгрузки. */

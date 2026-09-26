@@ -189,3 +189,43 @@ export type ConsentForm = (typeof CONSENT_FORMS)[number]
 /** Предпочтительный канал связи с контактом вендора (решение 132): «Способ связи» в файле вендоров. */
 export const VENDOR_CONTACT_CHANNELS = ['EMAIL', 'TELEGRAM', 'PHONE'] as const
 export type VendorContactChannel = (typeof VENDOR_CONTACT_CHANNELS)[number]
+
+// ──────────────────────── Письма вузов (решение 170) ─────────────────────────
+
+/** Как получено письмо: живого ящика нет — только демо-набор или загруженный `.eml`. */
+export const INBOUND_LETTER_SOURCES = ['DEMO', 'EML_UPLOAD'] as const
+export type InboundLetterSource = (typeof INBOUND_LETTER_SOURCES)[number]
+
+/**
+ * Жизненный цикл обращения: `NEW` → `ANALYZED` (код и/или модель разобрали) →
+ * `CONFIRMED` («Верно») | `CORRECTED` («Неверно», с правкой) | `DISMISSED` (не по делу).
+ * Из трёх последних переходов нет — решение сотрудника окончательное.
+ */
+export const INBOUND_LETTER_STATUSES = ['NEW', 'ANALYZED', 'CONFIRMED', 'CORRECTED', 'DISMISSED'] as const
+export type InboundLetterStatus = (typeof INBOUND_LETTER_STATUSES)[number]
+
+/** Проверенные и исправленные — окончательные статусы, дальше только чтение. */
+export const INBOUND_LETTER_OPEN_STATUSES = ['NEW', 'ANALYZED'] as const satisfies readonly InboundLetterStatus[]
+
+/** Ровно шесть групп, с чем чаще всего пишут вузы (решение 170). */
+export const INBOUND_LETTER_GROUPS = [
+  'STAGE_SHIFT',
+  'DOCUMENTS',
+  'MEETING',
+  'QUESTION',
+  'PAUSE_OR_REFUSAL',
+  'OTHER',
+] as const
+export type InboundLetterGroup = (typeof INBOUND_LETTER_GROUPS)[number]
+
+/** Чем получен разбор: моделью или запасным путём по ключевым словам. */
+export const INBOUND_LETTER_ANALYZED_BY = ['MODEL', 'RULES'] as const
+export type InboundLetterAnalyzedBy = (typeof INBOUND_LETTER_ANALYZED_BY)[number]
+
+/** Итог проверки сотрудником: «Верно» — разбор принят как есть; «Неверно» — исправлен. */
+export const INBOUND_LETTER_VERDICTS = ['CORRECT', 'INCORRECT'] as const
+export type InboundLetterVerdict = (typeof INBOUND_LETTER_VERDICTS)[number]
+
+/** Статус задания, которое создаёт проверка письма ответственному за вуз. */
+export const INBOUND_LETTER_TASK_STATUSES = ['OPEN', 'DONE'] as const
+export type InboundLetterTaskStatus = (typeof INBOUND_LETTER_TASK_STATUSES)[number]

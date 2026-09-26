@@ -46,6 +46,12 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['DsarRequestKind', dsar.DSAR_REQUEST_KINDS, labels.DSAR_REQUEST_KIND_LABELS],
   ['DsarRequestStatus', dsar.DSAR_REQUEST_STATUSES, labels.DSAR_REQUEST_STATUS_LABELS],
   ['DsarRequestChannel', dsar.DSAR_REQUEST_CHANNELS, labels.DSAR_REQUEST_CHANNEL_LABELS],
+  ['InboundLetterSource', enums.INBOUND_LETTER_SOURCES, labels.INBOUND_LETTER_SOURCE_LABELS],
+  ['InboundLetterStatus', enums.INBOUND_LETTER_STATUSES, labels.INBOUND_LETTER_STATUS_LABELS],
+  ['InboundLetterGroup', enums.INBOUND_LETTER_GROUPS, labels.INBOUND_LETTER_GROUP_LABELS],
+  ['InboundLetterAnalyzedBy', enums.INBOUND_LETTER_ANALYZED_BY, labels.INBOUND_LETTER_ANALYZED_BY_LABELS],
+  ['InboundLetterVerdict', enums.INBOUND_LETTER_VERDICTS, labels.INBOUND_LETTER_VERDICT_LABELS],
+  ['InboundLetterTaskStatus', enums.INBOUND_LETTER_TASK_STATUSES, labels.INBOUND_LETTER_TASK_STATUS_LABELS],
 ]
 
 describe('подписи к перечислениям', () => {

@@ -191,6 +191,19 @@ export const AUDIT_ACTIONS = [
    * или автоматически (payload.by: 'admin' | 'auto'), когда вебхук перестал отвечать.
    */
   'telegram.mode_switched',
+  // ── Решение 170: письма вузов ──
+  /** Загружен `.eml` — сразу за ним идёт `inbound_letter.analyze` того же письма. */
+  'inbound_letter.upload',
+  /** Разбор письма (код + модель, либо запасной путь правилами). payload: analyzedBy, group, universityFound, fallbackReason. */
+  'inbound_letter.analyze',
+  /** Проверка «Верно»/«Неверно»: создаёт задание ответственному. payload: verdict, group, universityId. */
+  'inbound_letter.review',
+  /** Письмо отклонено как не по работе (спам). */
+  'inbound_letter.dismiss',
+  /** Черновик ответа собран заново (моделью или шаблоном). */
+  'inbound_letter.reply_draft',
+  /** Черновик ответа отредактирован вручную. */
+  'inbound_letter.reply_draft.edit',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -223,6 +236,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Approval',
   'WorkflowStageTemplate',
   'Attachment',
+  'InboundLetter',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

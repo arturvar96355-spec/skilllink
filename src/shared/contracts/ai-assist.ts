@@ -7,8 +7,19 @@
  * обязан честно показать, кто его написал.
  */
 
-/** Что за черновик. */
-export const AI_DRAFT_KINDS = ['cooperation-summary', 'recommendation-letter', 'today'] as const
+/**
+ * Что за черновик. Последние два — письма вузов (решение 170): `inbound-letter-analysis`
+ * не текст для показа, а JSON-ответ разбора (см. `inbound-letters.prompts.ts`) —
+ * тот же конвейер `compose()` (кэш, лимит, запасной путь), только результат — данные,
+ * а не готовый текст.
+ */
+export const AI_DRAFT_KINDS = [
+  'cooperation-summary',
+  'recommendation-letter',
+  'today',
+  'inbound-letter-analysis',
+  'inbound-letter-reply',
+] as const
 export type AiDraftKind = (typeof AI_DRAFT_KINDS)[number]
 
 /** Кто написал текст: одна из российских моделей или шаблон без модели. */

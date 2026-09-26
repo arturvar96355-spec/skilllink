@@ -100,8 +100,17 @@ describe('права текущего пользователя', () => {
     expect(expertAdmin.permissions.isAdmin).toBe(false)
     expect(expertAdmin.permissions.canSeeAnalytics).toBe(true)
     expect(expertAdmin.permissions.canSeeContactDetails).toBe(true)
+    expect(expertAdmin.permissions.canReviewLetters).toBe(false)
     const expertRep = describeCurrentUser({ ...as('UNIVERSITY_REP'), isReviewer: true })
     expect(expertRep.permissions.canUsePortal).toBe(true)
     expect(expertRep.permissions.canWritePortal).toBe(false)
+  })
+
+  it('разбирать письма вузов может только ADMIN и HEAD (решение 170)', () => {
+    expect(describeCurrentUser(as('ADMIN')).permissions.canReviewLetters).toBe(true)
+    expect(describeCurrentUser(as('HEAD')).permissions.canReviewLetters).toBe(true)
+    expect(describeCurrentUser(as('MANAGER')).permissions.canReviewLetters).toBe(false)
+    expect(describeCurrentUser(as('ANALYST')).permissions.canReviewLetters).toBe(false)
+    expect(describeCurrentUser(as('UNIVERSITY_REP')).permissions.canReviewLetters).toBe(false)
   })
 })
