@@ -91,6 +91,7 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/inbound-letters/[id]/dismiss',
   '/api/inbound-letters/[id]/reply-draft',
   '/api/inbound-letters/[id]/review',
+  '/api/inbound-letters/[id]/task/done',
   '/api/inbound-letters/stats',
   '/api/inbound-letters/upload',
   '/api/integrations/status',

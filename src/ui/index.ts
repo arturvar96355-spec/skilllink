@@ -80,6 +80,7 @@ export {
   useIsTruncated,
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
+export { useIdempotencyKey } from './hooks/idempotency-key'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
 export { useReveal } from './hooks/reveal'
 export { useTheme, setTheme } from './hooks/theme'
@@ -100,6 +101,7 @@ export {
   ApiRequestError,
 } from './lib/api'
 export { apiDownload, filenameFromDisposition } from './lib/api'
+export { reportClientError } from './lib/report-error'
 export { ATTACHMENT_ACCEPT, ATTACHMENT_EXTENSIONS, MAX_ATTACHMENT_MB } from './lib/attachments'
 export {
   NO_DATA,

@@ -22,6 +22,7 @@ import {
   fieldErrors,
   programWithUniversityOption,
   universityShortOption,
+  useIdempotencyKey,
   useMutation,
   useResource,
   useToast,
@@ -64,8 +65,11 @@ export function CreateDocumentModal({
 
   const users = useResource<UserDto[]>('/api/users?pageSize=100')
 
+  // Один ключ на всё время, что эта модалка открыта (решение 183): повторная
+  // отправка — двойной щелчок, обрыв сети — не заведёт вторую запись документа.
+  const idempotency = useIdempotencyKey()
   const save = useMutation(async (body: Record<string, unknown>) => {
-    const result = await apiPost<DocumentDto>('/api/documents', body)
+    const result = await apiPost<DocumentDto>('/api/documents', body, { idempotencyKey: idempotency.key })
     return result.data
   })
 

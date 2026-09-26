@@ -123,6 +123,7 @@ export function AiAssistCard({ title, description, actionLabel, endpoint }: AiAs
             {title}
           </span>
           <p className={styles.description}>{description}</p>
+          <p className={styles.note}>Цифры считает код, текст пишет YandexGPT, решение принимает человек</p>
         </div>
         <Button variant="secondary" icon="spark" onClick={run} isLoading={generate.isPending}>
           {draft ? 'Составить заново' : actionLabel}
