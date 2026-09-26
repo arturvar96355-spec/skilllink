@@ -76,6 +76,10 @@ services:
       MARKET_DATA_PROVIDER: ${MARKET_DATA_PROVIDER:-mock}
       LMS_ENABLED: ${LMS_ENABLED:-false}
       SITE_ENABLED: ${SITE_ENABLED:-false}
+      # Быстрый вход экспертов хакатона (решение 176): кнопки на /login без пароля,
+      # только для учётных записей is_reviewer = true (решение 147). По умолчанию
+      # выключено — на стенде включает владелец перед показом.
+      EXPERT_QUICK_LOGIN: ${EXPERT_QUICK_LOGIN:-false}
       # ИИ-помощник (решение 90). По умолчанию выключен — черновики пишутся шаблоном.
       # Ключи задаются только в .env.cloud на сервере: docs/DEPLOY.md,
       # раздел «Как подключить YandexGPT». В git их нет.

@@ -15,7 +15,17 @@ import type { ThrottleTrigger } from './throttle'
  * Сама блокировка пишется один раз, в момент, когда она наступила.
  */
 export type LoginOutcome =
-  | { kind: 'success'; userId: string; address: string }
+  | {
+      kind: 'success'
+      userId: string
+      address: string
+      /**
+       * Вход кнопкой быстрого входа эксперта (решение 176), а не паролем.
+       * Необязательное поле: обычный вход его не передаёт, и запись журнала
+       * не меняется — только у быстрого входа в payload добавляется пометка.
+       */
+      quickLogin?: boolean
+    }
   | { kind: 'failure'; userId: string | null; address: string; triggered: ThrottleTrigger[] }
 
 /** Объект записи о неизвестной учётной записи. */
@@ -29,7 +39,9 @@ export function loginAuditEntries(outcome: LoginOutcome): AuditEntry[] {
         action: 'auth.login.success',
         objectType: 'User',
         objectId: outcome.userId,
-        payload: { address: outcome.address },
+        payload: outcome.quickLogin
+          ? { address: outcome.address, quickLogin: true }
+          : { address: outcome.address },
       },
     ]
   }

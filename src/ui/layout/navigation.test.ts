@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CurrentUserDto, UserRole } from '@/shared/contracts'
 import { ROUTES } from '../lib/links'
-import { isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
+import { canReadLetters, isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
 import { API_CONTRACT_URL } from '../lib/links'
 
 /**
@@ -86,6 +86,30 @@ describe('боковое меню', () => {
   it('роль без аналитики не получает пункт «Аналитика»', () => {
     const analyst = navigationFor(user('ANALYST')).flatMap((group) => group.items.map((i) => i.href))
     expect(analyst).toContain(ROUTES.analytics)
+  })
+})
+
+describe('«Письма вузов» (решение 170/171)', () => {
+  it.each<UserRole>(['ADMIN', 'HEAD', 'MANAGER'])('роль %s видит пункт меню', (role) => {
+    expect(canReadLetters(user(role))).toBe(true)
+    const hrefs = navigationFor(user(role)).flatMap((group) => group.items.map((item) => item.href))
+    expect(hrefs).toContain(ROUTES.letters)
+  })
+
+  it.each<UserRole>(['ANALYST', 'VIEWER', 'UNIVERSITY_REP'])('роль %s пункт не видит', (role) => {
+    expect(canReadLetters(user(role))).toBe(false)
+    const hrefs = navigationFor(user(role)).flatMap((group) => group.items.map((item) => item.href))
+    expect(hrefs).not.toContain(ROUTES.letters)
+  })
+
+  it.each<UserRole>(['ADMIN', 'HEAD', 'MANAGER'])('раздел открыт роли %s через охранник', (role) => {
+    expect(isSectionAllowed(user(role), ROUTES.letters)).toBe(true)
+    expect(isSectionAllowed(user(role), `${ROUTES.letters}/some-id`)).toBe(true)
+  })
+
+  it.each<UserRole>(['ANALYST', 'VIEWER', 'UNIVERSITY_REP'])('раздел закрыт роли %s через охранник', (role) => {
+    expect(isSectionAllowed(user(role), ROUTES.letters)).toBe(false)
+    expect(isSectionAllowed(user(role), `${ROUTES.letters}/some-id`)).toBe(false)
   })
 })
 

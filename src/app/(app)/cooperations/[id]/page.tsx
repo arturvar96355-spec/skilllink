@@ -245,7 +245,7 @@ function CooperationContent() {
       <PageHeader
         title={`${data.universityName} — ${data.programName}`}
         breadcrumbs={[
-          { label: 'Сотрудничество', href: '/cooperations' },
+          { label: 'Связки', href: '/cooperations' },
           { label: data.universityName, href: universityHref(data.universityId) },
           { label: data.programName },
         ]}
