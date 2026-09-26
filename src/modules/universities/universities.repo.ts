@@ -19,6 +19,9 @@ const contactBasisSelect = {
   basisReference: true,
   withdrawalReference: true,
   basisUpdatedAt: true,
+  consentPolicyVersion: true,
+  consentTextHash: true,
+  consentContext: true,
 } satisfies Prisma.ContactSelect
 
 /** Поля, которые нужны и списку, и карточке. Считаем программы и связи одним запросом. */
@@ -43,6 +46,9 @@ const detailSelect = {
   description: true,
   directionCount: true,
   studentCount: true,
+  inn: true,
+  ogrn: true,
+  mergedIntoId: true,
   contacts: {
     orderBy: [{ isPrimary: 'desc' }, { fullName: 'asc' }],
     select: {
@@ -213,6 +219,11 @@ export async function findContact(universityId: string, contactId: string): Prom
   return prisma.contact.findFirst({ where: { id: contactId, universityId }, select: contactSelect })
 }
 
+/** Контакт по одному идентификатору — для раскрытия (решение 133); вуз проверяет сервис. */
+export async function findContactById(contactId: string): Promise<ContactRow | null> {
+  return prisma.contact.findUnique({ where: { id: contactId }, select: contactSelect })
+}
+
 export async function updateContact(
   contactId: string,
   data: Prisma.ContactUpdateInput,
@@ -269,6 +280,8 @@ const basisHistorySelect = {
   consentWithdrawnAt: true,
   referenceChanged: true,
   anonymized: true,
+  policyVersion: true,
+  consentTextHash: true,
   changedAt: true,
   changedBy: { select: { id: true, fullName: true, role: true } },
 } satisfies Prisma.ContactBasisHistorySelect

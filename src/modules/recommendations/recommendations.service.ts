@@ -1,5 +1,4 @@
 import { conflict, notFound } from '@/shared/http/errors'
-import { describeForLog } from '@/shared/db/log'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
@@ -16,6 +15,7 @@ import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { findCurrentStage } from '@/modules/workflow/workflow.rules'
 import * as repo from './recommendations.repo'
 import { withControlGroup } from './experiment/experiment.service'
+import { log } from '@/shared/log/logger'
 import * as statsRepo from './recommendations.stats.repo'
 import { ensureStageDurations } from '@/modules/analytics/stage-analytics.service'
 import {
@@ -111,7 +111,7 @@ async function learningStep(label: string, step: () => Promise<unknown>): Promis
   try {
     await step()
   } catch (error) {
-    console.error(`[RECOMMENDATIONS] обучение: ${label}`, describeForLog(error))
+    log.error(`[RECOMMENDATIONS] обучение: ${label}`, { err: error })
   }
 }
 
@@ -346,6 +346,6 @@ export async function syncCooperation(cooperationId: string): Promise<void> {
     await learningStep('сдвиг связки', () => statsRepo.creditSuccesses([...credited], now))
     await learningStep('пересчёт балла', () => rescoreOpen(now))
   } catch (error) {
-    console.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', describeForLog(error))
+    log.error('[RECOMMENDATIONS] не удалось сверить рекомендации связки', { cooperationId, err: error })
   }
 }

@@ -41,6 +41,26 @@ echo " $(docker inspect -f '{{.State.Health.Status}}' "$PG_CONTAINER" 2>/dev/nul
 echo "── Собираю образ для миграций"
 $COMPOSE --profile migrate build migrate
 
+# ── Ворота: миграции в порядке до того, как их трогать (решение 137) ────────
+#
+# «failed» — прошлое развёртывание оборвалось посреди applying, и Prisma не
+# станет накатывать следующую поверх, пока не разберёшься руками (`migrate
+# resolve`). Изменённая (checksum) применённая миграция — файл в prisma/migrations
+# правили уже после того, как его применили: значит, база и папка миграций
+# разошлись, и «применить» не значит «применить то, что в git».
+check_migration_status() {
+  echo "── Проверяю состояние миграций"
+  local status
+  status=$($COMPOSE --profile migrate run --rm -T migrate npx prisma migrate status 2>&1) || true
+  echo "$status"
+  if echo "$status" | grep -qiE "failed to apply|modified after it was applied"; then
+    echo "   миграции в плохом состоянии — останавливаюсь, база не тронута." >&2
+    echo "   Разобраться на сервере: cd $PWD && $COMPOSE --profile migrate run --rm migrate npx prisma migrate status" >&2
+    exit 1
+  fi
+}
+check_migration_status
+
 run_migrations() {
   $COMPOSE --profile migrate run --rm migrate 2>&1 | tee /tmp/skilllink-migrate.log
   return "${PIPESTATUS[0]}"
@@ -64,6 +84,32 @@ if ! run_migrations; then
     exit 1
   fi
 fi
+
+# ── Ворота: последняя папка миграций действительно применена (решение 137) ──
+#
+# `migrate deploy` выходит кодом 0, даже если применять было нечего, — само по
+# себе это не значит, что применилась именно ПОСЛЕДНЯЯ миграция из этого коммита:
+# так было бы, если бы код на сервере и папка migrations разошлись (не тот код
+# ушёл `git archive`, слияние потеряло файл миграции). Без этой проверки стенд
+# поднимется на старой схеме молча.
+check_last_migration_applied() {
+  local last
+  last=$(find prisma/migrations -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -1)
+  [ -n "$last" ] || { echo "   в prisma/migrations нет ни одной папки — нечего проверять" >&2; return 0; }
+
+  local user_name db_name applied
+  user_name=$(grep '^POSTGRES_USER=' "$ENV_FILE" | cut -d= -f2- || true)
+  db_name=$(grep '^POSTGRES_DB=' "$ENV_FILE" | cut -d= -f2- || true)
+  applied=$(docker exec -i skilllink-postgres psql -U "${user_name:-skilllink}" -d "${db_name:-skilllink}" -tAc \
+    "SELECT 1 FROM _prisma_migrations WHERE migration_name = '$last' AND finished_at IS NOT NULL LIMIT 1" | tr -d '[:space:]')
+  if [ "$applied" != "1" ]; then
+    echo "ОШИБКА: последняя миграция ($last) не отмечена применённой в _prisma_migrations." >&2
+    echo "  Код и папка миграций на сервере разошлись — проверьте, что ушло git archive." >&2
+    exit 1
+  fi
+  echo "── Последняя миграция применена: $last"
+}
+check_last_migration_applied
 
 if [ "$SEED" = "1" ]; then
   echo "── Загружаю демонстрационные данные"

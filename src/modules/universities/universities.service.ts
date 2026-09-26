@@ -1,13 +1,17 @@
 import { prisma } from '@/shared/db/prisma'
 import { writeAudit } from '@/shared/audit/audit'
-import { notFound } from '@/shared/http/errors'
+import { conflict, forbidden, notFound } from '@/shared/http/errors'
 import { pageMeta, type Pagination } from '@/shared/http/pagination'
-import { assertCan, can, canSeeContactDetails, universityScope } from '@/shared/auth/permissions'
+import { assertCan, can, canSeeContactDetails as canSeeContactDetailsByRole, universityScope } from '@/shared/auth/permissions'
+import { contactRevealRequired } from '@/shared/config/contacts.config'
+import { redactString } from '@/shared/log/redact'
+import { maskEmailForDisplay, maskPhoneForDisplay } from '@/shared/utils/mask'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
   ContactBasisHistoryEntryDto,
   ContactDto,
+  ContactRevealDto,
   ContactLegalBasisDto,
   UniversityDto,
   UniversityListItemDto,
@@ -21,6 +25,7 @@ import {
   ANONYMIZED_CONTACT_FIELDS,
   assertCanArchive,
   assertNotArchived,
+  assertNotMerged,
   basisHistoryKind,
   isAnonymizedContact,
   planBasisChange,
@@ -37,6 +42,15 @@ import {
   type WithdrawConsentBody,
 } from './universities.schema'
 
+/**
+ * Почта и телефон прямо в карточке (решение 106) — если роль вправе их видеть
+ * и не включён строгий режим раскрытия (CONTACT_REVEAL_REQUIRED, решение 133):
+ * тогда в карточке только маски, а значения — через раскрытие с журналом.
+ */
+function canSeeContactDetails(user: CurrentUser, universityId?: string): boolean {
+  return canSeeContactDetailsByRole(user, universityId) && !contactRevealRequired()
+}
+
 /** Поля учёта основания обработки ПД в строке контакта (решение 111). */
 export interface ContactBasisColumns {
   legalBasis: ContactLegalBasis | null
@@ -47,6 +61,9 @@ export interface ContactBasisColumns {
   basisReference: string | null
   withdrawalReference: string | null
   basisUpdatedAt: Date | null
+  consentPolicyVersion: string | null
+  consentTextHash: string | null
+  consentContext: string | null
 }
 
 function toLegalBasisDto(row: ContactBasisColumns): ContactLegalBasisDto | null {
@@ -60,6 +77,9 @@ function toLegalBasisDto(row: ContactBasisColumns): ContactLegalBasisDto | null 
     documentReference: row.basisReference ?? '',
     withdrawalReference: row.withdrawalReference,
     updatedAt: toIsoRequired(row.basisUpdatedAt),
+    policyVersion: row.consentPolicyVersion,
+    consentTextHash: row.consentTextHash,
+    consentContext: row.consentContext,
   }
 }
 
@@ -96,6 +116,9 @@ export function toContactDto(
     isAnonymized,
     // У обезличенного скрывать нечего — там «нет данных», а не «скрыто».
     contactDetailsHidden: !showDetails && !isAnonymized,
+    // Маски — всем, кто видит контакт (решение 133): вместо «скрыто» видно, что есть.
+    emailMasked: isAnonymized ? null : maskEmailForDisplay(row.email),
+    phoneMasked: isAnonymized ? null : maskPhoneForDisplay(row.phone),
     basisRecorded: row.legalBasis !== null,
     legalBasis: showBasis ? toLegalBasisDto(row) : null,
   }
@@ -161,6 +184,9 @@ export function toDetail(
     description: row.description,
     directionCount: row.directionCount,
     studentCount: row.studentCount,
+    inn: row.inn,
+    ogrn: row.ogrn,
+    mergedIntoId: row.mergedIntoId,
     // Обезличенный контакт основным не бывает — и запасным «первым попавшимся» тоже.
     primaryContact:
       contacts.find((contact) => contact.isPrimary) ??
@@ -363,6 +389,9 @@ export async function restore(user: CurrentUser, id: string): Promise<University
   assertCan(user, 'WRITE')
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Вуз не найден')
+  // Слитый дубль возвращается только отменой слияния: иначе его программы и связки
+  // остались бы у другого вуза, а он сам — пустым «двойником» в реестре (решение 134).
+  assertNotMerged(existing.mergedIntoId)
   const row = await repo.update(id, { archivedAt: null, status: 'IN_PROGRESS' })
   await writeAudit({
     userId: user.id,
@@ -514,6 +543,8 @@ function toBasisHistoryEntry(row: repo.ContactBasisHistoryRow): ContactBasisHist
     consentWithdrawnAt: toIso(row.consentWithdrawnAt),
     referenceChanged: row.referenceChanged,
     anonymized: row.anonymized,
+    policyVersion: row.policyVersion,
+    consentTextHash: row.consentTextHash,
     changedBy: row.changedBy,
     changedAt: toIsoRequired(row.changedAt),
   }
@@ -531,4 +562,53 @@ export async function contactBasisHistory(
   if (!contact) throw notFound('Контакт не найден')
   const { rows, total } = await repo.findBasisHistory(contactId, pagination)
   return { data: rows.map(toBasisHistoryEntry), meta: pageMeta(pagination, total) }
+}
+
+// ─────────────── Раскрытие почты и телефона с журналом (решение 133) ───────────────
+
+/**
+ * Раскрыть почту и/или телефон контакта с обязательной причиной. Каждое раскрытие —
+ * запись `contact.revealed` в журнале: какие поля, чей контакт, зачем.
+ *
+ * Кто может — те же, кто видит контакты по решению 106: ADMIN и MANAGER, представитель
+ * вуза — своего. Аналитику и наблюдателю — 403 до поиска контакта: раскрытие «по
+ * служебной необходимости» для них означало бы отменить решение владельца 106
+ * одной строкой причины. Контакт чужого вуза для представителя — 404.
+ *
+ * Причина идёт в журнал с маскированными почтой и телефонами: в ней пишут
+ * «уточнить у ivanov@…», и журнал не должен стать копией раскрытого.
+ */
+export async function revealContact(
+  user: CurrentUser,
+  contactId: string,
+  input: { fields?: Array<'email' | 'phone'> | undefined; reason: string },
+  now: Date = new Date(),
+): Promise<ContactRevealDto> {
+  assertCan(user, 'READ')
+  if (!can(user, 'CONTACT_DETAILS') && user.role !== 'UNIVERSITY_REP') {
+    throw forbidden('Почту и телефон контактов видят менеджер и администратор')
+  }
+  const row = await repo.findContactById(contactId)
+  if (!row || !canSeeContactDetailsByRole(user, row.universityId)) throw notFound('Контакт не найден')
+  if (isAnonymizedContact(row)) throw conflict('Контакт обезличен: раскрывать нечего')
+
+  const requested = new Set(input.fields && input.fields.length > 0 ? input.fields : (['email', 'phone'] as const))
+  const email = requested.has('email') ? row.email : null
+  const phone = requested.has('phone') ? row.phone : null
+  const revealedFields = [...(email ? (['email'] as const) : []), ...(phone ? (['phone'] as const) : [])]
+
+  await writeAudit({
+    userId: user.id,
+    action: 'contact.revealed',
+    objectType: 'Contact',
+    objectId: row.id,
+    payload: {
+      universityId: row.universityId,
+      fields: revealedFields,
+      requested: [...requested],
+      reason: redactString(input.reason),
+    },
+  })
+
+  return { id: row.id, universityId: row.universityId, email, phone, revealedFields, revealedAt: now.toISOString() }
 }

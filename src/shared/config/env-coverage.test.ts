@@ -13,14 +13,27 @@ import { describe, expect, it } from 'vitest'
 const ROOT = process.cwd()
 
 /** Служебные переменные среды выполнения: их задаёт не человек. */
-const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE'])
+const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE', 'NEXT_RUNTIME'])
 
 /**
- * Переменные, которые читает не наш код, а библиотека. В исходниках их не найти,
- * но описать их нужно: без AUTH_URL за HTTPS-прокси next-auth после входа
- * отправляет пользователя на localhost, а PORT задаёт порт сервера Next.js.
+ * Переменные, которые читает не наш код, а библиотека или docker-compose.yml
+ * (`${VAR}`, сверяется отдельно — src/shared/config/deploy-consistency.test.ts).
+ * В исходниках их не найти, но описать их нужно: без AUTH_URL за HTTPS-прокси
+ * next-auth после входа отправляет пользователя на localhost, PORT задаёт порт
+ * сервера Next.js, POSTGRES_… и порты — только настройка контейнеров compose,
+ * GRAFANA_… и PROMETHEUS_PORT — профиль `monitoring` (deploy/monitoring/README.md).
  */
-const READ_BY_LIBRARIES = new Set(['AUTH_URL', 'PORT'])
+const READ_BY_LIBRARIES = new Set([
+  'AUTH_URL',
+  'PORT',
+  'POSTGRES_USER',
+  'POSTGRES_PASSWORD',
+  'POSTGRES_DB',
+  'POSTGRES_PORT',
+  'GRAFANA_ADMIN_PASSWORD',
+  'PROMETHEUS_PORT',
+  'GRAFANA_PORT',
+])
 
 function collectSources(directory: string, found: string[] = []): string[] {
   for (const entry of readdirSync(directory)) {

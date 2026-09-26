@@ -31,7 +31,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://skilllink:skilllink@localhost:5432/skilllink?schema=public
       APP_BASE_URL: http://localhost:3000
-      AUTH_SECRET: ci-secret-not-for-production
+      # Не короче 32 знаков: промышленный сервер с коротким секретом не стартует
+      # (src/shared/config/env.ts, решение 133). Значение — только для CI.
+      AUTH_SECRET: ci-only-signing-secret-not-for-production-0123456789
       DEMO_AUTH_ENABLED: 'true'
       # Пробник проверяет отказ 429 на своём счёте с этим пределом (решение 117).
       RATE_LIMIT_TEST_OVERRIDE: '5'
@@ -53,6 +55,28 @@ jobs:
       # postinstall генерирует клиент Prisma — он нужен и типам, и тестам.
       - name: Установка зависимостей
         run: npm ci
+
+      # Ворота выкладки (решение 137): schema.prisma должна совпадать с тем, что
+      # получится, если проиграть подряд все миграции prisma/migrations. Расхождение —
+      # кто-то поменял схему и забыл (или не смог) создать миграцию: `migrate deploy`
+      # на сервере применит старые миграции и оставит базу не такой, как в schema.prisma,
+      # без единой ошибки. Сверка — в отдельной базе (SHADOW_DATABASE_URL): Prisma
+      # проигрывает в ней миграции и сравнивает результат со схемой, ничего не трогая
+      # в базе тестов.
+      - name: Пустая база для сверки миграций со схемой
+        run: |
+          PGPASSWORD=skilllink psql -h localhost -U skilllink -d skilllink \
+            -c 'CREATE DATABASE skilllink_shadow;'
+
+      - name: Схема совпадает с миграциями
+        env:
+          SHADOW_DATABASE_URL: postgresql://skilllink:skilllink@localhost:5432/skilllink_shadow?schema=public
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema.prisma \
+            --exit-code \
+          || (echo "schema.prisma разошлась с prisma/migrations: создайте миграцию (npx prisma migrate dev)" && exit 1)
 
       - name: Проверка типов
         run: npm run typecheck
