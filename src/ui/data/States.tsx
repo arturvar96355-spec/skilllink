@@ -5,6 +5,7 @@ import { Button } from '../primitives/Button'
 import { Icon, type IconName } from '../primitives/Icon'
 import { Skeleton } from '../primitives/Skeleton'
 import type { ApiRequestError } from '../lib/api'
+import { ROUTES } from '../lib/links'
 import styles from './States.module.css'
 
 /**
@@ -73,6 +74,39 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+/**
+ * Раздел, которого нет в роли пользователя (пробел ТЗ, решение 153).
+ *
+ * Показывается вместо содержимого страницы — по прямой ссылке на раздел,
+ * закрытый роли (охранник маршрута `isSectionAllowed`, `ui/layout/navigation.ts`,
+ * применяется в `AppShell`), а не после отказа API: страница со своими запросами
+ * вообще не монтируется, поэтому пустого экрана или сырого 403 не возникает.
+ *
+ * Тот же вид, что у `ErrorState` для кода `FORBIDDEN` («Раздел недоступен»,
+ * значок замка), — это тот же смысл, только раньше запроса к серверу. Кнопка —
+ * не всегда «На главную»: представителю вуза «На главную» ведёт на `/`, откуда
+ * его страница сама перенаправляет в `/portal` (решение 9), — здесь прямая
+ * ссылка в его кабинет, без лишнего перехода.
+ */
+export function SectionUnavailable({ isUniversityRep }: { isUniversityRep: boolean }) {
+  return (
+    <div className={styles.block}>
+      <span className={[styles.icon, styles.iconError].join(' ')}>
+        <Icon name="lock" size={24} />
+      </span>
+      <p className={styles.title}>Раздел недоступен</p>
+      <p className={styles.description}>
+        Этого раздела нет в вашей роли. Если это ошибка, обратитесь к администратору системы.
+      </p>
+      <div className={styles.actions}>
+        <Button icon={isUniversityRep ? 'university' : 'home'} href={isUniversityRep ? ROUTES.portal : ROUTES.dashboard}>
+          {isUniversityRep ? 'В кабинет вуза' : 'На главную'}
+        </Button>
+      </div>
     </div>
   )
 }

@@ -6,14 +6,14 @@ import { REAUTH_PARAM } from '@/shared/auth/reauth'
 import type { CurrentUserDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
 import { Skeleton } from '../primitives/Skeleton'
-import { ErrorState } from '../data/States'
+import { ErrorState, SectionUnavailable } from '../data/States'
 import { GlobalSearch } from '../search/GlobalSearch'
 import { useResource } from '../hooks/useResource'
 import { CurrentUserProvider } from './CurrentUser'
 import { Footer } from './Footer'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
-import { navigationFor, serviceLinksFor } from './navigation'
+import { isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
 import { takeArrival } from './arrival'
 import { useNavigationMotion } from './navigation-motion'
 import { LiveBackground } from './LiveBackground'
@@ -75,8 +75,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     )
   }
 
+  const user = me.data as CurrentUserDto
+  // Охранник по маршруту (пробел ТЗ «раздел недоступен», решение 153): страница
+  // раздела, закрытого роли, вообще не монтируется — её запросы к API не уходят,
+  // и вместо неё показывается «Раздел недоступен» тем же слоем, где обычно
+  // рисуется содержимое страницы (шапка и меню остаются на месте).
+  const sectionAllowed = isSectionAllowed(user, pathname)
+
   return (
-    <CurrentUserProvider user={me.data as CurrentUserDto}>
+    <CurrentUserProvider user={user}>
       <LiveBackground />
       <div className={arrived ? styles.arrival : undefined}>
       <Sidebar groups={groups} isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
@@ -97,7 +104,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             className={styles.page}
             data-page
           >
-            {children}
+            {sectionAllowed ? children : <SectionUnavailable isUniversityRep={user.role === 'UNIVERSITY_REP'} />}
           </div>
         </main>
         <Footer service={service} />
