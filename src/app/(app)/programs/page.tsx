@@ -48,6 +48,7 @@ import {
   usePageInRange,
   type Column,
   ListTitle,
+  DownloadButton,
 } from '@/ui'
 import { CreateProgramModal } from './CreateProgramModal'
 import { ProgramTag } from './ProgramTag'
@@ -244,15 +245,13 @@ export default function ProgramsPage() {
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же программы, что в реестре. */}
-            <Button
-              variant="secondary"
-              icon="download"
+            <DownloadButton
               href={`/api/export${buildQuery({ dataset: 'programs', ...listFilters })}`}
-              external
+              fallbackName="programs.csv"
               title="Программы с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
-            </Button>
+            </DownloadButton>
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Создать программу
