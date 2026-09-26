@@ -1,5 +1,5 @@
 /**
- * Запись расширенного демо-набора в базу (решение 121): пакетами createMany,
+ * Запись расширенного демо-набора в базу (решение 131): пакетами createMany,
  * с заранее известными идентификаторами — без похода в базу на каждую запись.
  * Заливка всего набора — секунды, а не минуты: сид на стенде идёт через reseed.sh.
  *
@@ -412,6 +412,43 @@ export async function insertExtendedDemo(
       }
       audit.push({ userId: responsibleId, action: 'meeting.create', objectType: 'Meeting', objectId: meetingId, payload: { cooperationId: id, participants: meeting.participants.length }, createdAt: meeting.createdAt })
     }
+  }
+
+  // Встречи с вузами без связки: всплеск спроса на киберполигон за последнюю неделю.
+  const basePrimary = new Map(
+    (
+      await prisma.contact.findMany({
+        where: { isPrimary: true, universityId: { notIn: [...universityIds.values()] } },
+        select: { id: true, universityId: true },
+      })
+    ).map((row) => [row.universityId, row.id]),
+  )
+  for (const meeting of data.universityMeetings) {
+    const meetingId = demoId('meeting', meeting.key)
+    const responsibleId = userOf(meeting.responsible)
+    const university = universityId(meeting.universityKey)
+    const contact = meeting.contactKey ? contactId(meeting.contactKey) : (basePrimary.get(university) ?? null)
+    meetingRows.push({
+      id: meetingId,
+      cooperationId: null,
+      universityId: university,
+      programId: null,
+      date: meeting.date,
+      topic: meeting.topic,
+      format: meeting.format,
+      result: meeting.result,
+      nextAction: meeting.nextAction,
+      nextActionDueAt: meeting.nextActionDueAt,
+      responsibleId,
+      createdAt: meeting.date,
+      updatedAt: meeting.date,
+    })
+    participantRows.push({ meetingId, userId: responsibleId, createdAt: meeting.date })
+    if (contact) participantRows.push({ meetingId, contactId: contact, createdAt: meeting.date })
+    audit.push({
+      userId: responsibleId, action: 'meeting.create', objectType: 'Meeting', objectId: meetingId,
+      payload: { cooperationId: null, participants: contact ? 2 : 1 }, createdAt: meeting.date,
+    })
   }
 
   await prisma.cooperation.createMany({ data: cooperationRows })

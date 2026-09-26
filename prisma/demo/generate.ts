@@ -1,5 +1,5 @@
 /**
- * Генератор расширенного демо-набора (решение 121): стенд должен выглядеть как
+ * Генератор расширенного демо-набора (решение 131): стенд должен выглядеть как
  * система после полугода работы — 19 вузов, ~50 связок на всех 14 этапах, история
  * этапов за девять месяцев, документы, встречи, заявки.
  *
@@ -295,6 +295,24 @@ export interface DemoResolvedRecommendation {
   resolvedAt: Date
 }
 
+/**
+ * Встреча с вузом без связки: всплеск спроса на продукт — вузы просят показать его
+ * после соревнований. Привязана к вузу, программы и связки у неё нет.
+ */
+export interface DemoUniversityMeeting {
+  key: string
+  universityKey: string
+  responsible: 'manager' | 'manager2'
+  date: Date
+  topic: string
+  format: MeetingFormat
+  result: string
+  nextAction: string
+  nextActionDueAt: Date
+  /** Основной контакт вуза расширенного набора; у вузов основного сида — берётся из базы. */
+  contactKey: string | null
+}
+
 export interface DemoData {
   anchor: Date
   stableUntil: Date
@@ -304,6 +322,7 @@ export interface DemoData {
   universities: DemoUniversity[]
   programs: DemoProgram[]
   cooperations: DemoCooperation[]
+  universityMeetings: DemoUniversityMeeting[]
   resolvedRecommendations: DemoResolvedRecommendation[]
 }
 
@@ -581,7 +600,9 @@ function generateCooperation(spec: CooperationSpec, context: CooperationContext)
     } else if (status === 'CANCELLED' && stage === 5 && skip5) {
       history.push({
         fromStatus: 'NOT_STARTED', toStatus: 'CANCELLED',
-        changedAt: new Date(leave.get(4)!.getTime() + 60 * 60 * 1000),
+        // Тем же моментом, что закрыт этап 4: текущим этап 5 не становился ни на час
+        // (хронология аналитики этапов, решение 120, иначе дала бы ему «длительность»).
+        changedAt: leave.get(4)!,
         comment: 'Не требуется: замечаний к документам нет',
       })
     } else if (startedAtStage) {
@@ -1224,6 +1245,55 @@ function generateResolvedRecommendations(coops: readonly DemoCooperation[], prog
   return result
 }
 
+// ─────────────────────────────── Всплеск спроса ────────────────────────────────
+
+/**
+ * Вузы, которые на прошлой неделе попросили показать киберполигон (ключ вуза и
+ * сколько встреч). Вузы основного сида — кроме СПбГУТ (сценарий кабинета вуза)
+ * и тех, где работа стоит или закрыта.
+ */
+export const DEMAND_SPIKE_UNIVERSITIES: ReadonlyArray<readonly [string, number]> = [
+  ['unn', 3], ['psuti', 3], ['sfu', 3], ['dvfu', 3], ['uust', 3], ['vsu', 2], ['omgtu', 3],
+  ['irnitu', 3], ['kantiana', 3], ['innopolis', 3], ['mtuci', 3], ['kazan', 3], ['nsu', 2], ['urfu', 3],
+]
+
+/**
+ * Выброс «Встречи» за последние 7 полных дней: после студенческих соревнований на
+ * киберполигоне вузы разом просят его показать. Детектор аналитики этапов
+ * (решение 120) требует роста больше двух событий в день поверх фона — здесь около
+ * шести; встречи — только в рабочие дни среди последних шести полных, чтобы
+ * выброс держался в окне при любом дне и часе заливки.
+ */
+function generateDemandSpike(clock: Clock, primaryContactOf: (key: string) => string | null): DemoUniversityMeeting[] {
+  const { anchor } = clock
+  const days = recentWorkdays(anchor)
+  const meetings: DemoUniversityMeeting[] = []
+  for (const [universityKey, count] of DEMAND_SPIKE_UNIVERSITIES) {
+    const rng = new Rng(`spike:${universityKey}`)
+    for (let index = 0; index < count; index += 1) {
+      const date = atWorkHour(rng.pick(days), rng)
+      const first = index === 0
+      meetings.push({
+        key: `spike:${universityKey}:${index}`,
+        universityKey,
+        responsible: rng.chance(0.5) ? 'manager' : 'manager2',
+        date,
+        topic: first
+          ? 'Презентация киберполигона для кафедры'
+          : index === 1 ? 'Разбор сценариев киберполигона с преподавателями' : 'Созвон по условиям пилотного доступа к киберполигону',
+        format: first ? rng.pick(['ONLINE', 'CALL'] as const) : index === 1 ? 'ONLINE' : 'CALL',
+        result: first
+          ? rng.pick(['Кафедра просит пилотный доступ для команды', 'Вуз готов подать заявку на подключение', 'Интерес есть, ждём решения заведующего'])
+          : index === 1 ? 'Преподаватели выбрали сценарии для практикума' : 'Условия пилота согласованы, вуз готовит команду',
+        nextAction: first ? 'Направить условия пилотного доступа' : index === 1 ? 'Подготовить заявку на подключение' : 'Завести связку после заявки вуза',
+        nextActionDueAt: stabilize(clock, addDays(date, rng.int(7, 14))),
+        contactKey: primaryContactOf(universityKey),
+      })
+    }
+  }
+  return meetings.sort((a, b) => a.date.getTime() - b.date.getTime() || a.key.localeCompare(b.key))
+}
+
 // ─────────────────────────────── Сборка ───────────────────────────────────────
 
 export function generateDemoData(options: DemoOptions): DemoData {
@@ -1299,6 +1369,7 @@ export function generateDemoData(options: DemoOptions): DemoData {
     universities,
     programs,
     cooperations,
+    universityMeetings: generateDemandSpike(clock, primaryContactOf),
     resolvedRecommendations: generateResolvedRecommendations(cooperations, programs),
   }
 }

@@ -1,5 +1,5 @@
 /**
- * Калькулятор «хватает ли демо-данных аналитике этапов» (решение 121).
+ * Калькулятор «хватает ли демо-данных аналитике этапов» (решение 131).
  *
  * Формулы — те, что закладывает аналитика этапов (решение 120), но своей копией:
  * демо-набор не должен зависеть от её кода. Если формулы там поменяются — поменять
@@ -9,11 +9,15 @@
  *   30 и событий (этап завершён) не меньше 15. Незавершённый этап — цензурирован
  *   сегодняшним днём, этап отменённой связки — моментом отмены.
  * - Аномалия дневного ряда: z = (mean7 − mean28) / max(sd28, 0.01·mean28, 1), где
- *   mean7 — последние 7 полных дней, mean28 и sd28 — 28 полных дней перед ними;
- *   аномалия, если |z| > 2 и |mean7 / mean28 − 1| ≥ 15 %. Нужно ≥ 35 полных дней.
+ *   mean7 — последние 7 полных московских суток, mean28 и sd28 — 28 полных суток
+ *   перед ними (окна не пересекаются, sd выборочное, n − 1); аномалия, если |z| > 2
+ *   и |mean7 / mean28 − 1| ≥ 15 %. Нужно ≥ 35 полных дней.
+ * - Ряды — те же, что смотрит «Система заметила»: встречи (по дате, прошедшие),
+ *   переходы этапов (записи истории «→ завершён» по этапам 1–13), новые связки
+ *   (кроме черновиков, по дате начала).
  */
 
-import type { DemoCooperation } from './generate'
+import type { DemoCooperation, DemoData } from './generate'
 import { DAY_MS } from './generate'
 
 export const KM_MIN_OBSERVATIONS = 30
@@ -135,7 +139,8 @@ export function detectAnomaly(series: readonly number[]): AnomalyResult | null {
   const mean = (values: readonly number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
   const mean7 = mean(last7)
   const mean28 = mean(base)
-  const sd28 = Math.sqrt(mean(base.map((value) => (value - mean28) ** 2)))
+  // Выборочное стандартное отклонение (n − 1) — как у детектора аналитики этапов.
+  const sd28 = Math.sqrt(base.reduce((sum, value) => sum + (value - mean28) ** 2, 0) / (base.length - 1))
   const z = (mean7 - mean28) / Math.max(sd28, 0.01 * mean28, 1)
   const change = mean28 === 0 ? (mean7 === 0 ? 0 : Infinity) : mean7 / mean28 - 1
   return {
@@ -166,4 +171,26 @@ export function activityDates(
     for (const meeting of coop.meetings) if (meeting.date <= anchor) dates.push(meeting.date)
   }
   return dates
+}
+
+/** Ряд «Встречи»: прошедшие встречи связок и встречи с вузами без связки. */
+export function meetingDates(data: Pick<DemoData, 'cooperations' | 'universityMeetings'>, anchor: Date): Date[] {
+  return [
+    ...data.cooperations.flatMap((coop) => coop.meetings.map((meeting) => meeting.date)),
+    ...data.universityMeetings.map((meeting) => meeting.date),
+  ].filter((date) => date <= anchor)
+}
+
+/** Ряд «Переходы этапов»: записи истории «→ завершён» по этапам 1–13. */
+export function transitionDates(cooperations: ReadonlyArray<Pick<DemoCooperation, 'stages'>>): Date[] {
+  return cooperations.flatMap((coop) =>
+    coop.stages
+      .filter((stage) => stage.number !== 14)
+      .flatMap((stage) => stage.history.filter((entry) => entry.toStatus === 'COMPLETED').map((entry) => entry.changedAt)),
+  )
+}
+
+/** Ряд «Новые связки»: кроме черновиков, по дате начала. */
+export function newCooperationDates(cooperations: ReadonlyArray<Pick<DemoCooperation, 'status' | 'startedAt'>>): Date[] {
+  return cooperations.filter((coop) => coop.status !== 'DRAFT').map((coop) => coop.startedAt)
 }

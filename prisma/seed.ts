@@ -33,7 +33,7 @@ const daysAgo = (days: number) => new Date(now.getTime() - days * DAY)
 const daysAhead = (days: number) => new Date(now.getTime() + days * DAY)
 
 /**
- * До какой даты стенд не должен «протухать» (решение 121): будущие сроки и следующие
+ * До какой даты стенд не должен «протухать» (решение 131): будущие сроки и следующие
  * шаги сдвигаются за неё, прошедшие остаются на месте. По умолчанию — конец
  * экспертизы; для следующего показа — SEED_STABLE_UNTIL (ISO-дата).
  */
@@ -1161,7 +1161,7 @@ async function seedCooperation(
         status: finalStatus,
         responsibleId: item.responsibleId,
         // Открытый этап со сроком в будущем не должен стать просроченным за время
-        // экспертизы: срок — за окном стабильности (решение 121).
+        // экспертизы: срок — за окном стабильности (решение 131).
         deadline: finalStatus === 'COMPLETED' ? deadline : stabilize(deadline),
         startedAt: dates.startedAt,
         completedAt: dates.completedAt,
@@ -1728,7 +1728,7 @@ async function main(): Promise<void> {
   await seedMeetings(cooperations, users.manager, universityId)
   await seedApplications(universityId, programId)
 
-  // Расширенный набор (решение 121): ещё 12 вузов, 40 связок и полгода истории.
+  // Расширенный набор (решение 131): ещё 12 вузов, 40 связок и полгода истории.
   // Сценарные объекты выше не трогаются — это дополнение к ним.
   console.log('Расширенный демо-набор...')
   const extended = generateDemoData({ anchor: now, stableUntil: STABLE_UNTIL })

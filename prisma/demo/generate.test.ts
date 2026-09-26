@@ -12,7 +12,10 @@ import {
   detectAnomaly,
   kaplanMeier,
   kmSufficiency,
+  meetingDates,
+  newCooperationDates,
   stageObservations,
+  transitionDates,
   type Observation,
 } from './stats'
 
@@ -322,15 +325,28 @@ describe('калькулятор: хватает ли данных аналит�
     expect(byMonth.get(7)!).toBeLessThan(0.6 * byMonth.get(6)!)
   })
 
-  // Всплеск держится на последней неделе при любом дне заливки.
+  // Всплеск держится на последней неделе при любом дне заливки: ряд «Встречи»,
+  // как его строит «Система заметила» (решение 120).
   it.each([0, 1, 2, 3, 4, 5, 6])('всплеск спроса на киберполигон ловится детектором (заливка +%i дн.)', (shift) => {
     const anchor = new Date(ANCHOR.getTime() + shift * DAY_MS)
     const shifted = generateDemoData({ anchor, stableUntil: DEFAULT_STABLE_UNTIL })
-    const series = dailyCounts(activityDates(shifted.cooperations, anchor, 'cyberRange'), anchor, 60)
-    const result = detectAnomaly(series)
+    const result = detectAnomaly(dailyCounts(meetingDates(shifted, anchor), anchor, 60))
     expect(result).not.toBeNull()
     expect(result!.isAnomaly, JSON.stringify(result)).toBe(true)
     expect(result!.z).toBeGreaterThan(2.5)
+    // Остальные ряды выброса не дают: «Система заметила» говорит об одном — о спросе.
+    expect(detectAnomaly(dailyCounts(transitionDates(shifted.cooperations), anchor, 60))!.isAnomaly).toBe(false)
+    expect(detectAnomaly(dailyCounts(newCooperationDates(shifted.cooperations), anchor, 60))!.isAnomaly).toBe(false)
+  })
+
+  it('всплеск — встречи с вузами о киберполигоне за последние шесть дней', () => {
+    expect(data.universityMeetings.length).toBeGreaterThanOrEqual(30)
+    for (const meeting of data.universityMeetings) {
+      expect(ANCHOR.getTime() - meeting.date.getTime()).toBeGreaterThan(0)
+      expect(ANCHOR.getTime() - meeting.date.getTime()).toBeLessThan(7 * DAY_MS)
+      expect(meeting.nextActionDueAt.getTime()).toBeGreaterThan(DEFAULT_STABLE_UNTIL.getTime())
+      expect(meeting.universityKey).not.toBe('spbgu')
+    }
   })
 
   it('детектор: ровный ряд — не аномалия, короткий ряд — не оценивается', () => {
