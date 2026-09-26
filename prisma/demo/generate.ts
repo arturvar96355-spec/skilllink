@@ -578,6 +578,27 @@ function generateCooperation(spec: CooperationSpec, context: CooperationContext)
       raw = addDays(anchor, rng.uniform(7, 40))
     } else if (stage === 14 && open && status !== 'COMPLETED' && raw <= anchor) {
       raw = addDays(anchor, rng.uniform(30, 90))
+    } else if (
+      status === 'COMPLETED' &&
+      stage !== 14 &&
+      spec.pattern !== 'stuck' &&
+      spec.pattern !== 'fading' &&
+      leave.get(stage)!.getTime() > raw.getTime()
+    ) {
+      // Решение 185: у обычного темпа lognormal-разброс иногда даёт кумулятивную
+      // длительность чуть больше норматива — этап технически «просрочен», хотя
+      // ничего в сюжете не застряло (домино: раз накопилось отставание, все
+      // последующие закрытые этапы связки выглядели бы просроченными). «Застрявшие»
+      // и «уходящие» связки тянут свой хвост осознанно (решение 131) — им срок не
+      // переносим. У обычных — срок продлён по согласованию с вузом в трёх случаях
+      // из четырёх, как и не начатый этап выше; редкое опоздание оставлено (решение
+      // 185: «этапы в срок» — целевая доля, а не 100%).
+      const lateRng = new Rng(`stage-on-time:${spec.key}:${stage}`)
+      if (lateRng.chance(0.7)) {
+        // Не свежее anchor: это правка исторического срока, а не будущая дата
+        // (иначе stabilize принял бы её за плановую и унёс за окно стабильности).
+        raw = minDate(addDays(leave.get(stage)!, lateRng.uniform(1, 5)), addDays(anchor, -0.1))
+      }
     }
     deadlines.set(stage, stabilize(clock, raw))
   }

@@ -763,7 +763,10 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'uust-data', university: 'uust', program: 'uust-data', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 11, pattern: 'regular', goal: 'Аналитическая платформа в бизнес-информатике' },
   { key: 'uust-networks', university: 'uust', program: 'uust-networks', product: 'monitoring', responsible: 'manager', status: 'ACTIVE', stage: 8, pattern: 'regular', overdue: true, goal: 'Мониторинг инфраструктуры в лаборатории связи' },
   { key: 'uust-infosec', university: 'uust', program: 'uust-infosec', product: 'cyberRange', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'demandBase', goal: 'Киберполигон в специалитете по безопасности' },
-  // ПНИПУ — активность падает
+  // ПНИПУ — активность падает (решение 185: три связки, а не все пять программ
+  // вуза разом — иначе «молчание вуза» на стенде выглядело бы так, будто застряли
+  // все, а не сценарная часть; ниже порога теста «хватает данных для застоя» — три
+  // остаётся минимумом для этого сценария).
   { key: 'pnipu-soft', university: 'pnipu', program: 'pnipu-soft', product: 'teamDev', responsible: 'manager', status: 'ACTIVE', stage: 10, pattern: 'fading', goal: 'Среда командной разработки в курсе ИС' },
   { key: 'pnipu-iot', university: 'pnipu', program: 'pnipu-iot', product: 'iot', responsible: 'manager2', status: 'ACTIVE', stage: 8, pattern: 'fading', idle: true, goal: 'Платформа интернета вещей в магистратуре' },
   { key: 'pnipu-data', university: 'pnipu', program: 'pnipu-data', product: 'dbms', responsible: 'manager', status: 'ACTIVE', stage: 4, pattern: 'fading', idle: true, goal: 'Учебный стенд СУБД в прикладной математике' },
@@ -810,13 +813,13 @@ export const COOPERATION_SPECS: readonly CooperationSpec[] = [
   { key: 'kubstu-pmi', university: 'kubstu', program: 'kubstu-pmi', product: null, responsible: 'manager2', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичная заявка по прикладной математике' },
   // ОмГТУ — новый вуз, разные стадии знакомства
   { key: 'omgtu-networks', university: 'omgtu', program: 'omgtu-networks', product: 'iot', responsible: 'manager', status: 'ACTIVE', stage: 3, pattern: 'regular', goal: 'Платформа интернета вещей в инфокоммуникационных технологиях' },
-  { key: 'omgtu-appl', university: 'omgtu', program: 'omgtu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'regular', overdue: true, goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'omgtu-appl', university: 'omgtu', program: 'omgtu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
   { key: 'omgtu-master', university: 'omgtu', program: 'omgtu-master', product: null, responsible: 'manager', status: 'DRAFT', stage: 1, pattern: 'regular', goal: 'Первичные переговоры по магистратуре ИВТ' },
   // ПГУТИ
   { key: 'psuti-appl', university: 'psuti', program: 'psuti-appl', product: 'dataLab', responsible: 'manager', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
-  // ПНИПУ — активность падает, как и у остальных связок вуза
-  { key: 'pnipu-appl', university: 'pnipu', program: 'pnipu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'fading', idle: true, goal: 'Аналитическая платформа в прикладной информатике' },
-  { key: 'pnipu-networks', university: 'pnipu', program: 'pnipu-networks', product: 'monitoring', responsible: 'manager', status: 'PAUSED', stage: 4, pattern: 'fading', goal: 'Мониторинг инфраструктуры в инфокоммуникационных технологиях', notes: 'Пауза: та же причина, что и у остальных связок вуза — активность падает.' },
+  // ПНИПУ — остальные связки вуза идут обычным темпом (решение 185)
+  { key: 'pnipu-appl', university: 'pnipu', program: 'pnipu-appl', product: 'dataLab', responsible: 'manager2', status: 'ACTIVE', stage: 6, pattern: 'regular', goal: 'Аналитическая платформа в прикладной информатике' },
+  { key: 'pnipu-networks', university: 'pnipu', program: 'pnipu-networks', product: 'monitoring', responsible: 'manager', status: 'PAUSED', stage: 4, pattern: 'regular', goal: 'Мониторинг инфраструктуры в инфокоммуникационных технологиях', notes: 'Пауза: вуз пересматривает учебный план на следующий год.' },
   // СФУ — аспирантура, некрупная связка
   { key: 'sfu-phd', university: 'sfu', program: 'sfu-phd', product: null, responsible: 'manager2', status: 'ACTIVE', stage: 9, pattern: 'regular', goal: 'Научный семинар по системному ПО в аспирантуре' },
   // ТУСУР — вуз в архиве, ни одна связка не пошла дальше первых этапов
