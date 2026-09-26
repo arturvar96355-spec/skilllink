@@ -36,6 +36,8 @@ export const ROUTES = {
   status: '/status',
   /** Качество данных: пробелы, устаревшее, дубли (ТЗ дизайна 26–29.09, п. 4.4). */
   dataQuality: '/data-quality',
+  /** Вендоры — компании-владельцы IT-продуктов (ТЗ дизайна 26–29.09, п. 4.5). */
+  vendors: '/vendors',
 } as const
 
 /**
@@ -62,6 +64,11 @@ export function documentHref(id: string): string {
 
 export function recommendationHref(id: string): string {
   return `${ROUTES.recommendations}?recommendation=${id}`
+}
+
+/** Карточка вендора — боковой панелью в реестре вендоров, как у продукта. */
+export function vendorHref(id: string): string {
+  return `${ROUTES.vendors}?vendor=${id}`
 }
 
 export function productHref(id: string): string {

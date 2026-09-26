@@ -135,6 +135,7 @@ export {
   documentHref,
   recommendationHref,
   productHref,
+  vendorHref,
   skillHref,
   searchItemHref,
   notificationHref,
