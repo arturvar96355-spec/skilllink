@@ -146,7 +146,7 @@ const KEY_LABELS: Record<string, string> = {
   source: 'источник',
   outcome: 'итог',
   kind: 'вид',
-  cached: 'из кэша',
+  cached: 'готовый ответ',
   fallbackReason: 'причина шаблона',
   dataset: 'набор',
   type: 'тип',

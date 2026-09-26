@@ -31,6 +31,8 @@ export const ROUTES = {
   tzReport: '/reports/tz',
   /** Каталог по ТЗ РТК: реквизиты лицензии и передачи ПО (решение 150). */
   catalogReport: '/reports/catalog',
+  /** Письма вузов как обращения (решение 170/171). */
+  letters: '/letters',
   login: '/login',
   /** Политика обработки персональных данных — открыта без входа. */
   privacy: '/privacy',
@@ -81,6 +83,10 @@ export function productHref(id: string): string {
 
 export function skillHref(id: string): string {
   return `${ROUTES.analytics}?tab=skills&skill=${id}`
+}
+
+export function letterHref(id: string): string {
+  return `${ROUTES.letters}/${id}`
 }
 
 /** Результат глобального поиска ведёт на страницу своего объекта. */
