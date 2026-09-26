@@ -57,7 +57,9 @@ import {
 import { AiAssistCard } from '../../AiDraft'
 import { WhyNoRecommendation } from '../../RuleChecks'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { CooperationBlockers, CooperationProposalAction, CooperationStory } from './CooperationAssistant'
 import { CooperationChain } from './CooperationChain'
+import { CooperationForecast } from './CooperationForecast'
 import { CreateMeetingModal } from './CreateMeetingModal'
 import { LicenseModal } from './LicenseModal'
 import { licenseTermYearsText } from './license'
@@ -79,7 +81,7 @@ function CooperationContent() {
   const user = useCurrentUser()
   const toast = useToast()
 
-  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'recommendations'>('stages')
+  const [tab, setTab] = useState<'stages' | 'documents' | 'meetings' | 'assistant' | 'recommendations'>('stages')
   const [isMeetingOpen, setIsMeetingOpen] = useState(false)
   const [isLicenseOpen, setIsLicenseOpen] = useState(false)
   // Смена ответственного связки (ТЗ — роль «Руководитель», решение 146):
@@ -208,6 +210,7 @@ function CooperationContent() {
     { key: 'meetings', label: 'Встречи' },
   ]
   if (user.permissions.canSeeAnalytics) {
+    tabs.push({ key: 'assistant', label: 'Помощник' })
     tabs.push({ key: 'recommendations', label: 'Рекомендации' })
   }
 
@@ -538,6 +541,52 @@ function CooperationContent() {
             if (changed) cooperation.reload()
           }}
         />
+      )}
+
+      {tab === 'assistant' && (
+        <div className={styles.stages}>
+          <Section
+            title="Прогноз"
+            description="Дойдёт ли связка до ближайшей ещё не пройденной вехи — оценка модели или простого правила, если модель не прошла проверку качества (решение 135)."
+          >
+            <CooperationForecast cooperationId={params.id} />
+          </Section>
+
+          <Section
+            title="Что мешает"
+            description="Список уже посчитанных препятствий по контрольным точкам, чек-листу и статусу связки — без модели."
+          >
+            <Card>
+              <CooperationBlockers cooperationId={params.id} />
+            </Card>
+          </Section>
+
+          <Section
+            title="История сотрудничества"
+            description="Короткая сводка вместо ручного пересказа карточки. Составляется по нажатию — обращение к модели не бесплатно."
+          >
+            <Card>
+              <CooperationStory cooperationId={params.id} />
+            </Card>
+          </Section>
+
+          {user.permissions.canWrite && (
+            <Section
+              title="Предложить план"
+              description="Проект встречи по препятствиям или новый срок текущего этапа. Ничего не сохраняется, пока план не подтверждён."
+            >
+              <Card>
+                <CooperationProposalAction
+                  cooperationId={params.id}
+                  onApplied={() => {
+                    cooperation.reload()
+                    setTab('stages')
+                  }}
+                />
+              </Card>
+            </Section>
+          )}
+        </div>
       )}
 
       {tab === 'recommendations' && (
