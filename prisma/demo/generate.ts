@@ -386,16 +386,6 @@ function workTimeAfter(date: Date, rng: Rng): Date {
   return result
 }
 
-/** Начало ближайшего семестра не раньше даты: 1 сентября или 9 февраля. */
-function nextSemesterStart(date: Date): Date {
-  const year = date.getUTCFullYear()
-  const candidates = [
-    Date.UTC(year, 1, 9, 6), Date.UTC(year, 8, 1, 6), Date.UTC(year + 1, 1, 9, 6), Date.UTC(year + 1, 8, 1, 6),
-  ]
-  const found = candidates.find((time) => time >= date.getTime())
-  return new Date(found ?? candidates[candidates.length - 1]!)
-}
-
 const ddmm = (date: Date) =>
   `${String(date.getUTCDate()).padStart(2, '0')}.${String(date.getUTCMonth() + 1).padStart(2, '0')}`
 
@@ -555,10 +545,21 @@ function generateCooperation(spec: CooperationSpec, context: CooperationContext)
   statuses.set(14, computeControlStatus([...statuses.values()]))
 
   // ── Начало занятий ──
+  //
+  // Плановая дата раньше снималась на ближайшую границу семестра (1 сентября/
+  // 9 февраля) — настоящую календарную дату, которая не сдвигается вместе
+  // с anchor. А firstContactAt anchor-относителен («N дней назад» растёт с каждым
+  // днём), и разрыв между ними «плыл» на день-два при каждой перезаливке в другой
+  // день — отсюда «дней до начала занятий» и доля этапов 11–14 «в срок» (их дедлайн
+  // считается от classesStartAt) не совпадали между прогонами (решение 141, замечание
+  // владельца). Теперь дата — фиксированный anchor-относительный отступ, как и
+  // остальные плановые сроки набора: перезаливка в другой день даёт для той же
+  // связки то же число дней до занятий, до 14.10 и позже.
   const open = spec.status === 'ACTIVE' || spec.status === 'DRAFT' || spec.status === 'PAUSED'
   let classesStartAt: Date | null = enter.get(11) ?? null
   if (!classesStartAt && open && current >= 4) {
-    classesStartAt = stabilize(clock, nextSemesterStart(maxDate(addDays(startedAt, 150), addDays(anchor, 30))))
+    const classesRng = new Rng(`classes-start:${spec.key}`)
+    classesStartAt = addDays(maxDate(addDays(startedAt, 150), addDays(anchor, 30)), classesRng.int(0, 45))
   }
 
   // ── Сроки ──
