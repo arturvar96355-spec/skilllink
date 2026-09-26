@@ -313,6 +313,75 @@ describe('review: «Верно»/«Неверно» → статус и зада
     expect(mocks.recordGroupEvent).toHaveBeenCalledWith('MEETING', { trials: 1, successes: 0 }, expect.any(Date))
   })
 
+  it('«Неверно» без указанной связки — этап берётся из активной связки вуза, как в обычном разборе (решение 187)', async () => {
+    // До исправления stageNumber всегда становился null в «Неверно», даже когда
+    // у указанного вуза есть активная связка с известным этапом — тот же вуз,
+    // тот же findActiveCooperation, что и в analyzeLetter, просто не вызывался.
+    mocks.findById.mockResolvedValue(letterRow())
+    mocks.findResponsible.mockResolvedValue(null)
+    mocks.findActiveCooperation.mockResolvedValue({ cooperationId: 'coop-2', stageNumber: 7 })
+    mocks.saveReviewAndCreateTask.mockResolvedValue(letterRow({ status: 'CORRECTED', verdict: 'INCORRECT' }))
+
+    await service.review(user('HEAD'), 'letter-1', {
+      verdict: 'INCORRECT',
+      universityId: 'uni-2',
+      group: 'DOCUMENTS',
+      action: 'Оформить документы',
+      comment: 'Вуз определён неверно',
+    })
+
+    expect(mocks.findActiveCooperation).toHaveBeenCalledWith('uni-2')
+    expect(mocks.saveReviewAndCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ cooperationId: 'coop-2', stageNumber: 7 }),
+      expect.anything(),
+    )
+  })
+
+  it('«Неверно» со связкой, указанной сотрудником, совпадающей с активной — этап той же связки', async () => {
+    mocks.findById.mockResolvedValue(letterRow())
+    mocks.findResponsible.mockResolvedValue(null)
+    mocks.cooperationBelongsToUniversity.mockResolvedValue(true)
+    mocks.findActiveCooperation.mockResolvedValue({ cooperationId: 'coop-2', stageNumber: 7 })
+    mocks.saveReviewAndCreateTask.mockResolvedValue(letterRow({ status: 'CORRECTED', verdict: 'INCORRECT' }))
+
+    await service.review(user('HEAD'), 'letter-1', {
+      verdict: 'INCORRECT',
+      universityId: 'uni-2',
+      cooperationId: 'coop-2',
+      group: 'DOCUMENTS',
+      action: 'Оформить документы',
+      comment: 'Вуз определён неверно',
+    })
+
+    expect(mocks.saveReviewAndCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ cooperationId: 'coop-2', stageNumber: 7 }),
+      expect.anything(),
+    )
+  })
+
+  it('«Неверно» со связкой, указанной сотрудником, отличной от активной — этап не приписывается чужой связке', async () => {
+    mocks.findById.mockResolvedValue(letterRow())
+    mocks.findResponsible.mockResolvedValue(null)
+    mocks.cooperationBelongsToUniversity.mockResolvedValue(true)
+    // Система считает активной coop-2 (этап 7), но сотрудник выбрал другую связку того же вуза.
+    mocks.findActiveCooperation.mockResolvedValue({ cooperationId: 'coop-2', stageNumber: 7 })
+    mocks.saveReviewAndCreateTask.mockResolvedValue(letterRow({ status: 'CORRECTED', verdict: 'INCORRECT' }))
+
+    await service.review(user('HEAD'), 'letter-1', {
+      verdict: 'INCORRECT',
+      universityId: 'uni-2',
+      cooperationId: 'coop-3',
+      group: 'DOCUMENTS',
+      action: 'Оформить документы',
+      comment: 'Вуз определён неверно',
+    })
+
+    expect(mocks.saveReviewAndCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ cooperationId: 'coop-3', stageNumber: null }),
+      expect.anything(),
+    )
+  })
+
   it('несуществующий вуз в «Неверно» — ошибка валидации', async () => {
     mocks.findById.mockResolvedValue(letterRow())
     mocks.assertUniversityExists.mockResolvedValue(false)

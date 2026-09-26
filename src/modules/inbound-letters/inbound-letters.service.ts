@@ -407,8 +407,17 @@ export async function review(user: CurrentUser, id: string, input: ReviewLetterI
       throw validationError('Связка не относится к указанному вузу', [{ field: 'cooperationId', message: 'Связка принадлежит другому вузу' }])
     }
     universityId = input.universityId!
-    cooperationId = input.cooperationId ?? null
-    stageNumber = null
+    // Этап — как в обычном разборе (`analyzeLetter` выше): активная связка
+    // вуза, а не безусловный null. Раньше «Неверно» с указанным, но верным
+    // вузом всё равно обнуляло этап, хотя обычный разбор для того же вуза
+    // нашёл бы его через findActiveCooperation.
+    //
+    // Если сотрудник сам выбрал связку и она не совпала с тем, что система
+    // считает активной связкой вуза, этап не приписывается чужой связке —
+    // остаётся null, честно «неизвестно», а не подставляется наугад.
+    const cooperationRef = await repo.findActiveCooperation(universityId)
+    cooperationId = input.cooperationId ?? cooperationRef?.cooperationId ?? null
+    stageNumber = cooperationRef && cooperationRef.cooperationId === cooperationId ? cooperationRef.stageNumber : null
     group = input.group!
     action = input.action!
   }
