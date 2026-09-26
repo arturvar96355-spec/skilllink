@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { withMetrics } from '@/shared/http/metrics-guard'
 import { withRateLimit } from '@/shared/http/rate-limit-guard'
 
 /**
@@ -12,9 +13,10 @@ import { withRateLimit } from '@/shared/http/rate-limit-guard'
  * Перехватывающий сегмент имеет наименьший приоритет: все настоящие маршруты,
  * включая `/api/auth/[...nextauth]`, сопоставляются раньше.
  *
- * Перебор адресов тоже расходует предел частоты запросов (решение 117).
+ * Перебор адресов тоже расходует предел частоты запросов (решение 117)
+ * и виден в метриках с меткой маршрута `other` (решение 137).
  */
-const notFound = withRateLimit(async (): Promise<Response> => {
+const notFound = withMetrics(withRateLimit(async (): Promise<Response> => {
   return NextResponse.json(
     {
       error: {
@@ -24,7 +26,7 @@ const notFound = withRateLimit(async (): Promise<Response> => {
     },
     { status: 404 },
   )
-})
+}))
 
 export const GET = notFound
 export const POST = notFound

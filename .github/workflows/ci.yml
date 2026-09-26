@@ -56,6 +56,28 @@ jobs:
       - name: Установка зависимостей
         run: npm ci
 
+      # Ворота выкладки (решение 137): schema.prisma должна совпадать с тем, что
+      # получится, если проиграть подряд все миграции prisma/migrations. Расхождение —
+      # кто-то поменял схему и забыл (или не смог) создать миграцию: `migrate deploy`
+      # на сервере применит старые миграции и оставит базу не такой, как в schema.prisma,
+      # без единой ошибки. Сверка — в отдельной базе (SHADOW_DATABASE_URL): Prisma
+      # проигрывает в ней миграции и сравнивает результат со схемой, ничего не трогая
+      # в базе тестов.
+      - name: Пустая база для сверки миграций со схемой
+        run: |
+          PGPASSWORD=skilllink psql -h localhost -U skilllink -d skilllink \
+            -c 'CREATE DATABASE skilllink_shadow;'
+
+      - name: Схема совпадает с миграциями
+        env:
+          SHADOW_DATABASE_URL: postgresql://skilllink:skilllink@localhost:5432/skilllink_shadow?schema=public
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema.prisma \
+            --exit-code \
+          || (echo "schema.prisma разошлась с prisma/migrations: создайте миграцию (npx prisma migrate dev)" && exit 1)
+
       - name: Проверка типов
         run: npm run typecheck
 

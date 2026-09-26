@@ -95,8 +95,8 @@
 | `RATE_LIMITED` | 429 | Превышен предел частоты запросов (с 25.09.2026, решение 117). `details.retryAfterSeconds` и заголовок `Retry-After` — через сколько секунд повторить |
 | `INTERNAL` | 500 | Непредвиденная ошибка |
 
-**Ограничение частоты запросов** (решение 117). Все маршруты `/api/*`, кроме `/api/health`
-и `/api/telegram/webhook`, считают запросы скользящим окном в минуту и отвечают заголовками
+**Ограничение частоты запросов** (решение 117). Все маршруты `/api/*`, кроме `/api/health`,
+`/api/telegram/webhook` и `/api/metrics`, считают запросы скользящим окном в минуту и отвечают заголовками
 `RateLimit-Limit` (предел группы в минуту), `RateLimit-Remaining` (сколько осталось),
 `RateLimit-Reset` (через сколько секунд окно сдвинется). Сверх предела — `429` с кодом
 `RATE_LIMITED`, `Retry-After` от 1 до 60 секунд; отклонённые запросы не засчитываются.
@@ -426,6 +426,32 @@ curl -s http://localhost:3000/api/ready
 (вместо `misconfigured`). Подсказка пишется в журнал приложения. `status`, `reason`,
 `schema`, `migration` и `latencyMs` значат то же, что и вне продакшена: на них смотрят
 проверки и сторож. Имена миграций секрета не составляют — они лежат в открытом репозитории.
+
+### GET /api/metrics
+
+Метрики сервера в текстовом формате Prometheus 0.0.4 (решение 137). **Не для фронта**:
+его опрашивает Prometheus, на стенде снаружи адрес закрыт в Caddy (`404`).
+
+Доступ — заголовок `Authorization: Bearer <METRICS_TOKEN>` или запрос с самой машины
+приложения (петлевой адрес). `METRICS_TOKEN` не задан — `404` (маршрута для постороннего
+как будто нет); задан, но токен не предъявлен или неверен — `401`. Не ограничивается по
+частоте и сам в метрики не попадает. Персональных данных в ответе нет: только счётчики
+по шаблонам маршрутов (`/api/universities/[id]`, не адрес с id), группам и причинам.
+
+```bash
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:3000/api/metrics
+```
+
+```text
+# HELP http_requests_total Запросы к API по методу, шаблону маршрута и классу ответа
+# TYPE http_requests_total counter
+http_requests_total{method="GET",route="/api/universities/[id]",status_class="2xx"} 12
+…
+db_up 1
+backup_last_success_timestamp_seconds 1790291703
+```
+
+Полный список метрик и правила оповещений — `deploy/monitoring/README.md`.
 
 ---
 

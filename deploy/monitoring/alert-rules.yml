@@ -1,0 +1,115 @@
+# Правила оповещений Prometheus (решение 137).
+#
+# У каждого правила — `summary` по-русски и `first_step`: что посмотреть в первую
+# минуту, а не общее «разберитесь». Профиль `monitoring` на боевом стенде выключен
+# (docs/DEPLOY.md, docs/SECURITY_LIMITATIONS.md) — эти правила проверены только
+# локально (`promtool check rules`, deploy/monitoring/README.md), не в бою.
+#
+# Проверка синтаксиса без установки Prometheus:
+#   docker run --rm -v "$PWD/deploy/monitoring:/rules" prom/prometheus:v2.55.1 \
+#     promtool check rules /rules/alert-rules.yml
+groups:
+  - name: skilllink-http
+    rules:
+      - alert: SkillLinkHighErrorRate
+        expr: >
+          sum(rate(http_requests_total{status_class="5xx"}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Доля ответов 5xx выше 5% за последние 5 минут'
+          first_step: >
+            docker compose -p skilllink logs --tail 200 app | grep INTERNAL —
+            какая ошибка повторяется чаще всего.
+
+      - alert: SkillLinkHighErrorRateCritical
+        expr: >
+          sum(rate(http_requests_total{status_class="5xx"}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Доля ответов 5xx выше 10% за последние 5 минут'
+          first_step: >
+            /api/health снаружи (scripts/deploy/check.sh) — приложение живо
+            или отвечает ошибками каждому. Дальше — журнал app, как в warning.
+
+      - alert: SkillLinkSlowResponses
+        expr: >
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[10m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'p95 времени ответа API выше 2 секунд за 10 минут'
+          first_step: >
+            db_ping_seconds и db_pool_waiting_requests в /api/metrics — база
+            отвечает медленно или пул соединений исчерпан.
+
+  - name: skilllink-database
+    rules:
+      - alert: SkillLinkDatabaseDown
+        expr: db_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'База не отвечает на SELECT 1 больше минуты'
+          first_step: >
+            docker inspect -f '{{.State.Health.Status}}' skilllink-postgres;
+            docker compose -p skilllink logs --tail 100 postgres.
+
+      - alert: SkillLinkBackupStale
+        expr: >
+          (backup_marker_readable == 0)
+            or (time() - backup_last_success_timestamp_seconds > 26 * 3600)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Ночная копия старше 26 часов или отметка не читается'
+          first_step: >
+            cat ~/backups/last.json и ~/backups/errors.log на сервере —
+            ночной cron (03:15 МСК) отработал или нет.
+
+  - name: skilllink-security
+    rules:
+      - alert: SkillLinkRateLimitSpike
+        expr: sum(rate(rate_limit_rejections_total[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Всплеск отказов 429: больше одного в среднем за секунду 5 минут подряд'
+          first_step: >
+            rate_limit_rejections_total{group=…} в /api/metrics и запись
+            api.rate-limit.exceeded в журнале действий — какая группа и с чьего адреса.
+
+      - alert: SkillLinkLoginFailureSpike
+        expr: sum(rate(auth_login_failures_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Всплеск неудачных входов: больше 60 за 5 минут'
+          first_step: >
+            auth_login_failures_total{reason=…} в /api/metrics — подбор пароля
+            (credentials) или вход заблокирован (throttled); журнал действий
+            для затронутых учётных записей.
+
+  - name: skilllink-process
+    rules:
+      - alert: SkillLinkEventLoopLag
+        expr: process_event_loop_lag_seconds{stat="p99"} > 0.2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Задержка цикла событий (p99) больше 200 мс дольше 2 минут'
+          first_step: >
+            process_resident_memory_bytes и process_heap_used_bytes в /api/metrics —
+            не близко ли к пределу mem_limit (compose.cloud.yml); докер-статистика:
+            docker stats skilllink-app --no-stream.

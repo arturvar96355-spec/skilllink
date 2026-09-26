@@ -57,6 +57,48 @@ fi
 
 echo "━━ Разворачиваю $COMMIT на $TARGET → $PUBLIC_URL"
 
+# ── 0. Ворота: схема совпадает с миграциями (решение 137) ───────────────────
+#
+# То же самое CI уже проверил на этот коммит (ci.yml), но: (а) можно развернуть
+# незакоммиченные правки (вопрос выше), которых CI не видел; (б) быстрее увидеть
+# ошибку сейчас, чем через несколько минут сборки на сервере. На сервере перед
+# `migrate deploy` — своя проверка (remote-up.sh, статус уже применённых миграций).
+check_schema_matches_migrations() {
+  echo "── Проверяю: schema.prisma совпадает с prisma/migrations"
+  if [ -z "${DATABASE_URL:-}" ]; then
+    echo "   DATABASE_URL не задан локально — пропускаю, сверит CI." >&2
+    return 0
+  fi
+  if ! command -v psql > /dev/null; then
+    echo "   psql не найден — пропускаю, сверит CI." >&2
+    return 0
+  fi
+
+  local shadow_db=skilllink_shadow_deploy
+  local shadow_url admin_url
+  # Строка для Prisma сохраняет ?schema=…: он определяет схему для миграций.
+  # Строка для psql его теряет: административное подключение создаёт саму базу,
+  # схема внутри нее ещё не существует, а psql к тому же не понимает этот параметр URI.
+  shadow_url=$(node -e "const u=new URL(process.env.DATABASE_URL); u.pathname='/$shadow_db'; console.log(u.toString())")
+  admin_url=$(node -e "const u=new URL(process.env.DATABASE_URL); u.pathname='/postgres'; u.search=''; console.log(u.toString())")
+
+  psql "$admin_url" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS $shadow_db" \
+    -c "CREATE DATABASE $shadow_db" > /dev/null
+  local ok=0
+  SHADOW_DATABASE_URL="$shadow_url" npx prisma migrate diff \
+    --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code || ok=$?
+  psql "$admin_url" -c "DROP DATABASE IF EXISTS $shadow_db" > /dev/null 2>&1 || true
+
+  if [ "$ok" != "0" ]; then
+    echo "ОШИБКА: schema.prisma разошлась с prisma/migrations — создайте миграцию" >&2
+    echo "  (npx prisma migrate dev) прежде чем разворачивать: migrate deploy на сервере" >&2
+    echo "  применит только то, что есть в папке migrations, без остальной схемы." >&2
+    exit 1
+  fi
+  echo "   совпадает"
+}
+check_schema_matches_migrations
+
 # ── 1. Сервер ───────────────────────────────────────────────────────────────
 ssh_run "$TARGET" 'bash -s' < scripts/deploy/server-setup.sh
 
