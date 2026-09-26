@@ -1,11 +1,17 @@
 'use client'
 
 import { useRef, useState, type ChangeEvent } from 'react'
-import type { ImportResultDto, ImportRowResultDto, VendorImportResultDto } from '@/shared/contracts'
+import type {
+  ImportResultDto,
+  ImportRowResultDto,
+  SiteOrdersImportResultDto,
+  VendorImportResultDto,
+} from '@/shared/contracts'
 import {
   Badge,
   Button,
   Card,
+  DownloadButton,
   Icon,
   PageHeader,
   Section,
@@ -13,13 +19,16 @@ import {
   Tabs,
   apiUploadRaw,
   buildQuery,
+  formatCount,
   formatDateTime,
+  pluralize,
   useCurrentUser,
   useMutation,
   useToast,
   type TabItem,
 } from '@/ui'
 import { encodingLabel, hasImportChanges, importSummaryText, OUTCOME_LABELS, OUTCOME_TONES } from './import-report'
+import { courseOptionValue, parseCourseOptionValue } from './site-orders-course-option'
 import styles from './import.module.css'
 
 /**
@@ -60,11 +69,12 @@ const DATASET_LABELS: Record<Dataset, string> = {
 
 export default function ImportPage() {
   const user = useCurrentUser()
-  const [tab, setTab] = useState<'catalogs' | 'vendors'>('catalogs')
+  const [tab, setTab] = useState<'catalogs' | 'vendors' | 'orders'>('catalogs')
 
   const tabs: TabItem[] = [
     { key: 'catalogs', label: 'Вузы и программы' },
     { key: 'vendors', label: 'Вендоры' },
+    { key: 'orders', label: 'Заказы школы' },
   ]
 
   return (
@@ -87,6 +97,7 @@ export default function ImportPage() {
           <Tabs items={tabs} active={tab} onChange={(key) => setTab(key as typeof tab)} />
           {tab === 'catalogs' && <CatalogImportSection />}
           {tab === 'vendors' && <VendorImportSection />}
+          {tab === 'orders' && <SiteOrdersImportSection />}
         </>
       )}
     </>
@@ -405,6 +416,228 @@ function VendorImportSection() {
                 `, ячеек с несколькими продуктами: ${result.quality.multiProductCells}`}
               . Обработано {formatDateTime(result.processedAt)}{result.encoding ? `, кодировка ${encodingLabel(result.encoding)}` : ''}.
             </p>
+          </div>
+        </Card>
+      )}
+    </Section>
+  )
+}
+
+/**
+ * Заказы школы (задача «Данные без экрана», решение 182, п. 5; ТЗ, функц. требования
+ * п. 5). `POST /api/import/site-orders` и `POST /api/import/site-orders/lms-file`
+ * (решение 132) читали JSON-файл заказов с самого начала — интерфейса не было.
+ *
+ * Файл для LMS собирается заново из того же файла заказов при каждом скачивании:
+ * ФИО, почта и телефон слушателей не хранятся в базе (`docs/PRIVACY.md`) — только
+ * их HMAC для дедупликации, — поэтому выбранный файл остаётся в состоянии страницы
+ * и после «Применить», а не только на время самой загрузки.
+ */
+function SiteOrdersImportSection() {
+  const toast = useToast()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [result, setResult] = useState<SiteOrdersImportResultDto | null>(null)
+  const [scope, setScope] = useState<'new' | 'all'>('new')
+  const [courseOption, setCourseOption] = useState('')
+
+  const run = useMutation(async (mode: 'preview' | 'apply') => {
+    if (!file) throw new Error('Файл не выбран')
+    const query = buildQuery({ mode })
+    const response = await apiUploadRaw<SiteOrdersImportResultDto>(`/api/import/site-orders${query}`, file)
+    return response.data
+  })
+
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const picked = event.target.files?.[0] ?? null
+    event.target.value = ''
+    if (!picked) return
+    setFile(picked)
+    setResult(null)
+    setCourseOption('')
+    run.reset()
+  }
+
+  async function onPreview() {
+    const outcome = await run.run('preview')
+    if (!outcome.ok) {
+      toast.error(outcome.error.message)
+      return
+    }
+    setResult(outcome.data)
+  }
+
+  async function onApply() {
+    const outcome = await run.run('apply')
+    if (!outcome.ok) {
+      toast.error(outcome.error.message)
+      return
+    }
+    setResult(outcome.data)
+    toast.success(`Заявок создано: ${outcome.data.toCreate}`)
+  }
+
+  const { courseId, stream } = parseCourseOptionValue(courseOption)
+
+  return (
+    <Section
+      title="Заказы с сайта школы"
+      description="JSON-файл заказов ровно как выгружает сайт: предпросмотр качества данных без записи в базу, «Применить» заводит заявки, «Скачать файл для LMS» собирает книгу Excel для загрузки пользователей."
+    >
+      <Card>
+        <div className={styles.form}>
+          <div className={styles.uploadRow}>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".json,application/json"
+              className={styles.hiddenInput}
+              onChange={onPick}
+              tabIndex={-1}
+              aria-hidden="true"
+            />
+            <Button variant="secondary" icon="attach" onClick={() => inputRef.current?.click()}>
+              Выбрать файл JSON
+            </Button>
+            <span className={styles.fileName}>{file ? file.name : 'Файл не выбран'}</span>
+          </div>
+
+          <div className={styles.actions}>
+            <Button variant="secondary" onClick={onPreview} isLoading={run.isPending} disabled={!file}>
+              Показать, что изменится
+            </Button>
+            <Button
+              variant="primary"
+              onClick={onApply}
+              isLoading={run.isPending}
+              disabled={!file || !result || result.toCreate === 0}
+            >
+              Применить
+            </Button>
+          </div>
+
+          {run.error && (
+            <p className={styles.refusal} role="alert">
+              <Icon name="alert" size={20} />
+              <span>
+                <span className={styles.refusalTitle}>Файл не принят</span>
+                {run.error.message}
+              </span>
+            </p>
+          )}
+        </div>
+      </Card>
+
+      {result && (
+        <Card>
+          <div className={styles.report}>
+            <p className={styles.summary}>
+              {result.mode === 'apply' ? 'Загружено. ' : 'Предпросмотр — база не изменена. '}
+              К созданию: {result.toCreate}.
+            </p>
+            <p className={styles.hint}>Обработано {formatDateTime(result.processedAt)}.</p>
+
+            <div className={styles.block}>
+              <span className={styles.blockLabel}>Качество данных</span>
+              <span className={styles.blockText}>
+                принято строк {result.quality.validRows} из {result.quality.totalItems}, с ошибками{' '}
+                {result.quality.rowsWithErrors}, телефонов приведено к формату {result.quality.phonesNormalized}, почт
+                в нижний регистр {result.quality.emailsLowercased}
+                {result.quality.brokenOrderNumbers > 0 &&
+                  `, номеров заявки с нераспознанной датой ${result.quality.brokenOrderNumbers}`}
+                {result.quality.duplicateOrderNumbersInFile > 0 &&
+                  `, повторов номера заявки внутри файла ${result.quality.duplicateOrderNumbersInFile}`}
+                {result.quality.duplicateListenersInFile > 0 &&
+                  `, повторов слушателя внутри файла ${result.quality.duplicateListenersInFile}`}
+                {result.quality.alreadyImported > 0 && `, уже загружено раньше ${result.quality.alreadyImported}`}.
+              </span>
+            </div>
+
+            {result.quality.unknownCourses.length > 0 && (
+              <div className={styles.block}>
+                <span className={styles.blockLabel}>Курса нет в системе — заказы не загружены</span>
+                {result.quality.unknownCourses.map((course) => (
+                  <span key={course.name} className={styles.blockText}>
+                    «{course.name}» — {formatCount(course.rows, ['строка', 'строки', 'строк'])}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {result.errors.length > 0 && (
+              <div className={styles.block}>
+                <span className={styles.blockLabel}>Ошибки</span>
+                {result.errors.map((issue, index) => (
+                  <span key={index} className={styles.blockText}>
+                    элемент {issue.row}, «{issue.column}»: {issue.message}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {result.warnings.length > 0 && (
+              <div className={styles.block}>
+                <span className={styles.blockLabel}>Замечания</span>
+                {result.warnings.map((issue, index) => (
+                  <span key={index} className={styles.blockText}>
+                    элемент {issue.row}, «{issue.column}»: {issue.message}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {result.courses.length > 0 && (
+              <div className={styles.block}>
+                <span className={styles.blockLabel}>По курсам и потокам</span>
+                {result.courses.map((course) => (
+                  <span key={courseOptionValue(course.courseId, course.streamNumber)} className={styles.blockText}>
+                    {course.courseName}
+                    {course.streamNumber ? `, поток ${course.streamNumber}` : ''} —{' '}
+                    {formatCount(course.orders, ['заказ', 'заказа', 'заказов'])}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {file && result && (
+        <Card>
+          <div className={styles.form}>
+            <p className={styles.hint}>
+              Книга Excel «Загрузка пользователей» строго по шаблону LMS: заполнены только фамилия, имя, отчество,
+              телефон и почта — их система нигде, кроме этого файла, не хранит.
+            </p>
+            <div className={styles.lmsRow}>
+              <Select
+                label="Кого включить"
+                value={scope}
+                onValueChange={(value) => setScope(value as 'new' | 'all')}
+                options={[
+                  { value: 'new', label: 'Только тех, кого ещё не выгружали в LMS' },
+                  { value: 'all', label: 'Всех загруженных' },
+                ]}
+              />
+              <Select
+                label="Курс и поток"
+                value={courseOption}
+                onValueChange={setCourseOption}
+                placeholder="Все курсы и потоки этого файла"
+                options={result.courses.map((course) => ({
+                  value: courseOptionValue(course.courseId, course.streamNumber),
+                  label: `${course.courseName}${course.streamNumber ? `, поток ${course.streamNumber}` : ''} (${pluralize(course.orders, ['заказ', 'заказа', 'заказов'])})`,
+                }))}
+              />
+            </div>
+            <DownloadButton
+              href={`/api/import/site-orders/lms-file${buildQuery({ scope, courseId, stream })}`}
+              method="POST"
+              body={file}
+              fallbackName="Загрузка пользователей.xlsx"
+            >
+              Скачать файл для LMS
+            </DownloadButton>
           </div>
         </Card>
       )}
