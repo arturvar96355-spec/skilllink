@@ -223,6 +223,11 @@ function cooperationFixture(overrides: { stages?: WorkflowStageDto[] } = {}): Co
     closedAt: null,
     createdAt: NOW.toISOString(),
     stages,
+    contractNumber: null,
+    licenseSignedAt: null,
+    licenseTermYears: null,
+    transferStatus: null,
+    comment: null,
   }
 }
 

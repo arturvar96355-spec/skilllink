@@ -18,8 +18,19 @@
 	# вообще способно принять: без предела здесь чтение растянутого тела съедало бы
 	# время воркера Caddy, пока приложение само не оборвёт его. Сверх предела —
 	# ровно 413, а не обрыв соединения (scripts/deploy/check.sh проверяет).
-	request_body {
+	#
+	# У путей загрузки файлов к документам и этапам (решение 145) предел выше:
+	# вложения по ТЗ (сканы, архивы) — до MAX_ATTACHMENT_SIZE_BYTES
+	# (src/shared/config/attachments.config.ts, сейчас 20 МиБ), общий предел им мал.
+	# Сверка обоих чисел — src/shared/config/deploy-consistency.test.ts.
+	@fileUploads path /api/documents/*/files /api/workflow/stages/*/files
+	@notFileUploads not path /api/documents/*/files /api/workflow/stages/*/files
+
+	request_body @notFileUploads {
 		max_size 3145728
+	}
+	request_body @fileUploads {
+		max_size 20971520
 	}
 
 	# Метрики — только изнутри (решение 137): Prometheus достаёт их по имени сервиса

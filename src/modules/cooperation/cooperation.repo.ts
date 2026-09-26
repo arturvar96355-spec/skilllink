@@ -49,6 +49,11 @@ const detailSelect = {
   startedAt: true,
   closedAt: true,
   createdAt: true,
+  contractNumber: true,
+  licenseSignedAt: true,
+  licenseTermYears: true,
+  transferStatus: true,
+  comment: true,
 } satisfies Prisma.CooperationSelect
 
 export type CooperationListRow = Prisma.CooperationGetPayload<{ select: typeof listSelect }>

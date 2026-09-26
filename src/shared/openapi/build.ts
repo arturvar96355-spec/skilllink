@@ -208,7 +208,26 @@ function buildOperation(spec: EndpointSpec): JsonSchema {
     ...(spec.public ? { security: [] } : {}),
   }
 
-  if (spec.body) {
+  if (spec.multipartField) {
+    operation.requestBody = {
+      required: true,
+      content: {
+        'multipart/form-data': {
+          schema: {
+            type: 'object',
+            required: [spec.multipartField],
+            properties: {
+              [spec.multipartField]: {
+                type: 'string',
+                format: 'binary',
+                description: 'Формат — по расширению из списка ТЗ, сигнатура (magic bytes) должна ему соответствовать.',
+              },
+            },
+          },
+        },
+      },
+    }
+  } else if (spec.body) {
     operation.requestBody = {
       required: spec.bodyOptional !== true,
       content: { 'application/json': { schema: toJsonSchema(spec.body, 'input') } },

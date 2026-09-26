@@ -1,6 +1,6 @@
 import { z } from '@/shared/zod'
 import { paginationSchema } from '@/shared/http/pagination'
-import { COOPERATION_STATUSES, OPEN_COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { COOPERATION_STATUSES, OPEN_COOPERATION_STATUSES, TRANSFER_STATUSES } from '@/shared/contracts/enums'
 
 const multi = <S extends z.ZodType>(schema: S) =>
   z.union([schema, z.array(schema)]).transform((value) => (Array.isArray(value) ? value : [value]))
@@ -52,6 +52,15 @@ const cooperationFields = {
   firstContactAt: isoDate.nullish(),
   classesStartAt: isoDate.nullish(),
   targetDate: isoDate.nullish(),
+  /**
+   * Каталог по ТЗ РТК (решение 145): реквизиты лицензии и передачи ПО, которых
+   * не было в связке. Все необязательны — заполняются по мере появления данных.
+   */
+  contractNumber: z.string().trim().max(100).nullish(),
+  licenseSignedAt: isoDate.nullish(),
+  licenseTermYears: z.number().int().min(1).max(10).nullish(),
+  transferStatus: z.enum(TRANSFER_STATUSES).nullish(),
+  comment: z.string().trim().max(2000).nullish(),
 }
 
 export const createCooperationSchema = z.object({

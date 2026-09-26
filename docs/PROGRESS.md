@@ -4,6 +4,20 @@
 
 ## Состояние
 
+**Соответствие ТЗ РТК: файлы, приём извне, отчёт (26.09.2026, решение 145, ветка
+`feat/tz-files-import-reports`).** Приоритет 1 аудита разрывов с официальным ТЗ — пункты
+2, 3, 7, 8, 10. Модель `Attachment` и `POST`/`GET /api/documents/:id/files`,
+`POST`/`GET /api/workflow/stages/:id/files`, `GET`/`DELETE /api/files/:id`: форматы строго
+по ТЗ (png, jpeg, pdf, zip, gzip, rar, doc, docx, xls, xlsx), проверка расширения И
+сигнатуры (magic bytes), хранение на диске (том `UPLOADS_DIR`), права — как у изменения
+документа/этапа, DSAR (`keep`, обосновано в реестре). `POST /api/import/external` —
+приём данных извне (сайт/LMS), авторизация токеном (`INTEGRATION_TOKEN`), идемпотентно
+по (source, externalId). Каталог связки (решение 132) дополнен полями ТЗ (номер договора,
+лицензия, статус передачи, комментарий — все `nullable`). `GET /api/reports/tz` и
+`GET /api/reports/catalog` — колонки дословно из ТЗ, форматы `csv`/`xlsx`/`json` (xlsx —
+свой писатель без новой зависимости, json — вложением со схемой generatedAt/filters/columns/rows).
+Подробности — [TECHNICAL_DECISIONS.md, решение 145](TECHNICAL_DECISIONS.md).
+
 **Каналы уведомлений: Telegram, MAX, VK (26.09.2026, решение 144, ветка
 `feat/notify-channels`).** Владелец хочет выбор канала, как в корпоративных CDP: кроме
 Telegram — ещё MAX (мессенджер VK) и VK (бот сообщества). Общий слой `src/modules/notify-channels`
@@ -60,9 +74,12 @@ timed out`) процесс сам держит цикл `getUpdates`, той ж�
 там дата описывает решение своего момента); ник `@mister_pohuy` и остальные телеграм-логины
 убраны из `docs/concept.md`; реквизиты оператора ПД — переменные окружения `OPERATOR_NAME`,
 `OPERATOR_ADDRESS`, `OPERATOR_CONTACT` с понятной заглушкой вместо `TODO: PM DECISION`;
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (44 модели, 27 миграций — считая
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (46 модели, 29 миграций — считая
+`20260926200000_schema_review`, решение 143, 141 маршрут, 171 операция), `docs-counts.test.ts`
+расширен на модели и миграции; README —
+
 `20260926170000_notify_channels` и `20260926200000_schema_review`, решения 144 и 143,
-135 маршрутов, 162 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
+141 маршрут, 171 операция), `docs-counts.test.ts` расширен на модели и миграции; README —
 разделы «Проверить за 10 минут», «Как мы работали», «Что не вошло и почему», «Масштаб
 на 29.09»; демо-сид «почти дублей» для качества данных — под флагом `SEED_DQ_CASES=1`,
 по умолчанию выключен (без экрана слияния во фронте это был мусор в реестре без способа
@@ -424,7 +441,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### База данных
 
-Раздел 11 ТЗ требовал 20 таблиц; сейчас в схеме 44 модели (сверено 26.09.2026,
+Раздел 11 ТЗ требовал 20 таблиц; сейчас в схеме 46 модели (сверено 26.09.2026,
 `prisma/schema.prisma`) — расширения вроде `contacts` и `resolution_comment`
 в рекомендациях, а также решения 90–138 (ИИ-помощник, журнал, DSAR, вендоры, прогноз
 связки и др.) описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md); с 26.09.2026 схему
@@ -433,7 +450,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### Модули и эндпоинты
 
-### Модули и эндпоинты — 135 маршрутов, 162 операции
+### Модули и эндпоинты — 141 маршрут, 171 операция
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -445,7 +462,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | settings | `GET /api/settings/parameters` — параметры расчётов, только чтение (решение 107) |
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
-| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
+| workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked`; `GET`, `POST /api/workflow/stages/:id/files` — файлы этапа, решение 145 |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
 
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
@@ -454,13 +471,15 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
 | data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
 | recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
-| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
+| documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate`; `GET`, `POST /api/documents/:id/files` — файлы документа, решение 145 |
+| files | `GET`, `DELETE /api/files/:id` — скачивание и удаление файла к документу/этапу, решение 145 |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
 | data-sources | `GET /api/data-sources`; `POST /api/data-sources/sync`; `GET /api/integrations/status` |
 | audit | `GET /api/audit`; `GET /api/audit/verify`, `GET /api/audit/seals` — цепочка и печати (решение 115); `GET /api/universities/:id/events` |
 | export | `GET /api/export` — выгрузка реестров в CSV |
-| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром |
+| import | `POST /api/import` — загрузка реестров из CSV с предпросмотром; `POST /api/import/external` — приём данных извне (сайт/LMS), решение 145 |
+| reports | `GET /api/reports/tz`, `GET /api/reports/catalog` — отчёты по колонкам ТЗ, форматы csv/xlsx/json, решение 145 |
 | products (групповые операции) | `GET`, `POST /api/products/:id/release` |
 | ai-assist | `POST /api/cooperations/:id/ai-summary`; `POST /api/recommendations/:id/ai-letter`; `POST /api/ai/today` — черновики ИИ-помощника, решение 90 |
 | ai-story | `GET /api/cooperations/:id/story`, `GET /api/universities/:id/story` — история сотрудничества; `GET /api/cooperations/:id/blockers` — что мешает; `POST …/proposals`, `POST …/proposals/:proposalId/apply` — предложить и применить план (решение 138) |
@@ -628,7 +647,11 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 134 пути, 162 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
+
+`docs/openapi.json` и `GET /api/openapi.json` — 140 путей, 171 операция. Собирается из тех же
+
+`docs/openapi.json` и `GET /api/openapi.json` — 140 путей, 171 операция. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.
@@ -711,7 +734,7 @@ FutureRtk; клиенты LMS и сайта. Единый HTTP-клиент с �
 `approvals` (2), `forecast_models` (2), `duplicate_dismissals` (1),
 `university_merges` (1, с отменой), `audit_seals` (2), `data_sources` (2 → 5).
 `npm run demo:coverage` держит зелёным «ни одной пустой содержательной
-таблицы» по всем 44 моделям. Заливка — 2,3–2,4 с.
+таблицы» по всем 46 моделям. Заливка — 2,3–2,4 с.
 
 ## Найдено и исправлено при реализации
 

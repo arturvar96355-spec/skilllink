@@ -80,6 +80,10 @@ export const OPEN_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED'] as const
  */
 export const ACTIVE_COOPERATION_STATUSES = ['DRAFT', 'ACTIVE'] as const
 
+/** Статус передачи ПО вузу — «Каталог по ТЗ» (решение 145). null — не заполнено. */
+export const TRANSFER_STATUSES = ['NOT_TRANSFERRED', 'IN_PROGRESS', 'TRANSFERRED', 'REVOKED'] as const
+export type TransferStatus = (typeof TRANSFER_STATUSES)[number]
+
 export const STAGE_STATUSES = [
   'NOT_STARTED',
   'IN_PROGRESS',

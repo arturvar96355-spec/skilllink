@@ -110,6 +110,17 @@ export async function findById(
   })
 }
 
+/**
+ * Существование и область видимости документа — без истории и связей, для проверки прав
+ * перед файловой операцией (решение 145): полный `findById` тянул бы лишнее.
+ */
+export async function findRef(
+  id: string,
+  scope: { universityId?: string },
+): Promise<{ id: string } | null> {
+  return prisma.document.findFirst({ where: { id, ...scopeFilter(scope) }, select: { id: true } })
+}
+
 export async function create(
   data: Prisma.DocumentCreateInput,
   client: Prisma.TransactionClient = prisma,

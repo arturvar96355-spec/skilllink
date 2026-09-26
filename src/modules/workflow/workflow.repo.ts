@@ -77,6 +77,20 @@ export async function findStageById(id: string): Promise<StageRow | null> {
   return prisma.workflowStage.findUnique({ where: { id }, select: stageSelect })
 }
 
+/**
+ * Существование этапа и вуз его связки — для проверки прав перед файловой операцией
+ * (решение 145): полный `findStageById` тянул бы чек-лист и историю, здесь не нужные.
+ */
+export async function findStageRef(
+  id: string,
+): Promise<{ id: string; universityId: string } | null> {
+  const stage = await prisma.workflowStage.findUnique({
+    where: { id },
+    select: { id: true, cooperation: { select: { universityId: true } } },
+  })
+  return stage ? { id: stage.id, universityId: stage.cooperation.universityId } : null
+}
+
 export async function findStageWithCooperation(
   id: string,
 ): Promise<StageWithCooperationRow | null> {

@@ -125,6 +125,56 @@ export async function parseOptionalBody<S extends z.ZodType>(
  * схемы обрезают пробелы, и без этого `?q=%20` превращался бы в отказ «введите
  * хотя бы один символ» — поиск из пробела ломал бы таблицу ошибкой.
  */
+// ─────────────────── Загрузка файла (multipart/form-data) ───────────────────
+
+export interface UploadedFile {
+  /** Имя файла, как его прислал клиент — доверять нельзя, дальше только источник для проверки. */
+  name: string
+  /** MIME из формы — тоже со слов клиента, окончательно определяет сигнатура содержимого. */
+  type: string
+  size: number
+  bytes: Uint8Array
+}
+
+/**
+ * Разбирает `multipart/form-data` с одним файлом в поле (по умолчанию `file`).
+ *
+ * `Content-Length` проверяется до чтения тела — как у `readBodyBytes` для JSON:
+ * заведомо большой запрос отклоняется, не читая его целиком. Chunked-передача без
+ * `Content-Length` до предела не защищена этой проверкой — только предельным размером
+ * тела снаружи (Caddy, decision 137) и повторной проверкой `size` после разбора формы.
+ */
+export async function parseSingleFileUpload(
+  request: Request,
+  options: { field?: string; maxBytes: number; tooLarge: () => AppError },
+): Promise<UploadedFile> {
+  const field = options.field ?? 'file'
+  const declared = Number(request.headers.get('content-length') ?? 0)
+  if (declared > options.maxBytes) throw options.tooLarge()
+
+  let form: FormData
+  try {
+    form = await request.formData()
+  } catch {
+    throw validationError('Тело запроса должно быть multipart/form-data с файлом', [
+      { field, message: 'Не удалось разобрать форму' },
+    ])
+  }
+
+  const value = form.get(field)
+  if (!(value instanceof File)) {
+    throw validationError('Файл не передан', [{ field, message: `Ожидалось поле «${field}» с файлом` }])
+  }
+  if (value.size > options.maxBytes) throw options.tooLarge()
+  if (value.size === 0) {
+    throw validationError('Пустой файл', [{ field, message: 'Файл нулевого размера' }])
+  }
+
+  rejectNul(value.name, 'Недопустимое имя файла')
+  const bytes = new Uint8Array(await value.arrayBuffer())
+  return { name: value.name, type: value.type, size: value.size, bytes }
+}
+
 export function parseQuery<S extends z.ZodType>(request: Request, schema: S): z.infer<S> {
   const params = new URL(request.url).searchParams
   const raw: Record<string, string | string[]> = {}

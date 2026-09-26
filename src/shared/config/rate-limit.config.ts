@@ -65,6 +65,12 @@ export const RATE_LIMIT_EXEMPT_PATHS: readonly string[] = ['/api/health', '/api/
 export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   /^\/api\/export(?:\/|$)/,
   /^\/api\/import(?:\/|$)/,
+  /^\/api\/reports\/(?:tz|catalog)(?:\/|$)/,
+  // Загрузка, список и скачивание файлов документов и этапов (решение 145):
+  // чтение и запись на диск, а не только в базу.
+  /^\/api\/documents\/[^/]+\/files(?:\/|$)/,
+  /^\/api\/workflow\/stages\/[^/]+\/files(?:\/|$)/,
+  /^\/api\/files\/[^/]+$/,
   /^\/api\/cooperations\/[^/]+\/documents\/generate$/,
   /^\/api\/recommendations\/generate$/,
   /^\/api\/data-sources\/sync$/,

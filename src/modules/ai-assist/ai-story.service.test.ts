@@ -115,6 +115,11 @@ function cooperation(overrides: Partial<CooperationDto> = {}): CooperationDto {
     closedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     stages: [stage({ stageNumber: 4, status: 'IN_PROGRESS' })],
+    contractNumber: null,
+    licenseSignedAt: null,
+    licenseTermYears: null,
+    transferStatus: null,
+    comment: null,
     ...overrides,
   }
 }
