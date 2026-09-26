@@ -527,6 +527,7 @@ function CooperationContent() {
         <ChangeResponsibleModal
           title="Сменить ответственного связки"
           description="У связки всегда есть ответственный — снять его нельзя, только назначить другого."
+          consequence="Смена попадёт в журнал действий. Ответственные за отдельные этапы не меняются."
           endpoint={`/api/cooperations/${params.id}`}
           currentResponsibleId={data.responsible.id}
           currentResponsibleName={data.responsible.fullName}
