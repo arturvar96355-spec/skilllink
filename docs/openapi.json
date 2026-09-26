@@ -30982,6 +30982,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31027,6 +31031,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31075,6 +31083,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31161,6 +31173,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31206,6 +31222,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31251,6 +31271,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31299,6 +31323,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31389,6 +31417,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31434,6 +31466,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31479,6 +31515,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31524,6 +31564,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31572,6 +31616,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31662,6 +31710,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31707,6 +31759,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31752,6 +31808,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31797,6 +31857,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31845,6 +31909,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31947,6 +32015,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -31992,6 +32064,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32037,6 +32113,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32082,6 +32162,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32130,6 +32214,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32261,6 +32349,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32306,6 +32398,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32354,6 +32450,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32427,6 +32527,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32472,6 +32576,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32517,6 +32625,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32562,6 +32674,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32607,6 +32723,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
@@ -32655,6 +32775,10 @@
                         },
                         "details": {
                           "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
                         }
                       }
                     }
