@@ -67,6 +67,7 @@ import {
 } from '@/ui'
 import { mergeTimelinePage } from './timeline-merge'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
+import { EditMeetingModal } from '../../EditMeetingModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
 import { UniversityAssistant } from './UniversityAssistant'
@@ -226,6 +227,8 @@ export default function UniversityPage() {
   const meetings = useResource<MeetingDto[]>(
     tab === 'meetings' ? `/api/meetings${buildQuery({ universityId: id, pageSize: 50 })}` : null,
   )
+  // Правка встречи (задача «Данные без экрана», пункт 2): встречи вуза раньше только показывались.
+  const [editingMeeting, setEditingMeeting] = useState<MeetingDto | null>(null)
   /**
    * Дефициты по вузу: чего рынок требует, а его программы не дают.
    *
@@ -824,6 +827,11 @@ export default function UniversityPage() {
                       {formatDate(meeting.date)} · {MEETING_FORMAT_LABELS[meeting.format]} ·{' '}
                       {meeting.responsible.fullName}
                     </span>
+                    {user.permissions.canWrite && (
+                      <Button variant="ghost" size="sm" onClick={() => setEditingMeeting(meeting)}>
+                        Изменить
+                      </Button>
+                    )}
                   </span>
                 </span>
               ))}
@@ -973,6 +981,16 @@ export default function UniversityPage() {
           onClose={(changed) => {
             setChangingResponsible(false)
             if (changed) university.reload()
+          }}
+        />
+      )}
+      {editingMeeting && (
+        <EditMeetingModal
+          key={editingMeeting.id}
+          meeting={editingMeeting}
+          onClose={(updated) => {
+            setEditingMeeting(null)
+            if (updated) meetings.reload()
           }}
         />
       )}

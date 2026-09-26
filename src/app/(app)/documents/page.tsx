@@ -65,6 +65,7 @@ import {
   ListTitle,
 } from '@/ui'
 import { Attachments } from '../Attachments'
+import { CreateDocumentModal } from './CreateDocumentModal'
 import styles from './documents.module.css'
 
 const PAGE_SIZE = 20
@@ -154,6 +155,7 @@ function DocumentsView() {
   const [cooperationId, setCooperationId] = useState('')
   const [sort, setSort] = useState('-updatedAt')
   const [page, setPage] = useState(1)
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const query = useDebounced(search.trim(), 300)
 
@@ -193,6 +195,13 @@ function DocumentsView() {
     next.delete('document')
     const rest = next.toString()
     router.replace(rest === '' ? pathname : `${pathname}?${rest}`, { scroll: false })
+  }
+
+  /** Только что добавленный документ сразу открывается в панели — видно, что он заведён. */
+  function openDocument(id: string) {
+    const next = new URLSearchParams(params.toString())
+    next.set('document', id)
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
   }
 
   const columns: Column<DocumentListItemDto>[] = [
@@ -275,6 +284,13 @@ function DocumentsView() {
       <PageHeader
         title="Документы"
         description="Договоры, соглашения и приложения по связкам. Реквизиты, ссылка на внешний документ, текст, собранный из шаблона, и файлы, приложенные к документу вручную."
+        actions={
+          user.permissions.canWrite ? (
+            <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
+              Добавить документ
+            </Button>
+          ) : undefined
+        }
       />
 
       <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
@@ -412,6 +428,17 @@ function DocumentsView() {
           canWrite={user.permissions.canWrite}
           onClose={closeDrawer}
           onChanged={documents.reload}
+        />
+      )}
+
+      {isCreateOpen && (
+        <CreateDocumentModal
+          onClose={(created) => {
+            setIsCreateOpen(false)
+            if (!created) return
+            documents.reload()
+            openDocument(created.id)
+          }}
         />
       )}
     </>

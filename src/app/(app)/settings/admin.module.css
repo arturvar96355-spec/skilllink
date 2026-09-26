@@ -8,6 +8,14 @@
   margin-bottom: var(--space-2);
 }
 
+/* Несколько действий у одной строки справочника навыков (объединить/изменить/удалить). */
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .dates {
   display: flex;
   gap: var(--space-2);
