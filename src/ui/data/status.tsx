@@ -1,6 +1,7 @@
 import {
   COOPERATION_STATUS_LABELS,
   DOCUMENT_STATUS_LABELS,
+  INBOUND_LETTER_STATUS_LABELS,
   PROGRAM_STATUS_LABELS,
   RECOMMENDATION_PRIORITY_LABELS,
   RECOMMENDATION_STATUS_LABELS,
@@ -9,6 +10,7 @@ import {
   UNIVERSITY_STATUS_LABELS,
   type CooperationStatus,
   type DocumentStatus,
+  type InboundLetterStatus,
   type ProgramStatus,
   type RecommendationPriority,
   type RecommendationStatus,
@@ -93,6 +95,15 @@ const TRANSFER_TONES: Record<TransferStatus, BadgeTone> = {
   REVOKED: 'danger',
 }
 
+/** Обращение из письма вуза (решение 170/171). */
+const INBOUND_LETTER_TONES: Record<InboundLetterStatus, BadgeTone> = {
+  NEW: 'info',
+  ANALYZED: 'accent',
+  CONFIRMED: 'success',
+  CORRECTED: 'warning',
+  DISMISSED: 'neutral',
+}
+
 export function UniversityStatusBadge({ status }: { status: UniversityStatus }) {
   return (
     <Badge tone={UNIVERSITY_TONES[status]} withDot>
@@ -149,6 +160,14 @@ export function TransferStatusBadge({ status }: { status: TransferStatus }) {
   return (
     <Badge tone={TRANSFER_TONES[status]} withDot>
       {TRANSFER_STATUS_LABELS[status]}
+    </Badge>
+  )
+}
+
+export function InboundLetterStatusBadge({ status }: { status: InboundLetterStatus }) {
+  return (
+    <Badge tone={INBOUND_LETTER_TONES[status]} withDot>
+      {INBOUND_LETTER_STATUS_LABELS[status]}
     </Badge>
   )
 }
