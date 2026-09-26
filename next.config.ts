@@ -89,6 +89,20 @@ const nextConfig: NextConfig = {
         source: '/api/calendar/:path*',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      /**
+       * Загрузки (решение 122): файл «Загрузка пользователей» для LMS — это ФИО,
+       * телефоны и почты слушателей, предпросмотр вендоров — их контакты. Карточка
+       * вендора — рабочие почты и телефоны. Ни браузер, ни прокси их не хранят.
+       * Заголовок в самом маршруте общее правило перекрыло бы (см. выше).
+       */
+      {
+        source: '/api/import/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+      {
+        source: '/api/vendors/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
       /** Задача проверки «не робот» у каждого запроса своя — хранить её нечего и незачем. */
       {
         source: '/api/login-challenge',

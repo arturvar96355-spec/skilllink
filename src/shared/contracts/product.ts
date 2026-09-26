@@ -16,6 +16,8 @@ export interface ProductListItemDto {
   documentationUrl: string | null
   skillCount: number
   cooperationCount: number
+  /** Компания-вендор (решение 122); null — не указан. */
+  vendor: { id: string; name: string } | null
   isMock: boolean
   updatedAt: string
 }

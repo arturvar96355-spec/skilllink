@@ -34,6 +34,7 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['ContactLegalBasis', enums.CONTACT_LEGAL_BASES, labels.CONTACT_LEGAL_BASIS_LABELS],
   ['ConsentStatus', enums.CONSENT_STATUSES, labels.CONSENT_STATUS_LABELS],
   ['ConsentForm', enums.CONSENT_FORMS, labels.CONSENT_FORM_LABELS],
+  ['VendorContactChannel', enums.VENDOR_CONTACT_CHANNELS, labels.VENDOR_CONTACT_CHANNEL_LABELS],
   ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
   ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
 ]

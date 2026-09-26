@@ -79,6 +79,12 @@ if [ ! -f "\$ENV_FILE" ]; then
     echo "DOCKER_DEMO_AUTH_ENABLED=false"
   } > "\$ENV_FILE"
 fi
+# Ключ HMAC заказов с сайта (решение 122) — дописывается и в уже созданный файл,
+# один раз: смена ключа ломает сравнение с прошлыми загрузками.
+if ! grep -q '^DOCKER_ORDERS_HMAC_KEY=' "\$ENV_FILE"; then
+  umask 077
+  echo "DOCKER_ORDERS_HMAC_KEY=\$(openssl rand -base64 32)" >> "\$ENV_FILE"
+fi
 # Адрес может меняться между развёртываниями — переписываем каждый раз.
 grep -v -E '^(SITE_ADDRESS|DOCKER_AUTH_URL)=' "\$ENV_FILE" > "\$ENV_FILE.tmp" || true
 {

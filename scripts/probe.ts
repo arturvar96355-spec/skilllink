@@ -19,6 +19,10 @@ import {
   SKILL_GAP,
 } from '@/shared/config/analytics.config'
 import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
+import { readXlsx, writeXlsx } from '@/shared/files/xlsx'
+import { LMS_USER_COLUMNS } from '@/integrations/lms/lms-users-file'
+import { PrismaClient } from '@/generated/prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
 
 const BASE_URL = process.env.APP_BASE_URL ?? 'http://localhost:3000'
 
@@ -141,6 +145,12 @@ async function warmUp(): Promise<void> {
     '/api/openapi.json',
     '/api/me/calendar',
     '/api/calendar/warm-up.ics',
+    '/api/vendors',
+    '/api/vendors/warm-up',
+    '/api/school-courses',
+    '/api/import/vendors',
+    '/api/import/site-orders',
+    '/api/import/site-orders/lms-file',
   ]
 
   await Promise.all(
@@ -4453,6 +4463,240 @@ async function checkCalendarFeed(ctx: ProbeContext): Promise<void> {
 }
 
 /** Итог прогона: число проверок и список провалившихся. */
+/** Запрос с двоичным телом (файл) — для загрузок xlsx, JSON-файлов и ответа-файла. */
+async function callFile(method: string, path: string, body: Uint8Array | string, contentType: string) {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: {
+      'content-type': contentType,
+      ...(actingUserId ? { cookie: `skilllink_user=${actingUserId}` } : {}),
+    },
+    body: typeof body === 'string' ? body : Buffer.from(body),
+  })
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  return { status: response.status, headers: response.headers, bytes, text: new TextDecoder().decode(bytes) }
+}
+
+async function checkVendors(ctx: ProbeContext): Promise<void> {
+  step('Вендоры (решение 122): загрузка xlsx, предпросмотр, повтор без дублей, права, скрытие контактов')
+  const { adminId, managerId, rep } = ctx
+  const sfx = Date.now().toString().slice(-6)
+  actAs(adminId)
+  const analystId = (await call<Array<{ id: string }>>('GET', '/api/users?role=ANALYST&pageSize=1')).body.data?.[0]?.id ?? null
+
+  const vendorName = `ООО «Пробный вендор ${sfx}»`
+  const file = writeXlsx([
+    {
+      name: 'Лист1',
+      rows: [
+        ['Компания', 'Продукт', 'ФИО', 'Телефон', 'Почта', 'Способ связи'],
+        [vendorName, `«Проба А ${sfx}», «Проба Б ${sfx}»`, 'Пробов Пётр Петрович', '8 (900) 555-00-01', `Probe.${sfx}@Example.Invalid`, 'Почта, Чат в ТГ'],
+        [vendorName, `«Проба В ${sfx}»`, 'Кривой Контакт', '123', 'не-почта', 'Вотсап'],
+      ],
+    },
+  ])
+  const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+  actAs(analystId)
+  const denied = await callFile('POST', '/api/import/vendors', file, XLSX_TYPE)
+  check('ANALYST: загрузка вендоров — 403', denied.status === 403, `код ${denied.status}`)
+
+  actAs(managerId)
+  type VendorImport = {
+    toCreate: { vendors: string[]; products: string[]; contacts: string[] }
+    errors: Array<{ row: number; column: string; message: string }>
+    unchanged: { products: number; contacts: number }
+  }
+  const preview = await callFile('POST', '/api/import/vendors', file, XLSX_TYPE)
+  const previewData = (JSON.parse(preview.text) as { data?: VendorImport }).data
+  check(
+    'предпросмотр: 1 вендор, 2 продукта из одной ячейки, 1 контакт',
+    preview.status === 200 &&
+      previewData?.toCreate.vendors.length === 1 &&
+      previewData.toCreate.products.length === 2 &&
+      previewData.toCreate.contacts.length === 1,
+    `код ${preview.status}`,
+  )
+  check(
+    'ошибки — со строкой и колонкой: телефон, почта, способ связи в строке 3',
+    ['Телефон', 'Почта', 'Способ связи'].every((column) =>
+      previewData?.errors.some((issue) => issue.row === 3 && issue.column === column),
+    ),
+  )
+  check('cache-control: no-store у ответа загрузки', preview.headers.get('cache-control') === 'no-store', preview.headers.get('cache-control') ?? '')
+
+  await callFile('POST', '/api/import/vendors?mode=apply', file, XLSX_TYPE)
+  const again = await callFile('POST', '/api/import/vendors?mode=apply', file, XLSX_TYPE)
+  const againData = (JSON.parse(again.text) as { data?: VendorImport }).data
+  check(
+    'повторная загрузка того же файла ничего не создаёт',
+    again.status === 200 &&
+      againData?.toCreate.vendors.length === 0 &&
+      againData.toCreate.products.length === 0 &&
+      againData.toCreate.contacts.length === 0 &&
+      againData.unchanged.contacts === 1,
+  )
+
+  type VendorCard = { id: string; contacts: Array<{ email: string | null; phone: string | null; contactDetailsHidden: boolean }>; products: Array<{ name: string }> }
+  const found = await call<Array<{ id: string; name: string }>>('GET', `/api/vendors?q=${encodeURIComponent(`Пробный вендор ${sfx}`)}`)
+  const vendorId = found.body.data?.[0]?.id
+  check('вендор в реестре', found.status === 200 && found.body.data?.[0]?.name === vendorName)
+  const managerCard = await call<VendorCard>('GET', `/api/vendors/${vendorId}`)
+  const managerContact = managerCard.body.data?.contacts[0]
+  check(
+    'MANAGER: телефон +7XXXXXXXXXX, почта в нижнем регистре',
+    managerContact?.phone === '+79005550001' && managerContact.email === `probe.${sfx}@example.invalid`,
+    `${managerContact?.phone} ${managerContact?.email}`,
+  )
+  const product = await call<Array<{ name: string; vendor: { name: string } | null }>>('GET', `/api/products?q=${encodeURIComponent(`Проба А ${sfx}`)}`)
+  check('продукт получил вендора', product.body.data?.[0]?.vendor?.name === vendorName)
+
+  actAs(analystId)
+  const analystCard = await call<VendorCard>('GET', `/api/vendors/${vendorId}`)
+  check(
+    'ANALYST: карточка открывается, почта и телефон скрыты',
+    analystCard.status === 200 &&
+      analystCard.body.data?.contacts[0]?.email === null &&
+      analystCard.body.data.contacts[0].contactDetailsHidden === true &&
+      !analystCard.raw.includes('+79005550001'),
+  )
+
+  actAs(rep?.id ?? null)
+  const repList = await call('GET', '/api/vendors')
+  const repCard = await call('GET', `/api/vendors/${vendorId}`)
+  check('UNIVERSITY_REP: вендоры — 403', repList.status === 403 && repCard.status === 403, `${repList.status}/${repCard.status}`)
+  actAs(null)
+}
+
+async function checkSiteOrders(ctx: ProbeContext): Promise<void> {
+  step('Заказы с сайта → LMS (решение 122): отчёт качества, повтор без дублей, файл по шаблону, ПД нет в базе')
+  const { adminId, managerId, rep } = ctx
+  const sfx = Date.now().toString().slice(-6)
+  actAs(adminId)
+  const analystId = (await call<Array<{ id: string }>>('GET', '/api/users?role=ANALYST&pageSize=1')).body.data?.[0]?.id ?? null
+
+  actAs(managerId)
+  const courseName = `Пробный курс «Набор ${sfx}»`
+  const course = await call<{ id: string }>('POST', '/api/school-courses', { name: courseName })
+  check('курс заводится — 201', course.status === 201, `код ${course.status}`)
+  const twin = await call('POST', '/api/school-courses', { name: `пробный  курс "набор ${sfx}"` })
+  check('тот же курс в другом регистре и кавычках — 409', twin.status === 409, `код ${twin.status}`)
+
+  // Персональные данные пробных слушателей: ни одно значение не должно попасть в ответ и базу.
+  const email1 = `probe.listener.${sfx}@example.invalid`
+  const phone1 = `7900${sfx}1`
+  const surname1 = `Пробнова${'абвгдежзик'[Number(sfx[0])]}`
+  const orders = [
+    null,
+    { 'Номер заявки': `ORD-20260901100000-P${sfx.slice(0, 5)}`, Курс: courseName, Фамилия: surname1, Имя: 'Анна', Отчество: 'Ивановна', Телефон: `7 (900) ${sfx.slice(0, 3)}-${sfx.slice(3, 5)}-${sfx.slice(5)}1`, Email: email1, 'Номер потока': 1 },
+    { 'Номер заявки': `ORD-20261701100000-Q${sfx.slice(0, 5)}`, Курс: courseName, Фамилия: surname1, Имя: 'Анна', Отчество: 'Ивановна', Телефон: '', Email: email1.toUpperCase(), 'Номер потока': 1 },
+    { 'Номер заявки': `ORD-20260902100000-R${sfx.slice(0, 5)}`, Курс: courseName, Фамилия: 'Пробов', Имя: 'Борис', Отчество: null, Телефон: `8 900 ${sfx.slice(0, 3)} ${sfx.slice(3, 5)} 02`, Email: `probe.b.${sfx}@example.invalid`, 'Номер потока': 2 },
+    { 'Номер заявки': `ORD-20260903100000-S${sfx.slice(0, 5)}`, Курс: `Нет такого курса ${sfx}`, Фамилия: 'Лишний', Имя: 'Лев', Отчество: null, Телефон: '', Email: `probe.c.${sfx}@example.invalid`, 'Номер потока': 1 },
+  ]
+  const body = JSON.stringify(orders)
+  const secrets = [email1, email1.toUpperCase(), `probe.b.${sfx}`, surname1, 'Пробов', sfx.slice(0, 3) + '-' + sfx.slice(3, 5)]
+
+  for (const [role, id] of [['ANALYST', analystId], ['UNIVERSITY_REP', rep?.id ?? null]] as const) {
+    actAs(id)
+    const preview = await callFile('POST', '/api/import/site-orders', body, 'application/json')
+    const lms = await callFile('POST', '/api/import/site-orders/lms-file?scope=all', body, 'application/json')
+    check(`${role}: загрузка заказов и файл LMS — 403`, preview.status === 403 && lms.status === 403, `${preview.status}/${lms.status}`)
+  }
+
+  actAs(managerId)
+  type OrdersResult = {
+    toCreate: number
+    batchId: string | null
+    quality: {
+      emptyItemsSkipped: number
+      brokenOrderNumbers: number
+      duplicateListenersInFile: number
+      alreadyImported: number
+      unknownCourses: Array<{ name: string }>
+      newStreams: unknown[]
+    }
+    errors: Array<{ row: number; column: string }>
+  }
+  const preview = await callFile('POST', '/api/import/site-orders', body, 'application/json')
+  const previewData = (JSON.parse(preview.text) as { data?: OrdersResult }).data
+  check(
+    'предпросмотр: 3 к загрузке, null пропущен, битая дата, повторный слушатель, неизвестный курс',
+    preview.status === 200 &&
+      previewData?.toCreate === 3 &&
+      previewData.quality.emptyItemsSkipped === 1 &&
+      previewData.quality.brokenOrderNumbers === 1 &&
+      previewData.quality.duplicateListenersInFile === 1 &&
+      previewData.quality.unknownCourses.length === 1 &&
+      previewData.quality.newStreams.length === 2,
+    `код ${preview.status}`,
+  )
+  check('неизвестный курс — ошибка элемента 5, колонка «Курс»', Boolean(previewData?.errors.some((issue) => issue.row === 5 && issue.column === 'Курс')))
+  check('в ответе предпросмотра нет ФИО, почт и телефонов', secrets.every((secret) => !preview.text.includes(secret)))
+
+  const applied = await callFile('POST', '/api/import/site-orders?mode=apply', body, 'application/json')
+  const appliedData = (JSON.parse(applied.text) as { data?: OrdersResult }).data
+  check('apply: 3 заказа записаны', applied.status === 200 && appliedData?.toCreate === 3 && Boolean(appliedData.batchId))
+  const repeated = await callFile('POST', '/api/import/site-orders?mode=apply', body, 'application/json')
+  const repeatedData = (JSON.parse(repeated.text) as { data?: OrdersResult }).data
+  check(
+    'повторная загрузка того же файла ничего не создаёт',
+    repeatedData?.toCreate === 0 && repeatedData.quality.alreadyImported === 3,
+  )
+
+  const lms = await callFile('POST', '/api/import/site-orders/lms-file', body, 'application/json')
+  check(
+    'файл LMS: xlsx, attachment, no-store, 2 человека из 3 заказов',
+    lms.status === 200 &&
+      lms.headers.get('content-type')?.includes('spreadsheetml') === true &&
+      lms.headers.get('content-disposition')?.startsWith('attachment') === true &&
+      lms.headers.get('cache-control') === 'no-store' &&
+      lms.headers.get('x-total-rows') === '2',
+    `код ${lms.status}, строк ${lms.headers.get('x-total-rows')}, cache ${lms.headers.get('cache-control')}`,
+  )
+  if (lms.status === 200) {
+    const [sheet1, sheet2] = readXlsx(lms.bytes)
+    check('файл LMS: 30 заголовков шаблона, Лист2 со справочниками', JSON.stringify(sheet1?.rows[0]) === JSON.stringify(LMS_USER_COLUMNS) && sheet2?.name === 'Лист2')
+    check('файл LMS: почта в нижнем регистре, остальные колонки пусты', Boolean(sheet1?.rows.slice(1).some((row) => row[4] === email1 && row.slice(5).every((value) => value === ''))))
+  }
+  const lmsAgain = await callFile('POST', '/api/import/site-orders/lms-file', body, 'application/json')
+  check('повтор scope=new — 422: все уже в LMS', lmsAgain.status === 422, `код ${lmsAgain.status}`)
+
+  type Course = { name: string; orderCount: number; listenerCount: number; streamCount: number }
+  const courses = await call<Course[]>('GET', `/api/school-courses?q=${encodeURIComponent(`Набор ${sfx}`)}`)
+  const stats = courses.body.data?.[0]
+  check(
+    'показатели набора: 3 заявки, 2 слушателя, 2 группы',
+    stats?.orderCount === 3 && stats.listenerCount === 2 && stats.streamCount === 2,
+    `${stats?.orderCount}/${stats?.listenerCount}/${stats?.streamCount}`,
+  )
+
+  actAs(adminId)
+  const auditRows = await call<unknown[]>('GET', '/api/audit?action=import.site_orders&pageSize=5')
+  const lmsAudit = await call<unknown[]>('GET', '/api/audit?action=export.lms_users&pageSize=5')
+  check('журнал: загрузка и выгрузка записаны, без ПД', (auditRows.body.data?.length ?? 0) > 0 && (lmsAudit.body.data?.length ?? 0) > 0 && secrets.every((secret) => !auditRows.raw.includes(secret) && !lmsAudit.raw.includes(secret)))
+
+  // База: строки site_orders пробной загрузки целиком — ни почты, ни телефона, ни фамилии.
+  if (process.env.DATABASE_URL) {
+    const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })
+    try {
+      const rows = await db.$queryRawUnsafe<Array<{ row: string }>>(
+        `SELECT s::text AS row FROM site_orders s WHERE order_no LIKE $1`,
+        `%${sfx.slice(0, 5)}`,
+      )
+      check('в базе 3 строки пробной загрузки', rows.length === 3, `строк ${rows.length}`)
+      check(
+        'в site_orders нет ни почты, ни телефона, ни ФИО слушателя — только хеши',
+        rows.every((item) => !item.row.includes('@') && secrets.every((secret) => !item.row.includes(secret)) && !item.row.includes(phone1)),
+      )
+    } finally {
+      await db.$disconnect()
+    }
+  } else {
+    check('проверка базы пропущена: нет DATABASE_URL', true)
+  }
+  actAs(null)
+}
+
 function printSummary(): void {
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
@@ -4527,6 +4771,8 @@ async function main(): Promise<void> {
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)
+  await checkVendors(ctx)
+  await checkSiteOrders(ctx)
 
   printSummary()
 }

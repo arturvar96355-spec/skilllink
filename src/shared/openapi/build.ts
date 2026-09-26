@@ -126,6 +126,8 @@ const PERMISSION_NOTES: Record<string, string> = {
   CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
   CONTACT_DETAILS: 'Роли: ADMIN, MANAGER; UNIVERSITY_REP — контакты своего вуза',
   CONTACT_BASIS: 'Роли: ADMIN, MANAGER',
+  VENDORS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER',
+  SITE_ORDERS: 'Роли: ADMIN, MANAGER',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {

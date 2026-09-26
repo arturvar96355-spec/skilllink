@@ -85,6 +85,13 @@ export const AUDIT_ACTIONS = [
   'export.download',
   'audit.retention',
   'import.apply',
+  /** Загрузка вендоров (решение 122): только счётчики, без ФИО и контактов. */
+  'import.vendors',
+  /** Загрузка заказов с сайта (решение 122): счётчики и номер загрузки, без ПД слушателей. */
+  'import.site_orders',
+  /** Файл «Загрузка пользователей» для LMS: сколько строк, без ПД. */
+  'export.lms_users',
+  'school_course.create',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -110,6 +117,7 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'SchoolCourse',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

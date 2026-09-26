@@ -41,6 +41,7 @@ function toListItem(row: repo.ProductListRow): ProductListItemDto {
     documentationUrl: row.documentationUrl,
     skillCount: row._count.skills,
     cooperationCount: row._count.cooperations,
+    vendor: row.vendor,
     isMock: row.isMock,
     updatedAt: toIsoRequired(row.updatedAt),
   }

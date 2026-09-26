@@ -200,7 +200,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 75 маршрутов, 97 операций
+### Модули и эндпоинты — 81 маршрут, 104 операции
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -226,6 +226,8 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | ai-assist | `POST /api/cooperations/:id/ai-summary`; `POST /api/recommendations/:id/ai-letter`; `POST /api/ai/today` — черновики ИИ-помощника, решение 90 |
 | calendar | `GET`, `POST`, `DELETE /api/me/calendar`; `GET /api/calendar/:feed` — лента `.ics` без входа по личной ссылке, решение 105 |
 | telegram | `GET`, `POST`, `DELETE /api/me/telegram`; `POST /api/telegram/webhook` — личные уведомления в Telegram, решение 102 |
+| vendors | `GET /api/vendors`; `GET /api/vendors/:id`; `POST /api/import/vendors` — вендоры IT-продуктов, импорт из xlsx/CSV с предпросмотром, решение 122 |
+| school-courses | `GET`, `POST /api/school-courses`; `POST /api/import/site-orders` — заказы с сайта → курсы и потоки школы, показатели набора; `POST /api/import/site-orders/lms-file` — выгрузка файла для LMS по шаблону, решение 122 |
 
 ### Workflow
 
@@ -380,7 +382,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 74 пути, 97 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 80 путей, 104 операции. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

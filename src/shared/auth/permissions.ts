@@ -49,6 +49,20 @@ export const PERMISSIONS = {
    * по своему вузу: это учёт оператора (ИТ-Школы), а не сведения вуза.
    */
   CONTACT_BASIS: ['ADMIN', 'MANAGER'],
+  /**
+   * Вендоры и курсы ИТ-Школы с показателями набора (решение 122): только сотрудники.
+   * Представителю вуза — нет: карточка вендора показывает связки продукта со всеми
+   * вузами, а другие вузы ему не видны (решение 9). Состав ролей совпадает с ANALYTICS —
+   * фронт определяет доступ по `permissions.canSeeAnalytics`.
+   */
+  VENDORS: ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER'],
+  /**
+   * Загрузка заказов с сайта и файл «Загрузка пользователей» для LMS (решение 122):
+   * через эти запросы проходят ФИО, телефоны и почты слушателей. Только те, кто ведёт
+   * набор. Совпадает с WRITE — фронт определяет доступ по `permissions.canWrite`.
+   * `TODO: PM DECISION` — нужна ли отдельная роль методиста вместо менеджера.
+   */
+  SITE_ORDERS: ['ADMIN', 'MANAGER'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
