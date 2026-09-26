@@ -68,7 +68,7 @@ export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   /^\/api\/data-sources\/sync$/,
   /\/ai-(?:summary|letter)$/,
   /\/(?:dsar|personal-data)(?:\/|$)/,
-  /** Переобучение модели прогноза (решение 125): читает всю историю связок. */
+  /** Переобучение модели прогноза (решение 132): читает всю историю связок. */
   /^\/api\/analytics\/forecast\/train$/,
 ]
 

@@ -6,6 +6,7 @@ import { Providers } from './providers'
 import { SPLASH_BOOT_SCRIPT, Splash } from '@/ui/layout/Splash'
 import { UI_MODE_BOOT_SCRIPT } from '@/ui/lib/ui-mode'
 import { NONCE_HEADER } from '@/shared/http/csp'
+import { THEME_BOOT_SCRIPT } from '@/ui/lib/theme'
 import './globals.css'
 
 /**
@@ -46,9 +47,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     // нет, и это нормально.
     <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <body>
-        {/* Режим — первым: от него зависят заставка и стили рабочего режима (решение 80).
+        {/* Тема и режим — первыми: от них зависят заставка и стили (решения 80, 122).
             suppressHydrationWarning: браузер прячет значение nonce от страницы (атрибут
             читается пустым), и React при гидратации принял бы это за расхождение. */}
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: UI_MODE_BOOT_SCRIPT }} />
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
         <Splash />

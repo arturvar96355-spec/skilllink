@@ -15,6 +15,7 @@ import type {
   UniversityListItemDto,
 } from '@/shared/contracts'
 import { LiveRail, type RailNumber } from './LiveRail'
+import { Finale } from './Finale'
 import { phaseFunnel } from './phase-funnel'
 import { cityCoordinates } from './city-coordinates'
 import {
@@ -250,6 +251,7 @@ function Dashboard() {
             value: row.cooperationCount,
             detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
             href: universityHref(row.id),
+            active: row.activeCooperationCount > 0,
           },
         ]
       }),
@@ -444,7 +446,6 @@ function Dashboard() {
             cooperations={cooperations}
             problemTotal={data.problemStageTotal}
             generatedAt={data.generatedAt}
-            showcase={showcase}
           />
 
           {/*
@@ -518,7 +519,12 @@ function Dashboard() {
                     }
                   >
                     <div className={styles.mapPanel}>
-                      <RussiaMap points={mapPoints} label="Вузы на карте России" />
+                      {/* Центр связей — Москва: там ИТ-Школа РТК, к ней сходятся связки. */}
+                      <RussiaMap
+                        points={mapPoints}
+                        label="Вузы на карте России"
+                        hub={{ label: 'ИТ-Школа РТК', lat: 55.756, lon: 37.617 }}
+                      />
                     </div>
                     {offMap > 0 && (
                       <p className={styles.funnelNote}>
@@ -602,7 +608,6 @@ function Dashboard() {
                         <Link
                           className={styles.eventLink}
                           href={cooperationHref(row.cooperationId, row.stageId)}
-                          title={`${row.universityName} — ${row.programName}\n${row.reason}`}
                           onClick={(event) => startMorph(event.currentTarget, event)}
                         >
                           <span className={styles.eventText}>
@@ -618,11 +623,11 @@ function Dashboard() {
                           </span>
                           {/* Значок внутри ссылки: вся плашка — одна цель для щелчка. */}
                           {row.daysOverdue === null ? (
-                            <Badge tone="warning" withDot title={row.reason}>
+                            <Badge tone="warning" withDot>
                               блок
                             </Badge>
                           ) : (
-                            <Badge tone="danger" withDot title={row.reason}>
+                            <Badge tone="danger" withDot>
                               {deadlineBadgeText('overdue', row.daysOverdue, true)}
                             </Badge>
                           )}
@@ -933,6 +938,15 @@ function Dashboard() {
               </Section>
             </div>
           </div>
+
+          {/* Финал главной (решение 125): сеть SkillLink — только в презентационном режиме. */}
+          {showcase && (funnelSource.data?.length ?? 0) > 0 && (
+            <div className={styles.reveal} data-assemble="center" style={{ '--delay': '760ms' } as CSSProperties}>
+              <Section title="Сеть SkillLink" description="Вузы → программы → навыки → IT-продукты.">
+                <Finale cooperations={funnelSource.data ?? []} skills={(gaps.data ?? []).map((gap) => gap.name)} />
+              </Section>
+            </div>
+          )}
         </>
       ) : null}
     </>

@@ -9,7 +9,10 @@
  */
 import 'dotenv/config'
 import { createHash } from 'node:crypto'
-import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/recommendation'
+import {
+  RECOMMENDATION_SORT_BY_SCORE,
+  RECOMMENDATION_SORT_MOST_IMPORTANT,
+} from '../src/shared/contracts/recommendation'
 import { REAUTH_PARAM } from '../src/shared/auth/reauth'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
 import type { StageStatus } from '@/shared/contracts/enums'
@@ -109,16 +112,25 @@ function step(title: string): void {
 async function warmUp(): Promise<void> {
   const routes = [
     '/api/health',
+    '/api/ready',
     '/api/users',
     '/api/me',
     '/api/analytics/overview',
     '/api/analytics/programs',
+    '/api/analytics/stage-durations',
+    '/api/analytics/stalled-preview?days=14',
+    '/api/analytics/funnel',
+    '/api/analytics/cohorts',
+    '/api/analytics/insights',
+    '/api/me/pulse',
     '/api/universities?pageSize=1',
     '/api/programs?pageSize=1',
     '/api/cooperations?pageSize=1',
     '/api/documents?pageSize=1',
     '/api/meetings?pageSize=1',
     '/api/recommendations?pageSize=1',
+    '/api/recommendations/why-not?entity=program&id=warm-up',
+    '/api/recommendations/rules/stats',
     '/api/skills?pageSize=1',
     '/api/skills/warm-up',
     '/api/skills/warm-up/merge',
@@ -129,6 +141,8 @@ async function warmUp(): Promise<void> {
     '/api/workflow/overdue',
     '/api/workflow/blocked',
     '/api/audit?pageSize=1',
+    '/api/audit/verify',
+    '/api/audit/seals?pageSize=1',
     '/api/me/password',
     '/api/users/warm-up',
     '/api/users/warm-up/password-reset',
@@ -141,6 +155,11 @@ async function warmUp(): Promise<void> {
     '/api/openapi.json',
     '/api/me/calendar',
     '/api/calendar/warm-up.ics',
+    '/api/admin/dsar/requests',
+    '/api/admin/dsar/users/warm-up/export',
+    '/api/admin/dsar/contacts/warm-up/export',
+    '/api/admin/dsar/users/warm-up/erase',
+    '/api/admin/dsar/contacts/warm-up/erase',
   ]
 
   await Promise.all(
@@ -990,6 +1009,56 @@ async function checkAuditAdminOnly(ctx: ProbeContext): Promise<void> {
     check('администратору журнал открыт', auditAsAdmin.status === 200)
     actAs(null)
   }
+}
+
+/**
+ * Журнал с защитой от подмены (решение 115): проверка цепочки и печати — только
+ * администратору; сама проверка пишется в журнал и продлевает цепочку.
+ * Подмену строк, удаление и гонку вставок проверяет chain.db.test.ts на временной схеме:
+ * пробник ходит только через API и настоящий журнал не портит.
+ */
+async function checkAuditChain(ctx: ProbeContext): Promise<void> {
+  step('5а. Журнал действий: цепочка хешей и печати')
+  const { adminId } = ctx
+
+  const verifyAsManager = await call('GET', '/api/audit/verify')
+  const sealsAsManager = await call('GET', '/api/audit/seals')
+  check(
+    'менеджеру проверка журнала и печати закрыты',
+    verifyAsManager.status === 403 && sealsAsManager.status === 403,
+    `статусы ${verifyAsManager.status}, ${sealsAsManager.status}`,
+  )
+  if (!adminId) return
+
+  type Verify = { ok: boolean; checked: number; headSeq: number; headHash: string | null; reason: string | null }
+  actAs(adminId)
+  const logged = async () =>
+    Number((await call<unknown[]>('GET', '/api/audit?action=audit.verify&pageSize=1')).body.meta?.total ?? -1)
+  const before = await logged()
+  const first = await call<Verify>('GET', '/api/audit/verify')
+  const data = first.body.data
+  check(
+    'администратору: цепочка журнала цела',
+    first.status === 200 && data?.ok === true && (data?.checked ?? 0) > 0,
+    `статус ${first.status}, ${data?.reason ?? `строк ${data?.checked}`}`,
+  )
+  check(
+    'голова цепочки — номер и SHA-256',
+    (data?.headSeq ?? 0) > 0 && /^[0-9a-f]{64}$/.test(data?.headHash ?? ''),
+    `№ ${data?.headSeq}`,
+  )
+  check('проверка записана в журнал', (await logged()) === before + 1)
+
+  const second = await call<Verify>('GET', '/api/audit/verify')
+  check(
+    'запись о проверке продлила цепочку, и она снова цела',
+    second.body.data?.ok === true && (second.body.data?.headSeq ?? 0) > (data?.headSeq ?? 0),
+    `№ ${data?.headSeq} → № ${second.body.data?.headSeq}`,
+  )
+
+  const seals = await call<unknown[]>('GET', '/api/audit/seals?pageSize=5')
+  check('печати открываются списком', seals.status === 200 && Array.isArray(seals.body.data), `статус ${seals.status}`)
+  actAs(null)
 }
 
 async function checkConcurrentStageChanges(ctx: ProbeContext): Promise<void> {
@@ -2534,15 +2603,36 @@ async function checkStageNotCountedTwice(): Promise<void> {
 async function checkHealth(): Promise<void> {
   step('Здоровье приложения отвечает по делу')
 
-  const response = await fetch(`${BASE_URL}/api/health`)
+  // Живость — без базы (решение 118): процесс жив и настроен.
+  const live = await fetch(`${BASE_URL}/api/health`)
+  const liveBody = (await live.json()) as { data?: { status?: string; database?: string; uptimeSeconds?: number } }
+  check('живость: статус ok', live.status === 200 && liveBody.data?.status === 'ok', `получено ${live.status}`)
+  check('живость не говорит о базе — её проверяет готовность', liveBody.data?.database === undefined)
+  check('живость называет время работы процесса', typeof liveBody.data?.uptimeSeconds === 'number')
+
+  // Готовность — база и миграции.
+  const response = await fetch(`${BASE_URL}/api/ready`)
   const body = (await response.json()) as {
-    data?: { status?: string; database?: string; schema?: string; hint?: string }
+    data?: {
+      status?: string
+      database?: string
+      schema?: string
+      hint?: string
+      latencyMs?: number
+      migration?: { applied?: string | null; expected?: string | null }
+    }
   }
   const health = body.data ?? {}
 
-  check('статус ok на рабочем приложении', health.status === 'ok', `получено ${health.status}`)
+  check('готовность: статус ok на рабочем приложении', response.status === 200 && health.status === 'ok', `получено ${response.status} ${health.status}`)
   check('соединение с базой подтверждено', health.database === 'connected')
   check('схема отмечена применённой', health.schema === 'ready')
+  check(
+    'применённая миграция совпадает с последней в коде',
+    health.migration?.applied !== undefined && health.migration.applied === health.migration.expected,
+    `${health.migration?.applied} / ${health.migration?.expected}`,
+  )
+  check('время ответа базы измерено', typeof health.latencyMs === 'number')
   check(
     'на здоровом приложении подсказки нет',
     health.hint === undefined,
@@ -3108,6 +3198,246 @@ async function checkRecommendationFeedOrder(ctx: ProbeContext): Promise<void> {
       `${new Set(comparable).size} разных из ${expected.length}`,
     )
   }
+  actAs(null)
+}
+
+// ─────────────────────────── Решение 119: обучение рекомендаций ─────────────
+
+type ScoredRec = {
+  id: string
+  ruleKey: string
+  status: string
+  score: number | null
+  isDeferred: boolean
+  scoreBreakdown: { score: number; p: number; pSource: string } | null
+  reasons: Array<{ code: string; pass: boolean; detail: string }>
+  target: { objectType: string; objectId: string }
+}
+
+type RuleStatsRow = {
+  ruleKey: string
+  p: number
+  ci90: [number, number]
+  trials: number
+  successes: number
+  trialsEff: number
+  successesEff: number
+}
+
+async function checkRecommendationScoreFeed(ctx: ProbeContext): Promise<void> {
+  step('Лента по баллу: сверху полезное, у каждой рекомендации балл и причины (решение 119)')
+  actAs(ctx.adminId)
+  const feed = await call<ScoredRec[]>('GET', `/api/recommendations?sort=${RECOMMENDATION_SORT_BY_SCORE}&pageSize=100`)
+  const rows = feed.body.data ?? []
+  const key = (row: ScoredRec) => [row.isDeferred ? 1 : 0, row.score === null ? 1 : 0, -(row.score ?? 0)]
+  const outOfOrder = rows.findIndex((row, index) => {
+    if (index === 0) return false
+    const [a, b] = [key(rows[index - 1]!), key(row)]
+    for (let part = 0; part < 3; part += 1) {
+      if (a[part]! < b[part]!) return false
+      if (a[part]! > b[part]!) return true
+    }
+    return false
+  })
+  check(
+    'балл не растёт сверху вниз, отложенные и неоценённые — в конце',
+    feed.status === 200 && rows.length > 1 && outOfOrder === -1,
+    outOfOrder === -1 ? `${rows.length} рекомендаций, сверху ${rows[0]?.score?.toFixed(3) ?? '—'}` : `строка ${outOfOrder + 1}`,
+  )
+  const open = rows.filter((row) => row.status === 'NEW' || row.status === 'IN_PROGRESS')
+  check(
+    'у открытых: балл в [0..1], разбор сходится с баллом, есть причины',
+    open.length > 0 &&
+      open.every(
+        (row) =>
+          row.score !== null &&
+          row.score >= 0 &&
+          row.score <= 1 &&
+          Math.abs((row.scoreBreakdown?.score ?? -1) - row.score) < 1e-9 &&
+          row.reasons.length > 0 &&
+          row.reasons.some((item) => item.code === 'rule_weight_low'),
+      ),
+    `${open.length} открытых`,
+  )
+  check(
+    'проверки правила у открытой рекомендации пройдены',
+    open.every((row) =>
+      row.reasons
+        .filter((item) => item.code !== 'rule_weight_low' && item.code !== 'manager_overloaded')
+        .every((item) => item.pass),
+    ),
+  )
+  const paged: string[] = []
+  for (let page = 1; page <= Math.ceil(Math.min(rows.length, 60) / 7); page += 1) {
+    const chunk = await call<ScoredRec[]>('GET', `/api/recommendations?sort=${RECOMMENDATION_SORT_BY_SCORE}&page=${page}&pageSize=7`)
+    paged.push(...(chunk.body.data ?? []).map((row) => row.id))
+  }
+  check(
+    'постраничный обход по баллу — тот же порядок',
+    paged.join() === rows.slice(0, paged.length).map((row) => row.id).join(),
+  )
+  const notDeferred = await call<ScoredRec[]>('GET', '/api/recommendations?deferred=false&pageSize=100')
+  check(
+    'фильтр deferred=false — без отложенных',
+    notDeferred.status === 200 && (notDeferred.body.data ?? []).every((row) => !row.isDeferred),
+  )
+  actAs(null)
+}
+
+async function checkRecommendationWhyNot(ctx: ProbeContext): Promise<void> {
+  step('«Почему нет рекомендации» — те же проверки, что у правила (решение 119)')
+  actAs(ctx.adminId)
+  type WhyNot = {
+    rules: Array<{ ruleKey: string; wouldRecommend: boolean; checks: Array<{ check: string; pass: boolean; detail: string }> }>
+    checks: Array<{ check: string; pass: boolean; detail: string }>
+  }
+  const entityOf: Record<string, string> = { Cooperation: 'cooperation', EducationalProgram: 'program', Skill: 'skill' }
+  const feed = await call<ScoredRec[]>('GET', '/api/recommendations?status=NEW&pageSize=100')
+  const samples = (feed.body.data ?? []).filter((row) => entityOf[row.target.objectType]).slice(0, 6)
+  let agreed = 0
+  for (const row of samples) {
+    const answer = await call<WhyNot>(
+      'GET',
+      `/api/recommendations/why-not?entity=${entityOf[row.target.objectType]}&id=${row.target.objectId}&rule=${row.ruleKey}`,
+    )
+    const rule = answer.body.data?.rules[0]
+    if (answer.status === 200 && rule?.wouldRecommend && rule.checks.every((item) => item.pass)) agreed += 1
+    else console.log(`    ${GREY}${row.ruleKey} ${row.target.objectId}: ${JSON.stringify(rule?.checks.filter((c) => !c.pass))}${RESET}`)
+  }
+  check(
+    'по объектам с новой рекомендацией все проверки пройдены',
+    samples.length > 0 && agreed === samples.length,
+    `${agreed} из ${samples.length}`,
+  )
+
+  // Отклонённая в сиде «связка без движения» — пауза после отклонения.
+  const dismissed = await call<ScoredRec[]>('GET', '/api/recommendations?status=DISMISSED&pageSize=100')
+  const paused = (dismissed.body.data ?? []).find((row) => row.target.objectType === 'Cooperation')
+  if (paused) {
+    const answer = await call<WhyNot>(
+      'GET',
+      `/api/recommendations/why-not?entity=cooperation&id=${paused.target.objectId}&rule=${paused.ruleKey}`,
+    )
+    const pause = answer.body.data?.checks.find((item) => item.check === 'dismissed_recently')
+    check(
+      'отклонённая: проверка паузы названа, с датой или «пауза кончилась»',
+      answer.status === 200 && pause !== undefined && /Отклонена \d+ дн\. назад/.test(pause.detail),
+      pause?.detail ?? `код ${answer.status}`,
+    )
+  }
+
+  const bad = await call('GET', '/api/recommendations/why-not?entity=university&id=x')
+  check('вид объекта вне списка — 422', bad.status === 422, `код ${bad.status}`)
+  const missing = await call('GET', '/api/recommendations/why-not?entity=program&id=nonexistent-probe')
+  check('несуществующий объект — 404', missing.status === 404, `код ${missing.status}`)
+  actAs(ctx.rep?.id ?? null)
+  const asRep = await call('GET', `/api/recommendations/why-not?entity=program&id=nonexistent-probe`)
+  check('представителю вуза закрыто — 403', asRep.status === 403, `код ${asRep.status}`)
+  actAs(null)
+}
+
+async function ruleStatsNow(): Promise<RuleStatsRow[]> {
+  const stats = await call<{ rules: RuleStatsRow[] }>('GET', '/api/recommendations/rules/stats')
+  return stats.body.data?.rules ?? []
+}
+
+async function checkRecommendationRuleStats(ctx: ProbeContext): Promise<void> {
+  step('Веса правил: вероятность, интервал, счётчики (решение 119)')
+  actAs(ctx.adminId)
+  const rules = await ruleStatsNow()
+  check('пять правил', rules.length === 5, `${rules.length}`)
+  check(
+    'вес в [0..1] внутри 90-процентного интервала, успехов не больше показов',
+    rules.every(
+      (rule) =>
+        rule.p >= 0 &&
+        rule.p <= 1 &&
+        rule.ci90[0] <= rule.p &&
+        rule.p <= rule.ci90[1] &&
+        rule.successesEff <= rule.trialsEff + 1e-9 &&
+        rule.successes <= rule.trials,
+    ),
+  )
+  const stalled = rules.find((rule) => rule.ruleKey === 'cooperation.stalled')
+  const others = rules.filter((rule) => rule.ruleKey !== 'cooperation.stalled')
+  check(
+    'в демо-данных отклоняемое правило «связка без движения» весит меньше остальных',
+    stalled !== undefined && others.every((rule) => rule.p > stalled.p),
+    rules.map((rule) => `${rule.ruleKey} ${rule.p.toFixed(2)}`).join(', '),
+  )
+  actAs(null)
+}
+
+/**
+ * Гонка записи статистики: параллельные решения не теряют событий. Полные счётчики
+ * целые, поэтому сверка точная: показов прибавилось ровно столько, сколько
+ * пересборки создали записей, успехов — сколько рекомендаций закрыли.
+ */
+async function checkRecommendationStatsRace(ctx: ProbeContext): Promise<void> {
+  step('Статистика правил: параллельные пересборки и решения не теряют событий')
+  const { managerId, adminId } = ctx
+  if (!managerId) return
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const uni = await call<{ id: string }>('POST', '/api/universities', {
+    name: `Пробный вуз обучения ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+  })
+  const COUNT = 6
+  const programIds: string[] = []
+  for (let index = 0; index < COUNT; index += 1) {
+    const program = await call<{ id: string }>('POST', '/api/programs', {
+      universityId: uni.body.data?.id,
+      name: `Пробная программа обучения ${index} ${sfx}`,
+      level: 'BACHELOR',
+    })
+    const id = program.body.data?.id
+    if (!id) continue
+    programIds.push(id)
+    await call('POST', '/api/cooperations', { universityId: uni.body.data?.id, programId: id, responsibleId: managerId })
+  }
+  const sum = (rules: RuleStatsRow[], field: 'trials' | 'successes') =>
+    rules.reduce((total, rule) => total + rule[field], 0)
+
+  const before = await ruleStatsNow()
+  const generations = await Promise.all(
+    Array.from({ length: 3 }, () => call<{ created: number }>('POST', '/api/recommendations/generate')),
+  )
+  const created = generations.reduce((total, item) => total + (item.body.data?.created ?? 0), 0)
+  const afterGenerate = await ruleStatsNow()
+  check(
+    'три параллельные пересборки: показов прибавилось ровно столько, сколько создано записей',
+    generations.every((item) => item.status === 200) && created >= COUNT && sum(afterGenerate, 'trials') - sum(before, 'trials') === created,
+    `создано ${created}, показов +${sum(afterGenerate, 'trials') - sum(before, 'trials')}`,
+  )
+
+  const recs: string[] = []
+  for (const id of programIds) {
+    const list = await call<ScoredRec[]>('GET', `/api/recommendations?type=PROGRAM&status=NEW&pageSize=100`)
+    const rec = (list.body.data ?? []).find((row) => row.target.objectId === id && row.ruleKey === 'program.missing-metrics')
+    if (!rec) continue
+    await call('PATCH', `/api/recommendations/${rec.id}`, { status: 'IN_PROGRESS' })
+    await call('PATCH', `/api/programs/${id}`, { applicationCount: 10, studentCount: 20, groupCount: 1 })
+    recs.push(rec.id)
+  }
+  const beforeDone = await ruleStatsNow()
+  const done = await Promise.all(recs.map((id) => call('PATCH', `/api/recommendations/${id}`, { status: 'DONE' })))
+  // Двойной клик по той же: успех по одному показу засчитывается один раз.
+  await Promise.all(recs.slice(0, 2).map((id) => call('PATCH', `/api/recommendations/${id}`, { status: 'DONE' })))
+  const afterDone = await ruleStatsNow()
+  const gained = sum(afterDone, 'successes') - sum(beforeDone, 'successes')
+  const missing = (rules: RuleStatsRow[]) => rules.find((rule) => rule.ruleKey === 'program.missing-metrics')
+  check(
+    `${recs.length} параллельных «Выполнено»: успехов прибавилось ровно столько же, повтор не засчитан`,
+    recs.length === COUNT && done.every((item) => item.status === 200) && gained === recs.length,
+    `успехов +${gained}`,
+  )
+  check(
+    'вес правила «нет данных по программе» вырос после выполненных',
+    (missing(afterDone)?.p ?? 0) > (missing(beforeDone)?.p ?? 1),
+    `${missing(beforeDone)?.p.toFixed(3)} → ${missing(afterDone)?.p.toFixed(3)}`,
+  )
   actAs(null)
 }
 
@@ -4575,7 +4905,7 @@ async function checkRateLimit(ctx: ProbeContext): Promise<void> {
 }
 
 /**
- * Прогноз связок (решение 125): права — как у остальной аналитики, а не своя лазейка;
+ * Прогноз связок (решение 132): права — как у остальной аналитики, а не своя лазейка;
  * модель переобучается только администратором; ответ по конкретной связке отдаёт
  * согласованные поля, а не абы что.
  */
@@ -4648,6 +4978,192 @@ async function checkForecast(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+/**
+ * «Всё о субъекте» по 152-ФЗ (решение 116): права, состав выгрузки, отсутствие секретов,
+ * реестр запросов со сроком, самостоятельная выгрузка с ограничением частоты и
+ * обезличивание по запросу. Субъекты — свои, заведённые пробником: демо-данные не трогаются.
+ */
+async function checkDsar(ctx: ProbeContext): Promise<void> {
+  step('Права субъекта ПД: выгрузка «всё о субъекте», реестр запросов, обезличивание (решение 116)')
+  const { rep, adminId, managerId } = ctx
+  if (!adminId || !managerId || !rep) {
+    check('демо-данные готовы (администратор, менеджер, представитель вуза)', false, 'запустите npm run db:seed')
+    return
+  }
+
+  /** Пути ко всем ключам, похожим на секрет, — рекурсивно. */
+  const secretKeys = (value: unknown, path = ''): string[] => {
+    if (Array.isArray(value)) return value.flatMap((item, index) => secretKeys(item, `${path}[${index}]`))
+    if (value === null || typeof value !== 'object') return []
+    return Object.entries(value).flatMap(([key, nested]) => [
+      ...(/password|secret|token|hash/i.test(key) ? [`${path}.${key}`] : []),
+      ...secretKeys(nested, `${path}.${key}`),
+    ])
+  }
+  const REQUIRED_KEYS = [
+    'subject', 'generatedAt', 'operator', 'purposes', 'legalBasis', 'categories', 'sources',
+    'recipients', 'retention', 'data', 'auditTrail', 'counts',
+  ]
+
+  // Свои субъекты: пользователь-наблюдатель и контакт в своём пробном вузе.
+  actAs(adminId)
+  const sfx = Date.now().toString().slice(-6)
+  const email = `probe-dsar-${sfx}@example.invalid`
+  const createdUser = await call<{ user: { id: string } }>('POST', '/api/users', {
+    email,
+    fullName: `Пробный Субъект ${sfx}`,
+    role: 'VIEWER',
+  })
+  const subjectId = createdUser.body.data?.user.id
+  const contactName = `Пробный Контакт Субъекта ${sfx}`
+  const createdUniversity = await call<{ id: string; contacts: Array<{ id: string }> }>('POST', '/api/universities', {
+    name: `Пробный вуз прав субъекта ${sfx}`,
+    city: 'Тверь',
+    region: 'Тверская область',
+    contacts: [{ fullName: contactName, position: 'Методист', email: `probe-dsar-contact-${sfx}@example.invalid`, isPrimary: true }],
+  })
+  const contactId = createdUniversity.body.data?.contacts[0]?.id
+  check('заведены пробный пользователь и контакт', Boolean(subjectId && contactId))
+  if (!subjectId || !contactId) {
+    actAs(null)
+    return
+  }
+
+  // Права: всё администраторское — только ADMIN.
+  const adminOnly: Array<[string, string, unknown]> = [
+    ['GET', `/api/admin/dsar/users/${subjectId}/export`, undefined],
+    ['GET', `/api/admin/dsar/contacts/${contactId}/export`, undefined],
+    ['POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: email }],
+    ['POST', `/api/admin/dsar/contacts/${contactId}/erase`, { confirm: contactName }],
+    ['GET', '/api/admin/dsar/requests', undefined],
+    ['POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' }],
+  ]
+  for (const [label, actor] of [['менеджеру', managerId], ['представителю вуза', rep.id]] as const) {
+    actAs(actor)
+    for (const [method, path, body] of adminOnly) {
+      const result = await call(method, path, body)
+      check(`${label}: ${method} ${path.replace(subjectId, ':id').replace(contactId, ':id')} — 403`, result.status === 403, `статус ${result.status}`)
+    }
+  }
+
+  // Запрос по письму: срок — 10 рабочих дней, повтор — 409.
+  actAs(adminId)
+  type Request = { id: string; status: string; dueAt: string; requestedAt: string; overdue: boolean }
+  const registered = await call<Request>('POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' })
+  const dueDays = registered.body.data
+    ? (Date.parse(registered.body.data.dueAt) - Date.parse(registered.body.data.requestedAt)) / 86_400_000
+    : 0
+  check(
+    'запрос по письму зарегистрирован, срок 10 рабочих дней (14–25 календарных)',
+    registered.status === 201 && registered.body.data?.status === 'OPEN' && dueDays >= 13 && dueDays <= 26,
+    `статус ${registered.status}, дней до срока ${dueDays.toFixed(1)}`,
+  )
+  const duplicate = await call('POST', '/api/admin/dsar/requests', { subjectType: 'USER', subjectId, kind: 'EXPORT' })
+  check('второй открытый запрос того же вида — 409', duplicate.status === 409, `статус ${duplicate.status}`)
+  const unknownSubject = await call('POST', '/api/admin/dsar/requests', { subjectType: 'CONTACT', subjectId: 'нет-такого', kind: 'ERASE' })
+  check('запрос о несуществующем субъекте — 422', unknownSubject.status === 422, `статус ${unknownSubject.status}`)
+
+  // Выгрузка администратором: заголовки, ключи, нет секретов, закрывает запрос.
+  const response = await fetch(`${BASE_URL}/api/admin/dsar/users/${subjectId}/export`, {
+    headers: { cookie: `skilllink_user=${adminId}` },
+  })
+  const raw = await response.text()
+  let exported: Record<string, unknown> = {}
+  try {
+    exported = (JSON.parse(raw) as { data: Record<string, unknown> }).data ?? {}
+  } catch {
+    exported = {}
+  }
+  check(
+    'выгрузка пользователя: 200, вложение, no-store',
+    response.status === 200 &&
+      (response.headers.get('content-disposition') ?? '').startsWith('attachment') &&
+      (response.headers.get('cache-control') ?? '').includes('no-store'),
+    `статус ${response.status}`,
+  )
+  const missingKeys = REQUIRED_KEYS.filter((key) => !(key in exported))
+  check('в выгрузке все сведения ч. 7 ст. 14 и данные', missingKeys.length === 0, missingKeys.join(', '))
+  const trail = exported.auditTrail as { byActor?: unknown; aboutSubject?: { total?: number } } | undefined
+  check('журнал: действия субъекта и действия над ним', Boolean(trail?.byActor) && (trail?.aboutSubject?.total ?? 0) >= 1)
+  const leaked = secretKeys(exported)
+  check('в выгрузке нет ключей password/secret/token/hash', leaked.length === 0, leaked.slice(0, 3).join(', '))
+  check('выгрузка содержит почту субъекта (это его данные)', raw.includes(email))
+  const closed = await call<Request[]>('GET', `/api/admin/dsar/requests?subjectType=USER&subjectId=${subjectId}`)
+  check(
+    'выгрузка закрыла запрос по письму',
+    (closed.body.data ?? []).some((item) => item.id === registered.body.data?.id && item.status === 'COMPLETED'),
+  )
+  const unknownExport = await call('GET', '/api/admin/dsar/users/нет-такого/export')
+  check('выгрузка несуществующего — 404', unknownExport.status === 404, `статус ${unknownExport.status}`)
+
+  const contactExport = await call<Record<string, unknown>>('GET', `/api/admin/dsar/contacts/${contactId}/export`)
+  const contactMissing = REQUIRED_KEYS.filter((key) => !(key in (contactExport.body.data ?? {})))
+  check(
+    'выгрузка контакта: все ключи, без секретов',
+    contactExport.status === 200 && contactMissing.length === 0 && secretKeys(contactExport.body.data).length === 0,
+    contactMissing.join(', '),
+  )
+
+  // Сам субъект: «Мои данные», второй раз подряд — 409.
+  actAs(subjectId)
+  const own = await call<{ subject: { id: string } }>('GET', '/api/me/data-export')
+  check('пользователь выгружает свои данные сам', own.status === 200 && own.body.data?.subject.id === subjectId, `статус ${own.status}`)
+  const again = await call('GET', '/api/me/data-export')
+  check('повтор раньше 10 минут — 409', again.status === 409, `статус ${again.status}`)
+
+  // Журнал: события DSAR без ПД.
+  actAs(adminId)
+  const journal = await call<Array<{ action: string }>>('GET', `/api/audit?objectType=User&objectId=${subjectId}&pageSize=50`)
+  const actions = new Set((journal.body.data ?? []).map((entry) => entry.action))
+  check(
+    'журнал: dsar.requested и dsar.exported без почты субъекта',
+    actions.has('dsar.requested') && actions.has('dsar.exported') && !journal.raw.includes(email),
+  )
+
+  // Обезличивание: защита и результат.
+  const self = await call('POST', `/api/admin/dsar/users/${adminId}/erase`, { confirm: 'admin@skilllink.demo' })
+  check('обезличить себя — 409', self.status === 409, `статус ${self.status}`)
+  const shared = await call('POST', `/api/admin/dsar/users/${managerId}/erase`, { confirm: 'manager@skilllink.demo' })
+  check('обезличить общую демо-учётку — 409', shared.status === 409, `статус ${shared.status}`)
+  const wrong = await call('POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: 'чужой@example.invalid' })
+  check('неверное подтверждение — 422', wrong.status === 422, `статус ${wrong.status}`)
+  const erased = await call<{ alreadyErased: boolean; sections: Record<string, { rows: number }> }>(
+    'POST',
+    `/api/admin/dsar/users/${subjectId}/erase`,
+    { confirm: email.toUpperCase() },
+  )
+  check('обезличивание пользователя — 200', erased.status === 200 && erased.body.data?.alreadyErased === false, `статус ${erased.status}`)
+  const card = await call<{ fullName: string; email: string; isActive: boolean }>('GET', `/api/users/${subjectId}`)
+  check(
+    'после обезличивания: заглушка вместо ФИО и почты, учётная запись заблокирована',
+    card.body.data?.fullName === 'Пользователь удалён' && card.body.data.isActive === false && !card.raw.includes(email),
+  )
+  const repeat = await call<{ alreadyErased: boolean }>('POST', `/api/admin/dsar/users/${subjectId}/erase`, { confirm: 'x' })
+  check('повтор обезличивания — 200 alreadyErased', repeat.status === 200 && repeat.body.data?.alreadyErased === true)
+  const afterExport = await call<{ subject: { erased: boolean } }>('GET', `/api/admin/dsar/users/${subjectId}/export`)
+  check(
+    'выгрузка после обезличивания: признак erased, прежней почты нет',
+    afterExport.body.data?.subject.erased === true && !afterExport.raw.includes(email),
+  )
+
+  const contactErase = await call<{ alreadyErased: boolean }>('POST', `/api/admin/dsar/contacts/${contactId}/erase`, {
+    confirm: contactName.toLowerCase(),
+  })
+  const universityCard = await call<{ contacts: Array<{ id: string; fullName: string; isAnonymized: boolean }> }>(
+    'GET',
+    `/api/universities/${createdUniversity.body.data?.id}`,
+  )
+  check(
+    'обезличивание контакта по запросу — тот же результат, что в карточке вуза',
+    contactErase.status === 200 &&
+      universityCard.body.data?.contacts.find((item) => item.id === contactId)?.isAnonymized === true,
+    `статус ${contactErase.status}`,
+  )
+  const overdue = await call<Request[]>('GET', '/api/admin/dsar/requests?overdue=true')
+  check('реестр: фильтр просроченных отвечает', overdue.status === 200 && Array.isArray(overdue.body.data))
+  actAs(null)
+}
+
 function printSummary(): void {
   console.log(`\n${BOLD}Итог${RESET}`)
   console.log(`  ${GREEN}Пройдено: ${passed}${RESET}`)
@@ -4658,6 +5174,163 @@ function printSummary(): void {
   } else {
     console.log(`  ${GREEN}Проблем не найдено.${RESET}`)
   }
+}
+
+/**
+ * Аналитика этапов на статистике (решение 120): эндпоинты отвечают нужной формой,
+ * некорректные параметры — 422, представителю вуза аналитика закрыта целиком
+ * (решение 9: он не видит аналитику и чужие вузы — ни своих, ни чужих цифр здесь нет).
+ */
+async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
+  step('Аналитика этапов: Каплан–Мейер, воронка, когорты, «Система заметила», пульс')
+  const { rep, managerId } = ctx
+  actAs(managerId)
+
+  type Interval = { low: number | null; high: number | null }
+  type Threshold = { days: number; source: string; n: number; events: number }
+  type StageDuration = {
+    stageNumber: number
+    status: string
+    n: number
+    events: number
+    censored: number
+    median: number | null
+    p90: number | null
+    ci: { median: Interval; p90: Interval }
+    curve: Array<{ day: number; F: number; lo: number; hi: number }>
+    threshold: Threshold
+  }
+  const durations = await call<{ stages: StageDuration[]; minObservations: number; isMock: boolean }>(
+    'GET',
+    '/api/analytics/stage-durations',
+  )
+  const stages = durations.body.data?.stages ?? []
+  check(
+    'длительность этапов: 13 этапов, n = переходы + цензура, кривая в [0, 1] и не убывает',
+    durations.status === 200 &&
+      stages.length === 13 &&
+      stages.every(
+        (stage) =>
+          stage.n === stage.events + stage.censored &&
+          ['ok', 'insufficient_data'].includes(stage.status) &&
+          ['km', 'manual'].includes(stage.threshold.source) &&
+          (stage.status === 'ok' || stage.threshold.source === 'manual') &&
+          stage.curve.every((point, index, curve) =>
+            point.lo <= point.F && point.F <= point.hi && point.lo >= 0 && point.hi <= 1 &&
+            (index === 0 || point.F >= curve[index - 1]!.F),
+          ),
+      ),
+    `статус ${durations.status}, этапов ${stages.length}`,
+  )
+  check(
+    'порог застоя: при нехватке данных — ручной stalledDays',
+    stages
+      .filter((stage) => stage.status === 'insufficient_data')
+      .every((stage) => stage.threshold.days === RECOMMENDATION_RULES.stalledDays),
+  )
+
+  const preview = await call<{
+    before: number
+    after: number
+    stages: Array<{ stageNumber: number; before: number; after: number; current: Threshold }>
+  }>('GET', '/api/analytics/stalled-preview?stage=6&days=10')
+  check(
+    'предпросмотр порога: было → станет по этапу 6',
+    preview.status === 200 &&
+      preview.body.data?.stages.length === 1 &&
+      preview.body.data.stages[0]!.stageNumber === 6 &&
+      typeof preview.body.data.before === 'number' &&
+      typeof preview.body.data.after === 'number',
+    `статус ${preview.status}`,
+  )
+  const badPreview = await call('GET', '/api/analytics/stalled-preview?stage=14&days=0')
+  const badFunnel = await call('GET', '/api/analytics/funnel?groupBy=nope')
+  check(
+    'кривые параметры аналитики — 422, а не 500',
+    badPreview.status === 422 && badFunnel.status === 422,
+    `предпросмотр ${badPreview.status}, воронка ${badFunnel.status}`,
+  )
+
+  type Step = { key: string; reached: number; dropped: Array<{ href: string }>; droppedCount: number }
+  const funnel = await call<{ total: number; steps: Step[]; groups: Array<{ total: number }> }>(
+    'GET',
+    '/api/analytics/funnel?milestones=true&groupBy=region',
+  )
+  const steps = funnel.body.data?.steps ?? []
+  check(
+    'воронка по вехам: 6 шагов, дошедшие не растут, отвалившиеся со ссылкой, разрез сходится с итогом',
+    funnel.status === 200 &&
+      steps.length === 6 &&
+      steps[0]!.reached === funnel.body.data!.total &&
+      steps.every((item, index) => index === 0 || item.reached <= steps[index - 1]!.reached) &&
+      steps.every((item) => item.dropped.every((row) => row.href.startsWith('/cooperations/'))) &&
+      (funnel.body.data?.groups ?? []).reduce((sum, group) => sum + group.total, 0) === funnel.body.data!.total,
+    `статус ${funnel.status}, шагов ${steps.length}`,
+  )
+
+  const cohorts = await call<{ milestone: { fromStage: number }; cohorts: Array<{ size: number; cells: Array<{ share: number | null }> }> }>(
+    'GET',
+    '/api/analytics/cohorts',
+  )
+  check(
+    'когорты: веха «договор подписан» (этап 7), доли в [0, 1]',
+    cohorts.status === 200 &&
+      cohorts.body.data?.milestone.fromStage === 7 &&
+      cohorts.body.data.cohorts.every((cohort) =>
+        cohort.cells.every((cell) => cell.share === null || (cell.share >= 0 && cell.share <= 1)),
+      ),
+    `статус ${cohorts.status}`,
+  )
+
+  const insights = await call<Array<{ code: string; severity: string; title: string; detail: string; facts: object; link: string | null }>>(
+    'GET',
+    '/api/analytics/insights',
+  )
+  check(
+    '«Система заметила»: список {code, severity, title, detail, facts, link}',
+    insights.status === 200 &&
+      Array.isArray(insights.body.data) &&
+      insights.body.data.every(
+        (item) =>
+          typeof item.code === 'string' &&
+          ['critical', 'warning', 'info'].includes(item.severity) &&
+          item.title.length > 0 &&
+          typeof item.facts === 'object',
+      ),
+    `статус ${insights.status}, инсайтов ${insights.body.data?.length ?? 0}`,
+  )
+
+  const pulse = await call<{ checkedRules: number; isCalm: boolean; sections: Array<{ key: string; total: number; items: unknown[] }> }>(
+    'GET',
+    '/api/me/pulse',
+  )
+  check(
+    'пульс: четыре раздела, потолок пунктов, счётчик проверенных правил',
+    pulse.status === 200 &&
+      pulse.body.data?.sections.map((section) => section.key).join(',') === 'attention,today,decide,wins' &&
+      pulse.body.data.sections.every((section) => section.items.length <= section.total) &&
+      pulse.body.data.checkedRules > 0,
+    `статус ${pulse.status}`,
+  )
+
+  if (rep) {
+    actAs(rep.id)
+    const paths = [
+      '/api/analytics/stage-durations',
+      '/api/analytics/stalled-preview?days=14',
+      '/api/analytics/funnel',
+      '/api/analytics/cohorts',
+      '/api/analytics/insights',
+      '/api/me/pulse',
+    ]
+    const statuses = await Promise.all(paths.map(async (path) => (await call('GET', path)).status))
+    check(
+      'представителю вуза аналитика этапов и пульс закрыты — 403',
+      statuses.every((status) => status === 403),
+      statuses.join(', '),
+    )
+  }
+  actAs(null)
 }
 
 async function main(): Promise<void> {
@@ -4684,6 +5357,7 @@ async function main(): Promise<void> {
   await checkDoubleClick(ctx)
   await checkErrorContract()
   await checkAuditAdminOnly(ctx)
+  await checkAuditChain(ctx)
   await checkConcurrentStageChanges(ctx)
   await checkStageKeepsResultAndReason(ctx)
   await checkRecommendationReopens(ctx)
@@ -4711,6 +5385,10 @@ async function main(): Promise<void> {
   await checkProblemCounter(ctx)
   await checkCooperationCount(ctx)
   await checkRecommendationFeedOrder(ctx)
+  await checkRecommendationScoreFeed(ctx)
+  await checkRecommendationWhyNot(ctx)
+  await checkRecommendationRuleStats(ctx)
+  await checkRecommendationStatsRace(ctx)
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
   await checkSkillNameConsistency(ctx)
@@ -4722,7 +5400,9 @@ async function main(): Promise<void> {
   await checkStaleSession()
   await checkLoginAttempts()
   await checkCalendarFeed(ctx)
+  await checkDsar(ctx)
   await checkRateLimit(ctx)
+  await checkStageAnalytics(ctx)
   await checkForecast(ctx)
 
   printSummary()

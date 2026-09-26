@@ -1,5 +1,5 @@
 /**
- * Прогноз связок — сервисный слой (решение 125): права, сбор данных, DTO наружу.
+ * Прогноз связок — сервисный слой (решение 132): права, сбор данных, DTO наружу.
  * Математика — forecast-math.ts/forecast-model.ts, признаки и объяснение —
  * forecast-features.ts/forecast-explain.ts, данные — forecast.repo.ts.
  *
@@ -42,7 +42,24 @@ import {
   type DriftVerdict,
   type StoredModel,
 } from './forecast-explain'
-import { storedStageMedians } from './stage-duration'
+import { storedStageMedians, type ExternalStageMedian } from './stage-duration'
+import { ensureStageDurations } from './stage-analytics.service'
+import { cachedStageDurations } from './stalled-threshold'
+
+/**
+ * Медиана этапа из аналитики этапов (Каплан–Мейер, решение 120) — основной источник
+ * для признака «дней на этапе к медиане» (решение 132). `until` не учитывается: сводки
+ * в памяти — это оценка по всей текущей истории, а не на дату снимка (пересчитывать
+ * Каплана–Мейера на каждую историческую дату было бы дорого ради нормировки одного
+ * признака). Влияет только на масштаб признака, не на метку и не на утечку будущего.
+ * Пусто или недостаточно данных по этапу (`status !== 'ok'`) — `null`, и `stageMedians`
+ * (stage-duration.ts) сама уходит в запасной расчёт по истории связок или норматив.
+ */
+const externalStageMedian: ExternalStageMedian = (stageNumber) => {
+  const summary = cachedStageDurations()?.get(stageNumber)
+  if (!summary || summary.status !== 'ok') return null
+  return summary.median.day
+}
 
 /** Предыдущая веха по порядку — для правила «предыдущая веха уже пройдена». */
 function previousOf(milestone: ForecastMilestone): ForecastMilestone | null {
@@ -59,11 +76,17 @@ function previousOf(milestone: ForecastMilestone): ForecastMilestone | null {
  */
 export async function runTraining(userId: string | null): Promise<ForecastModelsDto> {
   const now = new Date()
+  // Свежие сводки Каплана–Мейера перед обучением: без него геттер отдавал бы
+  // устаревший или пустой кэш (решение 120 обновляет его сам только по запросу
+  // пересборки рекомендаций, пульса и предпросмотра — обучение прогноза сюда не входит).
+  await ensureStageDurations(now)
   const timelines = await repo.fetchTrainingTimelines()
 
   const stored: StoredModel[] = []
   for (const milestone of FORECAST_MILESTONES) {
-    const trained = trainMilestoneModel(timelines, milestone, previousOf(milestone), now)
+    const trained = trainMilestoneModel(timelines, milestone, previousOf(milestone), now, {
+      externalMedian: externalStageMedian,
+    })
     stored.push(await repo.saveTrainedModel(trained, now))
   }
 

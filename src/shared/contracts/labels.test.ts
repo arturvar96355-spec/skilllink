@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as enums from './enums'
 import * as labels from './labels'
 import * as audit from './audit'
+import * as dsar from './dsar'
 
 /**
  * Подписи фронт берёт отсюда. Если у перечисления появится значение без подписи,
@@ -36,6 +37,11 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['ConsentForm', enums.CONSENT_FORMS, labels.CONSENT_FORM_LABELS],
   ['AuditAction', audit.AUDIT_ACTIONS, labels.AUDIT_ACTION_LABELS],
   ['AuditObjectType', audit.AUDIT_OBJECT_TYPES, labels.AUDIT_OBJECT_TYPE_LABELS],
+  ['AuditChainBreakCode', audit.AUDIT_CHAIN_BREAK_CODES, labels.AUDIT_CHAIN_BREAK_LABELS],
+  ['DsarSubjectType', dsar.DSAR_SUBJECT_TYPES, labels.DSAR_SUBJECT_TYPE_LABELS],
+  ['DsarRequestKind', dsar.DSAR_REQUEST_KINDS, labels.DSAR_REQUEST_KIND_LABELS],
+  ['DsarRequestStatus', dsar.DSAR_REQUEST_STATUSES, labels.DSAR_REQUEST_STATUS_LABELS],
+  ['DsarRequestChannel', dsar.DSAR_REQUEST_CHANNELS, labels.DSAR_REQUEST_CHANNEL_LABELS],
 ]
 
 describe('подписи к перечислениям', () => {

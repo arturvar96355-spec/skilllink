@@ -77,6 +77,9 @@ export {
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
+export { useReveal } from './hooks/reveal'
+export { useTheme, setTheme } from './hooks/theme'
+export { ThemeToggle } from './layout/ThemeToggle'
 export { UI_MODE_LABELS, type UiMode } from './lib/ui-mode'
 
 export { apiDelete, apiGet, apiPatch, apiPost, apiPut, buildQuery, fieldErrors, ApiRequestError } from './lib/api'
@@ -107,6 +110,7 @@ export {
 } from './lib/format'
 export {
   ROUTES,
+  API_CONTRACT_URL,
   universityHref,
   programHref,
   cooperationHref,
@@ -131,6 +135,8 @@ export { DeadlineStrip, type DeadlineItem } from './data/DeadlineStrip'
 export { StageBar } from './data/StageBar'
 export { ScoreBar, ScoreLegend, type ScorePart } from './data/ScoreBar'
 export { GapBars, type GapRow } from './data/GapBars'
+export { ResetFilters, useResetUrl } from './data/ResetFilters'
+export { OPEN_RECOMMENDATION_STATUSES, CLOSED_RECOMMENDATION_STATUSES } from './lib/recommendation-scope'
 export { RussiaMap, type MapPoint } from './data/RussiaMap'
 export { Ticker, type TickerItem } from './data/Ticker'
 export { Radar, type RadarAxis, type RadarSeries } from './data/Radar'
