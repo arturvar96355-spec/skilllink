@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { Icon, PageHeader, Section, isUniversityRep, useCurrentUser } from '@/ui'
+import { isSectionAllowed } from '@/ui/layout/navigation'
 import { termsFor, topicsFor } from './help-content'
 import styles from './help.module.css'
 
@@ -13,7 +14,8 @@ import styles from './help.module.css'
  * подвала на любом экране. Текст — в help-content.ts, вёрстка от него не зависит.
  */
 export default function HelpPage() {
-  const rep = isUniversityRep(useCurrentUser())
+  const user = useCurrentUser()
+  const rep = isUniversityRep(user)
   const topics = topicsFor(rep)
   const terms = termsFor(rep)
 
@@ -51,7 +53,8 @@ export default function HelpPage() {
                 {text}
               </p>
             ))}
-            {topic.link && (
+            {/* Ссылку в закрытый роли раздел не даём: там её встретит «Раздел недоступен». */}
+            {topic.link && isSectionAllowed(user, topic.link.href) && (
               <Link href={topic.link.href} className={styles.topicLink}>
                 {topic.link.label}
                 <Icon name="arrowRight" size={16} />
