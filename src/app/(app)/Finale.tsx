@@ -20,6 +20,12 @@ import styles from './Finale.module.css'
  * При появлении линии прорисовываются по очереди, затем по ним изредка бегут
  * импульсы — по одному, не всё разом. Одно SVG и CSS-анимации: прокрутку не
  * тормозит. «Уменьшить движение» и рабочий режим — статичная картинка.
+ *
+ * Правка по замечанию владельца (решение 180, доп. к п. 3, скриншот светлой
+ * темы): подпись узла — на подложке цвета фона, а не только с обводкой
+ * букв (обводка красит контур каждой буквы, а линия, идущая через межбуквенный
+ * пробел, всё равно была видна); одноимённые программы разных вузов различает
+ * короткое имя вуза в подписи и полное — во всплывающей подсказке узла.
  */
 
 const HEIGHT = 400
@@ -30,20 +36,54 @@ const COLUMNS = [0.1, 0.37, 0.63, 0.9]
 const TITLES = ['Вузы', 'Программы', 'Навыки рынка', 'IT-продукты']
 /** Больше узлов в столбце подписи не держат. */
 const MAX_NODES = 7
+/** Длиннее подпись узла обрезается: показ длины оценивает подложку под ней. */
+const LABEL_MAX_CHARS = 26
+/** Кегль подписи (`--text-label-size`, 12 px) и ширина знака — как в RussiaMap.tsx:
+ *  с запасом, кириллица шире латиницы. */
+const LABEL_SIZE = 12
+const LABEL_CHAR_WIDTH = LABEL_SIZE * 0.68
+const LABEL_PAD_X = 5
+const LABEL_HEIGHT = 15
 
-interface Node {
-  key: string
+interface Entry {
+  id: string
+  /** Что рисуется на схеме — после разбора одноимённых (см. `disambiguate`). */
   label: string
+  /** Полное описание узла — во всплывающей подсказке, не зависит от обрезки и разбора. */
+  tooltip: string
+}
+
+interface Node extends Entry {
+  key: string
   x: number
   y: number
 }
 
-function column(labels: string[], index: number, width: number): Node[] {
-  const list = labels.slice(0, MAX_NODES)
+/** Подпись узла, которая рисуется: длиннее общего предела — обрезается многоточием. */
+function displayLabel(label: string): string {
+  return label.length <= LABEL_MAX_CHARS ? label : `${label.slice(0, LABEL_MAX_CHARS - 1)}…`
+}
+
+/**
+ * Программы называются по направлению, и одно название бывает у разных вузов
+ * («Информационная безопасность» — не редкость): без разбора это выглядит как
+ * дубль одного узла. К одноимённым добавляется короткое имя вуза — во
+ * всплывающей подсказке (`tooltip`) вуз назван всегда, независимо от разбора.
+ */
+function disambiguate(entries: Array<Entry & { university: string }>): Entry[] {
+  const counts = new Map<string, number>()
+  for (const entry of entries) counts.set(entry.label, (counts.get(entry.label) ?? 0) + 1)
+  return entries.map(({ university, ...entry }) =>
+    (counts.get(entry.label) ?? 0) > 1 ? { ...entry, label: `${entry.label} · ${university}` } : entry,
+  )
+}
+
+function column(entries: Entry[], index: number, width: number): Node[] {
+  const list = entries.slice(0, MAX_NODES)
   const span = HEIGHT - TOP - BOTTOM
-  return list.map((label, i) => ({
-    key: `${index}:${label}`,
-    label,
+  return list.map((entry, i) => ({
+    ...entry,
+    key: `${index}:${entry.id}`,
     x: COLUMNS[index]! * width,
     y: TOP + (list.length === 1 ? span / 2 : (span * i) / (list.length - 1)),
   }))
@@ -79,27 +119,51 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
     return () => window.removeEventListener('resize', measure)
   }, [])
 
-  const unis = [...new Map(cooperations.map((c) => [c.universityId, c.universityShortName ?? c.universityName])).values()]
-  const programs = [...new Map(cooperations.map((c) => [c.programId, c.programName])).values()]
-  const products = [...new Map(cooperations.filter((c) => c.productId).map((c) => [c.productId!, c.productName!])).values()]
+  const uniEntries: Entry[] = [
+    ...new Map(
+      cooperations.map((c) => {
+        const label = c.universityShortName ?? c.universityName
+        return [c.universityId, { id: c.universityId, label, tooltip: c.universityName }] as const
+      }),
+    ).values(),
+  ]
+  const programEntries: Entry[] = disambiguate([
+    ...new Map(
+      cooperations.map((c) => {
+        const university = c.universityShortName ?? c.universityName
+        return [
+          c.programId,
+          { id: c.programId, label: c.programName, tooltip: `${c.programName} — ${university}`, university },
+        ] as const
+      }),
+    ).values(),
+  ])
+  const skillEntries: Entry[] = skills.map((name, index) => ({ id: `${index}:${name}`, label: name, tooltip: name }))
+  const productEntries: Entry[] = [
+    ...new Map(
+      cooperations
+        .filter((c) => c.productId)
+        .map((c) => [c.productId!, { id: c.productId!, label: c.productName!, tooltip: c.productName! }] as const),
+    ).values(),
+  ]
 
-  const uniNodes = column(unis, 0, width)
-  const programNodes = column(programs, 1, width)
-  const skillNodes = column(skills, 2, width)
-  const productNodes = column(products, 3, width)
-  const find = (nodes: Node[], label: string) => nodes.find((node) => node.label === label)
+  const uniNodes = column(uniEntries, 0, width)
+  const programNodes = column(programEntries, 1, width)
+  const skillNodes = column(skillEntries, 2, width)
+  const productNodes = column(productEntries, 3, width)
+  const find = (nodes: Node[], id: string) => nodes.find((node) => node.id === id)
 
   // Настоящие связки: вуз → программа и программа → (через навыки) → продукт.
   const routes: Array<{ key: string; d: string; kind: 'uni' | 'product'; skill: string | null }> = []
   const seen = new Set<string>()
   for (const item of cooperations) {
-    const uni = find(uniNodes, item.universityShortName ?? item.universityName)
-    const program = find(programNodes, item.programName)
+    const uni = find(uniNodes, item.universityId)
+    const program = find(programNodes, item.programId)
     if (uni && program && !seen.has(`${uni.key}>${program.key}`)) {
       seen.add(`${uni.key}>${program.key}`)
       routes.push({ key: `${uni.key}>${program.key}`, d: curve(uni, program), kind: 'uni', skill: null })
     }
-    const product = item.productName ? find(productNodes, item.productName) : undefined
+    const product = item.productId ? find(productNodes, item.productId) : undefined
     if (program && product && !seen.has(`${program.key}>${product.key}`)) {
       seen.add(`${program.key}>${product.key}`)
       const { d, skill } = throughSkills(program, product, skillNodes)
@@ -145,26 +209,50 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
           </g>
         ))}
 
+        {/*
+          Точки и подписи — двумя проходами, оба целиком после линий: подпись
+          иначе оказалась бы под линией, до которой в списке ещё не дошла
+          отрисовка. У подписи — подложка цвета фона под всей строкой, а не
+          обводка одних лишь букв: линия, проходящая между двумя буквами,
+          а не по самой букве, обводку не задевала и всё равно была видна
+          (замечание владельца на светлой теме, решение 180, п. 3).
+        */}
         {[uniNodes, programNodes, skillNodes, productNodes].map((nodes, columnIndex) =>
           nodes.map((node, index) => (
             <g
-              key={node.key}
+              key={`dot:${node.key}`}
               className={[styles.node, styles[`col${columnIndex}`]].join(' ')}
               style={{ '--n': columnIndex * 3 + index } as CSSProperties}
             >
               <circle cx={node.x} cy={node.y} r={14} className={styles.nodeHalo} />
               <circle cx={node.x} cy={node.y} r={5} className={styles.nodeCore} />
-              {/* Подпись — над узлом: линии уходят от узла вбок и текст не перечёркивают. */}
-              <text
-                x={node.x + (columnIndex === 0 ? -8 : columnIndex === 3 ? 8 : 0)}
-                y={node.y - 20}
-                textAnchor={columnIndex === 0 ? 'start' : columnIndex === 3 ? 'end' : 'middle'}
-                className={styles.nodeLabel}
-              >
-                {node.label.length > 26 ? `${node.label.slice(0, 25)}…` : node.label}
-              </text>
             </g>
           )),
+        )}
+        {[uniNodes, programNodes, skillNodes, productNodes].map((nodes, columnIndex) =>
+          nodes.map((node, index) => {
+            const anchor = columnIndex === 0 ? 'start' : columnIndex === 3 ? 'end' : 'middle'
+            const textX = node.x + (columnIndex === 0 ? -8 : columnIndex === 3 ? 8 : 0)
+            const textY = node.y - 20
+            const label = displayLabel(node.label)
+            const bgWidth = label.length * LABEL_CHAR_WIDTH + LABEL_PAD_X * 2
+            const bgX = anchor === 'start' ? textX - LABEL_PAD_X : anchor === 'end' ? textX - bgWidth + LABEL_PAD_X : textX - bgWidth / 2
+            return (
+              <g
+                key={`label:${node.key}`}
+                className={styles.node}
+                style={{ '--n': columnIndex * 3 + index } as CSSProperties}
+              >
+                {/* Полное название узла — во всплывающей подсказке: у программ — с вузом
+                    всегда, у остальных — как страховка на случай обрезки длинного имени. */}
+                <title>{node.tooltip}</title>
+                <rect x={bgX} y={textY - LABEL_HEIGHT + 4} width={bgWidth} height={LABEL_HEIGHT} rx={4} className={styles.nodeLabelBg} />
+                <text x={textX} y={textY} textAnchor={anchor} className={styles.nodeLabel}>
+                  {label}
+                </text>
+              </g>
+            )
+          }),
         )}
       </svg>
       <p className={styles.caption}>
