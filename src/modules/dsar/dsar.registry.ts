@@ -191,6 +191,19 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_REFERENCE,
   },
   {
+    // Решение 146 (роль «Руководитель»): у вуза появился ответственный сотрудник.
+    // Сам University помечен «организация, не человек» (DSAR_NOT_PERSONAL) —
+    // это единственная ссылка на человека в нём, поэтому у неё свой раздел.
+    section: 'universitiesResponsible',
+    model: 'University',
+    title: 'Вузы, где назначен ответственным',
+    links: ['responsibleId'],
+    select: { id: true, name: true, shortName: true },
+    orderBy: { name: 'asc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
     section: 'stages',
     model: 'WorkflowStage',
     title: 'Этапы: ответственный или завершил',
@@ -437,6 +450,17 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_SECURITY,
   },
   {
+    // Решение 146: правка хранимого шаблона этапов (настройки, только ADMIN).
+    section: 'workflowTemplateEdits',
+    model: 'WorkflowStageTemplate',
+    title: 'Правки шаблона этапов workflow',
+    links: ['updatedById'],
+    select: { stageNumber: true, title: true, normativeDays: true, updatedAt: true },
+    orderBy: { stageNumber: 'asc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
     section: 'approvalsInvolved',
     model: 'Approval',
     title: '«Четыре глаза»: запросы и решения по опасным операциям с участием пользователя',
@@ -639,7 +663,8 @@ export const DSAR_REGISTRY: Readonly<Record<DsarSubjectKind, readonly DsarEntry[
  * с причиной: новая таблица не проскочит незамеченной ни в одну сторону.
  */
 export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string>>> = {
-  University: 'организация, не человек',
+  // University больше не здесь: с решения 146 у неё есть responsibleId — единственная
+  // ссылка на человека, и она в основном реестре (раздел `universitiesResponsible`).
   EducationalProgram: 'программа вуза: показатели без ПД обучающихся',
   Skill: 'справочник навыков',
   ProgramSkill: 'связь программы и навыка',
