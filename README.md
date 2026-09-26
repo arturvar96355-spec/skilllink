@@ -211,7 +211,7 @@ npm run analytics:report             # длительность этапов, в
 | Что | Число |
 | --- | --- |
 | Моделей в схеме (`prisma/schema.prisma`) | 42 |
-| Миграций (`prisma/migrations`) | 30 |
+| Миграций (`prisma/migrations`) | 31 |
 | Маршрутов API (`src/app/api/**/route.ts`) | 144 |
 | Операций в спецификации (`docs/openapi.json`) | 174 |
 | Тестов (`npm test`) | 3146 (3128 выполняются, 18 пропущено — 16 требуют TEST_DATABASE_URL, 2 — маршруты без отдельного описания) |

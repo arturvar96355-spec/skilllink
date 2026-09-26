@@ -116,15 +116,15 @@ timed out`) процесс сам держит цикл `getUpdates`, той ж�
 там дата описывает решение своего момента); ник `@mister_pohuy` и остальные телеграм-логины
 убраны из `docs/concept.md`; реквизиты оператора ПД — переменные окружения `OPERATOR_NAME`,
 `OPERATOR_ADDRESS`, `OPERATOR_CONTACT` с понятной заглушкой вместо `TODO: PM DECISION`;
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (44 модели, 28 миграций — считая
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (47 модели, 31 миграций — считая
 `20260926170000_notify_channels`, `20260926200000_schema_review` и
 `20260926210000_expert_reviewer_flag`, решения 144, 143 и 147,
-135 маршрутов, 162 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
+144 маршрута, 174 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
 
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (47 модели, 30 миграций — считая
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (47 модели, 31 миграций — считая
 `20260926200000_schema_review`, решение 143, 144 маршрута, 174 операции), `docs-counts.test.ts`
 
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (47 модели, 30 миграций — считая
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (47 модели, 31 миграций — считая
 `20260926200000_schema_review`, решение 143, 144 маршрута, 174 операции), `docs-counts.test.ts`
 расширен на модели и миграции; README —
 
