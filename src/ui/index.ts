@@ -80,6 +80,7 @@ export {
   useIsTruncated,
 } from './hooks/dom'
 export { usePageInRange } from './hooks/page-range'
+export { useIdempotencyKey } from './hooks/idempotency-key'
 export { useUiMode, useCalmMotion, setUiMode } from './hooks/ui-mode'
 export { useReveal } from './hooks/reveal'
 export { useTheme, setTheme } from './hooks/theme'

@@ -1,4 +1,5 @@
 import type { ApiErrorCode, PageMeta } from '@/shared/contracts'
+import { IDEMPOTENCY_HEADER } from '@/shared/config/idempotency.config'
 import { REQUEST_ID_HEADER, isValidRequestId } from '@/shared/http/request-id'
 
 /**
@@ -272,10 +273,17 @@ export function apiGet<T>(path: string, signal?: AbortSignal): Promise<ApiResult
   return request<T>(path, { method: 'GET', signal })
 }
 
-export function apiPost<T>(path: string, body?: unknown): Promise<ApiResult<T>> {
+/**
+ * `idempotencyKey` (решение 133/183) — только у запросов создания, где сервер
+ * его принимает (`withIdempotency`, `shared/idempotency/idempotency.ts`):
+ * повтор того же ключа и того же тела не создаёт вторую запись. Ключ на форму
+ * даёт `useIdempotencyKey()` — один на открытие формы, а не на каждый вызов.
+ */
+export function apiPost<T>(path: string, body?: unknown, options?: { idempotencyKey?: string }): Promise<ApiResult<T>> {
   return request<T>(path, {
     method: 'POST',
     body: body === undefined ? undefined : JSON.stringify(body),
+    headers: options?.idempotencyKey ? { [IDEMPOTENCY_HEADER]: options.idempotencyKey } : undefined,
   })
 }
 

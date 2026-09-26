@@ -42,6 +42,7 @@ import {
   formatDateTime,
   formatNumber,
   useCurrentUser,
+  useIdempotencyKey,
   useMutation,
   useResource,
   useToast,
@@ -136,9 +137,16 @@ function PortalScreen() {
     },
   )
 
+  // Заявка — форма прямо на странице, не в модалке, поэтому ключ живёт до первой
+  // удачной отправки (решение 183): повтор — двойной щелчок, обрыв сети — не
+  // заводит вторую заявку, а после успеха ключ обновляется — новая заявка
+  // с теми же значениями не примется за повтор старой.
+  const applicationIdempotency = useIdempotencyKey()
   const submitApplication = useMutation(
     async (input: { programId: string; quantity: number; comment: string | null }) => {
-      const result = await apiPost<ApplicationDto>(`/api/portal/applications${scope}`, input)
+      const result = await apiPost<ApplicationDto>(`/api/portal/applications${scope}`, input, {
+        idempotencyKey: applicationIdempotency.key,
+      })
       return result.data
     },
   )
@@ -204,6 +212,7 @@ function PortalScreen() {
     toast.success(
       `Заявка принята: ${formatNumber(result.data.quantity)} на «${result.data.programName}»`,
     )
+    applicationIdempotency.renew()
     setQuantity('')
     setComment('')
     setPage(1)
