@@ -117,9 +117,24 @@ export async function findCourses(query: SchoolCourseListQuery): Promise<{ rows:
   return { rows, total }
 }
 
-/** Все заказы — для итога «разных слушателей по всем курсам». Только хеши. */
+/**
+ * Все заказы — для итога «разных слушателей по всем курсам». Только хеши.
+ *
+ * Дедупликация людей — объединение по цепочке общих хешей (`ListenerIndex`,
+ * enrollment.rules.ts): заказ A и B — один человек, если у них общий email или
+ * телефон, даже через третий заказ C, у которого общий email с A и телефон с B.
+ * Это нельзя посчитать агрегатом СУБД без переноса самой логики объединения в
+ * SQL — таблица читается целиком, но только двумя узкими колонками. Общее число
+ * заказов (`countOrders`, ниже) для этого уже не нужно — не гонять всю таблицу
+ * ради счётчика, который даёт обычный COUNT.
+ */
 export async function findAllOrderHashes() {
   return prisma.siteOrder.findMany({ select: { emailHash: true, phoneHash: true } })
+}
+
+/** Сколько всего заказов — для итога `totals.orderCount`. Обычный COUNT, без выгрузки строк. */
+export async function countOrders(): Promise<number> {
+  return prisma.siteOrder.count()
 }
 
 export async function countStreams(): Promise<number> {
