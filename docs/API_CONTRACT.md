@@ -3426,7 +3426,7 @@ curl -X POST http://localhost:3000/api/admin/channels/max/test -H 'cookie: skill
 
 ### GET, POST, DELETE /api/me/calendar — подписка на календарь
 
-С 25.09.2026, решение 105. Право **`CALENDAR`**: ADMIN, MANAGER, ANALYST, VIEWER.
+С 25.09.2026, решение 105. Право **`CALENDAR`**: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.
 Представителю вуза — `FORBIDDEN` 403 (сроки этапов — внутренняя кухня ИТ-Школы, решение 9).
 Только для себя: пользователь берётся из сессии. Ответы не кэшируются (`Cache-Control: no-store`).
 

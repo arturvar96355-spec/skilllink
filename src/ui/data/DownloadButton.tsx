@@ -22,6 +22,9 @@ export function DownloadButton({
   size,
   title,
   onDownloaded,
+  method,
+  body,
+  disabled,
 }: {
   href: string
   /** Имя файла, если сервер его не прислал. */
@@ -36,6 +39,10 @@ export function DownloadButton({
    * список запросов после неё стоит перечитать.
    */
   onDownloaded?: (filename: string) => void
+  /** По умолчанию `GET`. `POST` — когда серверу нужно тело запроса (файл для LMS, решение 182). */
+  method?: 'GET' | 'POST'
+  body?: BodyInit
+  disabled?: boolean
 }) {
   const toast = useToast()
   const [isLoading, setIsLoading] = useState(false)
@@ -44,7 +51,7 @@ export function DownloadButton({
     if (isLoading) return
     setIsLoading(true)
     try {
-      const { filename } = await apiDownload(href, fallbackName)
+      const { filename } = await apiDownload(href, fallbackName, method || body ? { method, body } : undefined)
       toast.success(`Файл «${filename}» скачан`)
       onDownloaded?.(filename)
     } catch (error) {
@@ -55,7 +62,15 @@ export function DownloadButton({
   }
 
   return (
-    <Button variant={variant} size={size} icon="download" onClick={onClick} isLoading={isLoading} title={title}>
+    <Button
+      variant={variant}
+      size={size}
+      icon="download"
+      onClick={onClick}
+      isLoading={isLoading}
+      disabled={disabled}
+      title={title}
+    >
       {children}
     </Button>
   )
