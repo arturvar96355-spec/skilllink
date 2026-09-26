@@ -1113,7 +1113,10 @@ model RecommendationRuleStats {
   successes    Int      @default(0)
   trialsEff    Float    @default(0) @map("trials_eff")
   successesEff Float    @default(0) @map("successes_eff")
-  effUpdatedAt DateTime @map("eff_updated_at") @db.Timestamptz(6)
+  /// Решение 143: TIMESTAMP(3) без пояса — как весь остальной schema.prisma
+  /// (соглашение «приложение пишет UTC», миграция audit_hash_chain). Раньше
+  /// была TIMESTAMPTZ(6) — единственная колонка с поясом в схеме.
+  effUpdatedAt DateTime @map("eff_updated_at")
 
   @@id([ruleType, scopeType, scopeId])
   @@map("recommendation_rule_stats")
@@ -1132,6 +1135,8 @@ model RecommendationRuleStats {
 /// Ограничения только в SQL миграции 20260926000000_recommendation_signals:
 /// recommendation_signals_arm_check — у контроля нет рекомендации и назначение только по хешу;
 /// recommendation_signals_assigned_by_check — допустимые способы назначения.
+/// Решение 143 (миграция 20260926200000_schema_review): recommendation_signals_outcome_check —
+/// outcome_at и outcome заданы только вместе, исход не раньше срабатывания сигнала.
 model RecommendationSignal {
   id               String        @id @default(cuid())
   /// Ключ правила (ruleKey рекомендации).
@@ -1340,7 +1345,8 @@ model DuplicateDismissal {
 /// Слияние вуза-дубля в другой (решение 134). Журнал выживания полей и список
 /// перенесённых объектов — чтобы слияние можно было объяснить и отменить.
 /// В журнале только поля вуза и идентификаторы: ФИО и контакты не копируются.
-/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает.
+/// CHECK в базе: source_id <> target_id; отменившего без даты отмены не бывает и наоборот
+/// (решение 143 сделал проверку симметричной, миграция 20260926200000_schema_review).
 model UniversityMerge {
   id           String    @id @default(cuid())
   sourceId     String    @map("source_id")
@@ -1413,6 +1419,9 @@ enum ApprovalStatus {
 /// атомарный UPDATE … WHERE status = 'APPROVED' AND payload_hash = … AND expires_at > now().
 /// CHECK в базе: одобривший ≠ запросившему; APPROVED/CONSUMED — с одобрившим;
 /// CONSUMED ровно при consumed_at; REJECTED — с отклонившим; payload_hash — hex SHA-256.
+/// Решение 143 (approvals_decided_at_check, миграция 20260926200000_schema_review):
+/// decided_at пуст ровно у REQUESTED и заполнен у APPROVED/REJECTED/CONSUMED;
+/// EXPIRED — особый случай (просрочиться может и ждущий, и уже одобренный запрос).
 model Approval {
   id            String         @id @default(cuid())
   /// Код действия (approvals.rules.ts, APPROVAL_ACTIONS).
