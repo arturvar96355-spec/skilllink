@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { prisma } from '@/shared/db/prisma'
 import { everyWordInSomeField } from '@/shared/db/text-search'
 import { buildOrderBy, parseSort, toSkipTake } from '@/shared/http/pagination'
@@ -202,7 +203,17 @@ export async function findOpenDuplicate(
   }
 }
 
-/** Создаёт связку вместе со всеми 14 этапами и их чек-листами в транзакции вызывающего. */
+/**
+ * Создаёт связку вместе со всеми 14 этапами и их чек-листами в транзакции вызывающего.
+ *
+ * Этапы и задачи пишутся двумя `createMany` (решение 190, ревью базы), а не циклом
+ * `create` на каждый из 14 этапов — раньше под блокировкой программы (`lockProgram`)
+ * шло до 14 последовательных запросов на этапы плюс ещё по одному на чек-лист
+ * каждого, и чем дольше держится блокировка, тем дольше ждёт вторая параллельная
+ * попытка завести связку по той же программе. Id этапов генерируются в приложении
+ * (`randomUUID`, а не `cuid()` из схемы): `createMany` не возвращает созданные строки
+ * для Postgres, а id этапа нужен заранее — им помечаются его задачи.
+ */
 export async function createWithStages(
   tx: Prisma.TransactionClient,
   data: Prisma.CooperationCreateInput,
@@ -210,18 +221,30 @@ export async function createWithStages(
 ): Promise<string> {
   const cooperation = await tx.cooperation.create({ data, select: { id: true } })
 
-  for (const stage of stages) {
-    await tx.workflowStage.create({
-      data: {
-        cooperationId: cooperation.id,
-        stageNumber: stage.stageNumber,
-        title: stage.title,
-        phase: stage.phase,
-        deadline: stage.deadline,
-        responsibleId: stage.responsibleId,
-        ...(stage.tasks.length > 0 ? { tasks: { createMany: { data: stage.tasks } } } : {}),
-      },
-    })
+  const stageIds = stages.map(() => randomUUID())
+  await tx.workflowStage.createMany({
+    data: stages.map((stage, index) => ({
+      id: stageIds[index],
+      cooperationId: cooperation.id,
+      stageNumber: stage.stageNumber,
+      title: stage.title,
+      phase: stage.phase,
+      deadline: stage.deadline,
+      responsibleId: stage.responsibleId,
+    })),
+  })
+
+  const tasks = stages.flatMap((stage, index) =>
+    stage.tasks.map((task) => ({
+      stageId: stageIds[index]!,
+      title: task.title,
+      isRequired: task.isRequired,
+      isUniversityItem: task.isUniversityItem,
+      sortOrder: task.sortOrder,
+    })),
+  )
+  if (tasks.length > 0) {
+    await tx.task.createMany({ data: tasks })
   }
 
   return cooperation.id
