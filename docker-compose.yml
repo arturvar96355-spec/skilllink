@@ -86,6 +86,9 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # Контрольная группа рекомендаций (решение 126). По умолчанию выключена: на стенде
+      # показа сценарий опирается на рекомендации, прятать их нельзя.
+      RECOMMENDATION_EXPERIMENT: ${RECOMMENDATION_EXPERIMENT:-off}
     ports:
       # Только 127.0.0.1 — по той же причине. Снаружи приложение открывают
       # через прокси с HTTPS (deploy/yandex-cloud), а не напрямую.

@@ -1,8 +1,24 @@
 # PROGRESS.md — прогресс, риски, незавершённое
 
-Обновлено: 25.09.2026.
+Обновлено: 26.09.2026.
 
 ## Состояние
+
+**Контрольная группа для рекомендаций и оценка прироста (26.09.2026, решение 126,
+ветка `feat/rec-control-group`).** Часть допустимых сигналов правил (по умолчанию
+10 %, детерминированно по хешу правила, объекта и периода) уходит в контроль:
+сигнал пишется в журнал `recommendation_signals`, рекомендация сотруднику не
+показывается. Просрочки сроков, связка без IT-продукта, застой на контрольной
+точке и любой критичный сигнал в контроль не уходят никогда. Через окно в 30 дней
+сравнивается конверсия treatment/control по принципу «по назначению» (intention-to-treat):
+абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба),
+интервал Уэлча для дней до перехода, последовательная проверка Вальда (SPRT) для
+раннего вывода, честные статусы «мало данных» / «прирост не доказан» / «прирост есть».
+`GET /api/recommendations/experiment`, параметр-выключатель на демо-стенде выключен
+по умолчанию (сценарий показа опирается на рекомендации). `npm run recs:experiment-sim`
+проверяет оценку на выдуманных данных с известным эффектом. Подробности —
+[RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md), формулы и обоснование —
+[TECHNICAL_DECISIONS.md](TECHNICAL_DECISIONS.md#126-контрольная-группа-для-рекомендаций-и-оценка-прироста).
 
 **Общее ограничение частоты запросов к API (25.09.2026, решение 117, ветка `sec/rate-limit`).**
 Все маршруты `/api/*`, кроме проверки живости и вебхука Telegram, считают запросы
@@ -210,7 +226,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 обе добавки описаны в [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) и требуют согласования
 с Тиграном.
 
-### Модули и эндпоинты — 75 маршрутов, 97 операций
+### Модули и эндпоинты — 76 маршрутов, 98 операций
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -224,7 +240,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked` |
 | analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs` |
-| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id` |
+| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/experiment` — контрольная группа и прирост (решение 126) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate` |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
 | portal | `GET /api/portal/overview`; `GET /api/portal/materials`; `POST /api/portal/materials/:taskId/confirm`; `PATCH /api/portal/programs/:id/metrics`; `GET`, `POST /api/portal/applications` |
@@ -390,7 +406,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` — 74 пути, 97 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 75 путей, 98 операций. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

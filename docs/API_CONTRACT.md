@@ -1665,6 +1665,58 @@ curl -s -X PATCH http://localhost:3000/api/recommendations/<id> \
 Комментарий сотрудника пишется в `resolutionComment`; `justification` — обоснование системы —
 не переписывается.
 
+### GET /api/recommendations/experiment
+
+Право: `ANALYTICS`. «Работают ли рекомендации» — контрольная группа и оценка прироста
+(решение 126, объяснение целиком — [RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md)).
+Часть допустимых сигналов правил по хешу (правило + объект + период) уходит в контроль:
+сигнал пишется в журнал `recommendation_signals`, рекомендация сотруднику не показывается.
+Просрочки сроков и критичные сигналы в контроль не уходят никогда. Тело запроса не нужно.
+
+```json
+{
+  "data": {
+    "enabled": false,
+    "controlShare": 0.1,
+    "horizonDays": 30,
+    "minControlForVerdict": 30,
+    "confidenceLevel": 0.95,
+    "overall": {
+      "nTreatment": 812,
+      "nControl": 94,
+      "successesTreatment": 361,
+      "successesControl": 30,
+      "convT": 0.444,
+      "convC": 0.319,
+      "lift": 0.125,
+      "relativeLift": 0.392,
+      "ci": { "low": 0.021, "high": 0.229 },
+      "days": { "meanTreatment": 14.2, "meanControl": 18.7, "diff": -4.5, "ci": { "low": -8.1, "high": -0.9 }, "df": 121.4 },
+      "sequential": { "llr": 3.1, "upper": 2.77, "lower": -1.56, "decision": "lift", "conversions": 58 },
+      "status": "lift",
+      "statusLabel": "Прирост есть",
+      "pendingTreatment": 40,
+      "pendingControl": 6,
+      "since": "2026-06-01T00:00:00.000Z"
+    },
+    "rules": [
+      { "ruleType": "cooperation.stalled", "label": "Связка без движения", "controlEligible": true, "...": "тот же набор полей, что в overall" }
+    ],
+    "journal": { "total": 950, "randomized": 906, "byAssignment": { "hash": 906, "excluded-rule": 20, "already-shown": 24 } },
+    "warnings": [],
+    "generatedAt": "2026-09-26T09:00:00.000Z"
+  }
+}
+```
+
+`status`: `insufficient-data` — в контроле или в группе меньше `minControlForVerdict` исходов;
+`not-proven` — 95 % интервал разности долей содержит 0; `lift` — весь интервал выше 0;
+`negative` — весь интервал ниже 0 (с рекомендацией хуже). `ci` — интервал по методу
+10 Ньюкомба, `days.ci` — интервал Уэлча для разности средних (дни до сдвига, не сдвинулся
+за окно — считается как `horizonDays`). `sequential` — последовательная проверка Вальда:
+можно ли остановить сбор раньше. Знаменатель везде — все назначенные (принцип «по назначению»),
+а не только показанные или взятые в работу.
+
 ---
 
 ## 10а. ИИ-помощник (решение 90)

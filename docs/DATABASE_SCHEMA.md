@@ -359,6 +359,27 @@ UNIQUE: (`rule_key`, `object_type`, `object_id`) — чтобы повторна
 второе — решение человека. Писать комментарий сотрудника поверх обоснования значило бы
 потерять причину, по которой рекомендация вообще появилась.
 
+### recommendation_signals — контрольная группа рекомендаций (решение 126)
+
+Журнал: «правило сработало по объекту» — пишется всегда, даже если эксперимент выключен.
+`rule_type`, `entity_type`, `entity_id`, `period_key` (отрезок в `horizonDays` дней от
+01.01.1970 UTC — «30d-684»), `fired_at`, `arm` (enum `ExperimentArm`: `treatment` | `control`),
+`assigned_by` (`hash` — случайно, участвует в оценке; `experiment-off`, `excluded-rule`,
+`already-shown`, `dismissed`, `resolved` — вне оценки, всегда `treatment`), `recommendation_id?`
+(FK на `recommendations`, SET NULL), `context` (jsonb — этап связки, программы навыка, доля
+контроля на момент сигнала), `outcome_at?`, `outcome?` (jsonb — `{ state, days, event,
+evaluatedAt }`), `created_at`.
+
+UNIQUE: (`rule_type`, `entity_type`, `entity_id`, `period_key`) — один сигнал на правило,
+объект и период; повторная пересборка не назначает группу заново.
+
+CHECK `recommendation_signals_arm_check` — у `control` нет `recommendation_id` и он назначен
+только по хешу (`assigned_by = 'hash'`): иначе «контрольная группа» видела бы рекомендацию.
+CHECK `recommendation_signals_assigned_by_check` — `assigned_by` из закрытого списка.
+
+Персональных данных в таблице нет: правило, объект (связка, программа, навык), время,
+группа и исход движения. Подробности сбора и оценки — [RECOMMENDATIONS_EXPERIMENT.md](RECOMMENDATIONS_EXPERIMENT.md).
+
 ### data_sources
 
 `name` UNIQUE, `type` (MANUAL, CSV, EXTERNAL_API, LMS, SITE, MOCK), `url?`, `collection_date?`,

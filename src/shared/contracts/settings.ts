@@ -59,6 +59,7 @@ export type CalculationParameterGroupId =
   | 'skillProfile'
   | 'workflow'
   | 'recommendations'
+  | 'recommendationExperiment'
   | 'login'
   | 'retention'
 

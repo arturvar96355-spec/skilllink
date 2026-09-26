@@ -31,6 +31,8 @@
     "db:verify": "tsx scripts/db-verify.ts",
     "db:retention": "tsx scripts/retention.ts",
     "telegram:digest": "tsx scripts/telegram-digest.ts",
+    "recs:experiment-report": "tsx scripts/recs-experiment-report.ts",
+    "recs:experiment-sim": "tsx scripts/recs-experiment-sim.ts",
     "bench": "tsx scripts/bench.ts",
     "demo:check": "tsx scripts/demo-check.ts"
   },

@@ -15,6 +15,7 @@ import type { SkillLevel } from '@/shared/contracts/enums'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { demandNormalizer, demandPerSkill } from '@/modules/skills/skills.rules'
 import * as repo from './recommendations.repo'
+import { withControlGroup } from './experiment/experiment.service'
 import {
   assertRecommendationTransition,
   compareDraftsByImportance,
@@ -217,7 +218,11 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   // В порядке ленты: новые записи получают время создания по этому порядку,
   // и при равной важности лента и главная показывают их одинаково всегда.
   drafts.sort(compareDraftsByImportance)
-  const { created, updated, keys } = await repo.upsertDrafts(drafts, now)
+  // Контрольная группа (решение 126): сигнал пишется в журнал всегда, рекомендация
+  // из контроля не создаётся. Ключи контроля остаются среди актуальных — не закрываются.
+  const { created, updated, keys } = await withControlGroup(drafts, now, (shown) =>
+    repo.upsertDrafts(shown, now),
+  )
   const stillActualKeys = [
     ...keys,
     ...deferredGaps.map(recommendationKey),

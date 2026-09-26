@@ -3111,6 +3111,73 @@ async function checkRecommendationFeedOrder(ctx: ProbeContext): Promise<void> {
   actAs(null)
 }
 
+interface ExperimentStatsShape {
+  nTreatment: number
+  nControl: number
+  convT: number | null
+  convC: number | null
+  ci: { low: number; high: number } | null
+  status: string
+}
+
+interface ExperimentReportShape {
+  enabled: boolean
+  controlShare: number
+  horizonDays: number
+  overall: ExperimentStatsShape
+  rules: Array<ExperimentStatsShape & { ruleType: string; controlEligible: boolean }>
+  journal: { total: number; randomized: number; byAssignment: Record<string, number> }
+}
+
+async function checkRecExperiment(ctx: ProbeContext): Promise<void> {
+  step('Работают ли рекомендации: контрольная группа закрыта от представителя вуза, форма отчёта верна')
+  const { adminId, rep } = ctx
+
+  if (rep) {
+    actAs(rep.id)
+    const asRep = await call('GET', '/api/recommendations/experiment')
+    check('представителю вуза отчёт эксперимента закрыт', asRep.status === 403, `статус ${asRep.status}`)
+    actAs(null)
+  }
+
+  if (!adminId) return
+  actAs(adminId)
+  const asAdmin = await call<ExperimentReportShape>('GET', '/api/recommendations/experiment')
+  check('администратору (роль с правом ANALYTICS) отчёт эксперимента открыт', asAdmin.status === 200, `статус ${asAdmin.status}`)
+  const body = asAdmin.body.data
+
+  check(
+    'доля контроля в пределах 0…0,25 (потолок, решение 126)',
+    !!body && body.controlShare >= 0 && body.controlShare <= 0.25,
+    `controlShare=${body?.controlShare}`,
+  )
+  check(
+    'просрочка срока никогда не помечена допустимой для контроля — этическая граница эксперимента',
+    !!body?.rules.find((r) => r.ruleType === 'stage.overdue' && r.controlEligible === false),
+  )
+  check(
+    'связка без IT-продукта тоже не уходит в контроль',
+    !!body?.rules.find((r) => r.ruleType === 'cooperation.no-product' && r.controlEligible === false),
+  )
+  // Знаменатель — все назначенные (по хешу), не только с известной судьбой рекомендации:
+  // сумма журнала по способам назначения не меньше числа сигналов по хешу.
+  const randomizedByAssignment = body?.journal.byAssignment.hash ?? 0
+  check(
+    'журнал: сигналов по хешу не больше, чем всего в журнале',
+    !!body && randomizedByAssignment <= body.journal.total && body.journal.randomized === randomizedByAssignment,
+    `randomized=${body?.journal.randomized}, hash=${randomizedByAssignment}, total=${body?.journal.total}`,
+  )
+  for (const scope of [body?.overall, ...(body?.rules ?? [])]) {
+    if (!scope) continue
+    check(
+      'статус согласован с объёмом и интервалом (мало данных / не доказан / есть / хуже)',
+      ['insufficient-data', 'not-proven', 'lift', 'negative'].includes(scope.status),
+      scope.status,
+    )
+  }
+  actAs(null)
+}
+
 async function checkCalculationParameters(ctx: ProbeContext): Promise<void> {
   step('Параметры расчётов: значения из кода, права ролей')
   const { rep } = ctx
@@ -4637,6 +4704,7 @@ async function main(): Promise<void> {
   await checkProblemCounter(ctx)
   await checkCooperationCount(ctx)
   await checkRecommendationFeedOrder(ctx)
+  await checkRecExperiment(ctx)
   await checkCalculationParameters(ctx)
   await checkSkillDirectory(ctx)
   await checkSkillNameConsistency(ctx)
