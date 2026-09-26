@@ -1,7 +1,6 @@
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { log } from '@/shared/log'
-import { createTtlMemo } from '@/shared/cache/ttl-memo'
 import { STALLED_THRESHOLD } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
@@ -261,21 +260,6 @@ export async function stalledPreview(
 
 // ─────────────────────────────── Воронка ────────────────────────────────────
 
-/**
- * Хронологии связок для воронки и когорт — кеш на минуту, ключ по области
- * видимости (решение 190, ревью базы, тот же приём, что `sharedInsights` в
- * pulse.extras.ts, решение 120). Воронка и когорты у одного пользователя
- * обычно открывают в одном заходе (сводная страница аналитики), и без кеша
- * это два одинаковых полных запроса связок с их этапами и историей подряд.
- * Свежесть в минуту не мешает: это не оперативная лента, а разбор по истории.
- */
-const TIMELINE_ROWS_TTL_MS = 60_000
-const timelineRowsMemo = createTtlMemo<string, repo.TimelineRow[]>(TIMELINE_ROWS_TTL_MS)
-
-function cachedTimelineRows(scope: { universityId?: string }, now: Date): Promise<repo.TimelineRow[]> {
-  return timelineRowsMemo(scope.universityId ?? '*', now, () => repo.findTimelineRows(scope))
-}
-
 function groupOf(row: repo.TimelineRow, groupBy: FunnelQuery['groupBy']): FunnelSubject['group'] {
   switch (groupBy) {
     case 'region':
@@ -303,7 +287,7 @@ function inPeriod(timeline: StageTimeline, query: Pick<FunnelQuery, 'from' | 'to
 
 export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = new Date()): Promise<FunnelDto> {
   assertCan(user, 'ANALYTICS')
-  const rows = await cachedTimelineRows(universityScope(user), now)
+  const rows = await repo.findTimelineRows(universityScope(user))
   const subjects: FunnelSubject[] = []
   for (const row of rows) {
     const timeline = toTimeline(row, now)
@@ -337,7 +321,7 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
 
 export async function cohorts(user: CurrentUser, now: Date = new Date()): Promise<CohortsDto> {
   assertCan(user, 'ANALYTICS')
-  const rows = await cachedTimelineRows(universityScope(user), now)
+  const rows = await repo.findTimelineRows(universityScope(user))
   const timelines = rows.map((row) => toTimeline(row, now))
   return {
     milestone: { key: COHORT_MILESTONE.key, title: COHORT_MILESTONE.title, fromStage: COHORT_MILESTONE.fromStage },
