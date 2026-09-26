@@ -45,12 +45,14 @@ import {
   EXTRA_PROGRAMS,
   EXTRA_SKILLS,
   EXTRA_UNIVERSITIES,
+  fillProgramSkills,
+  MORE_SKILLS,
   REGIONAL_SOURCE,
   type CooperationPattern,
   type CooperationSpec,
   type ProgramSpec,
 } from './catalog'
-import { Rng } from './random'
+import { Rng, validInn, validOgrn } from './random'
 
 export const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -228,6 +230,9 @@ export interface DemoUniversity {
   updatedAt: Date
   archivedAt: Date | null
   contacts: DemoContact[]
+  /// ИНН/ОГРН с верной контрольной суммой (решение 134, решение 141) — prisma/demo/random.ts.
+  inn: string
+  ogrn: string
 }
 
 export interface DemoApplication {
@@ -379,16 +384,6 @@ function workTimeAfter(date: Date, rng: Rng): Date {
   if (result < date) result = atWorkHour(addDays(date, 1), rng)
   while (isWeekend(result)) result = atWorkHour(addDays(result, 1), rng)
   return result
-}
-
-/** Начало ближайшего семестра не раньше даты: 1 сентября или 9 февраля. */
-function nextSemesterStart(date: Date): Date {
-  const year = date.getUTCFullYear()
-  const candidates = [
-    Date.UTC(year, 1, 9, 6), Date.UTC(year, 8, 1, 6), Date.UTC(year + 1, 1, 9, 6), Date.UTC(year + 1, 8, 1, 6),
-  ]
-  const found = candidates.find((time) => time >= date.getTime())
-  return new Date(found ?? candidates[candidates.length - 1]!)
 }
 
 const ddmm = (date: Date) =>
@@ -550,10 +545,21 @@ function generateCooperation(spec: CooperationSpec, context: CooperationContext)
   statuses.set(14, computeControlStatus([...statuses.values()]))
 
   // ── Начало занятий ──
+  //
+  // Плановая дата раньше снималась на ближайшую границу семестра (1 сентября/
+  // 9 февраля) — настоящую календарную дату, которая не сдвигается вместе
+  // с anchor. А firstContactAt anchor-относителен («N дней назад» растёт с каждым
+  // днём), и разрыв между ними «плыл» на день-два при каждой перезаливке в другой
+  // день — отсюда «дней до начала занятий» и доля этапов 11–14 «в срок» (их дедлайн
+  // считается от classesStartAt) не совпадали между прогонами (решение 141, замечание
+  // владельца). Теперь дата — фиксированный anchor-относительный отступ, как и
+  // остальные плановые сроки набора: перезаливка в другой день даёт для той же
+  // связки то же число дней до занятий, до 14.10 и позже.
   const open = spec.status === 'ACTIVE' || spec.status === 'DRAFT' || spec.status === 'PAUSED'
   let classesStartAt: Date | null = enter.get(11) ?? null
   if (!classesStartAt && open && current >= 4) {
-    classesStartAt = stabilize(clock, nextSemesterStart(maxDate(addDays(startedAt, 150), addDays(anchor, 30))))
+    const classesRng = new Rng(`classes-start:${spec.key}`)
+    classesStartAt = addDays(maxDate(addDays(startedAt, 150), addDays(anchor, 30)), classesRng.int(0, 45))
   }
 
   // ── Сроки ──
@@ -1081,6 +1087,8 @@ function generateUniversities(clock: Clock, earliestStart: Map<string, Date>): D
       updatedAt,
       archivedAt,
       contacts,
+      inn: validInn(spec.key),
+      ogrn: validOgrn(spec.key),
     }
   })
 }
@@ -1141,7 +1149,7 @@ function generatePrograms(clock: Clock, universityCreatedAt: (key: string) => Da
         status === 'ARCHIVED'
           ? (universityArchivedAt(spec.university) ?? workTimeBefore(addDays(clock.anchor, -rng.uniform(60, 150)), rng))
           : null,
-      skills: spec.skills,
+      skills: fillProgramSkills(spec.key, spec.skills),
       applications: generateApplications(spec, clock),
     }
   })
@@ -1252,9 +1260,12 @@ function generateResolvedRecommendations(coops: readonly DemoCooperation[], prog
  * сколько встреч). Вузы основного сида — кроме СПбГУТ (сценарий кабинета вуза)
  * и тех, где работа стоит или закрыта.
  */
+// Решение 141 подняло фон встреч (4–7 связок на вуз вместо 2–3): счётчики здесь
+// увеличены, чтобы всплеск оставался заметно выше фона при любом дне заливки
+// (generate.test.ts, «всплеск спроса … ловится детектором», все 7 сдвигов).
 export const DEMAND_SPIKE_UNIVERSITIES: ReadonlyArray<readonly [string, number]> = [
-  ['unn', 3], ['psuti', 3], ['sfu', 3], ['dvfu', 3], ['uust', 3], ['vsu', 2], ['omgtu', 3],
-  ['irnitu', 3], ['kantiana', 3], ['innopolis', 3], ['mtuci', 3], ['kazan', 3], ['nsu', 2], ['urfu', 3],
+  ['unn', 5], ['psuti', 5], ['sfu', 5], ['dvfu', 5], ['uust', 5], ['vsu', 3], ['omgtu', 5],
+  ['irnitu', 5], ['kantiana', 5], ['innopolis', 5], ['mtuci', 5], ['kazan', 5], ['nsu', 3], ['urfu', 5],
 ]
 
 /**
@@ -1363,7 +1374,7 @@ export function generateDemoData(options: DemoOptions): DemoData {
   return {
     anchor: options.anchor,
     stableUntil: options.stableUntil,
-    skills: EXTRA_SKILLS,
+    skills: [...EXTRA_SKILLS, ...MORE_SKILLS],
     market,
     products,
     universities,
