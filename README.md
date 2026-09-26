@@ -152,6 +152,7 @@ npm run analytics:report             # длительность этапов, в
 | [docs/SETUP.md](docs/SETUP.md) | Установка, запуск, тесты, интеграции — подробно |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Развёртывание и обслуживание стенда |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура и модули |
+| [docs/TZ_COMPLIANCE.md](docs/TZ_COMPLIANCE.md) | **Соответствие ТЗ РТК: пункт → экран, API, решение** |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | Контракт API: эндпоинты, поля, ошибки, примеры |
 | [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) | Схема базы |
 | [docs/DATABASE_ANSWERS.md](docs/DATABASE_ANSWERS.md) | База данных: короткие ответы экспертам |
