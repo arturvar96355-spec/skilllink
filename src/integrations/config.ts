@@ -71,11 +71,26 @@ export interface AiAssistConfig {
 }
 
 /**
+ * Как бот принимает обновления (решение 142): `webhook` — только вебхук,
+ * `polling` — только long polling (`getUpdates`), `auto` — вебхук, пока он
+ * отвечает, иначе сам процесс переключается на polling. Администратор может
+ * задать режим и в админке — тогда запись в базе главнее переменной окружения
+ * (`integrations/telegram/runtime-config.ts`).
+ */
+export const TELEGRAM_MODE_VALUES = ['webhook', 'polling', 'auto'] as const
+export type TelegramMode = (typeof TELEGRAM_MODE_VALUES)[number]
+
+function readTelegramMode(): TelegramMode {
+  const raw = readString('TELEGRAM_MODE') ?? 'auto'
+  return (TELEGRAM_MODE_VALUES as readonly string[]).includes(raw) ? (raw as TelegramMode) : 'auto'
+}
+
+/**
  * Бот личных уведомлений в Telegram (решение 102). Выключен, пока не задан токен:
  * блок в профиле пишет «Не настроено администратором», вебхук ничего не делает.
  */
 export interface TelegramConfig {
-  /** Токен от BotFather. Секрет: только в env, в журнал и в ответы не попадает. */
+  /** Токен от BotFather. Секрет: env или база (зашифрован, решение 142) — в журнал и в ответы не попадает. */
   botToken: string | null
   /** Имя бота без @ — для ссылки t.me/<имя>?start=<токен привязки>. */
   botUsername: string | null
@@ -91,6 +106,8 @@ export interface TelegramConfig {
   timeoutMs: number
   /** Бот работает: есть и токен, и имя, и секрет вебхука. */
   enabled: boolean
+  /** Режим приёма обновлений — из env, TELEGRAM_MODE (решение 142). */
+  mode: TelegramMode
 }
 
 export const TELEGRAM_DEFAULT_API_BASE = 'https://api.telegram.org'
@@ -126,6 +143,7 @@ function readTelegramConfig(timeoutMs: number): TelegramConfig {
     apiIp: readTelegramApiIp(),
     timeoutMs,
     enabled: botToken !== null && botUsername !== null && webhookSecret !== null,
+    mode: readTelegramMode(),
   }
 }
 

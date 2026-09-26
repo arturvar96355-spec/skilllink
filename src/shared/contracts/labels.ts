@@ -364,6 +364,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'approval.rejected': 'В одобрении операции отказано',
   'approval.consumed': 'Одобрение использовано',
   'audit.export': 'Выгрузка журнала для внешней системы',
+  'telegram.token_changed': 'Сменён токен бота Telegram',
+  'telegram.token_removed': 'Бот Telegram отключён (токен удалён)',
+  'telegram.mode_switched': 'Изменён режим приёма обновлений Telegram',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */

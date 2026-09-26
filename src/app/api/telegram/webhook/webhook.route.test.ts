@@ -49,6 +49,7 @@ vi.mock('@/integrations/config', async (importOriginal) => {
     apiIp: null,
     timeoutMs: 1000,
     enabled: true,
+    mode: 'webhook',
   }
   return { ...original, getIntegrationsConfig: () => ({ ...original.getIntegrationsConfig(), telegram }) }
 })

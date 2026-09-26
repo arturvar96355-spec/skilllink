@@ -42,6 +42,35 @@ export type TelegramSetWebhookResult =
   | { ok: true }
   | { ok: false; reason: 'disabled' | 'failed'; status: number | null; description: string | null }
 
+/** Итог getMe — проверка токена (решение 142, смена токена в админке). */
+export type TelegramGetMeResult =
+  | { ok: true; username: string }
+  | { ok: false; reason: 'disabled' | 'failed'; status: number | null; description: string | null }
+
+/** Итог deleteWebhook — перед стартом long polling (решение 142): вебхук и polling не работают одновременно. */
+export type TelegramDeleteWebhookResult =
+  | { ok: true }
+  | { ok: false; reason: 'disabled' | 'failed'; status: number | null; description: string | null }
+
+/** `getWebhookInfo` — для админки и для решения auto-режима, свежий ли вебхук. */
+export interface TelegramWebhookInfo {
+  url: string
+  pendingUpdateCount: number
+  lastErrorDate: Date | null
+  lastErrorMessage: string | null
+}
+
+export type TelegramGetWebhookInfoResult =
+  | { ok: true; info: TelegramWebhookInfo }
+  | { ok: false; reason: 'disabled' | 'failed'; status: number | null }
+
+/** Одно обновление `getUpdates` — тело не проверяется здесь, это делает `telegramUpdateSchema`. */
+export type TelegramRawUpdate = Record<string, unknown>
+
+export type TelegramGetUpdatesResult =
+  | { ok: true; updates: TelegramRawUpdate[] }
+  | { ok: false; reason: 'disabled' | 'aborted' | 'failed'; status: number | null; description: string | null }
+
 /** Одна повторная попытка: сводка раз в день, долго биться незачем. */
 const ATTEMPTS = 2
 /** Пауза перед повтором, если Telegram не сказал, сколько ждать. */
@@ -173,6 +202,144 @@ export class TelegramClient {
       const reason = error instanceof Error ? this.redact(error.message) : 'неизвестная ошибка'
       log.warn('[integration:telegram] setWebhook не выполнен', { reason })
       return { ok: false, reason: 'failed', status: null, description: null }
+    }
+  }
+
+  /** Токен верный и бот существует — для смены токена в админке (решение 142). */
+  async getMe(): Promise<TelegramGetMeResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null, description: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/getMe`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: '{}',
+        timeoutMs: this.config.timeoutMs,
+        ca: null,
+        connectAddress: this.config.apiIp,
+      })
+      const reply = parseReply(response.body) as BotApiReply & { result?: { username?: unknown } }
+      if (response.status === 200 && reply.ok === true && typeof reply.result?.username === 'string') {
+        return { ok: true, username: reply.result.username }
+      }
+      const description = typeof reply.description === 'string' ? this.redact(reply.description).slice(0, 200) : null
+      return { ok: false, reason: 'failed', status: response.status, description }
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'failed',
+        status: null,
+        description: error instanceof Error ? this.redact(error.message) : null,
+      }
+    }
+  }
+
+  /**
+   * Снять вебхук перед стартом long polling (решение 142): у Telegram активны
+   * либо вебхук, либо `getUpdates` — оставленный вебхук иначе забирал бы
+   * обновления первым, и polling не увидел бы ничего.
+   */
+  async deleteWebhook(): Promise<TelegramDeleteWebhookResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null, description: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/deleteWebhook`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: '{}',
+        timeoutMs: this.config.timeoutMs,
+        ca: null,
+        connectAddress: this.config.apiIp,
+      })
+      const reply = parseReply(response.body)
+      if (response.status === 200 && reply.ok === true) return { ok: true }
+      log.warn('[integration:telegram] deleteWebhook отклонён', { status: response.status })
+      return { ok: false, reason: 'failed', status: response.status, description: null }
+    } catch (error) {
+      log.warn('[integration:telegram] deleteWebhook не выполнен', {
+        reason: error instanceof Error ? this.redact(error.message) : 'неизвестная ошибка',
+      })
+      return { ok: false, reason: 'failed', status: null, description: null }
+    }
+  }
+
+  /** Адрес вебхука, необработанные обновления и последняя ошибка — для админки и auto-режима. */
+  async getWebhookInfo(): Promise<TelegramGetWebhookInfoResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/getWebhookInfo`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: '{}',
+        timeoutMs: this.config.timeoutMs,
+        ca: null,
+        connectAddress: this.config.apiIp,
+      })
+      const reply = parseReply(response.body) as BotApiReply & {
+        result?: {
+          url?: unknown
+          pending_update_count?: unknown
+          last_error_date?: unknown
+          last_error_message?: unknown
+        }
+      }
+      if (response.status !== 200 || reply.ok !== true || !reply.result) {
+        return { ok: false, reason: 'failed', status: response.status }
+      }
+      const result = reply.result
+      return {
+        ok: true,
+        info: {
+          url: typeof result.url === 'string' ? result.url : '',
+          pendingUpdateCount: typeof result.pending_update_count === 'number' ? result.pending_update_count : 0,
+          lastErrorDate: typeof result.last_error_date === 'number' ? new Date(result.last_error_date * 1000) : null,
+          lastErrorMessage: typeof result.last_error_message === 'string' ? result.last_error_message : null,
+        },
+      }
+    } catch {
+      return { ok: false, reason: 'failed', status: null }
+    }
+  }
+
+  /**
+   * Long polling (решение 142): ждёт до `timeoutSec` секунд у Telegram, пока не
+   * появится хотя бы одно обновление, начиная с `offset`. `signal` прерывает
+   * ожидание досрочно — аккуратная остановка по SIGTERM не должна ждать до
+   * четверти минуты. Локальный таймаут запроса — с запасом поверх `timeoutSec`,
+   * иначе транспорт оборвал бы соединение раньше, чем ответит сам Telegram.
+   */
+  async getUpdates(options: { offset?: number; timeoutSec: number; signal?: AbortSignal }): Promise<TelegramGetUpdatesResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null, description: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/getUpdates`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          offset: options.offset,
+          timeout: options.timeoutSec,
+          allowed_updates: ['message'],
+        }),
+        timeoutMs: (options.timeoutSec + 10) * 1000,
+        ca: null,
+        connectAddress: this.config.apiIp,
+        signal: options.signal,
+      })
+      const reply = parseReply(response.body) as BotApiReply & { result?: unknown }
+      if (response.status === 200 && reply.ok === true && Array.isArray(reply.result)) {
+        return { ok: true, updates: reply.result as TelegramRawUpdate[] }
+      }
+      const description = typeof reply.description === 'string' ? this.redact(reply.description).slice(0, 200) : null
+      return { ok: false, reason: 'failed', status: response.status, description }
+    } catch (error) {
+      if (options.signal?.aborted) return { ok: false, reason: 'aborted', status: null, description: null }
+      return {
+        ok: false,
+        reason: 'failed',
+        status: null,
+        description: error instanceof Error ? this.redact(error.message) : 'неизвестная ошибка',
+      }
     }
   }
 }

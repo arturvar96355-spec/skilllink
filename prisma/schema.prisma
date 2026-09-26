@@ -1390,13 +1390,19 @@ model TelegramUpdateSeen {
   @@map("telegram_updates_seen")
 }
 
-/// Секреты, которые меняются без перезапуска (секрет вебхука Telegram). Хранится только
-/// SHA-256 значения: проверке входящего запроса больше не нужно, а само значение
-/// знает только Telegram. Запись здесь главнее переменной окружения.
-/// CHECK в базе: value_hash — 64 шестнадцатеричных знака.
+/// Секреты, которые меняются без перезапуска. Два вида записи:
+/// - только хеш (секрет вебхука Telegram) — проверке входящего запроса больше не
+///   нужно само значение, оно только у Telegram;
+/// - зашифрованное значение (решение 142: токен бота Telegram, имя бота, режим
+///   приёма) — `value` хранит AES-256-GCM (nonce|tag|ciphertext, base64; ключ —
+///   HKDF от AUTH_SECRET) или, для не-секретных настроек вроде имени бота и
+///   режима, значение как есть. Запись здесь главнее переменной окружения.
+/// CHECK в базе: ровно одно из value_hash/value заполнено; value_hash, если есть, —
+/// 64 шестнадцатеричных знака.
 model SystemSecret {
-  name        String   @id
-  valueHash   String   @map("value_hash")
+  name        String  @id
+  valueHash   String? @map("value_hash")
+  value       String?
   rotatedAt   DateTime @default(now()) @map("rotated_at")
   rotatedById String?  @map("rotated_by_id")
 

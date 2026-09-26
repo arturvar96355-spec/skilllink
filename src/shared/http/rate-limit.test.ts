@@ -171,6 +171,15 @@ describe('группы маршрутов', () => {
     expect(rateLimitGroup('GET', '/api/universities/u1/contacts/c1/dsar')).toBe('heavy')
   })
 
+  it('админка бота Telegram (решение 142) — тяжёлые; rotate-webhook-secret (решение 133) — нет', () => {
+    expect(rateLimitGroup('GET', '/api/admin/telegram')).toBe('heavy')
+    expect(rateLimitGroup('PUT', '/api/admin/telegram/token')).toBe('heavy')
+    expect(rateLimitGroup('DELETE', '/api/admin/telegram/token')).toBe('heavy')
+    expect(rateLimitGroup('POST', '/api/admin/telegram/test')).toBe('heavy')
+    expect(rateLimitGroup('PUT', '/api/admin/telegram/mode')).toBe('heavy')
+    expect(rateLimitGroup('POST', '/api/admin/telegram/rotate-webhook-secret')).toBe('write')
+  })
+
   it('остальное: GET — чтение, изменения — запись', () => {
     expect(rateLimitGroup('GET', '/api/universities')).toBe('read')
     expect(rateLimitGroup('HEAD', '/api/universities')).toBe('read')

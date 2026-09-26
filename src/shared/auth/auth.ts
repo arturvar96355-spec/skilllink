@@ -11,6 +11,7 @@ import { loginAuditEntries, type LoginOutcome } from './login-audit'
 import { renewedSessionVersion, tokenSessionVersion } from './session-version'
 import { countSafely } from '@/shared/metrics/app-metrics'
 import { alertAdminLogin, alertLoginBlocked, noteCaptchaRequired } from '@/shared/ops/security-alerts'
+import { resolveSecret } from './secret'
 
 /**
  * Аутентификация на NextAuth.js с сессиями на JWT (как обещано в концепции).
@@ -64,8 +65,6 @@ declare module 'next-auth' {
   }
 }
 
-const DEV_SECRET = 'skilllink-dev-secret-not-for-production'
-
 /**
  * Хеш заведомо недостижимого пароля — только чтобы занять то же время,
  * что занимает настоящая проверка. Значением не является секретом.
@@ -73,30 +72,11 @@ const DEV_SECRET = 'skilllink-dev-secret-not-for-production'
 const TIMING_EQUALIZER_HASH = '$2b$10$CwTycUXWue0Thq9StjUM0uJ8e.VhYQ3o8KJ1p7hSJ3G0JhOqQZ1qi'
 
 /**
- * Секрет подписи JWT.
- *
- * В продакшене его отсутствие — падение при старте, а не тихая работа с известным
- * всем значением. Но на этапе сборки токены не выпускаются, и требовать там боевой
- * секрет нельзя: иначе `next build` не пройдёт ни в CI, ни при сборке образа, куда
- * секреты попадают только на запуске.
+ * Секрет подписи JWT — реализация в `./secret.ts` (модуль без NextAuth и Prisma,
+ * его безопасно подключать из `instrumentation.ts`, решение 142). Реэкспорт —
+ * чтобы весь остальной код по-прежнему брал секрет отсюда, как раньше.
  */
-export function resolveSecret(): string {
-  const secret = process.env.AUTH_SECRET
-  if (secret && secret.trim().length > 0) return secret
-
-  // Next выставляет эту переменную только во время `next build`.
-  const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
-  if (isBuildPhase) return DEV_SECRET
-
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      'Не задана переменная окружения AUTH_SECRET. Сгенерируйте её командой:\n' +
-        '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'base64\'))"\n' +
-        'Через node, а не openssl: на Windows openssl обычно не установлен.',
-    )
-  }
-  return DEV_SECRET
-}
+export { resolveSecret }
 
 export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   secret: resolveSecret(),
