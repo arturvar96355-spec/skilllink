@@ -11,6 +11,7 @@ import {
   readAttachmentFile,
   writeAttachmentFile,
 } from '@/shared/files/attachment-storage'
+import { mimeForExtension } from '@/shared/config/attachments.config'
 import * as documentsRepo from '@/modules/documents/documents.repo'
 import * as workflowRepo from '@/modules/workflow/workflow.repo'
 import * as repo from './attachments.repo'
@@ -73,7 +74,7 @@ export async function upload(
 ): Promise<AttachmentDto> {
   assertCan(user, 'WRITE')
   await assertOwnerVisible(user, ownerType, ownerId)
-  assertValidAttachment(file)
+  const extension = assertValidAttachment(file)
 
   const sha256 = createHash('sha256').update(file.bytes).digest('hex')
   const { storageKey } = await writeAttachmentFile(file.bytes)
@@ -82,7 +83,9 @@ export async function upload(
     ownerType,
     ownerId,
     originalName: file.name,
-    mime: file.type.trim() || 'application/octet-stream',
+    // Не file.type клиента — сервер сам знает тип по расширению, которое уже
+    // подтверждено сигнатурой в assertValidAttachment (решение 173, проблема 16).
+    mime: mimeForExtension(extension),
     size: file.size,
     sha256,
     storageKey,

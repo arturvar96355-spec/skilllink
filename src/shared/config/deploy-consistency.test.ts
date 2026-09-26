@@ -192,3 +192,36 @@ describe('переменные docker-compose и примеры .env говор�
     ).toEqual([])
   })
 })
+
+describe('HSTS выставляется и приложением, и Caddy (решение 173)', () => {
+  /**
+   * До решения 173 `Strict-Transport-Security` стоял только в Caddyfile: другой
+   * reverse proxy или локальный https без Caddy молча остались бы без заголовка.
+   * Дублирование — приложение отдаёт его само, — но два значения, разошедшиеся
+   * между собой, снова были бы такой же тихой опечаткой, только в двух файлах
+   * вместо одного, поэтому сверяем их здесь.
+   */
+  function headerValue(content: string, pattern: RegExp): string {
+    const match = pattern.exec(content)
+    expect(match, `Не нашёл Strict-Transport-Security по шаблону ${pattern}`).not.toBeNull()
+    return match![1]!.trim()
+  }
+
+  it('next.config.ts отдаёт Strict-Transport-Security для всех путей', () => {
+    const config = read('next.config.ts')
+    const value = headerValue(config, /key:\s*'Strict-Transport-Security',\s*value:\s*'([^']+)'/)
+    expect(value).toMatch(/^max-age=\d+/)
+  })
+
+  it('значение в next.config.ts совпадает со значением в Caddyfile', () => {
+    const appValue = headerValue(
+      read('next.config.ts'),
+      /key:\s*'Strict-Transport-Security',\s*value:\s*'([^']+)'/,
+    )
+    const caddyValue = headerValue(
+      read('deploy/yandex-cloud/Caddyfile'),
+      /header Strict-Transport-Security\s+"([^"]+)"/,
+    )
+    expect(appValue, 'next.config.ts и Caddyfile выставляют разный HSTS — один из них устарел').toBe(caddyValue)
+  })
+})
