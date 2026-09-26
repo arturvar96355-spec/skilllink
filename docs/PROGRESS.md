@@ -14,8 +14,8 @@
 там дата описывает решение своего момента); ник `@mister_pohuy` и остальные телеграм-логины
 убраны из `docs/concept.md`; реквизиты оператора ПД — переменные окружения `OPERATOR_NAME`,
 `OPERATOR_ADDRESS`, `OPERATOR_CONTACT` с понятной заглушкой вместо `TODO: PM DECISION`;
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (42 модели, 25 миграций, 124
-маршрута, 149 операций), `docs-counts.test.ts` расширен на модели и миграции; README —
+числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (42 модели, 25 миграций, 128
+маршрутов, 154 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
 разделы «Проверить за 10 минут», «Как мы работали», «Что не вошло и почему», «Масштаб
 на 29.09»; демо-сид «почти дублей» для качества данных — под флагом `SEED_DQ_CASES=1`,
 по умолчанию выключен (без экрана слияния во фронте это был мусор в реестре без способа
@@ -384,7 +384,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 
 ### Модули и эндпоинты
 
-### Модули и эндпоинты — 124 маршрута, 149 операций
+### Модули и эндпоинты — 128 маршрутов, 154 операции
 
 | Модуль | Эндпоинты |
 | --- | --- |
@@ -423,6 +423,7 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | contacts | `POST /api/contacts/:id/reveal` — раскрытие почты и телефона контакта с причиной, решение 133 |
 | client-errors | `POST /api/client-errors` — приём ошибок фронтенда, без входа, решение 133 |
 | admin (безопасность) | `POST /api/admin/telegram/rotate-webhook-secret`; `GET`, `POST /api/admin/approvals`; `POST …/:id/approve`, `POST …/:id/reject`; `GET /api/admin/audit/export` — решение 133 |
+| admin (бот Telegram) | `GET /api/admin/telegram` — статус; `PUT`, `DELETE /api/admin/telegram/token`; `PUT /api/admin/telegram/mode`; `POST /api/admin/telegram/test` — админка бота, перепривязка сотрудником, приём без вебхука, решение 142 |
 | dsar | `GET /api/me/data-export`; `GET /api/admin/dsar/users/:id/export`, `GET /api/admin/dsar/contacts/:id/export`; `POST /api/admin/dsar/users/:id/erase`, `POST /api/admin/dsar/contacts/:id/erase`; `GET`, `POST /api/admin/dsar/requests` — права субъекта ПД, решение 116 |
 
 ### Workflow
@@ -580,7 +581,7 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 `docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
 
-`docs/openapi.json` и `GET /api/openapi.json` — 123 пути, 149 операций. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 127 путей, 154 операции. Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

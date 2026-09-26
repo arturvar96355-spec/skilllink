@@ -228,7 +228,9 @@ export function createOwnerNotifier(deps: OwnerNotifierDeps): OwnerNotifier {
 
 // ── Экземпляр приложения ─────────────────────────────────────────────────────
 
-const CHAT_ID = /^-?\d{1,20}$/
+/** Формат идентификатора чата Telegram — переиспользуется админкой бота (решение 142). */
+export const OWNER_CHAT_ID_PATTERN = /^-?\d{1,20}$/
+const CHAT_ID = OWNER_CHAT_ID_PATTERN
 
 /** Администраторы с привязанным ботом и чат владельца из настроек. */
 async function ownerRecipients(): Promise<string[]> {

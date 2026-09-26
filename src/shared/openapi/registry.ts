@@ -24,7 +24,7 @@ import {
   notificationFeedQuerySchema,
 } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
-import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import { telegramSetModeSchema, telegramSetTokenSchema, telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
 import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
 import {
   changePasswordSchema,
@@ -391,8 +391,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Отдаёт url вида https://t.me/<бот>?start=<токен> и срок expiresAt. Токен — HMAC над id ' +
       'пользователя и сроком, живёт 15 минут, срабатывает один раз; в базе не хранится. ' +
       'Привязка появляется, когда пользователь нажмёт «Старт» в Telegram. Работает и при уже ' +
-      'существующей привязке — «Перепривязать» (решение 142): «Старт» под другим аккаунтом переносит ' +
-      'привязку на новый чат, в прежний чат уходит одно сообщение о переносе. Бот не настроен — 502. Тело не нужно.',
+      'существующей привязке — «Перепривязать» (решение 142): «Старт» в другом чате переносит туда ' +
+      'привязку, в прежний чат уходит одно сообщение о переносе. Бот не настроен — 502. Тело не нужно.',
     permission: 'ANALYTICS',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
@@ -1804,6 +1804,72 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ADMIN',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  // ── Админка бота Telegram (решение 142) ──────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/admin/telegram',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: статус',
+    description:
+      'Настроен ли бот, @имя, режим (webhook/polling/auto — настройка) и running (что происходит фактически: ' +
+      'webhook/polling/off), адрес вебхука и необработанные обновления по данным Telegram (живой запрос), ' +
+      'последняя ошибка и её время, число сотрудников с личной привязкой, откуда действующий токен ' +
+      '(env/база/нет), задан ли TELEGRAM_OWNER_CHAT_ID. Токена в ответе нет.',
+    permission: 'ADMIN',
+    errors: [...COMMON_ERRORS],
+  },
+  {
+    method: 'put',
+    path: '/api/admin/telegram/token',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: сменить токен',
+    description:
+      'Токен проверяется у Telegram (getMe) до сохранения — неверный отклоняется, старый токен продолжает ' +
+      'действовать. При успехе сохраняется зашифрованным (AES-256-GCM, ключ — HKDF от AUTH_SECRET) в базе, ' +
+      'главнее переменных окружения; дальше — новый секрет вебхука (решение 133) или перезапуск polling новым ' +
+      'токеном, смотря какой режим сейчас выбран. Журнал telegram.token_changed без самого токена. Ответ — ' +
+      'обновлённый статус (как GET /api/admin/telegram).',
+    body: telegramSetTokenSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'INTEGRATION_ERROR'],
+  },
+  {
+    method: 'delete',
+    path: '/api/admin/telegram/token',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: отключить (удалить токен)',
+    description:
+      'Снимает вебхук у Telegram (по возможности), удаляет токен из базы и останавливает polling. Если токен ' +
+      'также задан переменной окружения — бот остаётся настроенным им (это видно по tokenSource в ответе). ' +
+      'Журнал telegram.token_removed. Тело не нужно.',
+    permission: 'ADMIN',
+    errors: [...COMMON_ERRORS],
+  },
+  {
+    method: 'put',
+    path: '/api/admin/telegram/mode',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: сменить режим приёма обновлений',
+    description:
+      'webhook — только вебхук; polling — только long polling (getUpdates), вебхук снимается; auto — вебхук, ' +
+      'пока отвечает, иначе приложение само переключается на polling (решение 142). Бот не настроен — 502. ' +
+      'Журнал telegram.mode_switched (by: admin). Ответ — обновлённый статус.',
+    body: telegramSetModeSchema,
+    permission: 'ADMIN',
+    errors: [...WRITE_ERRORS, 'INTEGRATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/telegram/test',
+    tag: 'Администрирование',
+    summary: 'Бот Telegram: отправить проверочное сообщение',
+    description:
+      'В чат администратора, который вызвал операцию, если он сам подключил личные уведомления, иначе — ' +
+      'в чат владельца (TELEGRAM_OWNER_CHAT_ID). Ни того ни другого — понятная ошибка. Ответ { sentTo }. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...COMMON_ERRORS, 'INTEGRATION_ERROR'],
   },
   {
     method: 'get',
