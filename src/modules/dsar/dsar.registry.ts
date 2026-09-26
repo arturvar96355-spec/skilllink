@@ -87,6 +87,9 @@ const KEEP_AUDIT =
   '(ст. 19, ч. 3 ст. 9 152-ФЗ; п. 7 ч. 1 ст. 6 — законный интерес); удаляется по сроку хранения (1 год)'
 const KEEP_DSAR =
   'реестр запросов субъектов — доказательство исполнения ст. 14 и 20; ПД в нём нет, кроме идентификаторов'
+const KEEP_SECURITY =
+  'административная запись безопасности (решение 133): доказательство контроля над опасными операциями ' +
+  'и секретами, как и журнал действий; ПД в ней нет, только идентификатор администратора'
 
 const AUDIT_SELECT = {
   id: true,
@@ -337,6 +340,66 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_REFERENCE,
   },
   {
+    section: 'duplicateDismissals',
+    model: 'DuplicateDismissal',
+    title: 'Пары дублей, отмеченные «не дубль» (решение 134)',
+    links: ['dismissedById'],
+    select: { id: true, entity: true, firstId: true, secondId: true, createdAt: true },
+    omitted: { comment: FREE_TEXT },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
+    section: 'universityMerges',
+    model: 'UniversityMerge',
+    title: 'Слияния вузов: выполнил или отменил (решение 134)',
+    // Записи вуза (название, сайт и т. п. в survivorship/before) — не сведения о человеке.
+    links: ['mergedById', 'undoneById'],
+    select: {
+      id: true,
+      sourceId: true,
+      targetId: true,
+      mergedAt: true,
+      undoUntil: true,
+      undoneAt: true,
+      fieldRules: true,
+      survivorship: true,
+    },
+    omitted: {
+      moved: 'идентификаторы перенесённых объектов — служебные данные для отмены, не сведения о человеке',
+      before: 'снимок карточки вуза до слияния — не сведения о человеке',
+    },
+    orderBy: { mergedAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
+    section: 'siteOrdersImported',
+    model: 'SiteOrder',
+    title: 'Заказы с сайта, загруженные пользователем (решение 132)',
+    links: ['importedById'],
+    // ФИО, почта и телефон слушателя в SiteOrder не хранятся вовсе (docs/PRIVACY.md, 2.4) —
+    // только HMAC-хеш, который сюда не выбирается: он не про этого пользователя (импортировавшего
+    // сотрудника), а про слушателя, и без ключа ORDERS_HMAC_KEY необратим.
+    select: {
+      id: true,
+      orderNo: true,
+      course: { select: { name: true } },
+      stream: { select: { number: true } },
+      orderedAt: true,
+      importedAt: true,
+      lmsExportedAt: true,
+    },
+    omitted: {
+      emailHash: 'HMAC слушателя — не ПД импортировавшего сотрудника, необратим без ключа (docs/PRIVACY.md, 2.4)',
+      phoneHash: 'HMAC слушателя — не ПД импортировавшего сотрудника, необратим без ключа (docs/PRIVACY.md, 2.4)',
+    },
+    orderBy: { importedAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
     section: 'dsarRequestsAbout',
     model: 'DsarRequest',
     title: 'Запросы субъекта ПД о себе',
@@ -359,6 +422,40 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     orderBy: { requestedAt: 'desc' },
     erase: 'keep',
     reason: KEEP_DSAR,
+  },
+  {
+    section: 'systemRotations',
+    model: 'SystemSecret',
+    title: 'Смена системных секретов',
+    links: ['rotatedById'],
+    select: { name: true, rotatedAt: true },
+    orderBy: { rotatedAt: 'desc' },
+    tieBreaker: { name: 'asc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
+    section: 'approvalsInvolved',
+    model: 'Approval',
+    title: '«Четыре глаза»: запросы и решения по опасным операциям с участием пользователя',
+    links: ['requestedById', 'approvedById', 'rejectedById'],
+    select: { id: true, action: true, status: true, createdAt: true, decidedAt: true },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_SECURITY,
+  },
+  {
+    section: 'idempotencyKeys',
+    model: 'IdempotencyKey',
+    title: 'Ключи идемпотентности недавних запросов',
+    links: ['userId'],
+    select: { key: true, status: true, createdAt: true },
+    orderBy: { createdAt: 'desc' },
+    tieBreaker: { key: 'asc' },
+    erase: 'keep',
+    reason:
+      'техническая защита от повтора формы (решение 133), не сведения о человеке: живёт не дольше 24 часов ' +
+      'и чистится сама (retention.ts); тело ответа не содержит ФИО, почту и телефон отдельно от самой записи',
   },
   {
     section: 'auditByActor',
@@ -497,6 +594,36 @@ const CONTACT_ENTRIES: readonly DsarEntry[] = [
     erase: 'keep',
     reason: KEEP_AUDIT,
   },
+  {
+    // Контактное лицо вендора (решение 132) — деловой контакт компании-подрядчика, той же
+    // природы, что контакт вуза (решение 111), но без своего запроса субъекта: маршрута
+    // «выгрузка/обезличивание по contactId вендора» пока нет (docs/PRIVACY.md, раздел 11 —
+    // правка и удаление делаются вручную в карточке вендора). Запись здесь — для полноты
+    // реестра: почта, телефон и ФИО не остаются незамеченными тестом `dsar.registry.test.ts`.
+    // По `id` контакта вуза строка не находится — идентификаторы контактов вузов и вендоров
+    // из разных таблиц не совпадают, раздел выгрузки контакта вуза будет пустым.
+    section: 'vendorContactProfile',
+    model: 'VendorContact',
+    title: 'Контактное лицо вендора (для полноты реестра, решение 132)',
+    links: ['id'],
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      preferredChannels: true,
+      legalBasis: true,
+      vendor: { select: { name: true } },
+      createdAt: true,
+      updatedAt: true,
+    },
+    orderBy: { createdAt: 'asc' },
+    erase: 'keep',
+    reason:
+      'своего запроса субъекта для контактов вендоров нет — правка и удаление вручную ' +
+      'в карточке вендора (docs/PRIVACY.md, раздел 11); модель учтена в реестре, чтобы новая ' +
+      'таблица с ПД не осталась незамеченной',
+  },
 ]
 
 export const DSAR_REGISTRY: Readonly<Record<DsarSubjectKind, readonly DsarEntry[]>> = {
@@ -520,6 +647,13 @@ export const DSAR_NOT_PERSONAL: Readonly<Partial<Record<Prisma.ModelName, string
   DataSource: 'источник рыночных данных',
   AuditSeal: 'печать журнала: номер и хеш последней записи, число строк — без ссылок на людей (решение 115)',
   AuditChainCut: 'точка чистки журнала по сроку: номер, хеш и дата — без ссылок на людей (решение 115)',
+  Vendor: 'компания-вендор, не человек (решение 132)',
+  VendorContactProduct: 'связь контакта вендора и продукта — своих ПД и ссылок на людей нет (решение 132)',
+  SchoolCourse: 'курс ИТ-Школы — справочник, без ПД (решение 132)',
+  CourseStream: 'поток курса — справочник, без ПД (решение 132)',
+  // SiteOrder сюда не входит: у неё есть importedById → User, она в DSAR_REGISTRY (USER_ENTRIES).
+  // ФИО, почта и телефон слушателя в ней не хранятся вовсе — только HMAC-хеш (docs/PRIVACY.md, 2.4).
+  TelegramUpdateSeen: 'отметка обработанного обновления Telegram: update_id и время, без ссылок на людей (решение 133)',
   RecommendationRuleStats: 'счётчики обучения правила (показы, успехи) по общей/вузовской/менеджерской области; ' +
     '`scopeId` — не Prisma-связь, а ключ агрегата без читаемых данных о человеке (решение 119)',
 }

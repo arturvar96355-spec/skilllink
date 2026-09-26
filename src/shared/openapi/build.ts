@@ -63,6 +63,10 @@ const ERROR_SCHEMA: JsonSchema = {
         details: {
           description: 'Для ошибок валидации — массив { field, message }',
         },
+        requestId: {
+          type: 'string',
+          description: 'Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)',
+        },
       },
     },
   },
@@ -151,11 +155,24 @@ const PERMISSION_NOTES: Record<string, string> = {
   CALENDAR: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER',
   CONTACT_DETAILS: 'Роли: ADMIN, MANAGER; UNIVERSITY_REP — контакты своего вуза',
   CONTACT_BASIS: 'Роли: ADMIN, MANAGER',
+  VENDORS: 'Роли: ADMIN, MANAGER, ANALYST, VIEWER; почта и телефон контактов — ADMIN, MANAGER',
+  SITE_ORDERS: 'Роли: ADMIN, MANAGER',
 }
 
 function buildOperation(spec: EndpointSpec): JsonSchema {
-  const parameters = [...pathParameters(spec.path, spec.pathParams)]
+  const parameters: JsonSchema[] = [...pathParameters(spec.path, spec.pathParams)]
   if (spec.query) parameters.push(...queryParameters(spec.query))
+  if (spec.idempotent) {
+    parameters.push({
+      name: 'Idempotency-Key',
+      in: 'header',
+      required: false,
+      schema: { type: 'string', minLength: 1, maxLength: 255 },
+      description:
+        'Решение 123: повтор с тем же ключом и телом — сохранённый ответ (заголовок Idempotency-Replayed: true); ' +
+        'тот же ключ с другим телом — 422; запрос с ключом ещё выполняется — 409. Ключ живёт 24 часа.',
+    })
+  }
 
   const access =
     spec.accessNote ??

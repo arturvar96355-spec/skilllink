@@ -1,6 +1,5 @@
 import { validationError } from '@/shared/http/errors'
 import { toAppError } from '@/shared/http/handle'
-import { describeForLog } from '@/shared/db/log'
 import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -23,6 +22,7 @@ import { PROGRAM_COLUMNS, UNIVERSITY_COLUMNS, type ImportQuery } from './import.
 import { createUniversitySchema, updateUniversitySchema } from '@/modules/universities/universities.schema'
 import { createProgramSchema, updateProgramSchema } from '@/modules/programs/programs.schema'
 import * as repo from './import.repo'
+import { log } from '@/shared/log/logger'
 
 /** Необязательные колонки вузов — по полям. */
 const UNIVERSITY_OPTIONAL_COLUMNS = {
@@ -407,7 +407,7 @@ export async function importDataset(
         // Наружу — только то, что можно показать: сообщение Prisma повторяет весь
         // вызов с данными строки, и в ответ ушли бы данные целиком.
         const known = toAppError(error)
-        if (!known) console.error('[IMPORT] строка', plan.result.line, describeForLog(error))
+        if (!known) log.error('[IMPORT] строка не записана', { line: plan.result.line, err: error })
         plan.result.outcome = 'error'
         plan.result.detail = `Не удалось записать: ${known ? known.message : 'внутренняя ошибка сервера'}`
       }

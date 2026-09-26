@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest'
 const ROOT = process.cwd()
 
 /** Служебные переменные среды выполнения: их задаёт не человек. */
-const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE'])
+const RUNTIME = new Set(['NODE_ENV', 'NEXT_PHASE', 'NEXT_RUNTIME'])
 
 /**
  * Переменные, которые читает не наш код, а библиотека или docker-compose.yml
