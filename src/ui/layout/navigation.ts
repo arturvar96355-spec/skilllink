@@ -57,6 +57,10 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   tools.push({ href: ROUTES.reports, label: 'Отчёты', icon: 'report' })
   tools.push({ href: ROUTES.documents, label: 'Документы', icon: 'document' })
   tools.push({ href: ROUTES.products, label: 'IT-продукты', icon: 'product' })
+  // Вендоры — то же право, что у аналитики (VENDORS = ANALYTICS по составу ролей).
+  if (user.permissions.canSeeAnalytics) {
+    tools.push({ href: ROUTES.vendors, label: 'Вендоры', icon: 'building' })
+  }
   tools.push({ href: ROUTES.settings, label: 'Настройки', icon: 'settings' })
 
   return [
@@ -141,6 +145,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
+  { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
 ]
 
