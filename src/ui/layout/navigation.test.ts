@@ -49,6 +49,7 @@ function user(role: UserRole): CurrentUserDto {
       canSeeContactDetails: role === 'ADMIN' || role === 'MANAGER',
       isAdmin: role === 'ADMIN',
       canAssignResponsible: role === 'ADMIN' || role === 'HEAD',
+      canReviewLetters: role === 'ADMIN' || role === 'HEAD',
     },
     passwordTemporary: false,
   }
@@ -156,6 +157,11 @@ describe('подвал', () => {
   it('представителю вуза не ведёт в настройки', () => {
     const hrefs = serviceLinksFor(user('UNIVERSITY_REP')).map((link) => link.href)
     expect(hrefs.some((href) => href.startsWith(ROUTES.settings))).toBe(false)
+  })
+
+  it.each(ROLES)('у роли %s справка есть в подвале и открывается (ТЗ, нефункц. п. 5)', (role) => {
+    expect(serviceLinksFor(user(role)).map((link) => link.href)).toContain(ROUTES.help)
+    expect(isSectionAllowed(user(role), ROUTES.help)).toBe(true)
   })
 
   it.each(ROLES)('у роли %s в подвале есть политика обработки персональных данных', (role) => {

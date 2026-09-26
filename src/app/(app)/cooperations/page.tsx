@@ -40,6 +40,7 @@ import {
   usePageInRange,
   type Column,
   ListTitle,
+  DownloadButton,
 } from '@/ui'
 import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
@@ -306,15 +307,13 @@ function CooperationsView() {
         meta={containsMock ? <MockBadge /> : undefined}
         actions={
           <>
-            <Button
-              variant="secondary"
-              icon="download"
+            <DownloadButton
               href={`/api/export${buildQuery({ dataset: 'cooperations', ...listFilters })}`}
-              external
+              fallbackName="cooperations.csv"
               title="Связки с текущими фильтрами и сортировкой в CSV, до 1000 строк."
             >
               Выгрузить
-            </Button>
+            </DownloadButton>
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Создать связку

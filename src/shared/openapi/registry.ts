@@ -116,6 +116,12 @@ import {
 import { patchWorkflowStageTemplateSchema } from '@/modules/workflow/workflow-templates.schema'
 import { externalImportSchema } from '@/modules/import/external.schema'
 import { reportQuerySchema } from '@/modules/reports/reports.schema'
+import {
+  dismissLetterSchema,
+  inboundLetterListQuerySchema,
+  reviewLetterSchema,
+  updateReplyDraftSchema,
+} from '@/modules/inbound-letters/inbound-letters.schema'
 
 /**
  * Реестр эндпоинтов для сборки спецификации OpenAPI.
@@ -2279,6 +2285,118 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     query: paginationSchema,
     list: true,
     errors: COMMON_ERRORS,
+  },
+
+  // ── Письма вузов (решение 170) ───────────────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/inbound-letters',
+    tag: 'Письма вузов',
+    summary: 'Список обращений',
+    description:
+      'ADMIN и HEAD видят все обращения; MANAGER — только вузов, где он ответственный (за сам ' +
+      'вуз или за найденную связку). Фильтры: status, group, universityId, cooperationId. ' +
+      'sort=-receivedAt по умолчанию.',
+    permission: 'INBOUND_READ',
+    query: inboundLetterListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/inbound-letters/stats',
+    tag: 'Письма вузов',
+    summary: 'Точность разбора по группе',
+    description:
+      'Решение 170 (тот же принцип, что решение 119): по каждой из шести групп — сколько писем ' +
+      'разобрано и подтверждено верно (без забывания) и текущая доля с забыванием (полупериод ' +
+      '30 дней, `sampleEff` — эффективный объём наблюдений).',
+    permission: 'INBOUND_READ',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/inbound-letters/{id}',
+    tag: 'Письма вузов',
+    summary: 'Карточка обращения',
+    description: 'Полный текст письма, разбор (`current`/`detected`), итог проверки, задание и черновик ответа.',
+    permission: 'INBOUND_READ',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/upload',
+    tag: 'Письма вузов',
+    summary: 'Загрузить письмо вуза (.eml)',
+    description:
+      'Разбирает заголовки From/Subject/Date/Message-ID и текстовую часть письма, создаёт ' +
+      'обращение и сразу его разбирает (как `POST …/{id}/analyze`) — ответ уже с разбором. ' +
+      'Предел размера — MAX_EML_SIZE_BYTES (5 МБ).',
+    permission: 'INBOUND_REVIEW',
+    multipartField: 'file',
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/analyze',
+    tag: 'Письма вузов',
+    summary: 'Разобрать письмо заново',
+    description:
+      'Код определяет вуз по домену отправителя, связку и текущий этап; группу и действие — ' +
+      'модель (если подключена и настроена — YandexGPT/GigaChat, с подсказкой из похожих ' +
+      'размеченных писем) или, если модели нет либо она не справилась, ключевые слова (правила). ' +
+      'Доступно, пока обращение не проверено (статус NEW или ANALYZED), иначе CONFLICT.',
+    permission: 'INBOUND_REVIEW',
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/review',
+    tag: 'Письма вузов',
+    summary: 'Проверить разбор: «Верно» или «Неверно»',
+    description:
+      '`{ verdict: "CORRECT" }` принимает разбор как есть (нужен уже найденный вуз, иначе ' +
+      'VALIDATION_ERROR — используйте «Неверно»). `{ verdict: "INCORRECT", universityId, ' +
+      'cooperationId?, group, action, comment }` заменяет разбор указанным (комментарий — что ' +
+      'было не так — обязателен). Оба создают задание ответственному за вуз или связку и ' +
+      'размеченный пример, на котором учится точность по группе (`GET …/stats`). Доступно, пока ' +
+      'не проверено, иначе CONFLICT.',
+    permission: 'INBOUND_REVIEW',
+    body: reviewLetterSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/dismiss',
+    tag: 'Письма вузов',
+    summary: 'Отклонить обращение как не по работе',
+    description: 'Тело необязательно (можно с комментарием). Доступно, пока не проверено, иначе CONFLICT.',
+    permission: 'INBOUND_REVIEW',
+    body: dismissLetterSchema,
+    bodyOptional: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/reply-draft',
+    tag: 'Письма вузов',
+    summary: 'Собрать черновик ответа вузу',
+    description:
+      'Черновик моделью (если подключена) или шаблоном по группе и действию — живого ящика нет, ' +
+      'это только черновик. В ответе — `replyDraft.mailto`: ссылка `mailto:` с темой «Re: …» ' +
+      'и текстом черновика для кнопки «Открыть в почте». Доступно после разбора — не для нового ' +
+      'и не для отклонённого как спам письма.',
+    permission: 'INBOUND_REVIEW',
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'patch',
+    path: '/api/inbound-letters/{id}/reply-draft',
+    tag: 'Письма вузов',
+    summary: 'Отредактировать черновик ответа вручную',
+    permission: 'INBOUND_REVIEW',
+    body: updateReplyDraftSchema,
+    errors: WRITE_ERRORS,
   },
 ]
 

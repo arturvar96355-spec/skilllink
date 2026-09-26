@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { USER_ROLE_LABELS, canBeResponsible, type UserDto } from '@/shared/contracts'
+import { RESPONSIBLE_ROLES, USER_ROLE_LABELS, canBeResponsible, type UserDto } from '@/shared/contracts'
 import { Button, Modal, Select, apiPatch, fieldErrors, useMutation, useResource, useToast } from '@/ui'
+import styles from './ChangeResponsibleModal.module.css'
 
 /**
  * Смена ответственного за вуз или за связку (ТЗ, роль «Руководитель», решение 146).
@@ -24,8 +25,20 @@ export interface ChangeResponsibleModalProps {
   /** ФИО текущего ответственного — показать выбранным, пока список сотрудников грузится. */
   currentResponsibleName?: string | null
   allowNone?: boolean
+  /**
+   * Что произойдёт после сохранения — словами, по тому, что на самом деле делает
+   * сервер (журнал, уведомление, история этапа). ТЗ дизайна 26–29.09, п. 2.4:
+   * «кто сейчас → кого можно назначить → что произойдёт».
+   */
+  consequence?: string
   onClose: (changed: boolean) => void
 }
+
+/** «менеджера партнёрств, руководителя или администратора» — из тех же RESPONSIBLE_ROLES, что проверяет сервер. */
+const ASSIGNABLE_TEXT = (() => {
+  const names = RESPONSIBLE_ROLES.map((role) => USER_ROLE_LABELS[role].toLowerCase())
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} или ${names[names.length - 1]}` : (names[0] ?? '')
+})()
 
 export function ChangeResponsibleModal({
   title,
@@ -34,6 +47,7 @@ export function ChangeResponsibleModal({
   currentResponsibleId,
   currentResponsibleName,
   allowNone = false,
+  consequence,
   onClose,
 }: ChangeResponsibleModalProps) {
   const toast = useToast()
@@ -55,7 +69,10 @@ export function ChangeResponsibleModal({
       if (result.error.code !== 'VALIDATION_ERROR') toast.error(result.error.message)
       return
     }
-    toast.success(responsibleId === '' ? 'Ответственный снят' : 'Ответственный назначен')
+    const chosen = users.data?.find((row) => row.id === responsibleId)?.fullName
+    toast.success(
+      responsibleId === '' ? 'Ответственный снят' : chosen ? `Ответственный — ${chosen}` : 'Ответственный назначен',
+    )
     onClose(true)
   }
 
@@ -80,15 +97,26 @@ export function ChangeResponsibleModal({
             variant="primary"
             onClick={onSave}
             isLoading={submit.isPending}
-            disabled={!allowNone && responsibleId === ''}
+            disabled={(!allowNone && responsibleId === '') || responsibleId === (currentResponsibleId ?? '')}
           >
             Сохранить
           </Button>
         </>
       }
     >
+      <dl className={styles.facts}>
+        <div className={styles.fact}>
+          <dt className={styles.factLabel}>Сейчас</dt>
+          <dd className={styles.factValue}>{currentResponsibleName ?? 'Не назначен'}</dd>
+        </div>
+        <div className={styles.fact}>
+          <dt className={styles.factLabel}>Можно назначить</dt>
+          <dd className={styles.factValue}>{ASSIGNABLE_TEXT}</dd>
+        </div>
+      </dl>
+
       <Select
-        label="Ответственный"
+        label="Новый ответственный"
         required={!allowNone}
         value={responsibleId}
         onValueChange={setResponsibleId}
@@ -97,6 +125,8 @@ export function ChangeResponsibleModal({
         options={options}
         error={errorFor('responsibleId')}
       />
+
+      {consequence && <p className={styles.consequence}>{consequence}</p>}
     </Modal>
   )
 }

@@ -14,6 +14,7 @@ import {
   ApiRequestError,
   Button,
   CardsSkeleton,
+  DownloadButton,
   EmptyState,
   ErrorState,
   Input,
@@ -302,16 +303,14 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
 
       <div className={styles.actions}>
         {REPORT_FORMATS.map((format) => (
-          <Button
+          <DownloadButton
             key={format}
-            variant="secondary"
-            icon="download"
             href={reportFileHref(endpoint, format, filters)}
-            external
+            fallbackName={`report.${format}`}
             title={`${title} файлом ${REPORT_FORMAT_LABELS[format]}${filtersActive ? ' с текущими фильтрами' : ''}`}
           >
             Скачать {REPORT_FORMAT_LABELS[format]}
-          </Button>
+          </DownloadButton>
         ))}
       </div>
 

@@ -54,6 +54,7 @@ import {
   formatNumber,
   formatScore,
   pluralize,
+  skillHref,
   universityHref,
   useCurrentUser,
   useMutation,
@@ -67,6 +68,7 @@ import {
 } from '@/ui'
 import { AddProgramSkillModal } from '../AddProgramSkillModal'
 import { EditProgramModal } from '../EditProgramModal'
+import { WhyNoRecommendation } from '../../RuleChecks'
 import styles from './program.module.css'
 
 /**
@@ -363,7 +365,11 @@ export default function ProgramPage() {
       title: 'Навык',
       render: (row) => (
         <span className={styles.cellStack}>
-          <span className={styles.cellTitle}>{row.name}</span>
+          {/* Навык ведёт к своему разбору в аналитике: спрос, дефицит, программы
+              (ТЗ дизайна 26–29.09, п. 1.4 — то, что выглядит объектом, открывается). */}
+          <Link className={[styles.cellTitle, styles.cellTitleLink].join(' ')} href={skillHref(row.skillId)}>
+            {row.name}
+          </Link>
           <span className={styles.cellMeta}>{row.category}</span>
         </span>
       ),
@@ -371,11 +377,13 @@ export default function ProgramPage() {
     {
       key: 'level',
       title: 'Уровень',
+      width: '120px',
       render: (row) => <span className={styles.plain}>{SKILL_LEVEL_LABELS[row.level]}</span>,
     },
     {
       key: 'importance',
       title: 'Важность',
+      width: '120px',
       render: (row) => (
         <span className={styles.plain}>{SKILL_IMPORTANCE_LABELS[row.importance]}</span>
       ),
@@ -383,6 +391,7 @@ export default function ProgramPage() {
     {
       key: 'source',
       title: 'Источник',
+      width: '150px',
       render: (row) => (
         <span className={styles.plain}>
           {DATA_ORIGIN_LABELS[row.source]}
@@ -393,6 +402,7 @@ export default function ProgramPage() {
     {
       key: 'confidence',
       title: 'Доверие',
+      width: '110px',
       render: (row) =>
         row.confidence === null ? (
           <span className={styles.empty}>{NO_DATA}</span>
@@ -685,6 +695,17 @@ export default function ProgramPage() {
               {/* Пометка демо-данных — одна на экран, в шапке: вторая здесь была повтором. */}
             </Card>
           </Section>
+
+          {user.permissions.canSeeAnalytics && (
+            <Section
+              title="Рекомендации по программе"
+              description="Какие правила система проверяет по этой программе и что им сейчас мешает сработать."
+            >
+              <Card>
+                <WhyNoRecommendation entity="program" id={data.id} />
+              </Card>
+            </Section>
+          )}
         </>
       )}
 
