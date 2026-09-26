@@ -25,6 +25,11 @@ import {
 } from '@/modules/notifications/notifications.schema'
 import { searchQuerySchema } from '@/modules/search/search.schema'
 import { telegramUpdateSchema } from '@/modules/telegram/telegram.schema'
+import {
+  maxUpdateSchema,
+  setPrimaryChannelSchema,
+  vkCallbackEventSchema,
+} from '@/modules/notify-channels/notify-channels.schema'
 import { funnelQuerySchema, stalledPreviewQuerySchema } from '@/modules/analytics/stage-analytics.schema'
 import {
   changePasswordSchema,
@@ -230,6 +235,36 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     returnsOk: true,
     errors: ['FORBIDDEN', 'INTERNAL'],
   },
+  {
+    method: 'post',
+    path: '/api/channels/max/webhook',
+    tag: 'Служебное',
+    summary: 'Вебхук бота MAX (вызывает MAX, решение 144)',
+    description:
+      'Без входа: подлинность — заголовок X-Max-Bot-Api-Secret, равный MAX_WEBHOOK_SECRET; ' +
+      'без него или с другим — 403 (отправка сообщений при этом не затронута). Диплинк со стартовым ' +
+      'кодом привязывает чат, «сегодня»/«стоп» — те же команды, что у Telegram. Отвечает 200 сразу ' +
+      '({ accepted }), обрабатывает после ответа; нераспознанное тело — тоже 200.',
+    body: maxUpdateSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['FORBIDDEN', 'INTERNAL'],
+  },
+  {
+    method: 'post',
+    path: '/api/channels/vk/callback',
+    tag: 'Служебное',
+    summary: 'Callback API сообщества VK (вызывает VK, решение 144)',
+    description:
+      'Без входа. Устроен не так, как остальные вебхуки: событие confirmation отвечается открытым ' +
+      'текстом с кодом из VK_CONFIRMATION_CODE, не JSON; подлинность остальных событий — поле `secret` ' +
+      'в теле, а не заголовок (VK_SECRET), неверный или отсутствующий — 403. Ссылка vk.me/<сообщество>' +
+      '?ref=<код> привязывает чат, «сегодня»/«стоп» — те же команды. Ответ всегда "ok" открытым текстом.',
+    body: vkCallbackEventSchema,
+    permission: 'ANY',
+    returnsOk: true,
+    errors: ['FORBIDDEN', 'INTERNAL'],
+  },
 
   // ── Пользователи ──────────────────────────────────────────────────────────
   {
@@ -405,6 +440,54 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'работает и при выключенном боте.',
     permission: 'READ',
     errors: COMMON_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/me/channels',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: Telegram, MAX, VK — состояние для личного кабинета',
+    description:
+      'Решение 144. Три строки: для каждого канала — configured (настроен администратором), ' +
+      'linked, username, linkedAt и primary (основной — куда уходит сводка и оповещения, если ' +
+      'привязано несколько). Без выбора основного канала им становится первый настроенный и ' +
+      'привязанный по порядку Telegram → MAX → VK.',
+    permission: 'READ',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'put',
+    path: '/api/me/channels',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: выбрать основной канал',
+    description: 'Тело { primary: "telegram" | "max" | "vk" | null }; null — снова автоматический выбор.',
+    body: setPrimaryChannelSchema,
+    permission: 'READ',
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/me/channels/{id}/connect',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: ссылка на канал для подключения/перепривязки',
+    description:
+      'Отдаёт url и expiresAt (диплинк MAX или vk.me/<сообщество>?ref=… для VK; для Telegram — ' +
+      'то же, что POST /api/me/telegram). Одноразовый код живёт 15 минут. Перепривязка заменяет ' +
+      'прежний чат — он получает «уведомления перенесены», если доставка возможна. Канал не ' +
+      'настроен администратором — 502. Тела не нужно.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'ANALYTICS',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'delete',
+    path: '/api/me/channels/{id}',
+    tag: 'Пользователи',
+    summary: 'Каналы уведомлений: отключить канал',
+    description: 'Удаляет привязку текущего пользователя к этому каналу. Повтор — не ошибка.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'READ',
+    errors: READ_ERRORS,
   },
   {
     method: 'get',
@@ -1802,6 +1885,31 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'ADMIN',
     returnsOk: true,
     errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  // ── Каналы уведомлений (решение 144) ─────────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/admin/channels',
+    tag: 'Администрирование',
+    summary: 'Каналы уведомлений: статус для администратора',
+    description:
+      'Telegram, MAX, VK — настроен ли каждый (есть токен) и сколько сотрудников привязано ' +
+      '(«Настройки → Интеграции»). Ни один канал не настроен по умолчанию — это не ошибка.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/channels/{id}/test',
+    tag: 'Администрирование',
+    summary: 'Проверить канал уведомлений',
+    description:
+      'Пробное сообщение в собственный чат администратора — сначала он должен подключить канал ' +
+      'себе в личном кабинете, иначе 403. Канал не настроен — { ok: false, reason }, не ошибка. Тело не нужно.',
+    pathParams: { id: 'Канал: telegram, max или vk' },
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND', 'INTERNAL'],
   },
   {
     method: 'get',

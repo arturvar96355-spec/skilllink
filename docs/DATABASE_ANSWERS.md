@@ -20,7 +20,7 @@ Enum-ами остались статус (`StageStatus`) и фаза (`StagePha
 
 ## Миграции
 
-В [prisma/migrations](../prisma/migrations) 24 миграции, от `20260921070318_init`
+В [prisma/migrations](../prisma/migrations) 25 миграций, от `20260921070318_init`
 до `20260926150000_notifications_seen_at`; схема меняется только ими, `db push` не используется.
 Применяются `prisma migrate deploy` (`npm run db:deploy`): в CI перед сидом
 ([ci.yml](../.github/workflows/ci.yml)), на стенде — отдельным сервисом `migrate`
