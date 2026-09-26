@@ -1,4 +1,5 @@
-import { notFound } from '@/shared/http/errors'
+import { notFound, validationError } from '@/shared/http/errors'
+import { writeAudit } from '@/shared/audit/audit'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, canSeeInternalNotes, isUniversityVisible } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -12,7 +13,7 @@ import {
   documentEventTitle,
   stageEventTitle,
 } from './audit.rules'
-import type { AuditListQuery, UniversityEventsQuery } from './audit.schema'
+import type { AuditExportQuery, AuditListQuery, UniversityEventsQuery } from './audit.schema'
 
 /**
  * Журнал критичных действий (раздел 15 ТЗ).
@@ -146,4 +147,44 @@ export async function universityEvents(
   // Но сказать «это не всё» — можно, и интерфейсу этого достаточно,
   // чтобы честно предложить «показать ещё», а не делать вид, что показано всё.
   return { events: events.slice(0, query.limit), hasMore: events.length > query.limit }
+}
+
+// ─────────────── Выгрузка для внешней системы сбора событий (решение 133) ───────────────
+
+/** BigInt (номер в цепочке журнала) — строкой: в JSON чисел больше 2^53 нет. */
+function ndjsonReplacer(_key: string, value: unknown): unknown {
+  return typeof value === 'bigint' ? value.toString() : value
+}
+
+export interface AuditExportPage {
+  /** Строки NDJSON: одна запись журнала — одна строка, все колонки. */
+  body: string
+  count: number
+  /** id последней записи страницы — курсор следующего запроса; null — записей нет. */
+  lastId: string | null
+}
+
+/**
+ * Страница журнала для внешней системы (SIEM): NDJSON, после `after_id`, не
+ * больше `limit` записей. Только администратор. Сам факт выгрузки — запись
+ * `audit.export` (курсор, число, последний id) — попадёт в следующую страницу.
+ */
+export async function exportAuditEntries(user: CurrentUser, query: AuditExportQuery): Promise<AuditExportPage> {
+  assertCan(user, 'ADMIN')
+  const rows = await repo.findAuditPageAfter(query.after_id ?? null, query.limit)
+  if (rows === null) {
+    throw validationError('Курсор выгрузки не найден', [
+      { field: 'after_id', message: 'Записи с таким id нет — возможно, удалена по сроку хранения. Начните выгрузку заново' },
+    ])
+  }
+  const body = rows.map((row) => JSON.stringify(row, ndjsonReplacer)).join('\n') + (rows.length > 0 ? '\n' : '')
+  const lastId = rows.at(-1)?.id ?? null
+  await writeAudit({
+    userId: user.id,
+    action: 'audit.export',
+    objectType: 'AuditLog',
+    objectId: 'export',
+    payload: { afterId: query.after_id ?? null, limit: query.limit, count: rows.length, lastId },
+  })
+  return { body, count: rows.length, lastId }
 }

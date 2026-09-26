@@ -102,6 +102,18 @@ export const AUDIT_ACTIONS = [
    */
   'audit.verify',
   'import.apply',
+  // ── Решение 123: безопасность, волна 2 ──
+  /** Сменён секрет вебхука Telegram. Без самого секрета — только хост вебхука. */
+  'telegram.webhook_secret_rotated',
+  /** Раскрыты почта и/или телефон контакта: перечень полей и причина (почта и телефоны в ней замаскированы). */
+  'contact.revealed',
+  /** «Четыре глаза»: запрос на опасную операцию, одобрение, отказ, использование одобрения. */
+  'approval.requested',
+  'approval.approved',
+  'approval.rejected',
+  'approval.consumed',
+  /** Выгрузка журнала для внешней системы сбора событий: курсор, число строк, последний id. */
+  'audit.export',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -127,6 +139,8 @@ export const AUDIT_OBJECT_TYPES = [
   'Export',
   'Import',
   'AuditLog',
+  'SystemSecret',
+  'Approval',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

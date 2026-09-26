@@ -1,5 +1,6 @@
 export * from './ai-assist'
 export * from './analytics'
+export * from './approval'
 export * from './audit'
 export * from './calendar'
 export * from './common'

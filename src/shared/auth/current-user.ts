@@ -6,6 +6,7 @@ import type { UserRole } from '@/shared/contracts/enums'
 import { auth } from './auth'
 import { DEMO_USER_COOKIE, isDemoAuthEnabled } from './demo-mode'
 import { isSessionCurrent } from './session-version'
+import { log } from '@/shared/log/logger'
 
 export { DEMO_USER_COOKIE, isDemoAuthEnabled }
 
@@ -94,7 +95,7 @@ async function fromSession(): Promise<CurrentUser | null> {
     // проверки входа, и молча считать его «сессии нет» нельзя: в демо-режиме запрос
     // ушёл бы к демо-пользователю и получил права менеджера, хотя за ним могла
     // стоять чья-то настоящая сессия. Поэтому — в журнал и отказ, без запасного пути.
-    console.error('[AUTH] не удалось прочитать сессию:', describeAuthError(error))
+    log.error('[AUTH] не удалось прочитать сессию', { reason: describeAuthError(error) })
     throw new AppError('INTERNAL', 'Не удалось проверить вход. Обновите страницу или войдите заново')
   }
 

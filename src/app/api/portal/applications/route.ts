@@ -1,4 +1,5 @@
 import { getCurrentUser } from '@/shared/auth/current-user'
+import { withIdempotency } from '@/shared/idempotency/idempotency'
 import { created, handle, okList, parseBody, parseQuery } from '@/shared/http'
 import { z } from '@/shared/zod'
 import * as service from '@/modules/portal/portal.service'
@@ -20,6 +21,8 @@ export const GET = handle(async (request) => {
 export const POST = handle(async (request) => {
   const user = await getCurrentUser()
   const { universityId } = parseQuery(request, universityQuerySchema)
-  const input = await parseBody(request, submitApplicationSchema)
-  return created(await service.submitApplication(user, universityId, input))
+  return withIdempotency(request, user.id, async (body) => {
+    const input = await parseBody(body, submitApplicationSchema)
+    return created(await service.submitApplication(user, universityId, input))
+  })
 })

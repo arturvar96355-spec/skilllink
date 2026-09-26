@@ -1,3 +1,4 @@
+import type { ApprovalAction, ApprovalStatus } from './approval'
 import type {
   DsarRequestChannel,
   DsarRequestKind,
@@ -336,6 +337,13 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'audit.retention': 'Очистка журнала по сроку хранения',
   'audit.verify': 'Проверка целостности журнала',
   'import.apply': 'Загрузка реестра из CSV',
+  'telegram.webhook_secret_rotated': 'Сменён секрет вебхука Telegram',
+  'contact.revealed': 'Раскрыты почта или телефон контакта',
+  'approval.requested': 'Запрошено одобрение опасной операции',
+  'approval.approved': 'Операция одобрена вторым администратором',
+  'approval.rejected': 'В одобрении операции отказано',
+  'approval.consumed': 'Одобрение использовано',
+  'audit.export': 'Выгрузка журнала для внешней системы',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -357,6 +365,23 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Export: 'Выгрузка',
   Import: 'Загрузка',
   AuditLog: 'Журнал действий',
+  SystemSecret: 'Секрет системы',
+  Approval: 'Одобрение операции',
+}
+
+/** Статус запроса на одобрение (решение 133). */
+export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
+  REQUESTED: 'Ждёт одобрения',
+  APPROVED: 'Одобрено',
+  REJECTED: 'Отклонено',
+  CONSUMED: 'Использовано',
+  EXPIRED: 'Истёк срок',
+}
+
+/** Операция, которой нужно одобрение второго администратора (решение 133). */
+export const APPROVAL_ACTION_LABELS: Record<ApprovalAction, string> = {
+  'user.grant_admin': 'Назначить администратором',
+  'user.block_admin': 'Заблокировать администратора',
 }
 
 /**

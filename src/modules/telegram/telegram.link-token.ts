@@ -115,15 +115,40 @@ export function resetSpentLinkTokens(): void {
 // ── Секрет вебхука ───────────────────────────────────────────────────────────
 
 /**
- * Заголовок X-Telegram-Bot-Api-Secret-Token против заданного в setWebhook.
+ * Telegram принимает секрет вебхука из 1–256 знаков A–Z, a–z, 0–9, `_` и `-`
+ * (setWebhook, secret_token). Заголовок другого вида не может быть верным —
+ * он отсекается до хеширования, не тратя ни времени, ни запроса к базе.
+ */
+const WEBHOOK_SECRET_PATTERN = /^[A-Za-z0-9_-]{1,256}$/
+
+/** SHA-256 секрета вебхука в hex — в таком виде он хранится в system_secrets (решение 133). */
+export function webhookSecretHash(secret: string): string {
+  return createHash('sha256').update(secret, 'utf8').digest('hex')
+}
+
+/**
+ * Заголовок X-Telegram-Bot-Api-Secret-Token против SHA-256 действующего секрета.
  *
- * Сравнение — `timingSafeEqual` по SHA-256 обоих значений: у хешей одна длина,
- * и время сравнения не выдаёт ни длину секрета, ни совпавшее начало.
+ * Сравнение — `timingSafeEqual` по SHA-256: у хешей одна длина (32 байта), поэтому
+ * время сравнения не выдаёт ни длину секрета, ни совпавшее начало. Проверка длин
+ * перед сравнением всё равно стоит: `timingSafeEqual` на буферах разной длины
+ * бросает исключение, а испорченная запись в базе не должна превращаться в 500.
+ * Секрета нет — вебхук закрыт для всех.
+ */
+export function matchesWebhookSecretHash(received: string | null, expectedHashHex: string | null): boolean {
+  if (!expectedHashHex || received === null || !WEBHOOK_SECRET_PATTERN.test(received)) return false
+  const expected = Buffer.from(expectedHashHex, 'hex')
+  const actual = createHash('sha256').update(received, 'utf8').digest()
+  if (expected.length !== actual.length) return false
+  return timingSafeEqual(actual, expected)
+}
+
+/**
+ * Заголовок против секрета, заданного значением (TELEGRAM_WEBHOOK_SECRET).
  * Секрет не задан — вебхук закрыт для всех: принимать обновления без проверки
  * значит дать любому писать от имени Telegram.
  */
 export function isWebhookSecretValid(received: string | null, expected: string | null): boolean {
-  if (!expected || received === null) return false
-  const digest = (value: string) => createHash('sha256').update(value).digest()
-  return timingSafeEqual(digest(received), digest(expected))
+  if (!expected) return false
+  return matchesWebhookSecretHash(received, webhookSecretHash(expected))
 }

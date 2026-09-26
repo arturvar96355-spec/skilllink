@@ -1,6 +1,7 @@
 import { resolveSecret, unstable_update } from './auth'
 import { describeAuthError } from './current-user'
 import { signSessionRenewal } from './session-version'
+import { log } from '@/shared/log/logger'
 
 /**
  * Переоформить текущую сессию на новую версию после смены своего пароля (решение 109).
@@ -24,7 +25,7 @@ export async function renewCurrentSession(userId: string, sessionVersion: number
     const session = await unstable_update({ sessionRenewal } as unknown as Parameters<typeof unstable_update>[0])
     return session?.user?.id === userId && session.user.sessionVersion === sessionVersion
   } catch (error) {
-    console.error('[AUTH] не удалось продлить сессию после смены пароля:', describeAuthError(error))
+    log.error('[AUTH] не удалось продлить сессию после смены пароля', { reason: describeAuthError(error) })
     return false
   }
 }

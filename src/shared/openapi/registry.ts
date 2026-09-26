@@ -75,8 +75,11 @@ import {
   skillListQuerySchema,
   updateSkillSchema,
 } from '@/modules/skills/skills.schema'
+import { approvalListQuerySchema, createApprovalSchema } from '@/modules/approvals/approvals.schema'
+import { auditExportQuerySchema } from '@/modules/audit/audit.schema'
 import {
   contactBasisHistoryQuerySchema,
+  revealContactSchema,
   createUniversitySchema,
   setContactBasisSchema,
   universityListQuerySchema,
@@ -121,6 +124,8 @@ export interface EndpointSpec {
   fileContentType?: string
   /** Описания параметров пути, если это не идентификатор записи. */
   pathParams?: Record<string, string>
+  /** Принимает заголовок Idempotency-Key (решение 133). */
+  idempotent?: boolean
   errors: ErrorCode[]
 }
 
@@ -862,6 +867,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/cooperations',
+    idempotent: true,
     tag: 'Сотрудничество',
     summary: 'Создать связку',
     description:
@@ -1173,6 +1179,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/documents',
+    idempotent: true,
     tag: 'Документы',
     summary: 'Создать документ',
     description: 'Хранятся метаданные и ссылка. Загрузка файлов — P2.',
@@ -1210,6 +1217,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/documents/{id}/versions',
+    idempotent: true,
     tag: 'Документы',
     summary: 'Создать новую версию документа',
     description: 'Исходный документ уходит в архив.',
@@ -1239,6 +1247,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/meetings',
+    idempotent: true,
     tag: 'Встречи',
     summary: 'Создать встречу',
     description: 'Если задано следующее действие, обязателен его срок.',
@@ -1321,6 +1330,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/portal/applications',
+    idempotent: true,
     tag: 'Кабинет вуза',
     summary: 'Подать заявку на обучение',
     description: 'Персональных данных обучающихся заявка не содержит.',
@@ -1398,6 +1408,112 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'у каждой — ссылка на раздел методики.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
+  },
+  // ── Безопасность, волна 2 (решение 133) ──────────────────────────────────
+  {
+    method: 'post',
+    path: '/api/admin/telegram/rotate-webhook-secret',
+    tag: 'Администрирование',
+    summary: 'Сменить секрет вебхука Telegram',
+    description:
+      'Сервер создаёт новый секрет, СНАЧАЛА вызывает setWebhook у Telegram и только при успехе сохраняет ' +
+      'SHA-256 секрета в базе (он главнее TELEGRAM_WEBHOOK_SECRET). Отказ Telegram — 502, прежний секрет ' +
+      'действует. Ответ { rotatedAt, webhookUrl } — самого секрета нет ни в ответе, ни в журнале ' +
+      '(telegram.webhook_secret_rotated). Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: ['UNAUTHORIZED', 'FORBIDDEN', 'INTEGRATION_ERROR', 'INTERNAL'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/approvals',
+    tag: 'Администрирование',
+    summary: 'Запросы на одобрение опасных операций («четыре глаза»)',
+    description:
+      'Новые сверху; истёкшие показываются как EXPIRED. canApprove — текущий администратор может одобрить ' +
+      '(не автор, запрос ждёт решения). Требование одобрения включается APPROVALS_REQUIRED=true.',
+    permission: 'ADMIN',
+    query: approvalListQuerySchema,
+    list: true,
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals',
+    tag: 'Администрирование',
+    summary: 'Запросить одобрение операции',
+    description:
+      'Действия: user.grant_admin (назначить администратором), user.block_admin (заблокировать администратора); ' +
+      'payload — { userId }. Цель проверяется сразу: не найдена — 404, операция не имеет смысла — 409. ' +
+      'Запрос живёт 24 часа. После одобрения другим администратором автор выполняет операцию, передав approvalId ' +
+      '(PATCH /api/users/{id}); одобрение срабатывает один раз.',
+    permission: 'ADMIN',
+    body: createApprovalSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals/{id}/approve',
+    tag: 'Администрирование',
+    summary: 'Одобрить запрос',
+    description: 'Только другой администратор, не автор; только ждущий и не истёкший запрос — иначе 409. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/admin/approvals/{id}/reject',
+    tag: 'Администрирование',
+    summary: 'Отклонить запрос',
+    description: 'Любой администратор, в том числе автор (отозвать свой). Ждущий или одобренный, но не использованный. Тело не нужно.',
+    permission: 'ADMIN',
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/admin/audit/export',
+    tag: 'Журнал',
+    summary: 'Выгрузка журнала для внешней системы сбора событий (NDJSON)',
+    description:
+      'Одна запись — одна строка JSON со всеми колонками журнала, по возрастанию времени. after_id — курсор ' +
+      '(id последней полученной записи), limit — до 5000 (по умолчанию 1000). Заголовки: x-last-id — курсор ' +
+      'следующего запроса (пусто — записей больше нет), x-count — число строк. Потерянный курсор — 422. ' +
+      'Выгрузка пишется в журнал (audit.export).',
+    permission: 'ADMIN',
+    query: auditExportQuerySchema,
+    fileContentType: 'application/x-ndjson',
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/contacts/{id}/reveal',
+    tag: 'Университеты',
+    summary: 'Раскрыть почту и телефон контакта вуза',
+    description:
+      'Причина обязательна (10–500 символов), fields — email и/или phone (по умолчанию оба). Каждое раскрытие — ' +
+      'запись contact.revealed в журнале с перечнем полей и причиной (почта и телефоны в причине маскируются). ' +
+      'ANALYST и VIEWER — 403 (решение 106); представитель вуза — только свой вуз, чужой — 404; обезличенный ' +
+      'контакт — 409. Ответ не сохраняется для повторной отдачи (Cache-Control: no-store).',
+    permission: 'CONTACT_DETAILS',
+    body: revealContactSchema,
+    returnsOk: true,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'post',
+    path: '/api/client-errors',
+    tag: 'Служебное',
+    summary: 'Сообщить об ошибке фронтенда',
+    description:
+      'Без входа. Тело до 8 КБ: message, stack, url, component, digest, level, release — остальное отбрасывается, ' +
+      'длинное обрезается. Ответ всегда 204 без тела; запись в журнал сервера с меткой client-error и номером ' +
+      'запроса. С одного адреса — не больше 30 сообщений в минуту, лишние молча не пишутся.',
+    permission: 'ANY',
+    public: true,
+    returnsOk: true,
+    errors: [],
   },
   {
     method: 'get',

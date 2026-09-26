@@ -1,9 +1,11 @@
 import { z } from '@/shared/zod'
-import { describeForLog } from '@/shared/db/log'
 import { findNul } from '@/shared/db/storable'
+import { log } from '@/shared/log/logger'
+import { runWithRequestId } from '@/shared/log/request-context'
 import { AppError, fromZod, notFound } from './errors'
 import { assertSameOrigin } from './origin'
 import { withRateLimit } from './rate-limit-guard'
+import { REQUEST_ID_HEADER, resolveRequestId } from './request-id'
 import { fail } from './response'
 
 interface PrismaLikeError {
@@ -100,23 +102,69 @@ async function rejectUnstorableParams(context: unknown): Promise<void> {
  * получают заголовки `RateLimit-*`.
  * Изменяющие запросы с чужим `Origin` отклоняет (origin.ts).
  * Никакие подробности внутренней ошибки наружу не уходят — ни клиенту, ни в журнал
- * вместе с данными запроса (shared/db/log.ts).
+ * вместе с данными запроса (shared/log, решение 133).
+ *
+ * Номер запроса (`x-request-id`, его ставит middleware; нет — выдаётся здесь) виден
+ * журналу на всю глубину вызова и уходит в заголовок ответа; ответ 500 несёт его
+ * и в теле — человек называет номер, по нему находится строка журнала.
  */
 export function handle<Ctx>(
   fn: (request: Request, context: Ctx) => Promise<Response>,
 ): (request: Request, context: Ctx) => Promise<Response> {
   return withRateLimit(async (request: Request, context: Ctx) => {
-    try {
-      // Изменяющий запрос со страницы чужого сайта отклоняется до всего остального.
-      assertSameOrigin(request)
-      await rejectUnstorableParams(context)
-      return await fn(request, context)
-    } catch (error) {
-      const known = toAppError(error)
-      if (known) return fail(known)
+    const requestId = resolveRequestId(request.headers.get(REQUEST_ID_HEADER))
+    const response = await runWithRequestId(requestId, async () => {
+      try {
+        // Изменяющий запрос со страницы чужого сайта отклоняется до всего остального.
+        assertSameOrigin(request)
+        await rejectUnstorableParams(context)
+        return await fn(request, context)
+      } catch (error) {
+        const known = toAppError(error)
+        if (known) return fail(known)
 
-      console.error('[INTERNAL]', describeForLog(error))
-      return fail(new AppError('INTERNAL', 'Внутренняя ошибка сервера'))
-    }
+        log.error('Внутренняя ошибка сервера', {
+          err: error,
+          method: request.method,
+          path: safePath(request.url),
+        })
+        return internalError(requestId)
+      }
+    })
+    trySetHeader(response, REQUEST_ID_HEADER, requestId)
+    return response
   })
+}
+
+/** Ответ 500: без подробностей, но с номером запроса для обращения в поддержку. */
+export function internalError(requestId: string): Response {
+  const response = fail(new AppError('INTERNAL', 'Внутренняя ошибка сервера'))
+  return new Response(
+    JSON.stringify({
+      error: {
+        code: 'INTERNAL',
+        message: 'Внутренняя ошибка сервера',
+        requestId,
+      },
+    }),
+    { status: response.status, headers: response.headers },
+  )
+}
+
+/** Путь без строки запроса: в параметрах бывают поисковые строки с ФИО. */
+function safePath(url: string): string {
+  try {
+    return new URL(url).pathname
+  } catch {
+    return ''
+  }
+}
+
+/** Заголовки ответа `Response.redirect` и некоторых готовых ответов неизменяемы. */
+function trySetHeader(response: Response, name: string, value: string): void {
+  try {
+    response.headers.set(name, value)
+  } catch {
+    // Неизменяемые заголовки: номер останется только в журнале.
+  }
 }

@@ -2,6 +2,7 @@ import { after } from 'next/server'
 import { resolveSecret } from '@/shared/auth/auth'
 import { TELEGRAM_WEBHOOK } from '@/shared/config/telegram.config'
 import { handle, ok, readBodyBytes, validationError } from '@/shared/http'
+import { log } from '@/shared/log/logger'
 import * as service from '@/modules/telegram/telegram.service'
 import { telegramUpdateSchema, type TelegramUpdate } from '@/modules/telegram/telegram.schema'
 
@@ -13,6 +14,10 @@ import { telegramUpdateSchema, type TelegramUpdate } from '@/modules/telegram/te
  * ответа недолго и, не дождавшись, повторяет обновление. По той же причине 200
  * и на то, что разобрать не удалось, — повтор того же обновления ничего не исправит;
  * причина уходит в журнал. 403 — только без верного секрета.
+ *
+ * Повтор (тот же update_id уже отмечен в базе, решение 133) — тихий 200 без
+ * выполнения: Telegram не должен его повторять. Секрет сверяется с хешем из базы,
+ * если администратор его сменял, иначе — с TELEGRAM_WEBHOOK_SECRET.
  *
  * Проверка «same-origin» в `handle()` запрос пропускает: у Telegram нет заголовка
  * Origin, а без него проверять нечего (shared/http/origin.ts).
@@ -28,17 +33,18 @@ async function readUpdate(request: Request): Promise<TelegramUpdate | null> {
     )
     const parsed = telegramUpdateSchema.safeParse(JSON.parse(new TextDecoder().decode(bytes)))
     if (parsed.success) return parsed.data
-    console.warn('[telegram] обновление неизвестного вида пропущено')
+    log.warn('[telegram] обновление неизвестного вида пропущено')
   } catch {
-    console.warn('[telegram] тело обновления не прочитано')
+    log.warn('[telegram] тело обновления не прочитано')
   }
   return null
 }
 
 export const POST = handle(async (request) => {
-  service.assertWebhookSecret(request.headers.get(SECRET_HEADER))
+  await service.assertWebhookSecret(request.headers.get(SECRET_HEADER))
   const update = await readUpdate(request)
-  if (update) {
+  // Повтор не выполняется второй раз, но ответ тот же: Telegram не отличит и не повторит.
+  if (update && (await service.acceptUpdate(update.update_id))) {
     const secret = resolveSecret()
     after(() => service.handleUpdate(update, { secret }))
   }

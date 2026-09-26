@@ -116,11 +116,30 @@ describe('sendMessage', () => {
   it('токен не попадает в журнал, даже если он есть в тексте ошибки', async () => {
     const { transport } = scripted([new Error(`connect ECONNREFUSED /bot${TOKEN}/sendMessage`)])
     await new TelegramClient(config(), { transport, wait: noWait }).sendMessage('42', 'секретный текст')
-    const logged = warn.mock.calls.flat().join('\n')
+    // Строки журнала — JSON (решение 133); время в них может содержать «42», его не смотрим.
+    const logged = warn.mock.calls
+      .flat()
+      .map((line: unknown) => String(line).replace(/"ts":"[^"]*"/, ''))
+      .join('\n')
     expect(logged).not.toContain(TOKEN)
     expect(logged).not.toContain('секретный текст')
     expect(logged).not.toContain('42')
     expect(logged).toContain('[токен скрыт]')
+  })
+
+  it('setWebhook: секрет только в теле запроса к Telegram — не в журнале и не в результате', async () => {
+    const secret = 'NewSecret_0123456789abcdefghijklmnopqrstuvw'
+    const ok = scripted([{ status: 200, body: '{"ok":true,"result":true}' }])
+    expect(await new TelegramClient(config(), { transport: ok.transport, wait: noWait }).setWebhook('https://x.test/api/telegram/webhook', secret)).toEqual({ ok: true })
+    expect(ok.calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/setWebhook`)
+    expect(JSON.parse(ok.calls[0]!.body)).toEqual({ url: 'https://x.test/api/telegram/webhook', secret_token: secret })
+
+    const rejected = scripted([{ status: 400, body: `{"ok":false,"description":"Bad Request: bad webhook ${secret}"}` }])
+    const result = await new TelegramClient(config(), { transport: rejected.transport, wait: noWait }).setWebhook('https://x', secret)
+    expect(result).toMatchObject({ ok: false, reason: 'failed', status: 400 })
+    expect(JSON.stringify(result)).not.toContain(secret)
+    expect(warn.mock.calls.flat().join('\n')).not.toContain(secret)
+    expect(rejected.calls).toHaveLength(1)
   })
 
   it('текст длиннее предела Bot API обрезается, а не отвергается', async () => {

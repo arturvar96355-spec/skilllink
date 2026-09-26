@@ -1,4 +1,5 @@
 import { conflict, validationError } from '@/shared/http/errors'
+import { CONSENT_RECORD, consentTextHash } from '@/shared/config/consent.config'
 import type {
   ConsentForm,
   ConsentStatus,
@@ -81,6 +82,10 @@ export interface ContactBasisState {
   consentWithdrawnAt: Date | null
   basisReference: string | null
   withdrawalReference: string | null
+  /** Решение 123: редакция политики, хеш текста согласия, где получено — только при согласии. */
+  consentPolicyVersion: string | null
+  consentTextHash: string | null
+  consentContext: string | null
 }
 
 /** Контакт целиком, как его видят правила: состояние учёта и поля, по которым он обезличен. */
@@ -102,6 +107,9 @@ export interface ContactBasisHistoryDraft {
   consentWithdrawnAt: Date | null
   referenceChanged: boolean
   anonymized: boolean
+  /** Решение 123: снимок редакции политики и хеша текста согласия. */
+  policyVersion: string | null
+  consentTextHash: string | null
 }
 
 /** Что записать: новые поля контакта и строка истории. */
@@ -115,6 +123,12 @@ export interface SetContactBasisInput {
   documentReference: string
   consentObtainedAt?: string | null
   consentForm?: ConsentForm | null
+  /** Решение 123: редакция политики; не передана — действующая (CONSENT_RECORD). */
+  policyVersion?: string | null
+  /** Решение 123: текст подписанного бланка — хешируется и не хранится; не передан — бланк по умолчанию. */
+  consentText?: string | null
+  /** Решение 123: где получено согласие, без ПД. */
+  consentContext?: string | null
 }
 
 export interface WithdrawConsentInput {
@@ -163,10 +177,14 @@ export function planBasisChange(
       details.push({ field: 'consentObtainedAt', message: 'Дата получения согласия не может быть в будущем' })
     }
     if (details.length > 0) throw validationError('Не хватает сведений о согласии', details)
-  } else if (obtainedAt || input.consentForm) {
-    throw validationError('Дата и форма согласия указываются только при основании «согласие»', [
-      ...(obtainedAt ? [{ field: 'consentObtainedAt', message: 'Не указывается для этого основания' }] : []),
-      ...(input.consentForm ? [{ field: 'consentForm', message: 'Не указывается для этого основания' }] : []),
+  } else if (obtainedAt || input.consentForm || input.policyVersion || input.consentText || input.consentContext) {
+    const notHere = (field: string) => [{ field, message: 'Не указывается для этого основания' }]
+    throw validationError('Сведения о согласии указываются только при основании «согласие»', [
+      ...(obtainedAt ? notHere('consentObtainedAt') : []),
+      ...(input.consentForm ? notHere('consentForm') : []),
+      ...(input.policyVersion ? notHere('policyVersion') : []),
+      ...(input.consentText ? notHere('consentText') : []),
+      ...(input.consentContext ? notHere('consentContext') : []),
     ])
   }
 
@@ -178,6 +196,10 @@ export function planBasisChange(
     consentWithdrawnAt: null,
     basisReference: input.documentReference,
     withdrawalReference: null,
+    // Запись согласия (решение 133): редакция политики и хеш текста на момент получения.
+    consentPolicyVersion: isConsent ? (input.policyVersion ?? CONSENT_RECORD.policyVersion) : null,
+    consentTextHash: isConsent ? consentTextHash(input.consentText ?? CONSENT_RECORD.consentText) : null,
+    consentContext: isConsent ? (input.consentContext ?? null) : null,
   }
 
   const unchanged =
@@ -185,7 +207,10 @@ export function planBasisChange(
     current.consentStatus === next.consentStatus &&
     sameInstant(current.consentObtainedAt, next.consentObtainedAt) &&
     current.consentForm === next.consentForm &&
-    current.basisReference === next.basisReference
+    current.basisReference === next.basisReference &&
+    current.consentPolicyVersion === next.consentPolicyVersion &&
+    current.consentTextHash === next.consentTextHash &&
+    current.consentContext === next.consentContext
   if (unchanged) return null
 
   return {
@@ -200,6 +225,8 @@ export function planBasisChange(
       consentWithdrawnAt: null,
       referenceChanged: current.basisReference !== next.basisReference,
       anonymized: false,
+      policyVersion: next.consentPolicyVersion,
+      consentTextHash: next.consentTextHash,
     },
   }
 }
@@ -254,6 +281,10 @@ export function planConsentWithdrawal(
       consentWithdrawnAt: withdrawnAt,
       basisReference: current.basisReference,
       withdrawalReference: input.withdrawalReference,
+      // Запись согласия остаётся: это основание акта (решение 133).
+      consentPolicyVersion: current.consentPolicyVersion,
+      consentTextHash: current.consentTextHash,
+      consentContext: current.consentContext,
       basisUpdatedAt: now,
       ...(alreadyAnonymized ? {} : ANONYMIZED_CONTACT_FIELDS),
     },
@@ -267,6 +298,8 @@ export function planConsentWithdrawal(
       consentWithdrawnAt: withdrawnAt,
       referenceChanged: true,
       anonymized: !alreadyAnonymized,
+      policyVersion: current.consentPolicyVersion,
+      consentTextHash: current.consentTextHash,
     },
   }
 }
