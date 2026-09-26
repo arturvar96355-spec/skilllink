@@ -123,7 +123,7 @@ export function Pie3D({
   valueSuffix = '',
   size = 260,
   thickness = 0.58,
-  spinnable = true,
+  spinnable = false,
 }: {
   slices: Pie3DSlice[]
   /** Подпись для читалок экрана: что показывает диаграмма. */
@@ -137,6 +137,10 @@ export function Pie3D({
   size?: number
   /** Ширина кольца: доля внутреннего радиуса от внешнего. */
   thickness?: number
+  /**
+   * Вращение перетаскиванием. По умолчанию выключено (ТЗ дизайна 26–29.09, п. 1.1):
+   * кольцо не должно ехать за мышью — только подсветка сектора, idle → hover → idle.
+   */
   spinnable?: boolean
 }) {
   const id = useId().replace(/:/g, '')
@@ -236,12 +240,7 @@ export function Pie3D({
       ))}
       <path
         d={topFace(g, part.a0, part.a1, part.shift)}
-        className={styles.top}
-        onPointerEnter={(event) => {
-          // Касание не «наводит»: иначе сектор оставался выдвинутым после тапа.
-          if (event.pointerType !== 'touch') setActive(part.index)
-        }}
-        onPointerLeave={() => setActive((current) => (current === part.index ? null : current))}
+        className={[styles.top, part.index === active ? styles.topActive : ''].filter(Boolean).join(' ')}
       />
       <path d={topFace(g, part.a0, part.a1, part.shift)} fill={`url(#${id}-sheen)`} className={styles.sheen} />
     </g>
@@ -305,6 +304,24 @@ export function Pie3D({
               })
             })}
             {lifted && drawSlice(lifted, { start: true, end: true })}
+            {/*
+              Наведение — по неподвижным зонам на месте секторов, поверх всего.
+              Выдвинутый сектор уезжает на ~5% размера: будь наведение на нём самом,
+              курсор у края выпадал бы из сектора, тот возвращался под курсор —
+              и так по кругу, сектор дрожал (ТЗ дизайна 26–29.09, п. 1.1).
+            */}
+            {visible.map((part) => (
+              <path
+                key={`hit-${part.slice.key}`}
+                d={topFace(g, part.a0, part.a1, [0, 0])}
+                className={styles.hit}
+                onPointerEnter={(event) => {
+                  // Касание не «наводит»: иначе сектор оставался выдвинутым после тапа.
+                  if (event.pointerType !== 'touch') setActive(part.index)
+                }}
+                onPointerLeave={() => setActive((current) => (current === part.index ? null : current))}
+              />
+            ))}
           </>
         )}
       </svg>

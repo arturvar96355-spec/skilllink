@@ -39,8 +39,18 @@
   transition: filter var(--motion-micro) var(--ease-out);
 }
 
-.slice:hover .top {
+.topActive {
   filter: brightness(1.18);
+}
+
+/* Грани не ловят указатель: наведение — только по неподвижным зонам .hit. */
+.slice {
+  pointer-events: none;
+}
+
+.hit {
+  fill: transparent;
+  pointer-events: all;
 }
 
 /* Блик лежит поверх грани и не мешает наводить на неё. */
