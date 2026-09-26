@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Button } from '../primitives/Button'
 import { Icon, type IconName } from '../primitives/Icon'
 import { Skeleton } from '../primitives/Skeleton'
@@ -56,6 +56,24 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
   // с кнопкой «Повторить» обещало, что со второго раза получится.
   const isMissing = error.code === 'NOT_FOUND'
   const title = isAccessDenied ? 'Раздел недоступен' : isMissing ? 'Не найдено' : 'Не удалось загрузить'
+
+  // 429 (RATE_LIMITED): повтор до конца ожидания всё равно получит тот же
+  // отказ — кнопка «Повторить» считает секунды сама, а не полагается на то,
+  // что человек подождёт заголовок Retry-After молча.
+  const isRateLimited = error.code === 'RATE_LIMITED' && error.retryAfterSeconds !== null
+  const [secondsLeft, setSecondsLeft] = useState(error.retryAfterSeconds ?? 0)
+
+  useEffect(() => {
+    if (!isRateLimited) return
+    setSecondsLeft(error.retryAfterSeconds ?? 0)
+    const timer = setInterval(() => {
+      setSecondsLeft((current) => Math.max(0, current - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [isRateLimited, error.retryAfterSeconds])
+
+  const waiting = isRateLimited && secondsLeft > 0
+
   return (
     <div className={styles.block}>
       <span className={[styles.icon, isMissing ? '' : styles.iconError].filter(Boolean).join(' ')}>
@@ -69,8 +87,8 @@ export function ErrorState({ error, onRetry }: ErrorStateProps) {
       </p>
       {onRetry && !isAccessDenied && !isMissing && (
         <div className={styles.actions}>
-          <Button icon="refresh" onClick={onRetry}>
-            Повторить
+          <Button icon="refresh" onClick={onRetry} disabled={waiting}>
+            {waiting ? `Повторить через ${secondsLeft} с` : 'Повторить'}
           </Button>
         </div>
       )}

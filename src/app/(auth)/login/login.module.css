@@ -429,7 +429,7 @@
   padding: var(--space-3);
   border-radius: var(--radius-input);
   background: var(--danger-surface);
-  border: 1px solid rgba(240, 97, 111, 0.3);
+  border: 1px solid var(--danger-border);
   color: var(--text-danger-strong);
   font-size: var(--text-body-sm-size);
   line-height: 1.45;

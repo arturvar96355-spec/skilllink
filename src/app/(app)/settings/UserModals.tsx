@@ -359,7 +359,7 @@ export function UserModal({
             variant="primary"
             onClick={submit}
             isLoading={save.isPending && confirm === null}
-            disabled={!hasChanges || handOverFirst || isSharedDemo}
+            disabled={!hasChanges || handOverFirst || isSharedDemo || save.isPending}
           >
             Сохранить
           </Button>
@@ -479,13 +479,20 @@ export function UserModal({
               variant="danger"
               icon="block"
               size="sm"
-              disabled={isSelf || isSharedDemo || confirm !== null}
+              disabled={isSelf || isSharedDemo || confirm !== null || save.isPending}
               onClick={() => setConfirm('block')}
             >
               Заблокировать
             </Button>
           ) : (
-            <Button variant="secondary" icon="check" size="sm" onClick={() => setActive(true)} isLoading={save.isPending}>
+            <Button
+              variant="secondary"
+              icon="check"
+              size="sm"
+              disabled={confirm !== null}
+              onClick={() => setActive(true)}
+              isLoading={save.isPending}
+            >
               Разблокировать
             </Button>
           )}

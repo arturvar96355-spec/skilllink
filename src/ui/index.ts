@@ -135,6 +135,7 @@ export {
 export {
   ROUTES,
   API_CONTRACT_URL,
+  OPEN_SOURCE_REPO_URL,
   universityHref,
   programHref,
   cooperationHref,

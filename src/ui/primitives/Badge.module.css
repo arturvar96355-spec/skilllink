@@ -36,19 +36,19 @@
 }
 
 .success {
-  background: rgba(85, 200, 194, 0.12);
+  background: color-mix(in srgb, var(--status-success) 12%, transparent);
   border-color: transparent;
   color: var(--status-success);
 }
 
 .warning {
-  background: rgba(242, 193, 78, 0.12);
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
   border-color: transparent;
   color: var(--status-warning);
 }
 
 .danger {
-  background: rgba(240, 97, 111, 0.12);
+  background: color-mix(in srgb, var(--status-danger) 12%, transparent);
   border-color: transparent;
   color: var(--status-danger);
 }
@@ -67,7 +67,7 @@
 
 /* Демонстрационные данные помечаются всегда: выдавать их за настоящие нельзя. */
 .mock {
-  background: rgba(242, 138, 82, 0.12);
+  background: color-mix(in srgb, var(--text-warm) 12%, transparent);
   border-color: transparent;
   color: var(--text-warm);
 }

@@ -18,6 +18,7 @@ import {
   ErrorState,
   InboundLetterStatusBadge,
   MockBadge,
+  Modal,
   NO_DATA,
   PageHeader,
   Section,
@@ -367,6 +368,7 @@ function ReplyDraft({
   const toast = useToast()
   const [text, setText] = useState(draft?.text ?? '')
   const [copied, setCopied] = useState(false)
+  const [confirmRecompose, setConfirmRecompose] = useState(false)
 
   useEffect(() => {
     setText(draft?.text ?? '')
@@ -388,6 +390,14 @@ function ReplyDraft({
     }
     toast.success('Черновик собран')
     onChanged()
+  }
+
+  function onRecompose() {
+    if (dirty) {
+      setConfirmRecompose(true)
+      return
+    }
+    onCompose()
   }
 
   async function onSave() {
@@ -444,7 +454,7 @@ function ReplyDraft({
         <Button variant="primary" icon="check" onClick={onSave} disabled={!dirty} isLoading={save.isPending}>
           Сохранить правку
         </Button>
-        <Button variant="secondary" icon="refresh" onClick={onCompose} isLoading={compose.isPending}>
+        <Button variant="secondary" icon="refresh" onClick={onRecompose} isLoading={compose.isPending}>
           Собрать заново
         </Button>
         <Button variant="secondary" icon={copied ? 'check' : undefined} onClick={onCopy}>
@@ -454,6 +464,33 @@ function ReplyDraft({
           Открыть в почте
         </Button>
       </div>
+      {confirmRecompose && (
+        <Modal
+          isOpen
+          onClose={() => setConfirmRecompose(false)}
+          title="Собрать черновик заново?"
+          description="Несохранённая правка текста будет потеряна — черновик заменится новым, собранным системой."
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setConfirmRecompose(false)}>
+                Отмена
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConfirmRecompose(false)
+                  onCompose()
+                }}
+                isLoading={compose.isPending}
+              >
+                Собрать заново
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.note}>Правку можно скопировать перед этим и вставить обратно после сборки.</p>
+        </Modal>
+      )}
     </div>
   )
 }

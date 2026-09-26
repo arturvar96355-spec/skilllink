@@ -229,7 +229,7 @@ export function PriorityBadge({ priority }: { priority: RecommendationPriority }
 
 export function RecommendationStatusBadge({ status }: { status: RecommendationStatus }) {
   return (
-    <Badge tone={RECOMMENDATION_TONES[status]} title={RECOMMENDATION_STATUS_HINTS[status]}>
+    <Badge tone={RECOMMENDATION_TONES[status]} withDot title={RECOMMENDATION_STATUS_HINTS[status]}>
       {RECOMMENDATION_STATUS_LABELS[status]}
     </Badge>
   )
