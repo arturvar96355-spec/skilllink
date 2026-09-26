@@ -94,15 +94,28 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   })
 }
 
-/** Один запрос `getUpdates` и обработка пришедших обновлений. Возвращает следующий offset. */
-async function pollTick(client: TelegramClient, offset: number | null, signal: AbortSignal): Promise<number | null> {
+interface PollTickResult {
+  offset: number | null
+  /** false — сеть или Telegram подвели (не «нас прервали»): следующая попытка — после паузы. */
+  ok: boolean
+}
+
+/**
+ * Один запрос `getUpdates` и обработка пришедших обновлений.
+ *
+ * `ok: false` — сетевая ошибка или отказ Telegram (`ECONNREFUSED`, таймаут, 5xx…),
+ * не разовая случайность: без паузы перед следующей попыткой цикл превращается
+ * в тесный `while`, который колотится в недоступный адрес по кругу — доли
+ * миллисекунды на попытку, тысячи строк в журнал и в Bot API за секунды
+ * (проверено на сборке: без паузы за 2 секунды — мегабайты журнала).
+ */
+async function pollTick(client: TelegramClient, offset: number | null, signal: AbortSignal): Promise<PollTickResult> {
   const result = await client.getUpdates({ offset: offset ?? undefined, timeoutSec: POLL_TIMEOUT_SEC, signal })
   if (!result.ok) {
-    if (result.reason !== 'aborted') {
-      status.lastPollError = result.description ?? `HTTP ${result.status ?? '?'}`
-      log.warn('[telegram] polling: getUpdates не выполнен', { reason: result.reason, status: result.status })
-    }
-    return offset
+    if (result.reason === 'aborted') return { offset, ok: true } // остановка — не сбой, паузы не нужно
+    status.lastPollError = result.description ?? `HTTP ${result.status ?? '?'}`
+    log.warn('[telegram] polling: getUpdates не выполнен', { reason: result.reason, status: result.status })
+    return { offset, ok: false }
   }
   status.lastPollError = null
   status.lastPollAt = new Date()
@@ -122,7 +135,7 @@ async function pollTick(client: TelegramClient, offset: number | null, signal: A
       await service.handleUpdate(parsed.data, { secret: runtimeSecret ?? '' })
     }
   }
-  return nextOffset
+  return { offset: nextOffset, ok: true }
 }
 
 async function runPollLoop(): Promise<void> {
@@ -139,11 +152,13 @@ async function runPollLoop(): Promise<void> {
       abortController = new AbortController()
       const client = new TelegramClient(config)
       try {
-        offset = await pollTick(client, offset, abortController.signal)
+        const tick = await pollTick(client, offset, abortController.signal)
+        offset = tick.offset
+        if (!tick.ok) await sleep(LOOP_ERROR_RETRY_MS, abortController.signal)
       } catch (error) {
         status.lastPollError = error instanceof Error ? error.message : 'неизвестная ошибка'
         log.error('[telegram] polling: сбой цикла', { err: error })
-        await sleep(LOOP_ERROR_RETRY_MS)
+        await sleep(LOOP_ERROR_RETRY_MS, abortController.signal)
       }
     }
   } finally {

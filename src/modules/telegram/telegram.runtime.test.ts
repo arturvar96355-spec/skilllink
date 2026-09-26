@@ -145,6 +145,30 @@ describe('startPollingLoop / stopPollingLoop', () => {
     await runtime.startPollingLoop('secret')
     expect(mocks.deleteWebhookCalls).toBe(1)
   })
+
+  it('сетевой сбой getUpdates — пауза перед следующей попыткой, не тесный цикл без остановки', async () => {
+    // Регрессия: без паузы на «сеть недоступна» (не «нас прервали») цикл колотился
+    // по кругу без задержки — тысячи попыток и строк в журнал за секунды
+    // (обнаружено на сборке: реальный ECONNREFUSED дал мегабайты журнала за ~2 с).
+    vi.useFakeTimers()
+    try {
+      mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      await runtime.startPollingLoop('secret')
+      await vi.waitFor(() => expect(mocks.getUpdatesCalls.length).toBeGreaterThanOrEqual(1))
+
+      const afterFirstFailure = mocks.getUpdatesCalls.length
+      // Без продвижения таймеров вторая попытка не должна была уже случиться —
+      // цикл обязан ждать паузу, а не звать getUpdates немедленно.
+      await Promise.resolve()
+      expect(mocks.getUpdatesCalls.length).toBe(afterFirstFailure)
+
+      await vi.advanceTimersByTimeAsync(2_500)
+      await vi.waitFor(() => expect(mocks.getUpdatesCalls.length).toBeGreaterThan(afterFirstFailure))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('checkAutoMode', () => {
