@@ -289,6 +289,7 @@ export function GlobalSearch() {
             onPointerDown={startDrag}
             onPointerMove={onDrag}
             onPointerUp={endDrag}
+            onPointerCancel={endDrag}
           >
             <span className={styles.handle} title="Окно можно перетащить" aria-hidden="true">
               <Icon name="menu" size={16} />
