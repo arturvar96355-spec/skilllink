@@ -1234,7 +1234,9 @@ async function seedCooperations(
       responsibleId: manager2.id, status: 'ACTIVE',
       goal: 'DevOps-практики в бакалавриате',
       startedDaysAgo: 45, firstContactDaysAgo: 45, classesStartInDays: null,
-      completedUpTo: 2, overdueStages: [3, 4],
+      // Решение 185: просрочка тут была не сценарной (тот же этап 3 уже
+      // просрочен у kazan-business) — снята, срок перенесён по согласованию.
+      completedUpTo: 2,
     },
     {
       // Дошли до обмена документами, а IT-продукт так и не выбран:
@@ -1484,6 +1486,18 @@ async function seedCooperation(
     if (classesStartAt && afterClasses !== undefined) {
       const fromClasses = new Date(classesStartAt.getTime() + afterClasses * DAY)
       if (fromClasses > deadline) deadline = fromClasses
+    }
+    // Решение 185: у нормативного срока, посчитанного от начала связки, нет защиты
+    // от того, что этап просто идёт дольше медианы — без неё этап становился
+    // просроченным без сюжета, стоило кумулятивной длительности перегнать норматив
+    // (генератор prisma/demo/generate.ts эту защиту уже имеет, здесь её не было).
+    // Не сценарная просрочка (не в overdueStages) переносится по согласованию
+    // с вузом — как и в generate.ts, но без RNG: этот набор мал и рукописный,
+    // хватает детерминированного смещения по номеру этапа.
+    const status = number === 14 ? controlStatus : seedStatus(number)
+    const isOpenNow = status === 'IN_PROGRESS' || status === 'BLOCKED'
+    if (isOpenNow && !item.overdueStages?.includes(number) && deadline.getTime() <= now.getTime()) {
+      deadline = daysAhead(12 + (number % 5) * 5)
     }
     deadlineOf.set(number, deadline)
   }
