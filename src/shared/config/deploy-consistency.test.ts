@@ -156,8 +156,21 @@ describe('переменные docker-compose и примеры .env говор�
    * блок «Секреты») — не настройка, которую кто-то читает в .env.example
    * (это переменные для контейнеров, не для приложения на ноутбуке), но и
    * не сирота: deploy/.env.cloud.example перечисляет их для справки.
+   *
+   * `STAND_FREEZE_AT` (решение 147) — того же рода «сирота» для этой проверки
+   * по другой причине: его читают напрямую scripts/ops/watchdog.sh и
+   * scripts/ops/restore-drill.sh (`env_get`, grep по файлу), а не приложение
+   * через docker-compose `${STAND_FREEZE_AT}` — в контейнер ему попадать незачем.
    */
-  const cloudOnly = new Set(['POSTGRES_PASSWORD', 'DOCKER_AUTH_SECRET', 'SEED_DEMO_PASSWORD', 'DOCKER_DEMO_AUTH_ENABLED', 'SITE_ADDRESS', 'DOCKER_AUTH_URL'])
+  const cloudOnly = new Set([
+    'POSTGRES_PASSWORD',
+    'DOCKER_AUTH_SECRET',
+    'SEED_DEMO_PASSWORD',
+    'DOCKER_DEMO_AUTH_ENABLED',
+    'SITE_ADDRESS',
+    'DOCKER_AUTH_URL',
+    'STAND_FREEZE_AT',
+  ])
 
   it('каждая переменная compose описана в .env.example или в deploy/.env.cloud.example', () => {
     const known = composeVariables()

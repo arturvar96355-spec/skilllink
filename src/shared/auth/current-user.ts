@@ -17,6 +17,12 @@ export interface CurrentUser {
   role: UserRole
   /** Заполнен только у UNIVERSITY_REP: ограничивает видимость своим вузом. */
   universityId: string | null
+  /**
+   * Учётная запись эксперта хакатона (решение 147): разрушающие действия под 403.
+   * Необязательное поле — так объекты `CurrentUser`, собранные вручную в тестах
+   * (десятки файлов, роль без этого признака), не меняются; `undefined` равносильно `false`.
+   */
+  isReviewer?: boolean
 }
 
 /**
@@ -42,6 +48,7 @@ const USER_FIELDS = {
   fullName: true,
   role: true,
   universityId: true,
+  isReviewer: true,
 } as const
 
 async function readUserIdFromCookie(): Promise<string | null> {

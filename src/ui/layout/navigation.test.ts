@@ -37,6 +37,7 @@ function user(role: UserRole): CurrentUserDto {
     role,
     universityId: role === 'UNIVERSITY_REP' ? 'uni-1' : null,
     universityName: role === 'UNIVERSITY_REP' ? 'Тестовый вуз' : null,
+    isReviewer: false,
     permissions: {
       canWrite: role === 'ADMIN' || role === 'MANAGER',
       canSeeAnalytics: role !== 'UNIVERSITY_REP',

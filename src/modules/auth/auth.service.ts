@@ -110,6 +110,7 @@ export function describeCurrentUser(
     role: user.role,
     universityId: user.universityId,
     universityName: profile.universityName,
+    isReviewer: user.isReviewer ?? false,
     permissions: {
       canWrite: can(user, 'WRITE'),
       canSeeAnalytics: can(user, 'ANALYTICS'),

@@ -60,7 +60,7 @@ export const PERMISSIONS = {
    * Загрузка заказов с сайта и файл «Загрузка пользователей» для LMS (решение 132):
    * через эти запросы проходят ФИО, телефоны и почты слушателей. Только те, кто ведёт
    * набор. Совпадает с WRITE — фронт определяет доступ по `permissions.canWrite`.
-   * `TODO: PM DECISION` — нужна ли отдельная роль методиста вместо менеджера.
+   * Решение PM от 26.09.2026: отдельную роль методиста не заводим.
    */
   SITE_ORDERS: ['ADMIN', 'MANAGER', 'HEAD'],
   /**
@@ -88,9 +88,55 @@ export function can(user: CurrentUser, permission: Permission): boolean {
   return (PERMISSIONS[permission] as readonly UserRole[]).includes(user.role)
 }
 
+/**
+ * Права, которые эксперту (флаг `is_reviewer`, решение 147) открыты и через `assertCan`:
+ * только чтение и выгрузки. Список читаемых прав, а не запрещённых: новое право,
+ * которое кто-то добавит и забудет здесь упомянуть, экспертам по умолчанию будет
+ * недоступно — это надёжнее списка «что нельзя», который стареет тихо.
+ *
+ * `READ` — справочники, связи, этапы. `ANALYTICS` — рейтинги, дефициты, рекомендации
+ * (без права их пересобирать — это ANALYTICS_WORK, не в списке). `UNIVERSITY_PORTAL` —
+ * просмотр кабинета вуза (запись — `UNIVERSITY_PORTAL_WRITE`, не в списке). `CALENDAR` —
+ * личная подписка на календарь (решение 105): не про данные системы, эксперту не мешает.
+ * `CONTACT_DETAILS`, `VENDORS` — тоже только чтение (решение 106, решение 132).
+ *
+ * Экспертам эта версия отдаёт меньше, чем разрешил Артур 26.09.2026 (там же — чек-лист,
+ * «взять рекомендацию в работу», встреча/документ), — выбрана более простая и надёжная
+ * версия «эксперт только читает и выгружает»: перечислять «безопасные» изменения
+ * по всем модулям и рисковать забыть новый деструктивный маршрут рискованнее, чем
+ * временно закрыть несколько безопасных, но необязательных для экспертизы действий.
+ */
+const REVIEWER_ALLOWED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
+  'READ',
+  'ANALYTICS',
+  'UNIVERSITY_PORTAL',
+  'CALENDAR',
+  'CONTACT_DETAILS',
+  'VENDORS',
+])
+
+/** Текст отказа для эксперта — единый на все маршруты (решение 147). */
+export const REVIEWER_FORBIDDEN_MESSAGE = 'Недоступно в учётной записи эксперта: действие необратимо'
+
+/**
+ * Разрушающие или изменяющие действия недоступны учётной записи эксперта (решение 147),
+ * независимо от роли: `expert-admin@skilllink.demo` формально ADMIN, но `assertCan`
+ * останавливает его на любом праве вне `REVIEWER_ALLOWED_PERMISSIONS`. Один вызов
+ * на все ~150 мест `assertCan` во всех модулях — новый разрушающий маршрут получает
+ * защиту бесплатно, если он тоже проверяет права через `assertCan`.
+ */
+export function assertReviewerAllowed(user: CurrentUser): void {
+  if (user.isReviewer) {
+    throw forbidden(REVIEWER_FORBIDDEN_MESSAGE)
+  }
+}
+
 export function assertCan(user: CurrentUser, permission: Permission): void {
   if (!can(user, permission)) {
     throw forbidden('Недостаточно прав для этого действия')
+  }
+  if (!REVIEWER_ALLOWED_PERMISSIONS.has(permission)) {
+    assertReviewerAllowed(user)
   }
 }
 

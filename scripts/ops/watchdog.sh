@@ -21,9 +21,16 @@
 # Раз в сутки после 09:00 МСК — сводка: аптайм, место, возраст копии, открытые
 # проблемы, печать журнала (headSeq/headHash из npm run audit:seal, если он есть).
 #
+# Заморозка после сдачи (STAND_FREEZE_AT в .env.cloud, решение 147, docs/DEPLOY.md,
+# «Заморозка после сдачи»): после неё сторож продолжает все проверки и оповещения
+# как обычно, но не снимает печать журнала (audit:seal — запись в audit_seals)
+# и проверяет цепочку без записи исхода в журнал (audit:verify --no-audit).
+# Сам сторож в базу стенда не пишет и ничего не перезапускает ни до, ни после.
+#
 # Журнал — ~/skilllink/alerts/watchdog.log (последние 2000 строк).
 # Переопределяется окружением для проверки на своей машине (docs/OPERATIONS_TESTS.md):
-#   READY_URL, RESOLVE, CONTAINERS, DISK_PATH, TLS_CONNECT, TLS_NAME, AUDIT_CMD, SUMMARY_HOUR.
+#   READY_URL, RESOLVE, CONTAINERS, DISK_PATH, TLS_CONNECT, TLS_NAME, AUDIT_CMD, SUMMARY_HOUR,
+#   NOW_OVERRIDE (секунды с эпохи — проверка STAND_FREEZE_AT без ожидания даты, scripts/ops/freeze.test.sh).
 set -uo pipefail
 set +x
 umask 077
@@ -65,6 +72,11 @@ fire() {
 }
 settle() { bash "$ALERT" "$1" ok "$2" || true; }
 setting() { [ -r "$ENV_FILE" ] && env_get "$1"; }
+
+# Заморозка после сдачи (STAND_FREEZE_AT в .env.cloud, решение 147, docs/DEPLOY.md):
+# после неё сторож только проверяет и оповещает, ничего не пишет в базу стенда и
+# ничего не перезапускает сам (и без заморозки он этого не делал — см. DEPLOY.md).
+FREEZE_AT=$(setting STAND_FREEZE_AT)
 
 # ── Куда стучаться ──────────────────────────────────────────────────────────
 # Через Caddy на этой же машине: снаружи к своему публичному адресу из облака
@@ -203,7 +215,15 @@ elif [ -f "$audit_stamp" ] && [ "$(age_seconds "$audit_stamp")" -lt 3300 ]; then
   AUDIT_NOTE="проверена $(human_duration "$(age_seconds "$audit_stamp")") назад"
 else
   touch "$audit_stamp"
-  out=$(cd "$APP_DIR" && with_timeout 300 ${AUDIT_CMD:-$COMPOSE --profile migrate run --rm -T migrate npm run -s audit:verify} 2>&1)
+  # После заморозки — без записи в журнал (--no-audit, уже есть в audit-chain.ts):
+  # проверка остаётся, запись своего же исхода в audit_log — нет. Через npm run
+  # аргумент передаётся после «--»; при своём AUDIT_CMD (проверка на машине,
+  # без npm) — без «--».
+  no_log_flag=""
+  if is_frozen "$FREEZE_AT"; then
+    if [ -n "${AUDIT_CMD:-}" ]; then no_log_flag=" --no-audit"; else no_log_flag=" -- --no-audit"; fi
+  fi
+  out=$(cd "$APP_DIR" && with_timeout 300 ${AUDIT_CMD:-$COMPOSE --profile migrate run --rm -T migrate npm run -s audit:verify}$no_log_flag 2>&1)
   code=$?
   last=$(printf '%s\n' "$out" | grep -v '^\s*$' | tail -n 1 | cut -c1-200)
   case $code in
@@ -240,7 +260,12 @@ if [ "$((10#$hour))" -ge "$SUMMARY_HOUR" ] && [ ! -f "$summary_stamp" ]; then
 
   # Печать журнала (решение 115): последний номер и хеш цепочки. Кто сохранил её
   # у себя, потом докажет, что журнал до этого места не переписан.
-  if [ -n "${AUDIT_SEAL_CMD:-}" ] || has_script audit:seal; then
+  #
+  # После заморозки (решение 147, docs/DEPLOY.md) — не снимается: сама печать
+  # пишет строку в audit_seals, а после сдачи в базу стенда ничего не пишется.
+  if is_frozen "$FREEZE_AT"; then
+    SEAL_NOTE="пропущена — заморозка после сдачи (STAND_FREEZE_AT=$FREEZE_AT)"
+  elif [ -n "${AUDIT_SEAL_CMD:-}" ] || has_script audit:seal; then
     seal=$(cd "$APP_DIR" && with_timeout 300 ${AUDIT_SEAL_CMD:-$COMPOSE --profile migrate run --rm -T migrate npm run -s audit:seal} 2>&1)
     head_seq=$(printf '%s' "$seal" | grep -oE '"?headSeq"?[": =]+[0-9]+' | grep -oE '[0-9]+$' | tail -n 1)
     head_hash=$(printf '%s' "$seal" | grep -oE '"?headHash"?[": =]+"?[0-9a-fA-F]{16,}' | grep -oE '[0-9a-fA-F]{16,}$' | tail -n 1)

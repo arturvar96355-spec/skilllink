@@ -95,6 +95,9 @@ services:
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_API_BASE: ${TELEGRAM_API_BASE:-}
       TELEGRAM_API_IP: ${TELEGRAM_API_IP:-}
+      # Режим приёма обновлений (решение 142). Без этой строки TELEGRAM_MODE из
+      # .env.cloud в контейнер не попадал, и стенд всегда стартовал в auto.
+      TELEGRAM_MODE: ${TELEGRAM_MODE:-auto}
       # Каналы уведомлений: MAX и VK (решение 144). По умолчанию выключены — на этом
       # хакатоне боевых токенов нет и не будет, канал остаётся «для галочки» в
       # интерфейсе. Ключи — только в .env.cloud: docs/SETUP.md, «Каналы уведомлений:

@@ -200,6 +200,10 @@ function LoginForm() {
         </form>
 
         <p className={styles.note}>
+          Экспертам хакатона: учётные записи — в описании решения на платформе конкурса.
+        </p>
+
+        <p className={styles.note}>
           После {LOGIN_CAPTCHA.afterFailures} неудачных попыток вход проверяет, что он
           не автоматический, — браузер делает это сам за пару секунд. После{' '}
           {LOGIN_THROTTLE.maxFailures} подряд вход в учётную запись закрывается

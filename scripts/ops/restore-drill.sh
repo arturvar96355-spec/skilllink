@@ -24,6 +24,10 @@
 # Код выхода: 0 — восстановлено и проверено; 1 — нет.
 # В восстановленной базе персональные данные: контейнер с `--rm` и без тома —
 # после учений от неё ничего не остаётся.
+#
+# Заморозка после сдачи (STAND_FREEZE_AT в .env.cloud, решение 147, docs/DEPLOY.md):
+# учения пропускаются целиком, чтобы не нагружать машину, — не читают рабочую базу
+# и не пишут в неё, но поднимают контейнер и гоняют pg_restore на десятки секунд.
 set -uo pipefail
 set +x
 umask 077
@@ -36,6 +40,13 @@ DRILLS_LOG=${DRILLS_LOG:-$HOME/skilllink/drills.log}
 MAX_STALE_DAYS=${DRILL_MAX_STALE_DAYS:-7}
 # Ключевые таблицы: без строк в них система пуста, даже если восстановление «прошло».
 KEY_TABLES=${DRILL_TABLES:-"users universities educational_programs cooperations workflow_stages audit_log"}
+
+FREEZE_AT=$([ -r "$ENV_FILE" ] && env_get STAND_FREEZE_AT || true)
+if is_frozen "$FREEZE_AT"; then
+  say "заморозка после сдачи (STAND_FREEZE_AT=$FREEZE_AT) — учения пропущены, чтобы не нагружать машину"
+  bash "$OPS_DIR/alert.sh" restore-drill info "учения по восстановлению пропущены — заморозка после сдачи" || true
+  exit 0
+fi
 
 mkdir -p "$(dirname "$DRILLS_LOG")"
 tag="skilllink-drill-$$"
