@@ -96,5 +96,20 @@
 	@static path /_next/static/*
 	header @static Cache-Control "public, max-age=31536000, immutable"
 
+	# Единый вход через Keycloak (ТЗ, функц. 10; решение 188) — контейнер поднимается
+	# отдельным профилем docker-compose (`docker compose --profile keycloak up -d`),
+	# выключен по умолчанию. Маршрут не ломает запуск Caddy и не мешает работе сайта,
+	# если контейнера нет вовсе: имя `keycloak` в docker-сети разрешается на КАЖДЫЙ
+	# запрос, а не при старте Caddy, — без контейнера такой запрос получает 502,
+	# а не останавливает весь Caddy (проверено живой проверкой задачи: тот же
+	# Caddyfile без поднятого сервиса `keycloak` стартует и обслуживает остальные
+	# пути как обычно). `handle` (не `handle_path`) — путь `/auth/...` идёт на
+	# Keycloak КАК ЕСТЬ, с префиксом: сам Keycloak слушает с тем же префиксом
+	# (KC_HTTP_RELATIVE_PATH=/auth в docker-compose.yml) и без него не узнал бы
+	# собственные маршруты.
+	handle /auth* {
+		reverse_proxy keycloak:8080
+	}
+
 	reverse_proxy app:3000
 }

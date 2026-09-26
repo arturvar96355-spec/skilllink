@@ -25,6 +25,12 @@ export type LoginOutcome =
        * не меняется — только у быстрого входа в payload добавляется пометка.
        */
       quickLogin?: boolean
+      /**
+       * Вход через Keycloak (единый вход, решение 188), а не формой пароля.
+       * Как и `quickLogin` — необязательное поле, взаимоисключающее с ним:
+       * у обычного входа паролем нет ни одного из двух.
+       */
+      sso?: boolean
     }
   | { kind: 'failure'; userId: string | null; address: string; triggered: ThrottleTrigger[] }
 
@@ -41,7 +47,9 @@ export function loginAuditEntries(outcome: LoginOutcome): AuditEntry[] {
         objectId: outcome.userId,
         payload: outcome.quickLogin
           ? { address: outcome.address, quickLogin: true }
-          : { address: outcome.address },
+          : outcome.sso
+            ? { address: outcome.address, sso: true }
+            : { address: outcome.address },
       },
     ]
   }
