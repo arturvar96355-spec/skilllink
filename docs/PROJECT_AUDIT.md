@@ -7,7 +7,7 @@
 | Файл | Содержание |
 | --- | --- |
 | `CLAUDE.md` | Постоянный контекст проекта, раздел «Принятые решения» |
-| `docs/tz/skilllink-tz.md` | ТЗ продукта SkillLink v1.0 |
+| `docs/tz/skilllink-team-tz.md` | ТЗ продукта SkillLink v1.0 |
 | `docs/concept.md` | Концепция, отправленная заказчику |
 | `docs/design/README.md` | Пустая заглушка вместо макетов |
 

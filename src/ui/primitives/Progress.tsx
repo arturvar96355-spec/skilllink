@@ -11,9 +11,15 @@ export interface ProgressProps {
   /** Показать число справа от полосы. */
   withValue?: boolean
   label?: string
+  /**
+   * Подсказка при наведении — например, знаменатель («5 из 13 рабочих
+   * этапов», решение 180, п. 5): уточнение, которому не хватит места
+   * в узкой ячейке таблицы, уходит в подсказку (docs/FRONTEND.md).
+   */
+  title?: string
 }
 
-export function Progress({ value, tone = 'default', withValue = false, label }: ProgressProps) {
+export function Progress({ value, tone = 'default', withValue = false, label, title }: ProgressProps) {
   const percent = value === null ? 0 : Math.max(0, Math.min(100, value))
   const reduced = useCalmMotion()
   // Полоса начинается с нуля и добегает до настоящего значения (раздел 26
@@ -39,6 +45,7 @@ export function Progress({ value, tone = 'default', withValue = false, label }: 
       aria-valuemax={100}
       aria-label={label}
       aria-valuetext={value === null ? 'Нет данных' : `${Math.round(percent)}%`}
+      title={title}
     >
       <div
         className={[styles.fill, tone !== 'default' ? styles[tone] : ''].filter(Boolean).join(' ')}
@@ -50,7 +57,7 @@ export function Progress({ value, tone = 'default', withValue = false, label }: 
   if (!withValue) return bar
 
   return (
-    <div className={styles.row}>
+    <div className={styles.row} title={title}>
       {bar}
       <span className={styles.value}>{value === null ? '—' : `${Math.round(percent)}%`}</span>
     </div>
