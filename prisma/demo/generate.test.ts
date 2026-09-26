@@ -3,9 +3,21 @@ import { describe, expect, it } from 'vitest'
 import { computeControlStatus } from '@/modules/workflow/workflow.rules'
 import { ANONYMIZED_CONTACT_NAME } from '@/modules/universities/universities.rules'
 import { skillNameKey } from '@/modules/skills/skills.rules'
-import { EXTRA_MARKET, EXTRA_PRODUCTS, EXTRA_PROGRAMS, EXTRA_SKILLS, MORE_SKILLS } from './catalog'
+import { isValidLegalEntityInn, isValidLegalEntityOgrn } from '@/shared/validation/inn-ogrn'
+import {
+  ALL_SKILL_NAMES,
+  BASE_SKILLS,
+  COOPERATION_SPECS,
+  EXTRA_MARKET,
+  EXTRA_PRODUCTS,
+  EXTRA_PROGRAMS,
+  EXTRA_SKILLS,
+  EXTRA_UNIVERSITIES,
+  fillProgramSkills,
+  MORE_SKILLS,
+} from './catalog'
 import { buildStageTimeline, DAY_MS, DEFAULT_STABLE_UNTIL, generateDemoData, type DemoData } from './generate'
-import { fnv1a, mulberry32 } from './random'
+import { fnv1a, mulberry32, validInn, validOgrn } from './random'
 import {
   activityDates,
   dailyCounts,
@@ -366,5 +378,131 @@ describe('калькулятор: хватает ли данных аналит�
     const future = after.cooperations.flatMap((coop) => coop.meetings).filter((meeting) => meeting.date > late)
     expect(future.length).toBeGreaterThan(0)
     expect(Math.min(...future.map((meeting) => meeting.date.getTime())) - late.getTime()).toBeLessThan(10 * DAY_MS)
+  })
+})
+
+// ─────────────────────────── Решение 141: полнота демо-данных ───────────────────────────
+
+describe('ИНН и ОГРН вузов (решение 134, решение 141)', () => {
+  const keys = [
+    'spbgu', 'mtuci', 'kazan', 'nsu', 'urfu', 'rostov', 'tomsk',
+    ...EXTRA_UNIVERSITIES.map((university) => university.key),
+  ]
+
+  it('контрольная сумма верна у каждого вуза', () => {
+    for (const key of keys) {
+      expect(isValidLegalEntityInn(validInn(key)), key).toBe(true)
+      expect(isValidLegalEntityOgrn(validOgrn(key)), key).toBe(true)
+    }
+  })
+
+  it('детерминированы: тот же ключ — тот же номер при любом прогоне', () => {
+    for (const key of keys) {
+      expect(validInn(key)).toBe(validInn(key))
+      expect(validOgrn(key)).toBe(validOgrn(key))
+    }
+  })
+
+  it('уникальны у каждого вуза — иначе слияние решило бы, что это одна организация', () => {
+    expect(new Set(keys.map(validInn)).size).toBe(keys.length)
+    expect(new Set(keys.map(validOgrn)).size).toBe(keys.length)
+  })
+})
+
+describe('справочник направлений: коды ФГОС и полнота (решение 141)', () => {
+  it('код направления — формат НН.НН.НН, кроме аспирантуры (у неё другая нумерация)', () => {
+    const codeFormat = /^\d{2}\.\d{2}\.\d{2}$/
+    for (const program of EXTRA_PROGRAMS) {
+      if (program.code === null) continue
+      if (program.level === 'POSTGRADUATE') continue
+      expect(program.code, program.key).toMatch(codeFormat)
+    }
+  })
+
+  it('каждая сгенерированная программа получает не меньше 5 навыков', () => {
+    for (const program of data.programs) {
+      expect(program.skills.length, program.key).toBeGreaterThanOrEqual(5)
+    }
+  })
+
+  it('справочник направлений сети: топ-направление ФГОС встречается у 3+ вузов', () => {
+    const byCode = new Map<string, Set<string>>()
+    for (const program of EXTRA_PROGRAMS) {
+      if (!program.code) continue
+      const set = byCode.get(program.code) ?? new Set<string>()
+      set.add(program.university)
+      byCode.set(program.code, set)
+    }
+    const maxSpread = Math.max(...[...byCode.values()].map((set) => set.size))
+    expect(maxSpread).toBeGreaterThanOrEqual(3)
+  })
+
+  it('у каждого вуза справочника (решение 131) — 2 или 3 контакта', () => {
+    for (const university of EXTRA_UNIVERSITIES) {
+      expect(university.contacts.length, university.key).toBeGreaterThanOrEqual(2)
+      expect(university.contacts.length, university.key).toBeLessThanOrEqual(3)
+    }
+  })
+})
+
+describe('добивка навыков программы (fillProgramSkills, решение 141)', () => {
+  it('детерминирована и не трогает авторские навыки', () => {
+    const author: ReadonlyArray<readonly [string, 'BASIC', 'HIGH']> = [['Python', 'BASIC', 'HIGH']]
+    const first = fillProgramSkills('demo-key', author)
+    const second = fillProgramSkills('demo-key', author)
+    expect(second).toEqual(first)
+    expect(first[0]).toEqual(author[0])
+    expect(first.length).toBeGreaterThanOrEqual(5)
+  })
+
+  it('никогда не добавляет Kubernetes, PostgreSQL или MLOps', () => {
+    for (let index = 0; index < 30; index += 1) {
+      const filled = fillProgramSkills(`probe-${index}`, [])
+      const names = filled.map(([name]) => name)
+      expect(names).not.toContain('Kubernetes')
+      expect(names).not.toContain('PostgreSQL')
+      expect(names).not.toContain('MLOps')
+    }
+  })
+
+  it('не дублирует уже присутствующие навыки программы', () => {
+    const author: ReadonlyArray<readonly [string, 'BASIC', 'HIGH']> = [
+      ['Python', 'BASIC', 'HIGH'],
+      ['SQL', 'BASIC', 'HIGH'],
+    ]
+    const filled = fillProgramSkills('no-dup-key', author)
+    const names = filled.map(([name]) => name)
+    expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('генератор: ни одной пустой содержательной коллекции (решение 141)', () => {
+  it('справочники не пусты', () => {
+    expect(EXTRA_UNIVERSITIES.length).toBeGreaterThan(0)
+    expect(EXTRA_PROGRAMS.length).toBeGreaterThan(0)
+    expect(COOPERATION_SPECS.length).toBeGreaterThan(0)
+    expect(EXTRA_PRODUCTS.length).toBeGreaterThan(0)
+    expect(BASE_SKILLS.length).toBeGreaterThan(0)
+    expect(EXTRA_SKILLS.length).toBeGreaterThan(0)
+    expect(MORE_SKILLS.length).toBeGreaterThan(0)
+    // Задача 141: справочник навыков — 45-60 после расширения.
+    expect(ALL_SKILL_NAMES.length).toBeGreaterThanOrEqual(45)
+    expect(ALL_SKILL_NAMES.length).toBeLessThanOrEqual(60)
+  })
+
+  it('рыночный спрос закрывает все 5 кварталов 2025-Q3…2026-Q3', () => {
+    const quarters = ['2025-Q3', '2025-Q4', '2026-Q1', '2026-Q2', '2026-Q3']
+    for (const quarter of quarters) {
+      expect(Object.keys(EXTRA_MARKET[quarter] ?? {}).length, quarter).toBeGreaterThan(0)
+    }
+  })
+
+  it('у каждого вуза справочника (решение 131) есть хотя бы одна программа и одна связка', () => {
+    for (const university of EXTRA_UNIVERSITIES) {
+      const programs = EXTRA_PROGRAMS.filter((program) => program.university === university.key)
+      const cooperations = COOPERATION_SPECS.filter((coop) => coop.university === university.key)
+      expect(programs.length, university.key).toBeGreaterThan(0)
+      expect(cooperations.length, university.key).toBeGreaterThan(0)
+    }
   })
 })
