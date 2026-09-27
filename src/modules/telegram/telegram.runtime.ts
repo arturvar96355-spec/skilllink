@@ -6,6 +6,7 @@ import { notifyOwner } from '@/shared/ops/owner-alert'
 import { log } from '@/shared/log/logger'
 import * as service from './telegram.service'
 import { telegramUpdateSchema } from './telegram.schema'
+import { computeBackoffDelayMs } from './telegram.backoff'
 
 /**
  * Приём обновлений без вебхука — long polling (решение 142).
@@ -37,8 +38,6 @@ const AUTO_CHECK_INTERVAL_MS = 5 * 60_000
 const AUTO_ERROR_FRESH_MS = 10 * 60_000
 /** Бот выключен (нет токена) — не колотимся в Bot API, просто ждём. */
 const DISABLED_RETRY_MS = 5_000
-/** Сбой цикла (не сам Telegram, а наш код) — короткая пауза перед следующей попыткой. */
-const LOOP_ERROR_RETRY_MS = 2_000
 
 export type TelegramRunningMode = 'webhook' | 'polling' | 'off'
 
@@ -74,6 +73,8 @@ let loopPromise: Promise<void> | null = null
 let autoTimer: ReturnType<typeof setInterval> | null = null
 let previousPendingCount: number | null = null
 let runtimeSecret: string | null = null
+/** Сколько подряд неуспешных попыток getUpdates — для нарастающей паузы и лога «раз на смену состояния». */
+let failureStreak = 0
 
 /** Снимок состояния — для админки (GET /api/admin/telegram). */
 export function getRuntimeStatus(): TelegramRuntimeStatus {
@@ -96,26 +97,28 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 interface PollTickResult {
   offset: number | null
-  /** false — сеть или Telegram подвели (не «нас прервали»): следующая попытка — после паузы. */
-  ok: boolean
+  /**
+   * `ok` — успешный ответ. `failed` — сеть или Telegram подвели (`ECONNREFUSED`,
+   * таймаут, 5xx…), следующая попытка — после нарастающей паузы. `aborted` —
+   * нас остановили (`stop()`): не сбой связи, счётчик неудач не трогаем и не логируем.
+   */
+  outcome: 'ok' | 'failed' | 'aborted'
 }
 
 /**
  * Один запрос `getUpdates` и обработка пришедших обновлений.
  *
- * `ok: false` — сетевая ошибка или отказ Telegram (`ECONNREFUSED`, таймаут, 5xx…),
- * не разовая случайность: без паузы перед следующей попыткой цикл превращается
- * в тесный `while`, который колотится в недоступный адрес по кругу — доли
- * миллисекунды на попытку, тысячи строк в журнал и в Bot API за секунды
- * (проверено на сборке: без паузы за 2 секунды — мегабайты журнала).
+ * Пауза перед следующей попыткой при сбое считается в `handleFailureOrRecovery` —
+ * без неё цикл превращается в тесный `while`, который колотится в недоступный адрес
+ * по кругу — доли миллисекунды на попытку, тысячи строк в журнал и в Bot API за
+ * секунды (проверено на сборке: без паузы за 2 секунды — мегабайты журнала).
  */
 async function pollTick(client: TelegramClient, offset: number | null, signal: AbortSignal): Promise<PollTickResult> {
   const result = await client.getUpdates({ offset: offset ?? undefined, timeoutSec: POLL_TIMEOUT_SEC, signal })
   if (!result.ok) {
-    if (result.reason === 'aborted') return { offset, ok: true } // остановка — не сбой, паузы не нужно
+    if (result.reason === 'aborted') return { offset, outcome: 'aborted' }
     status.lastPollError = result.description ?? `HTTP ${result.status ?? '?'}`
-    log.warn('[telegram] polling: getUpdates не выполнен', { reason: result.reason, status: result.status })
-    return { offset, ok: false }
+    return { offset, outcome: 'failed' }
   }
   status.lastPollError = null
   status.lastPollAt = new Date()
@@ -135,7 +138,30 @@ async function pollTick(client: TelegramClient, offset: number | null, signal: A
       await service.handleUpdate(parsed.data, { secret: runtimeSecret ?? '' })
     }
   }
-  return { offset: nextOffset, ok: true }
+  return { offset: nextOffset, outcome: 'ok' }
+}
+
+/**
+ * Реакция на исход попытки (решение 192): считает нарастающую паузу и логирует
+ * только смену состояния («связь потеряна» при первом сбое подряд, «связь
+ * восстановлена» при первом успехе после сбоев) — не каждую попытку. `outcome: 'aborted'` (нас
+ * остановили) не трогает счётчик и ничего не логирует, а ожидание паузы прерывается
+ * сигналом сразу же (`sleep` слушает `signal`).
+ */
+async function handleFailureOrRecovery(outcome: PollTickResult['outcome'], signal: AbortSignal): Promise<void> {
+  if (outcome === 'aborted') return
+  if (outcome === 'ok') {
+    if (failureStreak > 0) log.info('[telegram] polling: связь восстановлена')
+    failureStreak = 0
+    return
+  }
+  failureStreak += 1
+  const delayMs = computeBackoffDelayMs(failureStreak)
+  if (failureStreak === 1) {
+    const retryInSec = Math.round(delayMs / 1000)
+    log.warn(`[telegram] polling: связь потеряна, повтор через ${retryInSec} с`, { retryInSec })
+  }
+  await sleep(delayMs, signal)
 }
 
 async function runPollLoop(): Promise<void> {
@@ -154,11 +180,11 @@ async function runPollLoop(): Promise<void> {
       try {
         const tick = await pollTick(client, offset, abortController.signal)
         offset = tick.offset
-        if (!tick.ok) await sleep(LOOP_ERROR_RETRY_MS, abortController.signal)
+        await handleFailureOrRecovery(tick.outcome, abortController.signal)
       } catch (error) {
         status.lastPollError = error instanceof Error ? error.message : 'неизвестная ошибка'
         log.error('[telegram] polling: сбой цикла', { err: error })
-        await sleep(LOOP_ERROR_RETRY_MS, abortController.signal)
+        await handleFailureOrRecovery('failed', abortController.signal)
       }
     }
   } finally {
@@ -296,4 +322,5 @@ export function resetRuntimeForTests(): void {
   autoTimer = null
   previousPendingCount = null
   runtimeSecret = null
+  failureStreak = 0
 }
