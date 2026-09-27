@@ -40,7 +40,8 @@ const notifyMocks = vi.hoisted(() => ({
 }))
 
 vi.mock('./inbound-letters.repo', () => mocks)
-vi.mock('@/shared/audit/audit', () => ({ writeAudit: vi.fn() }))
+const auditMocks = vi.hoisted(() => ({ writeAudit: vi.fn(), recordAuditOnce: vi.fn() }))
+vi.mock('@/shared/audit/audit', () => auditMocks)
 vi.mock('@/modules/ai-assist/ai-assist.repo', () => ({
   findRedactionContext: vi.fn(async () => ({ people: { staff: [], contacts: [] }, universityNames: [] as string[] })),
 }))
@@ -203,8 +204,36 @@ describe('uploadEml: уведомление ADMIN/HEAD о новом обращ�
 
     expect(mocks.listNoticeRecipientIds).toHaveBeenCalledTimes(1)
     expect(notifyMocks.sendToUser).toHaveBeenCalledTimes(2)
-    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('admin-1', 'Новое письмо от вуза СПбГУТ: Встреча')
-    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('head-1', 'Новое письмо от вуза СПбГУТ: Встреча')
+    // Без адреса стенда кнопки «Открыть» нет, «Принял» — на это письмо (решение 200).
+    const notice = {
+      text: 'Новое письмо от вуза СПбГУТ: Встреча',
+      actions: [[{ kind: 'accept', text: '✓ Принял, беру в работу', target: { type: 'letter', id: 'letter-1' } }]],
+    }
+    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('admin-1', notice)
+    expect(notifyMocks.sendToUser).toHaveBeenCalledWith('head-1', notice)
+    const sent = JSON.stringify(notifyMocks.sendToUser.mock.calls)
+    expect(sent).not.toMatch(/priemnaya|Просим сообщить|Об этапе договора/)
+  })
+
+  it('с адресом стенда — кнопка «Открыть письмо» ведёт на карточку письма', async () => {
+    vi.stubEnv('AUTH_URL', 'https://skilllink.example.test/')
+    try {
+      mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
+      mocks.findById.mockResolvedValue(letterRow({ status: 'NEW', group: 'MEETING' }))
+      mocks.saveAnalysis.mockResolvedValue(undefined)
+      mocks.listNoticeRecipientIds.mockResolvedValue(['admin-1'])
+
+      await service.uploadEml(user('ADMIN'), { name: 'l.eml', type: 'message/rfc822', size: 1, bytes: eml() })
+
+      const message = (notifyMocks.sendToUser.mock.calls[0] as unknown[])[1] as { actions: unknown[][] }
+      expect(message.actions[0]![0]).toEqual({
+        kind: 'open',
+        text: 'Открыть письмо',
+        url: 'https://skilllink.example.test/letters/letter-1',
+      })
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('сбой отправки не роняет загрузку письма', async () => {
@@ -541,5 +570,59 @@ describe('completeTask: «Задание выполнено» — ответст
     mocks.completeTask.mockResolvedValue(letterWithTask({ responsibleId: null, status: 'DONE' }))
     const dto = await service.completeTask(user('ADMIN'), 'letter-1')
     expect(dto.task?.status).toBe('DONE')
+  })
+})
+
+describe('acceptLetter: «Принял, беру в работу» кнопкой в Telegram (решение 200)', () => {
+  beforeEach(() => {
+    auditMocks.recordAuditOnce.mockReset()
+    mocks.findById.mockReset()
+  })
+
+  it('ADMIN/HEAD — отметка в журнал один раз, письмо не меняется', async () => {
+    const at = new Date('2026-09-28T11:05:00.000Z')
+    mocks.findById.mockResolvedValue(letterRow({ status: 'ANALYZED' }))
+    auditMocks.recordAuditOnce.mockResolvedValue({ created: true, at })
+
+    const now = new Date('2026-09-28T11:05:00.000Z')
+    const result = await service.acceptLetter(user('HEAD'), 'letter-1', { source: 'telegram', now })
+
+    expect(result).toEqual({ acceptedAt: at, alreadyAccepted: false, label: null })
+    const [entry, since] = auditMocks.recordAuditOnce.mock.calls[0]! as [Record<string, unknown>, Date]
+    expect(entry).toEqual({
+      userId: 'u-HEAD',
+      action: 'inbound_letter.accept',
+      objectType: 'InboundLetter',
+      objectId: 'letter-1',
+      payload: { source: 'telegram' },
+    })
+    expect(since.getTime()).toBe(now.getTime() - 7 * 24 * 60 * 60_000)
+    expect(mocks.saveAnalysis).not.toHaveBeenCalled()
+  })
+
+  it('повторное нажатие — та же отметка, alreadyAccepted', async () => {
+    const at = new Date('2026-09-28T09:00:00.000Z')
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    auditMocks.recordAuditOnce.mockResolvedValue({ created: false, at })
+    expect(await service.acceptLetter(user('ADMIN'), 'letter-1', { source: 'telegram' })).toMatchObject({
+      acceptedAt: at,
+      alreadyAccepted: true,
+    })
+  })
+
+  it('эксперт (даже ADMIN), менеджер и наблюдатель — 403, в журнал ничего', async () => {
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    await expectRejectCode(service.acceptLetter(user('ADMIN', { isReviewer: true }), 'letter-1', { source: 'telegram' }), 'FORBIDDEN')
+    await expectRejectCode(service.acceptLetter(user('MANAGER'), 'letter-1', { source: 'telegram' }), 'FORBIDDEN')
+    await expectRejectCode(service.acceptLetter(user('VIEWER'), 'letter-1', { source: 'telegram' }), 'FORBIDDEN')
+    expect(auditMocks.recordAuditOnce).not.toHaveBeenCalled()
+  })
+
+  it('письмо уже проверено — 409, нет письма — 404', async () => {
+    mocks.findById.mockResolvedValueOnce(letterRow({ status: 'CONFIRMED' }))
+    await expectRejectCode(service.acceptLetter(user('ADMIN'), 'letter-1', { source: 'telegram' }), 'CONFLICT')
+    mocks.findById.mockResolvedValueOnce(null)
+    await expectRejectCode(service.acceptLetter(user('ADMIN'), 'nope', { source: 'telegram' }), 'NOT_FOUND')
+    expect(auditMocks.recordAuditOnce).not.toHaveBeenCalled()
   })
 })

@@ -29,6 +29,42 @@ export type ChannelSendResult =
 export interface ChannelSendOptions {
   /** Не ждать долго: сводка не должна повиснуть на одном недоступном канале. */
   timeoutMs?: number
+  /**
+   * Кому уходит сообщение (id пользователя SkillLink). Нужен адаптеру, который
+   * подписывает кнопку «Принял» (решение 200): подпись привязана к чату и к человеку.
+   * Нет — кнопок с обратным вызовом нет, остаются только ссылки.
+   */
+  recipientUserId?: string
+}
+
+/** Объект, который можно «принять в работу» кнопкой в сообщении (решение 200). */
+export type AcceptTarget = { type: 'stage'; id: string } | { type: 'letter'; id: string }
+
+/**
+ * Действие-кнопка под сообщением (решение 200) — описание, а не разметка конкретного
+ * канала: `open` — ссылка на страницу SkillLink, `accept` — «Принял, беру в работу».
+ * Как нарисовать и подписать, решает адаптер; канал без кнопок их пропускает
+ * и отправляет только `text` (ссылки на страницы в тексте уже есть).
+ */
+export type MessageAction =
+  | { kind: 'open'; text: string; url: string }
+  | { kind: 'accept'; text: string; target: AcceptTarget }
+
+/** Подписи кнопок, общие для каналов (решение 200). */
+export const ACTION_TEXTS = {
+  accept: '✓ Принял, беру в работу',
+  openLetter: 'Открыть письмо',
+} as const
+
+/** Сообщение канала: текст и, если есть, строки кнопок. */
+export interface ChannelMessage {
+  text: string
+  actions?: MessageAction[][]
+}
+
+/** Строка — это сообщение без кнопок: так прежние вызовы `send(chat, 'текст')` не меняются. */
+export function toChannelMessage(message: string | ChannelMessage): ChannelMessage {
+  return typeof message === 'string' ? { text: message } : message
 }
 
 /** Разобранное входящее обновление канала — то общее, что нужно сервису привязки и командам. */
@@ -52,7 +88,11 @@ export interface ParsedInbound {
 export interface ChannelAdapter {
   readonly id: ChannelId
   configured(): boolean
-  send(chatRef: string, text: string, opts?: ChannelSendOptions): Promise<ChannelSendResult>
+  /**
+   * Отправить сообщение. Кнопки (`actions`) рисует только адаптер, который их умеет
+   * (Telegram, решение 200); остальные отправляют `text` и кнопки молча пропускают.
+   */
+  send(chatRef: string, message: string | ChannelMessage, opts?: ChannelSendOptions): Promise<ChannelSendResult>
   /** Ссылка/диплинк «Подключить» с одноразовым кодом привязки. null — канал не настроен. */
   linkUrl(code: string): string | null
   /** Разобрать входящее обновление вебхука/long polling в общий вид. */

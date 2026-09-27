@@ -167,6 +167,11 @@ const EXTRA_KINDS: readonly PulseKind[] = [
 export interface PulseItem extends PulseItemDto {
   kind: PulseKind
   section: PulseSectionKey
+  /**
+   * Этап пункта — только у пунктов об этапе (просрочен, заблокирован, скоро срок).
+   * Нужен кнопкам сводки в Telegram (решение 200); в ответ API не уходит (`toPulseDto`).
+   */
+  stageRef?: { stageId: string; stageNumber: number; universityName: string }
 }
 
 export interface Pulse {
@@ -196,6 +201,14 @@ function item(
   return { kind, section: group.section, group: group.title, severity, text, href, cooperationId }
 }
 
+/** Пункт об этапе — со ссылкой на сам этап для кнопок сводки (решение 200). */
+function stageItem(kind: PulseKind, severity: InsightSeverity, stage: DigestStageSource, text: string): PulseItem {
+  return {
+    ...item(kind, severity, text, cooperationHref(stage.cooperationId, stage.stageId), stage.cooperationId),
+    stageRef: { stageId: stage.stageId, stageNumber: stage.stageNumber, universityName: stage.universityName },
+  }
+}
+
 const time = (date: Date): string =>
   new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Moscow' }).format(date)
 
@@ -218,34 +231,31 @@ export function buildPulse(sources: DigestSources, now: Date): Pulse {
   overdue.sort(byDeadline)
   blocked.sort(byDeadline)
   dueSoon.sort(byDeadline)
-  const stageHref = (stage: DigestStageSource) => cooperationHref(stage.cooperationId, stage.stageId)
 
   for (const stage of overdue) {
     const late = stage.deadline ? daysBetween(stage.deadline, now) : 0
     const blockedMark = stage.status === 'BLOCKED' ? ', этап заблокирован' : ''
     items.push(
-      item(
+      stageItem(
         'stage.overdue',
         'critical',
+        stage,
         stageText(
           stage,
           `. Срок ${formatDay(stage.deadline?.toISOString() ?? null)}` +
             (late > 0 ? `, просрочка ${countWithNoun(late, DAY_FORMS)}` : '') +
             blockedMark,
         ),
-        stageHref(stage),
-        stage.cooperationId,
       ),
     )
   }
   for (const stage of blocked) {
     items.push(
-      item(
+      stageItem(
         'stage.blocked',
         'warning',
+        stage,
         stageText(stage, stage.deadline ? `. Срок ${formatDay(stage.deadline.toISOString())}` : ''),
-        stageHref(stage),
-        stage.cooperationId,
       ),
     )
   }
@@ -312,13 +322,7 @@ export function buildPulse(sources: DigestSources, now: Date): Pulse {
   }
   for (const stage of dueSoon) {
     items.push(
-      item(
-        'stage.due-soon',
-        'info',
-        stageText(stage, `. Срок ${formatDay(stage.deadline?.toISOString() ?? null)}`),
-        stageHref(stage),
-        stage.cooperationId,
-      ),
+      stageItem('stage.due-soon', 'info', stage, stageText(stage, `. Срок ${formatDay(stage.deadline?.toISOString() ?? null)}`)),
     )
   }
 
@@ -402,7 +406,7 @@ export function toPulseDto(pulse: Pulse, perSection: number = INSIGHTS.pulsePerS
         key: section.key,
         title: section.title,
         total: all.length,
-        items: all.slice(0, perSection).map(({ section: _section, ...rest }) => rest),
+        items: all.slice(0, perSection).map(({ section: _section, stageRef: _stageRef, ...rest }) => rest),
       }
     }),
   }

@@ -15,7 +15,11 @@ import type { DigestStageSource } from './telegram.rules'
  */
 export { findOpenRecommendationsOf } from '@/modules/ai-assist/ai-assist.repo'
 
-const USER_FIELDS = { id: true, email: true, fullName: true, role: true, universityId: true } as const
+/**
+ * `isReviewer` — признак эксперта (решение 147): без него `assertCan` не остановил бы
+ * эксперта на кнопке «Принял» (решение 200), права проверяются как в API.
+ */
+const USER_FIELDS = { id: true, email: true, fullName: true, role: true, universityId: true, isReviewer: true } as const
 
 export interface TelegramLinkRow {
   chatId: string
