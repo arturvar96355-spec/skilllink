@@ -136,9 +136,10 @@ class Session {
 
 interface Overview {
   metrics: Array<{ key: string; value: number | null }>
-  problemCooperations: unknown[]
+  problemCooperations: Array<{ severity: string }>
   problemStageTotal: number
-  priorityActions: Array<{ title: string }>
+  problemGroups: { overdueLong: number; overdue: number; blocked: number }
+  priorityActions: Array<{ title: string; priority: string; score: number | null; isDeferred: boolean }>
   skillMatch: { coveragePercent: number | null; criticalGaps: number }
 }
 
@@ -201,7 +202,40 @@ async function main(): Promise<void> {
   // показывается верхние 10 (решение 84).
   check('проблемных этапов всего', overview.problemStageTotal, 13)
   check('из них показано на главной', overview.problemCooperations.length, 10)
+  // Решение 206: «Требует внимания» — очередь по серьёзности. Числа групп — по всем
+  // 13 этапам (давняя просрочка — больше 30 дней, PROBLEM_LONG_OVERDUE_DAYS), строки —
+  // 10 самых давних: все 7 просрочек и 3 из 6 блокировок, остальные 3 — в подвале.
+  check(
+    'группы «Требует внимания»: больше месяца / до месяца / заблокированы',
+    [overview.problemGroups.overdueLong, overview.problemGroups.overdue, overview.problemGroups.blocked],
+    [3, 4, 6],
+  )
+  check(
+    'показанные строки по группам',
+    ['overdue-long', 'overdue', 'blocked'].map(
+      (severity) => overview.problemCooperations.filter((row) => row.severity === severity).length,
+    ),
+    [3, 4, 3],
+  )
   check('приоритетных действий', overview.priorityActions.length, 5)
+  // Решение 206: пятёрка — по приоритету, внутри по баллу (раньше — по дате создания),
+  // отложенные защитой от перегрузки на главную не попадают.
+  check(
+    'в приоритетных действиях нет отложенных системой',
+    overview.priorityActions.every((action) => !action.isDeferred),
+    true,
+  )
+  const PRIORITY_RANK: Record<string, number> = { CRITICAL: 3, HIGH: 2, MEDIUM: 1, LOW: 0 }
+  check(
+    'пятёрка — по приоритету, внутри приоритета по баллу',
+    overview.priorityActions.every((action, index, list) => {
+      const next = list[index + 1]
+      if (!next) return true
+      const byPriority = (PRIORITY_RANK[action.priority] ?? 0) - (PRIORITY_RANK[next.priority] ?? 0)
+      return byPriority > 0 || (byPriority === 0 && (action.score ?? -1) >= (next.score ?? -1))
+    }),
+    true,
+  )
   // Решение 180, п. 2: просрочки этапов сюда больше не попадают — те же связки
   // и сроки уже названы в «Требует внимания» выше, дублирование двух блоков
   // одним и тем же было замечанием ресерча. Здесь остаются другие правила

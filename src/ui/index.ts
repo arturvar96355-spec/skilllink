@@ -163,6 +163,16 @@ export { Bars3D, type Bars3DGroup, type Bars3DPart } from './data/Bars3D'
 export { BarsFlat, type BarsFlatVariant } from './data/BarsFlat'
 export { PeekProvider, usePeek, CooperationPeek } from './data/Peek'
 export { DeadlineStrip, type DeadlineItem } from './data/DeadlineStrip'
+export { Queue, QueueGroup, QueueFoot, QueueFootLink, QueueRow, type QueueRowMeta, type QueueRowProps } from './data/QueueRow'
+export {
+  overdueValue,
+  queueRowLabel,
+  stageNotation,
+  toneOfPriority,
+  toneOfSeverity,
+  type QueueTone,
+  type QueueValueTone,
+} from './data/queue-row'
 export { StageBar } from './data/StageBar'
 export { ScoreBar, ScoreLegend, type ScorePart } from './data/ScoreBar'
 export { GapBars, type GapRow } from './data/GapBars'

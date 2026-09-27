@@ -9,7 +9,6 @@ import {
   type CooperationDto,
   type DocumentListItemDto,
   type StageHistoryEntryDto,
-  type StageStatus,
   type WorkflowStageDto,
 } from '@/shared/contracts'
 import {
@@ -36,75 +35,9 @@ import {
 } from '@/ui'
 import { Attachments } from '../../Attachments'
 import { ChangeResponsibleModal } from '../../ChangeResponsibleModal'
-import { StageDeadlineModal } from './StageDeadlineModal'
+import { StageActionModal, type StageActionKind } from '../../StageActionModal'
+import { StageDeadlineModal } from '../../StageDeadlineModal'
 import styles from './cooperation.module.css'
-
-/**
- * Действие над этапом: у каждого свой комментарий. Обязателен он везде,
- * кроме снятия блокировки: там «что изменилось» полезно, но не всегда известно.
- */
-type ActionKind = 'complete' | 'block' | 'unblock' | 'cancel' | 'reopen'
-
-const ACTION_FORMS: Record<
-  ActionKind,
-  {
-    title: string
-    description: string
-    label: string
-    hint: string
-    field: 'result' | 'comment' | 'blockingReason'
-    status: StageStatus
-    submit: string
-    optional?: boolean
-  }
-> = {
-  complete: {
-    title: 'Завершить этап',
-    description: 'Результат сохранится в истории: по нему потом видно, что именно было сделано.',
-    label: 'Результат этапа',
-    hint: 'Обязательное поле: этап без результата не закрывается.',
-    field: 'result',
-    status: 'COMPLETED',
-    submit: 'Завершить',
-  },
-  block: {
-    title: 'Заблокировать этап',
-    description: 'Блокировка означает, что работа остановлена по внешней причине.',
-    label: 'Причина блокировки',
-    hint: 'Обязательное поле: без причины блокировать нельзя.',
-    field: 'blockingReason',
-    status: 'BLOCKED',
-    submit: 'Заблокировать',
-  },
-  unblock: {
-    title: 'Снять блокировку',
-    description: 'Этап вернётся в работу. Причина блокировки останется в истории этапа.',
-    label: 'Что изменилось',
-    hint: 'Необязательно: например, «вуз подписал NDA». Текст попадёт в историю этапа.',
-    field: 'comment',
-    status: 'IN_PROGRESS',
-    submit: 'Снять блокировку',
-    optional: true,
-  },
-  cancel: {
-    title: 'Отменить этап',
-    description: 'Отменённый этап считается закрытым и в прогресс не входит.',
-    label: 'Основание отмены',
-    hint: 'Обязательное поле: например, «не требуется для этой связки».',
-    field: 'comment',
-    status: 'CANCELLED',
-    submit: 'Отменить этап',
-  },
-  reopen: {
-    title: 'Переоткрыть этап',
-    description: 'Этап вернётся в работу. Запись об этом останется в истории.',
-    label: 'Причина переоткрытия',
-    hint: 'Обязательное поле: нужно объяснить, почему закрытый этап открывают заново.',
-    field: 'comment',
-    status: 'IN_PROGRESS',
-    submit: 'Переоткрыть',
-  },
-}
 
 export interface StageCardProps {
   stage: WorkflowStageDto
@@ -130,12 +63,12 @@ export interface StageCardProps {
 export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, signedDocuments }: StageCardProps) {
   const toast = useToast()
   const [isOpen, setIsOpen] = useState(isHighlighted)
-  const [action, setAction] = useState<ActionKind | null>(null)
-  const [text, setText] = useState('')
+  // Окна действий со сменой статуса — общие с главной (StageActionModal, решение 206).
+  const [action, setAction] = useState<StageActionKind | null>(null)
   const [refusal, setRefusal] = useState<ApiRequestError | null>(null)
   const [isHistoryOpen, setIsHistoryOpen] = useState(false)
   // Срок и ответственный этапа (пробел ТЗ, решение 153) — своими окнами, а не
-  // формой ACTION_FORMS: это правка полей без смены статуса, у неё нет комментария.
+  // окном смены статуса (StageActionModal): это правка полей без смены статуса, у неё нет комментария.
   const [isDeadlineOpen, setIsDeadlineOpen] = useState(false)
   const [isResponsibleOpen, setIsResponsibleOpen] = useState(false)
   // Пункт вуза без представителя отмечается с пометкой «чем подтверждено» (решение 103).
@@ -193,33 +126,13 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
   }
 
   /**
-   * Окно действия показывает отказ только своей отправки.
-   *
-   * Отказ хранится в общей для карточки мутации: без сброса окно «Отменить»
-   * открывалось с отказом прошлой попытки «Начать этап» — «Система не разрешает
-   * это действие» ещё до того, как человек что-то отправил.
+   * Окно действия показывает отказ только своей отправки: у окна своя мутация,
+   * а прежний отказ карточки («Начать этап») при открытии окна сбрасывается.
    */
-  function openAction(kind: ActionKind) {
+  function openAction(kind: StageActionKind) {
     updateStage.reset()
+    setRefusal(null)
     setAction(kind)
-  }
-
-  function closeAction() {
-    updateStage.reset()
-    setAction(null)
-    setText('')
-  }
-
-  async function onSubmitAction() {
-    if (action === null) return
-    const form = ACTION_FORMS[action]
-    const value = text.trim()
-    // Пустое необязательное поле не отправляется: пустой комментарий стёр бы сохранённый.
-    const ok = await apply({ status: form.status, ...(value ? { [form.field]: value } : {}) })
-    if (ok) {
-      toast.success(`Этап ${stage.stageNumber}: ${STAGE_STATUS_LABELS[form.status].toLowerCase()}`)
-      closeAction()
-    }
   }
 
   async function onToggleTask(taskId: string, isDone: boolean, confirmationNote?: string) {
@@ -534,47 +447,19 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
       </div>
 
       {action !== null && (
-        <Modal
-          isOpen
-          onClose={closeAction}
-          title={ACTION_FORMS[action].title}
-          description={ACTION_FORMS[action].description}
-          // Закрытие щелчком по фону отключено: набранный текст жалко терять.
-          closeOnBackdrop={false}
-          footer={
-            <>
-              <Button variant="ghost" onClick={closeAction}>
-                Отмена
-              </Button>
-              <Button
-                variant="primary"
-                onClick={onSubmitAction}
-                isLoading={updateStage.isPending}
-                disabled={!ACTION_FORMS[action].optional && text.trim().length === 0}
-              >
-                {ACTION_FORMS[action].submit}
-              </Button>
-            </>
-          }
-        >
-          <Textarea
-            label={ACTION_FORMS[action].label}
-            hint={ACTION_FORMS[action].hint}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            maxLength={2000}
-            autoFocus
-          />
-          {updateStage.error && (
-            <p className={styles.refusal} role="alert">
-              <Icon name="alert" size={20} />
-              <span>
-                <span className={styles.refusalTitle}>Система не разрешает это действие</span>
-                {updateStage.error.message}
-              </span>
-            </p>
-          )}
-        </Modal>
+        <StageActionModal
+          stage={{ id: stage.id, stageNumber: stage.stageNumber }}
+          kind={action}
+          onRefused={setRefusal}
+          onClose={(updated) => {
+            setAction(null)
+            if (updated) {
+              setRefusal(null)
+              onStageChanged(updated)
+              setIsOpen(true)
+            }
+          }}
+        />
       )}
 
       {noteTaskId !== null && (
