@@ -14,7 +14,7 @@ import { Footer } from './Footer'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
-import { takeArrival } from './arrival'
+import { arrivalAfterNavigation, markAssembled, takeArrival } from './arrival'
 import { useNavigationMotion } from './navigation-motion'
 import { LiveBackground } from './LiveBackground'
 import { MobileTabBar } from './MobileTabBar'
@@ -35,18 +35,35 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Сцена держится, пока человек на странице, куда пришёл со входа: снять её
   // по таймеру нельзя — у блоков страницы своё появление, и при смене анимации
   // браузер проиграл бы его заново: через несколько секунд после входа всё
-  // на миг пропадало. На следующей странице метки уже нет — там обычное появление.
+  // на миг пропадало. Ушёл со страницы — сцена кончилась насовсем, и при
+  // возвращении страница приходит обычным появлением (решение 194).
   const [arrivedAt, setArrivedAt] = useState<string | null>(null)
   const [assembling, setAssembling] = useState(false)
   useEffect(() => {
     if (!takeArrival()) return
     setArrivedAt(window.location.pathname)
     setAssembling(true)
-    // Размытие под шапкой выключено только пока летят блоки: его возврат ничего не перезапускает.
+  }, [])
+  useEffect(() => {
+    setArrivedAt((current) => arrivalAfterNavigation(current, pathname))
+  }, [pathname])
+  // Размытие под шапкой выключено только пока летят блоки: его возврат ничего не перезапускает.
+  useEffect(() => {
+    if (!assembling) return
     const timer = window.setTimeout(() => setAssembling(false), 6000)
     return () => window.clearTimeout(timer)
-  }, [])
+  }, [assembling])
   const arrived = arrivedAt === pathname
+  // Часть собралась — из сборки она выходит и больше её не повторяет, что бы
+  // ни догрузилось рядом (arrival.ts, markAssembled).
+  // Слушает документ, а не обёртку сцены: пока грузится текущий пользователь,
+  // обёртки ещё нет, а сцена уже началась.
+  useEffect(() => {
+    if (!arrived) return
+    const onEnd = (event: AnimationEvent) => markAssembled(event.target)
+    document.addEventListener('animationend', onEnd)
+    return () => document.removeEventListener('animationend', onEnd)
+  }, [arrived])
   const motion = useNavigationMotion(pathname)
   useMagneticButtons()
   const me = useResource<CurrentUserDto>('/api/me')
