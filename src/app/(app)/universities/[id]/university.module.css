@@ -223,10 +223,18 @@
   margin-left: calc(var(--space-2) * -1);
 }
 
-/* Фильтр типа события над лентой 360 (решение 182, п. 3). */
+/* Фильтр типа события над лентой 360 (решение 182, п. 3) и кнопка сброса рядом. */
+.timelineFilterRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
 .timelineFilter {
   max-width: 260px;
-  margin-bottom: var(--space-4);
+  flex: 1 1 260px;
 }
 
 .events {

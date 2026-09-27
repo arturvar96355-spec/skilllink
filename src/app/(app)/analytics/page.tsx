@@ -23,6 +23,7 @@ import {
   DataTable,
   EmptyState,
   ErrorState,
+  hasActiveFilters,
   Icon,
   Input,
   MockBadge,
@@ -31,6 +32,7 @@ import {
   PageHeader,
   Progress,
   RemoteSelect,
+  ResetFilters,
   ROUTES,
   Section,
   Select,
@@ -333,6 +335,20 @@ function GapsTab({
   const [criticalOnly, setCriticalOnly] = useState(false)
   const [limit, setLimit] = useState(50)
 
+  // «Показать все» — это подгрузка, а не фильтр, поэтому limit сюда не входит.
+  const hasFilters = hasActiveFilters({
+    universityId,
+    programId,
+    period: period.trim(),
+    criticalOnly,
+  })
+  function resetFilters() {
+    setUniversityId('')
+    setProgramId('')
+    setPeriod('')
+    setCriticalOnly(false)
+  }
+
   // Некорректный период не отправляется вовсе: сервер ответил бы ошибкой
   // валидации на каждое нажатие клавиши, а человек просто дописывает номер.
   const isPeriodValid = period === '' || PERIOD_PATTERN.test(period.trim())
@@ -435,7 +451,7 @@ function GapsTab({
       description="Дефицит — это разрыв между спросом рынка и тем, что даёт обучение: спрос, приведённый к шкале 0..1, минус покрытие навыка программой (нет навыка — 0, базовый — 0,34, средний — 0,67, продвинутый — 1). Критичным дефицит считается тогда, когда навык действительно востребован (спрос не ниже 0,5), а в программе его нет вовсе. Без выбранной программы считается сводка по всем действующим программам: берётся лучший достигнутый уровень."
       action={marks.section ? <MockBadge /> : undefined}
     >
-      <Toolbar note={PERIOD_HINT}>
+      <Toolbar note={PERIOD_HINT} actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarItem>
           <RemoteSelect<UniversityListItemDto>
             label="Вуз"
@@ -511,8 +527,11 @@ function GapsTab({
             description={
               criticalOnly
                 ? 'Критичных дефицитов нет. Снимите отбор, чтобы увидеть остальные.'
-                : 'За период нет данных о востребованности навыков. Это не значит, что дефицита нет: считать его не из чего.'
+                : hasFilters
+                  ? 'По выбранным условиям дефицитов не найдено. Снимите часть фильтров.'
+                  : 'За период нет данных о востребованности навыков. Это не значит, что дефицита нет: считать его не из чего.'
             }
+            action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
           />
         ) : (
           <DataTable
@@ -546,6 +565,14 @@ function DemandTab() {
   const [region, setRegion] = useState('')
   const [category, setCategory] = useState('')
   const [limit, setLimit] = useState(50)
+
+  // «Показать все» — это подгрузка, а не фильтр, поэтому limit сюда не входит.
+  const hasFilters = hasActiveFilters({ period: period.trim(), region: region.trim(), category })
+  function resetFilters() {
+    setPeriod('')
+    setRegion('')
+    setCategory('')
+  }
 
   /**
    * Категории для фильтра берутся из справочника навыков: отдельного
@@ -645,7 +672,7 @@ function DemandTab() {
       description="Востребованность навыков по данным рыночной статистики. Значение нормируется по всей выборке периода, а не по показанной странице: иначе полоса менялась бы от фильтров. У каждой строки есть источник, уровень доверия и признак происхождения."
       action={marks.section ? <MockBadge /> : undefined}
     >
-      <Toolbar note={PERIOD_HINT}>
+      <Toolbar note={PERIOD_HINT} actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
         <ToolbarItem>
           <Input
             label="Период"
@@ -700,7 +727,12 @@ function DemandTab() {
           <EmptyState
             icon="analytics"
             title="Данных о спросе нет"
-            description="За выбранный период и регион замеров не было. Попробуйте другой период или снимите фильтр региона."
+            description={
+              hasFilters
+                ? 'За выбранный период, регион или категорию замеров не было. Снимите часть фильтров.'
+                : 'Замеров ещё не было.'
+            }
+            action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
           />
         ) : (
           <DataTable
