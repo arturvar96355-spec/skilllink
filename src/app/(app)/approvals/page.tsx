@@ -14,7 +14,6 @@ import {
   Card,
   EmptyState,
   ErrorState,
-  HelpHint,
   InfoHint,
   PageHeader,
   Pagination,
@@ -349,7 +348,7 @@ function ApprovalsContent() {
       <PageHeader
         title="Согласования"
         description="Назначить администратором и заблокировать администратора можно только вдвоём: один просит, другой согласует, затем первый выполняет."
-        meta={<HelpHint topic="approvals" />}
+        help={{ topic: 'approvals' }}
       />
 
       {meta && (

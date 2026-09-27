@@ -111,6 +111,7 @@ const SECTION_HELP: Record<SectionKey, HelpHintProps> = {
   workflow: { topic: 'workflow-settings' },
   skills: { topic: 'workflow-settings', section: 'skills' },
   parameters: { topic: 'workflow-settings', section: 'parameters' },
+  'task-rules': { topic: 'task-rules' },
   audit: { topic: 'audit-log' },
   dsar: { topic: 'dsar' },
   about: { topic: 'settings', section: 'about' },
