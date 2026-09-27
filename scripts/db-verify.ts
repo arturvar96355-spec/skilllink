@@ -304,6 +304,21 @@ const RULES: Rule[] = [
             ELSE false
           END`,
   },
+  {
+    // Решение 207: сервис подставляет вуз связки и отклоняет связку чужого вуза;
+    // CHECK этого не выразит — правило на двух таблицах.
+    name: 'Поручение со связкой: вуз поручения — вуз связки',
+    sql: `SELECT a.id FROM assignments a
+          JOIN cooperations c ON c.id = a.cooperation_id
+          WHERE a.university_id IS DISTINCT FROM c.university_id`,
+  },
+  {
+    // Решение 207: поручают только сотрудникам ИТ-Школы (assignments.repo.findAssignableUser).
+    name: 'Исполнитель поручения — не представитель вуза',
+    sql: `SELECT a.id FROM assignments a
+          JOIN users u ON u.id = a.assignee_id
+          WHERE u.role = 'UNIVERSITY_REP'`,
+  },
 ]
 
 /** Демо-набор помечен целиком: требование ТЗ, а не оформление (FRONTEND.md, правило 4). */
@@ -318,6 +333,7 @@ const DEMO_TABLES = [
   'vendor_contacts',
   'school_courses',
   'site_orders',
+  'assignments',
 ]
 
 const DEMO_RULES: Rule[] = DEMO_TABLES.map((table) => ({
