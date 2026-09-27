@@ -195,6 +195,22 @@
     grid-row: 2;
   }
 
+  /*
+   * Крайние подписи шириной в два шага выходили за край карточки и экрана
+   * (решение 219): первая прижата к левому краю, последняя — к правому.
+   */
+  .labels li:first-child {
+    width: 150%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .labels li:last-child {
+    width: 150%;
+    margin-left: -50%;
+    text-align: right;
+  }
+
   .pill {
     padding: 1px 6px;
     font-size: var(--text-caption-size);

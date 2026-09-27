@@ -210,6 +210,8 @@
 }
 
 .attention {
+  /* Зона нажатия 44 px на сенсорном экране (решение 219). */
+  composes: hit from '../../ui/primitives/HitArea.module.css';
   color: var(--text-primary);
   font-weight: 600;
   transition: color var(--motion-fast) var(--ease-out);
