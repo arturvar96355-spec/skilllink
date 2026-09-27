@@ -12,12 +12,23 @@ import { Button, Input, Modal, apiPatch, dateInputToIso, fieldErrors, isoToDateI
  *
  * Пустое поле отправляет `null` (`dateInputToIso('')`) — срок можно снять, схема
  * этапа допускает `deadline: null`.
+ *
+ * Окно общее для карточки связки и главной (решение 206: «Изменить срок» прямо
+ * из блока «Требует внимания»), поэтому принимает не весь этап, а то, что ему
+ * нужно: у главной вместо `WorkflowStageDto` — строка проблемного этапа.
  */
+export interface StageDeadlineTarget {
+  id: string
+  stageNumber: number
+  title: string
+  deadline: string | null
+}
+
 export function StageDeadlineModal({
   stage,
   onClose,
 }: {
-  stage: WorkflowStageDto
+  stage: StageDeadlineTarget
   onClose: (updated: WorkflowStageDto | null) => void
 }) {
   const toast = useToast()

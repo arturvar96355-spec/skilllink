@@ -49,6 +49,33 @@ export interface ProblemCooperationDto {
   stageNumber: number | null
   stageTitle: string | null
   daysOverdue: number | null
+  /**
+   * Серьёзность (решение 206): `overdue-long` — срок вышел больше
+   * `problemGroups.longOverdueDays` дней назад, `overdue` — позже, `blocked` —
+   * этап заблокирован (срок тогда не важен). По ней строка встаёт в свою группу.
+   */
+  severity: ProblemSeverity
+  /** Срок этапа, ISO 8601. null — срок не задан (бывает только у заблокированного). */
+  deadline: string | null
+  /** Причина блокировки как её записали, без приставки «Этап заблокирован:». null — этап не заблокирован. */
+  blockingReason: string | null
+  /** Ответственный за этап (не за связку) — тот же, что на экране «Команда». null — не назначен. */
+  responsible: { id: string; fullName: string } | null
+}
+
+/** Серьёзность проблемного этапа — группа в блоке «Требует внимания» (решение 206). */
+export type ProblemSeverity = 'overdue-long' | 'overdue' | 'blocked'
+
+/**
+ * Сколько проблемных этапов в каждой группе — по **всем** этапам, а не по
+ * показанным `problemCooperations`: `overdueLong + overdue + blocked === problemStageTotal`.
+ */
+export interface ProblemGroupsDto {
+  overdueLong: number
+  overdue: number
+  blocked: number
+  /** Порог «давней» просрочки в днях (`PROBLEM_LONG_OVERDUE_DAYS`, TEMP) — для подписи группы. */
+  longOverdueDays: number
 }
 
 export interface TopProgramDto {
@@ -116,9 +143,13 @@ export interface DashboardOverviewDto {
    * «5 связок встали», когда этапов с вышедшим сроком тринадцать.
    */
   problemStageTotal: number
+  /** Разбивка `problemStageTotal` по серьёзности (решение 206). */
+  problemGroups: ProblemGroupsDto
   /**
    * Блок приоритетных действий пользователя (пункт 7.1 ТЗ).
-   * Открытые рекомендации с наибольшим приоритетом. Пусто, если генерация ещё не запускалась.
+   * Открытые рекомендации: по приоритету, внутри приоритета — по баллу (решение 206);
+   * отложенные защитой от перегрузки (`isDeferred`) сюда не попадают.
+   * Пусто, если генерация ещё не запускалась.
    */
   priorityActions: RecommendationDto[]
   /**
