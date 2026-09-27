@@ -497,3 +497,30 @@ export async function recordGroupEvent(
     },
   })
 }
+
+/** Сколько отметок «Принято в работу» показывать в карточке — их обычно одна-две. */
+const ACCEPTANCES_SHOWN = 5
+
+/**
+ * Кто принял письмо в работу (решения 200, 213): записи журнала `inbound_letter.accept`,
+ * первая отметка каждого человека, по времени.
+ */
+export async function findAcceptances(
+  letterId: string,
+): Promise<Array<{ userId: string; userName: string | null; acceptedAt: Date }>> {
+  const rows = await prisma.auditLog.findMany({
+    where: { action: 'inbound_letter.accept', objectType: 'InboundLetter', objectId: letterId, userId: { not: null } },
+    orderBy: { createdAt: 'asc' },
+    take: 50,
+    select: { userId: true, createdAt: true, user: { select: { fullName: true } } },
+  })
+  const seen = new Set<string>()
+  const result: Array<{ userId: string; userName: string | null; acceptedAt: Date }> = []
+  for (const row of rows) {
+    if (!row.userId || seen.has(row.userId)) continue
+    seen.add(row.userId)
+    result.push({ userId: row.userId, userName: row.user?.fullName ?? null, acceptedAt: row.createdAt })
+    if (result.length >= ACCEPTANCES_SHOWN) break
+  }
+  return result
+}
