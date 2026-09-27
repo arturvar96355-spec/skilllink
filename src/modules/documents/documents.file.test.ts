@@ -168,6 +168,31 @@ describe('пакет документов завершённой связки с
     expect(mocks.findCooperationForPackage).toHaveBeenCalledWith('coop-2', { universityId: 'uni-1' })
   })
 
+  it('файлов больше предела — CONFLICT до чтения с диска, а не архив в памяти (решение 222)', async () => {
+    // До исправления предела не было: пакет в сотни мегабайт собирался в памяти
+    // целиком (файлы, сжатые копии, архив) и ронял контейнер приложения.
+    mocks.findCooperationForPackage.mockResolvedValue({
+      id: 'coop-1',
+      university: { name: 'Вуз', shortName: null },
+      program: { name: 'Программа' },
+    })
+    mocks.findCooperationDocuments.mockResolvedValue([documentRow('doc-1', 'SIGNED')])
+    const twentyMb = 20 * 1024 * 1024
+    mocks.findStoredByOwners.mockResolvedValue(
+      Array.from({ length: 6 }, (_, index) => ({
+        id: `f-${index}`,
+        ownerId: 'doc-1',
+        originalName: `Скан ${index}.pdf`,
+        size: twentyMb,
+        storageKey: `k-${index}`,
+      })),
+    )
+    mocks.readAttachmentFile.mockResolvedValue(Buffer.from('pdf'))
+
+    await expectRejectCode(documentPackage(manager, 'coop-1'), 'CONFLICT')
+    expect(mocks.readAttachmentFile).not.toHaveBeenCalled()
+  })
+
   it('документов нет — понятный отказ, а не пустой архив', async () => {
     mocks.findCooperationForPackage.mockResolvedValue({
       id: 'coop-1',
