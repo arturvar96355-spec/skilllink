@@ -26,6 +26,7 @@ import {
   useMutation,
   useToast,
   type TabItem,
+  HelpHint,
 } from '@/ui'
 import { encodingLabel, hasImportChanges, importSummaryText, OUTCOME_LABELS, OUTCOME_TONES } from './import-report'
 import { courseOptionValue, parseCourseOptionValue } from './site-orders-course-option'
@@ -82,6 +83,7 @@ export default function ImportPage() {
       <PageHeader
         title="Импорт данных"
         description="Загрузка файла из Excel: сначала предпросмотр — что изменится и построчные ошибки, запись в базу — только по «Применить»."
+        meta={<HelpHint topic="import" />}
       />
 
       {!user.permissions.canWrite && (

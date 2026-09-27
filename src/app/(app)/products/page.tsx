@@ -50,6 +50,7 @@ import {
   ListTitle,
   Avatar,
   pluralize,
+  HelpHint,
 } from '@/ui'
 import { AddProductSkillModal } from './AddProductSkillModal'
 import { ProductFormModal } from './ProductFormModal'
@@ -199,7 +200,13 @@ function ProductsView() {
       <PageHeader
         title="IT-продукты"
         description="Продукты, которые передаются вузам: версии, навыки и связки."
-        meta={marks.section ? <MockBadge /> : undefined}
+        meta={
+          <>
+            {/* «?» со ссылкой в документацию (решение 214). */}
+            <HelpHint topic="products" />
+            {marks.section ? <MockBadge /> : null}
+          </>
+        }
         actions={
           user.permissions.canWrite ? (
             <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
