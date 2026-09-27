@@ -9,6 +9,8 @@
 # заглушкой (бакет — папка), а контейнер базы — локальными pg_restore и psql. Проверяет:
 #   * загрузку, сверку размера, расшифровку и восстановление в новую базу —
 #     число строк каждой таблицы совпадает с источником;
+#   * архив загруженных файлов (решение 216): уходит зашифрованным, возвращается
+#     тем же до байта; нет архива — предупреждение (код 2), испорчен — сбой;
 #   * отказы: оборванная, устаревшая, отсутствующая копия, чужой пароль, испорченный
 #     объект, недоступное хранилище, восстановление в рабочую или существующую базу;
 #   * предупреждение о копиях старше срока (код 2);
@@ -119,6 +121,8 @@ chmod 600 "$TMP/env.cloud"
 
 export ENV_FILE="$TMP/env.cloud"
 export BACKUP_DIR="$TMP/backups"
+# Оповещения backup-offsite.sh — во временный каталог, не в ~/skilllink/alerts.
+export ALERT_DIR="$TMP/alerts"
 export AWS_STUB_DIR="$TMP/bucket"
 export AWS_CMD="bash $TMP/aws-stub.sh"
 export PG_BIN
@@ -137,6 +141,14 @@ RESTORE="$HERE/restore-offsite.sh"
 "$PG_BIN/pg_dump" -Fc -d "$SOURCE_DB" > "$DUMP"
 # Прошлая копия рядом: скрипт обязан взять свежую, а не первую попавшуюся.
 cp "$DUMP" "$BACKUP_DIR/skilllink-2000-01-01.dump"
+# Архив загруженных файлов той же ночи — как его кладёт scripts/ops/backup.sh.
+FILES="$BACKUP_DIR/skilllink-uploads-$TODAY.tar.gz"
+FILES_OBJECT="$AWS_STUB_DIR/selftest-bucket/skilllink/skilllink-uploads-$TODAY.tar.gz.enc"
+mkdir -p "$TMP/uploads/ab"
+printf '%%PDF-1.4 договор\n' > "$TMP/uploads/ab/contract.pdf"
+head -c 70000 /dev/urandom > "$TMP/uploads/scan.png"
+tar -czf "$FILES" -C "$TMP/uploads" .
+(cd "$BACKUP_DIR" && printf '%s  %s\n' "$(shasum -a 256 "$(basename "$FILES")" | cut -d' ' -f1)" "$(basename "$FILES")" > "$FILES.sha256")
 
 # ── Основной путь ───────────────────────────────────────────────────────────
 echo "── Загрузка"
@@ -148,6 +160,11 @@ else
   bad "объект в бакете не зашифрован"
 fi
 if grep -q "ГОТОВО: skilllink-$TODAY.dump" "$BACKUP_DIR/offsite.log"; then ok "итог записан в offsite.log"; else bad "в offsite.log нет итога"; fi
+if [ -f "$FILES_OBJECT" ] && [ -f "$FILES_OBJECT.sha256" ] && [ "$(head -c 8 "$FILES_OBJECT")" = Salted__ ]; then
+  ok "архив файлов в бакете — шифр (Salted__) и его контрольная сумма"
+else
+  bad "архива файлов в бакете нет или он не зашифрован"
+fi
 
 echo "── Восстановление"
 expect "CHECK_ONLY: скачана, сверена, расшифрована, прочитана" 0 env CHECK_ONLY=1 bash "$RESTORE"
@@ -159,6 +176,13 @@ else
   diff <(row_counts "$SOURCE_DB") <(row_counts "$CHECK_DB") | head -10 | sed 's/^/       /'
 fi
 expect "копия за дату восстанавливается по дате (CHECK_ONLY)" 0 env CHECK_ONLY=1 bash "$RESTORE" "$TODAY"
+RESTORED_FILES="$BACKUP_DIR/restored-uploads-$TODAY.tar.gz"
+if [ -f "$RESTORED_FILES" ] && cmp -s "$RESTORED_FILES" "$FILES"; then
+  ok "архив файлов из бакета расшифрован в тот же архив до байта"
+else
+  bad "архив файлов из бакета не совпал с исходным ($RESTORED_FILES)"
+fi
+rm -f "$RESTORED_FILES"
 
 # ── Отказы ──────────────────────────────────────────────────────────────────
 echo "── Отказы"
@@ -174,6 +198,25 @@ cp "$OBJECT" "$TMP/object.bak"
 printf 'XXXX' | dd of="$OBJECT" bs=1 seek=4096 conv=notrunc 2> /dev/null
 expect "испорченный в бакете объект пойман контрольной суммой" 1 env CHECK_ONLY=1 bash "$RESTORE"
 cp "$TMP/object.bak" "$OBJECT"
+
+# Архив файлов: испорчен на диске — сбой, копия базы при этом уже в облаке.
+cp "$FILES" "$TMP/files.bak"
+printf 'XXXX' | dd of="$FILES" bs=1 seek=100 conv=notrunc 2> /dev/null
+expect "испорченный архив файлов не уходит в облако" 1 bash "$BACKUP"
+if grep -q 'копия базы вне сервера есть, архива файлов за эту ночь нет' "$BACKUP_DIR/offsite.log"; then
+  ok "ИТОГ честно говорит, что база ушла, а файлы — нет"
+else
+  bad "в ИТОГ нет различия базы и файлов"
+fi
+mv "$FILES" "$TMP/files.moved"
+expect "архива файлов за ночь нет — база загружена с предупреждением" 2 bash "$BACKUP"
+cp "$TMP/files.bak" "$FILES"
+rm -f "$TMP/files.moved"
+if grep -q 'backup-offsite' "$ALERT_DIR/alerts.log" 2> /dev/null; then
+  ok "сбой и предупреждение ушли в оповещения (alert.sh, вид backup-offsite)"
+else
+  bad "backup-offsite.sh не вызвал alert.sh"
+fi
 
 cp "$DUMP" "$TMP/dump.bak"
 head -c $(($(wc -c < "$TMP/dump.bak") / 2)) "$TMP/dump.bak" > "$DUMP"
