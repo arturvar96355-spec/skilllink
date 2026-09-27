@@ -14,7 +14,7 @@ export { Card } from './primitives/Card'
 export { Progress } from './primitives/Progress'
 export { Skeleton, SkeletonLines } from './primitives/Skeleton'
 export { Avatar } from './primitives/Avatar'
-export { Tooltip } from './primitives/Tooltip'
+export { Tooltip, InfoHint } from './primitives/Tooltip'
 export { ScrollArea } from './primitives/ScrollArea'
 export { Field, Input, Textarea, Checkbox, Toggle } from './primitives/Form'
 export { Select, type SelectOption } from './primitives/Select'
@@ -118,6 +118,8 @@ export {
   formatDate,
   formatDateTime,
   formatDayMonth,
+  formatPeriod,
+  formatPoints,
   formatFileSize,
   formatRelative,
   formatCount,
@@ -161,7 +163,7 @@ export { Pie3D, type Pie3DSlice, type Pie3DTone } from './data/Pie3D'
 export { Donut, type DonutSlice, type DonutTexture, type DonutTone } from './data/Donut'
 export { Bars3D, type Bars3DGroup, type Bars3DPart } from './data/Bars3D'
 export { BarsFlat, type BarsFlatVariant } from './data/BarsFlat'
-export { PeekProvider, usePeek, CooperationPeek } from './data/Peek'
+export { PeekProvider, usePeek, usePeekEnabled, CooperationPeek } from './data/Peek'
 export { DeadlineStrip, type DeadlineItem } from './data/DeadlineStrip'
 export { Queue, QueueGroup, QueueFoot, QueueFootLink, QueueRow, type QueueRowMeta, type QueueRowProps } from './data/QueueRow'
 export {

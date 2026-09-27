@@ -71,14 +71,8 @@ const COLUMNS = [0.1, 0.37, 0.63, 0.9]
 const TITLES = ['Вузы', 'Программы', 'Навыки рынка', 'IT-продукты']
 /** Больше узлов в столбце подписи не держат. */
 const MAX_NODES = 7
-/** Длиннее подпись узла обрезается: показ длины оценивает подложку под ней. */
+/** Длиннее подпись узла обрезается: иначе соседние столбцы подписей наезжают друг на друга. */
 const LABEL_MAX_CHARS = 26
-/** Кегль подписи (`--text-label-size`, 12 px) и ширина знака — как в RussiaMap.tsx:
- *  с запасом, кириллица шире латиницы. */
-const LABEL_SIZE = 12
-const LABEL_CHAR_WIDTH = LABEL_SIZE * 0.68
-const LABEL_PAD_X = 5
-const LABEL_HEIGHT = 15
 
 interface Entry {
   id: string
@@ -249,10 +243,10 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
         {/*
           Точки и подписи — двумя проходами, оба целиком после линий: подпись
           иначе оказалась бы под линией, до которой в списке ещё не дошла
-          отрисовка. У подписи — подложка цвета фона под всей строкой, а не
-          обводка одних лишь букв: линия, проходящая между двумя буквами,
-          а не по самой букве, обводку не задевала и всё равно была видна
-          (замечание владельца на светлой теме, решение 180, п. 3).
+          отрисовка. Подложки под подписью нет (решение 211): сплошной
+          прямоугольник рвал линии связей, и схема читалась как обрывки.
+          Читаемость держит обводка букв цветом фона панели (CSS, paint-order):
+          линия идёт непрерывно и прячется только под самими буквами.
         */}
         {[uniNodes, programNodes, skillNodes, productNodes].map((nodes, columnIndex) =>
           nodes.map((node, index) => (
@@ -272,8 +266,6 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
             const textX = node.x + (columnIndex === 0 ? -8 : columnIndex === 3 ? 8 : 0)
             const textY = node.y - 20
             const label = displayLabel(node.label)
-            const bgWidth = label.length * LABEL_CHAR_WIDTH + LABEL_PAD_X * 2
-            const bgX = anchor === 'start' ? textX - LABEL_PAD_X : anchor === 'end' ? textX - bgWidth + LABEL_PAD_X : textX - bgWidth / 2
             return (
               <g
                 key={`label:${node.key}`}
@@ -283,7 +275,6 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
                 {/* Полное название узла — во всплывающей подсказке: у программ — с вузом
                     всегда, у остальных — как страховка на случай обрезки длинного имени. */}
                 <title>{node.tooltip}</title>
-                <rect x={bgX} y={textY - LABEL_HEIGHT + 4} width={bgWidth} height={LABEL_HEIGHT} rx={4} className={styles.nodeLabelBg} />
                 <text x={textX} y={textY} textAnchor={anchor} className={styles.nodeLabel}>
                   {label}
                 </text>

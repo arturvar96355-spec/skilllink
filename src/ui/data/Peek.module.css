@@ -6,9 +6,11 @@
   top: 0;
   z-index: var(--z-floating);
   width: 380px;
+  max-width: calc(100vw - 16px);
   padding: var(--space-4);
   border-radius: var(--radius-panel);
-  background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--glass-plate);
+  /* Непрозрачная плашка (решение 211): сквозь полупрозрачное стекло читался текст соседней строки. */
+  background: linear-gradient(var(--glass-tint), var(--glass-tint)), var(--surface-card);
   box-shadow: var(--glass-shadow);
   pointer-events: none;
   transform-style: preserve-3d;
@@ -30,49 +32,74 @@
   gap: var(--space-3);
 }
 
-/* Маршрут: три узла, связанные линиями, — сама суть связки. */
+/*
+ * Маршрут: три узла столбиком, связанные вертикальной линией, — сама суть
+ * связки. Названия целиком, с переносом (решение 211).
+ */
 .route {
-  display: grid;
-  grid-template-columns: auto minmax(12px, 1fr) auto minmax(12px, 1fr) auto;
-  align-items: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+  margin: 0;
+  padding: 0 0 0 var(--space-5);
+  list-style: none;
+}
+
+.route::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  bottom: 9px;
+  width: 1px;
+  background: linear-gradient(180deg, var(--accent-violet), var(--line-strong));
+  transform-origin: top center;
+  animation: draw 420ms var(--ease-out) 80ms both;
 }
 
 .node {
+  position: relative;
   font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
   font-weight: 600;
   color: var(--text-primary);
-  max-width: 15ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.node::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-5));
+  top: 0.55em;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  box-shadow: inset 0 0 0 2px var(--accent-violet);
+}
+
+.node + .node {
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .missing {
   color: var(--text-tertiary);
-  font-weight: 500;
-}
-
-.link {
-  height: 1px;
-  background: linear-gradient(90deg, var(--line-strong), var(--accent-violet), var(--line-strong));
-  transform-origin: left center;
-  animation: draw 420ms var(--ease-out) 80ms both;
-}
-
-.link:nth-child(4) {
-  animation-delay: 180ms;
+  font-style: italic;
 }
 
 @keyframes draw {
   from {
-    transform: scaleX(0);
+    transform: scaleY(0);
   }
 }
 
 /* Наклонная плоскость ленты этапов: смотрим на неё сверху под углом. */
 .floor {
-  height: 56px;
+  /* Колонна текущего этапа поднимается над плоскостью — место над лентой, чтобы не задеть название продукта. */
+  margin-top: var(--space-4);
+  height: 40px;
   perspective: 420px;
   perspective-origin: 50% 0%;
 }
@@ -171,10 +198,9 @@
 
 .stageTitle {
   font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .status {
@@ -198,4 +224,12 @@
 .blockedText {
   color: var(--status-warning);
   background: var(--line-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route::before,
+  .cell,
+  .pillar {
+    animation: none;
+  }
 }

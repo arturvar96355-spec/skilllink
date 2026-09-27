@@ -227,3 +227,12 @@
 div.registry {
   background: transparent;
 }
+
+/* Итог отбора по этапу (решение 211) — вместо переключателя страниц: все строки на одной. */
+.stageNote {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--line-subtle);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}

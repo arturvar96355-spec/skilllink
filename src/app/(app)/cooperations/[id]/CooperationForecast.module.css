@@ -1,4 +1,4 @@
-/* Прогноз связки (решение 135): вероятность, статус модели, доводы за/против. */
+/* Прогноз связки (решение 135), подача решения 211: вопрос, шансы словами и числом, «как считаем». */
 
 .card {
   display: flex;
@@ -8,37 +8,96 @@
 
 .head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
 }
 
-.probabilityRow {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
+.question {
+  display: inline-flex;
+  align-items: center;
   flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body-size);
+  line-height: 1.4;
+  font-weight: 650;
+  color: var(--text-primary);
 }
 
+/* Шансы: слово и число в одной строке — «Средние · 53%». */
+.verdict {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.level,
 .probability {
   font-size: var(--text-kpi-lg-size);
   font-weight: 700;
   letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
   color: var(--text-primary);
 }
 
-.goal {
-  font-size: var(--text-body-sm-size);
-  color: var(--text-secondary);
+.probability {
+  font-variant-numeric: tabular-nums;
 }
 
-.summary {
+.separator {
+  font-size: var(--text-kpi-lg-size);
+  line-height: 1.05;
+  color: var(--text-tertiary);
+}
+
+/* Цвет — сигнал: высокие шансы спокойно-зелёные, низкие — предупреждение. */
+.verdict[data-level='high'] .level {
+  color: var(--status-success);
+}
+
+.verdict[data-level='low'] .level {
+  color: var(--status-warning);
+}
+
+.how {
   margin: 0;
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
+}
+
+.howLabel {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.reasons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
+
+.reasonsTitle {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
 }
 
 .notes {
@@ -88,7 +147,37 @@
   color: var(--text-tertiary);
 }
 
-.meta {
+.details summary {
+  cursor: pointer;
+  width: fit-content;
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+}
+
+.details summary:hover {
+  color: var(--text-secondary);
+}
+
+.detailsList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.detailsList div {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.detailsList dt {
+  color: var(--text-tertiary);
+}
+
+.detailsList dd {
+  margin: 0;
 }

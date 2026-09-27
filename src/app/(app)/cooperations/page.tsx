@@ -35,6 +35,7 @@ import {
   useCurrentUser,
   formatDate,
   formatNumber,
+  pluralize,
   useDebounced,
   useResource,
   usePageInRange,
@@ -44,6 +45,7 @@ import {
   formatStageProgress,
   STAGE_PROGRESS_HINT,
 } from '@/ui'
+import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { CreateCooperationModal } from './CreateCooperationModal'
 import styles from './cooperations.module.css'
 
@@ -53,6 +55,11 @@ import styles from './cooperations.module.css'
  * без прокрутки, на ноутбуке 1440×900 — двадцать.
  */
 const PAGE_SIZE = 25
+/** Этапов у связки — отбор ?stage= принимает только их номера. */
+const STAGE_COUNT = WORKFLOW_STAGES.length
+/** Сколько связок в работе берётся для отбора по этапу: больше API за раз не отдаёт. */
+const STAGE_POOL = 100
+const STAGE_TITLES = new Map(WORKFLOW_STAGES.map((item) => [item.number, item.title]))
 
 /**
  * Реестр связок.
@@ -157,6 +164,17 @@ function CooperationsView() {
     const value = searchParams.get('status')
     return value && (COOPERATION_STATUSES as readonly string[]).includes(value) ? value : ''
   })
+  /**
+   * Отбор по текущему этапу — ссылкой «Все N связок» из панели этапа на главной
+   * (решение 211). У API такого фильтра нет — текущий этап вычисляется, а не
+   * хранится, — поэтому страница берёт связки в работе той же выборкой, что
+   * маршрут на главной (черновики и в работе, до 100), и отбирает этап сама:
+   * число строк здесь совпадает с числом на кружке главной.
+   */
+  const [stage, setStage] = useState<number | null>(() => {
+    const value = Number(searchParams.get('stage'))
+    return Number.isInteger(value) && value >= 1 && value <= STAGE_COUNT ? value : null
+  })
   const [onlyOverdue, setOnlyOverdue] = useState(() => searchParams.get('onlyOverdue') === 'true')
   const [onlyBlocked, setOnlyBlocked] = useState(() => searchParams.get('onlyBlocked') === 'true')
   const [sort, setSort] = useState(() => searchParams.get('sort') || '-updatedAt')
@@ -175,11 +193,16 @@ function CooperationsView() {
     productId: productId ?? undefined,
     sort,
   }
-  const path = `/api/cooperations${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`
+  const path =
+    stage === null
+      ? `/api/cooperations${buildQuery({ ...listFilters, page, pageSize: PAGE_SIZE })}`
+      : `/api/cooperations${buildQuery({ ...listFilters, status: status || ['DRAFT', 'ACTIVE'], page: 1, pageSize: STAGE_POOL })}`
   const cooperations = useResource<CooperationListItemDto[]>(path, { keepPreviousData: true })
-  usePageInRange(page, setPage, cooperations.meta)
+  usePageInRange(page, setPage, stage === null ? cooperations.meta : null)
 
-  const rows = cooperations.data ?? []
+  const fetched = cooperations.data ?? []
+  const rows = stage === null ? fetched : fetched.filter((row) => row.currentStage?.stageNumber === stage)
+  const stagePoolCut = stage !== null && (cooperations.meta?.total ?? 0) > fetched.length
   const containsMock = rows.some((row) => row.isMock)
 
   function changeFilter(apply: () => void) {
@@ -189,14 +212,15 @@ function CooperationsView() {
 
   // «Сбросить фильтры» (решение 128): и отбор по продукту из адреса (?productId=).
   const resetUrl = useResetUrl()
-  const hasFilters = Boolean(search.trim() || status || onlyOverdue || onlyBlocked || productId)
+  const hasFilters = Boolean(search.trim() || status || onlyOverdue || onlyBlocked || productId || stage)
   function resetFilters() {
     setSearch('')
     setStatus('')
+    setStage(null)
     setOnlyOverdue(false)
     setOnlyBlocked(false)
     setPage(1)
-    resetUrl(['productId', 'status', 'onlyOverdue', 'onlyBlocked', 'sort'])
+    resetUrl(['productId', 'status', 'onlyOverdue', 'onlyBlocked', 'sort', 'stage'])
   }
 
   /*
@@ -363,6 +387,22 @@ function CooperationsView() {
             />
           </div>
         </ToolbarItem>
+        {stage !== null && (
+          <ToolbarItem>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon="close"
+              onClick={() => {
+                setStage(null)
+                resetUrl(['stage'])
+              }}
+              title="Показать связки на всех этапах"
+            >
+              {`Этап ${stage}: ${STAGE_TITLES.get(stage) ?? ''}`}
+            </Button>
+          </ToolbarItem>
+        )}
         {productId && (
           <ToolbarItem>
             <Button
@@ -389,7 +429,7 @@ function CooperationsView() {
               icon="cooperation"
               title="Связок не найдено"
               description={
-                query || status || onlyOverdue || onlyBlocked || productId
+                query || status || onlyOverdue || onlyBlocked || productId || stage
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
                   : 'Ни одной связки ещё не заведено.'
               }
@@ -408,13 +448,22 @@ function CooperationsView() {
                 isRefreshing={cooperations.isRefreshing}
                 caption="Реестр связок"
               />
-              <Pagination
-                page={cooperations.meta?.page ?? page}
-                pageSize={cooperations.meta?.pageSize ?? PAGE_SIZE}
-                total={cooperations.meta?.total ?? rows.length}
-                onPageChange={setPage}
-                nouns={['связка', 'связки', 'связок']}
-              />
+              {stage === null ? (
+                <Pagination
+                  page={cooperations.meta?.page ?? page}
+                  pageSize={cooperations.meta?.pageSize ?? PAGE_SIZE}
+                  total={cooperations.meta?.total ?? rows.length}
+                  onPageChange={setPage}
+                  nouns={['связка', 'связки', 'связок']}
+                />
+              ) : (
+                <p className={styles.stageNote}>
+                  {`На этапе ${stage} — ${formatNumber(rows.length)} ${pluralize(rows.length, ['связка', 'связки', 'связок'])}`}
+                  {stagePoolCut
+                    ? ` (отобраны из первых ${formatNumber(fetched.length)} связок в работе).`
+                    : '.'}
+                </p>
+              )}
             </>
           )}
         </Card>
