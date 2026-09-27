@@ -505,6 +505,60 @@ html[data-mode='work'][data-work-theme]:not([data-work-theme='a']) [data-badge][
   color: var(--text-disabled);
 }
 
+/*
+ * Вариант В «графит»: всё из Б плюс нейтральный холст. Фиолетовый оттенок
+ * снят с фона, поверхностей, линий и серого текста — фиолетовым остаются
+ * только выбранное, текущий этап и основное действие; графики серые,
+ * сигнал — красный и жёлтый. Тёмная тема и светлая — отдельными правилами.
+ */
+html[data-mode='work'][data-work-theme='c']:not([data-theme='light']) {
+  --ink-rgb: 255 255 255;
+  --canvas: #0c0c0e;
+  --surface-1: #121214;
+  --surface-2: #19191c;
+  --surface-3: #202024;
+  --surface-floating: rgba(24, 24, 27, 0.97);
+  --surface-card-muted: #101012;
+  --surface-sunken: #0e0e10;
+  --bg-sidebar: rgba(13, 13, 15, 0.92);
+  --bg-header: rgba(12, 12, 14, 0.8);
+  --text-primary: #f2f2f3;
+  --text-secondary: #a7a7ad;
+  --text-tertiary: #86868d;
+  --text-disabled: #4a4a50;
+  --text-muted-cool: #a7a7ad;
+  --calm-chart: rgb(var(--ink-rgb) / 0.42);
+}
+
+html[data-mode='work'][data-work-theme='c'][data-theme='light'] {
+  --ink-rgb: 20 20 24;
+  --canvas: #f6f6f7;
+  --surface-1: #ffffff;
+  --surface-2: #f1f1f3;
+  --surface-3: #e7e7ea;
+  --surface-floating: rgba(255, 255, 255, 0.97);
+  --surface-card-muted: #fafafa;
+  --surface-sunken: #efeff1;
+  --bg-sidebar: rgba(255, 255, 255, 0.94);
+  --bg-header: rgba(246, 246, 247, 0.82);
+  --text-primary: #161618;
+  --text-secondary: #46464c;
+  --text-tertiary: #616168;
+  --text-disabled: #a5a5ab;
+  --text-muted-cool: #46464c;
+  --line-subtle: rgba(20, 20, 24, 0.09);
+  --line-strong: rgba(20, 20, 24, 0.16);
+  --line-faint: rgba(20, 20, 24, 0.045);
+  --border-divider: rgba(20, 20, 24, 0.08);
+  --button-primary-bg: #161618;
+  --button-primary-hover: #2a2a2e;
+  --calm-chart: rgb(var(--ink-rgb) / 0.42);
+}
+
+html[data-mode='work'][data-work-theme='c'] {
+  --gradient-progress: var(--calm-chart);
+}
+
 /* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */
 html[data-theme-switch='fade'] *,
 html[data-theme-switch='fade'] *::before,
