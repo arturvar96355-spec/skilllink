@@ -28,6 +28,34 @@ export interface ChannelLinkRow {
   linkedAt: Date
 }
 
+/**
+ * Привязанные каналы и основной канал сразу для списка пользователей — одним набором
+ * запросов, а не по запросу на человека (экран «Команда», решение 207). Без чатов:
+ * нужно только «какой канал», сам адрес чата наружу не уходит.
+ */
+export async function findChannelsByUsers(
+  userIds: readonly string[],
+): Promise<Map<string, { channels: ChannelId[]; primary: ChannelId | null }>> {
+  const ids = [...userIds]
+  const [telegram, alt, users] = await Promise.all([
+    prisma.telegramLink.findMany({ where: { userId: { in: ids } }, select: { userId: true } }),
+    prisma.notificationChannelLink.findMany({ where: { userId: { in: ids } }, select: { userId: true, channel: true } }),
+    prisma.user.findMany({ where: { id: { in: ids }, notifyChannel: { not: null } }, select: { id: true, notifyChannel: true } }),
+  ])
+  const result = new Map<string, { channels: ChannelId[]; primary: ChannelId | null }>()
+  const entry = (userId: string) => {
+    const found = result.get(userId) ?? { channels: [], primary: null }
+    result.set(userId, found)
+    return found
+  }
+  for (const row of telegram) entry(row.userId).channels.push('telegram')
+  for (const row of alt) entry(row.userId).channels.push(row.channel === 'MAX' ? 'max' : 'vk')
+  for (const row of users) {
+    entry(row.id).primary = row.notifyChannel === 'TELEGRAM' ? 'telegram' : row.notifyChannel === 'MAX' ? 'max' : 'vk'
+  }
+  return result
+}
+
 /** Все привязки пользователя — Telegram и альтернативные каналы вместе. */
 export async function findLinksByUser(userId: string): Promise<ChannelLinkRow[]> {
   const [telegram, alt] = await Promise.all([

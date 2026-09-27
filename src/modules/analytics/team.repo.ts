@@ -146,6 +146,18 @@ export async function countOpenLetterTasksByUser(userIds: readonly string[]) {
 }
 
 /**
+ * Открытые поручения на сотрудниках (решение 207): только исполнитель и срок —
+ * открытые и просроченные сервис считает тем же правилом, что список поручений
+ * (`isAssignmentOverdue`), а не своим условием в запросе.
+ */
+export async function findOpenAssignments(userIds: readonly string[]) {
+  return prisma.assignment.findMany({
+    where: { assigneeId: { in: [...userIds] }, status: { in: ['NEW', 'IN_PROGRESS'] } },
+    select: { assigneeId: true, dueAt: true, status: true, isMock: true },
+  })
+}
+
+/**
  * Завершённые этапы со сроком — по ним доля «в срок». Без фильтра по людям это ровно
  * выборка главной (`findCompletedStagesWithDeadline({})`): итог команды и главной
  * считаются по одному множеству, а по людям раскладывается уже в памяти.

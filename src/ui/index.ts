@@ -146,6 +146,7 @@ export {
   vendorHref,
   skillHref,
   letterHref,
+  assignmentHref,
   searchItemHref,
   notificationHref,
   recommendationTargetHref,

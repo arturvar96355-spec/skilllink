@@ -37,6 +37,10 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
   'university.responsible-changed': 'university',
   'cooperation.responsible-changed': 'user',
   'stage.responsible-changed': 'user',
+  // Поручения (решение 207).
+  'assignment.new': 'check',
+  'assignment.due-soon': 'clock',
+  'assignment.overdue': 'alert',
 }
 
 /**
