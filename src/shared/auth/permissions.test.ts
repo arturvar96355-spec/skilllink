@@ -123,6 +123,7 @@ const REVIEWER_ALLOWED_PERMISSIONS: readonly Permission[] = [
   'CONTACT_DETAILS',
   'VENDORS',
   'INBOUND_READ',
+  'TEAM',
 ]
 
 function expectReviewerBlocked(reviewer: CurrentUser, permission: Permission): void {

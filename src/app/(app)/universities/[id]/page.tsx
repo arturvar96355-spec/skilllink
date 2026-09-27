@@ -30,6 +30,7 @@ import {
   DocumentStatusBadge,
   EmptyState,
   ErrorState,
+  hasActiveFilters,
   Icon,
   Modal,
   MockBadge,
@@ -39,6 +40,7 @@ import {
   formatStageProgress,
   STAGE_PROGRESS_HINT,
   ProgramStatusBadge,
+  ResetFilters,
   Section,
   Select,
   Skeleton,
@@ -249,6 +251,11 @@ export default function UniversityPage() {
   function onTimelineTypeChange(value: string) {
     setTimelineType(value as TimelineEventType | '')
     setTimelineCursor(null)
+  }
+
+  const hasTimelineFilters = hasActiveFilters({ timelineType })
+  function resetTimelineFilters() {
+    onTimelineTypeChange('')
   }
 
   if (university.isLoading) {
@@ -791,15 +798,18 @@ export default function UniversityPage() {
 
       {tab === 'history' && (
         <Card>
-          <div className={styles.timelineFilter}>
-            <Select
-              label="Тип события"
-              hideLabel
-              placeholder="Все типы"
-              value={timelineType}
-              onValueChange={onTimelineTypeChange}
-              options={TIMELINE_EVENT_TYPES.map((type) => ({ value: type, label: TIMELINE_TYPE_LABELS[type] }))}
-            />
+          <div className={styles.timelineFilterRow}>
+            <div className={styles.timelineFilter}>
+              <Select
+                label="Тип события"
+                hideLabel
+                placeholder="Все типы"
+                value={timelineType}
+                onValueChange={onTimelineTypeChange}
+                options={TIMELINE_EVENT_TYPES.map((type) => ({ value: type, label: TIMELINE_TYPE_LABELS[type] }))}
+              />
+            </div>
+            {hasTimelineFilters && <ResetFilters active onReset={resetTimelineFilters} />}
           </div>
           {timelineItems.length === 0 && timeline.isLoading ? (
             <TableSkeleton rows={5} columns={2} />
@@ -814,6 +824,7 @@ export default function UniversityPage() {
                   ? `Событий типа «${TIMELINE_TYPE_LABELS[timelineType]}» по вузу не найдено.`
                   : 'По вузу ещё ничего не происходило.'
               }
+              action={hasTimelineFilters ? <ResetFilters active onReset={resetTimelineFilters} /> : undefined}
             />
           ) : (
             <>
