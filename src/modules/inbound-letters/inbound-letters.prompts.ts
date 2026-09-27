@@ -3,7 +3,7 @@ import type { AiDraftKind } from '@/shared/contracts/ai-assist'
 import { INBOUND_LETTER_GROUPS, type InboundLetterGroup } from '@/shared/contracts/enums'
 import { INBOUND_LETTER_GROUP_LABELS } from '@/shared/contracts/labels'
 import { MAX_QUOTES, QUOTE_MAX_LENGTH } from '@/shared/config/inbound-letters.config'
-import type { AiPrompt } from '@/modules/ai-assist/ai-assist.prompts'
+import { letterRulesTail, type AiPrompt } from '@/modules/ai-assist/ai-assist.prompts'
 import { redactDeep, type Redact } from '@/modules/ai-assist/ai-assist.privacy'
 import type { RuleClassification } from './inbound-letters.rules'
 
@@ -124,7 +124,11 @@ function replyTemplate(facts: ReplyDraftFacts): string {
   ].join('\n')
 }
 
-export function buildReplyDraftPrompt(facts: ReplyDraftFacts, redact: Redact): AiPrompt {
+/**
+ * `instruction` — пожелания администратора к письмам (решение 213): встают в промпт
+ * перед базовыми правилами и не отменяют их (`letterRulesTail`).
+ */
+export function buildReplyDraftPrompt(facts: ReplyDraftFacts, redact: Redact, instruction?: string | null): AiPrompt {
   const safe = redactDeep(facts, redact)
   const lines = [
     `Вуз: ${safe.universityName ?? 'не указан'}`,
@@ -138,10 +142,11 @@ export function buildReplyDraftPrompt(facts: ReplyDraftFacts, redact: Redact): A
     system: [
       'Ты помогаешь сотруднику ИТ-Школы РТК составить черновик ответа вузу-партнёру.',
       'Пиши по-русски, деловым языком, коротко, без канцелярита.',
-      'Обращение — «Уважаемые коллеги!». Подпись — «С уважением,» и на следующей строке «ИТ-Школа РТК».',
+      'Обращение по умолчанию — «Уважаемые коллеги!». Подпись по умолчанию — «С уважением,» и на следующей строке «ИТ-Школа РТК».',
       'Пиши только по фактам ниже — не придумывай сроки, числа, имена и договорённости, которых там нет.',
       'Не указывай имён, должностей и контактов — ни отправителя, ни получателя.',
       'Письмо — не длиннее 120 слов. Без разметки Markdown.',
+      letterRulesTail(instruction, redact),
     ].join('\n'),
     user: `Факты для письма:\n${lines.map((line) => `- ${line}`).join('\n')}\n\nСоставь письмо.`,
     facts: lines,

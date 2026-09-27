@@ -1,7 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
-import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
+import { ACTIVE_COOPERATION_STATUSES, INBOUND_LETTER_OPEN_STATUSES } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { resolveTargetLabels, targetKey } from '@/modules/recommendations/recommendations.repo'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
@@ -10,6 +10,7 @@ import type {
   AssignmentFeedSource,
   DocumentChangeSource,
   FeedSources,
+  LetterFeedSource,
   RecommendationSource,
   ResponsibleAssignedSource,
   StageChangeSource,
@@ -521,4 +522,56 @@ export async function setSeenAt(userId: string, seenAt: Date): Promise<void> {
     where: { id: userId },
     data: { notificationsSeenAt: seenAt },
   })
+}
+
+/**
+ * Сколько непроверенных писем показывать в ленте: остальное — в «Письмах вузов».
+ * Немного — лента общая, письма не должны вытеснять сроки и поручения.
+ */
+const LETTERS_IN_FEED = 5
+
+/**
+ * Непроверенные письма вузов за окно ленты (решение 213) — для тех, кто их разбирает.
+ * Кто принял письмо в работу — по журналу (`inbound_letter.accept`), как в карточке письма.
+ */
+export async function loadNewLetters(userId: string, since: Date): Promise<LetterFeedSource[]> {
+  const letters = await prisma.inboundLetter.findMany({
+    where: { status: { in: [...INBOUND_LETTER_OPEN_STATUSES] }, createdAt: { gte: since } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: LETTERS_IN_FEED,
+    select: {
+      id: true,
+      group: true,
+      detectedGroup: true,
+      createdAt: true,
+      university: { select: { name: true, shortName: true } },
+    },
+  })
+  if (letters.length === 0) return []
+
+  const accepts = await prisma.auditLog.findMany({
+    where: {
+      action: 'inbound_letter.accept',
+      objectType: 'InboundLetter',
+      objectId: { in: letters.map((letter) => letter.id) },
+      userId: { not: null },
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { objectId: true, userId: true, user: { select: { fullName: true } } },
+  })
+  const mine = new Set(accepts.filter((row) => row.userId === userId).map((row) => row.objectId))
+  const firstOther = new Map<string, string | null>()
+  for (const row of accepts) {
+    if (row.userId !== userId && !firstOther.has(row.objectId)) firstOther.set(row.objectId, row.user?.fullName ?? null)
+  }
+
+  return letters.map((letter) => ({
+    id: letter.id,
+    group: letter.group ?? letter.detectedGroup,
+    universityName: letter.university ? letter.university.shortName ?? letter.university.name : null,
+    createdAt: letter.createdAt,
+    acceptedByMe: mine.has(letter.id),
+    // Приняли, но имя не известно (сотрудник удалён из справочника) — всё равно «принято».
+    acceptedByName: firstOther.has(letter.id) ? firstOther.get(letter.id) ?? 'сотрудник' : null,
+  }))
 }

@@ -30,6 +30,7 @@ import {
   useToast,
 } from '@/ui'
 import { AdminChannelsSection } from './AdminChannelsSection'
+import { AiLetterInstructionSection } from './AiLetterInstructionSection'
 import { AuditSection } from './AuditSection'
 import { CalculationParametersSection } from './CalculationParametersSection'
 import { DsarSection } from './DsarSection'
@@ -79,6 +80,8 @@ const SECTIONS = [
   { key: 'market', label: 'Рыночные данные', icon: 'analytics', adminOnly: false },
   { key: 'sources', label: 'Источники данных', icon: 'document', adminOnly: false },
   { key: 'integrations', label: 'Интеграции', icon: 'cooperation', adminOnly: false },
+  // Инструкция для писем ИИ (решение 213) — администратору.
+  { key: 'ai', label: 'ИИ-помощник', icon: 'spark', adminOnly: true },
   { key: 'users', label: 'Пользователи', icon: 'user', adminOnly: true },
   { key: 'workflow', label: 'Этапы работы', icon: 'calendar', adminOnly: true },
   { key: 'skills', label: 'Справочник навыков', icon: 'skill', adminOnly: true },
@@ -268,6 +271,7 @@ export default function SettingsPage() {
       'Записи об источниках создаются при загрузке рыночных данных. Какие источники включены, задаётся переменными окружения на сервере.',
     integrations:
       'Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения.',
+    ai: 'Как ИИ пишет письма вузам. Подключён ли помощник — в разделе «Интеграции»; здесь — ваши пожелания к тону, подписи и содержанию писем.',
     users:
       'Сотрудники ИТ-Школы и представители вузов. Пароль нового пользователя система придумывает сама и показывает один раз; блокировка действует сразу, в том числе на открытые сессии.',
     workflow:
@@ -384,6 +388,9 @@ export default function SettingsPage() {
             {isAdmin ? <AdminChannelsSection /> : null}
           </>
         )
+
+      case 'ai':
+        return isAdmin ? <AiLetterInstructionSection /> : null
 
       case 'users':
         return isAdmin ? <UsersSection /> : null

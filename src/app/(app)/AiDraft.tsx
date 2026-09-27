@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import {
   AI_DRAFT_SOURCE_LABELS,
   aiDraftSourceNote,
@@ -12,12 +12,29 @@ import {
   Card,
   Icon,
   SkeletonLines,
+  Textarea,
   apiPost,
   formatDateTime,
   useMutation,
   useToast,
 } from '@/ui'
+import { LetterRewrite, rewrittenNote, useDraftRewrite } from './LetterRewrite'
 import styles from './AiDraft.module.css'
+
+/**
+ * Строка «кто написал черновик»: бирка и пояснение (решение 90). Общая для черновика
+ * помощника и черновика ответа на письмо вуза (решение 213) — везде одинаково.
+ */
+export function DraftSourceLine({ byModel, badge, note }: { byModel: boolean; badge: string; note: ReactNode }) {
+  return (
+    <div className={styles.source}>
+      <Badge tone={byModel ? 'accent' : 'neutral'} withDot>
+        {badge}
+      </Badge>
+      <span className={styles.note}>{note}</span>
+    </div>
+  )
+}
 
 /**
  * Черновик ИИ-помощника (решение 90) — текст, пометка источника, «Скопировать»
@@ -30,26 +47,59 @@ import styles from './AiDraft.module.css'
 export function AiDraftView({ draft }: { draft: AiDraftDto }) {
   const toast = useToast()
   const byModel = draft.source !== 'template'
+  // Письмо вузу правится и переделывается кнопками (решение 213); сводка и дела — только читаются.
+  const editable = Boolean(draft.rewriteTarget)
+  const letter = useDraftRewrite(draft.text)
+  const fieldId = useId()
+  const { reset } = letter
+
+  useEffect(() => {
+    reset(draft.text)
+  }, [draft.text, reset])
+
+  const text = editable ? letter.text : draft.text
 
   async function copy() {
     try {
-      await navigator.clipboard.writeText(draft.text)
+      await navigator.clipboard.writeText(text)
       toast.success('Черновик скопирован')
     } catch {
+      const node = document.getElementById(fieldId)
+      if (node instanceof HTMLTextAreaElement) node.select()
       toast.error('Не удалось скопировать — выделите текст и скопируйте вручную')
     }
   }
 
   return (
     <div className={styles.draft}>
-      <div className={styles.source}>
-        <Badge tone={byModel ? 'accent' : 'neutral'} withDot>
-          {byModel ? `ИИ · ${AI_DRAFT_SOURCE_LABELS[draft.source]}` : 'Шаблон'}
-        </Badge>
-        <span className={styles.note}>{aiDraftSourceNote(draft)}</span>
-      </div>
+      {editable && letter.style ? (
+        <DraftSourceLine byModel badge="ИИ · переделка" note={rewrittenNote(letter.style)} />
+      ) : (
+        <DraftSourceLine
+          byModel={byModel}
+          badge={byModel ? `ИИ · ${AI_DRAFT_SOURCE_LABELS[draft.source]}` : 'Шаблон'}
+          note={aiDraftSourceNote(draft)}
+        />
+      )}
 
-      <p className={styles.text}>{draft.text}</p>
+      {draft.rewriteTarget ? (
+        <>
+          <div className={letter.fieldClassName} aria-busy={letter.pending}>
+            <Textarea
+              id={fieldId}
+              label="Текст письма"
+              hint="Можно править прямо здесь — кнопки ниже переделают текст вместе с вашими правками."
+              rows={10}
+              value={letter.text}
+              readOnly={letter.pending}
+              onChange={(event) => letter.setText(event.target.value)}
+            />
+          </div>
+          <LetterRewrite target={draft.rewriteTarget} {...letter.barProps} />
+        </>
+      ) : (
+        <p className={styles.text}>{draft.text}</p>
+      )}
 
       <div className={styles.foot}>
         <Button size="sm" variant="secondary" onClick={copy}>

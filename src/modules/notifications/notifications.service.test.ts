@@ -17,6 +17,7 @@ const repo = vi.hoisted(() => ({
   loadForUniversity: vi.fn(),
   getSeenAt: vi.fn(),
   setSeenAt: vi.fn(),
+  loadNewLetters: vi.fn(),
 }))
 
 vi.mock('./notifications.repo', () => repo)
@@ -50,6 +51,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW)
   repo.loadForStaff.mockResolvedValue(EMPTY_SOURCES)
   repo.getSeenAt.mockResolvedValue(null)
+  repo.loadNewLetters.mockResolvedValue([])
 })
 
 afterEach(() => vi.useRealTimers())
@@ -172,5 +174,50 @@ describe('отметка «прочитано»: POST /api/notifications/seen', 
       code: 'VALIDATION_ERROR',
     })
     expect(repo.setSeenAt).not.toHaveBeenCalled()
+  })
+})
+
+describe('письма вузов в ленте (решение 213)', () => {
+  const LETTER = {
+    id: 'letter-1',
+    group: 'MEETING' as const,
+    universityName: 'СПбГУТ',
+    createdAt: new Date(NOW.getTime() - 60 * 60 * 1000),
+    acceptedByMe: false,
+    acceptedByName: null,
+  }
+
+  function as(role: CurrentUser['role'], overrides: Partial<CurrentUser> = {}): CurrentUser {
+    return { ...manager(), id: `user-${role}`, role, ...overrides }
+  }
+
+  it('тем, кто разбирает письма, — «Новое письмо вуза» с кнопкой «Принять в работу»', async () => {
+    repo.loadNewLetters.mockResolvedValue([LETTER])
+    for (const role of ['ADMIN', 'HEAD'] as const) {
+      const result = await service.feed(as(role), { limit: 20 })
+      const item = result.items.find((entry) => entry.kind === 'letter.new')
+      expect(item, role).toMatchObject({
+        title: 'Новое письмо вуза: встреча',
+        description: 'СПбГУТ',
+        severity: 'warning',
+        target: { type: 'letter', id: 'letter-1' },
+        accept: { type: 'letter', id: 'letter-1', acceptedByMe: false, acceptedByName: null },
+      })
+    }
+  })
+
+  it('менеджеру, аналитику и эксперту писем в ленте нет — и база о них не спрашивается', async () => {
+    repo.loadNewLetters.mockResolvedValue([LETTER])
+    for (const user of [manager(), as('ANALYST'), as('ADMIN', { isReviewer: true })]) {
+      const result = await service.feed(user, { limit: 20 })
+      expect(result.items.some((entry) => entry.kind === 'letter.new')).toBe(false)
+    }
+    expect(repo.loadNewLetters).not.toHaveBeenCalled()
+  })
+
+  it('принятое письмо остаётся в ленте, но уже «к сведению»', async () => {
+    repo.loadNewLetters.mockResolvedValue([{ ...LETTER, acceptedByName: 'Руководитель' }])
+    const result = await service.feed(as('ADMIN'), { limit: 20 })
+    expect(result.items[0]).toMatchObject({ severity: 'info', accept: { acceptedByName: 'Руководитель' } })
   })
 })

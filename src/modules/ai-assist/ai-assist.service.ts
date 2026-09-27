@@ -2,7 +2,14 @@ import { assertCan } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
 import { AI_TODAY_ITEMS } from '@/shared/config/ai-assist.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
-import type { AiDraftDto, AiFallbackReason } from '@/shared/contracts/ai-assist'
+import {
+  AI_FALLBACK_REASON_LABELS,
+  type AiDraftDto,
+  type AiFallbackReason,
+  type AiRewriteDto,
+  type AiRewriteStatusDto,
+  type AiRewriteStyle,
+} from '@/shared/contracts/ai-assist'
 import type { CooperationDto } from '@/shared/contracts/cooperation'
 import {
   RECOMMENDATION_SORT_MOST_IMPORTANT,
@@ -19,10 +26,12 @@ import { createRedactor, type Redact } from './ai-assist.privacy'
 import { log } from '@/shared/log/logger'
 import {
   buildLetterPrompt,
+  buildRewritePrompt,
   buildSummaryPrompt,
   buildTodayPrompt,
   type AiPrompt,
 } from './ai-assist.prompts'
+import { loadLetterInstruction } from './ai-assist.letter-instruction'
 import {
   cleanModelText,
   letterFacts,
@@ -187,14 +196,12 @@ export async function summarizeCooperation(user: CurrentUser, cooperationId: str
 // ─────────────────────── Письмо вузу по рекомендации ─────────────────────────
 
 /**
- * Черновик письма вузу. Только тем, кто меняет данные (ADMIN, MANAGER):
- * письмо — действие от имени ИТ-Школы, а не просмотр аналитики.
+ * Всё, что нужно письму по рекомендации: сама рекомендация и маскировка с её
+ * названиями. Общее у черновика и его переделки (решение 213) — правила
+ * маскировки одни и те же, чтобы переделка не пропустила в модель то, что
+ * не пропустил исходный черновик.
  */
-export async function draftRecommendationLetter(
-  user: CurrentUser,
-  recommendationId: string,
-): Promise<AiDraftDto> {
-  assertCan(user, 'WRITE')
+async function recommendationLetterContext(user: CurrentUser, recommendationId: string) {
   const recommendation = await recommendationsService.getById(user, recommendationId)
 
   const cooperation = recommendation.cooperationId
@@ -216,11 +223,137 @@ export async function draftRecommendationLetter(
     [cooperation?.universityId, programRow?.universityId].filter((id): id is string => Boolean(id)),
     [...cooperationNames(cooperation), ...relatedNames(recommendation), program?.name ?? ''],
   )
-  const prompt = buildLetterPrompt(letterFacts(recommendation, { cooperation, program }), redact)
+  return { recommendation, cooperation, program, redact }
+}
+
+/**
+ * Черновик письма вузу. Только тем, кто меняет данные (ADMIN, MANAGER):
+ * письмо — действие от имени ИТ-Школы, а не просмотр аналитики.
+ */
+export async function draftRecommendationLetter(
+  user: CurrentUser,
+  recommendationId: string,
+): Promise<AiDraftDto> {
+  assertCan(user, 'WRITE')
+  const { recommendation, cooperation, program, redact } = await recommendationLetterContext(user, recommendationId)
+  const instruction = await loadLetterInstruction()
+  const prompt = buildLetterPrompt(letterFacts(recommendation, { cooperation, program }), redact, instruction)
   const outcome = await compose(prompt, user.id, { redact })
 
   await audit(user, outcome, 'Recommendation', recommendationId)
-  return outcome.draft
+  return { ...outcome.draft, rewriteTarget: { type: 'recommendation-letter', id: recommendationId } }
+}
+
+// ─────────────────────── Переделка черновика письма (решение 213) ────────────
+
+/** Можно ли сейчас переделывать текст моделью — для кнопок под черновиком. */
+export function rewriteStatus(user: CurrentUser, provider: LlmProvider = getLlmProvider()): AiRewriteStatusDto {
+  assertCan(user, 'READ')
+  const info = provider.info()
+  if (info.kind === 'off') {
+    return {
+      available: false,
+      reason: 'ИИ-помощник выключен на сервере — переделать текст нечем. Черновик можно править вручную.',
+    }
+  }
+  if (!info.ready) {
+    return {
+      available: false,
+      reason: 'ИИ-помощник не настроен: нет ключа доступа к модели. Черновик можно править вручную.',
+    }
+  }
+  return { available: true, reason: null }
+}
+
+export interface RewriteDraftInput {
+  kind: 'recommendation-letter' | 'inbound-letter-reply'
+  text: string
+  style: AiRewriteStyle
+}
+
+/**
+ * Переделать черновик письма по кнопке: текст сотрудника с его правками, задание
+ * кнопки, инструкция администратора. Тот же конвейер, что у черновика (`compose`):
+ * лимит генераций, кэш, маскировка входа и ответа, журнал. Не вышло (модель
+ * выключена, упала, не уложилась в лимит, потеряла подпись) — прежний текст
+ * и пояснение; ответ всегда 200.
+ *
+ * Права и видимость объекта проверяет вызывающий сервис: он же даёт `redact`
+ * с названиями своего вуза.
+ */
+export async function rewriteDraft(
+  user: CurrentUser,
+  input: RewriteDraftInput,
+  options: {
+    redact: Redact
+    subject: { objectType: 'Recommendation' | 'InboundLetter'; objectId: string }
+    provider?: LlmProvider
+    now?: Date
+  },
+): Promise<AiRewriteDto> {
+  const instruction = await loadLetterInstruction()
+  const prompt = buildRewritePrompt(input, options.redact, instruction)
+  const outcome = await compose(prompt, user.id, {
+    redact: options.redact,
+    ...(options.provider ? { provider: options.provider } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  })
+  const { draft } = outcome
+  const rewritten = draft.source !== 'template'
+
+  const notice = !rewritten
+    ? `Текст не переделан: ${draft.fallbackReason ? AI_FALLBACK_REASON_LABELS[draft.fallbackReason] : 'модель не дала текста'}. Черновик остался прежним.`
+    : prompt.masked
+      ? 'Перед отправкой в ИИ из текста скрыты персональные данные — в новом варианте на их месте пометки. Верните нужное вручную.'
+      : null
+
+  // Ни текста, ни инструкции: только что переделывали, как и чем закончилось.
+  await writeAudit({
+    userId: user.id,
+    action: 'ai.rewrite',
+    objectType: options.subject.objectType,
+    objectId: options.subject.objectId,
+    payload: {
+      kind: input.kind,
+      style: input.style,
+      provider: outcome.provider,
+      outcome: rewritten ? 'model' : 'unchanged',
+      source: draft.source,
+      model: draft.model,
+      fallbackReason: draft.fallbackReason,
+      cached: draft.cached,
+      masked: prompt.masked,
+      withInstruction: instruction !== null,
+    },
+  })
+
+  return {
+    text: rewritten ? draft.text : input.text,
+    rewritten,
+    style: input.style,
+    source: draft.source,
+    model: draft.model,
+    fallbackReason: draft.fallbackReason,
+    notice,
+    masked: prompt.masked,
+    cached: draft.cached,
+    generatedAt: draft.generatedAt,
+  }
+}
+
+/** Переделка письма вузу по рекомендации: права — как у самого черновика (WRITE). */
+export async function rewriteRecommendationLetter(
+  user: CurrentUser,
+  recommendationId: string,
+  input: { text: string; style: AiRewriteStyle },
+): Promise<AiRewriteDto> {
+  assertCan(user, 'WRITE')
+  const { redact } = await recommendationLetterContext(user, recommendationId)
+  return rewriteDraft(
+    user,
+    { kind: 'recommendation-letter', text: input.text, style: input.style },
+    { redact, subject: { objectType: 'Recommendation', objectId: recommendationId } },
+  )
 }
 
 // ─────────────────────────── «Что сделать сегодня» ───────────────────────────
