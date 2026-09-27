@@ -41,6 +41,7 @@ const EMPTY_SOURCES = {
   documentChanges: [],
   recommendations: [],
   responsibleAssignments: [],
+  assignments: [],
 }
 
 beforeEach(() => {

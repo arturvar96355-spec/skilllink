@@ -31,6 +31,14 @@ export const NOTIFICATION_KINDS = [
    */
   'cooperation.responsible-changed',
   'stage.responsible-changed',
+  /**
+   * Поручения (решение 207): новое поручение от руководителя, срок завтра, срок прошёл.
+   * Источник — таблица `assignments` (открытые поручения пользователя). Новое поручение
+   * уходит и в подключённый мессенджер — без текста, только вуз и срок.
+   */
+  'assignment.new',
+  'assignment.due-soon',
+  'assignment.overdue',
 ] as const
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 
@@ -43,7 +51,7 @@ export type NotificationSeverity = 'critical' | 'warning' | 'info'
  * сразу к нужному этапу связки.
  */
 export interface NotificationTargetDto {
-  type: 'cooperation' | 'document' | 'recommendation' | 'university'
+  type: 'cooperation' | 'document' | 'recommendation' | 'university' | 'assignment'
   id: string
   cooperationId: string | null
   stageId: string | null

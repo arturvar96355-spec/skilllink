@@ -48,6 +48,7 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
             documentChanges: [],
             recommendations: [],
             responsibleAssignments: [],
+            assignments: [],
           })
       : repo.loadForStaff(user.id, windowStart, can(user, 'ANALYTICS')),
     repo.getSeenAt(user.id),

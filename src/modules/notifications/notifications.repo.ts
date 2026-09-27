@@ -5,7 +5,9 @@ import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { resolveTargetLabels, targetKey } from '@/modules/recommendations/recommendations.repo'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
+import { dueDateIso } from '@/modules/assignments/assignments.rules'
 import type {
+  AssignmentFeedSource,
   DocumentChangeSource,
   FeedSources,
   RecommendationSource,
@@ -294,7 +296,7 @@ export async function loadForStaff(
   since: Date,
   includeGlobalRecommendations: boolean,
 ): Promise<FeedSources> {
-  const [deadlines, stageChanges, documentChanges, recommendations, responsibleAssignments] = await Promise.all([
+  const [deadlines, stageChanges, documentChanges, recommendations, responsibleAssignments, assignments] = await Promise.all([
     prisma.workflowStage.findMany({
       where: {
         responsibleId: userId,
@@ -367,6 +369,7 @@ export async function loadForStaff(
       },
     }),
     loadResponsibleAssignments(userId, since),
+    loadAssignments(userId),
   ])
 
   const labels = await resolveTargetLabels(recommendations)
@@ -404,7 +407,47 @@ export async function loadForStaff(
       }),
     ),
     responsibleAssignments,
+    assignments,
   }
+}
+
+/**
+ * Открытые поручения пользователю (решение 207): по ним лента строит «Вам поручение»,
+ * «срок завтра» и «срок прошёл». Сделанные не нужны — о них напоминать нечего.
+ * Ближайший срок первым: при обрезке остаются самые срочные.
+ */
+async function loadAssignments(userId: string): Promise<AssignmentFeedSource[]> {
+  const rows = await prisma.assignment.findMany({
+    where: { assigneeId: userId, status: { in: ['NEW', 'IN_PROGRESS'] } },
+    orderBy: [{ dueAt: 'asc' }, { createdAt: 'desc' }],
+    take: PER_SOURCE,
+    select: {
+      id: true,
+      text: true,
+      status: true,
+      priority: true,
+      dueAt: true,
+      authorId: true,
+      cooperationId: true,
+      createdAt: true,
+      university: { select: { name: true, shortName: true } },
+      cooperation: { select: { university: { select: { name: true, shortName: true } } } },
+    },
+  })
+  return rows.map((row) => {
+    const university = row.university ?? row.cooperation?.university ?? null
+    return {
+      id: row.id,
+      text: row.text,
+      status: row.status,
+      priority: row.priority,
+      dueDate: dueDateIso(row.dueAt),
+      universityName: university ? (university.shortName ?? university.name) : null,
+      cooperationId: row.cooperationId,
+      fromSomeoneElse: row.authorId !== userId,
+      createdAt: row.createdAt,
+    }
+  })
 }
 
 /**
@@ -455,6 +498,8 @@ export async function loadForUniversity(
     // Ответственный назначается только сотруднику (assertStaffResponsible, RESPONSIBLE_ROLES):
     // представитель вуза им не бывает, событию в его ленте взяться неоткуда.
     responsibleAssignments: [],
+    // Поручения даются только сотрудникам ИТ-Школы (assignments.repo.findAssignableUser).
+    assignments: [],
   }
 }
 

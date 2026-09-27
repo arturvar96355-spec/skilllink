@@ -131,6 +131,7 @@ export function describeCurrentUser(
       canAssignResponsible: allowed('ASSIGN_RESPONSIBLE'),
       canReviewLetters: allowed('INBOUND_REVIEW'),
       canSeeTeam: canSeeTeam(user),
+      canAssignTasks: allowed('ASSIGN_TASKS'),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
   }

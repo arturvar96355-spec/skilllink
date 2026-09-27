@@ -5,8 +5,10 @@ import { useState, type ReactNode } from 'react'
 import {
   COOPERATION_STATUS_LABELS,
   USER_ROLE_LABELS,
+  type AssignmentDto,
   type TeamCooperationDto,
   type TeamMemberDetailDto,
+  type TeamMemberDto,
   type TeamStageRefDto,
 } from '@/shared/contracts'
 import {
@@ -15,13 +17,18 @@ import {
   ErrorState,
   MockBadge,
   SkeletonLines,
+  buildQuery,
   cooperationHref,
   formatDateTime,
   formatDayMonth,
   formatRelative,
   pluralize,
   useResource,
+  type Resource,
 } from '@/ui'
+import { AssignmentModal } from '../AssignmentModal'
+import { AssignmentRows } from '../AssignmentRows'
+import { splitByDone } from '../assignment-view'
 import { ChangeResponsibleModal } from '../ChangeResponsibleModal'
 import { LoadBadge, LoadBar, LoadLegend } from './LoadBar'
 import { actionText, displayRule, noLoadReason, weekLabel } from './team-view'
@@ -32,6 +39,8 @@ const stageNo = (value: number) => `${String(value).padStart(2, '0')}/14`
 /** Сколько связок показать сразу: у менеджера их десятки, панель не должна стать реестром. */
 const COOPERATIONS_SHOWN = 8
 const MEETINGS_SHOWN = 6
+/** Сделанных поручений в панели — последние; вся история — в журнале. */
+const DONE_ASSIGNMENTS_SHOWN = 3
 
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
@@ -66,6 +75,45 @@ function StageItem({ stage, late }: { stage: TeamStageRefDto; late: boolean }) {
 }
 
 /**
+ * Поручения сотрудника в панели (решение 207): открытые — все, сделанные — последние
+ * три. Статус здесь не меняется: его двигает сам сотрудник в «Моих поручениях»,
+ * руководитель смотрит.
+ */
+function AssignmentsSection({ resource }: { resource: Resource<AssignmentDto[]> }) {
+  const items = resource.data ?? []
+  const { open, done } = splitByDone(items)
+  const overdue = open.filter((item) => item.dueState === 'overdue').length
+  return (
+    <Section title="Поручения" count={open.length}>
+      {resource.isLoading && !resource.data ? (
+        <SkeletonLines count={2} />
+      ) : resource.error ? (
+        <ErrorState error={resource.error} onRetry={resource.reload} />
+      ) : items.length === 0 ? (
+        <p className={styles.muted}>Поручений нет.</p>
+      ) : (
+        <>
+          {overdue > 0 && <p className={styles.signal}>Просрочено: {overdue}</p>}
+          {open.length > 0 ? (
+            <AssignmentRows items={open} show="none" />
+          ) : (
+            <p className={styles.muted}>Открытых поручений нет — всё сделано.</p>
+          )}
+          {done.length > 0 && (
+            <>
+              <p className={styles.more}>
+                Сделано {done.length > DONE_ASSIGNMENTS_SHOWN ? `— последние ${DONE_ASSIGNMENTS_SHOWN} из ${done.length}` : ''}
+              </p>
+              <AssignmentRows items={done.slice(0, DONE_ASSIGNMENTS_SHOWN)} show="none" />
+            </>
+          )}
+        </>
+      )}
+    </Section>
+  )
+}
+
+/**
  * Боковая панель сотрудника (решение 203). Правило выбора окна — решение 155:
  * посмотреть человека, не уходя со списка, — `Drawer`; действие «Передать связку» —
  * существующее окно `ChangeResponsibleModal` поверх неё.
@@ -73,17 +121,29 @@ function StageItem({ stage, late }: { stage: TeamStageRefDto; late: boolean }) {
 export function MemberDrawer({
   userId,
   canAssign,
+  canAssignTasks,
+  members,
   onClose,
   onChanged,
 }: {
   userId: string
   canAssign: boolean
+  /** Давать поручения (решение 207): кнопка внизу панели. */
+  canAssignTasks: boolean
+  /** Вся команда — для «Кому» в окне поручения. */
+  members: TeamMemberDto[]
   onClose: () => void
-  /** После передачи связки сводка перечитывается: числа строк изменились. */
+  /** После передачи связки или нового поручения сводка перечитывается: числа строк изменились. */
   onChanged: () => void
 }) {
   const detail = useResource<TeamMemberDetailDto>(`/api/team/${userId}`)
   const data = detail.data
+  // Поручения сотрудника (решение 207) — тем же списком, что «Мои поручения» у него самого.
+  const assignments = useResource<AssignmentDto[]>(
+    `/api/assignments${buildQuery({ assigneeId: userId, pageSize: 100 })}`,
+    { keepPreviousData: true },
+  )
+  const [assigning, setAssigning] = useState(false)
   const [transfer, setTransfer] = useState<TeamCooperationDto | null>(null)
   const [showAll, setShowAll] = useState(false)
   const now = Date.now()
@@ -103,9 +163,13 @@ export function MemberDrawer({
         title={title}
         description={description}
         footer={
-          data && !canAssign ? (
+          data && canAssignTasks ? (
+            <Button variant="primary" icon="plus" onClick={() => setAssigning(true)}>
+              Дать поручение
+            </Button>
+          ) : data && !canAssign ? (
             <p className={styles.readOnly}>
-              Только просмотр: передавать связки могут руководитель и администратор.
+              Только просмотр: передавать связки и давать поручения могут руководитель и администратор.
             </p>
           ) : undefined
         }
@@ -142,6 +206,8 @@ export function MemberDrawer({
                   : 'В журнале нет ни одного действия этого сотрудника.'}
               </p>
             )}
+
+            <AssignmentsSection resource={assignments} />
 
             {data.overdueStages.length > 0 && (
               <Section title="Просрочено" count={data.overdueStages.length}>
@@ -255,6 +321,20 @@ export function MemberDrawer({
           </div>
         ) : null}
       </Drawer>
+
+      {assigning && member && (
+        <AssignmentModal
+          members={members}
+          initialAssigneeId={member.id}
+          onClose={(created) => {
+            setAssigning(false)
+            if (created) {
+              assignments.reload()
+              onChanged()
+            }
+          }}
+        />
+      )}
 
       {transfer && member && (
         <ChangeResponsibleModal

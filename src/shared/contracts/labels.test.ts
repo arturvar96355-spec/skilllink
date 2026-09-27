@@ -52,6 +52,8 @@ const PAIRS: Array<[string, readonly string[], Record<string, string>]> = [
   ['InboundLetterAnalyzedBy', enums.INBOUND_LETTER_ANALYZED_BY, labels.INBOUND_LETTER_ANALYZED_BY_LABELS],
   ['InboundLetterVerdict', enums.INBOUND_LETTER_VERDICTS, labels.INBOUND_LETTER_VERDICT_LABELS],
   ['InboundLetterTaskStatus', enums.INBOUND_LETTER_TASK_STATUSES, labels.INBOUND_LETTER_TASK_STATUS_LABELS],
+  ['AssignmentStatus', enums.ASSIGNMENT_STATUSES, labels.ASSIGNMENT_STATUS_LABELS],
+  ['AssignmentPriority', enums.ASSIGNMENT_PRIORITIES, labels.ASSIGNMENT_PRIORITY_LABELS],
 ]
 
 describe('подписи к перечислениям', () => {

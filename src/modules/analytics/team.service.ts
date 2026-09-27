@@ -17,6 +17,10 @@ import { TEAM_RECENT_ACTIONS, TEAM_STALE_DAYS, TEAM_UNIVERSITIES_SHOWN } from '@
 import { daysBetween } from '@/shared/utils/date'
 import { findCurrentStage, isAutoManaged, isOverdue } from '@/modules/workflow/workflow.rules'
 import { isClosedOnTime, onTimePercent } from './trend'
+import { deliveryChannels } from '@/modules/notify-channels/notify-channels.service'
+import { dueDateIso, isAssignmentOverdue, todayIso } from '@/modules/assignments/assignments.rules'
+import type { AssignmentCountsDto } from '@/shared/contracts/assignment'
+import type { ChannelId } from '@/shared/contracts/notify-channels'
 import * as repo from './team.repo'
 import {
   LOAD_RULE,
@@ -123,6 +127,27 @@ interface Facts {
   letters: Map<string, number>
   completed: Awaited<ReturnType<typeof repo.findCompletedStagesWithDeadline>>
   lastActions: ActionRow[]
+  /** Поручения (решение 207): открытые и просроченные на человека. */
+  assignments: Map<string, AssignmentCountsDto>
+  /** Куда уйдёт уведомление о новом поручении помимо колокольчика. */
+  messengers: Map<string, ChannelId | null>
+  assignmentsMock: boolean
+}
+
+/** Открытые и просроченные поручения по исполнителю — правилом списка поручений. */
+function countAssignments(
+  rows: Awaited<ReturnType<typeof repo.findOpenAssignments>>,
+  now: Date,
+): Map<string, AssignmentCountsDto> {
+  const today = todayIso(now)
+  const result = new Map<string, AssignmentCountsDto>()
+  for (const row of rows) {
+    const counts = result.get(row.assigneeId) ?? { open: 0, overdue: 0 }
+    counts.open += 1
+    if (isAssignmentOverdue(dueDateIso(row.dueAt), row.status, today)) counts.overdue += 1
+    result.set(row.assigneeId, counts)
+  }
+  return result
 }
 
 /**
@@ -136,16 +161,30 @@ async function collectFacts(
   week: { from: Date; to: Date },
   allCooperations: boolean,
 ): Promise<Facts> {
-  const [cooperations, overdue, nearest, meetings, letters, completed, lastActions] = await Promise.all([
-    repo.findActiveCooperations(allCooperations ? null : userIds),
-    repo.countOverdueByUser(userIds, now),
-    repo.findNearestDeadlines(userIds, now),
-    repo.findWeekMeetings(userIds, week),
-    repo.countOpenLetterTasksByUser(userIds),
-    repo.findCompletedStagesWithDeadline(allCooperations ? null : userIds),
-    repo.findLastActions(userIds),
-  ])
-  return { cooperations, overdue, nearest, meetings, letters, completed, lastActions }
+  const [cooperations, overdue, nearest, meetings, letters, completed, lastActions, openAssignments, messengers] =
+    await Promise.all([
+      repo.findActiveCooperations(allCooperations ? null : userIds),
+      repo.countOverdueByUser(userIds, now),
+      repo.findNearestDeadlines(userIds, now),
+      repo.findWeekMeetings(userIds, week),
+      repo.countOpenLetterTasksByUser(userIds),
+      repo.findCompletedStagesWithDeadline(allCooperations ? null : userIds),
+      repo.findLastActions(userIds),
+      repo.findOpenAssignments(userIds),
+      deliveryChannels(userIds),
+    ])
+  return {
+    cooperations,
+    overdue,
+    nearest,
+    meetings,
+    letters,
+    completed,
+    lastActions,
+    assignments: countAssignments(openAssignments, now),
+    messengers,
+    assignmentsMock: openAssignments.some((row) => row.isMock),
+  }
 }
 
 function buildMembers(
@@ -195,6 +234,8 @@ function buildMembers(
       meetingsThisWeek: userMeetings.length,
       meetingsAhead,
       openLetterTasks: facts.letters.get(user.id) ?? 0,
+      assignments: facts.assignments.get(user.id) ?? { open: 0, overdue: 0 },
+      messenger: facts.messengers.get(user.id) ?? null,
       onTime: {
         closedOnTime: completed.filter(isClosedOnTime).length,
         closedWithDeadline: completed.length,
@@ -240,7 +281,9 @@ export async function teamOverview(user: CurrentUser, now: Date = new Date()): P
     loadRule: LOAD_RULE,
     staleDays: TEAM_STALE_DAYS,
     containsMockData:
-      facts.cooperations.some((row) => row.isMock) || facts.completed.some((row) => row.cooperation.isMock),
+      facts.cooperations.some((row) => row.isMock) ||
+      facts.completed.some((row) => row.cooperation.isMock) ||
+      facts.assignmentsMock,
     generatedAt: now.toISOString(),
   }
 }

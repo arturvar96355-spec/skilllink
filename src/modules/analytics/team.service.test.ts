@@ -110,6 +110,17 @@ function respond(model: string, method: string, args: Record<string, unknown>): 
         university: null,
         cooperation: null,
       })))
+    case 'assignment.findMany':
+      // Решение 207: у каждого три открытых поручения — вчерашнее (просрочено), сегодняшнее
+      // (день срока — ещё не просрочка) и на послезавтра. Срок — дата: полночь UTC.
+      return ids.flatMap((id) =>
+        ['2026-09-23', '2026-09-24', '2026-09-26'].map((day) => ({
+          assigneeId: id,
+          dueAt: new Date(`${day}T00:00:00.000Z`),
+          status: 'IN_PROGRESS',
+          isMock: true,
+        })),
+      )
     case 'inboundLetterTask.groupBy':
       return ids.map((id) => ({ responsibleId: id, _count: { _all: 2 } }))
     case 'auditLog.groupBy':
@@ -196,8 +207,9 @@ describe('нет N+1', () => {
 
     expect(small).toBeGreaterThan(0)
     expect(large).toBe(small)
-    // Потолок: 1 сотрудники + 7 выборок фактов (из них две — по два запроса) + 5 на вузы журнала.
-    expect(large).toBeLessThanOrEqual(15)
+    // Потолок: 1 сотрудники + 7 выборок фактов (из них две — по два запроса) + 5 на вузы журнала
+    // + поручения (1) и каналы уведомлений для окна «Дать поручение» (3, решение 207).
+    expect(large).toBeLessThanOrEqual(19)
   })
 
   it('запросы групповые: никакой выборки по одному сотруднику в сводке', async () => {
@@ -268,6 +280,9 @@ describe('строка сотрудника', () => {
     expect(member.load).toEqual({ points: 3 + 1 + 3 * 1, level: 'NORMAL', cooperations: 3, meetings: 1, overdue: 1 })
     expect(member.nearestDeadline).toMatchObject({ stageNumber: 6, universityShortName: 'В0', daysOverdue: null })
     expect(member.openLetterTasks).toBe(2)
+    // Поручения (решение 207): три открытых, просрочено одно — день срока ещё не просрочка.
+    expect(member.assignments).toEqual({ open: 3, overdue: 1 })
+    expect(member.messenger).toBeNull()
     expect(member.universities).toEqual(['В0', 'В1', 'В2'])
     expect(member.isStale).toBe(false)
   })
