@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import {
   CONFIDENCE_LABELS,
   DATA_SOURCE_TYPE_LABELS,
+  type ChannelStatusDto,
   type DataSourceDto,
   type IntegrationsStatusDto,
   type MarketDataSyncResultDto,
@@ -38,6 +39,7 @@ import { SkillsSection } from './SkillsSection'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
 import { WorkflowStagesSection } from './WorkflowStagesSection'
+import { CHANNEL_STATE_LABELS, CHANNEL_STATE_TONE, channelRows } from './integrations-view'
 import styles from './settings.module.css'
 
 /**
@@ -97,43 +99,6 @@ const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'pa
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
   return available.find((section) => section.key === hash)?.key ?? 'interface'
-}
-
-type Integration = IntegrationsStatusDto['integrations'][number]
-
-/**
- * ИИ-помощник одной строкой (решение 90): кто пишет черновики — модель или шаблон.
- * Ключей в ответе API нет — только провайдер, модель и чего не хватает.
- */
-function aiAssistRow(ai: IntegrationsStatusDto['aiAssist']): {
-  caption: string
-  label: string
-  tone: 'neutral' | 'warning' | 'success'
-} {
-  if (ai.provider === 'off') {
-    return { caption: 'Выключен — ответы пишет шаблон', label: 'Выключен', tone: 'neutral' }
-  }
-  const name = ai.model ? `${ai.name} (${ai.model})` : ai.name
-  if (!ai.ready) {
-    return {
-      caption: `${name} — не настроен, ответы пишет шаблон${ai.reason ? `. ${ai.reason}` : ''}`,
-      label: 'Требует настройки',
-      tone: 'warning',
-    }
-  }
-  return { caption: `${name} — подключён`, label: 'Подключён', tone: 'success' }
-}
-
-/**
- * Три признака интеграции — одним статусом (ТЗ фронту, задача 7).
- * Приоритет: выключена > не настроена > подключена. У выключенной настройка
- * и демо-признак не показываются — они ничего не значат, пока она не работает.
- * TODO: PM DECISION — формулировки статусов согласовать с Артуром до вливания.
- */
-function integrationStatus(item: Integration): { label: string; tone: 'neutral' | 'warning' | 'success' } {
-  if (!item.enabled) return { label: 'Выключена', tone: 'neutral' }
-  if (!item.configured) return { label: 'Требует настройки', tone: 'warning' }
-  return { label: item.isMock ? 'Подключена (демо)' : 'Подключена', tone: 'success' }
 }
 
 /**
@@ -238,6 +203,11 @@ export default function SettingsPage() {
 
   const sources = useResource<DataSourceDto[]>(canSeeSources ? `/api/data-sources${SOURCES_QUERY}` : null)
   const integrations = useResource<IntegrationsStatusDto>(canSeeSources ? '/api/integrations/status' : null)
+  // Мессенджеры (Telegram, MAX, VK) — есть ли у них токен (решение 212): читает любая
+  // роль, поэтому статус каналов видит и эксперт, а не только администратор.
+  const channels = useResource<ChannelStatusDto[]>(canSeeSources && active === 'integrations' ? '/api/me/channels' : null)
+  // Версия и сборка — из /api/health (решение 212): 1.0.0, одна на API, метрики и Swagger.
+  const health = useResource<{ version: string; commit: string | null }>(active === 'about' ? '/api/health' : null)
 
   const sync = useMutation(async () => {
     const result = await apiPost<MarketDataSyncResultDto>('/api/data-sources/sync')
@@ -267,7 +237,7 @@ export default function SettingsPage() {
     market:
       'Записи об источниках создаются при загрузке рыночных данных. Какие источники включены, задаётся переменными окружения на сервере.',
     integrations:
-      'Состояние как есть: выключенная интеграция так и называется выключенной. Включение задаётся переменными окружения.',
+      'Что из внешних каналов работает на этом стенде. «Готово, не подключено» — код написан и проверен, не хватает только ключа или токена; «Демо-данные» — работает на учебном наборе.',
     users:
       'Сотрудники ИТ-Школы и представители вузов. Пароль нового пользователя система придумывает сама и показывает один раз; блокировка действует сразу, в том числе на открытые сессии.',
     workflow:
@@ -352,32 +322,19 @@ export default function SettingsPage() {
         if (integrations.isLoading) return <RowsSkeleton count={3} />
         if (integrations.error) return <ErrorState error={integrations.error} onRetry={integrations.reload} />
         if (!integrations.data) return null
+        // Один список каналов с четырьмя состояниями простыми словами (решение 212):
+        // «Подключено», «Готово, не подключено», «Демо-данные», «Выключено».
         return (
           <>
-            {integrations.data.integrations.map((item) => {
-              const status = integrationStatus(item)
-              return (
-                <Row key={item.key} title={item.name} caption={item.reason ?? undefined}>
-                  <Badge tone={status.tone} withDot>
-                    {status.label}
-                  </Badge>
-                </Row>
-              )
-            })}
-            {(() => {
-              const ai = aiAssistRow(integrations.data.aiAssist)
-              return (
-                <Row
-                  title="ИИ-помощник"
-                  caption={ai.caption}
-                  hint="Пишет черновики сводки по связке, письма вузу и дел на сегодня по фактам, которые посчитали правила. Провайдер задаётся переменной AI_ASSIST_PROVIDER; без модели тот же текст собирает шаблон."
-                >
-                  <Badge tone={ai.tone} withDot>
-                    {ai.label}
-                  </Badge>
-                </Row>
-              )
-            })()}
+            {channelRows(integrations.data, channels.data ?? null).map((row) => (
+              <Row key={row.key} title={row.title} caption={row.caption}>
+                <Badge tone={CHANNEL_STATE_TONE[row.state]} withDot>
+                  {CHANNEL_STATE_LABELS[row.state]}
+                </Badge>
+              </Row>
+            ))}
+            {/* Ниже — не статус, а настройка: отделена заголовком (решение 212). */}
+            {isAdmin && <h3 className={styles.groupTitle}>Настройка каналов — только администратор</h3>}
             {/* Бот Telegram (решение 142) — подробный блок: токен, режим приёма, вебхук. */}
             {isAdmin && <TelegramBotAdminSection />}
             {/* Остальные каналы уведомлений (решение 144): MAX, VK — Telegram уже выше. */}
@@ -409,7 +366,13 @@ export default function SettingsPage() {
           <>
             <Row
               title="Версия"
-              caption="Номер версии и сборки система не публикует — придумывать значение мы не стали."
+              caption={
+                health.data
+                  ? `SkillLink ${health.data.version}${health.data.commit ? `, сборка ${health.data.commit}` : ''}`
+                  : health.error
+                    ? 'Сервер не ответил — версия видна на странице «Состояние системы».'
+                    : 'Загрузка…'
+              }
             />
             <Row
               title="Демонстрационные данные"
@@ -421,6 +384,12 @@ export default function SettingsPage() {
                 контракт — документом в репозитории, в новой вкладке. */}
             <Row title="Состояние системы" caption="Работает ли сервер, база и схема данных">
               <Link className={styles.link} href={ROUTES.status}>
+                Открыть
+                <Icon name="arrowRight" size={16} />
+              </Link>
+            </Row>
+            <Row title="Swagger" caption="Все методы API по спецификации OpenAPI 3; запрос можно выполнить прямо оттуда">
+              <Link className={styles.link} href="/api-docs">
                 Открыть
                 <Icon name="arrowRight" size={16} />
               </Link>
