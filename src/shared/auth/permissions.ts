@@ -95,6 +95,14 @@ export const PERMISSIONS = {
    * само решение о разборе не принимает.
    */
   INBOUND_REVIEW: ['ADMIN', 'HEAD'],
+  /**
+   * Экран «Команда» (решение 203): нагрузка, сроки, встречи и последние действия
+   * сотрудников — `GET /api/team`, `GET /api/team/:userId`. Руководитель и
+   * администратор; эксперт хакатона читает так же — `canSeeTeam` ниже.
+   * MANAGER, ANALYST, VIEWER и представитель вуза — нет: это сводка о людях,
+   * а не о вузах, и чужие дела коллеги видеть не должен.
+   */
+  TEAM: ['ADMIN', 'HEAD'],
 } as const satisfies Record<string, readonly UserRole[]>
 
 export type Permission = keyof typeof PERMISSIONS
@@ -131,6 +139,7 @@ const REVIEWER_ALLOWED_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission
   'CONTACT_DETAILS',
   'VENDORS',
   'INBOUND_READ',
+  'TEAM',
 ])
 
 /** Открыто ли право эксперту (решение 147): только чтение и выгрузки. */
@@ -217,4 +226,21 @@ export function universityScope(user: CurrentUser): { universityId: string } | R
 export function isUniversityVisible(user: CurrentUser, universityId: string): boolean {
   if (user.role !== 'UNIVERSITY_REP') return true
   return user.universityId === universityId
+}
+
+/**
+ * Видит ли пользователь экран «Команда» (решение 203): право `TEAM` (ADMIN, HEAD)
+ * или учётная запись эксперта хакатона любой роли сотрудника — эксперт только
+ * читает, как руководитель. Представителю вуза — никогда, даже эксперту: сводка
+ * о сотрудниках ИТ-Школы вузу не показывается (решение 9).
+ */
+export function canSeeTeam(user: CurrentUser): boolean {
+  if (user.role === 'UNIVERSITY_REP') return false
+  return can(user, 'TEAM') || user.isReviewer === true
+}
+
+export function assertCanSeeTeam(user: CurrentUser): void {
+  if (!canSeeTeam(user)) {
+    throw forbidden('Раздел «Команда» открыт руководителю и администратору')
+  }
 }

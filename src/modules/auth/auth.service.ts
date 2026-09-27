@@ -1,7 +1,7 @@
 import { compare, hash } from 'bcryptjs'
 import { pageMeta } from '@/shared/http/pagination'
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
-import { can, assertCan, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
+import { can, assertCan, canSeeTeam, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
 import { canBeResponsible } from '@/shared/contracts/enums'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
@@ -130,6 +130,7 @@ export function describeCurrentUser(
       isAdmin: allowed('ADMIN'),
       canAssignResponsible: allowed('ASSIGN_RESPONSIBLE'),
       canReviewLetters: allowed('INBOUND_REVIEW'),
+      canSeeTeam: canSeeTeam(user),
     },
     passwordTemporary: profile.passwordTemporary ?? false,
   }
