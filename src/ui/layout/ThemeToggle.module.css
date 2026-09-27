@@ -1,6 +1,8 @@
 /* Переключатель темы (решение 122). */
 
 .toggle {
+  /* Зона нажатия 44 px на сенсорном экране; вид кнопки не меняется (решение 219). */
+  composes: hit from '../primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
   justify-content: center;

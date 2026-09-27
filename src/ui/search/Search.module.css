@@ -285,3 +285,17 @@
 .fab {
   display: none;
 }
+
+/*
+ * Поле поиска под пальцем (решение 219): 44 px по высоте за счёт полей строки,
+ * окно поиска при этом не растёт — поля строки уменьшаются на столько же.
+ */
+@media (pointer: coarse) {
+  .inputRow {
+    padding-block: var(--space-1);
+  }
+
+  .input {
+    min-height: var(--touch-target);
+  }
+}

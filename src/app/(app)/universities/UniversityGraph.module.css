@@ -303,3 +303,9 @@ a.node:focus-visible {
   border-radius: 2px;
   background: var(--wire);
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .tab {
+    min-height: var(--touch-target);
+  }
+}
