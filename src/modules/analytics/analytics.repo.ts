@@ -174,8 +174,17 @@ export function problemStageWhere(scope: { universityId?: string }, now: Date) {
   }
 }
 
-export async function countProblemStages(scope: { universityId?: string }, now: Date): Promise<number> {
-  return prisma.workflowStage.count({ where: problemStageWhere(scope, now) })
+/**
+ * Статус и срок всех проблемных этапов — для общего числа и счётчиков групп
+ * «Требует внимания» (решение 206). Серьёзность считает та же функция, что
+ * у строк (`problemSeverity`), поэтому группы и строки не расходятся; условие
+ * выборки — то же `problemStageWhere`, поэтому сумма групп равна общему числу.
+ */
+export async function findProblemStageStates(scope: { universityId?: string }, now: Date) {
+  return prisma.workflowStage.findMany({
+    where: problemStageWhere(scope, now),
+    select: { status: true, deadline: true },
+  })
 }
 
 export async function findProblemStages(scope: { universityId?: string }, now: Date, limit: number) {
@@ -188,6 +197,8 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
       status: true,
       deadline: true,
       blockingReason: true,
+      // Ответственный за этап — тот же, по которому считает просрочки экран «Команда».
+      responsible: { select: { id: true, fullName: true } },
       cooperation: {
         select: {
           id: true,
@@ -200,6 +211,38 @@ export async function findProblemStages(scope: { universityId?: string }, now: D
     take: limit,
   })
 }
+
+/**
+ * Какие рекомендации могут попасть в «Приоритетные действия» (решение 206).
+ *
+ * Открытые, кроме `stage.overdue` (решение 180) и кроме отложенных защитой от
+ * перегрузки (`isDeferred`): система сама придержала такую запись — у
+ * ответственного много невыполненных, а балл ниже порога, — и поднимать её
+ * на главную в «самое важное» значило бы спорить с самой собой.
+ */
+export function priorityRecommendationWhere(scope: { universityId?: string }) {
+  return {
+    status: { in: ['NEW' as const, 'IN_PROGRESS' as const] },
+    ruleKey: { not: 'stage.overdue' },
+    isDeferred: false,
+    ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
+  }
+}
+
+/**
+ * Порядок «Приоритетных действий» (решение 206): приоритет, внутри него — балл.
+ *
+ * Приоритет — перечисление, Prisma сортирует по порядку объявления: LOW, MEDIUM,
+ * HIGH, CRITICAL; убывание даёт критичные сверху. Раньше вторым ключом была
+ * дата создания, и из 17 «высоких» на главную попадал случайный срез — запись
+ * с баллом 48 %, а не с баллом 68 %. Балл без значения (запись до обучения) — в конец.
+ */
+export const PRIORITY_RECOMMENDATION_ORDER = [
+  { priority: 'desc' as const },
+  { score: { sort: 'desc' as const, nulls: 'last' as const } },
+  { createdAt: 'desc' as const },
+  TIE_BREAKER,
+]
 
 /**
  * Открытые рекомендации с наибольшим приоритетом — блок приоритетных действий.
@@ -215,14 +258,8 @@ export async function findPriorityRecommendations(
   limit: number,
 ) {
   return prisma.recommendation.findMany({
-    where: {
-      status: { in: ['NEW', 'IN_PROGRESS'] },
-      ruleKey: { not: 'stage.overdue' },
-      ...(scope.universityId ? { cooperation: { universityId: scope.universityId } } : {}),
-    },
-    // Приоритет — перечисление, Prisma сортирует по порядку объявления:
-    // LOW, MEDIUM, HIGH, CRITICAL. Убывание даёт критичные сверху.
-    orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }, TIE_BREAKER],
+    where: priorityRecommendationWhere(scope),
+    orderBy: PRIORITY_RECOMMENDATION_ORDER,
     take: limit,
     select: {
       id: true,

@@ -2,6 +2,7 @@ import { assertCan, can, universityScope } from '@/shared/auth/permissions'
 import {
   DASHBOARD_PROBLEM_LIMIT,
   DASHBOARD_TOP_LIMIT,
+  PROBLEM_LONG_OVERDUE_DAYS,
   TREND_PERIOD_DAYS,
 } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -21,6 +22,7 @@ import * as skillsService from '@/modules/skills/skills.service'
 import { toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
 import { compareWithPast, isClosedOnTime, onTimePercent } from './trend'
+import { countProblemGroups, problemSeverity } from './problem-severity'
 import { aggregateUniversityRatings, calculateRatings, type RatingBounds, type RatingInput } from './rating'
 import type { ProgramRatingDto, RankedProgramDto, UniversityRatingDto } from '@/shared/contracts/rating'
 import type { CurrentUserStatsDto } from '@/shared/contracts/user'
@@ -245,8 +247,7 @@ async function topProgramsOf(
 
 /** Проблемный этап — строкой блока «Требуют внимания» с причиной. */
 function toProblemCooperation(stage: ProblemStage, now: Date): ProblemCooperationDto {
-  const overdueDays =
-    stage.deadline && stage.status !== 'BLOCKED' ? daysBetween(stage.deadline, now) : null
+  const { severity, daysOverdue: overdueDays } = problemSeverity(stage, now, PROBLEM_LONG_OVERDUE_DAYS)
   return {
     cooperationId: stage.cooperation.id,
     universityName: stage.cooperation.university.name,
@@ -262,6 +263,10 @@ function toProblemCooperation(stage: ProblemStage, now: Date): ProblemCooperatio
     stageNumber: stage.stageNumber,
     stageTitle: stage.title,
     daysOverdue: overdueDays,
+    severity,
+    deadline: stage.deadline?.toISOString() ?? null,
+    blockingReason: stage.status === 'BLOCKED' ? stage.blockingReason : null,
+    responsible: stage.responsible,
   }
 }
 
@@ -285,7 +290,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     cycles,
     programs,
     problemStages,
-    problemStageTotal,
+    problemStageStates,
     logged,
     skillMatch,
     priorityRows,
@@ -300,7 +305,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     repo.findCycleDurations(scope),
     repo.findProgramsForRating(scope, 200),
     repo.findProblemStages(scope, now, DASHBOARD_PROBLEM_LIMIT),
-    repo.countProblemStages(scope, now),
+    repo.findProblemStageStates(scope, now),
     repo.countLoggedOperations(scope),
     buildSkillMatch(user),
     repo.findPriorityRecommendations(scope, DASHBOARD_TOP_LIMIT),
@@ -339,6 +344,8 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
 
   const topPrograms = await topProgramsOf(programs, scope)
   const problemCooperations = problemStages.map((stage) => toProblemCooperation(stage, now))
+  const problemStageTotal = problemStageStates.length
+  const problemGroups = countProblemGroups(problemStageStates, now, PROBLEM_LONG_OVERDUE_DAYS)
   const priorityActions: RecommendationDto[] = await toRecommendationDtos(priorityRows)
 
   return {
@@ -347,6 +354,7 @@ export async function overview(user: CurrentUser): Promise<DashboardOverviewDto>
     topPrograms,
     problemCooperations,
     problemStageTotal,
+    problemGroups,
     priorityActions,
     openRecommendationsTotal,
     skillMatch,
