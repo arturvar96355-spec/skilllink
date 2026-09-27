@@ -1,0 +1,435 @@
+/*
+ * Маршрут связок в «Активно сейчас» (решение 202; прежде — часть LiveRail.module.css).
+ *
+ * Вертикальная сетка приходит переменными из раскладки (`route-rail.ts`):
+ * --line-y — где линия, --drop — насколько отметки опускаются под неё.
+ * Появление прежнее: линия дорисовывается, засечки и отметки проявляются по
+ * очереди, требующие внимания получают один импульс — и всё неподвижно.
+ */
+
+.track {
+  /* Значения по умолчанию; настоящие ставит раскладка в style дорожки. */
+  --line-y: 40px;
+  --drop: 5px;
+  position: relative;
+  /* Под линией — подписи фаз. */
+  height: calc(var(--line-y) + 40px);
+}
+
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--line-y);
+  height: 1px;
+  background: var(--line-strong);
+  transform-origin: left center;
+  animation: draw var(--motion-hero) var(--ease-out) 150ms both;
+}
+
+.tick {
+  position: absolute;
+  top: calc(var(--line-y) - 2px);
+  width: 1px;
+  height: 5px;
+  background: var(--line-strong);
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(200ms + var(--t, 0) * 30ms);
+}
+
+.phase {
+  position: absolute;
+  top: calc(var(--line-y) + 18px);
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--line-subtle);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fade var(--motion-panel) var(--ease-out) both;
+  animation-delay: 380ms;
+}
+
+/* Подпись этапа: место и текст выбраны раскладкой — наложений нет, за шкалу не выходит. */
+.stageLabel {
+  position: absolute;
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+  pointer-events: none;
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: 380ms;
+}
+
+.stageMore {
+  color: var(--text-tertiary);
+}
+
+.stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Этап — точка отсчёта на линии, в середине этапа. */
+.stage {
+  position: absolute;
+  top: var(--line-y);
+  width: 0;
+  height: 0;
+}
+
+.stageOpen {
+  z-index: 3;
+}
+
+/* Связка — точка в фиолетовом тоне сайта; кольцо цвета фона отделяет её от линии. */
+.dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+  box-shadow: 0 0 0 3px var(--surface-1);
+  transform: translate(-50%, -50%);
+  transition: transform var(--motion-fast) var(--ease-out);
+  animation: dotIn var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(330ms + var(--i, 0) * 35ms);
+}
+
+/* Касание: без задержки двойного касания и без серой вспышки — нажатие видно по самой отметке. */
+.dot,
+.counter,
+.more {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Мишень под палец и курсор — шире самой точки. */
+.dot::before {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: var(--radius-pill);
+}
+
+.dot:hover,
+.dot:focus-visible {
+  transform: translate(-50%, -50%) scale(1.35);
+}
+
+.dot:focus-visible,
+.counter:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 3px;
+}
+
+/* Точка столбика: своя высота, появляется снизу вверх. */
+.columnDot {
+  --dy: 0px;
+  top: var(--dy);
+  animation-delay: calc(330ms + var(--i, 0) * 35ms + var(--k, 0) * 45ms);
+}
+
+/* Соседние точки столбика — в 3 px: мишень не залезает на соседа по высоте. */
+.columnDot::before {
+  inset: -1px -7px;
+}
+
+.stuck {
+  background: var(--status-danger);
+}
+
+/* Один импульс у требующих внимания — и всё: сигнал, а не мигалка. */
+.stuck::after,
+.counterStuck::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--status-danger);
+  opacity: 0;
+  animation: pulse 900ms var(--ease-out) 1;
+  animation-delay: calc(620ms + var(--i, 0) * 35ms);
+}
+
+/*
+ * Вид А: точка с числом связок этапа. Размер растёт с числом, но не шире этапа.
+ * Обводка — доля: красная дуга — сколько связок этапа требуют внимания
+ * (--stuck, от 12 часов по часовой), остальное — фиолетовое. Одна из двенадцати
+ * не красит весь этап в тревогу, а все двенадцать — красят.
+ */
+.counter {
+  --size: 10px;
+  --stuck: 0%;
+  --fill: color-mix(in srgb, var(--accent-violet) 20%, var(--surface-1));
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: var(--size);
+  height: var(--size);
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background:
+    linear-gradient(var(--fill), var(--fill)) padding-box,
+    conic-gradient(var(--status-danger) 0 var(--stuck), var(--accent-violet) 0) border-box;
+  box-shadow: 0 0 0 3px var(--surface-1);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-caption-size);
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: transform var(--motion-fast) var(--ease-out);
+  animation: dotIn var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(330ms + var(--i, 0) * 35ms);
+}
+
+.counter:hover,
+.stageOpen .counter {
+  --size: 10px;
+  --stuck: 0%;
+  --fill: color-mix(in srgb, var(--accent-violet) 36%, var(--surface-1));
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+/* Вид Б: «+N» над столбиком — открывает весь список этапа. */
+.more {
+  --dy: 0px;
+  position: absolute;
+  left: 0;
+  top: var(--dy);
+  height: 16px;
+  padding: 0 var(--space-1);
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text-accent);
+  font: inherit;
+  font-size: var(--text-caption-size);
+  font-weight: 650;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translateX(-50%);
+  transition: color var(--motion-fast) var(--ease-out);
+  animation: fade var(--motion-control) var(--ease-out) both;
+  animation-delay: calc(330ms + var(--i, 0) * 35ms + var(--k, 0) * 45ms);
+}
+
+/* Мишень под палец — вверх и в стороны, но не на верхнюю точку столбика. */
+.more::before {
+  content: '';
+  position: absolute;
+  inset: -8px -6px 0;
+}
+
+.more:hover,
+.stageOpen .more {
+  color: var(--text-primary);
+}
+
+/* Список связок этапа — над отметкой, внутри рамки блока (место считает StageList). */
+.pop {
+  --rise: 0px;
+  position: absolute;
+  bottom: calc(var(--rise) + 10px);
+  z-index: var(--z-floating);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-floating);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-floating);
+  text-align: left;
+  animation: popIn var(--motion-fast) var(--ease-out) both;
+}
+
+.popHead {
+  position: sticky;
+  top: calc(-1 * var(--space-2));
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
+  padding: var(--space-1) var(--space-1) var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+  background: var(--surface-floating);
+}
+
+.popHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.popTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.popStage {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.popAttention {
+  font-weight: 600;
+  color: var(--text-danger-strong);
+}
+
+.popList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.popLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+
+.popLink:hover {
+  background: var(--surface-hover);
+}
+
+.popLink:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+  background: var(--surface-hover);
+}
+
+/* Метка строки — тот же знак, что на маршруте: фиолетовая — в работе, красная — внимание. */
+.popMark {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+}
+
+.popMarkStuck {
+  background: var(--status-danger);
+}
+
+.popText {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-body-sm-size);
+  line-height: 1.4;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.popName {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.popProgram {
+  color: var(--text-secondary);
+}
+
+.popNote {
+  flex: none;
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-danger-strong);
+}
+
+@keyframes draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pop {
+    animation: none;
+  }
+
+  .stuck::after,
+  .counterStuck::after {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  /* Подписи фаз на узком экране не помещаются — маршрут читается по точкам. */
+  .phase {
+    display: none;
+  }
+
+  .track {
+    height: calc(var(--line-y) + var(--drop) + 8px);
+  }
+}
