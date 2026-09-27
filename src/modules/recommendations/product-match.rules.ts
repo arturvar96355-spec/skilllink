@@ -365,7 +365,7 @@ export function reasonsFor(
     reasons.push(`Самый востребованный из них — ${top.name}: ${demandAmount(top.demandValue, top.demandUnit)} за период, спрос ${top.demand} из 100${core}`)
   }
 
-  for (const adjustment of adjustments) reasons.push(`${adjustment.text} (${adjustment.points} к баллу)`)
+  for (const adjustment of adjustments) reasons.push(`${adjustment.text} (−${Math.abs(adjustment.points)} к баллу)`)
 
   const warm = context.cooperations.find(
     (row) =>

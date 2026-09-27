@@ -147,7 +147,7 @@ describe('рекомендации продуктов: балл пары', () =>
     expect(recommendation!.adjustments).toEqual([
       expect.objectContaining({ kind: 'same-university', points: -15 }),
     ])
-    expect(recommendation!.reasons.some((reason) => reason.includes('«Информатика»') && reason.includes('-15 к баллу'))).toBe(true)
+    expect(recommendation!.reasons.some((reason) => reason.includes('«Информатика»') && reason.includes('(−15 к баллу)'))).toBe(true)
   })
 
   it('недавно отменённая связка с этим продуктом — минус 40; давняя — без поправки', () => {
