@@ -113,11 +113,16 @@ export async function listActiveLinks(cursor: string | null, take: number): Prom
  * - незакрытые со сроком в ближайшие дни — окно берётся на сутки шире, чем
  *   `DEADLINE_WARNING_DAYS`, а точную границу решает `isDueSoon` в правилах.
  */
-export async function findDigestStages(userId: string, now: Date, limit: number): Promise<DigestStageSource[]> {
+/**
+ * Горящие этапы сводки: связки пользователя (ответственный за этап или за связку).
+ * `userId: null` — весь портфель, как «Требует внимания» на главной (решение 210:
+ * руководителю и администратору, у которых своих горящих этапов нет).
+ */
+export async function findDigestStages(userId: string | null, now: Date, limit: number): Promise<DigestStageSource[]> {
   const rows = await prisma.workflowStage.findMany({
     where: {
       AND: [
-        { OR: [{ responsibleId: userId }, { cooperation: { responsibleId: userId } }] },
+        userId === null ? {} : { OR: [{ responsibleId: userId }, { cooperation: { responsibleId: userId } }] },
         {
           OR: [
             problemStageWhere({}, now),

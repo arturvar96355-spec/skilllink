@@ -17,11 +17,13 @@ import {
   Textarea,
   apiPost,
   cooperationOption,
+  fieldErrors,
   universityFullOption,
   useMutation,
   useToast,
 } from '@/ui'
 import { INBOUND_LETTER_GROUP_OPTIONS } from './letters-options'
+import { incorrectReviewProblems, missingFieldsText, type IncorrectReviewField } from './review-form'
 import styles from './letters-modals.module.css'
 
 /**
@@ -52,6 +54,8 @@ export function ReviewModal({
   const [group, setGroup] = useState<string>(letter.current.group ?? '')
   const [action, setAction] = useState(letter.current.action ?? '')
   const [comment, setComment] = useState('')
+  // Подсказки под полями появляются после первой попытки сохранить (решение 210, S9).
+  const [triedToSave, setTriedToSave] = useState(false)
 
   const review = useMutation(
     async (input: Record<string, unknown>) =>
@@ -69,6 +73,12 @@ export function ReviewModal({
   }
 
   async function submitIncorrect() {
+    setTriedToSave(true)
+    const missing = missingFieldsText(incorrectReviewProblems({ universityId, group, action, comment }))
+    if (missing) {
+      toast.error(missing)
+      return
+    }
     const trimmedComment = comment.trim()
     const trimmedAction = action.trim()
     const result = await review.run({
@@ -80,7 +90,8 @@ export function ReviewModal({
       comment: trimmedComment,
     })
     if (!result.ok) {
-      toast.error(result.error.message)
+      // 422 с полями — подсказки уже под полями, в сообщении — первая из них.
+      toast.error(fieldErrors(result.error)[0]?.message ?? result.error.message)
       return
     }
     toast.success('Разбор исправлен: система учтёт пример')
@@ -112,7 +123,11 @@ export function ReviewModal({
     )
   }
 
-  const canSubmit = universityId !== '' && group !== '' && action.trim() !== '' && comment.trim() !== ''
+  // Кнопка не серая: форма сама называет, чего не хватает (решение 210, S9).
+  const problems = triedToSave ? incorrectReviewProblems({ universityId, group, action, comment }) : {}
+  const serverErrors = fieldErrors(review.error)
+  const errorFor = (field: IncorrectReviewField) =>
+    problems[field] ?? serverErrors.find((item) => item.field === field)?.message ?? null
 
   return (
     <Modal
@@ -127,7 +142,6 @@ export function ReviewModal({
           variant="primary"
           icon="check"
           onClick={submitIncorrect}
-          disabled={!canSubmit}
           isLoading={review.isPending}
         >
           Сохранить исправление
@@ -142,6 +156,7 @@ export function ReviewModal({
           params={{ withRating: 'false', sort: 'name' }}
           toOption={universityFullOption}
           placeholder="Выберите вуз"
+          error={errorFor('universityId')}
           value={universityId}
           onValueChange={(value) => {
             setUniversityId(value)
@@ -164,6 +179,7 @@ export function ReviewModal({
           label="Группа"
           required
           placeholder="Выберите группу"
+          error={errorFor('group')}
           value={group}
           onValueChange={(value) => setGroup(value as InboundLetterGroup)}
           options={INBOUND_LETTER_GROUP_OPTIONS}
@@ -172,6 +188,7 @@ export function ReviewModal({
           label="Предлагаемое действие"
           required
           placeholder="Короткая фраза: что сделать ответственному"
+          error={errorFor('action')}
           value={action}
           onChange={(event) => setAction(event.target.value)}
         />
@@ -181,6 +198,7 @@ export function ReviewModal({
           rows={3}
           placeholder="Например: вуз определён неверно — почта личная, не рабочая"
           hint="Комментарий обязателен: он остаётся в истории вместе с решением"
+          error={errorFor('comment')}
           value={comment}
           onChange={(event) => setComment(event.target.value)}
         />

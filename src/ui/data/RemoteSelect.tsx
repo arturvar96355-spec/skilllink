@@ -67,8 +67,14 @@ export function RemoteSelect<Row>({
   // или пришло извне (фильтр страницы). Подпись тогда берётся из карточки.
   const inOptions = options.find((option) => option.value === value)
   const knownLabel = inOptions?.label ?? (chosen?.value === value ? chosen.label : undefined)
+  // Карточку спрашиваем, только когда выборка уже пришла и значения в ней нет:
+  // раньше запрос уходил до выборки, и у менеджера фильтр «Ответственный» отчёта
+  // получал 403 на `/api/users/:id` (карточка — только администратору), хотя
+  // подпись была в самой выборке (решение 210).
   const lookup = useResource<Row>(
-    value !== '' && knownLabel === undefined ? `${endpoint}/${encodeURIComponent(value)}` : null,
+    value !== '' && knownLabel === undefined && (disabled || list.data !== null)
+      ? `${endpoint}/${encodeURIComponent(value)}`
+      : null,
   )
   const valueLabel = knownLabel ?? (lookup.data ? toOption(lookup.data).label : undefined)
 

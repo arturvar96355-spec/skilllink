@@ -8,3 +8,10 @@ export const NOTIFICATION_WINDOW_DAYS = 14 // TEMP
 /** Больше одной ленты за раз фронту не нужно: это выпадающий список, не страница. */
 export const NOTIFICATION_MAX_LIMIT = 50
 export const NOTIFICATION_DEFAULT_LIMIT = 20
+
+/**
+ * Доля показанной части ленты, которая держится под непрочитанные события — не
+ * просрочки (решение 210): иначе при просрочках числом с лимит новое назначение
+ * или поручение в колокольчик не попадало вовсе. Четверть: 5 мест из 20, 2 из 6.
+ */
+export const NOTIFICATION_FRESH_SHARE = 0.25 // TEMP

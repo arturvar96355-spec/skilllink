@@ -1,3 +1,4 @@
+import { contentDisposition } from '@/shared/http/content-disposition'
 import { getCurrentUser } from '@/shared/auth/current-user'
 import { clientAddress } from '@/shared/auth/throttle'
 import { handle } from '@/shared/http'
@@ -19,7 +20,7 @@ export const GET = handle(async (request) => {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="${result.fileName}"`,
+      'content-disposition': contentDisposition(result.fileName),
       'x-total-rows': String(result.rows),
     },
   })

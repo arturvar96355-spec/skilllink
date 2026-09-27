@@ -27,6 +27,7 @@ import { userChangeApprovals } from '@/modules/approvals/approvals.rules'
 import { approvalsRequired } from '@/shared/config/approvals.config'
 import * as telegramRepo from '@/modules/telegram/telegram.repo'
 import * as notifyChannelsRepo from '@/modules/notify-channels/notify-channels.repo'
+import { deliveryChannels } from '@/modules/notify-channels/notify-channels.service'
 import * as repo from './auth.repo'
 import {
   assertUserChangeAllowed,
@@ -85,10 +86,14 @@ export async function listUsers(
   // Поиск по почте — тоже только тем, кому её показывают: иначе адрес
   // восстанавливался бы подбором строки поиска по одной букве.
   const { rows, total } = await repo.findMany(query, { searchEmail: showEmail })
-  return {
-    data: rows.map((row) => toUserDto(row, showEmail)),
-    meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total),
+  const data = rows.map((row) => toUserDto(row, showEmail))
+  // Решение 210: окно «Сменить ответственного» пишет, дойдёт ли уведомление до
+  // мессенджера. Только тем, кто назначает, и одной выборкой на страницу списка.
+  if (can(user, 'ASSIGN_RESPONSIBLE') && data.length > 0) {
+    const channels = await deliveryChannels(data.filter((row) => row.canBeResponsible).map((row) => row.id))
+    for (const row of data) if (row.canBeResponsible) row.messenger = channels.get(row.id) ?? null
   }
+  return { data, meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total) }
 }
 
 /**

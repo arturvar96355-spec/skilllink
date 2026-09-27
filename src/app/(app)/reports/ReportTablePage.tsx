@@ -96,6 +96,9 @@ function useReportPreview(path: string) {
 
 const STATUS_OPTIONS = COOPERATION_STATUSES.map((value) => ({ value, label: COOPERATION_STATUS_LABELS[value] }))
 
+
+/** Решение 210 (В8): PDF — через окно печати браузера; кнопка и подсказка говорят это прямо. */
+const PDF_HINT = 'Откроется окно печати браузера: выберите в нём «Сохранить как PDF» (на iPhone — значок «Поделиться» → «Сохранить в Файлы»)'
 export interface ReportTablePageProps {
   title: string
   breadcrumbLabel: string
@@ -111,7 +114,7 @@ export interface ReportTablePageProps {
  * экране, и то, что выгружается, устроены одинаково и не могут разойтись
  * колонками. Скачивание — прямые ссылки на файл (браузер сохраняет его сам,
  * сессия идёт тем же cookie, как у кнопки «Выгрузить» реестра связок).
- * «Печать / PDF» печатает лист ниже — тем же приёмом, что у отчёта
+ * «Сохранить в PDF» печатает лист ниже — тем же приёмом, что у отчёта
  * руководителю (`/reports/portfolio`, решение 97).
  *
  * Фильтры (решение 172, ТЗ заказчика — «отчёты формируются с фильтрами по периоду,
@@ -180,9 +183,11 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
   const product = useResource<ProductListItemDto>(
     filters.productId ? `/api/products/${encodeURIComponent(filters.productId)}` : null,
   )
-  const responsible = useResource<UserDto>(
-    filters.responsibleId ? `/api/users/${encodeURIComponent(filters.responsibleId)}` : null,
-  )
+  // Имя ответственного — из справочника (право ANALYTICS), а не из карточки
+  // пользователя `/api/users/:id`: она только администратору, и у менеджера строка
+  // фильтров была «ответственный «…»» с 403 в консоли (решение 210, S10).
+  const staff = useResource<UserDto[]>(filters.responsibleId ? '/api/users?pageSize=100' : null)
+  const responsible = { data: staff.data?.find((row) => row.id === filters.responsibleId) }
   const filtersLine = reportFiltersLine(filters, {
     universityName: university.data?.shortName ?? university.data?.name,
     programName: program.data?.name,
@@ -210,8 +215,8 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
         description={description}
         actions={
           data ? (
-            <Button variant="primary" icon="download" onClick={() => window.print()}>
-              Печать / PDF
+            <Button variant="primary" icon="download" onClick={() => window.print()} title={PDF_HINT}>
+              Сохранить в PDF
             </Button>
           ) : undefined
         }

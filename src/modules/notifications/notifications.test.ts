@@ -397,3 +397,64 @@ describe('назначение ответственным за связку и �
     })
   })
 })
+
+describe('просрочки не вытесняют новое назначение (решение 210, S4)', () => {
+  // На стенде у менеджера 20 просрочек, лимит колокольчика — 20: «Вы назначены
+  // ответственным за этап» в показанную часть не попадало, значок +1, строки нет.
+  const overdue = Array.from({ length: 25 }, (_, index) =>
+    stage({ stageId: `over-${index}`, deadline: new Date(now.getTime() - (index + 1) * DAY) }),
+  )
+  const assignment = {
+    scope: 'stage' as const,
+    auditLogId: 'log-new',
+    cooperationId: 'coop-1',
+    stageId: 'stage-7',
+    stageNumber: 7,
+    stageTitle: 'Передача учебных материалов',
+    universityName: 'СПбГУТ',
+    programName: 'Программная инженерия',
+    assigned: true,
+    changedAt: new Date(now.getTime() - 60 * 1000),
+  }
+  const seenBefore = new Date(now.getTime() - 60 * 60 * 1000)
+
+  it('непрочитанное назначение показано и при просрочках числом больше лимита', () => {
+    for (const limit of [20, 12, 6]) {
+      const feed = buildFeed(sources({ deadlines: overdue, responsibleAssignments: [assignment] }), {
+        now,
+        since: seenBefore,
+        limit,
+      })
+      expect(feed.items).toHaveLength(limit)
+      expect(feed.items.map((item) => item.id)).toContain('responsible:log-new')
+      expect(feed.items.filter((item) => item.kind === 'stage.overdue')).toHaveLength(limit - 1)
+    }
+  })
+
+  it('непрочитанному — не больше четверти мест, остальное — просрочкам', () => {
+    const changes = Array.from({ length: 30 }, (_, index) => ({
+      historyId: `h-${index}`,
+      stageId: `changed-${index}`,
+      stageNumber: 3,
+      stageTitle: 'Организация встречи',
+      toStatus: 'IN_PROGRESS' as const,
+      changedAt: new Date(now.getTime() - (index + 1) * 60 * 1000),
+      cooperationId: 'coop-2',
+      universityName: 'МТУСИ',
+      programName: 'Анализ данных',
+      authorName: 'Коллега',
+    }))
+    const feed = buildFeed(sources({ deadlines: overdue, stageChanges: changes }), { now, since: seenBefore, limit: 20 })
+    expect(feed.items.filter((item) => item.kind === 'stage.overdue')).toHaveLength(15)
+    expect(feed.items.filter((item) => item.kind === 'stage.changed')).toHaveLength(5)
+  })
+
+  it('прочитанное назначение места у просрочек не отнимает', () => {
+    const feed = buildFeed(sources({ deadlines: overdue, responsibleAssignments: [assignment] }), {
+      now,
+      since: now,
+      limit: 20,
+    })
+    expect(feed.items.every((item) => item.kind === 'stage.overdue')).toBe(true)
+  })
+})

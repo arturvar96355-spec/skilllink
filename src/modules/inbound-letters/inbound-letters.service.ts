@@ -456,12 +456,21 @@ export async function review(user: CurrentUser, id: string, input: ReviewLetterI
     // вузом всё равно обнуляло этап, хотя обычный разбор для того же вуза
     // нашёл бы его через findActiveCooperation.
     //
-    // Если сотрудник сам выбрал связку и она не совпала с тем, что система
-    // считает активной связкой вуза, этап не приписывается чужой связке —
-    // остаётся null, честно «неизвестно», а не подставляется наугад.
+    // Этап — всегда этап той связки, что сохраняется (решение 210, S9): связка
+    // осталась прежней (исправили только группу или действие) — прежний этап письма;
+    // выбрана другая связка — её текущий этап, как в карточке связки. Раньше этап
+    // брался только у «активной связки вуза» и при любой другой связке обнулялся:
+    // «Неверно» с одной сменой группы у вуза с несколькими связками теряло этап.
     const cooperationRef = await repo.findActiveCooperation(universityId)
     cooperationId = input.cooperationId ?? cooperationRef?.cooperationId ?? null
-    stageNumber = cooperationRef && cooperationRef.cooperationId === cooperationId ? cooperationRef.stageNumber : null
+    stageNumber =
+      cooperationId === null
+        ? null
+        : cooperationId === existing.cooperationId && existing.stageNumber !== null
+          ? existing.stageNumber
+          : cooperationRef?.cooperationId === cooperationId
+            ? cooperationRef.stageNumber
+            : await repo.findCurrentStageNumber(cooperationId)
     group = input.group!
     action = input.action!
   }

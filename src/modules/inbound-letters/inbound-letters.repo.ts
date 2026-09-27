@@ -228,6 +228,15 @@ export async function findActiveCooperation(universityId: string): Promise<Coope
   return { cooperationId: preferred.id, stageNumber: current?.stageNumber ?? null }
 }
 
+/** Текущий этап указанной связки — тем же правилом, что в карточке (`findCurrentStage`). */
+export async function findCurrentStageNumber(cooperationId: string): Promise<number | null> {
+  const stages = await prisma.workflowStage.findMany({
+    where: { cooperationId },
+    select: { stageNumber: true, status: true },
+  })
+  return findCurrentStage(stages)?.stageNumber ?? null
+}
+
 export async function universityName(universityId: string): Promise<string | null> {
   const row = await prisma.university.findUnique({ where: { id: universityId }, select: { name: true } })
   return row?.name ?? null

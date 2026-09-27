@@ -130,9 +130,22 @@ function directionWord(result: AnomalyResult): string {
   return result.direction === 'up' ? 'больше' : 'меньше'
 }
 
-function changePhrase(result: AnomalyResult): string {
-  if (result.relativeChange === Number.POSITIVE_INFINITY) return 'появились при нулевом фоне'
-  return `на ${percentOf(result.relativeChange ?? 0)}% ${directionWord(result)} обычного`
+/**
+ * Как назвать изменение в заголовке (решение 210, В4). Процент — для умеренных
+ * сдвигов; рост в `INSIGHTS.ratioFrom` раз и больше — «в N раза»; от почти пустого
+ * фона отношение не называется. В конце — сами средние: «(13,9 в день против 2,6)»,
+ * чтобы заголовок читался без раскрытия подробностей.
+ */
+export function changePhrase(result: AnomalyResult, unit: 'в день' | 'в неделю'): string {
+  const recent = result.meanRecent ?? 0
+  const base = result.meanBase ?? 0
+  const numbers = ` (${formatNumber(recent)} ${unit} против ${formatNumber(base)})`
+  if (result.relativeChange === Number.POSITIVE_INFINITY) return `появились при нулевом фоне${numbers}`
+  if (result.direction === 'up' && base < INSIGHTS.minBaseForRatio) return `заметно больше, фон почти нулевой${numbers}`
+  if (result.direction === 'up' && base > 0 && recent / base >= INSIGHTS.ratioFrom) {
+    return `в ${formatNumber(recent / base)} раза больше обычного${numbers}`
+  }
+  return `на ${percentOf(result.relativeChange ?? 0)}% ${directionWord(result)} обычного${numbers}`
 }
 
 function severityOf(result: AnomalyResult): InsightSeverity {
@@ -180,7 +193,7 @@ function dailyInsight(
   return {
     code: `anomaly.${metric}.${result.direction === 'up' ? 'up' : 'down'}`,
     severity: severityOf(result),
-    title: `${label.name}: за ${ANOMALY_DAILY.recent} дней ${changePhrase(result)}`,
+    title: `${label.name}: за ${ANOMALY_DAILY.recent} дней ${changePhrase(result, 'в день')}`,
     detail:
       `В среднем ${formatNumber(result.meanRecent ?? 0)} в день против ${formatNumber(result.meanBase ?? 0)} ` +
       `за ${ANOMALY_DAILY.base} дней до этого (z = ${formatNumber(result.z ?? 0)}). ` +
@@ -215,7 +228,7 @@ function weeklyInsight(metric: SeriesMetric, result: AnomalyResult): InsightDto 
   return {
     code: `anomaly.${metric}.weekly.${result.direction === 'up' ? 'up' : 'down'}`,
     severity: severityOf(result),
-    title: `${label.name}: за ${ANOMALY_WEEKLY.recent} недели ${changePhrase(result)}`,
+    title: `${label.name}: за ${ANOMALY_WEEKLY.recent} недели ${changePhrase(result, 'в неделю')}`,
     detail:
       `В среднем ${formatNumber(result.meanRecent ?? 0)} в неделю против ${formatNumber(result.meanBase ?? 0)} ` +
       `за ${ANOMALY_WEEKLY.base} недель до этого (z = ${formatNumber(result.z ?? 0)}).`,
@@ -241,7 +254,7 @@ function universityInsight(
   return {
     code: `anomaly.university.${metric}.${result.direction === 'up' ? 'up' : 'down'}`,
     severity: severityOf(result),
-    title: `${label}: ${METRIC_LABELS[metric].of} за ${ANOMALY_DAILY.recent} дней ${changePhrase(result)}`,
+    title: `${label}: ${METRIC_LABELS[metric].of} за ${ANOMALY_DAILY.recent} дней ${changePhrase(result, 'в день')}`,
     detail:
       `В среднем ${formatNumber(result.meanRecent ?? 0)} в день против ${formatNumber(result.meanBase ?? 0)} ` +
       `за ${ANOMALY_DAILY.base} дней до этого (z = ${formatNumber(result.z ?? 0)}).`,
