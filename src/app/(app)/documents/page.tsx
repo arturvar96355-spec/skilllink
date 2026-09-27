@@ -638,6 +638,7 @@ function DocumentDrawer({
                 external
                 newTab
                 title="Реквизиты, текст, ссылка на оригинал и история статусов — в новой вкладке"
+                aria-label={`Открыть «${card.title}» в новой вкладке`}
               >
                 Открыть
               </Button>

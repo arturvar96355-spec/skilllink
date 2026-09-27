@@ -25,7 +25,14 @@ export default function ApiDocsPage() {
           <HelpHint text="Раскройте метод, нажмите «Try it out», затем «Execute»: запрос уйдёт от вашего имени, с правами вашей роли. Изменяющие методы меняют данные по-настоящему." />
         }
         actions={
-          <Button variant="secondary" icon="download" href={SPEC_URL} external newTab>
+          <Button
+            variant="secondary"
+            icon="download"
+            href={SPEC_URL}
+            external
+            newTab
+            aria-label="Спецификация openapi.json — откроется в новой вкладке"
+          >
             openapi.json
           </Button>
         }
