@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { HelpHint, type HelpHintProps } from '../primitives/HelpHint'
 import { IconButton } from '../primitives/IconButton'
 import { useEscape } from '../hooks/dom'
 import { useFocusTrap } from '../hooks/focus-trap'
@@ -12,6 +13,8 @@ export interface ModalProps {
   onClose: () => void
   title: string
   description?: string
+  /** «?» у заголовка окна — что делает действие и ссылка в документацию (решение 217). */
+  help?: HelpHintProps
   /** Для опасных действий закрытие щелчком по фону отключается (раздел 9.4 компонентов). */
   closeOnBackdrop?: boolean
   wide?: boolean
@@ -31,6 +34,7 @@ export function Modal({
   onClose,
   title,
   description,
+  help,
   closeOnBackdrop = true,
   wide = false,
   footer,
@@ -69,7 +73,14 @@ export function Modal({
       >
         <div className={styles.head}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>{title}</h2>
+            {help ? (
+              <div className={styles.titleRow}>
+                <h2 className={styles.title}>{title}</h2>
+                <HelpHint {...help} />
+              </div>
+            ) : (
+              <h2 className={styles.title}>{title}</h2>
+            )}
             {description && <p className={styles.description}>{description}</p>}
           </div>
           <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} data-dialog-close />

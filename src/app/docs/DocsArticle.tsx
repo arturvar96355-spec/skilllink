@@ -5,6 +5,7 @@ import {
   HELP_TERMS_ANCHOR,
   type HelpRightsRow,
   type HelpSection,
+  type HelpToolSection,
 } from '@/shared/help'
 import { Icon } from '@/ui/primitives/Icon'
 import { DocsAnchor } from './DocsAnchor'
@@ -119,6 +120,18 @@ function DocsSection({ section, group }: { section: HelpSection; group: string }
             </ol>
           </dd>
         </div>
+        {section.tools.length > 0 && (
+          <div className={styles.fact}>
+            <dt className={styles.factLabel}>Кнопки и блоки</dt>
+            <dd className={styles.factBody}>
+              <div className={styles.tools}>
+                {section.tools.map((tool) => (
+                  <DocsTool key={tool.anchor} tool={tool} />
+                ))}
+              </div>
+            </dd>
+          </div>
+        )}
       </dl>
 
       {section.rights && <RightsTable rows={section.rights} />}
@@ -145,6 +158,32 @@ function DocsSection({ section, group }: { section: HelpSection; group: string }
         </div>
       </dl>
     </article>
+  )
+}
+
+/**
+ * Подраздел — кнопка или блок экрана (решение 217). На него ведёт «Подробнее в
+ * документации» из «?» у этой кнопки: `/help#<раздел>--<подраздел>`. Отдельного
+ * «#» у подраздела нет — постоянная ссылка на раздел одна, у его заголовка.
+ */
+function DocsTool({ tool }: { tool: HelpToolSection }) {
+  const titleId = `${tool.anchor}-title`
+  return (
+    <section id={tool.anchor} className={styles.tool} aria-labelledby={titleId}>
+      <h4 id={titleId} className={styles.toolTitle}>
+        {tool.title}
+      </h4>
+      <p>
+        {tool.short} {tool.how}
+      </p>
+      {tool.details.map((paragraph) => (
+        <p key={paragraph}>{paragraph}</p>
+      ))}
+      <p className={styles.toolWho}>
+        <span className={styles.toolWhoLabel}>Кто может: </span>
+        {tool.who}
+      </p>
+    </section>
   )
 }
 

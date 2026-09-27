@@ -118,6 +118,10 @@ export function DocsNav({ toc, variant }: { toc: readonly DocsTocGroup[]; varian
     // к этому времени уже «прокрутил» к якорю пустую страницу. Докручиваем сами.
     const id = decodeURIComponent(window.location.hash.slice(1))
     const target = id ? document.getElementById(id) : null
+    // Переход из «?» у кнопки (решение 217) приходит на подраздел. Внутри системы
+    // адрес меняет роутер без настоящего перехода, и `:target` у подраздела не
+    // срабатывает — отмечаем его сами, тем же видом.
+    if (target) target.setAttribute('data-doc-target', '')
     if (target && target.getBoundingClientRect().top > window.innerHeight / 2) {
       requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
     }

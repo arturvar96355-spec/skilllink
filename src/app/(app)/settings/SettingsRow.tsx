@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { InfoHint, Skeleton } from '@/ui'
+import { HelpHint, InfoHint, Skeleton, type HelpHintProps } from '@/ui'
 import styles from './settings.module.css'
 
 /**
@@ -18,11 +18,18 @@ export function Row({
   title,
   caption,
   hint,
+  help,
   children,
 }: {
   title: ReactNode
   caption?: ReactNode
+  /** Пояснение термина или числа — `InfoHint`. */
   hint?: string
+  /**
+   * Что делает кнопка строки и ссылка в документацию — `HelpHint` (решение 217).
+   * Вместо `hint`, а не рядом с ним: два «?» у одного названия не ставим.
+   */
+  help?: HelpHintProps
   children?: ReactNode
 }) {
   return (
@@ -30,7 +37,7 @@ export function Row({
       <div className={styles.rowText}>
         <span className={styles.rowTitle}>
           {title}
-          {hint && <Hint text={hint} />}
+          {help ? <HelpHint {...help} /> : hint && <Hint text={hint} />}
         </span>
         {caption && <span className={styles.rowCaption}>{caption}</span>}
       </div>

@@ -67,6 +67,7 @@ export function EditProgramModal({
       isOpen
       onClose={() => onClose(false)}
       title="Изменить программу"
+      help={{ topic: 'programs', section: 'card' }}
       description="Вуз программы не меняется. Показатели набора правятся в самой карточке."
       closeOnBackdrop={false}
       footer={

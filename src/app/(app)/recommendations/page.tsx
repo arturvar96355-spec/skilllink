@@ -28,7 +28,7 @@ import {
   OPEN_RECOMMENDATION_STATUSES,
   CLOSED_RECOMMENDATION_STATUSES,
   ErrorState,
-  InfoHint,
+  HelpHint,
   Icon,
   Modal,
   PageHeader,
@@ -329,11 +329,12 @@ function RecommendationsContent() {
       <PageHeader
         title="Список задач"
         description="Что система предлагает сделать: просрочки, застрявшие связки, дефициты навыков. Каждая задача объясняет, почему она появилась."
-        meta={<InfoHint text={REFRESH_HINT} />}
+        help={{ topic: 'task-list', note: REFRESH_HINT }}
       />
 
       <AiAssistCard
         title="Что сделать сегодня"
+        help={{ topic: 'ai-assistant', section: 'today' }}
         description="Ваши дела по открытым задачам этого списка и проблемным этапам ваших связок — в порядке, который задают правила. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
         actionLabel="Что сделать сегодня"
         endpoint="/api/ai/today"
@@ -343,7 +344,10 @@ function RecommendationsContent() {
 
       <Tabs items={TABS} active={tab} onChange={(key) => changeFilter(() => setTab(key))} />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         <ToolbarItem>
           <Select
             label="Статус"
@@ -586,6 +590,7 @@ function RecommendationsContent() {
           isOpen
           onClose={() => setLetter(null)}
           title="Черновик письма вузу"
+          help={{ topic: 'ai-assistant', section: 'letter' }}
           description={letter.item.title}
           wide
           footer={
@@ -669,7 +674,7 @@ function RecommendationDetail({
 
       <div className={styles.scoreRow}>
         <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
-        <InfoHint text={SCORE_HINT} />
+        <HelpHint topic="task-list" section="score" note={SCORE_HINT} />
       </div>
       {item.isDeferred && (
         <p className={styles.note}>Отложена защитой от перегрузки: у ответственного много невыполненных задач.</p>
@@ -730,6 +735,7 @@ function RecommendationDetail({
           <Button variant="ghost" size="sm" icon="recommendation" href={moreHref} scroll={false}>
             Подробнее
           </Button>
+          <HelpHint topic="task-list" section="statuses" />
         </div>
       )}
     </div>

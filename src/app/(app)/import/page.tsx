@@ -26,7 +26,6 @@ import {
   useMutation,
   useToast,
   type TabItem,
-  HelpHint,
 } from '@/ui'
 import { encodingLabel, hasImportChanges, importSummaryText, OUTCOME_LABELS, OUTCOME_TONES } from './import-report'
 import { courseOptionValue, parseCourseOptionValue } from './site-orders-course-option'
@@ -83,7 +82,7 @@ export default function ImportPage() {
       <PageHeader
         title="Импорт данных"
         description="Загрузка файла из Excel: сначала предпросмотр — что изменится и построчные ошибки, запись в базу — только по «Применить»."
-        meta={<HelpHint topic="import" />}
+        help={{ topic: 'import' }}
       />
 
       {!user.permissions.canWrite && (
@@ -165,6 +164,7 @@ function CatalogImportSection() {
   return (
     <Section
       title="Реестры вузов и программ"
+      help={{ topic: 'import', section: 'catalogs' }}
       description="Файл CSV с теми же заголовками, что и у выгрузки реестра: цикл «выгрузил → поправил в Excel → загрузил обратно» работает без переименований колонок."
     >
       <Card>
@@ -308,6 +308,7 @@ function VendorImportSection() {
   return (
     <Section
       title="Вендоры, продукты и контакты"
+      help={{ topic: 'import', section: 'vendors' }}
       description="Книга Excel (.xlsx) или CSV — колонки как в выгрузке реестра вендоров. Ячейка «Продукт» может перечислять несколько продуктов через запятую."
     >
       <Card>
@@ -484,6 +485,7 @@ function SiteOrdersImportSection() {
   return (
     <Section
       title="Заказы с сайта школы"
+      help={{ topic: 'import', section: 'orders' }}
       description="JSON-файл заказов ровно как выгружает сайт: предпросмотр качества данных без записи в базу, «Применить» заводит заявки, «Скачать файл для LMS» собирает книгу Excel для загрузки пользователей."
     >
       <Card>

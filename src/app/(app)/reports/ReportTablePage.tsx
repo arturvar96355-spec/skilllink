@@ -11,6 +11,7 @@ import {
   type UserDto,
 } from '@/shared/contracts'
 import {
+  HelpHint,
   ApiRequestError,
   Button,
   CardsSkeleton,
@@ -31,6 +32,7 @@ import {
   programWithUniversityOption,
   universityShortOption,
   useResource,
+  type HelpHintProps,
 } from '@/ui'
 import { leaveToLogin } from '@/ui/lib/session'
 import {
@@ -105,6 +107,8 @@ export interface ReportTablePageProps {
   description: string
   /** `/api/reports/tz` или `/api/reports/catalog`. */
   endpoint: string
+  /** Раздел документации отчёта — «?» у заголовка (решение 217). */
+  help: HelpHintProps
 }
 
 /**
@@ -130,7 +134,7 @@ export function ReportTablePage(props: ReportTablePageProps) {
   )
 }
 
-function ReportTableView({ title, breadcrumbLabel, description, endpoint }: ReportTablePageProps) {
+function ReportTableView({ title, breadcrumbLabel, description, endpoint, help }: ReportTablePageProps) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -211,18 +215,23 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
     <>
       <PageHeader
         title={title}
+        help={help}
         breadcrumbs={[{ label: 'Отчёты', href: ROUTES.reports }, { label: breadcrumbLabel }]}
         description={description}
         actions={
           data ? (
-            <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
-              Сохранить в PDF
-            </Button>
+            <>
+              <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
+                Сохранить в PDF
+              </Button>
+              <HelpHint topic="exports" section="pdf" />
+            </>
           ) : undefined
         }
       />
 
       <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
         note="Фильтры действуют и на превью ниже, и на выгрузку — CSV, XLSX и JSON скачиваются уже отфильтрованными."
         actions={filtersActive ? <ResetFilters active onReset={resetFilters} /> : undefined}
       >
@@ -318,6 +327,7 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
             Скачать {REPORT_FORMAT_LABELS[format]}
           </DownloadButton>
         ))}
+        <HelpHint topic="exports" section="files" />
       </div>
 
       {report.isLoading ? (

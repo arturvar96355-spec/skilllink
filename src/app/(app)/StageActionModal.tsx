@@ -123,6 +123,7 @@ export function StageActionModal({ stage, kind, onClose, onRefused }: StageActio
       isOpen
       onClose={() => onClose(null)}
       title={form.title}
+      help={{ topic: 'stages', section: 'actions' }}
       description={stage.title ? `Этап ${stage.stageNumber} «${stage.title}». ${form.description}` : form.description}
       // Закрытие щелчком по фону отключено: набранный текст жалко терять.
       closeOnBackdrop={false}

@@ -17,6 +17,7 @@ export default function CatalogReportPage() {
       breadcrumbLabel="Каталог лицензий и передачи ПО"
       description="Реквизиты договора и лицензии, статус передачи ПО и ответственные — по каждой связке, колонки по ТЗ заказчика."
       endpoint="/api/reports/catalog"
+      help={{ topic: 'reports', section: 'catalog' }}
     />
   )
 }

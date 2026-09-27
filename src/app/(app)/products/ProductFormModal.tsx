@@ -127,6 +127,7 @@ export function ProductFormModal({
       isOpen
       onClose={() => onClose(null)}
       title={isEdit ? 'Изменить продукт' : 'Добавить продукт'}
+      help={{ topic: 'products' }}
       description={
         isEdit
           ? undefined

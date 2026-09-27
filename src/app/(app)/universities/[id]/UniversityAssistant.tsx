@@ -58,6 +58,7 @@ export function UniversityAssistant({ universityId }: { universityId: string }) 
       <AiAssistCard
         key={chosen.id}
         title="ИИ-помощник по вузу"
+        help={{ topic: 'ai-assistant', section: 'university' }}
         description={`${chosen.programName}${chosen.productName ? ` → ${chosen.productName}` : ''}: где связка сейчас, что мешает и что сделать дальше — по этапам, срокам и открытым задачам.`}
         actionLabel="Разобрать ситуацию"
         endpoint={`/api/cooperations/${chosen.id}/ai-summary`}

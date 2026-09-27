@@ -15,7 +15,12 @@ export function useOutsideClick<T extends HTMLElement>(
     if (!enabled) return
     function handle(event: MouseEvent) {
       const node = ref.current
-      if (node && event.target instanceof Node && !node.contains(event.target)) onOutside()
+      if (!node || !(event.target instanceof Node) || node.contains(event.target)) return
+      // Окошко «?» (`HelpHint`) открыто из этого меню, но лежит в body: нажатие по
+      // ссылке в нём — не «мимо меню», иначе меню закрылось бы вместе с окошком
+      // раньше, чем сработает ссылка.
+      if (event.target instanceof Element && event.target.closest('[data-floating-layer]')) return
+      onOutside()
     }
     // Слушаем нажатие, а не клик: иначе окно закроется уже после того,
     // как сработает элемент под курсором.

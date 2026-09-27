@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { InboundLetterAcceptDto, NotificationDto, NotificationFeedDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
+import { HelpHint } from '../primitives/HelpHint'
 import { Icon, type IconName } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { Skeleton } from '../primitives/Skeleton'
@@ -155,6 +156,7 @@ export function NotificationBell() {
             <span className={styles.title}>
               Уведомления
               {unread > 0 && <span className={styles.count}>{unread} новых</span>}
+              <HelpHint topic="notifications" />
             </span>
             {unread > 0 && (
               <Button variant="ghost" size="sm" onClick={markAllRead}>

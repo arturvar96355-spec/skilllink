@@ -107,6 +107,7 @@ export default function StatusPage() {
     <>
       <PageHeader
         title="Состояние системы"
+        help={{ topic: 'status' }}
         description="Работает ли SkillLink прямо сейчас: сервер, база данных и её структура. Та же проверка, по которой сервер выкладки решает, запускать ли новую версию."
       />
 

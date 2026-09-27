@@ -104,6 +104,7 @@ export function ReviewModal({
         isOpen={isOpen}
         onClose={onClose}
         title="Подтвердить разбор — «Верно»"
+        help={{ topic: 'letters', section: 'review' }}
         description="Вуз, связка, группа и действие останутся такими, как их нашла система. Это станет размеченным примером для обучения разбора."
         footer={
           <Button variant="primary" icon="check" onClick={submitCorrect} isLoading={review.isPending}>
@@ -134,6 +135,7 @@ export function ReviewModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Исправить разбор — «Неверно»"
+      help={{ topic: 'letters', section: 'review' }}
       description="Укажите, как на самом деле, и обязательно — что было не так: разбор следующих писем учится на этом примере."
       wide
       closeOnBackdrop={false}
@@ -243,6 +245,7 @@ export function DismissModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Отклонить письмо — «Не по работе»"
+      help={{ topic: 'letters', section: 'dismiss' }}
       description="Задание не создаётся, и пример не идёт в статистику точности разбора: это не письмо вуза по сотрудничеству, а не ошибка разбора."
       footer={
         <Button variant="danger" icon="block" onClick={onSubmit} isLoading={dismiss.isPending}>

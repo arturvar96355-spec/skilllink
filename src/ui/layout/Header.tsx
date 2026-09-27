@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { USER_ROLE_LABELS } from '@/shared/contracts'
 import { Avatar } from '../primitives/Avatar'
+import { HelpHint } from '../primitives/HelpHint'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { NotificationBell } from '../notifications/NotificationBell'
@@ -221,7 +222,10 @@ function ProfileMenu() {
             Мои данные
           </Link>
           <div className={styles.dropdownMode}>
-            <span className={styles.dropdownLabel}>Режим интерфейса</span>
+            <span className={styles.dropdownLabelRow}>
+              <span className={styles.dropdownLabel}>Режим интерфейса</span>
+              <HelpHint topic="ui-modes" />
+            </span>
             <UiModeSwitch placement="header" />
           </div>
           <button

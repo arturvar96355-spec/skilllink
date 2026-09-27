@@ -113,6 +113,7 @@ export function PasswordIssuedModal({ issued, onClose }: { issued: IssuedPasswor
       onClose={onClose}
       closeOnBackdrop={false}
       title={issued.kind === 'create' ? 'Пользователь заведён' : 'Новый временный пароль'}
+      help={{ topic: 'users' }}
       description="Пароль показывается один раз. Больше мы его не покажем — только выдадим новый."
       footer={
         <Button variant="primary" onClick={onClose}>
@@ -192,6 +193,7 @@ export function CreateUserModal({
       onClose={onClose}
       closeOnBackdrop={false}
       title="Завести пользователя"
+      help={{ topic: 'users' }}
       description="Пароль придумает система: временный, его покажут один раз после сохранения."
       footer={
         <>
@@ -365,6 +367,7 @@ export function UserModal({
       onClose={onClose}
       closeOnBackdrop={false}
       title={user.fullName}
+      help={{ topic: 'users' }}
       description={user.email ?? undefined}
       footer={
         <>

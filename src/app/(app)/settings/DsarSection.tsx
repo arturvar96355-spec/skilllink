@@ -16,6 +16,7 @@ import {
   DownloadButton,
   EmptyState,
   ErrorState,
+  HelpHint,
   Pagination,
   ResetFilters,
   Select,
@@ -165,6 +166,7 @@ export function DsarSection() {
               <Button size="sm" onClick={() => setIsCreating(true)}>
                 Зарегистрировать запрос
               </Button>
+              <HelpHint topic="dsar" section="register" />
             </>
           }
         >

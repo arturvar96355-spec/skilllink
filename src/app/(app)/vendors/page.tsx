@@ -41,7 +41,6 @@ import {
   useResource,
   vendorHref,
   type Column,
-  HelpHint,
 } from '@/ui'
 import styles from './vendors.module.css'
 
@@ -144,16 +143,15 @@ function VendorsView() {
       <PageHeader
         title="Вендоры"
         description="Компании — владельцы IT-продуктов: их продукты, контакты и связки с вузами через эти продукты."
-        meta={
-          <>
-            {/* «?» со ссылкой в документацию (решение 214). */}
-            <HelpHint topic="vendors" />
-            {marks.section ? <MockBadge /> : null}
-          </>
-        }
+        // «?» со ссылкой в документацию (решения 214, 217).
+        help={{ topic: 'vendors' }}
+        meta={marks.section ? <MockBadge /> : undefined}
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={() => setSearch('')} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={() => setSearch('')} /> : undefined}
+      >
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -223,6 +221,7 @@ function VendorDrawer({ vendorId, onClose }: { vendorId: string; onClose: () => 
       isOpen
       onClose={onClose}
       title={data?.name ?? 'Карточка вендора'}
+      help={{ topic: 'vendors' }}
       description={
         data
           ? `${formatNumber(data.products.length)} ${pluralize(data.products.length, ['продукт', 'продукта', 'продуктов'])} · ${formatNumber(data.cooperations.length)} ${pluralize(data.cooperations.length, ['связка', 'связки', 'связок'])}`

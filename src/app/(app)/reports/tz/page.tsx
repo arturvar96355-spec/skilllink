@@ -16,6 +16,7 @@ export default function TzReportPage() {
       breadcrumbLabel="Отчёт по связкам за период"
       description="Вуз, ИТ-направление, ИТ-продукт, статус работы и ответственный — по каждой связке, колонки по ТЗ заказчика."
       endpoint="/api/reports/tz"
+      help={{ topic: 'reports', section: 'period' }}
     />
   )
 }

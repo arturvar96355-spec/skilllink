@@ -26,7 +26,8 @@ import {
   Section,
   SkeletonLines,
   Textarea,
-  Tooltip,
+  HelpHint,
+  InfoHint,
   Icon,
   apiPatch,
   apiPost,
@@ -86,6 +87,7 @@ export default function LetterPage() {
       <PageHeader
         breadcrumbs={[{ label: 'Письма вузов', href: ROUTES.letters }, { label: card?.subject ?? 'Письмо' }]}
         title={card?.subject ?? 'Письмо'}
+        help={{ topic: 'letters' }}
         description={card ? `От ${card.senderName ?? card.senderEmail} · ${formatDateTime(card.receivedAt)}` : undefined}
         meta={
           card ? (
@@ -132,6 +134,7 @@ export default function LetterPage() {
               >
                 Верно
               </Button>
+              <HelpHint topic="letters" section="review" />
             </div>
           ) : undefined
         }
@@ -174,10 +177,14 @@ export default function LetterPage() {
             </Card>
 
             <Card className={styles.analysisCard}>
-              <h2 className={styles.blockTitle}>
-                Что поняла система
-                <HelpTip text="Система сама разбирает письмо: по адресу отправителя находит вуз и связку, по тексту — группу и что сделать. Перед отправкой в ИИ из письма скрываются почта, телефоны, паспорт, СНИЛС и известные системе ФИО; имя постороннего человека без отчества может остаться, поэтому ответ перед отправкой проверяет человек." />
-              </h2>
+              <div className={styles.blockHead}>
+                <h2 className={styles.blockTitle}>Что поняла система</h2>
+                <HelpHint
+                  topic="letters"
+                  section="analysis"
+                  note="Перед отправкой в ИИ из письма скрываются почта, телефоны, паспорт, СНИЛС и известные системе ФИО; имя постороннего человека без отчества может остаться, поэтому ответ перед отправкой проверяет человек."
+                />
+              </div>
               {user.permissions.canReviewLetters && card.status === 'ANALYZED' && (
                 <p className={styles.note}>
                   Проверьте разбор: «Верно» — система заведёт задание ответственному за вуз;
@@ -243,7 +250,7 @@ export default function LetterPage() {
           </Section>
 
           {user.permissions.canReviewLetters && card.status !== 'NEW' && card.status !== 'DISMISSED' && (
-            <Section title="Ответ">
+            <Section title="Ответ" help={{ topic: 'letter-reply', section: 'draft' }}>
               <Card>
                 <ReplyDraft letterId={card.id} draft={card.replyDraft} onChanged={letter.reload} />
               </Card>
@@ -535,6 +542,7 @@ function ReplyDraft({
           isOpen
           onClose={() => setConfirmRecompose(false)}
           title="Собрать черновик заново?"
+          help={{ topic: 'letter-reply', section: 'draft' }}
           description="Несохранённая правка текста будет потеряна — черновик заменится новым, собранным системой."
           footer={
             <>
@@ -573,13 +581,9 @@ function Fact({ label, value, help }: { label: string; value: ReactNode; help?: 
   )
 }
 
-/** «?» с коротким пояснением — существующая подсказка `Tooltip` со значком вопроса. */
+/** «?» с коротким пояснением термина — тот же `InfoHint`, что на остальных экранах (решения 211, 217). */
 function HelpTip({ text }: { text: string }) {
-  return (
-    <Tooltip text={text}>
-      <Icon name="help" size={16} className={styles.help} />
-    </Tooltip>
-  )
+  return <InfoHint text={text} />
 }
 
 /**
@@ -613,9 +617,9 @@ function AcceptBlock({ card, user, onChanged }: { card: InboundLetterDto; user: 
   return (
     <div className={styles.acceptBlock}>
       <div className={styles.acceptText}>
-        <span className={styles.factLabel}>
+        <span className={[styles.factLabel, styles.labelHelp].join(' ')}>
           Кто занимается
-          <HelpTip text="«Принять в работу» — отметка «я занимаюсь этим письмом»: её видят коллеги, она попадает в журнал действий. То же, что кнопка «✓ Принял» под уведомлением в Telegram. Разбор письма она не меняет." />
+          <HelpHint topic="letters" section="accept" />
         </span>
         {card.acceptances.length === 0 ? (
           <span className={styles.acceptNone}>Письмо ещё никто не принял в работу</span>
