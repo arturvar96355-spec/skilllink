@@ -455,7 +455,7 @@ export function BarsFlat({
             {spot.bars.map(({ part, series, x, top }, partIndex) => (
               <motion.circle
                 key={partIndex}
-                r={4.5}
+                r={5}
                 className={styles.marker}
                 data-series={series}
                 data-zero={part.value === 0 ? '' : undefined}

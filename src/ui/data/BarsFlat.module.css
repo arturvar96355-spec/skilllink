@@ -4,26 +4,35 @@
   position: relative;
   min-width: 0;
   /*
-   * Два тона одной системы. Спокойные — нейтральный графит (не акцент:
-   * их большинство, они не должны кричать). Требующие внимания — сигнальный
-   * тон статуса «опасно», приглушённый к поверхности: сигнал, но не тревога.
-   * В покое оба тише (как у Bklit: столбики почти сливаются с полем, читаются
-   * числа); выбранная пара светлеет, основной столбик — сильнее.
+   * Два тона одной системы, чётко (правка владельца к решению 201).
+   * Спокойные — глубокий графит, почти чёрный: их большинство, они — фон
+   * для сигнала. Чтобы тёмная плита не терялась на тёмном поле, у неё
+   * волосяной контур `--line-strong`. Требующие внимания — насыщенный
+   * сигнальный тон статуса «опасно», почти без примеси: контраст между
+   * сериями виден сразу. Выбранная пара — полная сила: графит светлеет,
+   * красный — чистый токен, у обоих тонкая светлая кромка.
    */
-  --bars-base: color-mix(in oklab, var(--text-tertiary) 36%, var(--surface-2));
-  --bars-base-lit: color-mix(in oklab, var(--text-secondary) 66%, var(--surface-2));
-  --bars-signal: color-mix(in oklab, var(--status-danger) 46%, var(--surface-2));
-  --bars-signal-lit: color-mix(in oklab, var(--status-danger) 72%, var(--surface-2));
+  --bars-base: color-mix(in oklab, var(--text-tertiary) 30%, var(--surface-sunken));
+  --bars-base-rim: var(--line-strong);
+  --bars-swatch-rim: color-mix(in oklab, var(--text-tertiary) 70%, transparent);
+  --bars-base-lit: color-mix(in oklab, var(--text-secondary) 82%, var(--surface-2));
+  --bars-signal: color-mix(in oklab, var(--status-danger) 86%, var(--surface-sunken));
+  --bars-signal-lit: var(--status-danger);
+  --bars-lit-rim: color-mix(in oklab, var(--text-primary) 45%, transparent);
   --bars-signal-text: var(--text-danger-soft);
   /* Кольцо маркера — цвет поля блока: кружок «вырезан» из столбика. */
   --bars-field: var(--surface-1);
 }
 
+/* Светлая тема: графит — насыщенный тёмный, красный — сам токен; выбранные — ещё глубже. */
 :global(:root[data-theme='light']) .root {
-  --bars-base: color-mix(in oklab, var(--text-tertiary) 28%, var(--surface-3));
-  --bars-base-lit: color-mix(in oklab, var(--text-secondary) 62%, var(--surface-3));
-  --bars-signal: color-mix(in oklab, var(--status-danger) 38%, var(--surface-1));
-  --bars-signal-lit: color-mix(in oklab, var(--status-danger) 76%, var(--surface-1));
+  --bars-base: color-mix(in oklab, var(--text-primary) 72%, var(--surface-3));
+  --bars-base-rim: transparent;
+  --bars-swatch-rim: transparent;
+  --bars-base-lit: var(--text-primary);
+  --bars-signal: var(--status-danger);
+  --bars-signal-lit: color-mix(in oklab, var(--status-danger) 86%, var(--text-primary));
+  --bars-lit-rim: transparent;
 }
 
 .svg {
@@ -75,13 +84,20 @@
   fill: var(--bars-base);
 }
 
+.bar[data-series='base'] {
+  stroke: var(--bars-base-rim);
+  stroke-width: 1;
+}
+
 .bar[data-series='signal'],
 .zero[data-series='signal'] {
   fill: var(--bars-signal);
 }
 
 .bar {
-  transition: fill var(--motion-fast) var(--ease-out);
+  transition:
+    fill var(--motion-fast) var(--ease-out),
+    stroke var(--motion-fast) var(--ease-out);
 }
 
 .zero {
@@ -94,6 +110,12 @@
 
 .group[data-lit] .bar[data-series='signal'] {
   fill: var(--bars-signal-lit);
+}
+
+/* Выбранная пара — тонкая светлая кромка (в тёмной теме): столбики «выходят» из поля. */
+.root[data-variant='grouped'] .group[data-lit] .bar {
+  stroke: var(--bars-lit-rim);
+  stroke-width: 1;
 }
 
 /* Вид «указатель»: заливка — градиентом и штриховкой из <defs> (инлайн в разметке). */
@@ -138,12 +160,12 @@
 }
 
 .root[data-active] .group:not([data-lit]) .growth {
-  opacity: 0.42;
+  opacity: 0.25;
 }
 
 .root[data-active] .group:not([data-lit]) .value,
 .root[data-active] .group:not([data-lit]) .label {
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 /* Числа выбранной пары — в подсказке; над столбиками их место занимают маркеры. */
@@ -163,7 +185,7 @@
 }
 
 .value[data-series='signal'] {
-  fill: color-mix(in oklab, var(--bars-signal-text) 78%, var(--text-tertiary));
+  fill: var(--bars-signal-text);
 }
 
 .label {
@@ -182,6 +204,7 @@
 
 .group[data-lit] .label {
   fill: var(--text-inverse);
+  font-weight: 700;
 }
 
 /* Подсказка легла под пол (телефон) — «таблетка» под ней не выглядывает краешком. */
@@ -206,14 +229,14 @@
 }
 
 .crossLine {
-  stroke: color-mix(in oklab, var(--text-primary) 70%, transparent);
+  stroke: color-mix(in oklab, var(--text-primary) 85%, transparent);
   stroke-width: 1;
   shape-rendering: crispEdges;
 }
 
 .marker {
   stroke: var(--bars-field);
-  stroke-width: 2.5;
+  stroke-width: 3;
 }
 
 .marker[data-series='base'] {
@@ -370,11 +393,25 @@
   border-radius: var(--radius-pill);
 }
 
+/*
+ * Точка в легенде — материал столбика в покое (графит с кромкой, заметнее, чем
+ * у плиты: точка мелкая); в подсказке — тон выбранной пары, как у маркера.
+ */
 .swatch[data-series='base'] {
-  background: var(--bars-base-lit);
+  background: var(--bars-base);
+  box-shadow: inset 0 0 0 1px var(--bars-swatch-rim);
 }
 
 .swatch[data-series='signal'] {
+  background: var(--bars-signal);
+}
+
+.tip .swatch[data-series='base'] {
+  background: var(--bars-base-lit);
+  box-shadow: none;
+}
+
+.tip .swatch[data-series='signal'] {
   background: var(--bars-signal-lit);
 }
 
