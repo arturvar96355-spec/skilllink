@@ -355,3 +355,12 @@ export async function wipeRuleStats(): Promise<void> {
 export async function hasMockData(): Promise<boolean> {
   return (await prisma.cooperation.count({ where: { isMock: true }, take: 1 })) > 0
 }
+
+/**
+ * Задачи каждого правила по статусам (решение 218, «Настройки → Правила списка задач»):
+ * одна группировка по самой таблице задач — та же база, что у «Списка задач».
+ */
+export async function countByRuleAndStatus(): Promise<Array<{ ruleKey: string; status: string; count: number }>> {
+  const rows = await prisma.recommendation.groupBy({ by: ['ruleKey', 'status'], _count: { _all: true } })
+  return rows.map((row) => ({ ruleKey: row.ruleKey, status: row.status, count: row._count._all }))
+}

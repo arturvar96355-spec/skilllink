@@ -51,6 +51,7 @@ export { ToastProvider, useToast } from './overlays/Toast'
 
 export { AppShell } from './layout/AppShell'
 export { NAV_TRANSITION_ATTRIBUTE } from './layout/navigation-motion'
+export { notifyApprovalsChanged } from './layout/approvals-badge'
 export { useCurrentUser, isUniversityRep } from './layout/CurrentUser'
 export {
   PageHeader,
@@ -149,6 +150,7 @@ export {
   skillHref,
   letterHref,
   assignmentHref,
+  approvalHref,
   searchItemHref,
   notificationHref,
   recommendationTargetHref,

@@ -1,0 +1,152 @@
+/*
+ * «Согласования» (решение 218): очередь запросов строками QueueRow, раскрытие —
+ * факты «подпись — значение» и действия. Только токены globals.css.
+ */
+
+/* Как устроено и включено ли требование — одна строка под заголовком, не плашка. */
+.mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  max-width: 72ch;
+}
+
+.facts {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.fact dt {
+  color: var(--text-tertiary);
+}
+
+.fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* Причина — словами человека: кавычками не выделяем, но и не смешиваем с фактами. */
+.quote {
+  color: var(--text-primary);
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  border-radius: var(--radius-xs);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+/* Почему нельзя или что будет дальше — одна приглушённая строка рядом с действиями. */
+.note {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.reject {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.refusal {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-danger-soft);
+}
+
+@media (max-width: 480px) {
+  .fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+/*
+ * «Нужно второе подтверждение» в окне пользователя: не ошибка, а следующий шаг —
+ * спокойная подложка, как у пояснений в окнах настроек, без красного.
+ */
+.panel {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-row);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+.panel > svg:first-child {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-accent);
+}
+
+.panelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.panelTitle {
+  margin: 0;
+  font-weight: 600;
+}
+
+.panelText {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+/* На телефоне значок отнимал колонку у текста — без него пояснение читается шире. */
+@media (max-width: 480px) {
+  .panel > svg:first-child {
+    display: none;
+  }
+}

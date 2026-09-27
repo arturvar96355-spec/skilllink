@@ -1,7 +1,8 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import { TIE_BREAKER, toSkipTake } from '@/shared/http/pagination'
-import type { ApprovalStatus } from '@/shared/contracts/approval'
+import type { ApprovalScope, ApprovalStatus } from '@/shared/contracts/approval'
+import type { UserRole } from '@/shared/contracts/enums'
 
 type Client = Prisma.TransactionClient | typeof prisma
 
@@ -46,8 +47,32 @@ export async function expireStale(now: Date): Promise<void> {
   })
 }
 
-export async function list(query: { status?: ApprovalStatus; page: number; pageSize: number }) {
-  const where: Prisma.ApprovalWhereInput = query.status ? { status: query.status } : {}
+/**
+ * Условие вкладки «Согласований» (решение 218). `awaiting` — чужие ждущие и не истёкшие:
+ * ровно те, у которых `canApprove` будет true (не считая учётки эксперта).
+ */
+export function scopeWhere(scope: ApprovalScope | undefined, viewerId: string, now: Date): Prisma.ApprovalWhereInput {
+  switch (scope) {
+    case 'awaiting':
+      return { status: 'REQUESTED', expiresAt: { gt: now }, requestedById: { not: viewerId } }
+    case 'mine':
+      return { requestedById: viewerId }
+    case 'history':
+      return { status: { not: 'REQUESTED' } }
+    default:
+      return {}
+  }
+}
+
+export async function list(
+  query: { status?: ApprovalStatus; scope?: ApprovalScope; page: number; pageSize: number },
+  viewerId: string,
+  now: Date,
+) {
+  const where: Prisma.ApprovalWhereInput = {
+    ...scopeWhere(query.scope, viewerId, now),
+    ...(query.status ? { AND: [{ status: query.status }] } : {}),
+  }
   const [rows, total] = await Promise.all([
     prisma.approval.findMany({
       where,
@@ -58,6 +83,67 @@ export async function list(query: { status?: ApprovalStatus; page: number; pageS
     prisma.approval.count({ where }),
   ])
   return { rows, total }
+}
+
+/** Счётчики для меню (решение 218): ждут моего решения и мои согласованные, ещё не выполненные. */
+export async function summary(viewerId: string, now: Date): Promise<{ awaiting: number; readyToRun: number }> {
+  const [awaiting, readyToRun] = await Promise.all([
+    prisma.approval.count({ where: scopeWhere('awaiting', viewerId, now) }),
+    prisma.approval.count({ where: { status: 'APPROVED', requestedById: viewerId, expiresAt: { gt: now } } }),
+  ])
+  return { awaiting, readyToRun }
+}
+
+export interface ApprovalDetails {
+  targets: Map<string, { id: string; fullName: string; role: UserRole; isActive: boolean }>
+  /** Причина запроса и причина отказа — из журнала: отдельных колонок нет (решение 218). */
+  reasons: Map<string, string>
+  rejectReasons: Map<string, string>
+}
+
+function reasonOf(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const value = (payload as Record<string, unknown>).reason
+  return typeof value === 'string' && value.trim() !== '' ? value : null
+}
+
+/**
+ * Над кем операция и причины — одним запросом на страницу. Причины лежат в журнале
+ * действий рядом с самим событием (`approval.requested`, `approval.rejected`): схема
+ * таблицы одобрений не меняется, а журнал и так отвечает на «кто и зачем».
+ */
+export async function loadDetails(rows: ReadonlyArray<Pick<ApprovalRow, 'id' | 'payload'>>): Promise<ApprovalDetails> {
+  const details: ApprovalDetails = { targets: new Map(), reasons: new Map(), rejectReasons: new Map() }
+  if (rows.length === 0) return details
+  const userIds = [
+    ...new Set(
+      rows
+        .map((row) => (row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>).userId : null))
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  ]
+  const [users, entries] = await Promise.all([
+    userIds.length > 0
+      ? prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, fullName: true, role: true, isActive: true } })
+      : Promise.resolve([]),
+    prisma.auditLog.findMany({
+      where: {
+        objectType: 'Approval',
+        objectId: { in: rows.map((row) => row.id) },
+        action: { in: ['approval.requested', 'approval.rejected'] },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { objectId: true, action: true, payload: true },
+    }),
+  ])
+  for (const user of users) details.targets.set(user.id, user)
+  for (const entry of entries) {
+    const reason = reasonOf(entry.payload)
+    if (!reason) continue
+    if (entry.action === 'approval.requested') details.reasons.set(entry.objectId, reason)
+    else details.rejectReasons.set(entry.objectId, reason)
+  }
+  return details
 }
 
 /**

@@ -17,7 +17,7 @@ import { ANONYMIZED_CONTACT_FIELDS } from '@/modules/universities/universities.r
 import { auditSeal } from '@/modules/audit/chain.service'
 import { runTraining as trainForecastModels } from '@/modules/analytics/forecast.service'
 import { eraseUser, exportOwnData, registerRequest } from '@/modules/dsar/dsar.service'
-import { approve as approveApproval, request as requestApproval } from '@/modules/approvals/approvals.service'
+import { reject as rejectApproval, request as requestApproval } from '@/modules/approvals/approvals.service'
 import { dismiss as dismissDuplicate, findDuplicates } from '@/modules/data-quality/data-quality.service'
 import { merge as mergeUniversities, undo as undoUniversityMerge } from '@/modules/universities/merge.service'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -2212,13 +2212,42 @@ async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser)
   await eraseUser(admin, users.formerEmployee.id, { confirm: users.formerEmployee.email }, daysAgo(1))
   const dsarRequests = await prisma.dsarRequest.count()
 
-  // ── Approvals: «четыре глаза» (решение 133) — один открытый, один одобренный,
-  // не использованный (сама операция повышения роли в демо не выполняется).
-  // createdAt строки — DEFAULT now() в базе, backdate тут невозможен без прямого
-  // UPDATE — оставляем настоящее «сейчас», как и было бы при живом запросе.
-  await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.analyst.id } })
-  const toApprove = await requestApproval(admin, { action: 'user.grant_admin', payload: { userId: users.manager.id } })
-  await approveApproval(admin2, toApprove.id)
+  // ── Approvals: «четыре глаза» (решения 133, 218) — три запроса в разных статусах,
+  // чтобы экран «Согласования» на показе не был пустым:
+  // 1. ЖДЁТ РЕШЕНИЯ — просит второй администратор, поэтому общий «Администратор»
+  //    (admin@) видит его во вкладке «Ждут моего решения» и может согласовать.
+  //    Срок — до конца окна стабильности (stabilize), как у сроков этапов: иначе
+  //    через сутки после перезаливки запрос истёк бы до показа.
+  // 2. ОТКЛОНЁН — свой запрос admin@ с причиной отказа (вкладки «Мои» и «История»).
+  // 3. ИСТЁК — свой запрос admin@ позапрошлого дня, по которому никто не решил.
+  // Цели — общие демо-учётки: выполнить операцию над ними сервер не даст
+  // (SHARED_DEMO_ACCOUNTS), поэтому согласование на стенде ничего не ломает.
+  const pending = await requestApproval(admin2, {
+    action: 'user.grant_admin',
+    payload: { userId: users.analyst.id },
+    reason: 'На время отпуска Демидовой А. С. нужен второй администратор, чтобы заводить пользователей и выдавать пароли',
+  })
+  const pendingRow = await prisma.approval.findUniqueOrThrow({ where: { id: pending.id }, select: { expiresAt: true } })
+  await prisma.approval.update({ where: { id: pending.id }, data: { expiresAt: stabilize(pendingRow.expiresAt) } })
+
+  const declined = await requestApproval(admin, {
+    action: 'user.grant_admin',
+    payload: { userId: users.manager2.id },
+    reason: 'Савельева О. Д. будет вести справочник навыков',
+  })
+  await rejectApproval(admin2, declined.id, {
+    reason: 'Для справочника навыков хватит роли менеджера — права администратора ей не нужны',
+  })
+
+  const stale = await requestApproval(admin, {
+    action: 'user.grant_admin',
+    payload: { userId: users.manager.id },
+    reason: 'Кириллов П. А. настраивает этапы работы',
+  })
+  await prisma.approval.update({
+    where: { id: stale.id },
+    data: { status: 'EXPIRED', createdAt: daysAgo(2), expiresAt: new Date(daysAgo(2).getTime() + DAY) },
+  })
   const approvals = await prisma.approval.count()
 
   // ── Прогноз (решение 135): обучение на только что залитой истории этапов —
