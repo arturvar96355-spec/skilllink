@@ -147,6 +147,9 @@ a.node:hover {
   font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  /* «07 / 14» — одно число: на телефоне оно рвалось на «07 /» и «14» (решение 195). */
+  flex: none;
+  white-space: nowrap;
 }
 
 .stageProblem .notation {

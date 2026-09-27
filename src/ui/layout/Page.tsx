@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
+import { ScrollArea } from '../primitives/ScrollArea'
 import { landMorph } from '../lib/morph'
 import { ScrambleText } from './ScrambleText'
 import styles from './Page.module.css'
@@ -184,25 +185,31 @@ export function Tabs({
     // `scrollbar-width`/`::-webkit-scrollbar` не прячут на iOS. Ряд ниже —
     // с лишним полем понизу и таким же отрицательным отступом: индикатор
     // рисуется в этом поле, а обёртка без лишней высоты его обрезает.
-    <div className={styles.tabsWrap}>
-      <div className={styles.tabs} role="tablist">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            role="tab"
-            aria-selected={item.key === active}
-            className={[styles.tab, item.key === active ? styles.tabActive : ''].filter(Boolean).join(' ')}
-            onClick={() => onChange(item.key)}
-          >
-            {item.label}
-            {item.count !== undefined && item.count !== null && (
-              <span className={styles.tabCount}>{item.count}</span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
+    // Край, за которым есть ещё вкладки, растворяется, у него — шеврон
+    // (ScrollArea, решение 195); открытая вкладка доезжает в видимую часть.
+    <ScrollArea
+      frameClassName={styles.tabsWrap}
+      className={styles.tabs}
+      role="tablist"
+      revealSelector="[aria-selected='true']"
+      revealKey={active}
+    >
+      {items.map((item) => (
+        <button
+          key={item.key}
+          type="button"
+          role="tab"
+          aria-selected={item.key === active}
+          className={[styles.tab, item.key === active ? styles.tabActive : ''].filter(Boolean).join(' ')}
+          onClick={() => onChange(item.key)}
+        >
+          {item.label}
+          {item.count !== undefined && item.count !== null && (
+            <span className={styles.tabCount}>{item.count}</span>
+          )}
+        </button>
+      ))}
+    </ScrollArea>
   )
 }
 

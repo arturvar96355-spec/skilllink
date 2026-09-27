@@ -77,8 +77,16 @@ tr:focus-within .leading {
   text-overflow: ellipsis;
 }
 
+/*
+ * Части пояснения не сжимаются друг ради друга, но и не шире строки: адрес
+ * почты, который сам длиннее строки, обрывался без многоточия посреди
+ * домена (решение 195). Полный текст — в подсказке у записи.
+ */
 .part {
   flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .part:last-child {

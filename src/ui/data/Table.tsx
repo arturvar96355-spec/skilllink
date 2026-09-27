@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { CSSProperties, ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
+import { ScrollArea } from '../primitives/ScrollArea'
 import { formatNumber, pluralize } from '../lib/format'
 import { startMorph } from '../lib/morph'
 import { tableMinWidth } from './table-width'
@@ -34,6 +35,12 @@ export interface Column<T> {
    * пояснения под названием. Заголовок остаётся кнопкой сортировки.
    */
   hideInList?: boolean
+  /**
+   * На телефоне, где строка раскладывается карточкой (`cards`, `narrow="stack"`),
+   * ячейка занимает всю ширину, а не половину: отправитель письма с адресом
+   * в половине карточки обрезался до «Приёмная СП…» (решение 195).
+   */
+  wide?: boolean
   render: (row: T) => ReactNode
 }
 
@@ -66,6 +73,14 @@ export interface DataTableProps<T> {
    * фактов с подписями; сортировка — кнопками над списком.
    */
   appearance?: 'grid' | 'cards' | 'list'
+  /**
+   * Вид `grid` на телефоне (до 720 px). `scroll` — таблица листается вбок
+   * (растворённый край и шеврон). `stack` — строка раскладывается блоком:
+   * первый столбец во всю ширину, остальные значения сеткой в два столбца
+   * с подписями. Для таблиц, где в первом столбце — абзац пояснения: в полосе
+   * шириной 156 px он становился стеной из семи строк (решение 195).
+   */
+  narrow?: 'scroll' | 'stack'
 }
 
 export function DataTable<T>({
@@ -80,6 +95,7 @@ export function DataTable<T>({
   caption,
   total = null,
   appearance = 'grid',
+  narrow = 'scroll',
 }: DataTableProps<T>) {
   const router = useRouter()
 
@@ -93,14 +109,19 @@ export function DataTable<T>({
   }
 
   return (
-    <div
+    // Таблица шире экрана листается вбок внутри себя; край, за которым ещё
+    // столбцы, растворяется, у шапки — шеврон (ScrollArea, решение 195).
+    <ScrollArea
       className={[
         styles.wrapper,
         appearance === 'cards' ? styles.cards : '',
         appearance === 'list' ? styles.list : '',
+        appearance === 'grid' && narrow === 'stack' ? styles.stack : '',
       ]
         .filter(Boolean)
         .join(' ')}
+      edges="start"
+      label={caption}
     >
       <table
         className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
@@ -201,6 +222,7 @@ export function DataTable<T>({
                     // карточкой, и у каждого значения видно, что это (вид `cards`).
                     data-label={column.title}
                     data-hidden-in-list={column.hideInList || undefined}
+                    data-wide={column.wide || undefined}
                     // В ленте ширина факта — ширина столбца: «Текущий этап» шире «Срока».
                     style={column.width ? ({ '--col-w': column.width } as CSSProperties) : undefined}
                   >
@@ -234,7 +256,7 @@ export function DataTable<T>({
           Показаны первые {formatNumber(rows.length)} из {formatNumber(total)}
         </p>
       )}
-    </div>
+    </ScrollArea>
   )
 }
 
