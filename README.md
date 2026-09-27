@@ -180,6 +180,7 @@ npm run analytics:report             # длительность этапов, в
 
 | Документ | О чём |
 | --- | --- |
+| [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | **Руководство пользователя** — тот же текст, что на https://skilllink.site/docs (без входа) |
 | [docs/SETUP.md](docs/SETUP.md) | Установка, запуск, тесты, интеграции — подробно |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | Развёртывание и обслуживание стенда |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Архитектура и модули |
