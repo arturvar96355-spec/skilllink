@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import {
   DUPLICATE_ENTITY_TYPES,
   type DuplicateEntityType,
@@ -9,32 +9,54 @@ import {
   type QualityReportDto,
 } from '@/shared/contracts'
 import {
-  Badge,
   Button,
-  Card,
-  CardsSkeleton,
   EmptyState,
   ErrorState,
   Icon,
   MockBadge,
   PageHeader,
+  Queue,
+  QueueGroup,
+  QueueRow,
   Section,
+  SkeletonLines,
+  TableSkeleton,
   apiPost,
   buildQuery,
   formatDateTime,
   formatNumber,
   pluralize,
+  queueRowLabel,
   useCurrentUser,
   useMutation,
   useResource,
+  useReveal,
   useToast,
 } from '@/ui'
-import { QUALITY_LEVEL_LABELS, groupIssues, scoreLevel, type LeveledIssue, type QualityLevel } from './quality-view'
+import type { QueueTone } from '@/ui/data/queue-row'
+import {
+  CRITICAL_PENALTY,
+  QUALITY_CRITICAL_BELOW,
+  QUALITY_LEVEL_LABELS,
+  QUALITY_TARGET,
+  deviationText,
+  entitiesWorstFirst,
+  formatPoints,
+  groupIssues,
+  issueAction,
+  pointsWord,
+  qualityConclusion,
+  scoreLevel,
+  type LeveledIssue,
+  type QualityLevel,
+} from './quality-view'
 import { MergeUniversitiesModal } from './MergeUniversitiesModal'
 import styles from './quality.module.css'
 
-/** Сколько записей проблемы показать сразу; остальные — «и ещё N». */
+/** Сколько записей проблемы показать в раскрытии; остальные — «и ещё N». */
 const ITEMS_SHOWN = 5
+
+const DUPLICATES_ANCHOR = 'kandidaty-v-dubli'
 
 const DUPLICATE_TITLES: Record<DuplicateEntityType, string> = {
   university: 'Вузы',
@@ -43,30 +65,32 @@ const DUPLICATE_TITLES: Record<DuplicateEntityType, string> = {
   product: 'IT-продукты',
 }
 
-const LEVEL_TONE: Record<QualityLevel, 'danger' | 'warning' | 'success'> = {
-  critical: 'danger',
-  attention: 'warning',
-  ok: 'success',
+/** Полоска строки: красный — только «критично», остальное — фиолетовая гамма (решение 206). */
+const LEVEL_TONE: Record<Exclude<QualityLevel, 'ok'>, QueueTone> = {
+  critical: 'critical',
+  attention: 'accent',
 }
 
-/** «Вуз без…» → «вуз без…», но «IT-продукт» остаётся как есть: аббревиатуру не ломаем. */
-function lowerFirst(text: string): string {
-  const [first = '', second = ''] = text
-  return second === second.toUpperCase() && second !== second.toLowerCase() ? text : first.toLowerCase() + text.slice(1)
-}
+const RECORDS: [string, string, string] = ['запись', 'записи', 'записей']
 
 function formatScore(score: number | null): string {
-  return score === null ? 'Нет данных' : score.toLocaleString('ru-RU', { maximumFractionDigits: 1 })
+  return score === null ? 'Нет данных' : formatPoints(score)
+}
+
+function share(value: number): string {
+  return `${(value * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`
 }
 
 /**
- * Качество данных (ТЗ дизайна 26–29.09, п. 4.4).
+ * Качество данных (ТЗ дизайна 26–29.09, п. 4.4; раскладка — решение 209).
  *
- * Отчёт сервера (`GET /api/data-quality/report`, решение 134) — оценка справочника
- * 0–100 по пяти сущностям с формулой и списком проблем. Здесь он разложен по уровням
- * «Критично → Требует внимания → Всё хорошо» (см. quality-view.ts) и дополнен
- * кандидатами в дубли с причинами сходства. Каждая проблема ведёт к своим записям:
- * увидел → открыл → исправил.
+ * Отчёт сервера (`GET /api/data-quality/report`, решение 134): индекс качества
+ * 0–100 по пяти справочникам с формулой и списком проверок. Сверху — индекс
+ * числом, вывод одной фразой и справочники полосами от худшего к лучшему с
+ * чертой цели. Ниже — проверки очередью строк (как «Требует внимания» на
+ * главной): группы «Критично → Требует внимания → Всё хорошо», у каждой — сколько
+ * записей нарушают и одно действие; раскрытие — записи и расчёт баллов. Последний
+ * блок — кандидаты в дубли с причинами сходства.
  */
 export default function DataQualityPage() {
   const report = useResource<QualityReportDto>('/api/data-quality/report')
@@ -75,11 +99,14 @@ export default function DataQualityPage() {
     <>
       <PageHeader
         title="Качество данных"
-        description="Чего не хватает в справочниках, что устарело и что похоже на дубль. Каждая строка ведёт к записям, которые нужно поправить."
+        description="Чего не хватает в справочниках, что устарело и что похоже на дубль. Каждая проверка ведёт к записям, которые нужно поправить."
         meta={report.data?.isMock ? <MockBadge /> : undefined}
       />
       {report.isLoading ? (
-        <CardsSkeleton count={3} />
+        <div className={styles.loading}>
+          <SkeletonLines count={4} />
+          <TableSkeleton rows={5} columns={2} />
+        </div>
       ) : report.error ? (
         <ErrorState error={report.error} onRetry={report.reload} />
       ) : report.data ? (
@@ -91,156 +118,295 @@ export default function DataQualityPage() {
 
 function QualityReport({ report }: { report: QualityReportDto }) {
   const groups = groupIssues(report)
-  const verdict = scoreLevel(report.score)
+  const [dupEntity, setDupEntity] = useState<DuplicateEntityType | null>(
+    () => DUPLICATE_ENTITY_TYPES.find((entity) => report.duplicates[entity] > 0) ?? null,
+  )
+
+  function showDuplicates(entity: DuplicateEntityType) {
+    setDupEntity(entity)
+    document.getElementById(DUPLICATES_ANCHOR)?.scrollIntoView({ block: 'start' })
+  }
+
+  if (report.entities.every((entity) => entity.total === 0)) {
+    return (
+      <EmptyState
+        icon="report"
+        title="Проверять пока нечего"
+        description="В справочниках нет записей. Добавьте вузы, программы или навыки — отчёт посчитается сам."
+      />
+    )
+  }
 
   return (
     <>
-      <Card className={styles.summary}>
-        <div className={styles.score} data-level={verdict ?? undefined}>
-          <span className={styles.scoreValue}>{formatScore(report.score)}</span>
-          <span className={styles.scoreLabel}>
-            из 100{verdict && ` · ${QUALITY_LEVEL_LABELS[verdict].toLowerCase()}`}
-          </span>
-        </div>
-        <ul className={styles.entities}>
-          {report.entities.map((entity) => {
-            const level = scoreLevel(entity.score)
-            return (
-              <li key={entity.entity} className={styles.entity} data-level={level ?? undefined}>
-                <span className={styles.entityTitle}>{entity.title}</span>
-                <span className={styles.entityScore}>{formatScore(entity.score)}</span>
-                <span className={styles.entityMeta}>
-                  {formatNumber(entity.total)} {pluralize(entity.total, ['запись', 'записи', 'записей'])}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-        <details className={styles.formula}>
-          <summary>Как считается оценка</summary>
-          <p>{report.explanation}</p>
-          <p>
-            Уровень проблемы — по тому, сколько баллов она отнимает у оценки своего справочника: «критично» — от 10
-            баллов, «требует внимания» — меньше.
-          </p>
-        </details>
-        <p className={styles.generated}>Проверено {formatDateTime(report.generatedAt)}</p>
-      </Card>
+      <QualityIndex report={report} />
 
-      <IssueGroup level="critical" items={groups.critical} empty="Критичных проблем нет." />
-      <IssueGroup level="attention" items={groups.attention} empty="Мелких проблем тоже нет." />
-      <OkGroup items={groups.ok} />
+      <Section
+        title="Проверки"
+        description={`Сгруппированы по тому, сколько баллов отнимают у своего справочника: «критично» — от ${CRITICAL_PENALTY} баллов. Справа — сколько записей нарушают проверку.`}
+      >
+        <Queue>
+          <IssueGroup level="critical" items={groups.critical} empty="Критичных проблем нет." onDuplicates={showDuplicates} />
+          <IssueGroup level="attention" items={groups.attention} empty="Мелких проблем тоже нет." onDuplicates={showDuplicates} />
+          <QueueGroup label={QUALITY_LEVEL_LABELS.ok} count={groups.ok.length}>
+            {groups.ok.length === 0 ? (
+              <li className={styles.none}>Пока ни одна проверка не пройдена без замечаний.</li>
+            ) : (
+              groups.ok.map((item) => (
+                <li key={item.issue.code} className={styles.ok}>
+                  <Icon name="check" size={16} className={styles.okMark} />
+                  <span className={styles.okText}>
+                    <span className="visually-hidden">Проходит: </span>
+                    {item.issue.title}
+                  </span>
+                  <span className={styles.okCount}>
+                    0 из {formatNumber(item.entityTotal)}
+                  </span>
+                </li>
+              ))
+            )}
+          </QueueGroup>
+        </Queue>
+      </Section>
 
-      <Duplicates counts={report.duplicates} />
+      <Duplicates counts={report.duplicates} entity={dupEntity} onEntity={setDupEntity} />
     </>
   )
 }
 
-function IssueGroup({ level, items, empty }: { level: QualityLevel; items: LeveledIssue[]; empty: string }) {
-  return (
-    <Section
-      title={`${QUALITY_LEVEL_LABELS[level]} · ${formatNumber(items.length)}`}
-      description={
-        level === 'critical'
-          ? 'Проблемы, из-за которых заметно падает оценка справочника. Начинать с них.'
-          : 'Не ломают работу, но портят выборки и рекомендации.'
-      }
-    >
-      {items.length === 0 ? (
-        <p className={styles.none}>{empty}</p>
-      ) : (
-        <div className={styles.issues}>
-          {items.map((item) => (
-            <IssueCard key={item.issue.code} item={item} level={level} />
-          ))}
-        </div>
-      )}
-    </Section>
-  )
-}
+/**
+ * Индекс качества — числом и одной фразой, справочники — горизонтальными полосами
+ * с чертой цели (единый язык диаграмм: плоско, число на полосе всегда, отклонение
+ * словами, сортировка «где хуже»). Без плиток: пять одинаковых плашек ничего не
+ * сравнивали — на полосах разница видна сразу.
+ */
+function QualityIndex({ report }: { report: QualityReportDto }) {
+  const verdict = scoreLevel(report.score)
+  const listRef = useRef<HTMLUListElement>(null)
+  const inView = useReveal(listRef)
+  const entities = entitiesWorstFirst(report)
 
-function IssueCard({ item, level }: { item: LeveledIssue; level: QualityLevel }) {
-  const { issue } = item
-  const hidden = issue.count - Math.min(issue.items.length, ITEMS_SHOWN)
   return (
-    <article className={styles.issue} data-level={level}>
-      <header className={styles.issueHead}>
-        <span className={styles.issueEntity}>{item.entityTitle}</span>
-        <Badge tone={LEVEL_TONE[level]}>−{issue.penalty.toLocaleString('ru-RU', { maximumFractionDigits: 1 })} балла</Badge>
-      </header>
-      <h3 className={styles.issueTitle}>{issue.title}</h3>
-      <p className={styles.issueCount}>
-        {formatNumber(issue.count)} из {formatNumber(item.entityTotal)} ·{' '}
-        {(issue.share * 100).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%
+    <section className={styles.index} aria-labelledby="quality-index-title">
+      <div className={styles.indexHead}>
+        <h2 id="quality-index-title" className={styles.indexTitle}>
+          Индекс качества
+        </h2>
+        <span className={styles.generated}>Проверено {formatDateTime(report.generatedAt)}</span>
+      </div>
+
+      <p className={styles.indexValue}>
+        <span className={styles.indexNumber} data-level={verdict ?? undefined}>
+          {formatScore(report.score)}
+        </span>
+        {report.score !== null && (
+          <span className={styles.indexOf}>
+            из 100{verdict && ` — ${QUALITY_LEVEL_LABELS[verdict].toLowerCase()}`}, {deviationText(report.score, true)}
+          </span>
+        )}
       </p>
-      <ul className={styles.items}>
-        {issue.items.slice(0, ITEMS_SHOWN).map((record) => (
-          <li key={record.id}>
-            <Link className={styles.item} href={record.href}>
-              {record.name}
-              <Icon name="chevronRight" size={16} />
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {hidden > 0 && <p className={styles.more}>и ещё {formatNumber(hidden)}</p>}
-    </article>
-  )
-}
+      <p className={styles.conclusion}>{qualityConclusion(report)}</p>
 
-function OkGroup({ items }: { items: LeveledIssue[] }) {
-  return (
-    <Section title={`${QUALITY_LEVEL_LABELS.ok} · ${formatNumber(items.length)}`} description="Проверки, которые сейчас проходят.">
-      {items.length === 0 ? (
-        <p className={styles.none}>Пока ни одна проверка не пройдена без замечаний.</p>
-      ) : (
-        <ul className={styles.okList}>
-          {items.map((item) => (
-            <li key={item.issue.code} className={styles.ok}>
-              <Icon name="check" size={16} />
-              <span>
-                <span className={styles.okEntity}>{item.entityTitle}:</span> {lowerFirst(item.issue.title)} — нет
+      <p className={styles.chartNote} id="quality-bars-note">
+        Справочники — от худшего к лучшему. Черта — цель {QUALITY_TARGET}, ниже {QUALITY_CRITICAL_BELOW} — критично.
+      </p>
+      <ul ref={listRef} className={styles.bars} data-inview={inView || undefined} aria-describedby="quality-bars-note">
+        {entities.map((entity, index) => {
+          const level = scoreLevel(entity.score)
+          return (
+            <li key={entity.entity} className={styles.bar} data-level={level ?? undefined} style={{ '--r': index } as CSSProperties}>
+              <span className={styles.barName}>
+                {entity.title}
+                <span className={styles.barCount}>
+                  {formatNumber(entity.total)} {pluralize(entity.total, RECORDS)}
+                </span>
               </span>
+              <span className={styles.track} aria-hidden>
+                {entity.score !== null && <span className={styles.fill} style={{ width: `${entity.score}%` }} />}
+                <span className={styles.target} style={{ left: `${QUALITY_TARGET}%` }} />
+              </span>
+              <span className={styles.barValue}>{formatScore(entity.score)}</span>
+              <span className={styles.barDelta}>{deviationText(entity.score)}</span>
             </li>
-          ))}
-        </ul>
-      )}
-    </Section>
+          )
+        })}
+      </ul>
+
+      <details className={styles.formula}>
+        <summary>Как считается индекс</summary>
+        <p>{report.explanation}</p>
+        <p>
+          Уровень проверки — по тому, сколько баллов она отнимает у оценки своего справочника: «критично» — от{' '}
+          {CRITICAL_PENALTY} баллов, «требует внимания» — меньше. Уровень справочника и всего индекса: от {QUALITY_TARGET} — всё хорошо,
+          от {QUALITY_CRITICAL_BELOW} — требует внимания, ниже — критично.
+        </p>
+      </details>
+    </section>
   )
 }
 
-function Duplicates({ counts }: { counts: Record<DuplicateEntityType, number> }) {
-  const withPairs = DUPLICATE_ENTITY_TYPES.filter((entity) => counts[entity] > 0)
-  const [entity, setEntity] = useState<DuplicateEntityType | null>(withPairs[0] ?? null)
+function IssueGroup({
+  level,
+  items,
+  empty,
+  onDuplicates,
+}: {
+  level: Exclude<QualityLevel, 'ok'>
+  items: LeveledIssue[]
+  empty: string
+  onDuplicates: (entity: DuplicateEntityType) => void
+}) {
+  // Первая строка группы «Критично» раскрыта сразу: какие записи и почему — видно без щелчка.
+  const [choice, setChoice] = useState<string | null | undefined>(undefined)
+  const openCode = choice === undefined ? (level === 'critical' ? (items[0]?.issue.code ?? null) : null) : choice
 
   return (
-    <Section
-      title="Кандидаты в дубли"
-      description="Пары записей, похожих по названию, ИНН или словарю синонимов. Система только предлагает — решает человек."
-    >
-      {withPairs.length === 0 ? (
-        <EmptyState icon="check" title="Похожих записей нет" description="Ни в одном справочнике не найдено пар выше порога сходства." />
+    <QueueGroup label={QUALITY_LEVEL_LABELS[level]} count={items.length}>
+      {items.length === 0 ? (
+        <li className={styles.none}>{empty}</li>
       ) : (
-        <>
-          <div className={styles.dupTabs} role="tablist" aria-label="Справочник">
-            {DUPLICATE_ENTITY_TYPES.map((key) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={entity === key}
-                className={styles.dupTab}
-                disabled={counts[key] === 0}
-                onClick={() => setEntity(key)}
-              >
-                {DUPLICATE_TITLES[key]} <span className={styles.dupCount}>{formatNumber(counts[key])}</span>
-              </button>
-            ))}
-          </div>
-          {entity && <DuplicatePairs key={entity} entity={entity} />}
-        </>
+        items.map((item) => (
+          <IssueRow
+            key={item.issue.code}
+            item={item}
+            level={level}
+            expanded={openCode === item.issue.code}
+            onToggle={() => setChoice(openCode === item.issue.code ? null : item.issue.code)}
+            onDuplicates={onDuplicates}
+          />
+        ))
       )}
-    </Section>
+    </QueueGroup>
+  )
+}
+
+function IssueRow({
+  item,
+  level,
+  expanded,
+  onToggle,
+  onDuplicates,
+}: {
+  item: LeveledIssue
+  level: Exclude<QualityLevel, 'ok'>
+  expanded: boolean
+  onToggle: () => void
+  onDuplicates: (entity: DuplicateEntityType) => void
+}) {
+  const { issue } = item
+  const action = issueAction(issue)
+  const hidden = issue.count - Math.min(issue.items.length, ITEMS_SHOWN)
+  const penalty = `−${formatPoints(issue.penalty)} ${pointsWord(issue.penalty)}`
+  const count = `${formatNumber(issue.count)} из ${formatNumber(item.entityTotal)}`
+
+  return (
+    <QueueRow
+      tone={LEVEL_TONE[level]}
+      title={issue.title}
+      meta={{ text: item.entityTitle, tail: `${penalty} у справочника` }}
+      value={{ text: count, tone: level === 'critical' ? 'danger' : 'muted' }}
+      label={queueRowLabel([
+        QUALITY_LEVEL_LABELS[level],
+        issue.title,
+        `${item.entityTitle}: нарушают ${count}`,
+        penalty,
+        expanded ? 'Свернуть записи' : 'Показать записи',
+      ])}
+      expanded={expanded}
+      onToggle={onToggle}
+      action={
+        action?.kind === 'duplicates' ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="arrowRight"
+            onClick={() => onDuplicates(action.entity)}
+            aria-label={`Разобрать пары: ${issue.title}`}
+          >
+            Разобрать
+          </Button>
+        ) : action?.kind === 'link' ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="arrowRight"
+            href={action.href}
+            aria-label={`${action.label}: ${issue.items[0]?.name ?? issue.title}`}
+          >
+            {action.label}
+          </Button>
+        ) : undefined
+      }
+      detail={
+        <div className={styles.detail}>
+          <p className={styles.formulaLine}>
+            Нарушают {count} ({share(issue.share)}). Вес проверки{' '}
+            {formatPoints(issue.weight)} × доля {share(issue.share)} = {penalty} из 100 у справочника «{item.entityTitle}».
+          </p>
+          {issue.items.length > 0 && (
+            <ul className={styles.records} aria-label={`Записи: ${issue.title}`}>
+              {issue.items.slice(0, ITEMS_SHOWN).map((record) => (
+                <li key={record.id}>
+                  <Link className={styles.record} href={record.href}>
+                    <Icon name="arrowRight" size={16} />
+                    <span>{record.name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {hidden > 0 && (
+            <p className={styles.more}>
+              и ещё {formatNumber(hidden)} {pluralize(hidden, RECORDS)}
+            </p>
+          )}
+        </div>
+      }
+    />
+  )
+}
+
+function Duplicates({
+  counts,
+  entity,
+  onEntity,
+}: {
+  counts: Record<DuplicateEntityType, number>
+  entity: DuplicateEntityType | null
+  onEntity: (entity: DuplicateEntityType) => void
+}) {
+  const withPairs = DUPLICATE_ENTITY_TYPES.filter((key) => counts[key] > 0)
+
+  return (
+    <div id={DUPLICATES_ANCHOR} className={styles.anchor}>
+      <Section
+        title="Кандидаты в дубли"
+        description="Пары записей, похожих по названию, ИНН или словарю синонимов. Система только предлагает — решает человек."
+      >
+        {withPairs.length === 0 ? (
+          <EmptyState icon="check" title="Похожих записей нет" description="Ни в одном справочнике не найдено пар выше порога сходства." />
+        ) : (
+          <>
+            <div className={styles.dupTabs} role="tablist" aria-label="Справочник">
+              {DUPLICATE_ENTITY_TYPES.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={entity === key}
+                  className={styles.dupTab}
+                  disabled={counts[key] === 0}
+                  onClick={() => onEntity(key)}
+                >
+                  {DUPLICATE_TITLES[key]} <span className={styles.dupCount}>{formatNumber(counts[key])}</span>
+                </button>
+              ))}
+            </div>
+            {entity && <DuplicatePairs key={entity} entity={entity} />}
+          </>
+        )}
+      </Section>
+    </div>
   )
 }
 
@@ -252,9 +418,17 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
     (await apiPost('/api/data-quality/duplicates/dismiss', { entity, firstId: pair.a.id, secondId: pair.b.id })).data,
   )
   const [merging, setMerging] = useState<DuplicatePairDto | null>(null)
+  const [open, setOpen] = useState<string | null>(null)
+  const [pendingKey, setPendingKey] = useState<string | null>(null)
 
-  async function onDismiss(pair: DuplicatePairDto) {
+  // Слияние переносит связки, документы и учётные записи представителей —
+  // необратимая по объёму операция, поэтому только ADMIN (решение 134).
+  const canMerge = entity === 'university' && user.permissions.isAdmin
+
+  async function onDismiss(pair: DuplicatePairDto, key: string) {
+    setPendingKey(key)
     const result = await dismiss.run(pair)
+    setPendingKey(null)
     if (!result.ok) {
       toast.error(result.error.message)
       return
@@ -263,61 +437,78 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
     pairs.reload()
   }
 
-  if (pairs.isLoading) return <CardsSkeleton count={2} />
+  if (pairs.isLoading) return <TableSkeleton rows={3} columns={2} />
   if (pairs.error) return <ErrorState error={pairs.error} onRetry={pairs.reload} />
   const rows = pairs.data ?? []
   if (rows.length === 0) return <p className={styles.none}>Пар не осталось.</p>
 
   return (
     <>
-      <ul className={styles.pairs}>
-        {rows.map((pair) => (
-          <li key={`${pair.a.id}:${pair.b.id}`} className={styles.pair}>
-            <div className={styles.pairNames}>
-              <Link className={styles.item} href={pair.a.href}>
-                {pair.a.name}
-              </Link>
-              <span className={styles.pairAnd}>и</span>
-              <Link className={styles.item} href={pair.b.href}>
-                {pair.b.name}
-              </Link>
-              <Badge tone="neutral">сходство {Math.round(pair.score * 100)}%</Badge>
-            </div>
-            <ul className={styles.reasons}>
-              {pair.reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-            <div className={styles.pairActions}>
-              {user.permissions.canWrite && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void onDismiss(pair)}
-                  isLoading={dismiss.isPending}
-                  disabled={dismiss.isPending}
-                >
-                  Это разные записи
-                </Button>
-              )}
-              {/* Слияние переносит связки, документы и учётные записи представителей —
-                  необратимая по объёму операция, поэтому только ADMIN (решение 134). */}
-              {entity === 'university' && user.permissions.isAdmin && (
-                <Button variant="secondary" size="sm" onClick={() => setMerging(pair)}>
-                  Слить
-                </Button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
-      {merging && (
-        <MergeUniversitiesModal
-          pair={merging}
-          onClose={() => setMerging(null)}
-          onMerged={() => pairs.reload()}
-        />
-      )}
+      <Queue>
+        <QueueGroup label={DUPLICATE_TITLES[entity]} count={rows.length}>
+          {rows.map((pair) => {
+            const key = `${pair.a.id}:${pair.b.id}`
+            const similarity = `${Math.round(pair.score * 100)}%`
+            const title = `${pair.a.name} и ${pair.b.name}`
+            const dismissButton = (
+              <Button
+                variant={canMerge ? 'ghost' : 'secondary'}
+                size="sm"
+                icon="close"
+                onClick={() => void onDismiss(pair, key)}
+                isLoading={pendingKey === key}
+                disabled={dismiss.isPending}
+                aria-label={`Это разные записи: ${title}`}
+              >
+                Это разные записи
+              </Button>
+            )
+            return (
+              <QueueRow
+                key={key}
+                tone={pair.score >= 0.8 ? 'accent' : 'accent-soft'}
+                title={title}
+                meta={{ text: pair.reasons.join('; ') }}
+                value={{ text: similarity, tone: 'accent' }}
+                label={queueRowLabel([title, `сходство ${similarity}`, pair.reasons.join('; '), open === key ? 'Свернуть' : 'Показать пару'])}
+                expanded={open === key}
+                onToggle={() => setOpen(open === key ? null : key)}
+                action={
+                  canMerge ? (
+                    <Button variant="secondary" size="sm" onClick={() => setMerging(pair)} aria-label={`Слить: ${title}`}>
+                      Слить
+                    </Button>
+                  ) : user.permissions.canWrite ? (
+                    dismissButton
+                  ) : undefined
+                }
+                detail={
+                  <div className={styles.detail}>
+                    <ul className={styles.records} aria-label="Записи пары">
+                      {[pair.a, pair.b].map((record) => (
+                        <li key={record.id}>
+                          <Link className={styles.record} href={record.href}>
+                            <Icon name="arrowRight" size={16} />
+                            <span>{record.name}</span>
+                          </Link>
+                          {record.hint && <span className={styles.hint}>{record.hint}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                    <ul className={styles.reasons} aria-label="Почему похожи">
+                      {pair.reasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                    {canMerge && user.permissions.canWrite && <div className={styles.detailActions}>{dismissButton}</div>}
+                  </div>
+                }
+              />
+            )
+          })}
+        </QueueGroup>
+      </Queue>
+      {merging && <MergeUniversitiesModal pair={merging} onClose={() => setMerging(null)} onMerged={() => pairs.reload()} />}
     </>
   )
 }
