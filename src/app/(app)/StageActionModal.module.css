@@ -1,0 +1,24 @@
+/*
+ * Отказ системы в окне действия над этапом — тот же вид, что в карточке этапа
+ * (cooperations/[id]/cooperation.module.css, .refusal): содержательный ответ
+ * сервера, а не «ошибка интерфейса».
+ */
+.refusal {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-card-sm);
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+  color: var(--text-danger-soft);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+}
+
+.refusalTitle {
+  font-weight: 650;
+  color: var(--text-danger-strong);
+  display: block;
+  margin-bottom: 2px;
+}
