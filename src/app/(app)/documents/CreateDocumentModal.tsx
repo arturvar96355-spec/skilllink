@@ -101,6 +101,7 @@ export function CreateDocumentModal({
       isOpen
       onClose={() => onClose(null)}
       title="Добавить документ"
+      help={{ topic: 'documents', section: 'create' }}
       description="Реквизиты и ссылка на внешний файл — загрузка файлов в систему не реализована (решение 14)."
       closeOnBackdrop={false}
       footer={

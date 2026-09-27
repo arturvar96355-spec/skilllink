@@ -59,6 +59,7 @@ export function StageDeadlineModal({
       isOpen
       onClose={() => onClose(null)}
       title={`Срок этапа ${stage.stageNumber}`}
+      help={{ topic: 'deadlines', section: 'change' }}
       description={`«${stage.title}». Пустое поле снимает срок — этап перестаёт считаться просроченным или сдвинутым по плану.`}
       closeOnBackdrop={false}
       footer={

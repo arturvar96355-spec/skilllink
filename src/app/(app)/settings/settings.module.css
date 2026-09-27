@@ -72,6 +72,18 @@
   max-width: none;
 }
 
+/* Заголовок раздела и «?» к нему (решение 217): значок — сразу за названием. */
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.panelHead .panelTitle {
+  margin-bottom: 0;
+}
+
 .panelTitle {
   display: flex;
   align-items: center;
@@ -239,6 +251,17 @@
 
 .group:first-child {
   padding-top: 0;
+}
+
+.groupHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.groupHead .groupTitle {
+  margin-top: 0;
 }
 
 .groupTitle {

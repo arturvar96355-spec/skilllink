@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react'
 import { STAGE_PHASES, STAGE_PHASE_LABELS, STAGE_STATUS_LABELS } from '@/shared/contracts'
 import type { StagePhase, WorkflowStageDto } from '@/shared/contracts'
-import { Icon, ScrollArea } from '@/ui'
+import { HelpHint, Icon, ScrollArea } from '@/ui'
 import styles from './StageRibbon.module.css'
 
 /**
@@ -221,6 +221,7 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
         <span className={styles.legendItem}>
           <Icon name="lock" size={16} />
           контрольная точка: дальше не пускает, пока не завершена
+          <HelpHint topic="control-points" />
         </span>
       </div>
     </div>

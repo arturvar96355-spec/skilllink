@@ -118,6 +118,13 @@
   color: var(--text-tertiary);
 }
 
+/* Подпись с «?» (решение 217): значок на одной линии с подписью. */
+.labelHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .factValue {
   font-size: var(--text-value-size);
   font-weight: 600;
@@ -322,7 +329,9 @@
 /* Пометка происхождения данных над таблицей — одна на таблицу, а не в каждой строке. */
 .tableNote {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  gap: var(--space-3);
 }
 
 /* ИИ-помощник по вузу (ТЗ дизайна 26–29.09, п. 4.3): выбор связки над карточкой помощника. */

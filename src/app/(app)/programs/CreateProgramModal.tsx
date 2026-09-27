@@ -84,6 +84,7 @@ export function CreateProgramModal({
       isOpen
       onClose={() => onClose(false)}
       title="Создать программу"
+      help={{ topic: 'programs', section: 'create' }}
       description="Программа принадлежит вузу. Навыки и показатели набора добавляются потом в её карточке."
       closeOnBackdrop={false}
       footer={

@@ -17,6 +17,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  HelpHint,
   Icon,
   PageHeader,
   ScrollArea,
@@ -29,13 +30,14 @@ import {
   useMutation,
   useResource,
   useToast,
+  type HelpHintProps,
 } from '@/ui'
 import { AdminChannelsSection } from './AdminChannelsSection'
 import { AiLetterInstructionSection } from './AiLetterInstructionSection'
 import { AuditSection } from './AuditSection'
 import { CalculationParametersSection } from './CalculationParametersSection'
 import { DsarSection } from './DsarSection'
-import { Hint, Row, RowsSkeleton } from './SettingsRow'
+import { Row, RowsSkeleton } from './SettingsRow'
 import { SkillsSection } from './SkillsSection'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
@@ -94,6 +96,22 @@ const SECTIONS = [
 ] as const
 
 type SectionKey = (typeof SECTIONS)[number]['key']
+
+/** Какой раздел документации открывает «?» у заголовка раздела настроек (решение 217). */
+const SECTION_HELP: Record<SectionKey, HelpHintProps> = {
+  interface: { topic: 'ui-modes' },
+  market: { topic: 'settings', section: 'market' },
+  sources: { topic: 'settings', section: 'sources' },
+  integrations: { topic: 'channels' },
+  ai: { topic: 'ai-instruction' },
+  users: { topic: 'users' },
+  workflow: { topic: 'workflow-settings' },
+  skills: { topic: 'workflow-settings', section: 'skills' },
+  parameters: { topic: 'workflow-settings', section: 'parameters' },
+  audit: { topic: 'audit-log' },
+  dsar: { topic: 'dsar' },
+  about: { topic: 'settings', section: 'about' },
+}
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
@@ -338,7 +356,12 @@ export default function SettingsPage() {
               </Row>
             ))}
             {/* Ниже — не статус, а настройка: отделена заголовком (решение 212). */}
-            {isAdmin && <h3 className={styles.groupTitle}>Настройка каналов — только администратор</h3>}
+            {isAdmin && (
+              <div className={styles.groupHead}>
+                <h3 className={styles.groupTitle}>Настройка каналов — только администратор</h3>
+                <HelpHint topic="channels" section="admin" />
+              </div>
+            )}
             {/* Бот Telegram (решение 142) — подробный блок: токен, режим приёма, вебхук. */}
             {isAdmin && <TelegramBotAdminSection />}
             {/* Остальные каналы уведомлений (решение 144): MAX, VK — Telegram уже выше. */}
@@ -414,7 +437,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Настройки" />
+      <PageHeader title="Настройки" help={{ topic: 'settings' }} />
 
       <div className={[styles.layout, WIDE_SECTIONS.includes(current.key) ? styles.layoutWide : ''].filter(Boolean).join(' ')}>
         <nav className={styles.nav} aria-label="Разделы настроек">
@@ -452,10 +475,13 @@ export default function SettingsPage() {
           id={current.key}
           aria-labelledby="settings-section-title"
         >
-          <h2 className={styles.panelTitle} id="settings-section-title">
-            {current.label}
-            {hints[current.key] && <Hint text={hints[current.key]!} />}
-          </h2>
+          <div className={styles.panelHead}>
+            <h2 className={styles.panelTitle} id="settings-section-title">
+              {current.label}
+            </h2>
+            {/* Раздел документации и то, что раньше было отдельным «?» с пояснением (решение 217). */}
+            <HelpHint {...SECTION_HELP[current.key]} note={hints[current.key]} />
+          </div>
           <div className={styles.rows}>{body()}</div>
         </section>
       </div>

@@ -15,6 +15,7 @@ async function main(): Promise<void> {
   await writeFile(target, renderUserGuide(), 'utf8')
   console.log(`Руководство записано: ${target}`)
   console.log(`  разделов: ${HELP_SECTIONS.length}`)
+  console.log(`  подразделов «кнопки и блоки»: ${HELP_SECTIONS.reduce((sum, section) => sum + section.tools.length, 0)}`)
 }
 
 main().catch((error) => {

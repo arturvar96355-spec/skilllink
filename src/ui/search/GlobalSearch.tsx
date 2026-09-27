@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SearchEntityType, SearchItemDto, SearchResultDto } from '@/shared/contracts'
+import { HelpHint } from '../primitives/HelpHint'
 import { Icon, type IconName } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { Skeleton } from '../primitives/Skeleton'
@@ -102,7 +103,10 @@ export function GlobalSearch() {
     if (!isOpen) return
     function handle(event: MouseEvent) {
       const node = windowRef.current
-      if (node && event.target instanceof Node && !node.contains(event.target)) close()
+      if (!node || !(event.target instanceof Node) || node.contains(event.target)) return
+      // Окошко «?» из подвала поиска лежит в body — нажатие по нему не «мимо окна».
+      if (event.target instanceof Element && event.target.closest('[data-floating-layer]')) return
+      close()
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
@@ -364,6 +368,9 @@ export function GlobalSearch() {
               <span>↑ ↓ — выбор</span>
               <span>Enter — открыть</span>
               <span>Esc — закрыть</span>
+              <span className={styles.footerHelp}>
+                <HelpHint topic="search" />
+              </span>
             </div>
           )}
         </div>

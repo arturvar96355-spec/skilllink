@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import { HelpHint, type HelpHintProps } from '../primitives/HelpHint'
 import { Icon } from '../primitives/Icon'
 import { ScrollArea } from '../primitives/ScrollArea'
 import { InfoHint } from '../primitives/Tooltip'
@@ -55,6 +56,11 @@ export interface PageHeaderProps {
   breadcrumbs?: Crumb[]
   /** Значки рядом с заголовком: статус, пометка демонстрационных данных. */
   meta?: ReactNode
+  /**
+   * «?» у заголовка страницы — что это за экран и ссылка на его раздел
+   * документации (решение 217). Стоит сразу за заголовком, перед `meta`.
+   */
+  help?: HelpHintProps
   actions?: ReactNode
   /**
    * `display` — крупный заголовок с засечками для страниц объекта (вуз,
@@ -75,6 +81,7 @@ export function PageHeader({
   description,
   breadcrumbs,
   meta,
+  help,
   actions,
   variant = 'default',
   subtitle,
@@ -93,9 +100,27 @@ export function PageHeader({
       <div className={styles.pageHeader}>
         <div className={styles.titleBlock}>
           <div className={styles.titleRow}>
-            <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
-              {scramble ? <ScrambleText text={title} /> : title}
-            </h1>
+            {help ? (
+              // «?» идёт за последним словом заголовка, а не отдельным элементом ряда:
+              // длинный заголовок переносится, и значок остаётся с ним, а не уезжает к
+              // бейджам следующей строки (решение 217). Между h1 и значком нет пробела —
+              // перенос между ними невозможен, значок не повиснет один на строке.
+              <div className={[styles.titleLine, variant === 'display' ? styles.titleDisplay : styles.title].join(' ')}>
+                <h1
+                  ref={titleRef}
+                  className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''} ${styles.inlineTitle}`}
+                >
+                  {scramble ? <ScrambleText text={title} /> : title}
+                </h1>
+                <span className={styles.inlineHelp}>
+                  <HelpHint {...help} />
+                </span>
+              </div>
+            ) : (
+              <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
+                {scramble ? <ScrambleText text={title} /> : title}
+              </h1>
+            )}
             {meta}
           </div>
           {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
@@ -107,26 +132,46 @@ export function PageHeader({
   )
 }
 
-export interface SectionProps {
+interface SectionBaseProps {
   title?: string
   description?: string
-  /**
-   * Как считается — значок «?» у заголовка (решение 215). Под заголовком остаётся
-   * вывод одной фразой, методика уходит в подсказку.
-   */
-  hint?: string
   action?: ReactNode
   children: ReactNode
 }
 
-export function Section({ title, description, hint, action, children }: SectionProps) {
+/**
+ * У заголовка блока — один «?»: либо `help` — раздел документации о том, что это
+ * за блок и что в нём нажимать (решение 217), либо `hint` — как считается число
+ * (решение 215). Оба сразу типы не пропускают: два значка рядом — это дубль.
+ */
+export type SectionProps = SectionBaseProps &
+  (
+    | {
+        /**
+         * Как считается — значок «?» у заголовка (решение 215). Под заголовком остаётся
+         * вывод одной фразой, методика уходит в подсказку.
+         */
+        hint?: string
+        help?: never
+      }
+    | { hint?: never; help?: HelpHintProps }
+  )
+
+export function Section({ title, description, hint, help, action, children }: SectionProps) {
   return (
     <section className={styles.section}>
       {(title || action) && (
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitleBlock}>
             {title &&
-              (hint ? (
+              (help ? (
+                <div className={[styles.titleLine, styles.sectionTitle].join(' ')}>
+                  <h2 className={[styles.sectionTitle, styles.inlineTitle].join(' ')}>{title}</h2>
+                  <span className={styles.inlineHelp}>
+                    <HelpHint {...help} />
+                  </span>
+                </div>
+              ) : hint ? (
                 <div className={styles.sectionTitleRow}>
                   <h2 className={styles.sectionTitle}>{title}</h2>
                   <InfoHint text={hint} />
@@ -156,14 +201,25 @@ export function Toolbar({
   children,
   actions,
   note,
+  help,
 }: {
   children: ReactNode
   actions?: ReactNode
   note?: ReactNode
+  /**
+   * «?» в конце ряда фильтров (решение 217): что делают фильтры и «Сбросить
+   * фильтры». Кнопки сброса нет, пока фильтр не задан, — значок есть всегда.
+   */
+  help?: HelpHintProps
 }) {
   return (
     <div className={styles.toolbar}>
       {children}
+      {help && (
+        <span className={styles.toolbarHelp}>
+          <HelpHint {...help} />
+        </span>
+      )}
       {actions && <div className={styles.toolbarActions}>{actions}</div>}
       {note && <p className={styles.toolbarNote}>{note}</p>}
     </div>

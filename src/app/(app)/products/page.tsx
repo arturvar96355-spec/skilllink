@@ -50,7 +50,6 @@ import {
   ListTitle,
   Avatar,
   pluralize,
-  HelpHint,
 } from '@/ui'
 import { AddProductSkillModal } from './AddProductSkillModal'
 import { ProductFormModal } from './ProductFormModal'
@@ -200,13 +199,9 @@ function ProductsView() {
       <PageHeader
         title="IT-продукты"
         description="Продукты, которые передаются вузам: версии, навыки и связки."
-        meta={
-          <>
-            {/* «?» со ссылкой в документацию (решение 214). */}
-            <HelpHint topic="products" />
-            {marks.section ? <MockBadge /> : null}
-          </>
-        }
+        // «?» со ссылкой в документацию (решения 214, 217).
+        help={{ topic: 'products' }}
+        meta={marks.section ? <MockBadge /> : undefined}
         actions={
           user.permissions.canWrite ? (
             <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
@@ -216,7 +211,10 @@ function ProductsView() {
         }
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -366,6 +364,7 @@ function ProductDrawer({
       isOpen
       onClose={onClose}
       title={data?.name ?? 'Карточка продукта'}
+      help={{ topic: 'products' }}
       description={
         data ? `${data.category}${data.version ? ` · версия ${data.version}` : ''}` : undefined
       }

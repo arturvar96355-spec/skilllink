@@ -10,7 +10,7 @@ import {
   type AiRewriteStyle,
   type AiRewriteTargetDto,
 } from '@/shared/contracts'
-import { Button, Icon, Tooltip, apiPost, useMutation, useResource, useToast } from '@/ui'
+import { Button, HelpHint, apiPost, useMutation, useResource, useToast } from '@/ui'
 import {
   addVersion,
   currentVersion,
@@ -128,11 +128,13 @@ export function LetterRewrite({ target, versions, onChange, onPendingChange }: L
   return (
     <div className={styles.rewrite} role="group" aria-labelledby={labelId} aria-busy={pendingStyle !== null}>
       <div className={styles.row}>
-        <span className={styles.label} id={labelId}>
-          Переделать с ИИ
-          <Tooltip text="ИИ перепишет текущий текст черновика — вместе с вашими правками — по выбранной кнопке. Факты, даты и числа он не меняет, имена и контакты до него не доходят. Каждый результат — новый вариант: к прошлому можно вернуться.">
-            <Icon name="help" size={16} className={styles.help} />
-          </Tooltip>
+        <span className={styles.label}>
+          <span id={labelId}>Переделать с ИИ</span>
+          <HelpHint
+            topic="letter-reply"
+            section="rewrite"
+            note="Факты, даты и числа ИИ не меняет, имена и контакты до него не доходят."
+          />
         </span>
         <div className={styles.styles}>
           {AI_REWRITE_STYLES.map((style) => (

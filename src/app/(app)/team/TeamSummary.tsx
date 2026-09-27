@@ -1,5 +1,5 @@
 import type { TeamLoadRuleDto, TeamMemberDto, TeamOverviewDto } from '@/shared/contracts'
-import { Button, Card, NO_DATA, formatNumber, formatPercent, formatPersonShort, pluralize } from '@/ui'
+import { Button, Card, HelpHint, NO_DATA, formatNumber, formatPercent, formatPersonShort, pluralize } from '@/ui'
 import { levelLabel, points, scalePosition } from './team-view'
 import styles from './team.module.css'
 
@@ -31,9 +31,12 @@ export function TeamSummary({
   return (
     <Card padding="none" className={styles.summary}>
       <section className={styles.summaryPart} aria-labelledby="team-avg">
-        <h2 id="team-avg" className={styles.summaryTitle}>
-          Средняя нагрузка
-        </h2>
+        <div className={styles.summaryHead}>
+          <h2 id="team-avg" className={styles.summaryTitle}>
+            Средняя нагрузка
+          </h2>
+          <HelpHint topic="team" section="summary" />
+        </div>
         <p className={styles.big}>
           {average === null ? NO_DATA : average}
           {average !== null && <span> {pluralize(average, ['балл', 'балла', 'баллов'])}</span>}
@@ -135,9 +138,12 @@ export function TeamSummary({
           <p className={styles.caption}>Связки пока никто не ведёт.</p>
         )}
         {canAssign && heaviest && heaviest.load.level !== 'NORMAL' && (
-          <Button size="sm" variant="secondary" onClick={() => onOpen(heaviest.id)}>
-            Передать связку: {formatPersonShort(heaviest.fullName)}
-          </Button>
+          <span className={styles.summaryAction}>
+            <Button size="sm" variant="secondary" onClick={() => onOpen(heaviest.id)}>
+              Передать связку: {formatPersonShort(heaviest.fullName)}
+            </Button>
+            <HelpHint topic="team" section="transfer" />
+          </span>
         )}
         <p className={styles.foot}>
           Руководитель и администраторы тоже могут быть ответственными; пока связок у них нет, в расчёт не входят.

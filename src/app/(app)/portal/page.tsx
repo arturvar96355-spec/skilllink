@@ -364,6 +364,7 @@ function PortalScreen() {
       <>
         <PageHeader
           title="Кабинет вуза"
+          help={{ topic: 'university-portal' }}
           description="Программы вуза, ход работы по ним, материалы и заявки на обучение."
         />
         {!isRep && <RepHint />}
@@ -376,6 +377,7 @@ function PortalScreen() {
     <>
       <PageHeader
         title={data?.universityName ?? 'Кабинет вуза'}
+        help={{ topic: 'university-portal' }}
         description="Ваши программы, ход работы по ним, переданные материалы и заявки на обучение."
         meta={
           data && data.pendingMaterials > 0 ? (
@@ -403,6 +405,7 @@ function PortalScreen() {
 
           <Section
             title="Сотрудничества"
+            help={{ topic: 'university-portal', section: 'cooperations' }}
             description="Ход работы по каждой программе: текущий этап и готовность."
           >
             <Card padding="none">
@@ -427,6 +430,7 @@ function PortalScreen() {
 
           <Section
             title="Программы и показатели"
+            help={{ topic: 'university-portal', section: 'indicators' }}
             description="Численность обучающихся и количество групп вносит вуз. Заявки считаются по поданным заявкам и вручную не правятся."
           >
             <Card padding="none">
@@ -453,6 +457,7 @@ function PortalScreen() {
 
       <Section
         title="Материалы"
+        help={{ topic: 'university-portal', section: 'materials' }}
         description="Учебные материалы, лицензии и документация, переданные вузу. Подтверждение получения закрывает пункт этапа 7."
       >
         {materials.isLoading ? (
@@ -522,6 +527,7 @@ function PortalScreen() {
 
       <Section
         title="Заявки на обучение"
+        help={{ topic: 'university-portal', section: 'applications' }}
         description="Заявка содержит только количество: персональных данных обучающихся система не принимает."
       >
         {canAct && programOptions.length > 0 && (
@@ -606,6 +612,7 @@ function PortalScreen() {
         isOpen={metricsProgram !== null}
         onClose={() => setMetricsProgram(null)}
         title="Показатели программы"
+        help={{ topic: 'university-portal', section: 'indicators' }}
         description={metricsProgram?.name}
       >
         <form className={styles.form} onSubmit={onSaveMetrics} id="metrics-form">

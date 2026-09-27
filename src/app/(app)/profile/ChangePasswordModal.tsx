@@ -55,6 +55,7 @@ export function ChangePasswordModal({ onClose, onChanged }: { onClose: () => voi
       onClose={onClose}
       closeOnBackdrop={false}
       title="Сменить пароль"
+      help={{ topic: 'profile', section: 'password' }}
       description={`Новый пароль — не короче ${MIN_LENGTH} символов, не совпадает с текущим и с адресом почты.`}
       footer={
         <>

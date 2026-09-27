@@ -50,6 +50,26 @@
   flex-wrap: wrap;
 }
 
+/*
+ * Заголовок с «?» (решение 217): заголовок строчный внутри блока с тем же кеглем
+ * и интерлиньяжем, значок — за последним словом. Блок держит строку той же
+ * высоты, что и сам заголовок, поэтому отступы вокруг не меняются.
+ */
+.titleLine {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.inlineTitle {
+  display: inline;
+}
+
+.inlineHelp {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
 .title {
   font-size: var(--text-h1-size);
   font-weight: var(--text-h1-weight);
@@ -157,6 +177,15 @@
 /* 150, а не 170: пять фильтров документов теперь встают в одну строку с поиском. */
 .toolbarItem {
   min-width: 150px;
+}
+
+/* «?» фильтров — по середине поля (38 px), а не по нижнему краю ряда. */
+.toolbarHelp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 var(--space-1);
 }
 
 .toolbarActions {

@@ -106,6 +106,7 @@ export default function DataQualityPage() {
     <>
       <PageHeader
         title="Качество данных"
+        help={{ topic: 'data-quality' }}
         description="Чего не хватает в справочниках, что устарело и что похоже на дубль. Каждая проверка ведёт к записям, которые нужно поправить."
         meta={report.data?.isMock ? <MockBadge /> : undefined}
       />
@@ -151,6 +152,7 @@ function QualityReport({ report, onChanged }: { report: QualityReportDto; onChan
 
       <Section
         title="Проверки"
+        help={{ topic: 'data-quality', section: 'checks' }}
         description={`Под названием — зачем проверка нужна. Справа — сколько записей её не проходят. «Критично» — отнимает у справочника от ${CRITICAL_PENALTY} баллов.`}
       >
         <Queue>
@@ -421,6 +423,7 @@ function Duplicates({
     <div id={DUPLICATES_ANCHOR} className={styles.anchor}>
       <Section
         title="Кандидаты в дубли"
+        help={{ topic: 'data-quality', section: 'duplicates' }}
         description="Пары записей, похожих по названию, ИНН или словарю синонимов. Система только предлагает — решает человек. Вуз, которого нет в парах, администратор сливает из его карточки: «Слить с дублем»."
       >
         {withPairs.length === 0 ? (

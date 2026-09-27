@@ -89,6 +89,7 @@ export function EditMeetingModal({
       isOpen
       onClose={() => onClose(null)}
       title="Изменить встречу"
+      help={{ topic: 'meetings' }}
       description="Тема, время, итог и следующий шаг. Следующий шаг без срока не принимается."
       closeOnBackdrop={false}
       footer={

@@ -9,6 +9,8 @@ import { NOTIFY_TECH_BODIES } from './content/notify-tech'
 import { REPORTS_ADMIN_BODIES } from './content/reports-admin'
 import { START_BODIES } from './content/start'
 import { TEAM_LETTERS_BODIES } from './content/team-letters'
+import { TOOL_BODIES } from './content/tools'
+import { HELP_TOOLS, helpEntry, type HelpRef } from './tools'
 import {
   HELP_GROUPS,
   HELP_ROLE_COLUMNS,
@@ -46,7 +48,8 @@ describe('реестр документации', () => {
   it('ключи разделов уникальны, годятся для якоря и не совпадают со словарём', () => {
     const ids = HELP_SECTIONS.map((section) => section.id)
     expect(new Set(ids).size).toBe(ids.length)
-    for (const id of ids) expect(id, id).toMatch(/^[a-z][a-z0-9-]*$/)
+    // Двойной дефис занят под якорь подраздела (`<раздел>--<подраздел>`).
+    for (const id of ids) expect(id, id).toMatch(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/)
     expect(ids).not.toContain(HELP_TERMS_ANCHOR)
   })
 
@@ -118,6 +121,51 @@ describe('реестр документации', () => {
       expect(section.short).toBe(HELP_TOPICS[section.id].short)
       expect(section.how).toBe(HELP_TOPICS[section.id].how)
     }
+  })
+})
+
+describe('подразделы «кнопки и блоки» (решение 217)', () => {
+  const tools = HELP_SECTIONS.flatMap((section) => section.tools.map((tool) => [section.id, tool] as const))
+
+  it('подразделов достаточно, чтобы «?» стоял у кнопок, а не только у экранов', () => {
+    expect(tools.length).toBeGreaterThanOrEqual(60)
+  })
+
+  it('якоря подразделов уникальны, годятся для адреса и не совпадают с разделами', () => {
+    const topicIds = new Set<string>(HELP_TOPIC_IDS)
+    const anchors = tools.map(([, tool]) => tool.anchor)
+    expect(new Set(anchors).size).toBe(anchors.length)
+    for (const [id, tool] of tools) {
+      expect(tool.key, tool.anchor).toMatch(/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/)
+      expect(tool.anchor).toBe(`${id}--${tool.key}`)
+      expect(topicIds.has(tool.anchor), tool.anchor).toBe(false)
+    }
+  })
+
+  it('полный текст есть ровно у подразделов реестра', () => {
+    expect(Object.keys(TOOL_BODIES).sort()).toEqual(Object.keys(HELP_TOOLS).sort())
+    for (const [topic, summaries] of Object.entries(HELP_TOOLS)) {
+      const bodies = TOOL_BODIES[topic as keyof typeof TOOL_BODIES]
+      expect(Object.keys(bodies).sort(), topic).toEqual(Object.keys(summaries).sort())
+    }
+  })
+
+  it.each(tools.map(([, tool]) => [tool.anchor, tool] as const))('%s: заголовок, «что это», «как» и «кто может»', (_anchor, tool) => {
+    expect(tool.title.trim()).not.toBe('')
+    expect(tool.short.trim().length).toBeGreaterThan(20)
+    expect(tool.short.length, 'short — одна фраза для подсказки').toBeLessThanOrEqual(170)
+    expect(tool.how.trim().length).toBeGreaterThan(20)
+    expect(tool.how.length, 'how — одна-две строки для подсказки').toBeLessThanOrEqual(200)
+    expect(tool.who.trim()).not.toBe('')
+    for (const paragraph of tool.details) expect(paragraph.trim()).not.toBe('')
+  })
+
+  it('подсказка ведёт в справку на подраздел, а без подраздела — на раздел', () => {
+    const withSection: HelpRef = { topic: 'cooperation-card', section: 'owner' }
+    expect(helpEntry(withSection).href).toBe('/help#cooperation-card--owner')
+    expect(helpEntry(withSection).title).toBe(HELP_TOOLS['cooperation-card'].owner.title)
+    expect(helpEntry({ topic: 'dashboard' }).href).toBe('/help#dashboard')
+    expect(helpEntry({ topic: 'dashboard' }).title).toBe(HELP_TOPICS.dashboard.title)
   })
 })
 

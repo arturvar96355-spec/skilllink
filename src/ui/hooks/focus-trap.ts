@@ -41,6 +41,10 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.key !== 'Tab') return
   const container = traps[traps.length - 1]
   if (!container) return
+  // Фокус в окошке «?» (`HelpHint`), открытом из этого окна: оно лежит в body, вне
+  // ловушки, и Tab должен дойти до ссылки «Подробнее» в нём, а не прыгнуть в окно.
+  const active = document.activeElement
+  if (active instanceof Element && active.closest('[data-floating-layer]')) return
   const items = focusables(container)
   const current = items.indexOf(document.activeElement as HTMLElement)
   // Внутри окна и не на краю — браузер переведёт фокус сам.

@@ -16,6 +16,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  HelpHint,
   Icon,
   MockBadge,
   NO_DATA,
@@ -23,7 +24,6 @@ import {
   Donut,
   Skeleton,
   StageBar,
-  Tooltip,
   UiModeSwitch,
   apiDelete,
   apiPost,
@@ -42,6 +42,7 @@ import {
   useMutation,
   useResource,
   useToast,
+  type HelpHintProps,
   type IconName,
 } from '@/ui'
 import { ChangePasswordModal } from './ChangePasswordModal'
@@ -165,7 +166,11 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="Личный кабинет" meta={data?.containsMockData ? <MockBadge /> : undefined} />
+      <PageHeader
+        title="Личный кабинет"
+        help={{ topic: 'profile' }}
+        meta={data?.containsMockData ? <MockBadge /> : undefined}
+      />
 
       {showTemporaryNotice && (
         <div className={styles.tempPassword} role="status">
@@ -214,9 +219,12 @@ export default function ProfilePage() {
       {/* Показатели: плитки с цветом по смыслу и доля этапов в срок — кольцом. */}
       <section className={styles.block} aria-labelledby="profile-stats">
         <div className={styles.blockHead}>
-          <h2 id="profile-stats" className={styles.blockTitle}>
-            Ваша работа
-          </h2>
+          <div className={styles.blockTitleRow}>
+            <h2 id="profile-stats" className={styles.blockTitle}>
+              Ваша работа
+            </h2>
+            <HelpHint topic="profile" section="stats" />
+          </div>
           <span className={styles.blockNote}>
             По связкам и этапам, где ответственный — вы
             {data && ` · обновлено ${formatRelative(data.generatedAt)}`}
@@ -347,9 +355,12 @@ export default function ProfilePage() {
           {/* Мои связки: сами связки с лентой этапов, а не только их число. */}
           <section className={styles.block} aria-labelledby="profile-mine">
             <div className={styles.blockHead}>
-              <h2 id="profile-mine" className={styles.blockTitle}>
-                Мои связки
-              </h2>
+              <div className={styles.blockTitleRow}>
+                <h2 id="profile-mine" className={styles.blockTitle}>
+                  Мои связки
+                </h2>
+                <HelpHint topic="profile" section="mine" />
+              </div>
               {cooperations.length > MY_COOPERATIONS_LIMIT && (
                 <Link className={styles.more} href="/cooperations">
                   Все {formatNumber(cooperations.length)}
@@ -412,9 +423,12 @@ export default function ProfilePage() {
           {/* Последние события: что случилось, лентой на линии времени. */}
           <section className={styles.block} aria-labelledby="profile-feed">
             <div className={styles.blockHead}>
-              <h2 id="profile-feed" className={styles.blockTitle}>
-                Последние события
-              </h2>
+              <div className={styles.blockTitleRow}>
+                <h2 id="profile-feed" className={styles.blockTitle}>
+                  Последние события
+                </h2>
+                <HelpHint topic="profile" section="feed" />
+              </div>
             </div>
             {feed.isLoading ? (
               <Skeleton width="100%" height="120px" />
@@ -446,18 +460,16 @@ export default function ProfilePage() {
       */}
       <section className={[styles.block, styles.settings].join(' ')} aria-labelledby="profile-settings">
         <div className={styles.blockHead}>
-          <h2 id="profile-settings" className={styles.blockTitle}>
-            Настройки
-            <Tooltip text="ФИО, должность, роль и вуз меняет администратор системы в «Настройках», раздел «Пользователи». Почта — адрес для входа, она не меняется. Пароль вы меняете сами — здесь.">
-              <span className={styles.hint}>
-                <Icon name="info" size={16} />
-              </span>
-            </Tooltip>
-          </h2>
+          <div className={styles.blockTitleRow}>
+            <h2 id="profile-settings" className={styles.blockTitle}>
+              Настройки
+            </h2>
+            <HelpHint topic="profile" section="settings" />
+          </div>
         </div>
         <div className={styles.rows}>
           {/* Режим интерфейса (решение 80) — здесь тоже: на узком экране его нет в шапке. */}
-          <Row title="Режим интерфейса" caption="Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.">
+          <Row title="Режим интерфейса" help={{ topic: 'ui-modes' }} caption="Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.">
             <UiModeSwitch />
           </Row>
           {isSharedDemoAccount(user.email) ? (
@@ -468,7 +480,11 @@ export default function ProfilePage() {
               {null}
             </Row>
           ) : (
-            <Row title="Пароль" caption="Не короче 10 символов, не совпадает с текущим и с адресом почты.">
+            <Row
+              title="Пароль"
+              help={{ topic: 'profile', section: 'password' }}
+              caption="Не короче 10 символов, не совпадает с текущим и с адресом почты."
+            >
               <Button variant="secondary" icon="lock" onClick={() => setIsChangingPassword(true)}>
                 Сменить пароль
               </Button>
@@ -480,6 +496,7 @@ export default function ProfilePage() {
           {!isRep && (
             <Row
               title="Календарь"
+              help={{ topic: 'calendar' }}
               caption={
                 calendar.data?.active
                   ? `Подписка выпущена ${formatDate(calendar.data.createdAt!)}. Сроки этапов и встречи — в вашем календаре (Google, Яндекс, Apple, Outlook).`
@@ -554,11 +571,25 @@ function StatTile({
   )
 }
 
-function Row({ title, caption, children }: { title: string; caption: string; children: ReactNode }) {
+function Row({
+  title,
+  caption,
+  help,
+  children,
+}: {
+  title: string
+  caption: string
+  /** «?» у названия строки — что это и как (решение 217). */
+  help?: HelpHintProps
+  children: ReactNode
+}) {
   return (
     <div className={styles.row}>
       <div className={styles.rowText}>
-        <span className={styles.rowTitle}>{title}</span>
+        <span className={styles.rowTitle}>
+          {title}
+          {help && <HelpHint {...help} />}
+        </span>
         <span className={styles.rowCaption}>{caption}</span>
       </div>
       <div className={styles.rowSide}>{children}</div>

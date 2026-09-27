@@ -74,6 +74,7 @@ export function CreateUniversityModal({ onClose }: { onClose: (created: boolean)
       isOpen
       onClose={() => onClose(false)}
       title="Добавить вуз"
+      help={{ topic: 'universities', section: 'create' }}
       description="Минимум — название, город и регион. Остальное можно заполнить позже в карточке."
       closeOnBackdrop={false}
       footer={

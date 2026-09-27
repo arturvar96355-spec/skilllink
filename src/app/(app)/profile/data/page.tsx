@@ -30,6 +30,7 @@ export default function MyDataPage() {
     <>
       <PageHeader
         title="Мои данные"
+        help={{ topic: 'my-data' }}
         description="Что SkillLink хранит о вас и что вы можете с этим сделать сами."
         breadcrumbs={[{ label: 'Личный кабинет', href: ROUTES.profile }, { label: 'Мои данные' }]}
       />
@@ -52,6 +53,7 @@ export default function MyDataPage() {
 
       <Section
         title="Всё, что система знает о вас"
+        help={{ topic: 'exports' }}
         description="Файл JSON: учётная запись, назначения ответственным, ваши действия в журнале, цели и основания обработки, сроки хранения."
       >
         <Card className={styles.export}>

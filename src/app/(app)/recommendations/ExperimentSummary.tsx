@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   ErrorState,
+  HelpHint,
   SkeletonLines,
   formatDate,
   formatShare,
@@ -34,9 +35,12 @@ export function RecommendationExperiment() {
 
   if (!isOpen) {
     return (
-      <Button variant="secondary" icon="analytics" className={styles.open} onClick={() => setIsOpen(true)}>
-        Помогает ли список задач?
-      </Button>
+      <span className={styles.openRow}>
+        <Button variant="secondary" icon="analytics" onClick={() => setIsOpen(true)}>
+          Помогает ли список задач?
+        </Button>
+        <HelpHint topic="task-list" section="experiment" />
+      </span>
     )
   }
 
@@ -49,7 +53,10 @@ export function RecommendationExperiment() {
   return (
     <Card className={styles.card}>
       <div className={styles.head}>
-        <span className={styles.title}>Помогает ли список задач</span>
+        <span className={styles.titleRow}>
+          <span className={styles.title}>Помогает ли список задач</span>
+          <HelpHint topic="task-list" section="experiment" />
+        </span>
         <Badge tone={STATUS_TONE[overall.status]}>{overall.statusLabel}</Badge>
       </div>
 

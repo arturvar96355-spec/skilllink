@@ -17,10 +17,9 @@ import {
   EmptyState,
   ErrorState,
   InboundLetterStatusBadge,
-  Icon,
+  HelpHint,
   Input,
   DownloadButton,
-  Tooltip,
   ListTitle,
   NO_DATA,
   PageHeader,
@@ -209,6 +208,7 @@ function LettersView() {
     <>
       <PageHeader
         title="Письма вузов"
+        help={{ topic: 'letters' }}
         description={
           // Одна строка — что это за раздел (решение 213); подробности — в подсказках кнопок и «?».
           user.permissions.canReviewLetters
@@ -228,6 +228,7 @@ function LettersView() {
                 Пример письма
               </DownloadButton>
               <UploadLetterButton onUploaded={(id) => router.push(letterHref(id))} />
+              <HelpHint topic="letters" section="upload" />
             </>
           ) : undefined
         }
@@ -235,12 +236,10 @@ function LettersView() {
 
       <Section>
         <Card className={styles.statsCard}>
-          <h2 className={styles.statsTitle}>
-            Как точно система определяет группу письма
-            <Tooltip text="Группа — тема обращения: договор, встреча, документы и другие. «Верно N из M» — сколько проверенных писем сотрудник подтвердил без исправлений. Полоса — та же точность, где свежие решения весят больше.">
-              <Icon name="help" size={16} className={styles.help} />
-            </Tooltip>
-          </h2>
+          <div className={styles.statsHead}>
+            <h2 className={styles.statsTitle}>Как точно система определяет группу письма</h2>
+            <HelpHint topic="letters" section="stats" />
+          </div>
           {stats.isLoading ? (
             <TableSkeleton rows={2} columns={6} />
           ) : stats.error ? (
@@ -261,7 +260,10 @@ function LettersView() {
         </Card>
       </Section>
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         <ToolbarSearch>
           <Input
             label="Поиск"

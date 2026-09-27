@@ -8,6 +8,7 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  HelpHint,
   Input,
   MockBadge,
   PageHeader,
@@ -118,6 +119,7 @@ function TeamView() {
   const header = (
     <PageHeader
       title="Команда"
+      help={{ topic: 'team' }}
       description={
         data
           ? `${members.length} ${pluralize(members.length, ['сотрудник', 'сотрудника', 'сотрудников'])}, ${withLoad} ${pluralize(withLoad, ['ведёт', 'ведут', 'ведут'])} связки · данные на ${formatDateTime(data.generatedAt)}`
@@ -139,9 +141,12 @@ function TeamView() {
             />
           </div>
           {canAssignTasks && data && members.length > 0 && (
-            <Button variant="primary" icon="plus" onClick={() => setAssignOpen(true)}>
-              Дать поручение
-            </Button>
+            <>
+              <Button variant="primary" icon="plus" onClick={() => setAssignOpen(true)}>
+                Дать поручение
+              </Button>
+              <HelpHint topic="assignments" section="give" />
+            </>
           )}
         </div>
       }
@@ -256,6 +261,9 @@ function TeamView() {
         >
           Как считается нагрузка
         </button>
+        <span className={styles.toolsHelp}>
+          <HelpHint topic="team" section="roster" />
+        </span>
       </div>
 
       {ruleOpen && (
