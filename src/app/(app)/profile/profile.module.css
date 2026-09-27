@@ -751,3 +751,9 @@ a.chip:hover {
     align-items: flex-start;
   }
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .chip {
+    min-height: var(--touch-target);
+  }
+}

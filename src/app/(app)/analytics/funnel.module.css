@@ -22,6 +22,8 @@
 }
 
 .title {
+  /* Зона нажатия 44 px на сенсорном экране (решение 219). */
+  composes: hit from '../../../ui/primitives/HitArea.module.css';
   font-size: var(--text-body-sm-size);
   font-weight: 600;
   color: var(--text-primary);
