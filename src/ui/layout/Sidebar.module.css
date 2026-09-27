@@ -196,13 +196,34 @@
 
 /* Узкий экран: меню уезжает за край и открывается кнопкой в шапке. */
 @media (max-width: 1080px) {
+  /*
+   * Закрытое меню ещё и скрыто (решение 219): иначе Tab на телефоне уходил
+   * в невидимые пункты за левым краем. Видимость переключается после того,
+   * как меню доехало, — уезжает оно так же плавно.
+   */
   .sidebar {
     transform: translateX(-100%);
+    visibility: hidden;
     box-shadow: var(--shadow-floating);
+    transition:
+      transform var(--motion-surface) var(--ease-out),
+      visibility 0s linear var(--motion-surface);
   }
 
   .open {
     transform: translateX(0);
+    visibility: visible;
+    transition:
+      transform var(--motion-surface) var(--ease-out),
+      visibility 0s linear 0s;
+  }
+}
+
+/* Выезжающее меню на сенсорном экране: пункты в рост пальца (решение 219). */
+@media (max-width: 1080px) and (pointer: coarse) {
+  .item,
+  .groupHead {
+    min-height: var(--touch-target);
   }
 }
 

@@ -190,6 +190,8 @@
 
 /* Поиск-«таблетка»: компактно до открытия, окно вырастает из неё (search-events). */
 .searchPill {
+  /* Кнопки шапки — 36–40 px на вид и 44 под пальцем (решение 219). */
+  composes: hit from '../primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -260,6 +262,7 @@
 
 /* Кнопка «домой» с логотипом заменила прежнюю надпись и строку поиска (раздел 8). */
 .home {
+  composes: hit from '../primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
@@ -341,6 +344,7 @@
 }
 
 .profile {
+  composes: hit from '../primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
   padding: 2px;
@@ -523,6 +527,22 @@
 @media (max-width: 720px) {
   .footerInner {
     padding: var(--space-4);
+  }
+}
+
+/*
+ * Ссылки подвала под пальцем (решение 219): строка ссылки — 44 px, промежуток
+ * между рядами уходит в саму строку, и подвал вырастает ненамного.
+ */
+@media (pointer: coarse) {
+  .footerLinks {
+    row-gap: 0;
+  }
+
+  .footerLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
   }
 }
 
@@ -881,3 +901,9 @@
   outline-offset: -2px;
 }
 
+/* Пункты меню профиля и «Ещё» под пальцем (решение 219). */
+@media (pointer: coarse) {
+  .dropdownItem {
+    min-height: var(--touch-target);
+  }
+}

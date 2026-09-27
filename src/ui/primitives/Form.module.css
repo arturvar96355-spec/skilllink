@@ -231,3 +231,23 @@
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
 }
+
+/*
+ * Телефон (решение 219): поле — в рост пальца (44 px, как кнопка и список рядом),
+ * флажок и переключатель нажимаются всей строкой подписи той же высоты.
+ * Кегль 16 px, чтобы iOS не увеличивал страницу, — общим правилом в globals.css.
+ */
+@media (max-width: 767px) {
+  .control {
+    height: var(--touch-target);
+  }
+
+  .textarea {
+    height: auto;
+  }
+
+  .checkbox,
+  .toggle {
+    min-height: var(--touch-target);
+  }
+}

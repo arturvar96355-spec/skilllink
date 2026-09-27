@@ -92,6 +92,8 @@ export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClic
           className={styles.searchPill}
           data-search-trigger
           onClick={(event) => openSearch(event.currentTarget)}
+          // На узком экране подпись и ⌘K скрыты — без имени кнопка читалась бы пустой (решение 219).
+          aria-label="Поиск по системе"
         >
           <Icon name="search" size={16} />
           <span className={styles.searchLabel}>Поиск</span>

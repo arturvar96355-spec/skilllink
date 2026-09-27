@@ -43,6 +43,8 @@
 }
 
 .trigger {
+  /* «?» и значки пояснений — 16 px на вид, 44 px под пальцем (решение 219). */
+  composes: hit from './HitArea.module.css';
   display: inline-flex;
   align-items: center;
   gap: 4px;
