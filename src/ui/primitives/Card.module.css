@@ -56,3 +56,21 @@
   border-color: var(--border-active);
   background: var(--surface-2);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * крупная зона страницы — тонкая линия сверху, а не плашка с фоном и скруглением.
+ * Поле для щелчка (interactive) и выбранное сохраняют тон: это состояние, а не рамка.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .card:not(.interactive, .selected) {
+  background: transparent;
+  border-color: transparent;
+  border-top-color: var(--line-subtle);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .card.md:not(.interactive, .selected),
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .card.lg:not(.interactive, .selected) {
+  padding-inline: 0;
+}

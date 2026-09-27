@@ -493,3 +493,24 @@
     height: calc(var(--line-y) + var(--drop) + 8px);
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * кружки этапов — нейтральные; красная дуга остаётся только там,
+ * где есть просрочка или блок, — она и есть сигнал.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .counter {
+  --fill: var(--surface-2);
+  background:
+    linear-gradient(var(--fill), var(--fill)) padding-box,
+    conic-gradient(var(--status-danger) 0 var(--stuck), var(--line-strong) 0) border-box;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .counter:hover,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .stageOpen .counter {
+  --fill: var(--surface-3);
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .dot:not(.stuck) {
+  background: var(--calm-mark);
+}

@@ -477,3 +477,13 @@
   padding-top: var(--space-4);
   border-top: 1px solid var(--line-subtle);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * список этапов — строки под тонкой линией, без плашки.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .stages {
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
