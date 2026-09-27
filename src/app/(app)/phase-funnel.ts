@@ -5,6 +5,17 @@ import {
 } from '@/shared/contracts'
 import type { FunnelStep } from '@/ui/data/Funnel'
 import { pluralize } from '@/ui/lib/format'
+import { buildQuery } from '@/ui/lib/api'
+
+/**
+ * Связки для воронки — все, кроме отменённых. Один адрес у главной и у вкладки
+ * «Воронка» аналитики (решение 215): одна база подсчёта, «77 связок» и там и там.
+ * Больше сотни API за раз не отдаёт — тогда под воронкой написано, по скольким она посчитана.
+ */
+export const PHASE_FUNNEL_PATH = `/api/cooperations${buildQuery({
+  status: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
+  pageSize: 100,
+})}`
 
 /**
  * Воронка связок по фазам конвейера (решение 74): сколько связок дошло до каждой фазы.

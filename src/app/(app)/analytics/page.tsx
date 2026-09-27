@@ -26,6 +26,7 @@ import {
   hasActiveFilters,
   Icon,
   Input,
+  MeasureBars,
   MockBadge,
   mockMarks,
   NO_DATA,
@@ -54,6 +55,8 @@ import {
   formatShare,
   ListTitle,
 } from '@/ui'
+import { FunnelTab } from './FunnelTab'
+import { demandConclusion, demandRows, gapRows, gapsConclusion, ratingConclusion } from './analytics-view'
 import { MeetingsHeatmap } from './MeetingsHeatmap'
 import { StagesTab } from './StagesTab'
 import styles from './analytics.module.css'
@@ -62,19 +65,22 @@ const TABS: TabItem[] = [
   { key: 'rating', label: 'Рейтинг программ' },
   { key: 'skills', label: 'Навыки и дефициты' },
   { key: 'demand', label: 'Спрос рынка' },
+  // Переходы между фазами и выбывшие связки (решение 215).
+  { key: 'funnel', label: 'Воронка' },
   // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
   { key: 'stages', label: 'Этапы' },
   // Тепловая карта встреч 7×24 (решение 178, п. 7).
   { key: 'meetings', label: 'Встречи' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand' | 'stages' | 'meetings'
+type TabKey = 'rating' | 'skills' | 'demand' | 'funnel' | 'stages' | 'meetings'
 
 function isTabKey(value: string | null): value is TabKey {
   return (
     value === 'rating' ||
     value === 'skills' ||
     value === 'demand' ||
+    value === 'funnel' ||
     value === 'stages' ||
     value === 'meetings'
   )
@@ -129,7 +135,7 @@ function AnalyticsView() {
     <>
       <PageHeader
         title="Аналитика"
-        description="Рейтинг программ, дефициты навыков и востребованность на рынке. Это три разных инструмента: балл рейтинга не смешивается с дефицитами, потому что отвечает на другой вопрос."
+        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, где связки выбывают и застревают, когда встречаются с вузами."
         actions={
           // Лист A4 для печати и PDF (решение 97): сводка всего раздела на одной странице.
           <Button href={ROUTES.managerReport} icon="document" variant="secondary">
@@ -148,11 +154,15 @@ function AnalyticsView() {
         />
       )}
       {tab === 'demand' && <DemandTab />}
+      {tab === 'funnel' && <FunnelTab />}
       {tab === 'stages' && <StagesTab />}
       {tab === 'meetings' && <MeetingsHeatmap />}
     </>
   )
 }
+
+const RATING_HINT =
+  'Балл от 0 до 100 — относительный: программы сравниваются между собой, 100 — лучшая в выборке. Считается по трём показателям набора: заявки на обучение, обучающиеся, параллельные группы. Полоса — вклад каждого показателя в балл, от тёмного к светлому. Дефициты, готовность вуза и просрочки в балл не входят — это отдельные сигналы. Программы без данных стоят в конце с пометкой «Нет данных»: пустой показатель не считается нулём.'
 
 /** Короткие подписи показателей рейтинга — для строки под составной полосой. */
 const FACTOR_SHORT: Record<string, string> = {
@@ -203,7 +213,9 @@ function RatingTab() {
           {row.score === null ? (
             <span className={styles.scoreEmpty}>{NO_DATA}</span>
           ) : (
-            <span className={styles.score}>{formatScore(row.score)}</span>
+            <span className={styles.score}>
+              {formatScore(row.score)} <span className={styles.unit}>из 100</span>
+            </span>
           )}
         </Tooltip>
       ),
@@ -211,7 +223,7 @@ function RatingTab() {
     {
       key: 'basis',
       title: 'Основание',
-      width: '130px',
+      width: '160px',
       render: (row) => (
         <span className={styles.basis}>
           <span className={styles.basisLabel}>{METRIC_BASIS_LABELS[row.basis]}</span>
@@ -275,7 +287,10 @@ function RatingTab() {
   return (
     <Section
       title="Рейтинг программ"
-      description="Балл относительный: он сравнивает программы между собой внутри этого ответа и не означает оценку по абсолютной шкале. Считается по трём показателям набора — заявки на обучение, количество обучающихся и количество параллельных групп. Востребованность навыков, дефициты, готовность вуза и просрочки в балл не входят: они показываются отдельными сигналами, чтобы «большая программа» и «программа, отставшая от рынка» не превращались в одно число."
+      description={
+        rating.data ? ratingConclusion(rows, total) : 'Какие программы сильнее по набору: заявки, обучающиеся, группы.'
+      }
+      hint={RATING_HINT}
       action={marks.section ? <MockBadge /> : undefined}
     >
       <Card padding="none" className={styles.registry}>
@@ -311,11 +326,6 @@ function RatingTab() {
         </p>
       )}
 
-      <p className={styles.note}>
-        Программы без данных не выбрасываются из рейтинга: они уходят в конец списка с пометкой
-        «Нет данных». Пустой показатель не участвует в расчёте — иначе отсутствие данных
-        штрафовало бы программу так же, как настоящий ноль.
-      </p>
     </Section>
   )
 }
@@ -369,6 +379,7 @@ function GapsTab({
   const total = gaps.meta?.total ?? rows.length
   const marks = mockMarks(rows)
   const selected = selectedSkillId ? rows.find((row) => row.skillId === selectedSkillId) : undefined
+  const gapChart = gapRows(rows)
 
   const columns: Column<SkillGapDto>[] = [
     {
@@ -400,11 +411,7 @@ function GapsTab({
       render: (row) => (
         <span className={styles.measure}>
           <span className={styles.measureValue}>{formatShare(row.coverage)}</span>
-          <Progress
-            value={row.coverage * 100}
-            tone="success"
-            label={`Покрытие навыка «${row.name}»`}
-          />
+          <Progress value={row.coverage * 100} label={`Покрытие навыка «${row.name}»`} />
           <span className={styles.muted}>
             {row.level === null ? 'В программах нет' : SKILL_LEVEL_LABELS[row.level]}
           </span>
@@ -420,7 +427,7 @@ function GapsTab({
           <span className={styles.measureValue}>{formatShare(row.gap)}</span>
           <Progress
             value={row.gap * 100}
-            tone={row.isCritical ? 'danger' : 'default'}
+            tone={row.isCritical ? 'danger' : row.gap > 0 ? 'warning' : 'default'}
             label={`Дефицит навыка «${row.name}»`}
           />
         </span>
@@ -448,7 +455,8 @@ function GapsTab({
   return (
     <Section
       title="Навыки и дефициты"
-      description="Дефицит — это разрыв между спросом рынка и тем, что даёт обучение: спрос, приведённый к шкале 0..1, минус покрытие навыка программой (нет навыка — 0, базовый — 0,34, средний — 0,67, продвинутый — 1). Критичным дефицит считается тогда, когда навык действительно востребован (спрос не ниже 0,5), а в программе его нет вовсе. Без выбранной программы считается сводка по всем действующим программам: берётся лучший достигнутый уровень."
+      description={gaps.data ? gapsConclusion(rows, total) : 'Чего не хватает в обучении по сравнению со спросом рынка.'}
+      hint="Дефицит — разрыв между спросом рынка и тем, что даёт обучение: спрос по шкале 0–100 минус покрытие навыка программой (нет навыка — 0, базовый — 34, средний — 67, продвинутый — 100). Критичный (красный) — навык востребован (спрос не ниже 50), а в программе его нет вовсе. Жёлтый — навык есть, но уровень ниже спроса. Без выбранной программы берётся лучший уровень среди всех действующих программ."
       action={marks.section ? <MockBadge /> : undefined}
     >
       <Toolbar note={PERIOD_HINT} actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
@@ -512,6 +520,18 @@ function GapsTab({
               Снять выделение
             </Button>
           </span>
+        </Card>
+      )}
+
+      {!gaps.isLoading && !gaps.error && rows.length > 0 && gapChart.rows.length > 0 && (
+        <Card>
+          <MeasureBars
+            rows={gapChart.rows}
+            max={100}
+            label="Где дефицит: навыки с дефицитом, крупнейшие сверху"
+            rest={gapChart.rest}
+            valueWidth="6rem"
+          />
         </Card>
       )}
 
@@ -605,6 +625,7 @@ function DemandTab() {
   const rows = demand.data ?? []
   const total = demand.meta?.total ?? rows.length
   const marks = mockMarks(rows)
+  const demandChart = demandRows(rows)
 
   const columns: Column<SkillDemandDto>[] = [
     {
@@ -669,7 +690,8 @@ function DemandTab() {
   return (
     <Section
       title="Спрос рынка"
-      description="Востребованность навыков по данным рыночной статистики. Значение нормируется по всей выборке периода, а не по показанной странице: иначе полоса менялась бы от фильтров. У каждой строки есть источник, уровень доверия и признак происхождения."
+      description={demand.data ? demandConclusion(rows) : 'Что сейчас просит рынок: вакансии по навыкам.'}
+      hint="Востребованность навыков по данным рыночной статистики — число вакансий за период. Отметка на полосах — медиана по показанным навыкам: с ней сравнивается каждый навык. Полоса в таблице нормируется по всей выборке периода, а не по странице, поэтому не меняется от фильтров. У каждой строки — источник, уровень доверия и признак демо-данных."
       action={marks.section ? <MockBadge /> : undefined}
     >
       <Toolbar note={PERIOD_HINT} actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
@@ -715,6 +737,19 @@ function DemandTab() {
               в таблице.
             </span>
           </span>
+        </Card>
+      )}
+
+      {!demand.isLoading && !demand.error && demandChart.rows.length > 0 && (
+        <Card>
+          <MeasureBars
+            rows={demandChart.rows}
+            max={demandChart.max}
+            label="Самые востребованные навыки и медиана спроса"
+            markerLabel="медиана по показанным навыкам"
+            rest={demandChart.rest}
+            valueWidth="8.5rem"
+          />
         </Card>
       )}
 

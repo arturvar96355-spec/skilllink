@@ -2002,7 +2002,11 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
         "conversionFromPrevious": 0.5, "conversionFromStart": 0.4444, "medianDaysFromPrevious": 42,
         "inProgress": 1, "droppedCount": 1,
         "dropped": [ { "cooperationId": "…", "title": "ДГТУ — Информационные технологии и управление",
-                       "status": "PAUSED", "href": "/cooperations/…" } ] }
+                       "status": "PAUSED", "href": "/cooperations/…",
+                       "stageNumber": 7, "stageTitle": "Передача учебных материалов, лицензии и документации",
+                       "phase": "IMPLEMENTATION", "stoppedAt": "2026-05-12T09:00:00.000Z",
+                       "stoppedAtBasis": "last-move",
+                       "reason": "Пауза: вуз пересматривает учебный план на следующий год." } ] }
     ],
     "groups": [ { "key": "Москва", "label": "Москва", "total": 2,
                   "steps": [ { "key": "start", "reached": 2, "conversionFromStart": 1 } ] } ],
@@ -2013,6 +2017,10 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 
 Шаги идут по порядку этапов; `reached` не растёт от шага к шагу. `dropped` — отменённые
 и приостановленные, дальше шага не прошедшие (до 20; всего — `droppedCount`).
+У выбывшей (решение 215): `stageNumber`/`stageTitle`/`phase` — самый дальний достигнутый
+этап 1–13; `stoppedAt` — когда выбыла: у отменённой дата закрытия, у приостановленной —
+последняя смена статуса по журналу (`stoppedAtBasis: "status"`), а если её нет — последнее
+движение по этапам (`"last-move"`); `null` — даты нет. `reason` — заметка связки, `null` — не записана.
 `medianDaysFromPrevious` — медиана дней от предыдущего шага среди дошедших.
 Ключи вех: `start`, `meeting-done`, `signed`, `implemented`, `classes-done`, `done`;
 этапов — `stage-1` … `stage-14`.

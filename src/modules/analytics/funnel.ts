@@ -189,6 +189,31 @@ export function buildFunnel(
   return { total, steps: result, groups }
 }
 
+/** Запись журнала о правке связки: `payload` — `{ status }` (сид) или `{ fields: [...] }` (приложение). */
+export interface CooperationUpdateRecord {
+  payload: unknown
+  createdAt: Date
+}
+
+/**
+ * Когда связка получила свой статус (решение 215): самая поздняя правка, в которой
+ * менялся статус. Сид пишет `{ status: 'PAUSED' }`, приложение — список полей
+ * `{ fields: ['status', …] }` без значения; подходит и то и другое. Записи — от новых
+ * к старым. Нет такой записи — null: дата не выдумывается.
+ */
+export function statusChangedAt(updates: readonly CooperationUpdateRecord[], status: CooperationStatus): Date | null {
+  for (const update of updates) {
+    const payload = update.payload
+    if (!payload || typeof payload !== 'object') continue
+    const record = payload as { status?: unknown; fields?: unknown }
+    if (record.status === status) return update.createdAt
+    if (record.status === undefined && Array.isArray(record.fields) && record.fields.includes('status')) {
+      return update.createdAt
+    }
+  }
+  return null
+}
+
 // ─────────────────────────────── Когорты ────────────────────────────────────
 
 /** Квартал по московскому времени: «2026-Q3» и его порядковый номер. */

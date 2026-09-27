@@ -28,6 +28,7 @@ import {
   COHORT_MILESTONE,
   MILESTONE_STEPS,
   STAGE_STEPS,
+  statusChangedAt,
   type FunnelSubject,
 } from './funnel'
 import {
@@ -51,6 +52,7 @@ import type { FunnelQuery, StalledPreviewQuery } from './stage-analytics.schema'
 
 const SOURCE = 'История этапов и записи системы'
 const STAGE_TITLES = new Map(WORKFLOW_STAGES.map((stage) => [stage.number, stage.title]))
+const STAGE_PHASE_BY_NUMBER = new Map(WORKFLOW_STAGES.map((stage) => [stage.number, stage.phase]))
 const MEASURED_STAGES = WORKFLOW_STAGES.map((stage) => stage.number).filter((number) => number < CONTROL_STAGE_NUMBER)
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -279,6 +281,15 @@ function groupOf(row: repo.TimelineRow, groupBy: FunnelQuery['groupBy']): Funnel
   }
 }
 
+/** Последняя запись истории этапов связки — «когда она встала», если смены статуса в журнале нет. */
+function lastStageMove(row: repo.TimelineRow | undefined): Date | null {
+  let latest: Date | null = null
+  for (const stage of row?.stages ?? []) {
+    for (const entry of stage.history) if (!latest || entry.changedAt > latest) latest = entry.changedAt
+  }
+  return latest
+}
+
 function inPeriod(timeline: StageTimeline, query: Pick<FunnelQuery, 'from' | 'to'>): boolean {
   if (query.from && timeline.start < new Date(query.from)) return false
   if (query.to && timeline.start >= new Date(query.to)) return false
@@ -296,6 +307,44 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
   }
   const milestones = query.milestones === true
   const result = buildFunnel(subjects, milestones ? MILESTONE_STEPS : STAGE_STEPS)
+
+  // Выбывшие (решение 215): где выбыли, когда и почему. Этап — самый дальний
+  // достигнутый (этап 14 закрывает система, выбыть на нём нельзя); дата отмены —
+  // закрытие связки, дата паузы — последняя правка статуса по журналу.
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const timelineById = new Map(subjects.map((subject) => [subject.timeline.cooperationId, subject.timeline]))
+  const droppedIds = result.steps.flatMap((step) => step.dropped.map((item) => item.cooperationId))
+  const updates = await repo.findCooperationUpdates(droppedIds)
+  const updatesById = new Map<string, typeof updates>()
+  for (const update of updates) {
+    const list = updatesById.get(update.objectId) ?? []
+    list.push(update)
+    updatesById.set(update.objectId, list)
+  }
+  const droppedDetails = (item: (typeof result.steps)[number]['dropped'][number]) => {
+    const row = byId.get(item.cooperationId)
+    const reached = timelineById.get(item.cooperationId)?.maxReached ?? 1
+    const stageNumber = Math.min(Math.max(reached, 1), CONTROL_STAGE_NUMBER - 1)
+    const byStatus =
+      item.status === 'CANCELLED' && row?.closedAt
+        ? row.closedAt
+        : statusChangedAt(updatesById.get(item.cooperationId) ?? [], item.status)
+    // Смены статуса в журнале нет (связка заведена сразу приостановленной) —
+    // последнее движение по этапам, с пометкой, что это оценка, а не дата паузы.
+    const lastMove = byStatus ? null : lastStageMove(row)
+    const stoppedAt = byStatus ?? lastMove
+    return {
+      ...item,
+      href: cooperationHref(item.cooperationId),
+      stageNumber,
+      stageTitle: STAGE_TITLES.get(stageNumber) ?? `Этап ${stageNumber}`,
+      phase: STAGE_PHASE_BY_NUMBER.get(stageNumber) ?? 'ATTRACTION',
+      stoppedAt: stoppedAt ? stoppedAt.toISOString() : null,
+      stoppedAtBasis: byStatus ? ('status' as const) : lastMove ? ('last-move' as const) : null,
+      reason: row?.notes?.trim() ? row.notes.trim() : null,
+    }
+  }
+
   return {
     milestones,
     groupBy: query.groupBy ?? null,
@@ -306,7 +355,7 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
       ...step,
       conversionFromPrevious: step.conversionFromPrevious === null ? null : round4(step.conversionFromPrevious),
       conversionFromStart: step.conversionFromStart === null ? null : round4(step.conversionFromStart),
-      dropped: step.dropped.map((item) => ({ ...item, href: cooperationHref(item.cooperationId) })),
+      dropped: step.dropped.map(droppedDetails),
     })),
     groups: result.groups.map((group) => ({
       ...group,
