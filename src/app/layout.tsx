@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { Providers } from './providers'
 import { SPLASH_BOOT_SCRIPT, Splash } from '@/ui/layout/Splash'
 import { UI_MODE_BOOT_SCRIPT } from '@/ui/lib/ui-mode'
+import { WORK_THEME_BOOT_SCRIPT } from '@/ui/lib/work-theme'
 import { NONCE_HEADER } from '@/shared/http/csp'
 import { THEME_BOOT_SCRIPT } from '@/ui/lib/theme'
 import './globals.css'
@@ -43,7 +44,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
     // suppressHydrationWarning: скрипты до загрузки приложения ставят на <html>
-    // метки data-mode (режим интерфейса) и data-splash — их в серверной разметке
+    // метки data-mode (режим интерфейса), data-work-theme (спокойный вид рабочего
+    // режима) и data-splash — их в серверной разметке
     // нет, и это нормально.
     <html lang="ru" className={inter.variable} suppressHydrationWarning>
       <body>
@@ -52,6 +54,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             читается пустым), и React при гидратации принял бы это за расхождение. */}
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: UI_MODE_BOOT_SCRIPT }} />
+        <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: WORK_THEME_BOOT_SCRIPT }} />
         <script nonce={nonce} suppressHydrationWarning dangerouslySetInnerHTML={{ __html: SPLASH_BOOT_SCRIPT }} />
         <Splash />
         <Providers>{children}</Providers>

@@ -7,6 +7,7 @@ import { Icon } from '../primitives/Icon'
 import { useEscape } from '../hooks/dom'
 import { Logo } from './Logo'
 import { isActiveItem, type NavGroup } from './navigation'
+import { countBadgeText } from './approvals-badge'
 import { NavPreview, hasPreview } from './NavPreview'
 import styles from './Sidebar.module.css'
 
@@ -147,6 +148,14 @@ export function Sidebar({ groups, isOpen, onClose }: SidebarProps) {
                         >
                           <Icon name={item.icon} size={18} className={styles.itemIcon} />
                           <RollText text={item.label} />
+                          {item.count ? (
+                            <>
+                              <span className={styles.count} aria-hidden="true">
+                                {countBadgeText(item.count)}
+                              </span>
+                              <span className={styles.srOnly}>: {item.count} ждут вашего решения</span>
+                            </>
+                          ) : null}
                         </Link>
                       )
                     })}

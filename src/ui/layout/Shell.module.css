@@ -747,6 +747,11 @@
   opacity: 0.55;
 }
 
+/* Спокойный рабочий режим: сетка точек — узор, а не данные; холст ровный. */
+:global(html[data-mode='work'][data-work-theme]) .dots {
+  display: none;
+}
+
 /* Дымка: два пятна, фиолетовое сверху слева и глубокое снизу справа, едва дышат. */
 .haze {
   position: absolute;
@@ -906,4 +911,41 @@
   .dropdownItem {
     min-height: var(--touch-target);
   }
+}
+
+/*
+ * Число дел у пункта «Ещё» и у пункта внутри него (решение 218, «Согласования»):
+ * тот же знак, что у колокольчика, — фиолетовый — «ждёт вас», не украшение.
+ */
+.navCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: var(--space-1);
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+  color: #ffffff;
+  font-size: var(--text-caption-size);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dropdownItem .navCount {
+  margin-left: auto;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -216,3 +216,26 @@
     font-size: var(--text-caption-size);
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * воронка — одна приглушённая светлота фиолетового, без ореолов
+ * и без плашки вокруг.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .root {
+  padding-inline: 0;
+  border: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .band {
+  fill: var(--calm-chart);
+  fill-opacity: 0.55;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .halo1,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .halo2 {
+  display: none;
+}

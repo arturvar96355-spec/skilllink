@@ -98,7 +98,7 @@ import {
   skillListQuerySchema,
   updateSkillSchema,
 } from '@/modules/skills/skills.schema'
-import { approvalListQuerySchema, createApprovalSchema } from '@/modules/approvals/approvals.schema'
+import { approvalListQuerySchema, createApprovalSchema, rejectApprovalSchema } from '@/modules/approvals/approvals.schema'
 import { auditExportQuerySchema } from '@/modules/audit/audit.schema'
 import {
   contactBasisHistoryQuerySchema,
@@ -1104,10 +1104,11 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Решение 212. ZIP: по папке на документ — файл документа (как `GET /api/documents/{id}/file`) ' +
       'и все приложенные файлы. Все статусы документов и любой статус связки: закрытие запрещает ' +
-      'правку, а не чтение. Представителю вуза — только своя связка. Документов нет — 404.',
+      'правку, а не чтение. Представителю вуза — только своя связка. Документов нет — 404. ' +
+      'Приложенных файлов больше 100 МБ — 409 (решение 222): архив собирается в памяти.',
     permission: 'READ',
     fileContentType: 'application/zip',
-    errors: READ_ERRORS,
+    errors: [...READ_ERRORS, 'CONFLICT'],
   },
 
   // ── Workflow ──────────────────────────────────────────────────────────────
@@ -1578,7 +1579,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по ' +
       'счётчикам с затуханием), 90-процентный интервал, полные и эффективные показы и успехи — ' +
-      'общий уровень, вузы и менеджеры.',
+      'общий уровень, вузы и менеджеры. Решение 218: outcomes — сколько задач правило создало и что с ними ' +
+      'стало: новые, взятые в работу, отклонённые — по самой таблице задач.',
     permission: 'ANALYTICS',
     errors: COMMON_ERRORS,
   },
@@ -2351,12 +2353,18 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Запросы на одобрение опасных операций («четыре глаза»)',
     description:
       'Новые сверху; истёкшие показываются как EXPIRED. canApprove — текущий администратор может одобрить ' +
-      '(не автор, запрос ждёт решения). Требование одобрения включается APPROVALS_REQUIRED=true.',
+      '(не автор, запрос ждёт решения). Требование одобрения включается APPROVALS_REQUIRED=true. ' +
+      'Решение 218: scope — вкладка экрана «Согласования» (awaiting — ждут моего решения, mine — мои, ' +
+      'history — с решением); в ответе target (над кем операция), reason и rejectReason — причины из журнала. ' +
+      'Эксперт с ролью администратора читает список, canApprove у него всегда false. В meta, кроме страницы, — ' +
+      'счётчики экрана: awaiting (ждут решения текущего администратора), readyToRun (его согласованные, ' +
+      'осталось выполнить), required (включено ли APPROVALS_REQUIRED), ttlHours (срок запроса).',
     permission: 'ADMIN',
     query: approvalListQuerySchema,
     list: true,
     errors: COMMON_ERRORS,
   },
+
   {
     method: 'post',
     path: '/api/admin/approvals',
@@ -2366,7 +2374,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Действия: user.grant_admin (назначить администратором), user.block_admin (заблокировать администратора); ' +
       'payload — { userId }. Цель проверяется сразу: не найдена — 404, операция не имеет смысла — 409. ' +
       'Запрос живёт 24 часа. После одобрения другим администратором автор выполняет операцию, передав approvalId ' +
-      '(PATCH /api/users/{id}); одобрение срабатывает один раз.',
+      '(PATCH /api/users/{id}); одобрение срабатывает один раз. reason — зачем операция, увидит согласующий (решение 218).',
     permission: 'ADMIN',
     body: createApprovalSchema,
     errors: [...WRITE_ERRORS, 'CONFLICT'],
@@ -2386,8 +2394,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     path: '/api/admin/approvals/{id}/reject',
     tag: 'Администрирование',
     summary: 'Отклонить запрос',
-    description: 'Любой администратор, в том числе автор (отозвать свой). Ждущий или одобренный, но не использованный. Тело не нужно.',
+    description:
+      'Любой администратор, в том числе автор (отозвать свой). Ждущий или одобренный, но не использованный. ' +
+      'Тело необязательно: { reason } — почему отклонено, увидит запросивший (решение 218).',
     permission: 'ADMIN',
+    body: rejectApprovalSchema,
+    bodyOptional: true,
     returnsOk: true,
     errors: [...READ_ERRORS, 'CONFLICT'],
   },

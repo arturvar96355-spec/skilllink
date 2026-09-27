@@ -246,3 +246,31 @@ describe('подвал', () => {
     expect(hrefs).toContain(API_CONTRACT_URL)
   })
 })
+
+describe('«Согласования» (решение 218)', () => {
+  it('администратор видит пункт с числом дел и открывает раздел', () => {
+    const items = navigationFor(user('ADMIN'), { approvals: 2 }).flatMap((group) => group.items)
+    const approvals = items.find((item) => item.href === ROUTES.approvals)
+    expect(approvals).toMatchObject({ label: 'Согласования', count: 2 })
+    // Рядом с «Настройками», где «Пользователи»: оттуда уходят запросы.
+    expect(items.indexOf(approvals!)).toBe(items.findIndex((item) => item.href === ROUTES.settings) - 1)
+    expect(isSectionAllowed(user('ADMIN'), ROUTES.approvals)).toBe(true)
+  })
+
+  it.each<UserRole>(['HEAD', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP'])(
+    'роль %s пункт не видит, по прямой ссылке — «Раздел недоступен»',
+    (role) => {
+      const hrefs = navigationFor(user(role), { approvals: 5 }).flatMap((group) => group.items.map((item) => item.href))
+      expect(hrefs).not.toContain(ROUTES.approvals)
+      expect(isSectionAllowed(user(role), ROUTES.approvals)).toBe(false)
+    },
+  )
+
+  it('эксперт с ролью администратора видит раздел (только чтение), эксперт-менеджер — нет', () => {
+    const base = user('ADMIN')
+    const expertAdmin = { ...base, isReviewer: true, permissions: { ...base.permissions, isAdmin: false } }
+    expect(navigationFor(expertAdmin).flatMap((group) => group.items.map((item) => item.href))).toContain(ROUTES.approvals)
+    expect(isSectionAllowed(expertAdmin, ROUTES.approvals)).toBe(true)
+    expect(isSectionAllowed({ ...user('MANAGER'), isReviewer: true }, ROUTES.approvals)).toBe(false)
+  })
+})

@@ -1117,3 +1117,19 @@
     margin-block: calc(var(--space-3) * -1);
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант В «графит» (src/ui/lib/work-theme.ts):
+ * нагрузка — серой шкалой, красным — только просроченное.
+ */
+:global(html[data-mode='work'][data-work-theme='c']) .scaleHigh,
+:global(html[data-mode='work'][data-work-theme='c']) .barMeetings,
+:global(html[data-mode='work'][data-work-theme='c']) .keyMeetings {
+  background: color-mix(in srgb, var(--calm-chart) 45%, transparent);
+}
+
+:global(html[data-mode='work'][data-work-theme='c']) .scaleOver,
+:global(html[data-mode='work'][data-work-theme='c']) .barCoops,
+:global(html[data-mode='work'][data-work-theme='c']) .keyCoops {
+  background: var(--calm-chart);
+}

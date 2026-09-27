@@ -89,3 +89,23 @@
 .legendItem.cyan::before {
   background: var(--accent-cyan);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * части одного балла — светлотой одного фиолетового (решение 215),
+ * а не тремя разными цветами.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .violet,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .legendItem.violet::before {
+  background: var(--calm-chart);
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .pink,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .legendItem.pink::before {
+  background: color-mix(in srgb, var(--calm-chart) 55%, transparent);
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cyan,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .legendItem.cyan::before {
+  background: color-mix(in srgb, var(--calm-chart) 28%, transparent);
+}

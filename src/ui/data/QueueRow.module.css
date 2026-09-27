@@ -106,6 +106,20 @@
 }
 
 /*
+ * Спокойный рабочий режим (src/ui/lib/work-theme.ts): полоска остаётся только
+ * у того, что требует внимания, — красная. Фиолетовая гамма приоритетов
+ * рябила на каждой строке; приоритет и так назван заголовком группы.
+ * «Блок» — тоже требует внимания: красным словом, как «Заблокирован» в карточке.
+ */
+:global(html[data-mode='work'][data-work-theme]) .row:not([data-tone='critical'], [data-tone='late']) > .ind {
+  background: transparent;
+}
+
+:global(html[data-mode='work'][data-work-theme]) .value[data-tone='accent'] {
+  color: var(--status-danger);
+}
+
+/*
  * Основная часть — ссылка или кнопка раскрытия. Её невидимый слой накрывает
  * всю верхнюю строку: щелчок в любом месте строки — то же, что по заголовку.
  * Кнопка действия лежит поверх (z-index), у неё своя точка фокуса.
@@ -355,4 +369,16 @@
     margin-left: var(--space-5);
     margin-right: var(--space-1);
   }
+}
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * очередь — список под тонкой линией, без плашки.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .queue {
+  padding-inline: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }

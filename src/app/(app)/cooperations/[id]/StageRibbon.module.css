@@ -381,3 +381,51 @@
     min-height: var(--touch-target);
   }
 }
+
+/*
+ * Спокойный рабочий режим (src/ui/lib/work-theme.ts). Закрытый этап — нейтральный
+ * (зелёный «всё хорошо» не нужен), текущий — фиолетовой рамкой и номером,
+ * заблокированный — красным, как в списке этапов и в «Требует внимания»:
+ * жёлтый здесь спорил с красной биркой «Заблокирован» того же этапа.
+ */
+:global(html[data-mode='work'][data-work-theme]) .done .dot {
+  background: linear-gradient(rgb(var(--ink-rgb) / 0.06), rgb(var(--ink-rgb) / 0.06)), var(--surface-1);
+  border-color: var(--line-subtle);
+  color: var(--text-secondary);
+}
+
+:global(html[data-mode='work'][data-work-theme]) .current .dot {
+  border-color: var(--accent-violet);
+  color: var(--accent-violet);
+}
+
+:global(html[data-mode='work'][data-work-theme]) .blocked .dot {
+  background: linear-gradient(var(--danger-surface), var(--danger-surface)), var(--surface-1);
+  border-color: var(--danger-border);
+  color: var(--status-danger);
+}
+
+:global(html[data-mode='work'][data-work-theme]) .legendDone {
+  background: rgb(var(--ink-rgb) / 0.08);
+  border-color: var(--line-subtle);
+}
+
+:global(html[data-mode='work'][data-work-theme]) .phaseCurrent .phaseName {
+  color: var(--accent-violet);
+}
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * лента этапов без плашки; пройденная линия — нейтральная,
+ * фиолетовым — только текущий этап.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .ribbon {
+  padding-inline: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .lineDone {
+  background: var(--calm-mark);
+}
