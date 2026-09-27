@@ -7,6 +7,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  hasActiveFilters,
   Input,
   Pagination,
   ResetFilters,
@@ -59,7 +60,12 @@ export function SkillsSection() {
   }
 
   const rows = skills.data ?? []
-  const hasFilters = query !== ''
+  // Поиск — по введённому, а не по отложенному: кнопка сброса появляется сразу (решение 128).
+  const hasFilters = hasActiveFilters({ search: search.trim() })
+
+  function resetFilters() {
+    changeFilter(() => setSearch(''))
+  }
 
   function list() {
     if (skills.isLoading) return <RowsSkeleton count={5} />
@@ -70,7 +76,7 @@ export function SkillsSection() {
           icon="skill"
           title="Ничего не нашлось"
           description={hasFilters ? 'По названию ничего не найдено. Снимите фильтр.' : 'Справочник навыков пуст.'}
-          action={hasFilters ? <ResetFilters active onReset={() => changeFilter(() => setSearch(''))} /> : undefined}
+          action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
         />
       )
     }
@@ -115,9 +121,12 @@ export function SkillsSection() {
       <div className={styles.filters}>
         <Toolbar
           actions={
-            <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-              Добавить навык
-            </Button>
+            <>
+              {hasFilters && <ResetFilters active onReset={resetFilters} />}
+              <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+                Добавить навык
+              </Button>
+            </>
           }
         >
           <ToolbarSearch>

@@ -7,8 +7,10 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  hasActiveFilters,
   Input,
   Pagination,
+  ResetFilters,
   Select,
   Toolbar,
   ToolbarItem,
@@ -79,7 +81,16 @@ export function UsersSection() {
   }
 
   const rows = users.data ?? []
-  const hasFilters = query !== '' || role !== '' || status !== ''
+  // Поиск — по введённому, а не по отложенному: кнопка сброса появляется сразу (решение 128).
+  const hasFilters = hasActiveFilters({ search: search.trim(), role, status })
+
+  function resetFilters() {
+    changeFilter(() => {
+      setSearch('')
+      setRole('')
+      setStatus('')
+    })
+  }
 
   function list() {
     if (users.isLoading) return <RowsSkeleton count={5} />
@@ -90,6 +101,7 @@ export function UsersSection() {
           icon="user"
           title="Никого не нашлось"
           description={hasFilters ? 'По выбранным условиям пользователей нет. Снимите часть фильтров.' : 'Пользователей пока нет.'}
+          action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
         />
       )
     }
@@ -128,9 +140,12 @@ export function UsersSection() {
       <div className={styles.filters}>
         <Toolbar
           actions={
-            <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
-              Завести пользователя
-            </Button>
+            <>
+              {hasFilters && <ResetFilters active onReset={resetFilters} />}
+              <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+                Завести пользователя
+              </Button>
+            </>
           }
         >
           <ToolbarSearch>
