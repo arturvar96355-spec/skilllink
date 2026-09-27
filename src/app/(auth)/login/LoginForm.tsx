@@ -85,6 +85,15 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
   /** Вход удался: панель уходит с экрана, и только потом открывается приложение. */
   const [isLeaving, setIsLeaving] = useState(false)
   const initialError = params.get('error')
+  /**
+   * Была ли уже неудачная попытка входа паролем: только тогда под ошибкой
+   * появляется предупреждение о проверке «не робот» и блокировке. Раньше этот
+   * абзац стоял на панели всегда — и из-за него панель не помещалась на экран
+   * ноутбука без прокрутки. Сами пороги считает сервер, здесь — только текст.
+   */
+  const [hadFailure, setHadFailure] = useState(
+    initialError === 'CredentialsSignin' || params.get('code') !== null,
+  )
   const [message, setMessage] = useState<string | null>(
     // AccessDenied приходит только от signIn() провайдера keycloak (auth.ts) —
     // Credentials и expert отказывают своим кодом через CredentialsSignin.
@@ -171,6 +180,7 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
     setIsPending(false)
 
     if (!result || result.error) {
+      setHadFailure(true)
       setMessage(errorMessage(result?.error ?? 'CredentialsSignin', result?.code ?? null))
       return
     }
@@ -238,8 +248,10 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
         <span className={styles.edge} aria-hidden="true" />
         <div className={styles.panelHead}>
           <h1 className={styles.title}>Вход</h1>
-          <p className={styles.subtitle}>
-            Рабочая почта и пароль. Учётные записи заводит администратор системы.
+          {/* Одна строка: пояснение про учётные записи — для программ чтения с экрана и в подсказке. */}
+          <p className={styles.subtitle} title="Учётные записи заводит администратор системы">
+            Рабочая почта и пароль
+            <span className="visually-hidden">. Учётные записи заводит администратор системы.</span>
           </p>
         </div>
 
@@ -305,6 +317,15 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
               {message}
             </p>
           )}
+          {/* Предупреждение о защите от подбора — только после первой неудачи, рядом с ошибкой. */}
+          {hadFailure && (
+            <p className={styles.note}>
+              После {LOGIN_CAPTCHA.afterFailures} неудачных попыток вход проверяет, что он
+              не автоматический, — браузер делает это сам за пару секунд. После{' '}
+              {LOGIN_THROTTLE.maxFailures} подряд вход в учётную запись закрывается
+              на {BLOCK_MINUTES} минут — это защита от подбора пароля.
+            </p>
+          )}
 
           <Button
             type="submit"
@@ -320,7 +341,13 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
 
         {expertQuickLoginEnabled ? (
           <div className={styles.expertLogin}>
-            <p className={styles.expertLoginTitle}>Вход для экспертов хакатона</p>
+            {/* Заголовок и пояснение — одной строкой; пояснение привязано к кнопкам для программ чтения. */}
+            <div className={styles.expertLoginHead}>
+              <p className={styles.expertLoginTitle}>Вход для экспертов хакатона</p>
+              <p id="expert-login-scope" className={styles.expertLoginScope}>
+                только просмотр и выгрузки
+              </p>
+            </div>
             <div className={styles.expertLoginButtons}>
               {EXPERT_QUICK_LOGIN_ROLES.map((role) => (
                 <Button
@@ -330,13 +357,13 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
                   size="sm"
                   isLoading={quickPending === role.key}
                   disabled={busy && quickPending !== role.key}
+                  aria-describedby="expert-login-scope"
                   onClick={() => onQuickLogin(role.key)}
                 >
                   {role.label}
                 </Button>
               ))}
             </div>
-            <p className={styles.note}>Только просмотр и выгрузки: изменения данных недоступны.</p>
           </div>
         ) : (
           // Кнопок нет (переменная EXPERT_QUICK_LOGIN выключена) — учётные записи
@@ -346,28 +373,23 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           </p>
         )}
 
-        <p className={styles.note}>
-          После {LOGIN_CAPTCHA.afterFailures} неудачных попыток вход проверяет, что он
-          не автоматический, — браузер делает это сам за пару секунд. После{' '}
-          {LOGIN_THROTTLE.maxFailures} подряд вход в учётную запись закрывается
-          на {BLOCK_MINUTES} минут — это защита от подбора пароля.
-        </p>
-
-        <p className={styles.note}>
+        {/*
+          Подвал панели — одной строкой: политика и открытый код (решение владельца —
+          ссылка на репозиторий заметна на стенде; полный адрес — в подсказке).
+        */}
+        <p className={styles.panelFoot}>
           <Link href={ROUTES.privacy} className={styles.privacyLink}>
             Политика обработки персональных данных
           </Link>
-        </p>
-
-        {/* Ссылка на открытый репозиторий — заметно на стенде (решение владельца). */}
-        <p className={styles.note}>
+          <span className={styles.panelFootSep} aria-hidden="true" />
           <a
             href={OPEN_SOURCE_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             className={styles.privacyLink}
+            title="github.com/arturvar96355-spec/skilllink — откроется в новой вкладке"
           >
-            Открытый код: github.com/arturvar96355-spec/skilllink
+            Открытый код
           </a>
         </p>
       </div>
