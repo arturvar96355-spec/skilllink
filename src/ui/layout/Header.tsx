@@ -14,6 +14,7 @@ import { openSearch } from '../search/search-events'
 import { useEscape, useOutsideClick } from '../hooks/dom'
 import { useCurrentUser } from './CurrentUser'
 import { isActiveItem, type NavGroup, type NavItem } from './navigation'
+import { countBadgeText } from './approvals-badge'
 import { ROUTES } from '../lib/links'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
@@ -125,6 +126,9 @@ function MoreMenu({ items, active, pathname }: { items: NavItem[]; active: boole
   const [isOpen, setIsOpen] = useState(false)
   const ref = useOutsideClick<HTMLDivElement>(() => setIsOpen(false), isOpen)
   useEscape(() => setIsOpen(false), isOpen)
+  // Дела внутри «Ещё» (решение 218, «Согласования») — числом прямо на кнопке:
+  // иначе запрос второго администратора прятался бы за закрытым меню.
+  const waiting = items.reduce((sum, item) => sum + (item.count ?? 0), 0)
 
   return (
     <div ref={ref} className={styles.moreWrap}>
@@ -133,11 +137,17 @@ function MoreMenu({ items, active, pathname }: { items: NavItem[]; active: boole
         className={[styles.topItem, active ? styles.topItemActive : ''].filter(Boolean).join(' ')}
         aria-expanded={isOpen}
         aria-haspopup="menu"
+        aria-label={waiting > 0 ? `Ещё: ${waiting} ждут вашего решения` : undefined}
         onClick={() => setIsOpen((open) => !open)}
       >
         {active && <motion.span layoutId="top-nav-pill" className={styles.topPill} />}
         <span className={styles.topLabel}>
           Ещё
+          {waiting > 0 && (
+            <span className={styles.navCount} aria-hidden="true">
+              {countBadgeText(waiting)}
+            </span>
+          )}
           <Icon name="chevronDown" size={16} className={isOpen ? styles.chevronOpen : styles.chevron} />
         </span>
       </button>
@@ -155,6 +165,14 @@ function MoreMenu({ items, active, pathname }: { items: NavItem[]; active: boole
             >
               <Icon name={item.icon} size={16} />
               {item.label}
+              {item.count ? (
+                <>
+                  <span className={styles.navCount} aria-hidden="true">
+                    {countBadgeText(item.count)}
+                  </span>
+                  <span className={styles.srOnly}>: {item.count} ждут вашего решения</span>
+                </>
+              ) : null}
             </Link>
           ))}
           {/* Документация без входа (решение 214) — последним пунктом, не разделом меню. */}
