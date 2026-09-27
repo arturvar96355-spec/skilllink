@@ -240,3 +240,11 @@
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .cellTitleLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
