@@ -49,6 +49,7 @@ import {
 import {
   changeDocumentStatusSchema,
   createDocumentSchema,
+  documentFileQuerySchema,
   documentListQuerySchema,
   generateDocumentsSchema,
   updateDocumentSchema,
@@ -1094,6 +1095,19 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     bodyOptional: true,
     errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/documents/package',
+    tag: 'Документы',
+    summary: 'Скачать пакет документов связки одним архивом',
+    description:
+      'Решение 212. ZIP: по папке на документ — файл документа (как `GET /api/documents/{id}/file`) ' +
+      'и все приложенные файлы. Все статусы документов и любой статус связки: закрытие запрещает ' +
+      'правку, а не чтение. Представителю вуза — только своя связка. Документов нет — 404.',
+    permission: 'READ',
+    fileContentType: 'application/zip',
+    errors: READ_ERRORS,
+  },
 
   // ── Workflow ──────────────────────────────────────────────────────────────
   {
@@ -1760,6 +1774,21 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Создать новую версию документа',
     description: 'Исходный документ уходит в архив.',
     permission: 'WRITE',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/documents/{id}/file',
+    tag: 'Документы',
+    summary: 'Открыть или скачать документ (в любом статусе)',
+    description:
+      'Решение 212. HTML-страница без скриптов: реквизиты, текст из шаблона, ссылка на оригинал, ' +
+      'список приложенных файлов и история статусов (внутренние комментарии представителю вуза не показываются). ' +
+      'Без параметра — `Content-Disposition: inline` (открыть в браузере), `download=1` — `attachment`. ' +
+      'Подписанный и архивный документ открывается так же: закрыта правка, а не чтение.',
+    permission: 'READ',
+    query: documentFileQuerySchema,
+    fileContentType: 'text/html',
     errors: READ_ERRORS,
   },
   {

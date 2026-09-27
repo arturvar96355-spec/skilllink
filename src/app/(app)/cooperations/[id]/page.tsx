@@ -18,6 +18,7 @@ import {
 import {
   Badge,
   Button,
+  DownloadButton,
   Card,
   CooperationStatusBadge,
   DataTable,
@@ -475,11 +476,24 @@ function CooperationContent() {
         </div>
       )}
 
-      {tab === 'documents' && user.permissions.canWrite && (
+      {/* Пакет целиком — всем, кто видит связку, в любом её статусе (решение 212):
+          завершённая связка закрыта для правки, а не для чтения. */}
+      {tab === 'documents' && ((documents.data ?? []).length > 0 || user.permissions.canWrite) && (
         <div className={styles.tabActions}>
-          <Button icon="plus" variant="secondary" onClick={() => setIsDocumentOpen(true)}>
-            Добавить документ
-          </Button>
+          {(documents.data ?? []).length > 0 && (
+            <DownloadButton
+              href={`/api/cooperations/${params.id}/documents/package`}
+              fallbackName="Документы связки.zip"
+              title="Все документы связки и приложенные к ним файлы одним архивом"
+            >
+              Скачать пакет
+            </DownloadButton>
+          )}
+          {user.permissions.canWrite && (
+            <Button icon="plus" variant="secondary" onClick={() => setIsDocumentOpen(true)}>
+              Добавить документ
+            </Button>
+          )}
         </div>
       )}
 
