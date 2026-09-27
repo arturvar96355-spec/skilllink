@@ -100,10 +100,27 @@ export function PageHeader({
       <div className={styles.pageHeader}>
         <div className={styles.titleBlock}>
           <div className={styles.titleRow}>
-            <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
-              {scramble ? <ScrambleText text={title} /> : title}
-            </h1>
-            {help && <HelpHint {...help} />}
+            {help ? (
+              // «?» идёт за последним словом заголовка, а не отдельным элементом ряда:
+              // длинный заголовок переносится, и значок остаётся с ним, а не уезжает к
+              // бейджам следующей строки (решение 217). Между h1 и значком нет пробела —
+              // перенос между ними невозможен, значок не повиснет один на строке.
+              <div className={[styles.titleLine, variant === 'display' ? styles.titleDisplay : styles.title].join(' ')}>
+                <h1
+                  ref={titleRef}
+                  className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''} ${styles.inlineTitle}`}
+                >
+                  {scramble ? <ScrambleText text={title} /> : title}
+                </h1>
+                <span className={styles.inlineHelp}>
+                  <HelpHint {...help} />
+                </span>
+              </div>
+            ) : (
+              <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
+                {scramble ? <ScrambleText text={title} /> : title}
+              </h1>
+            )}
             {meta}
           </div>
           {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
@@ -147,10 +164,17 @@ export function Section({ title, description, hint, help, action, children }: Se
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitleBlock}>
             {title &&
-              (hint || help ? (
+              (help ? (
+                <div className={[styles.titleLine, styles.sectionTitle].join(' ')}>
+                  <h2 className={[styles.sectionTitle, styles.inlineTitle].join(' ')}>{title}</h2>
+                  <span className={styles.inlineHelp}>
+                    <HelpHint {...help} />
+                  </span>
+                </div>
+              ) : hint ? (
                 <div className={styles.sectionTitleRow}>
                   <h2 className={styles.sectionTitle}>{title}</h2>
-                  {help ? <HelpHint {...help} /> : <InfoHint text={hint!} />}
+                  <InfoHint text={hint} />
                 </div>
               ) : (
                 <h2 className={styles.sectionTitle}>{title}</h2>
