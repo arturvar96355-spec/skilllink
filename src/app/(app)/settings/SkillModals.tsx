@@ -210,7 +210,7 @@ export function MergeSkillModal({ skill, onClose }: { skill: SkillDto; onClose: 
       isOpen
       onClose={() => onClose(false)}
       title={`Объединить «${skill.name}»`}
-      description="Навык-дубль будет удалён, его программы, продукты, спрос и рекомендации перейдут на выбранный целевой навык."
+      description="Навык-дубль будет удалён, его программы, продукты, спрос и задачи из списка перейдут на выбранный целевой навык."
       closeOnBackdrop={false}
       footer={
         <>

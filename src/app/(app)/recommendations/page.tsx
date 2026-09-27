@@ -15,7 +15,6 @@ import {
   RECOMMENDATION_TYPE_LABELS,
   type AiDraftDto,
   type RecommendationDto,
-  type RecommendationGenerationResultDto,
   type RecommendationPriority,
   type RecommendationStatus,
   type RecommendationType,
@@ -29,6 +28,7 @@ import {
   OPEN_RECOMMENDATION_STATUSES,
   CLOSED_RECOMMENDATION_STATUSES,
   ErrorState,
+  HelpHint,
   Icon,
   Modal,
   PageHeader,
@@ -75,6 +75,10 @@ import {
 import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
+
+/** Как список обновляется — кнопки «Пересобрать» больше нет (решение 212). */
+const REFRESH_HINT =
+  'Список обновляется сам: по связке — сразу при смене этапа, всё остальное (сроки, программы, навыки) — не реже раза в 10 минут. Ушла проблема — задача закрывается сама.'
 
 const TABS: TabItem[] = [
   { key: 'all', label: 'Все' },
@@ -199,11 +203,6 @@ function RecommendationsContent() {
   usePageInRange(page, setPage, recommendations.meta)
   const priorityTotals = usePriorityTotals({ tab, status, sort }, byPriority)
 
-  const generate = useMutation(async () => {
-    const result = await apiPost<RecommendationGenerationResultDto>('/api/recommendations/generate')
-    return result.data
-  })
-
   const update = useMutation(async (input: { id: string; status: RecommendationStatus; comment?: string }) => {
     setPending({ id: input.id, status: input.status })
     try {
@@ -243,17 +242,6 @@ function RecommendationsContent() {
     priorityTotals.reload()
   }
 
-  async function onGenerate() {
-    const result = await generate.run(undefined)
-    if (!result.ok) {
-      toast.error(result.error.message)
-      return
-    }
-    const { created, updated, closed } = result.data
-    toast.success(`Готово: новых ${created}, обновлено ${updated}, закрыто ${closed}.`)
-    reloadAll()
-  }
-
   async function changeStatus(item: RecommendationDto, next: RecommendationStatus, title: string) {
     const result = await update.run({ id: item.id, status: next })
     if (!result.ok) {
@@ -282,7 +270,7 @@ function RecommendationsContent() {
       toast.error(result.error.message)
       return
     }
-    toast.success('Рекомендация отклонена, основание сохранено')
+    toast.success('Задача отклонена, основание сохранено')
     setDismissing(null)
     setComment('')
     setChoice(null)
@@ -302,7 +290,7 @@ function RecommendationsContent() {
       setLetter(null)
       return
     }
-    // Пока писалось, могли открыть письмо по другой рекомендации — чужой текст не подставляем.
+    // Пока писалось, могли открыть письмо по другой задаче — чужой текст не подставляем.
     setLetter((current) => (current?.item.id === item.id ? { item, draft: result.data } : current))
   }
 
@@ -332,21 +320,17 @@ function RecommendationsContent() {
 
   return (
     <>
+      {/* Раньше — «Рекомендации» с кнопкой «Пересобрать» (решение 212): эксперт
+          не понимал, что это и зачем жать. Список обновляется сам. */}
       <PageHeader
-        title="Рекомендации"
-        description="Что система предлагает сделать и почему. Правила разбирают данные системы: сроки, дефициты навыков, состояние связок."
-        actions={
-          canWork ? (
-            <Button icon="refresh" variant="secondary" onClick={onGenerate} isLoading={generate.isPending}>
-              Пересобрать
-            </Button>
-          ) : undefined
-        }
+        title="Список задач"
+        description="Что система предлагает сделать: просрочки, застрявшие связки, дефициты навыков. Каждая задача объясняет, почему она появилась."
+        meta={<HelpHint text={REFRESH_HINT} />}
       />
 
       <AiAssistCard
         title="Что сделать сегодня"
-        description="Ваши дела по открытым рекомендациям и проблемным этапам ваших связок — в порядке, который задают правила. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
+        description="Ваши дела по открытым задачам этого списка и проблемным этапам ваших связок — в порядке, который задают правила. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
         actionLabel="Что сделать сегодня"
         endpoint="/api/ai/today"
       />
@@ -412,21 +396,13 @@ function RecommendationsContent() {
           <Card muted>
             <EmptyState
               icon="recommendation"
-              title="Рекомендаций нет"
+              title="Задач нет"
               description={
                 hasFilters
                   ? 'По выбранным условиям ничего нет. Снимите часть фильтров.'
-                  : 'Открытых предложений нет: система ещё не собирала их или все они закрыты. Закрытые — в фильтре «Статус».'
+                  : 'Открытых задач нет: просрочек, застрявших связок и дефицитов навыков система сейчас не видит. Закрытые — в фильтре «Статус».'
               }
-              action={
-                hasFilters ? (
-                  <ResetFilters active onReset={resetFilters} />
-                ) : canWork ? (
-                  <Button icon="refresh" onClick={onGenerate} isLoading={generate.isPending}>
-                    Собрать сейчас
-                  </Button>
-                ) : undefined
-              }
+              action={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
             />
           </Card>
         ) : (
@@ -518,7 +494,7 @@ function RecommendationsContent() {
                 setChoice(undefined)
                 cancelDismiss()
               }}
-              nouns={['рекомендация', 'рекомендации', 'рекомендаций']}
+              nouns={['задача', 'задачи', 'задач']}
             />
           </>
         )}
@@ -533,7 +509,7 @@ function RecommendationsContent() {
             </p>
 
             <div className={styles.block}>
-              <h3 className={styles.blockLabel}>Почему система это предлагает</h3>
+              <h3 className={styles.blockLabel}>Почему появилась задача</h3>
               <p className={styles.text}>{opened.justification}</p>
             </div>
 
@@ -549,7 +525,7 @@ function RecommendationsContent() {
               <RecommendationScore score={opened.score} breakdown={opened.scoreBreakdown} variant="full" />
               {opened.isDeferred && (
                 <p className={styles.note}>
-                  Отложена защитой от перегрузки: у ответственного много невыполненных предложений — запись не удалена
+                  Отложена защитой от перегрузки: у ответственного много невыполненных задач — запись не удалена
                 </p>
               )}
             </div>
@@ -564,7 +540,7 @@ function RecommendationsContent() {
 
             {opened.relatedData && (
               <div className={styles.block}>
-                <h3 className={styles.blockLabel}>Данные, на которых построено предложение</h3>
+                <h3 className={styles.blockLabel}>Данные, из которых выведена задача</h3>
                 <dl className={styles.facts}>
                   {describeRelatedData(opened.relatedData).map((fact) => (
                     <div key={fact.label} className={styles.fact}>
@@ -658,7 +634,7 @@ function RecommendationDetail({
   /** Панель открывается адресом — туда же ведёт ссылка из уведомления. */
   moreHref: string
 }) {
-  // Письмо — только по открытой рекомендации: по закрытой писать вузу не о чем.
+  // Письмо — только по открытой задаче: по закрытой писать вузу не о чем.
   const isOpen = item.status !== 'DONE' && item.status !== 'DISMISSED'
   return (
     <div className={styles.detail}>
@@ -689,7 +665,7 @@ function RecommendationDetail({
 
       <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
       {item.isDeferred && (
-        <p className={styles.note}>Отложена защитой от перегрузки: у ответственного много невыполненных предложений.</p>
+        <p className={styles.note}>Отложена защитой от перегрузки: у ответственного много невыполненных задач.</p>
       )}
 
       <div className={styles.detailFoot}>
@@ -712,7 +688,7 @@ function RecommendationDetail({
         >
           <Textarea
             label="Основание"
-            hint="Обязательное поле: без него сервер отклонение не примет. Основание сохранится в карточке рекомендации."
+            hint="Обязательное поле: без него сервер отклонение не примет. Основание сохранится в карточке задачи."
             value={comment}
             onChange={(event) => onComment(event.target.value)}
             maxLength={1000}

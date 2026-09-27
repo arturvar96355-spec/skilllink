@@ -201,7 +201,7 @@ export function summaryLines(facts: SummaryFacts): string[] {
     `Проблемные этапы: ${
       facts.problemStages.length === 0 ? 'нет' : facts.problemStages.map(stageProblem).join('; ')
     }`,
-    `Открытые рекомендации по связке: ${
+    `Открытые задачи по связке: ${
       facts.recommendations.length === 0
         ? 'нет'
         : facts.recommendations
@@ -238,7 +238,7 @@ export function summaryTemplate(facts: SummaryFacts): string {
   if (top) {
     sentences.push(`Дальше по правилам: ${lowerFirst(top.action)}`)
     if (facts.recommendations.length > 1) {
-      sentences.push(`Открытых рекомендаций по связке: ${facts.recommendations.length}.`)
+      sentences.push(`Открытых задач по связке: ${facts.recommendations.length}.`)
     }
   } else if (facts.currentStage) {
     sentences.push(`Дальше — продолжить этап ${facts.currentStage.number} «${facts.currentStage.title}».`)
@@ -629,7 +629,7 @@ const TASK_FORMS = ['дело', 'дела', 'дел'] as const
 
 export function todayTemplate(items: readonly TodayItem[]): string {
   if (items.length === 0) {
-    return 'На сегодня срочных дел нет: открытых рекомендаций и проблемных этапов по вашим связкам нет.'
+    return 'На сегодня срочных дел нет: открытых задач и проблемных этапов по вашим связкам нет.'
   }
   return [
     `Что сделать сегодня — ${countWithNoun(items.length, TASK_FORMS)} в порядке важности:`,

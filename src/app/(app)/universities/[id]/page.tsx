@@ -99,7 +99,7 @@ const TIMELINE_TYPE_LABELS: Record<TimelineEventType, string> = {
   meeting: 'Встречи',
   document: 'Документы',
   application: 'Заявки',
-  recommendation: 'Рекомендации',
+  recommendation: 'Список задач',
   contact: 'Контакты',
   audit: 'Изменения записи',
 }

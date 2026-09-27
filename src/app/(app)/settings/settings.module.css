@@ -140,17 +140,6 @@
   gap: var(--space-3);
 }
 
-.hint {
-  display: inline-flex;
-  color: var(--text-tertiary);
-  cursor: help;
-  transition: color var(--motion-micro) var(--ease-out);
-}
-
-.hint:hover {
-  color: var(--text-secondary);
-}
-
 .muted {
   font-size: var(--text-body-sm-size);
   color: var(--text-tertiary);

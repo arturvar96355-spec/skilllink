@@ -24,8 +24,8 @@ const SOURCES: Record<string, { api: string; nouns: [string, string, string]; hi
   },
   '/recommendations': {
     api: '/api/recommendations',
-    nouns: ['рекомендация', 'рекомендации', 'рекомендаций'],
-    hint: 'с обоснованием',
+    nouns: ['задача', 'задачи', 'задач'],
+    hint: 'у каждой — почему она появилась',
   },
   '/documents': { api: '/api/documents', nouns: ['документ', 'документа', 'документов'], hint: 'по всем связкам' },
   '/products': { api: '/api/products', nouns: ['продукт', 'продукта', 'продуктов'], hint: 'IT-продукты компании' },

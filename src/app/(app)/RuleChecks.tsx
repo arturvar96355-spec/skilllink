@@ -78,7 +78,7 @@ export function WhyRecommended({ recommendation }: { recommendation: Recommendat
       <p className={styles.lead}>
         {rule.wouldRecommend
           ? `Правило «${rule.ruleLabel}» проверяет ${rule.checks.length} ${pluralize(rule.checks.length, ['условие', 'условия', 'условий'])} — сейчас выполнены все.`
-          : `Правило «${rule.ruleLabel}» сейчас выдало бы другой ответ: часть условий уже не выполняется — рекомендация могла устареть.`}
+          : `Правило «${rule.ruleLabel}» сейчас выдало бы другой ответ: часть условий уже не выполняется — задача могла устареть.`}
       </p>
       <CheckList checks={rule.checks} />
       {why.data && <p className={styles.meta}>Проверено {formatDateTime(why.data.checkedAt)}</p>}
@@ -97,7 +97,7 @@ export function WhyNoRecommendation({ entity, id }: { entity: WhyNotEntity; id: 
   if (!isOpen) {
     return (
       <Button variant="secondary" size="sm" icon="info" onClick={() => setIsOpen(true)}>
-        Почему нет рекомендации?
+        Почему нет задачи?
       </Button>
     )
   }
@@ -108,7 +108,7 @@ export function WhyNoRecommendation({ entity, id }: { entity: WhyNotEntity; id: 
   return (
     <div className={styles.root}>
       <p className={styles.lead}>
-        Система проверяет каждое правило по этому объекту теми же условиями, что при пересборке. Рекомендация
+        Система проверяет каждое правило по этому объекту теми же условиями, что при пересборке. Задача
         появляется, только когда выполнены все условия правила.
       </p>
       {why.data.rules.map((rule) => {
@@ -119,7 +119,7 @@ export function WhyNoRecommendation({ entity, id }: { entity: WhyNotEntity; id: 
               <h3 className={styles.ruleTitle}>{rule.ruleLabel}</h3>
               {rule.recommendation ? (
                 <Link className={styles.ruleLink} href={recommendationHref(rule.recommendation.id)}>
-                  Рекомендация есть · {RECOMMENDATION_STATUS_LABELS[rule.recommendation.status].toLowerCase()}
+                  Задача есть · {RECOMMENDATION_STATUS_LABELS[rule.recommendation.status].toLowerCase()}
                   <Icon name="arrowRight" size={16} />
                 </Link>
               ) : (

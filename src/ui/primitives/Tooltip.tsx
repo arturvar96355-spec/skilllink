@@ -3,6 +3,7 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useMediaQuery } from '../hooks/dom'
+import { Icon } from './Icon'
 import styles from './Tooltip.module.css'
 
 export interface TooltipProps {
@@ -127,5 +128,21 @@ export function Tooltip({ text, children, disabled = false, interactive = true }
           document.body,
         )}
     </span>
+  )
+}
+
+/**
+ * Значок «?» с пояснением одной фразой (решение 212): там, где смысл числа,
+ * названия или статуса неочевиден за три секунды. Раньше жил в настройках
+ * (`settings/SettingsRow.tsx`), теперь общий — один вид «?» на всех страницах.
+ * С клавиатуры — своя точка фокуса, текст — имя для программ чтения с экрана.
+ */
+export function HelpHint({ text }: { text: string }) {
+  return (
+    <Tooltip text={text}>
+      <span className={styles.helpHint}>
+        <Icon name="help" size={16} />
+      </span>
+    </Tooltip>
   )
 }

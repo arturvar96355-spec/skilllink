@@ -224,7 +224,7 @@ function CooperationContent() {
   ]
   if (user.permissions.canSeeAnalytics) {
     tabs.push({ key: 'assistant', label: 'Помощник' })
-    tabs.push({ key: 'recommendations', label: 'Рекомендации' })
+    tabs.push({ key: 'recommendations', label: 'Список задач' })
   }
 
   const documentColumns: Column<DocumentListItemDto>[] = [
@@ -660,7 +660,7 @@ function CooperationContent() {
         <AiAssistCard
           key={params.id}
           title="Сводка"
-          description="Где связка сейчас, что мешает и что сделать дальше — по этапам и открытым рекомендациям. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
+          description="Где связка сейчас, что мешает и что сделать дальше — по этапам и открытым задачам. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
           actionLabel="Составить сводку"
           endpoint={`/api/cooperations/${params.id}/ai-summary`}
         />
@@ -686,7 +686,7 @@ function CooperationContent() {
               title={adviceScope === 'open' ? 'Открытых предложений нет' : 'Закрытых предложений нет'}
               description={
                 adviceScope === 'open'
-                  ? 'По этой связке система сейчас ничего не предлагает. Пересобрать предложения можно на странице рекомендаций.'
+                  ? 'По этой связке система сейчас ничего не предлагает. Список задач обновляется сам: появится проблема — появится и задача.'
                   : 'Выполненных и отклонённых предложений по этой связке пока нет.'
               }
             />

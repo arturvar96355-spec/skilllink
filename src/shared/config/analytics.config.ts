@@ -200,6 +200,13 @@ export const STALLED_THRESHOLD = {
 export const RECOMMENDATION_DISABLED_RULES: readonly string[] = [] // TEMP
 
 /**
+ * «Список задач» пересобирается сам (решение 212): при чтении списка или
+ * главной, если с последней пересборки прошло больше стольких минут.
+ * Смена этапа сверяет задачи своей связки сразу, не дожидаясь этого срока.
+ */
+export const RECOMMENDATION_AUTO_REFRESH_MINUTES = 10 // TEMP
+
+/**
  * Обучение рекомендаций на решениях сотрудников (решение 119).
  * Формулы и объяснение — docs/RECOMMENDATIONS_MODEL.md.
  */

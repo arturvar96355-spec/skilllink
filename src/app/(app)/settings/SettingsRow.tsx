@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Icon, Skeleton, Tooltip } from '@/ui'
+import { HelpHint, Skeleton } from '@/ui'
 import styles from './settings.module.css'
 
 /**
@@ -10,15 +10,8 @@ import styles from './settings.module.css'
  * файлах: страница Next не может экспортировать ничего, кроме себя самой.
  */
 
-export function Hint({ text }: { text: string }) {
-  return (
-    <Tooltip text={text}>
-      <span className={styles.hint}>
-        <Icon name="info" size={16} />
-      </span>
-    </Tooltip>
-  )
-}
+/** Тот же «?», что на остальных страницах (решение 212). */
+export const Hint = HelpHint
 
 /** Строка: слева название и короткая подпись, справа значение или действие. */
 export function Row({

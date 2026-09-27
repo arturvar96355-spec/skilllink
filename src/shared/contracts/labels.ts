@@ -240,7 +240,9 @@ export const RECOMMENDATION_STATUS_ACTIONS: Record<RecommendationStatus, string>
   NEW: 'Вернуть в новые',
   // Переход «Новая → В работе» — «Принять», одинаково на главной и в ленте
   // рекомендаций (решение 206): раньше одна кнопка называлась на двух экранах по-разному.
-  IN_PROGRESS: 'Принять',
+  // «Взять в работу», а не «Принять» (решение 212): в «Списке задач» «принять»
+  // читалось как «согласиться с рекомендацией», а кнопка делает задачу своей.
+  IN_PROGRESS: 'Взять в работу',
   // В «Принята» войти нельзя (статус упразднён, решение 98) — кнопки с этой подписью
   // нет; подпись оставлена, чтобы перечисление было подписано целиком.
   ACCEPTED: 'Принять',
@@ -393,8 +395,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'task.toggle': 'Отмечен пункт чек-листа',
   'task.university-item.confirm-by-staff': 'Сотрудник отметил подтверждение вуза с пометкой',
   'application.create': 'Подана заявка на обучение',
-  'recommendation.generate': 'Пересобраны рекомендации',
-  'recommendation.status.change': 'Изменён статус рекомендации',
+  'recommendation.generate': 'Пересобран список задач',
+  'recommendation.status.change': 'Изменён статус задачи из списка',
   'ai.draft': 'Черновик ИИ-помощника',
   'ai.story': 'История сотрудничества (ИИ)',
   'ai.request': 'Обращение к модели ИИ',
@@ -476,7 +478,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   Task: 'Пункт чек-листа',
   Document: 'Документ',
   Meeting: 'Встреча',
-  Recommendation: 'Рекомендация',
+  Recommendation: 'Задача из списка',
   Application: 'Заявка на обучение',
   ITProduct: 'IT-продукт',
   Skill: 'Навык',

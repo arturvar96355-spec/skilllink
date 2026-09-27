@@ -142,7 +142,7 @@ function StalledPreviewSection() {
           {preview.suppressedByOverdue > 0 && (
             <p className={settings.muted}>
               Ещё {formatCount(preview.suppressedByOverdue, ['связка', 'связки', 'связок'])} не считается застрявшей:
-              по ней уже есть рекомендация о просрочке.
+              по ней уже есть задача о просрочке.
             </p>
           )}
           {preview.stages

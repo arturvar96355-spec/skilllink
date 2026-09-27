@@ -19,7 +19,7 @@ import { daysBetween } from '@/shared/utils/date'
 import { percent, round } from '@/shared/utils/number'
 import { plural, STAGE_FORMS_OF } from '@/shared/utils/text'
 import * as skillsService from '@/modules/skills/skills.service'
-import { toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
+import { ensureFresh as ensureRecommendationsFresh, toRecommendationDtos } from '@/modules/recommendations/recommendations.service'
 import * as repo from './analytics.repo'
 import { compareWithPast, isClosedOnTime, onTimePercent } from './trend'
 import { countProblemGroups, problemSeverity } from './problem-severity'
@@ -276,6 +276,9 @@ function toProblemCooperation(stage: ProblemStage, now: Date): ProblemCooperatio
  */
 export async function overview(user: CurrentUser): Promise<DashboardOverviewDto> {
   assertCan(user, 'ANALYTICS')
+  // «Приоритетные действия» и счётчик открытых задач — из того же списка, что
+  // «Список задач»: он пересобирается сам, если устарел (решение 212).
+  await ensureRecommendationsFresh()
 
   const now = new Date()
   const scope = universityScope(user)
