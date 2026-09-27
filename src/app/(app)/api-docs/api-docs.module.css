@@ -299,3 +299,18 @@
     padding: var(--space-3);
   }
 }
+
+/*
+ * Swagger на телефоне (решение 219): стрелка раскрытия метода, «Authorize»,
+ * выбор сервера и поле фильтра — не ниже 44 px под пальцем. Строка метода и так
+ * раскрывается нажатием целиком; стрелка — отдельная цель, её и растим.
+ */
+@media (pointer: coarse) {
+  .swagger :global(.swagger-ui .expand-operation),
+  .swagger :global(.swagger-ui .btn.authorize),
+  .swagger :global(.swagger-ui select),
+  .swagger :global(.swagger-ui .filter .operation-filter-input) {
+    min-width: var(--touch-target);
+    min-height: var(--touch-target);
+  }
+}
