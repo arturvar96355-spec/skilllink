@@ -370,9 +370,19 @@
 
 .historyItem {
   display: flex;
+  /*
+   * Значок статуса — по верху строки, своей высоты: растянутый по высоте
+   * перенесённого заголовка («В работе → Заблокирован»), он со скруглением
+   * пилюли превращался в вытянутый овал (решение 195).
+   */
+  align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border-divider);
+}
+
+.historyItem > :first-child {
+  flex: none;
 }
 
 .historyItem:last-child {

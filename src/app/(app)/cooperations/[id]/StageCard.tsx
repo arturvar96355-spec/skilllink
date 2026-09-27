@@ -22,6 +22,7 @@ import {
   Checkbox,
   Modal,
   NAV_TRANSITION_ATTRIBUTE,
+  SkeletonLines,
   StageStatusBadge,
   Textarea,
   apiGet,
@@ -664,7 +665,7 @@ function StageHistoryDrawer({
   return (
     <Drawer isOpen onClose={onClose} title="История этапа" description={stageTitle}>
       {history.isLoading ? (
-        <p className={styles.historyMeta}>Загрузка…</p>
+        <SkeletonLines count={4} />
       ) : history.error ? (
         <ErrorState error={history.error} onRetry={history.reload} />
       ) : (history.data ?? []).length === 0 ? (
