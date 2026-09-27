@@ -4,6 +4,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback } from 'react'
 import { Button } from '../primitives/Button'
 
+export { hasActiveFilters } from './reset-filters'
+
 /**
  * «Сбросить фильтры» (решение 128) — одна кнопка на всех списках: в панели
  * фильтров, пока задан поиск или хоть один фильтр, и в пустом состоянии, если
