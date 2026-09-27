@@ -1,0 +1,24 @@
+/* «Правила списка задач» (решение 218): заголовок с «?» в строку, подпись правила — тремя строками. */
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.seeks {
+  color: var(--text-secondary);
+}
+
+.outcomes {
+  font-variant-numeric: tabular-nums;
+}
+
+.chart {
+  padding-top: var(--space-3);
+}

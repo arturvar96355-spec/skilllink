@@ -16,6 +16,7 @@ import {
   isOverloaded,
   isPauseOver,
   pooledPosterior,
+  ruleOutcomes,
   ruleProbability,
   sampleBeta,
   scoreRecommendation,
@@ -572,5 +573,26 @@ describe('симуляция 90 дней решений', () => {
     for (let index = 1; index < events.length; index += 1) {
       expect(events[index]!.at.getTime()).toBeGreaterThanOrEqual(events[index - 1]!.at.getTime())
     }
+  })
+})
+
+describe('что стало с задачами правила (решение 218)', () => {
+  const counts = [
+    { ruleKey: 'stage.overdue', status: 'NEW', count: 4 },
+    { ruleKey: 'stage.overdue', status: 'IN_PROGRESS', count: 3 },
+    { ruleKey: 'stage.overdue', status: 'DONE', count: 2 },
+    { ruleKey: 'stage.overdue', status: 'ACCEPTED', count: 1 },
+    { ruleKey: 'stage.overdue', status: 'DISMISSED', count: 5 },
+    { ruleKey: 'cooperation.stalled', status: 'NEW', count: 7 },
+  ]
+
+  it('взяли в работу — «В работе», «Принята», «Закрыта»; сумма частей равна всему', () => {
+    const outcome = ruleOutcomes(counts, 'stage.overdue')
+    expect(outcome).toEqual({ total: 15, open: 4, taken: 6, dismissed: 5 })
+    expect(outcome.open + outcome.taken + outcome.dismissed).toBe(outcome.total)
+  })
+
+  it('правило без задач — нули, а не пропуск', () => {
+    expect(ruleOutcomes(counts, 'program.missing-metrics')).toEqual({ total: 0, open: 0, taken: 0, dismissed: 0 })
   })
 })

@@ -2611,6 +2611,7 @@ curl -s 'http://localhost:3000/api/recommendations/why-not?entity=program&id=<id
 { "data": {
   "rules": [ {
     "ruleKey": "cooperation.stalled", "ruleLabel": "Связка без движения", "enabled": true,
+    "outcomes": { "total": 12, "open": 5, "taken": 4, "dismissed": 3 },
     "scopeType": "global", "scopeId": "all", "scopeLabel": null,
     "p": 0.121, "pSource": "global", "ci90": [0.017, 0.291],
     "trials": 28, "successes": 3, "trialsEff": 10.95, "successesEff": 0.6,
@@ -2627,6 +2628,9 @@ curl -s 'http://localhost:3000/api/recommendations/why-not?entity=program&id=<id
 `p` — среднее Beta по эффективным (с затуханием) счётчикам на момент запроса, `ci90` —
 квантили 5 % и 95 % того же распределения (численно), `trials`/`successes` — полные
 счётчики без затухания. Уровни вузов и менеджеров пулятся с уровнем выше.
+`outcomes` (решение 218) — задачи правила по самой таблице задач, та же база подсчёта, что
+у «Списка задач»: `total` за всё время = `open` (новые) + `taken` («В работе», «Принята»,
+«Закрыта») + `dismissed` (отклонены). Экран — «Настройки → Правила списка задач».
 Истории весов по дням сервер не хранит — ряды для графика даёт `npm run recs:simulate -- --json`.
 
 ### GET /api/recommendations/:id

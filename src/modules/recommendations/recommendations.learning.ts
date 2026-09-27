@@ -559,3 +559,22 @@ export function scoreRecommendation(
     },
   }
 }
+
+/**
+ * Итог задач правила по статусам (решение 218): «взяли в работу» — «В работе»,
+ * «Принята» и «Закрыта»; «отклонили» — «Отклонена»; «новые» — ещё без решения.
+ */
+export function ruleOutcomes(
+  counts: ReadonlyArray<{ ruleKey: string; status: string; count: number }>,
+  ruleKey: string,
+): { total: number; open: number; taken: number; dismissed: number } {
+  const result = { total: 0, open: 0, taken: 0, dismissed: 0 }
+  for (const row of counts) {
+    if (row.ruleKey !== ruleKey) continue
+    result.total += row.count
+    if (row.status === 'NEW') result.open += row.count
+    else if (row.status === 'DISMISSED') result.dismissed += row.count
+    else result.taken += row.count
+  }
+  return result
+}

@@ -37,6 +37,7 @@ import { CalculationParametersSection } from './CalculationParametersSection'
 import { DsarSection } from './DsarSection'
 import { Hint, Row, RowsSkeleton } from './SettingsRow'
 import { SkillsSection } from './SkillsSection'
+import { TaskRulesSection } from './TaskRulesSection'
 import { TelegramBotAdminSection } from './TelegramBotAdminSection'
 import { UsersSection } from './UsersSection'
 import { WorkflowStagesSection } from './WorkflowStagesSection'
@@ -88,6 +89,8 @@ const SECTIONS = [
   { key: 'workflow', label: 'Этапы работы', icon: 'calendar', adminOnly: true },
   { key: 'skills', label: 'Справочник навыков', icon: 'skill', adminOnly: true },
   { key: 'parameters', label: 'Параметры расчётов', icon: 'analytics', adminOnly: false },
+  // Правила «Списка задач» (решение 218): что ищет каждое, порог, сколько задач и их полезность.
+  { key: 'task-rules', label: 'Правила списка задач', icon: 'recommendation', adminOnly: false },
   { key: 'audit', label: 'Журнал действий', icon: 'clock', adminOnly: true },
   { key: 'dsar', label: 'Запросы субъектов', icon: 'lock', adminOnly: true },
   { key: 'about', label: 'О системе', icon: 'info', adminOnly: false },
@@ -97,7 +100,7 @@ type SectionKey = (typeof SECTIONS)[number]['key']
 type Section = (typeof SECTIONS)[number]
 
 /** Разделы с таблицами — шире остальных: строке пользователя и записи журнала тесно в 720 px. */
-const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'parameters', 'audit', 'dsar']
+const WIDE_SECTIONS: readonly SectionKey[] = ['users', 'workflow', 'skills', 'parameters', 'task-rules', 'audit', 'dsar']
 
 function sectionFromHash(available: readonly Section[]): SectionKey {
   const hash = typeof window === 'undefined' ? '' : window.location.hash.slice(1)
@@ -250,6 +253,8 @@ export default function SettingsPage() {
       'Общий справочник навыков для программ и продуктов. Объединение дубля переносит его связи на выбранный навык; удалить можно только тот, которым нигде не пользуются.',
     parameters:
       'Коэффициенты, пороги и нормативы, с которыми сейчас считает код — только чтение. Значения меняются правкой конфигурации на сервере, рабочие значения (TEMP) утверждаются с заказчиком отдельно.',
+    'task-rules':
+      'Правила, по которым система сама ставит задачи в «Список задач». Пороги и включение задаются в конфигурации сервера — здесь только просмотр.',
     audit:
       'Кто и что делал в системе. Пароли и персональные данные в журнал не пишутся — только служебные поля действия.',
     dsar:
@@ -361,6 +366,10 @@ export default function SettingsPage() {
       case 'parameters':
         if (!canSeeSources) return <Locked what="Параметры расчётов" />
         return <CalculationParametersSection />
+
+      case 'task-rules':
+        if (!canSeeSources) return <Locked what="Правила списка задач" />
+        return <TaskRulesSection />
 
       case 'audit':
         return isAdmin ? <AuditSection /> : null
