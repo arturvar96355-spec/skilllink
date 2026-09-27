@@ -165,6 +165,12 @@ export default function LetterPage() {
 
             <Card className={styles.analysisCard}>
               <h2 className={styles.blockTitle}>Что поняла система</h2>
+              <p className={styles.note}>
+                Перед отправкой в ИИ письмо и черновик ответа очищаются: скрываются почта,
+                телефоны, паспорт, СНИЛС и ФИО, известные системе. Имя и фамилия постороннего
+                человека без отчества могут остаться — текст ответа перед отправкой проверяет
+                человек.
+              </p>
               <dl className={styles.facts}>
                 <Fact
                   label="Вуз"
