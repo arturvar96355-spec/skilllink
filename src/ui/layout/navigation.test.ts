@@ -50,12 +50,13 @@ function user(role: UserRole): CurrentUserDto {
       isAdmin: role === 'ADMIN',
       canAssignResponsible: role === 'ADMIN' || role === 'HEAD',
       canReviewLetters: role === 'ADMIN' || role === 'HEAD',
+      canSeeTeam: role === 'ADMIN' || role === 'HEAD',
     },
     passwordTemporary: false,
   }
 }
 
-const ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP']
+const ROLES: UserRole[] = ['ADMIN', 'MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP', 'HEAD']
 
 describe('боковое меню', () => {
   it.each(ROLES)('у роли %s все пункты ведут на существующие страницы', (role) => {
@@ -110,6 +111,39 @@ describe('«Письма вузов» (решение 170/171)', () => {
   it.each<UserRole>(['ANALYST', 'VIEWER', 'UNIVERSITY_REP'])('раздел закрыт роли %s через охранник', (role) => {
     expect(isSectionAllowed(user(role), ROUTES.letters)).toBe(false)
     expect(isSectionAllowed(user(role), `${ROUTES.letters}/some-id`)).toBe(false)
+  })
+})
+
+describe('«Команда» (решение 203)', () => {
+  const withTeam = (role: UserRole, canSeeTeam: boolean): CurrentUserDto => {
+    const base = user(role)
+    return { ...base, permissions: { ...base.permissions, canSeeTeam } }
+  }
+
+  it.each<UserRole>(['ADMIN', 'HEAD'])('роль %s видит пункт меню и открывает раздел', (role) => {
+    const hrefs = navigationFor(user(role)).flatMap((group) => group.items.map((item) => item.href))
+    expect(hrefs).toContain(ROUTES.team)
+    expect(isSectionAllowed(user(role), ROUTES.team)).toBe(true)
+  })
+
+  it.each<UserRole>(['MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP'])(
+    'роль %s пункт не видит, по прямой ссылке — «Раздел недоступен»',
+    (role) => {
+      const hrefs = navigationFor(user(role)).flatMap((group) => group.items.map((item) => item.href))
+      expect(hrefs).not.toContain(ROUTES.team)
+      expect(isSectionAllowed(user(role), ROUTES.team)).toBe(false)
+    },
+  )
+
+  it('эксперт-менеджер видит «Команду» по флагу с сервера, а не по роли', () => {
+    const expert = { ...withTeam('MANAGER', true), isReviewer: true }
+    expect(navigationFor(expert).flatMap((group) => group.items.map((item) => item.href))).toContain(ROUTES.team)
+    expect(isSectionAllowed(expert, ROUTES.team)).toBe(true)
+  })
+
+  it('пункт стоит сразу за «Связками»', () => {
+    const items = navigationFor(user('HEAD'))[0]!.items.map((item) => item.href)
+    expect(items.indexOf(ROUTES.team)).toBe(items.indexOf(ROUTES.cooperations) + 1)
   })
 })
 
