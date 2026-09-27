@@ -73,6 +73,8 @@
 }
 
 .ruleToggle {
+  /* Зона нажатия 44 px на сенсорном экране (решение 219). */
+  composes: hit from '../../../ui/primitives/HitArea.module.css';
   flex: none;
   padding: var(--space-2) 0 var(--space-3);
   border: none;
@@ -1033,14 +1035,22 @@
 }
 
 @media (max-width: 760px) {
+  /*
+   * Вкладки — во всю строку, под ними «Как считается нагрузка» и «?» — в одну
+   * строку (решение 219): столбиком значок стоял один на своей строке, а под
+   * ним оставалась пустая полоса.
+   */
   .tools {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-1);
+  }
+
+  .tools > :first-child {
+    flex: 1 1 100%;
   }
 
   .ruleToggle {
-    align-self: flex-start;
     padding-top: 0;
   }
 
@@ -1083,5 +1093,27 @@
   .row > td:first-child::before,
   .block::before {
     transition: none;
+  }
+}
+
+/* Ссылка на этап в панели сотрудника под пальцем (решение 219). */
+@media (pointer: coarse) {
+  .stageLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}
+
+/*
+ * Имя сотрудника обрезается многоточием (overflow: hidden), и невидимая зона
+ * HitArea срезалась бы вместе с ним. Поэтому зона — из полей: 12 px сверху и
+ * снизу, съеденные таким же отрицательным отступом, — строка не сдвигается,
+ * а кнопка под пальцем 45 px (решение 219).
+ */
+@media (pointer: coarse) {
+  .personName {
+    padding-block: var(--space-3);
+    margin-block: calc(var(--space-3) * -1);
   }
 }
