@@ -416,6 +416,149 @@
   --button-accent-hover: #5b3dd4;
 }
 
+/*
+ * Спокойный вид рабочего режима — варианты на выбор (src/ui/lib/work-theme.ts).
+ * Замечание эксперта: рабочий режим «аляпится». Правило всех вариантов — цвет
+ * только сигнал: красный — требует внимания, жёлтый — ниже цели, фиолетовый —
+ * выбранное и основное; остальное — нейтральные серые. Презентационный режим
+ * не затронут: всё ниже действует только вместе с data-mode="work".
+ *
+ * Вариант А (и всё, что строже него): переопределение токенов. Розовый,
+ * оранжевый и бирюзовый становятся нейтральной меткой, зелёный «всё хорошо» —
+ * обычным текстом, фиолетовый текст ссылок и номеров — основным текстом
+ * (ссылку выдаёт вес и стрелка, а не цвет), свечения, дымка и тени погашены.
+ */
+html[data-mode='work'][data-work-theme] {
+  --calm-mark: rgb(var(--ink-rgb) / 0.34);
+  --calm-mark-soft: rgb(var(--ink-rgb) / 0.16);
+  /* Цвет графиков в строгом варианте; в графите — серый (ниже). */
+  --calm-chart: var(--accent-violet);
+
+  --accent-pink: var(--calm-mark);
+  --accent-orange: var(--calm-mark);
+  --accent-cyan: var(--calm-mark);
+  --gradient-brand: var(--accent-violet);
+
+  --status-success: var(--text-secondary);
+  --success-surface: transparent;
+  --success-border: var(--line-subtle);
+
+  --text-accent: var(--text-primary);
+  --text-accent-soft: var(--text-secondary);
+  --text-accent-pale: var(--text-primary);
+  --text-violet: var(--text-secondary);
+  --text-warm: var(--text-tertiary);
+  --border-accent: var(--line-strong);
+
+  --bg-glow: transparent;
+  --bg-glow-deep: transparent;
+  --bg-haze-violet: transparent;
+  --bg-haze-deep: transparent;
+
+  --shadow-base: none;
+  --glow-hover: 0 0 0 1px var(--line-strong);
+  --glow-hover-danger: 0 0 0 1px var(--danger-border);
+  --hover-lift: 0px;
+  --hover-lift-strong: 0px;
+}
+
+/*
+ * Статус — словом и точкой, без плашки (все варианты). Слово нейтральное;
+ * цвет остаётся у точки только там, где он сигнал: красный — просрочено,
+ * заблокировано, отказ; жёлтый — ниже цели, на согласовании; фиолетовый —
+ * текущее, в работе. У «опасного» и «ниже цели» цветное и слово: это то, что
+ * должно читаться первым. Демо-пометка остаётся — нейтральным словом.
+ */
+html[data-mode='work'][data-work-theme] [data-badge] {
+  padding-inline: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+html[data-mode='work'][data-work-theme] [data-badge] > :not([data-badge-label]) {
+  color: var(--text-disabled);
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='accent'] > :not([data-badge-label]) {
+  color: var(--accent-violet);
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='danger'],
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='danger'] > :not([data-badge-label]) {
+  color: var(--status-danger);
+  font-weight: 600;
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'],
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'] > :not([data-badge-label]) {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+
+/*
+ * Вариант Б «строгий» (и графит): статус этапа — монохромный. Точка «в работе»
+ * тоже серая: фиолетовым текущий этап выделен в ленте этапов, второй раз
+ * его красить не нужно. Цвет — только у просрочки, блокировки и «ниже цели».
+ */
+html[data-mode='work'][data-work-theme]:not([data-work-theme='a']) [data-badge][data-tone='accent'] > :not([data-badge-label]) {
+  color: var(--text-disabled);
+}
+
+/*
+ * Вариант В «графит»: всё из Б плюс нейтральный холст. Фиолетовый оттенок
+ * снят с фона, поверхностей, линий и серого текста — фиолетовым остаются
+ * только выбранное, текущий этап и основное действие; графики серые,
+ * сигнал — красный и жёлтый. Тёмная тема и светлая — отдельными правилами.
+ */
+html[data-mode='work'][data-work-theme='c']:not([data-theme='light']) {
+  --ink-rgb: 255 255 255;
+  --canvas: #0c0c0e;
+  --surface-1: #121214;
+  --surface-2: #19191c;
+  --surface-3: #202024;
+  --surface-floating: rgba(24, 24, 27, 0.97);
+  --surface-card-muted: #101012;
+  --surface-sunken: #0e0e10;
+  --bg-sidebar: rgba(13, 13, 15, 0.92);
+  --bg-header: rgba(12, 12, 14, 0.8);
+  --text-primary: #f2f2f3;
+  --text-secondary: #a7a7ad;
+  --text-tertiary: #86868d;
+  --text-disabled: #4a4a50;
+  --text-muted-cool: #a7a7ad;
+  --calm-chart: rgb(var(--ink-rgb) / 0.42);
+}
+
+html[data-mode='work'][data-work-theme='c'][data-theme='light'] {
+  --ink-rgb: 20 20 24;
+  --canvas: #f6f6f7;
+  --surface-1: #ffffff;
+  --surface-2: #f1f1f3;
+  --surface-3: #e7e7ea;
+  --surface-floating: rgba(255, 255, 255, 0.97);
+  --surface-card-muted: #fafafa;
+  --surface-sunken: #efeff1;
+  --bg-sidebar: rgba(255, 255, 255, 0.94);
+  --bg-header: rgba(246, 246, 247, 0.82);
+  --text-primary: #161618;
+  --text-secondary: #46464c;
+  --text-tertiary: #616168;
+  --text-disabled: #a5a5ab;
+  --text-muted-cool: #46464c;
+  --line-subtle: rgba(20, 20, 24, 0.09);
+  --line-strong: rgba(20, 20, 24, 0.16);
+  --line-faint: rgba(20, 20, 24, 0.045);
+  --border-divider: rgba(20, 20, 24, 0.08);
+  --button-primary-bg: #161618;
+  --button-primary-hover: #2a2a2e;
+  --calm-chart: rgb(var(--ink-rgb) / 0.42);
+}
+
+html[data-mode='work'][data-work-theme='c'] {
+  --gradient-progress: var(--calm-chart);
+}
+
 /* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */
 html[data-theme-switch='fade'] *,
 html[data-theme-switch='fade'] *::before,

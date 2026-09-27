@@ -273,3 +273,27 @@
     padding-left: 0;
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант В «графит» (src/ui/lib/work-theme.ts):
+ * полосы — серые разной светлоты; цвет только у «ниже цели» и «требует внимания».
+ */
+:global(html[data-mode='work'][data-work-theme='c']) .fill[data-tone='default'] {
+  background: var(--calm-chart);
+}
+
+:global(html[data-mode='work'][data-work-theme='c']) .fill[data-shade='1'][data-tone='default'] {
+  background: color-mix(in oklab, var(--calm-chart) 82%, var(--surface-1));
+}
+
+:global(html[data-mode='work'][data-work-theme='c']) .fill[data-shade='2'][data-tone='default'] {
+  background: color-mix(in oklab, var(--calm-chart) 66%, var(--surface-1));
+}
+
+:global(html[data-mode='work'][data-work-theme='c']) .fill[data-shade='3'][data-tone='default'] {
+  background: color-mix(in oklab, var(--calm-chart) 52%, var(--surface-1));
+}
+
+:global(html[data-mode='work'][data-work-theme='c']) .fill[data-shade='4'][data-tone='default'] {
+  background: color-mix(in oklab, var(--calm-chart) 40%, var(--surface-1));
+}

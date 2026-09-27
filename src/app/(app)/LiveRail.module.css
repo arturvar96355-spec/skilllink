@@ -309,3 +309,22 @@
   }
 }
 
+/*
+ * Спокойный рабочий режим (src/ui/lib/work-theme.ts): сдвиг за 30 дней — словом
+ * со стрелкой, без плашки; красным — только снижение, рост — обычным текстом.
+ */
+:global(html[data-mode='work'][data-work-theme]) .trend {
+  padding: 0;
+  background: transparent;
+}
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * полоса «Активно сейчас» — без плашки, под тонкой линией.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .rail {
+  padding-inline: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
