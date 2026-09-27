@@ -1,17 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import type { CSSProperties } from 'react'
-import { STAGE_PHASE_LABELS, type CooperationListItemDto, type MetricTrendDto } from '@/shared/contracts'
-import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
-import { cooperationHref, formatNumber, formatRelative, pluralize, useCountUp } from '@/ui'
+import { useRef, type CSSProperties } from 'react'
+import type { CooperationListItemDto, MetricTrendDto } from '@/shared/contracts'
+import { formatNumber, formatRelative, pluralize, useCountUp } from '@/ui'
+import { LiveRailRoute } from './LiveRailRoute'
+import type { RouteView } from './route-rail'
 import styles from './LiveRail.module.css'
 
-const TOTAL_STAGES = 14
-/** Больше точек линия не держит: дальше подписи сливаются. Остаток называется числом. */
-const MAX_DOTS = 24
-/** Расстояние между точками одного этапа, px. */
-const DOT_GAP = 14
+/**
+ * Вид маршрута связок (решение 202): «count» — точка с числом на этапе (А),
+ * «column» — столбик точек до пяти и «+N» (Б). Переключение — эта строка
+ * или проп `routeView` у `LiveRail`.
+ */
+const ROUTE_VIEW: RouteView = 'count'
 
 export interface RailNumber {
   key: string
@@ -51,24 +53,6 @@ export interface RailNumber {
 const TIMELINE_DAYS = 365
 const SEGMENTS = 10
 
-/** Фазы конвейера — отрезками маршрута, по конфигурации этапов, а не по памяти. */
-const PHASES = WORKFLOW_STAGES.reduce<Array<{ phase: keyof typeof STAGE_PHASE_LABELS; from: number; to: number }>>(
-  (list, stage) => {
-    const last = list.at(-1)
-    if (last && last.phase === stage.phase) last.to = stage.number
-    else list.push({ phase: stage.phase, from: stage.number, to: stage.number })
-    return list
-  },
-  [],
-)
-
-/** Середина этапа на маршруте, в процентах ширины. */
-const stageAt = (stage: number): number => ((stage - 0.5) / TOTAL_STAGES) * 100
-
-function isStuck(item: CooperationListItemDto): boolean {
-  return item.progress.overdueStages > 0 || item.progress.blockedStages > 0
-}
-
 /**
  * SkillLink Live Rail — главный блок главной (07, разделы 6 и 20).
  *
@@ -83,37 +67,18 @@ export function LiveRail({
   cooperations,
   problemTotal,
   generatedAt,
+  routeView = ROUTE_VIEW,
 }: {
   numbers: RailNumber[]
   cooperations: CooperationListItemDto[]
   problemTotal: number
   generatedAt: string
+  routeView?: RouteView
 }) {
-  const onRail = cooperations.filter((item) => item.currentStage !== null)
-  const shown = onRail.slice(0, MAX_DOTS)
-  const hidden = onRail.length - shown.length
-
-  const perStage = new Map<number, number>()
-  const placed = shown.map((item, index) => {
-    const stage = item.currentStage!.stageNumber
-    const stack = perStage.get(stage) ?? 0
-    perStage.set(stage, stack + 1)
-    return { item, index, stage, stack }
-  })
-  // Связки одного этапа — рядом, по центру этапа, не друг на друге.
-  const dots = placed.map((dot) => ({
-    ...dot,
-    shift: (dot.stack - ((perStage.get(dot.stage) ?? 1) - 1) / 2) * DOT_GAP,
-  }))
-  // Подпись — одна на этап, в ширину этапа (решение 130): подписи у каждой точки
-  // наезжали на соседние этапы. Первая связка этапа названа, остальные — «+N».
-  const stageLabels = [...perStage.entries()].map(([stage, count]) => {
-    const first = placed.find((dot) => dot.stage === stage)!.item
-    return { stage, count, name: first.universityShortName ?? first.universityName }
-  })
+  const frameRef = useRef<HTMLElement>(null)
 
   return (
-    <section className={styles.rail} aria-label="Активно сейчас">
+    <section ref={frameRef} className={styles.rail} aria-label="Активно сейчас">
       <span className={styles.kicker}>Активно сейчас</span>
 
       {/* Сравнение за 30 дней — в обоих режимах: это данные, а не украшение (ТЗ фронту, задача 1). */}
@@ -123,69 +88,7 @@ export function LiveRail({
         ))}
       </div>
 
-      <div className={styles.track}>
-        <span className={styles.line} aria-hidden />
-        {Array.from({ length: TOTAL_STAGES }, (_, index) => (
-          <span
-            key={index}
-            className={styles.tick}
-            style={{ left: `${stageAt(index + 1)}%`, '--t': index } as CSSProperties}
-            aria-hidden
-          />
-        ))}
-
-        {PHASES.map((phase) => (
-          <span
-            key={phase.phase}
-            className={styles.phase}
-            style={{
-              left: `${((phase.from - 1) / TOTAL_STAGES) * 100}%`,
-              width: `${((phase.to - phase.from + 1) / TOTAL_STAGES) * 100}%`,
-            }}
-          >
-            {STAGE_PHASE_LABELS[phase.phase]}
-          </span>
-        ))}
-
-        <ul className={styles.dots} aria-label="Связки в работе на маршруте из 14 этапов">
-          {dots.map(({ item, index, stage, shift }) => {
-            const name = item.universityShortName ?? item.universityName
-            const stuck = isStuck(item)
-            return (
-              <li
-                key={item.id}
-                className={styles.dotItem}
-                style={
-                  {
-                    left: `calc(${stageAt(stage)}% + ${shift}px)`,
-                    '--i': index,
-                  } as CSSProperties
-                }
-              >
-                <Link
-                  href={cooperationHref(item.id)}
-                  className={[styles.dot, stuck ? styles.stuck : ''].filter(Boolean).join(' ')}
-                  aria-label={`${name}, ${item.programName}: этап ${stage} из ${TOTAL_STAGES}${stuck ? ', требует внимания' : ''}`}
-                  title={`${name} — ${item.programName}\nЭтап ${stage}: ${item.currentStage!.title}`}
-                />
-              </li>
-            )
-          })}
-        </ul>
-
-        {stageLabels.map(({ stage, count, name }) => (
-          <span
-            key={stage}
-            className={styles.stageLabel}
-            style={{ left: `${((stage - 1) / TOTAL_STAGES) * 100}%`, width: `${100 / TOTAL_STAGES}%` } as CSSProperties}
-            title={name}
-            aria-hidden
-          >
-            <span className={styles.stageName}>{name}</span>
-            {count > 1 && <span className={styles.stageMore}>+{count - 1}</span>}
-          </span>
-        ))}
-      </div>
+      <LiveRailRoute cooperations={cooperations} view={routeView} frameRef={frameRef} />
 
       <div className={styles.foot}>
         <a href="#attention" className={styles.attention}>
@@ -193,10 +96,7 @@ export function LiveRail({
             ? 'Этапов, требующих внимания, нет'
             : `${formatNumber(problemTotal)} ${pluralize(problemTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`}
         </a>
-        <span className={styles.fresh}>
-          {hidden > 0 && `на маршруте первые ${shown.length} из ${formatNumber(onRail.length)} · `}
-          обновлено {formatRelative(generatedAt)}
-        </span>
+        <span className={styles.fresh}>обновлено {formatRelative(generatedAt)}</span>
       </div>
     </section>
   )
