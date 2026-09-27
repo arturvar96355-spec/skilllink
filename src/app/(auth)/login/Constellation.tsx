@@ -29,9 +29,9 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * и освобождает ресурсы сам.
  *
  * Поток (решение 199): голова кометы — скопление вузов в верхнем левом углу,
- * связи дугой обходят текст справа и сходятся в сгусток под маршрутом связки,
- * импульсы с хвостом бегут к нему и, приходя, подсвечивают его — видно, куда
- * идёт поток.
+ * связи идут по прямой, как линия знака SkillLink, под текстом левой колонки
+ * мягко гаснут и сходятся в сгусток под маршрутом связки; импульсы с хвостом
+ * бегут к нему и, приходя, подсвечивают его — видно, куда идёт поток.
  *
  * Сцена (constellation-scene.ts) рисуется в фоновом потоке на OffscreenCanvas
  * (constellation.worker.ts): сразу после входа браузер загружает и собирает
@@ -69,23 +69,20 @@ const VEIL_FADE_MS = 700
 /** Панель входа доиграла появление (panelIn: 180 + 760 мс) — её место окончательное. */
 const PANEL_SETTLED_MS = 1100
 
-/** Зазор между осью потока и текстом левой колонки (пучок шириной около 20 px и покачивается). */
-const TEXT_CLEARANCE = 40
-/** Зазор между осью потока (и скоплением в его конце) и формой входа. */
-const FORM_CLEARANCE = 56
+/** Запас вокруг текста левой колонки, где поток уже гаснет (пучок шириной около 20 px). */
+const TEXT_PADDING = 20
 /** Голова кометы и конец потока не ближе этого к краям экрана. */
 const EDGE_MARGIN = 96
 
 /**
- * Куда идёт поток (решение 199). Голова кометы — выше и левее знака SkillLink,
- * у угла экрана, но не в край. Конец потока — свободное место под маршрутом
- * «Вуз — Программа — IT-продукт»: по горизонтали между правым краем текста и
- * формой (чуть ближе к форме), по вертикали на 100 px ниже маршрута. Там поток
- * заканчивается мягким скоплением и не упирается в форму. Прямая из угла туда
- * прошла бы через заголовок и абзац, поэтому поток изогнут: уходит вправо над
- * заголовком и спускается правее текста (`bend` — точка изгиба кривой). Кривая
- * проверяется по точкам: правее текста на уровне текста и левее формы везде;
- * если нет — изгиб поднимается или отходит от формы.
+ * Куда идёт поток (решение 199). Поток — прямая, как линия между двумя точками
+ * знака SkillLink. Голова кометы — выше и левее знака, у угла экрана, но не
+ * в край. Конец — свободное место под маршрутом «Вуз — Программа — IT-продукт»:
+ * по горизонтали на 55 % пути от правого края текста к форме (не ближе 90 px
+ * к форме), по вертикали на 100 px ниже маршрута. Прямая из угла туда неизбежно
+ * проходит через текстовую колонку: холст созвездия лежит под текстом, а на
+ * участках над подписью знака, заголовком, абзацем и маршрутом (`veil`, с запасом
+ * 20 px) поток мягко гаснет — текст читается, а прямая видна до текста и после него.
  * Только для раскладки в две колонки (шире 960 px); в одну колонку — null,
  * сцена как раньше.
  */
@@ -98,52 +95,54 @@ function measureAnchors(): StreamAnchors | null {
   const rect = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null
   const form = panel.getBoundingClientRect()
   const brand = rect(`.${styles.brandRow}`)
-  const text = [rect(`.${styles.headline}`), rect(`.${styles.lead}`), rect(`.${styles.map}`)].filter(
-    (box): box is DOMRect => box !== null,
+  // Текст левой колонки: подпись знака, заголовок, абзац, маршрут.
+  const brandText = document.querySelector<HTMLElement>(`.${styles.brandName}`)?.parentElement?.getBoundingClientRect() ?? null
+  const text = [brandText, rect(`.${styles.headline}`), rect(`.${styles.lead}`), rect(`.${styles.map}`)].filter(
+    (box): box is DOMRect => box !== null && box.width > 0,
   )
   if (text.length === 0) return null
-  const textTop = Math.min(...text.map((box) => box.top))
-  const textBottom = Math.max(...text.map((box) => box.bottom))
-  const textRight = Math.max(...text.map((box) => box.right))
+  const columnRight = Math.max(...text.map((box) => box.right))
+  const routeBottom = Math.max(...text.map((box) => box.bottom))
 
   // Голова: левее начала знака и заметно выше него.
   const source: [number, number] = [
     Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48)),
     Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150)),
   ]
-  // Конец: под маршрутом, между текстом и формой.
+  // Конец: под маршрутом, между текстом и формой, не ближе 90 px к форме.
   const target: [number, number] = [
-    // Скопление в конце потока — не ближе 90 px к форме (на 1280 зазор узкий).
-    Math.round(Math.min(textRight + (form.left - textRight) * 0.55, form.left - 90)),
-    Math.round(Math.max(textBottom + 40, Math.min(textBottom + 100, height - EDGE_MARGIN))),
-  ]
-  // Изгиб: правее конца, над заголовком.
-  const bend: [number, number] = [
-    Math.round(target[0] + (form.left - target[0]) * 0.5),
-    Math.round(Math.max(source[1] + 20, textTop - 70)),
+    Math.round(Math.min(columnRight + (form.left - columnRight) * 0.55, form.left - 90)),
+    Math.round(Math.max(routeBottom + 40, Math.min(routeBottom + 100, height - EDGE_MARGIN))),
   ]
 
-  /** Точка кривой source → bend → target. */
-  const at = (t: number): [number, number] => {
-    const u = 1 - t
-    return [
-      u * u * source[0] + 2 * u * t * bend[0] + t * t * target[0],
-      u * u * source[1] + 2 * u * t * bend[1] + t * t * target[1],
-    ]
-  }
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    let hitsText = false
-    let hitsForm = false
-    for (let t = 0; t <= 1; t += 0.02) {
-      const [x, y] = at(t)
-      if (y >= textTop - TEXT_CLEARANCE / 2 && y <= textBottom && x < textRight + TEXT_CLEARANCE) hitsText = true
-      if (x > form.left - FORM_CLEARANCE) hitsForm = true
+  // Участки прямой над каждым блоком текста (отсечение отрезка прямоугольником с запасом).
+  const dx = target[0] - source[0]
+  const dy = target[1] - source[1]
+  const over = (box: DOMRect): [number, number] | null => {
+    let from = 0
+    let to = 1
+    const clip = (p: number, q: number) => {
+      if (p === 0) return q >= 0
+      const r = q / p
+      if (p < 0) from = Math.max(from, r)
+      else to = Math.min(to, r)
+      return from <= to
     }
-    if (!hitsText && !hitsForm) break
-    if (hitsForm) bend[0] -= 10
-    if (hitsText) bend[1] = Math.max(source[1], bend[1] - 15)
+    const inside =
+      clip(-dx, source[0] - (box.left - TEXT_PADDING)) &&
+      clip(dx, box.right + TEXT_PADDING - source[0]) &&
+      clip(-dy, source[1] - (box.top - TEXT_PADDING)) &&
+      clip(dy, box.bottom + TEXT_PADDING - source[1])
+    return inside && to > from ? [from, to] : null
   }
-  return { source, target, bend }
+  // Близкие участки сливаются: поток не вспыхивает в узких просветах между строками.
+  const veil: Array<[number, number]> = []
+  for (const range of text.map(over).filter((r): r is [number, number] => r !== null).sort((a, b) => a[0] - b[0])) {
+    const last = veil.at(-1)
+    if (last && range[0] - last[1] < 0.08) last[1] = Math.max(last[1], range[1])
+    else veil.push([...range])
+  }
+  return { source, target, veil }
 }
 
 type Channel = {

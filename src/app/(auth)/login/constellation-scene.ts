@@ -67,18 +67,23 @@ function gaussian(): number {
 /**
  * Куда идёт поток (решение 199), пиксели экрана: `source` — голова кометы
  * (скопление вузов), `target` — свободное место под маршрутом связки, между
- * текстом и формой, где поток заканчивается мягким скоплением; `bend` — точка
- * изгиба: поток идёт вправо над заголовком и спускается правее текста, не
- * пересекая ни его, ни форму. Нет — раскладка в одну колонку, сцена как раньше.
+ * текстом и формой, где поток заканчивается мягким скоплением. Поток — прямая,
+ * как линия между двумя точками знака SkillLink. `veil` — участки пути (доли
+ * [от, до]), где прямая идёт под текстом левой колонки: там поток мягко гаснет,
+ * текст всегда поверх и читается. Нет — раскладка в одну колонку, сцена как раньше.
  */
 export interface StreamAnchors {
   source: [number, number]
   target: [number, number]
-  bend?: [number, number]
+  veil?: Array<[number, number]>
 }
 
-/** Участков в изогнутой связи потока. */
-const CURVE_STEPS = 20
+/** Участков в связи потока: яркость меняется вдоль прямой (гаснет под текстом). */
+const STREAM_STEPS = 24
+/** Яркость потока под текстом: едва угадывается, текст читается как на пустом фоне. */
+const VEIL_FLOOR = 0.12
+/** Мягкий край затухания, доля пути. */
+const VEIL_EDGE = 0.06
 
 export interface SceneOptions {
   width: number
@@ -217,21 +222,17 @@ export function createConstellation(
   }
   /** Где скопления должны стоять; сами они подтягиваются к этим точкам плавно. */
   const homeGoal = hubs.map((hub) => hub.home.clone())
-  /** Точка изгиба потока (мир); null — связи прямые. */
-  const bend = new THREE.Vector3()
-  const bendGoal = new THREE.Vector3()
-  let bent = false
+  /** Где поток идёт под текстом (участки пути в долях). */
+  let veil: Array<[number, number]> = []
   const placeHubs = (anchors: StreamAnchors, screenW: number, screenH: number) => {
     if (narrow) return
     homeGoal[0]!.copy(toWorld(anchors.source[0], anchors.source[1], hubs[0]!.home.z, screenW, screenH))
     homeGoal[1]!.copy(toWorld(anchors.target[0], anchors.target[1], hubs[1]!.home.z, screenW, screenH))
-    bent = Boolean(anchors.bend)
-    if (anchors.bend) bendGoal.copy(toWorld(anchors.bend[0], anchors.bend[1], -0.3, screenW, screenH))
+    veil = anchors.veil ?? []
   }
   if (streamed && options.anchors) {
     placeHubs(options.anchors, options.width, options.height)
     hubs.forEach((hub, i) => hub.home.copy(homeGoal[i]!))
-    bend.copy(bendGoal)
   }
 
   // ── Скопления: у каждого своя группа — их можно свести вместе ──────────
@@ -449,25 +450,35 @@ export function createConstellation(
     if (a && b) links.push([a, b])
   }
   /**
-   * В режиме потока связь — кривая из CURVE_STEPS отрезков (квадратичная кривая
-   * через точку изгиба), цвет плавно идёт от фиолетового к розовому; иначе —
-   * прямой отрезок, как раньше. У каждой связи свой небольшой сдвиг изгиба —
-   * пучок, а не одна линия.
+   * В режиме потока связь — та же прямая, но из STREAM_STEPS отрезков: цвет идёт
+   * от фиолетового к розовому, а над текстом яркость мягко падает (`veil`);
+   * иначе — один отрезок, как раньше.
    */
-  const steps = streamed ? CURVE_STEPS : 1
+  const steps = streamed ? STREAM_STEPS : 1
   const linePositions = new Float32Array(links.length * steps * 6)
   const lineColors = new Float32Array(links.length * steps * 6)
   const violet = new THREE.Color(BRAND_VIOLET)
   const pink = new THREE.Color(BRAND_PINK)
   const mixed = new THREE.Color()
-  links.forEach((_, i) => {
+  const smooth = (t: number) => t * t * (3 - 2 * t)
+  /** Яркость потока в доле пути `t`: 1 на открытом месте, VEIL_FLOOR под текстом. */
+  const visibility = (t: number, merge: number) => {
+    let inside = 0
+    for (const [from, to] of veil)
+      inside = Math.max(inside, Math.min(smooth(clamp01((t - from) / VEIL_EDGE)), smooth(clamp01((to - t) / VEIL_EDGE))))
+    // В прыжке текст уже гаснет — поток снова виден целиком, пока сходится в ядро.
+    return 1 - (1 - VEIL_FLOOR) * inside * (1 - merge)
+  }
+  const paintLinks = (merge: number) => {
     for (let k = 0; k < steps; k += 1) {
-      const from = mixed.copy(violet).lerp(pink, k / steps).toArray()
-      const to = mixed.copy(violet).lerp(pink, (k + 1) / steps).toArray()
-      lineColors.set([...from, ...to], (i * steps + k) * 6)
+      const v0 = visibility(k / steps, merge)
+      const v1 = visibility((k + 1) / steps, merge)
+      const from = mixed.copy(violet).lerp(pink, k / steps).multiplyScalar(v0).toArray()
+      const to = mixed.copy(violet).lerp(pink, (k + 1) / steps).multiplyScalar(v1).toArray()
+      links.forEach((_, i) => lineColors.set([...from, ...to], (i * steps + k) * 6))
     }
-  })
-  const bendJitter = links.map(() => new THREE.Vector3(gaussian() * 0.35, gaussian() * 0.35, gaussian() * 0.2))
+  }
+  paintLinks(0)
   const lineGeometry = new THREE.BufferGeometry()
   lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
   lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3))
@@ -490,7 +501,10 @@ export function createConstellation(
   const pulsePositions = new Float32Array(pulseCount * 3)
   const pulseGeometry = new THREE.BufferGeometry()
   pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3))
-  const pulseMaterial = pointsMaterial(0.22, { color: 0xd6ccff })
+  // Цвет у каждого импульса свой: под текстом импульс гаснет вместе с потоком.
+  const pulseColors = new Float32Array(pulseCount * 3)
+  pulseGeometry.setAttribute('color', new THREE.BufferAttribute(pulseColors, 3))
+  const pulseMaterial = pointsMaterial(0.22, { vertexColors: true })
   world.add(new THREE.Points(pulseGeometry, pulseMaterial))
   geometries.push(pulseGeometry)
   const phases = links.map(() => Math.random())
@@ -510,32 +524,28 @@ export function createConstellation(
   if (streamed) world.add(new THREE.LineSegments(trailGeometry, trailMaterial))
   geometries.push(trailGeometry)
   const pulseColor = new THREE.Color(0xd6ccff)
+  for (let i = 0; i < pulseCount; i += 1) pulseColors.set([pulseColor.r, pulseColor.g, pulseColor.b], i * 3)
   /** Сколько света пришло в приёмник за последние мгновения: 0 — тихо, 1 — вспышка. */
   let arrival = 0
 
   /** Связи и импульсы — по текущему положению скоплений: при слиянии они сжимаются. */
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
-  const c = new THREE.Vector3()
   const p0 = new THREE.Vector3()
   const p1 = new THREE.Vector3()
-  /** Точка кривой a → c → b в доле `t`; без изгиба — прямая a → b. */
-  const along = (t: number, out: InstanceType<typeof THREE.Vector3>) => {
-    const u = 1 - t
-    return out.set(
-      u * u * a.x + 2 * u * t * c.x + t * t * b.x,
-      u * u * a.y + 2 * u * t * c.y + t * t * b.y,
-      u * u * a.z + 2 * u * t * c.z + t * t * b.z,
-    )
-  }
+  /** Точка прямой a → b в доле `t`. */
+  const along = (t: number, out: InstanceType<typeof THREE.Vector3>) => out.lerpVectors(a, b, t)
+  let paintedMerge = 0
   const updateLinks = (time: number, merge = 0) => {
     arrival = 0
+    if (streamed && merge !== paintedMerge) {
+      paintedMerge = merge
+      paintLinks(merge)
+      lineGeometry.attributes.color!.needsUpdate = true
+    }
     links.forEach(([fromAnchor, toAnchor], i) => {
       a.copy(fromAnchor).multiplyScalar(left.group.scale.x).add(left.group.position)
       b.copy(toAnchor).multiplyScalar(right.group.scale.x).add(right.group.position)
-      // Изгиб распрямляется, когда скопления сходятся в ядро (прыжок).
-      c.copy(a).add(b).multiplyScalar(0.5)
-      if (bent) c.lerp(p0.copy(bend).add(bendJitter[i]!), 1 - merge)
       for (let k = 0; k < steps; k += 1) {
         along(k / steps, p0)
         along((k + 1) / steps, p1)
@@ -556,7 +566,9 @@ export function createConstellation(
       along(tail, p1)
       pulsePositions.set([p0.x, p0.y, p0.z], i * 3)
       trailPositions.set([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z], i * 6)
-      trailColors.set([pulseColor.r * fade, pulseColor.g * fade, pulseColor.b * fade, 0, 0, 0], i * 6)
+      const seen = fade * visibility(head, merge)
+      pulseColors.set([pulseColor.r * seen, pulseColor.g * seen, pulseColor.b * seen], i * 3)
+      trailColors.set([pulseColor.r * seen, pulseColor.g * seen, pulseColor.b * seen, 0, 0, 0], i * 6)
       // Только что пришедший импульс (цикл начался заново) подсвечивает приёмник.
       arrival += Math.exp(-cycle * 9) + (cycle > 0.9 ? (cycle - 0.9) * 4 : 0)
     })
@@ -564,6 +576,7 @@ export function createConstellation(
     lineGeometry.attributes.position!.needsUpdate = true
     pulseGeometry.attributes.position!.needsUpdate = true
     if (streamed) {
+      pulseGeometry.attributes.color!.needsUpdate = true
       trailGeometry.attributes.position!.needsUpdate = true
       trailGeometry.attributes.color!.needsUpdate = true
     }
@@ -598,6 +611,8 @@ export function createConstellation(
     anchor(anchors, screenW, screenH) {
       if (!streamed) return
       placeHubs(anchors, screenW, screenH)
+      paintLinks(paintedMerge)
+      lineGeometry.attributes.color!.needsUpdate = true
     },
     resize(nextWidth, nextHeight) {
       width = nextWidth
@@ -637,7 +652,6 @@ export function createConstellation(
       const intro = 1 - Math.pow(1 - Math.min(1, time / 1.8), 3)
       // Форма сдвинулась (окно, первая раскладка) — скопления подтягиваются без скачка.
       hubs.forEach((hub, i) => hub.home.lerp(homeGoal[i]!, 0.08))
-      bend.lerp(bendGoal, 0.08)
 
       const t = warpSince === null ? 0 : now - warpSince
 
