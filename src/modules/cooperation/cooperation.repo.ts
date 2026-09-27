@@ -260,13 +260,19 @@ export async function createWithStages(
  *
  * Возвращает число изменённых строк: 0 — статус успели сменить с момента
  * чтения, вызывающий сервис отвечает 409.
+ *
+ * При смене ответственного условие строже — `{ status, responsibleId }` (решение 205):
+ * пишет, только если и ответственный всё ещё прежний. Так два одновременных
+ * одинаковых PATCH не пришлют новому ответственному два уведомления: второй
+ * получит 409 или, прочитав уже нового, не увидит смены.
  */
 export async function update(
   id: string,
-  expectedStatus: CooperationStatus,
+  expected: CooperationStatus | { status: CooperationStatus; responsibleId: string },
   data: Prisma.CooperationUncheckedUpdateManyInput,
   client: Prisma.TransactionClient = prisma,
 ): Promise<number> {
-  const result = await client.cooperation.updateMany({ where: { id, status: expectedStatus }, data })
+  const where = typeof expected === 'string' ? { id, status: expected } : { id, ...expected }
+  const result = await client.cooperation.updateMany({ where, data })
   return result.count
 }

@@ -67,16 +67,27 @@ export interface RecommendationSource {
 }
 
 /**
- * Пользователя назначили или сняли ответственным за вуз (решение 146).
- * `assigned: false` — сняли (ответственным стал кто-то другой или никто).
+ * Пользователя назначили или сняли ответственным (`assigned: false` — сняли: ответственным
+ * стал кто-то другой или никто). За вуз — решение 146; за связку и за этап — решение 205.
  */
-export interface ResponsibleAssignedSource {
+interface ResponsibleAssignedBase {
   auditLogId: string
-  universityId: string
   universityName: string
   assigned: boolean
   changedAt: Date
 }
+
+export type ResponsibleAssignedSource =
+  | (ResponsibleAssignedBase & { scope: 'university'; universityId: string })
+  | (ResponsibleAssignedBase & { scope: 'cooperation'; cooperationId: string; programName: string })
+  | (ResponsibleAssignedBase & {
+      scope: 'stage'
+      cooperationId: string
+      programName: string
+      stageId: string
+      stageNumber: number
+      stageTitle: string
+    })
 
 export interface FeedSources {
   deadlines: StageDeadlineSource[]
@@ -104,6 +115,48 @@ const RECOMMENDATION_SEVERITY: Record<RecommendationPriority, NotificationSeveri
   HIGH: 'warning',
   MEDIUM: 'info',
   LOW: 'info',
+}
+
+/** Пункт ленты о назначении или снятии ответственным: заголовок и куда ведёт. */
+function responsibleItem(
+  change: ResponsibleAssignedSource,
+): Pick<NotificationDto, 'kind' | 'title' | 'description' | 'occurredAt' | 'target'> {
+  const occurredAt = change.changedAt.toISOString()
+  switch (change.scope) {
+    case 'university':
+      return {
+        kind: 'university.responsible-changed',
+        title: change.assigned
+          ? `Вы назначены ответственным за вуз «${change.universityName}»`
+          : `Вы больше не ответственный за вуз «${change.universityName}»`,
+        description: null,
+        occurredAt,
+        target: { type: 'university', id: change.universityId, cooperationId: null, stageId: null },
+      }
+    case 'cooperation':
+      return {
+        kind: 'cooperation.responsible-changed',
+        title: change.assigned ? 'Вы назначены ответственным за связку' : 'Вы больше не ответственный за связку',
+        description: where(change.universityName, change.programName),
+        occurredAt,
+        target: { type: 'cooperation', id: change.cooperationId, cooperationId: change.cooperationId, stageId: null },
+      }
+    case 'stage':
+      return {
+        kind: 'stage.responsible-changed',
+        title: change.assigned
+          ? `Вы назначены ответственным за этап ${change.stageNumber} «${change.stageTitle}»`
+          : `Вы больше не ответственный за этап ${change.stageNumber} «${change.stageTitle}»`,
+        description: where(change.universityName, change.programName),
+        occurredAt,
+        target: {
+          type: 'cooperation',
+          id: change.cooperationId,
+          cooperationId: change.cooperationId,
+          stageId: change.stageId,
+        },
+      }
+  }
 }
 
 /**
@@ -224,22 +277,7 @@ export function buildFeed(
   }
 
   for (const change of sources.responsibleAssignments) {
-    items.push({
-      id: `responsible:${change.auditLogId}`,
-      kind: 'university.responsible-changed',
-      severity: 'info',
-      title: change.assigned
-        ? `Вы назначены ответственным за вуз «${change.universityName}»`
-        : `Вы больше не ответственный за вуз «${change.universityName}»`,
-      description: null,
-      occurredAt: change.changedAt.toISOString(),
-      target: {
-        type: 'university',
-        id: change.universityId,
-        cooperationId: null,
-        stageId: null,
-      },
-    })
+    items.push({ id: `responsible:${change.auditLogId}`, severity: 'info', ...responsibleItem(change) })
   }
 
   // Новые сверху; при равном времени — порядок по id, чтобы лента не «прыгала»

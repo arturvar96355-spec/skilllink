@@ -3,6 +3,7 @@ import { conflict, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, canSeeInternalNotes, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
+import { notifyResponsibleAssigned } from '@/modules/notifications/notifications.service'
 import { assertStaffResponsible } from '@/shared/links/entity-links'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
@@ -298,6 +299,13 @@ export async function update(
   // что при создании, и в той же очереди программы.
   const productChanges =
     input.productId !== undefined && (input.productId ?? null) !== existing.productId
+  // Смена ответственного пишется при условии, что он всё ещё прежний (решение 205):
+  // уведомление новому ответственному уходит ровно один раз.
+  const newResponsibleId =
+    input.responsibleId && input.responsibleId !== existing.responsible.id ? input.responsibleId : null
+  const expected = newResponsibleId
+    ? { status: existing.status, responsibleId: existing.responsible.id }
+    : existing.status
   // Условное обновление (как у этапов, workflow.service.ts): пишет, только если
   // статус связки всё ещё тот, что прочитан выше, — иначе 0 изменённых строк.
   let changedCount: number
@@ -312,10 +320,10 @@ export async function update(
           excludeId: id,
         }),
       )
-      return repo.update(id, existing.status, data, tx)
+      return repo.update(id, expected, data, tx)
     })
   } else {
-    changedCount = await repo.update(id, existing.status, data)
+    changedCount = await repo.update(id, expected, data)
   }
   if (changedCount === 0) {
     throw conflict('Связка уже изменена другим пользователем. Обновите страницу и повторите действие.', {
@@ -330,6 +338,18 @@ export async function update(
     objectId: id,
     payload: { fields: Object.keys(input) },
   })
+  if (newResponsibleId) {
+    const change = { responsibleId: newResponsibleId, previousResponsibleId: existing.responsible.id }
+    // Отдельная запись — по ней строится пункт ленты под колокольчиком (решение 205).
+    await writeAudit({
+      userId: user.id,
+      action: 'cooperation.responsible.set',
+      objectType: 'Cooperation',
+      objectId: id,
+      payload: change,
+    })
+    notifyResponsibleAssigned({ scope: 'cooperation', objectId: id, actorId: user.id, ...change })
+  }
 
   return getById(user, id)
 }

@@ -639,7 +639,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
           title={`Ответственный этапа ${stage.stageNumber}`}
           description={`«${stage.title}»`}
           endpoint={`/api/workflow/stages/${stage.id}`}
-          consequence="Смена попадёт в историю этапа — с автором и временем."
+          consequence="Новый ответственный увидит назначение в уведомлениях и получит сообщение в подключённый мессенджер, смена попадёт в журнал действий — с автором и временем."
           currentResponsibleId={stage.responsible?.id ?? null}
           currentResponsibleName={stage.responsible?.fullName ?? null}
           allowNone

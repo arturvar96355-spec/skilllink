@@ -12,6 +12,7 @@ import type {
   StageChangeSource,
   StageDeadlineSource,
 } from './notifications.rules'
+import type { AssignmentContext, AssignmentScope, AssignmentStageRef } from './notifications.assignment'
 
 /** Номер этапа из данных рекомендации — у просрочки он там всегда есть. */
 function stageNumberOf(relatedData: unknown): number | null {
@@ -103,52 +104,182 @@ function toDocumentChange(row: DocumentChangeRow): DocumentChangeSource {
   }
 }
 
+/** Действия журнала, из которых лента узнаёт о назначении ответственным. */
+const RESPONSIBLE_ACTIONS = ['university.responsible.set', 'cooperation.responsible.set', 'stage.responsible.set'] as const
+
+type ResponsiblePayload = { responsibleId?: string | null; previousResponsibleId?: string | null } | null
+
+const nameOf = (university: { name: string; shortName: string | null }): string => university.shortName ?? university.name
+
 /**
- * Пользователя назначили или сняли ответственным за вуз (решение 146, роль
- * «Руководитель»): читается из журнала действий (`university.responsible.set`),
- * отдельной таблицы нет — тот же приём, что у остальной ленты (решение 139).
- * `notBy` не нужен: событие всегда решение другого (ADMIN/HEAD), не самого себя,
- * а если и своё — увидеть подтверждение назначения самому себе не вредно.
+ * Пользователя назначили или сняли ответственным — за вуз (решение 146, роль
+ * «Руководитель»), за связку или за этап (решение 205). Читается из журнала действий
+ * (`*.responsible.set`), отдельной таблицы нет — тот же приём, что у остальной ленты
+ * (решение 139).
+ *
+ * Своё действие — не уведомление (как `notBy` у истории этапов): назначил себя сам —
+ * знаешь и так. Запись, где ответственный не сменился (повторное сохранение того же),
+ * — тоже не событие.
  */
 async function loadResponsibleAssignments(userId: string, since: Date): Promise<ResponsibleAssignedSource[]> {
   const rows = await prisma.auditLog.findMany({
     where: {
-      action: 'university.responsible.set',
+      action: { in: [...RESPONSIBLE_ACTIONS] },
       createdAt: { gte: since },
-      OR: [
-        { payload: { path: ['responsibleId'], equals: userId } },
-        { payload: { path: ['previousResponsibleId'], equals: userId } },
+      AND: [
+        { OR: [{ userId: null }, { userId: { not: userId } }] },
+        {
+          OR: [
+            { payload: { path: ['responsibleId'], equals: userId } },
+            { payload: { path: ['previousResponsibleId'], equals: userId } },
+          ],
+        },
       ],
     },
     orderBy: { createdAt: 'desc' },
     take: PER_SOURCE,
-    select: { id: true, objectId: true, payload: true, createdAt: true },
+    select: { id: true, action: true, objectId: true, payload: true, createdAt: true },
   })
-  if (rows.length === 0) return []
+  const changed = rows.filter((row) => {
+    const payload = row.payload as ResponsiblePayload
+    return payload !== null && (payload.responsibleId ?? null) !== (payload.previousResponsibleId ?? null)
+  })
+  if (changed.length === 0) return []
 
-  const universities = await prisma.university.findMany({
-    where: { id: { in: [...new Set(rows.map((row) => row.objectId))] } },
-    select: { id: true, name: true, shortName: true },
-  })
-  const nameById = new Map(universities.map((u) => [u.id, u.shortName ?? u.name]))
+  const idsOf = (action: (typeof RESPONSIBLE_ACTIONS)[number]) =>
+    [...new Set(changed.filter((row) => row.action === action).map((row) => row.objectId))]
+  const whereSelect = { university: { select: { name: true, shortName: true } }, program: { select: { name: true } } }
 
-  return rows.flatMap((row): ResponsibleAssignedSource[] => {
-    const payload = row.payload as { responsibleId?: string | null; previousResponsibleId?: string | null } | null
-    const universityName = nameById.get(row.objectId)
-    if (!payload || !universityName) return []
-    // Один и тот же ADMIN/HEAD снял пользователя и в этом же действии назначил
-    // его же обратно — событие «назначен» важнее «снят», второго не показываем.
-    const assigned = payload.responsibleId === userId
-    return [
-      {
-        auditLogId: row.id,
-        universityId: row.objectId,
-        universityName,
-        assigned,
-        changedAt: row.createdAt,
-      },
-    ]
+  const [universities, cooperations, stages] = await Promise.all([
+    prisma.university.findMany({
+      where: { id: { in: idsOf('university.responsible.set') } },
+      select: { id: true, name: true, shortName: true },
+    }),
+    prisma.cooperation.findMany({
+      where: { id: { in: idsOf('cooperation.responsible.set') } },
+      select: { id: true, ...whereSelect },
+    }),
+    prisma.workflowStage.findMany({
+      where: { id: { in: idsOf('stage.responsible.set') } },
+      select: { id: true, stageNumber: true, title: true, cooperationId: true, cooperation: { select: whereSelect } },
+    }),
+  ])
+  const universityById = new Map(universities.map((u) => [u.id, u]))
+  const cooperationById = new Map(cooperations.map((c) => [c.id, c]))
+  const stageById = new Map(stages.map((st) => [st.id, st]))
+
+  return changed.flatMap((row): ResponsibleAssignedSource[] => {
+    // Снял пользователя и в этом же действии назначил его же обратно — «назначен» важнее.
+    const assigned = (row.payload as ResponsiblePayload)?.responsibleId === userId
+    const base = { auditLogId: row.id, assigned, changedAt: row.createdAt }
+    switch (row.action) {
+      case 'university.responsible.set': {
+        const university = universityById.get(row.objectId)
+        return university
+          ? [{ ...base, scope: 'university', universityId: row.objectId, universityName: nameOf(university) }]
+          : []
+      }
+      case 'cooperation.responsible.set': {
+        const cooperation = cooperationById.get(row.objectId)
+        return cooperation
+          ? [
+              {
+                ...base,
+                scope: 'cooperation',
+                cooperationId: row.objectId,
+                universityName: nameOf(cooperation.university),
+                programName: cooperation.program.name,
+              },
+            ]
+          : []
+      }
+      case 'stage.responsible.set': {
+        const stage = stageById.get(row.objectId)
+        return stage
+          ? [
+              {
+                ...base,
+                scope: 'stage',
+                cooperationId: stage.cooperationId,
+                stageId: stage.id,
+                stageNumber: stage.stageNumber,
+                stageTitle: stage.title,
+                universityName: nameOf(stage.cooperation.university),
+                programName: stage.cooperation.program.name,
+              },
+            ]
+          : []
+      }
+      default:
+        return []
+    }
   })
+}
+
+const assignmentStageSelect = {
+  id: true,
+  stageNumber: true,
+  title: true,
+  status: true,
+  deadline: true,
+} satisfies Prisma.WorkflowStageSelect
+
+function toAssignmentStage(row: Prisma.WorkflowStageGetPayload<{ select: typeof assignmentStageSelect }>): AssignmentStageRef {
+  return { stageId: row.id, stageNumber: row.stageNumber, title: row.title, status: row.status, deadline: row.deadline }
+}
+
+/**
+ * Что написать новому ответственному (решение 205): названия, этап и срок — без
+ * персональных данных. `null` — объекта уже нет (удалён между записью и отправкой).
+ */
+export async function loadAssignmentContext(scope: AssignmentScope, id: string): Promise<AssignmentContext | null> {
+  const whereSelect = { university: { select: { name: true, shortName: true } }, program: { select: { name: true } } }
+  switch (scope) {
+    case 'cooperation': {
+      const row = await prisma.cooperation.findUnique({
+        where: { id },
+        select: { id: true, ...whereSelect, stages: { select: assignmentStageSelect } },
+      })
+      return row
+        ? {
+            scope,
+            cooperationId: row.id,
+            universityName: nameOf(row.university),
+            programName: row.program.name,
+            stages: row.stages.map(toAssignmentStage),
+          }
+        : null
+    }
+    case 'stage': {
+      const row = await prisma.workflowStage.findUnique({
+        where: { id },
+        select: { ...assignmentStageSelect, cooperationId: true, cooperation: { select: whereSelect } },
+      })
+      return row
+        ? {
+            scope,
+            cooperationId: row.cooperationId,
+            universityName: nameOf(row.cooperation.university),
+            programName: row.cooperation.program.name,
+            stage: toAssignmentStage(row),
+          }
+        : null
+    }
+    case 'university': {
+      const row = await prisma.university.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          _count: { select: { cooperations: { where: { status: { in: [...OPEN_COOPERATION_STATUSES] } } } } },
+        },
+      })
+      return row
+        ? { scope, universityId: row.id, universityName: nameOf(row), openCooperations: row._count.cooperations }
+        : null
+    }
+  }
 }
 
 /**

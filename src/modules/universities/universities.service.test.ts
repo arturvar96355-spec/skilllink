@@ -10,6 +10,7 @@ import type { CurrentUser } from '@/shared/auth/current-user'
 const repo = vi.hoisted(() => ({
   findById: vi.fn(),
   update: vi.fn(),
+  setResponsibleIfUnchanged: vi.fn(),
   countCooperationsByUniversity: vi.fn(),
 }))
 vi.mock('./universities.repo', () => repo)
@@ -22,6 +23,11 @@ vi.mock('@/shared/audit/audit', () => audit)
 
 const analytics = vi.hoisted(() => ({ universityRatingsForPage: vi.fn() }))
 vi.mock('@/modules/analytics/analytics.service', () => analytics)
+
+// Уведомление новому ответственному (решение 205) — сама отправка проверена в
+// notifications.assignment.test.ts; здесь — что сервис зовёт её с верной сменой.
+const notifications = vi.hoisted(() => ({ notifyResponsibleAssigned: vi.fn() }))
+vi.mock('@/modules/notifications/notifications.service', () => notifications)
 
 const service = await import('./universities.service')
 
@@ -63,7 +69,7 @@ const EXISTING = {
 beforeEach(() => {
   vi.clearAllMocks()
   repo.findById.mockResolvedValue(EXISTING)
-  repo.update.mockResolvedValue({ ...EXISTING, responsibleId: 'user-2', responsible: { id: 'user-2', fullName: 'Новый Ответственный', role: 'MANAGER' } })
+  repo.setResponsibleIfUnchanged.mockResolvedValue(true)
   repo.countCooperationsByUniversity.mockResolvedValue(new Map())
   analytics.universityRatingsForPage.mockResolvedValue(new Map())
 })
@@ -73,24 +79,46 @@ describe('setResponsible', () => {
     await expect(service.setResponsible(manager(), 'uni-1', { responsibleId: 'user-2' })).rejects.toMatchObject({
       code: 'FORBIDDEN',
     })
-    expect(repo.update).not.toHaveBeenCalled()
+    expect(repo.setResponsibleIfUnchanged).not.toHaveBeenCalled()
   })
 
   it('ADMIN может назначить ответственного', async () => {
     await service.setResponsible(admin(), 'uni-1', { responsibleId: 'user-2' })
     expect(entityLinks.assertStaffResponsible).toHaveBeenCalledWith('user-2')
-    expect(repo.update).toHaveBeenCalledWith('uni-1', { responsible: { connect: { id: 'user-2' } } })
+    expect(repo.setResponsibleIfUnchanged).toHaveBeenCalledWith('uni-1', null, 'user-2')
   })
 
   it('HEAD может назначить ответственного', async () => {
     await service.setResponsible(head(), 'uni-1', { responsibleId: 'user-2' })
-    expect(repo.update).toHaveBeenCalledWith('uni-1', { responsible: { connect: { id: 'user-2' } } })
+    expect(repo.setResponsibleIfUnchanged).toHaveBeenCalledWith('uni-1', null, 'user-2')
   })
 
   it('null снимает ответственного без проверки assertStaffResponsible', async () => {
+    repo.findById.mockResolvedValue({ ...EXISTING, responsibleId: 'user-1' })
     await service.setResponsible(admin(), 'uni-1', { responsibleId: null })
     expect(entityLinks.assertStaffResponsible).not.toHaveBeenCalled()
-    expect(repo.update).toHaveBeenCalledWith('uni-1', { responsible: { disconnect: true } })
+    expect(repo.setResponsibleIfUnchanged).toHaveBeenCalledWith('uni-1', 'user-1', null)
+  })
+
+  it('ответственного успели сменить между чтением и записью — 409, без журнала и уведомления', async () => {
+    repo.setResponsibleIfUnchanged.mockResolvedValue(false)
+    await expect(service.setResponsible(admin(), 'uni-1', { responsibleId: 'user-2' })).rejects.toMatchObject({
+      code: 'CONFLICT',
+    })
+    expect(audit.writeAudit).not.toHaveBeenCalled()
+    expect(notifications.notifyResponsibleAssigned).not.toHaveBeenCalled()
+  })
+
+  it('после записи зовёт уведомление с новым и прежним ответственным и автором (решение 205)', async () => {
+    repo.findById.mockResolvedValue({ ...EXISTING, responsibleId: 'user-1' })
+    await service.setResponsible(admin(), 'uni-1', { responsibleId: 'user-2' })
+    expect(notifications.notifyResponsibleAssigned).toHaveBeenCalledWith({
+      scope: 'university',
+      objectId: 'uni-1',
+      actorId: 'admin-1',
+      responsibleId: 'user-2',
+      previousResponsibleId: 'user-1',
+    })
   })
 
   it('пишет в журнал новый и прежний responsibleId', async () => {
@@ -118,6 +146,6 @@ describe('setResponsible', () => {
     await expect(service.setResponsible(admin(), 'uni-1', { responsibleId: 'ghost' })).rejects.toMatchObject({
       code: 'VALIDATION_ERROR',
     })
-    expect(repo.update).not.toHaveBeenCalled()
+    expect(repo.setResponsibleIfUnchanged).not.toHaveBeenCalled()
   })
 })
