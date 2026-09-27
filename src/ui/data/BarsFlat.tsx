@@ -1,31 +1,49 @@
 'use client'
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react'
 import Link from 'next/link'
-import { motion } from 'motion/react'
+import { motion, type Transition } from 'motion/react'
 import { useCalmMotion } from '../hooks/ui-mode'
 import { useReveal } from '../hooks/reveal'
 import { formatNumber } from '../lib/format'
 import type { Bars3DGroup, Bars3DPart } from './Bars3D'
+import { placeBarTip, stepIndex, type TipSide } from './bars-flat'
 import styles from './BarsFlat.module.css'
 
 /**
- * Плоские столбики в духе Bklit (решение 198) — замена объёмных Bars3D на главной.
+ * Плоские столбики в духе Bklit (решения 198, 201) — замена объёмных Bars3D на главной.
  * У каждой группы (вуза) — пара столбиков рядом, а не колонка из частей:
  * так видно и сколько связок идёт спокойно, и сколько требует внимания, без
  * вычитания в уме.
  *
  * Два вида на выбор владельца (`variant`):
- * - `grouped` — пара со скруглённым верхом и зазором, тёмный нейтральный тон
- *   для спокойных и приглушённый сигнальный — для требующих внимания;
+ * - `grouped` (выбран владельцем) — пара со скруглённым верхом и зазором. В покое
+ *   столбики приглушены, числа над ними — мелко и вторичным цветом. Наведение,
+ *   фокус или касание выбирают вуз, как у Bklit bar chart: его пара светлеет
+ *   (основной столбик — сильнее), остальные гаснут; через пару проходит тонкая
+ *   линия-указатель, на верхушках — кружки-маркеры, подпись на оси становится
+ *   «таблеткой», рядом — подсказка с полным названием и разбором;
  * - `indicator` — пара вплотную: первый столбик — градиент, уходящий в фон,
  *   второй — штриховка по диагонали; при наведении по столбикам поднимается
  *   черта-указатель до их верха.
  *
- * Число над каждым столбиком видно всегда; наведение или фокус с клавиатуры
- * приглушают остальные вузы и показывают подсказку с полным названием.
+ * Клавиатура: в блок ведёт одна остановка Tab, стрелки и Home/End выбирают вуз,
+ * Enter открывает его страницу, Esc прячет подсказку. На телефоне первое касание
+ * показывает подсказку, второе по тому же вузу — открывает страницу.
+ *
  * Столбики вырастают один раз, когда блок дошёл до экрана; при «уменьшить
- * движение» и в рабочем режиме — сразу в конечном виде.
+ * движение» и в рабочем режиме — сразу в конечном виде, указатель и подсказка
+ * переставляются без скольжения.
  */
 export type BarsFlatVariant = 'grouped' | 'indicator'
 
@@ -34,14 +52,25 @@ type Series = 'base' | 'signal'
 /** Сигнальные части (требуют внимания) — тёплым тоном, остальные — нейтральным. */
 const seriesOf = (part: Bars3DPart): Series => (part.tone === 'danger' || part.tone === 'warning' ? 'signal' : 'base')
 
+/** «Идут по плану» → «идут по плану»: в строке подсказки подпись идёт после точки серии. */
+const lowerFirst = (text: string) => text.charAt(0).toLowerCase() + text.slice(1)
+
 const DEFAULT_WIDTH = 960
 const HEIGHT = 262
 /** Линия пола и место сверху под числа над столбиками. */
 const FLOOR = 218
 const TOP = 34
+/** Верх линии-указателя: над числами самого высокого столбика. */
+const CROSS_TOP = TOP - 22
 /** Запас снизу под наклонённые подписи на узком экране. */
 const TILT_ROOM = 44
 const PAD = 8
+/** Подпись вуза под полом (базовая линия текста). */
+const LABEL_Y = FLOOR + 22
+
+/** Переезд указателя, маркеров и подсказки к соседнему вузу — короткая пружина без отскока. */
+const GLIDE: Transition = { type: 'spring', stiffness: 520, damping: 42, mass: 0.7 }
+const JUMP: Transition = { duration: 0 }
 
 /** «Круглый» шаг сетки: не больше пяти линий над полом. */
 function gridStep(max: number): number {
@@ -62,7 +91,7 @@ function roundedTop(x: number, top: number, width: number, radius: number): stri
   ].join('')
 }
 
-/** Строка для чтения вслух и подсказки: «МТУСИ: идут по плану — 3, требуют внимания — 2». */
+/** Строка для чтения вслух: «МТУСИ: идут по плану — 3, требуют внимания — 2». */
 function describe(group: Bars3DGroup): string {
   return `${group.title}: ${group.parts.map((part) => `${part.label.toLowerCase()} — ${formatNumber(part.value)}`).join(', ')}`
 }
@@ -83,6 +112,12 @@ export function BarsFlat({
   const ref = useRef<HTMLDivElement>(null)
   const inView = useReveal(ref)
   const [active, setActive] = useState<number | null>(null)
+  // Одна остановка Tab на весь график: в фокус попадает последний выбранный вуз.
+  const [rover, setRover] = useState(0)
+  const itemRefs = useRef<(HTMLElement | SVGElement | null)[]>([])
+  const labelRefs = useRef<(SVGTextElement | null)[]>([])
+  // Касание: было ли у вуза уже показано «первое касание» к моменту нажатия.
+  const press = useRef<{ type: string; wasActive: boolean }>({ type: 'mouse', wasActive: false })
 
   // Поле — в пикселях блока (единица viewBox = пиксель): подписи не сжимаются на телефоне.
   const [width, setWidth] = useState(DEFAULT_WIDTH)
@@ -99,6 +134,16 @@ export function BarsFlat({
       window.removeEventListener('resize', measure)
     }
   }, [])
+
+  // Подсказку, открытую касанием, закрывает касание мимо графика.
+  useEffect(() => {
+    if (active === null) return
+    const outside = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setActive(null)
+    }
+    document.addEventListener('pointerdown', outside)
+    return () => document.removeEventListener('pointerdown', outside)
+  }, [active])
 
   const grouped = variant === 'grouped'
   const count = Math.max(groups.length, 1)
@@ -125,7 +170,7 @@ export function BarsFlat({
     const left = center - pairWidth / 2
     const bars = group.parts.map((part, partIndex) => {
       const x = left + partIndex * (barWidth + gap)
-      const top = FLOOR - part.value * unitHeight
+      const top = part.value === 0 ? FLOOR - 2 : FLOOR - part.value * unitHeight
       return { part, series: seriesOf(part), x, top }
     })
     return {
@@ -139,37 +184,98 @@ export function BarsFlat({
 
   // Рост — один раз: «ждём» до появления блока на экране, затем «растём».
   const grow = calm ? 'still' : inView ? 'run' : 'wait'
-
-  // Подсказка — сбоку от пары на уровне её верха, внутри блока.
-  const tipRef = useRef<HTMLDivElement>(null)
-  const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null)
   const spot = active !== null ? layout[active] : undefined
+
+  // Подсказка — сбоку от пары (у правого края — слева), внутри блока, не на столбиках.
+  // Первое появление — сразу на месте; переход к соседнему вузу — скольжением.
+  const tipRef = useRef<HTMLDivElement>(null)
+  const tipShown = useRef(false)
+  const [tipAt, setTipAt] = useState<{ left: number; top: number; side: TipSide; jump: boolean } | null>(null)
   useLayoutEffect(() => {
     const tip = tipRef.current
     if (!spot || !tip) {
+      tipShown.current = false
       setTipAt(null)
       return
     }
-    const room = 14
-    let left = spot.left + pairWidth + room
-    if (left + tip.offsetWidth > width) left = spot.left - room - tip.offsetWidth
-    left = Math.max(0, Math.min(left, width - tip.offsetWidth))
-    const top = Math.max(0, Math.min(spot.top - 6, FLOOR - tip.offsetHeight))
-    setTipAt((current) => (current && current.left === left && current.top === top ? current : { left, top }))
+    const at = placeBarTip(
+      { left: spot.left, right: spot.left + pairWidth, top: spot.top },
+      { width: tip.offsetWidth, height: tip.offsetHeight },
+      { width, floor: FLOOR, bottom: ref.current?.offsetHeight },
+    )
+    const jump = !tipShown.current
+    tipShown.current = true
+    setTipAt((current) =>
+      current && current.left === at.left && current.top === at.top ? current : { ...at, jump },
+    )
     // `spot` — новый объект на каждый рендер; достаточно его координат.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spot?.left, spot?.top, pairWidth, width, active])
 
+  // «Таблетка» под подписью выбранного вуза — по размеру самого текста.
+  const [pill, setPill] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const text = active !== null ? labelRefs.current[active] : null
+    if (!text) {
+      setPill(null)
+      return
+    }
+    const box = text.getBBox()
+    setPill({ x: box.x - 10, y: box.y - 4, width: box.width + 20, height: box.height + 8 })
+  }, [active, width, tilt])
+
+  const glide = calm ? JUMP : GLIDE
+
+  const choose = (index: number) => {
+    setActive(index)
+    setRover(index)
+  }
+
+  const onKeyDown = (event: ReactKeyboardEvent, index: number) => {
+    if (event.key === 'Escape') {
+      setActive(null)
+      return
+    }
+    const next = stepIndex(event.key, index, groups.length)
+    if (next === null) return
+    event.preventDefault()
+    itemRefs.current[next]?.focus()
+  }
+
+  const onPointerDown = (event: ReactPointerEvent, index: number) => {
+    press.current = { type: event.pointerType, wasActive: active === index }
+  }
+
+  // Первое касание вуза — подсказка, второе — страница. Мышь и клавиатура — сразу страница.
+  const onClick = (event: ReactMouseEvent, index: number) => {
+    if (press.current.type === 'touch' && !press.current.wasActive) {
+      event.preventDefault()
+      choose(index)
+    }
+  }
+
   const fillOf = (series: Series) => (series === 'base' ? `url(#${id}-fade)` : `url(#${id}-hatch)`)
+  const activeGroup = active !== null ? groups[active] : undefined
 
   return (
-    <div ref={ref} className={styles.root} data-variant={variant} data-grow={grow} data-active={active !== null ? '' : undefined}>
+    <div
+      ref={ref}
+      className={styles.root}
+      data-variant={variant}
+      data-grow={grow}
+      data-active={active !== null ? '' : undefined}
+      data-tip={tipAt?.side}
+    >
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className={styles.svg}
         role="group"
         aria-label={label}
-        onPointerLeave={() => setActive(null)}
+        aria-describedby={`${id}-keys`}
+        onPointerLeave={(event) => {
+          // Касание «уходит» сразу после отпускания пальца — подсказка остаётся до касания мимо.
+          if (event.pointerType !== 'touch') setActive(null)
+        }}
       >
         <defs>
           {/* Градиент первого столбика: светлый верх уходит в фон к полу. */}
@@ -203,26 +309,19 @@ export function BarsFlat({
               className={styles.group}
               data-lit={lit ? '' : undefined}
               onPointerEnter={(event) => {
-                // Касание не «наводит»: после тапа пара не остаётся подсвеченной.
+                // Касание не «наводит»: его обрабатывает щелчок (первое касание — подсказка).
                 if (event.pointerType !== 'touch') setActive(index)
               }}
-              onPointerLeave={() => setActive((current) => (current === index ? null : current))}
             >
-              {/* Полоса-мишень во всю высоту: навести можно и на низкий столбик; она же — рамка фокуса. */}
-              <rect x={left - 10} y={TOP - 22} width={pairWidth + 20} height={FLOOR - TOP + 50} rx={10} className={styles.band} />
+              {/* Мишень — вся доля вуза во всю высоту: между парами нет «дыр», указатель не мигает. */}
+              <rect x={center - slot / 2} y={0} width={slot} height={height} className={styles.hit} />
+              {/* Рамка фокуса с клавиатуры. */}
+              <rect x={left - 10} y={TOP - 22} width={pairWidth + 20} height={FLOOR - TOP + 26} rx={10} className={styles.ring} />
               <g className={styles.growth} style={{ '--bar-order': index } as CSSProperties}>
                 {bars.map(({ part, series, x, top }) =>
                   part.value === 0 ? (
                     // Ноль — не пропуск: тонкая черта на полу, число над ней.
-                    <rect
-                      key={part.key}
-                      x={x}
-                      y={FLOOR - 2}
-                      width={barWidth}
-                      height={2}
-                      className={styles.zero}
-                      data-series={series}
-                    />
+                    <rect key={part.key} x={x} y={FLOOR - 2} width={barWidth} height={2} className={styles.zero} data-series={series} />
                   ) : grouped ? (
                     <path
                       key={part.key}
@@ -245,7 +344,7 @@ export function BarsFlat({
                   ),
                 )}
               </g>
-              {/* Указатель Bklit: черта поднимается от пола к верху столбика. */}
+              {/* Указатель вида «indicator»: черта поднимается от пола к верху столбика. */}
               {!grouped &&
                 lit &&
                 bars.map(({ part, series, x, top }) => (
@@ -258,18 +357,15 @@ export function BarsFlat({
                     className={styles.indicator}
                     data-series={series}
                     initial={calm ? false : { y: FLOOR, opacity: 0 }}
-                    animate={{
-                      y: part.value === 0 ? FLOOR - 1 : top,
-                      opacity: 1,
-                    }}
-                    transition={calm ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 30 }}
+                    animate={{ y: part.value === 0 ? FLOOR - 1 : top, opacity: 1 }}
+                    transition={calm ? JUMP : { type: 'spring', stiffness: 320, damping: 30 }}
                   />
                 ))}
               {bars.map(({ part, series, x, top }) => (
                 <text
                   key={`value-${part.key}`}
                   x={x + barWidth / 2}
-                  y={(part.value === 0 ? FLOOR - 2 : top) - 7}
+                  y={top - 7}
                   textAnchor="middle"
                   className={styles.value}
                   data-series={series}
@@ -278,61 +374,128 @@ export function BarsFlat({
                   {formatNumber(part.value)}
                 </text>
               ))}
-              <text
-                x={center}
-                y={FLOOR + 22}
-                textAnchor={tilt ? 'end' : 'middle'}
-                transform={tilt ? `rotate(-35 ${center} ${FLOOR + 22})` : undefined}
-                className={styles.label}
-              >
-                {group.label}
-              </text>
+              <g transform={tilt ? `rotate(-35 ${center} ${LABEL_Y})` : undefined}>
+                {lit && pill && (
+                  <rect
+                    x={pill.x}
+                    y={pill.y}
+                    width={pill.width}
+                    height={pill.height}
+                    rx={pill.height / 2}
+                    className={styles.pill}
+                  />
+                )}
+                <text
+                  ref={(node) => {
+                    labelRefs.current[index] = node
+                  }}
+                  x={center}
+                  y={LABEL_Y}
+                  textAnchor={tilt ? 'end' : 'middle'}
+                  className={styles.label}
+                >
+                  {group.label}
+                </text>
+              </g>
             </g>
           )
+          const shared = {
+            tabIndex: index === Math.min(rover, groups.length - 1) ? 0 : -1,
+            className: styles.link,
+            onFocus: () => choose(index),
+            onBlur: () => setActive(null),
+            onKeyDown: (event: ReactKeyboardEvent) => onKeyDown(event, index),
+          }
           return group.href ? (
             <Link
               key={group.key}
+              ref={(node: HTMLAnchorElement | null) => {
+                itemRefs.current[index] = node
+              }}
               href={group.href}
               aria-label={`${describe(group)}. Открыть страницу вуза`}
-              className={styles.link}
-              onFocus={() => setActive(index)}
-              onBlur={() => setActive(null)}
+              onPointerDown={(event) => onPointerDown(event, index)}
+              onClick={(event) => onClick(event, index)}
+              {...shared}
             >
               {body}
             </Link>
           ) : (
             <g
               key={group.key}
-              tabIndex={0}
+              ref={(node) => {
+                itemRefs.current[index] = node
+              }}
               role="img"
               aria-label={describe(group)}
-              className={styles.link}
-              onFocus={() => setActive(index)}
-              onBlur={() => setActive(null)}
+              {...shared}
             >
               {body}
             </g>
           )
         })}
+
+        {/* Указатель и маркеры Bklit — поверх пар; переезжают к соседнему вузу, а не мигают. */}
+        {grouped && spot && (
+          <motion.g
+            className={styles.cross}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: calm ? 0 : 0.14 }}
+            aria-hidden
+          >
+            <motion.line
+              y1={CROSS_TOP}
+              y2={FLOOR}
+              className={styles.crossLine}
+              initial={false}
+              animate={{ x1: spot.center, x2: spot.center }}
+              transition={glide}
+            />
+            {spot.bars.map(({ part, series, x, top }, partIndex) => (
+              <motion.circle
+                key={partIndex}
+                r={4.5}
+                className={styles.marker}
+                data-series={series}
+                data-zero={part.value === 0 ? '' : undefined}
+                initial={false}
+                animate={{ cx: x + barWidth / 2, cy: top }}
+                transition={glide}
+              />
+            ))}
+          </motion.g>
+        )}
       </svg>
 
+      <p id={`${id}-keys`} className="visually-hidden">
+        Стрелки влево и вправо — соседний вуз, Enter — страница вуза.
+      </p>
+
       {/* Разбор пары — HTML над SVG, чтобы текст не масштабировался. Для чтения вслух хватает aria-label ссылки. */}
-      {active !== null && groups[active] && (
-        <div
+      {activeGroup && (
+        <motion.div
           ref={tipRef}
           className={styles.tip}
-          style={tipAt ? { left: tipAt.left, top: tipAt.top } : { visibility: 'hidden' }}
+          style={{ left: 0, top: 0, visibility: tipAt ? undefined : 'hidden' }}
+          initial={{ opacity: 0 }}
+          animate={tipAt ? { x: tipAt.left, y: tipAt.top, opacity: 1 } : { opacity: 0 }}
+          transition={{
+            x: tipAt?.jump ? JUMP : glide,
+            y: tipAt?.jump ? JUMP : glide,
+            opacity: calm ? JUMP : { duration: 0.14 },
+          }}
           aria-hidden
         >
-          <strong className={styles.tipTitle}>{groups[active].title}</strong>
-          {groups[active].parts.map((part) => (
+          <strong className={styles.tipTitle}>{activeGroup.title}</strong>
+          {activeGroup.parts.map((part) => (
             <span key={part.key} className={styles.tipRow}>
               <span className={styles.swatch} data-series={seriesOf(part)} aria-hidden />
-              <span className={styles.tipLabel}>{part.label}</span>
+              <span className={styles.tipLabel}>{lowerFirst(part.label)}</span>
               <span className={styles.tipValue}>{formatNumber(part.value)}</span>
             </span>
           ))}
-        </div>
+        </motion.div>
       )}
 
       <p className={styles.legend}>
