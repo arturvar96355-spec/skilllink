@@ -443,22 +443,31 @@ a.chip:hover {
   animation: tileIn var(--motion-panel) var(--ease-out) calc(120ms + var(--i, 0) * 70ms) both;
 }
 
+/*
+ * Точка — на линии ленты (.feed::before, left: 5px), слева от текста. Важность —
+ * атрибутом `data-severity`, а не классом `.warning`/`.critical`: в этом модуле
+ * `.warning` — плашка предупреждения окна календаря (отступы, рамка), и она
+ * растягивала точку в жёлтый овал поверх первой буквы заголовка (решение 205, S5).
+ */
 .eventDot {
   position: absolute;
   left: calc(var(--space-5) * -1 + 1px);
   top: 12px;
+  box-sizing: border-box;
   width: 9px;
   height: 9px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
   background: var(--accent-violet);
   box-shadow: 0 0 0 3px var(--canvas);
 }
 
-.eventDot.critical {
+.eventDot[data-severity='critical'] {
   background: var(--status-danger);
 }
 
-.eventDot.warning {
+.eventDot[data-severity='warning'] {
   background: var(--status-warning);
 }
 

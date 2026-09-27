@@ -414,7 +414,7 @@ export default function ProfilePage() {
               <ol className={styles.feed}>
                 {feed.data.items.map((item, index) => (
                   <li key={item.id} className={styles.event} style={{ '--i': index } as CSSProperties}>
-                    <span className={[styles.eventDot, styles[item.severity]].join(' ')} aria-hidden />
+                    <span className={styles.eventDot} data-severity={item.severity} aria-hidden />
                     <Link className={styles.eventLink} href={notificationHref(item.target)}>
                       <span className={styles.eventTitle}>{item.title}</span>
                       {item.description && <span className={styles.eventText}>{item.description}</span>}
