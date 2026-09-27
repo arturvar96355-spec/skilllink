@@ -34,7 +34,7 @@ export function RecommendationExperiment() {
 
   if (!isOpen) {
     return (
-      <Button variant="secondary" icon="analytics" onClick={() => setIsOpen(true)}>
+      <Button variant="secondary" icon="analytics" className={styles.open} onClick={() => setIsOpen(true)}>
         Работают ли рекомендации?
       </Button>
     )

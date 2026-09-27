@@ -37,6 +37,11 @@ export interface ButtonProps
    * для выгрузки файла это означает пустой экран вместо сохранения.
    */
   external?: boolean
+  /**
+   * Внутренняя ссылка: `false` — не прокручивать страницу наверх после перехода.
+   * Нужна, когда ссылка открывает панель поверх той же страницы (`?recommendation=…`).
+   */
+  scroll?: boolean
 }
 
 export function Button({
@@ -48,6 +53,7 @@ export function Button({
   fullWidth = false,
   href,
   external = false,
+  scroll,
   className,
   children,
   disabled,
@@ -94,7 +100,7 @@ export function Button({
       )
     }
     return (
-      <Link href={href} className={classes} title={title} aria-label={ariaLabel} data-magnetic={magnetic}>
+      <Link href={href} scroll={scroll} className={classes} title={title} aria-label={ariaLabel} data-magnetic={magnetic}>
         {content}
       </Link>
     )
