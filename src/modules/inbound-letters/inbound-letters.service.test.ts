@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { expectRejectCode } from '@/shared/testing/expect-code'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { InboundLetterGroup, InboundLetterStatus, UserRole } from '@/shared/contracts/enums'
@@ -194,7 +194,15 @@ function eml(headers: string[] = []): Uint8Array {
 }
 
 describe('uploadEml: уведомление ADMIN/HEAD о новом обращении (решение 183)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('шлёт только название вуза и группу — без ФИО, почты и текста письма', async () => {
+    // Адрес стенда в CI задан (AUTH_URL) — тогда появилась бы кнопка «Открыть»;
+    // здесь проверяется вариант без адреса, поэтому окружение фиксируется явно.
+    vi.stubEnv('AUTH_URL', '')
+    vi.stubEnv('APP_BASE_URL', '')
     mocks.create.mockResolvedValue(letterRow({ status: 'NEW' }))
     mocks.findById.mockResolvedValue(letterRow({ status: 'NEW', group: 'MEETING' }))
     mocks.saveAnalysis.mockResolvedValue(undefined)
