@@ -65,3 +65,19 @@ export async function create(data: CreateAttachmentInput): Promise<AttachmentRow
 export async function remove(id: string): Promise<void> {
   await prisma.attachment.delete({ where: { id } })
 }
+
+/**
+ * Файлы нескольких владельцев разом, с ключом хранения — для пакета документов
+ * связки (решение 212): один запрос вместо запроса на каждый документ.
+ */
+export async function findStoredByOwners(
+  ownerType: AttachmentOwnerType,
+  ownerIds: readonly string[],
+): Promise<AttachmentWithKeyRow[]> {
+  if (ownerIds.length === 0) return []
+  return prisma.attachment.findMany({
+    where: { ownerType, ownerId: { in: [...ownerIds] } },
+    select: { ...select, storageKey: true },
+    orderBy: { uploadedAt: 'asc' },
+  })
+}

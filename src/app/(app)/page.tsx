@@ -402,7 +402,7 @@ function Dashboard() {
     }
     const { created, updated, closed } = result.data
     toast.success(
-      `Рекомендации пересобраны: новых ${created}, обновлено ${updated}, закрыто ${closed}.`,
+      `Список задач пересобран: новых ${created}, обновлено ${updated}, закрыто ${closed}.`,
     )
     overview.reload()
     active.reload()
@@ -449,16 +449,7 @@ function Dashboard() {
         meta={data?.containsMockData ? <MockBadge /> : undefined}
         actions={
           <>
-            {user.permissions.canWorkAnalytics && (
-              <Button
-                icon="refresh"
-                onClick={onRegenerate}
-                isLoading={regenerate.isPending}
-                variant="secondary"
-              >
-                Пересобрать рекомендации
-              </Button>
-            )}
+            {/* «Пересобрать рекомендации» убрана (решение 212): список задач обновляется сам. */}
             {/* Лист A4 для печати и PDF (решение 97) — всем, кому видна главная. */}
             <Button href={ROUTES.managerReport} icon="document" variant="secondary">
               Отчёт руководителю

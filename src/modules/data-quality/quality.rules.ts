@@ -104,10 +104,13 @@ function buildEntity(entity: QualityEntityType, total: number, drafts: IssueDraf
     (sum, draft) => sum + draft.weight * (total === 0 ? 0 : draft.affected.length / total),
     0,
   )
+  // Запись с двумя замечаниями — одна запись к правке, а не две (решение 212).
+  const flagged = new Set(drafts.flatMap((draft) => draft.affected.map((item) => item.id)))
   return {
     entity,
     title: ENTITY_TITLES[entity],
     total,
+    recordsToFix: flagged.size,
     score: total === 0 ? null : round1(Math.max(0, 100 * (1 - penalty))),
     weight: QUALITY.entityWeights[entity],
     issues,
@@ -193,7 +196,7 @@ export function computeQualityReport(input: QualityInput, duplicates: DuplicateS
   const product = buildEntity('product', input.products.length, [
     {
       code: 'product.noSkills',
-      title: 'IT-продукт без навыков: его нельзя предложить под дефицит',
+      title: 'IT-продукт без навыков',
       weight: weights.product.noSkills,
       affected: input.products.filter((row) => row._count.skills === 0),
     },
@@ -212,7 +215,7 @@ export function computeQualityReport(input: QualityInput, duplicates: DuplicateS
   const cooperation = buildEntity('cooperation', input.cooperations.length, [
     {
       code: 'cooperation.noResponsible',
-      title: 'Ответственный за связку заблокирован — связку никто не ведёт',
+      title: 'Ответственный за связку заблокирован',
       weight: weights.cooperation.noResponsible,
       affected: input.cooperations.filter((row) => !row.responsible.isActive).map(cooperationName),
     },
@@ -243,6 +246,7 @@ export function computeQualityReport(input: QualityInput, duplicates: DuplicateS
 
   return {
     score,
+    recordsToFix: entities.reduce((sum, entity) => sum + entity.recordsToFix, 0),
     entities,
     duplicates: {
       university: duplicates.university.pairs,

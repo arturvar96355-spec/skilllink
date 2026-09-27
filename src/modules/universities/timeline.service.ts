@@ -130,7 +130,7 @@ export function toEvents(sources: repo.TimelineSources, hideInternal: boolean): 
   for (const row of sources.recommendations) {
     events.push(event('recommendation', row.id, {
       kind: 'recommendation.created',
-      title: `Рекомендация: ${row.title}`,
+      title: `Задача: ${row.title}`,
       details: null,
       cooperationId: row.cooperationId,
       programName: null,
@@ -145,7 +145,7 @@ export function toEvents(sources: repo.TimelineSources, hideInternal: boolean): 
     const status = payload.to ? RECOMMENDATION_STATUS_LABELS[payload.to] : null
     events.push(event('recommendation', `status:${row.id}`, {
       kind: 'recommendation.status',
-      title: status ? `Рекомендация: статус «${status}»` : 'Рекомендация: изменён статус',
+      title: status ? `Задача: статус «${status}»` : 'Задача: изменён статус',
       details: null,
       cooperationId: null,
       programName: null,

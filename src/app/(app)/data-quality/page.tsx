@@ -12,6 +12,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  InfoHint,
   Icon,
   MockBadge,
   PageHeader,
@@ -36,6 +37,7 @@ import {
 import type { QueueTone } from '@/ui/data/queue-row'
 import {
   CRITICAL_PENALTY,
+  ISSUE_WHY,
   QUALITY_CRITICAL_BELOW,
   QUALITY_LEVEL_LABELS,
   QUALITY_TARGET,
@@ -46,6 +48,7 @@ import {
   issueAction,
   pointsWord,
   qualityConclusion,
+  qualitySummary,
   scoreLevel,
   type LeveledIssue,
   type QualityLevel,
@@ -72,6 +75,10 @@ const LEVEL_TONE: Record<Exclude<QualityLevel, 'ok'>, QueueTone> = {
 }
 
 const RECORDS: [string, string, string] = ['запись', 'записи', 'записей']
+
+/** Как считается индекс — одной фразой у «?» (решение 212); формула целиком — в «Как считается индекс». */
+const INDEX_HINT =
+  'Средняя оценка пяти справочников от 0 до 100: каждая проверка отнимает баллы по доле записей, которые её не проходят. Цель — 90.'
 
 function formatScore(score: number | null): string {
   return score === null ? 'Нет данных' : formatPoints(score)
@@ -144,7 +151,7 @@ function QualityReport({ report, onChanged }: { report: QualityReportDto; onChan
 
       <Section
         title="Проверки"
-        description={`Сгруппированы по тому, сколько баллов отнимают у своего справочника: «критично» — от ${CRITICAL_PENALTY} баллов. Справа — сколько записей нарушают проверку.`}
+        description={`Под названием — зачем проверка нужна. Справа — сколько записей её не проходят. «Критично» — отнимает у справочника от ${CRITICAL_PENALTY} баллов.`}
       >
         <Queue>
           <IssueGroup
@@ -171,6 +178,7 @@ function QualityReport({ report, onChanged }: { report: QualityReportDto; onChan
                   <span className={styles.okText}>
                     <span className="visually-hidden">Проходит: </span>
                     {item.issue.title}
+                    {ISSUE_WHY[item.issue.code] && <span className={styles.okWhy}>{ISSUE_WHY[item.issue.code]}</span>}
                   </span>
                   <span className={styles.okCount}>
                     0 из {formatNumber(item.entityTotal)}
@@ -201,9 +209,13 @@ function QualityIndex({ report }: { report: QualityReportDto }) {
 
   return (
     <section className={styles.index} aria-labelledby="quality-index-title">
+      {/* Сначала — что править, простыми словами (решение 212): индекс без этой
+          фразы эксперт не понял, «сколько это — 72,6». */}
+      <p className={styles.summary}>{qualitySummary(report)}</p>
       <div className={styles.indexHead}>
         <h2 id="quality-index-title" className={styles.indexTitle}>
           Индекс качества
+          <InfoHint text={INDEX_HINT} />
         </h2>
         <span className={styles.generated}>Проверено {formatDateTime(report.generatedAt)}</span>
       </div>
@@ -323,7 +335,12 @@ function IssueRow({
     <QueueRow
       tone={LEVEL_TONE[level]}
       title={issue.title}
-      meta={{ text: item.entityTitle, tail: `${penalty} у справочника` }}
+      // Вторая строка — зачем эта проверка (решение 212); справочник и баллы — хвостом.
+      meta={{
+        text: ISSUE_WHY[issue.code] ?? item.entityTitle,
+        tail: `${item.entityTitle}, ${penalty}`,
+        tailShort: penalty,
+      }}
       value={{ text: count, tone: level === 'critical' ? 'danger' : 'muted' }}
       label={queueRowLabel([
         QUALITY_LEVEL_LABELS[level],

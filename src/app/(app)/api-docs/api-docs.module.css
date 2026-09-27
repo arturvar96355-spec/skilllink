@@ -1,155 +1,301 @@
-.wrap {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
+/*
+ * Swagger UI в теме SkillLink (решение 212).
+ *
+ * Swagger рисует свою разметку и приходит со светлыми цветами. Здесь — только
+ * перекраска токенами: текст, поверхности, поля ввода, кнопки, рамки. Цвета
+ * методов (GET — синий, POST — зелёный…) остаются свои: это язык Swagger,
+ * который эксперт узнаёт с первого взгляда. Все правила — внутри `.swagger`:
+ * глобальная таблица стилей Swagger остальных страниц не касается.
+ */
+
+.frame {
+  min-width: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  padding: var(--space-4) var(--space-5);
+  /* Длинные схемы и таблицы прокручиваются внутри карточки, не страница вбок. */
+  overflow-x: auto;
 }
 
-.search {
-  max-width: 420px;
+.placeholder {
+  padding: var(--space-2) 0;
 }
 
-.count {
+.swagger :global(.swagger-ui) {
+  font-family: var(--font-family);
+  color: var(--text-primary);
+}
+
+.swagger :global(.swagger-ui .wrapper) {
+  max-width: none;
+  padding: 0;
+}
+
+/* Шапка спецификации: название и описание уже сказаны заголовком страницы. */
+.swagger :global(.swagger-ui .information-container .info) {
+  margin: 0 0 var(--space-4);
+}
+
+.swagger :global(.swagger-ui .info .title),
+.swagger :global(.swagger-ui .info .title small),
+.swagger :global(.swagger-ui .info p),
+.swagger :global(.swagger-ui .info li),
+.swagger :global(.swagger-ui .info table),
+.swagger :global(.swagger-ui .info h1),
+.swagger :global(.swagger-ui .info h2),
+.swagger :global(.swagger-ui .info h3),
+.swagger :global(.swagger-ui .info h4),
+.swagger :global(.swagger-ui .info h5) {
+  color: var(--text-primary);
+  font-family: var(--font-family);
+}
+
+.swagger :global(.swagger-ui .info .title) {
+  font-size: var(--text-h2-size);
+}
+
+.swagger :global(.swagger-ui .info a),
+.swagger :global(.swagger-ui .markdown a),
+.swagger :global(.swagger-ui .renderedMarkdown a) {
+  color: var(--text-accent);
+}
+
+/* Полоса серверов и «Authorize»: без белой плашки и тени. */
+.swagger :global(.swagger-ui .scheme-container) {
+  background: transparent;
+  box-shadow: none;
   margin: 0;
+  padding: 0 0 var(--space-4);
+}
+
+.swagger :global(.swagger-ui .scheme-container .schemes > label),
+.swagger :global(.swagger-ui .servers-title),
+.swagger :global(.swagger-ui .servers > label) {
   color: var(--text-secondary);
   font-size: var(--text-body-sm-size);
 }
 
-.tagSection {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.tagTitle {
-  margin: 0;
-  font-size: var(--text-card-title-size);
-  font-weight: 600;
+/* Разделы (теги) и операции. */
+.swagger :global(.swagger-ui .opblock-tag) {
   color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--text-h3-size);
+  border-bottom-color: var(--border-divider);
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-row);
-  overflow: hidden;
-}
-
-.operation {
-  border-bottom: 1px solid var(--border-divider);
-}
-
-.operation:last-child {
-  border-bottom: none;
-}
-
-.operationHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-  font: inherit;
-}
-
-.operationHead:hover {
+.swagger :global(.swagger-ui .opblock-tag:hover) {
   background: var(--surface-hover);
 }
 
-.operationPath {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: var(--text-body-sm-size);
+.swagger :global(.swagger-ui .opblock-tag small),
+.swagger :global(.swagger-ui .opblock-tag small p) {
   color: var(--text-secondary);
-  white-space: nowrap;
 }
 
-.operationSummary {
-  flex: 1;
-  font-size: var(--text-body-size);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.swagger :global(.swagger-ui .opblock) {
+  border-radius: var(--radius-row);
+  box-shadow: none;
 }
 
-.chevronOpen {
-  transform: rotate(180deg);
-}
-
-.operationBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-4);
-}
-
-.description {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-body-sm-size);
-  white-space: pre-line;
-}
-
-.params {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-3);
-}
-
-.jsonArea {
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: var(--text-caption-size);
-}
-
-.actions {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.error {
-  margin: 0;
-  color: var(--status-danger);
-  font-size: var(--text-body-sm-size);
-}
-
-.result {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-control);
-  padding: var(--space-3);
-  background: var(--surface-sunken);
-}
-
-.resultHead {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.resultMeta {
-  color: var(--text-secondary);
-  font-size: var(--text-caption-size);
-}
-
-.resultBody {
-  margin: 0;
-  max-height: 360px;
-  overflow: auto;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: var(--text-caption-size);
-  white-space: pre-wrap;
-  word-break: break-word;
+.swagger :global(.swagger-ui .opblock .opblock-summary-path),
+.swagger :global(.swagger-ui .opblock .opblock-summary-path__deprecated),
+.swagger :global(.swagger-ui .opblock .opblock-summary-operation-id) {
   color: var(--text-primary);
 }
 
-.empty {
+.swagger :global(.swagger-ui .opblock .opblock-summary-description) {
   color: var(--text-secondary);
-  font-size: var(--text-body-size);
+}
+
+.swagger :global(.swagger-ui .opblock .opblock-section-header) {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.swagger :global(.swagger-ui .opblock .opblock-section-header h4),
+.swagger :global(.swagger-ui .opblock .opblock-section-header label),
+.swagger :global(.swagger-ui .opblock-title_normal),
+.swagger :global(.swagger-ui .opblock-description-wrapper),
+.swagger :global(.swagger-ui .opblock-description-wrapper p),
+.swagger :global(.swagger-ui .opblock-external-docs-wrapper p),
+.swagger :global(.swagger-ui .opblock-title_normal p),
+.swagger :global(.swagger-ui .markdown p),
+.swagger :global(.swagger-ui .markdown li),
+.swagger :global(.swagger-ui .renderedMarkdown p),
+.swagger :global(.swagger-ui .renderedMarkdown li),
+.swagger :global(.swagger-ui .responses-inner h4),
+.swagger :global(.swagger-ui .responses-inner h5),
+.swagger :global(.swagger-ui .response-col_status),
+.swagger :global(.swagger-ui .response-col_links),
+.swagger :global(.swagger-ui .response-control-media-type__title),
+.swagger :global(.swagger-ui .tab li),
+.swagger :global(.swagger-ui .tab li button.tablinks),
+.swagger :global(.swagger-ui table thead tr td),
+.swagger :global(.swagger-ui table thead tr th),
+.swagger :global(.swagger-ui .parameter__name),
+.swagger :global(.swagger-ui label),
+.swagger :global(.swagger-ui .request-url),
+.swagger :global(.swagger-ui .col_header),
+.swagger :global(.swagger-ui .loading-container .loading::after) {
+  color: var(--text-primary);
+}
+
+.swagger :global(.swagger-ui .parameter__type),
+.swagger :global(.swagger-ui .parameter__in),
+.swagger :global(.swagger-ui .parameter__extension),
+.swagger :global(.swagger-ui .parameter__deprecated),
+.swagger :global(.swagger-ui .prop-format),
+.swagger :global(.swagger-ui .response-col_description__inner p) {
+  color: var(--text-secondary);
+}
+
+.swagger :global(.swagger-ui table thead tr td),
+.swagger :global(.swagger-ui table thead tr th) {
+  border-bottom-color: var(--border-subtle);
+}
+
+.swagger :global(.swagger-ui .markdown code),
+.swagger :global(.swagger-ui .renderedMarkdown code) {
+  background: var(--surface-2);
+  color: var(--text-accent);
+  border-radius: var(--radius-xs);
+}
+
+/* Поля ввода — как поля SkillLink. Стрелка у списка — своя картинка Swagger. */
+.swagger :global(.swagger-ui input[type='text']),
+.swagger :global(.swagger-ui input[type='search']),
+.swagger :global(.swagger-ui input[type='password']),
+.swagger :global(.swagger-ui input[type='email']),
+.swagger :global(.swagger-ui input[type='file']),
+.swagger :global(.swagger-ui textarea),
+.swagger :global(.swagger-ui select) {
+  background-color: var(--surface-sunken);
+  color: var(--text-primary);
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius-input);
+  box-shadow: none;
+  font-family: var(--font-family);
+}
+
+.swagger :global(.swagger-ui textarea.curl),
+.swagger :global(.swagger-ui .body-param__text) {
+  font-family: var(--font-mono);
+}
+
+.swagger :global(.swagger-ui input:focus-visible),
+.swagger :global(.swagger-ui textarea:focus-visible),
+.swagger :global(.swagger-ui select:focus-visible),
+.swagger :global(.swagger-ui button:focus-visible) {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.swagger :global(.swagger-ui .btn) {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+  border-radius: var(--radius-button);
+  box-shadow: none;
+  font-family: var(--font-family);
+}
+
+.swagger :global(.swagger-ui .btn:hover) {
+  box-shadow: none;
+  background: var(--surface-hover);
+}
+
+/* «Execute» — главное действие раскрытой операции. */
+.swagger :global(.swagger-ui .btn.execute) {
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--button-primary-fg);
+}
+
+.swagger :global(.swagger-ui .btn.authorize) {
+  color: var(--status-success);
+  border-color: var(--status-success);
+}
+
+.swagger :global(.swagger-ui .btn.authorize svg),
+.swagger :global(.swagger-ui .authorization__btn svg),
+.swagger :global(.swagger-ui .opblock-summary-control svg),
+.swagger :global(.swagger-ui .expand-operation svg),
+.swagger :global(.swagger-ui .models-control svg),
+.swagger :global(.swagger-ui .model-toggle::after),
+.swagger :global(.swagger-ui .arrow) {
+  fill: var(--text-secondary);
+}
+
+/* Замки у операций: в тёмной теме тёмный значок Swagger сливался с фоном. */
+/* Значок рисуется цветом кнопки (fill: currentColor). */
+.swagger :global(.swagger-ui .authorization__btn) {
+  color: var(--text-secondary);
+}
+
+/* Стрелка списка у Swagger — тёмная картинка; в тёмной теме — штатная стрелка браузера. */
+:global(:root:not([data-theme='light'])) .swagger :global(.swagger-ui select) {
+  background-image: none;
+  appearance: auto;
+  color-scheme: dark;
+}
+
+/* Схемы данных. */
+.swagger :global(.swagger-ui section.models) {
+  border-color: var(--border-subtle);
+  border-radius: var(--radius-row);
+}
+
+.swagger :global(.swagger-ui section.models h4),
+.swagger :global(.swagger-ui section.models h4 span),
+.swagger :global(.swagger-ui .model-title),
+.swagger :global(.swagger-ui .model),
+.swagger :global(.swagger-ui .model .property),
+.swagger :global(.swagger-ui .prop-type),
+.swagger :global(.swagger-ui .model-box-control),
+.swagger :global(.swagger-ui .models-control) {
+  color: var(--text-primary);
+}
+
+.swagger :global(.swagger-ui .prop-type) {
+  color: var(--text-accent);
+}
+
+.swagger :global(.swagger-ui .model-box),
+.swagger :global(.swagger-ui section.models .model-container) {
+  background: var(--surface-2);
+  border-radius: var(--radius-xs);
+}
+
+/* Окно «Authorize». */
+.swagger :global(.swagger-ui .dialog-ux .modal-ux) {
+  background: var(--surface-floating);
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+  border-radius: var(--radius-panel);
+}
+
+.swagger :global(.swagger-ui .dialog-ux .modal-ux-header h3),
+.swagger :global(.swagger-ui .dialog-ux .modal-ux-content p),
+.swagger :global(.swagger-ui .dialog-ux .modal-ux-content h4) {
+  color: var(--text-primary);
+}
+
+.swagger :global(.swagger-ui .dialog-ux .modal-ux-header) {
+  border-bottom-color: var(--border-divider);
+}
+
+/* Поиск по разделам (filter). */
+.swagger :global(.swagger-ui .filter-container) {
+  margin: 0 0 var(--space-4);
+}
+
+.swagger :global(.swagger-ui .filter .operation-filter-input) {
+  margin: 0;
+  border: 1px solid var(--border-hover);
+}
+
+@media (max-width: 640px) {
+  .frame {
+    padding: var(--space-3);
+  }
 }

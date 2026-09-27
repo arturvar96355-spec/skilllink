@@ -7,10 +7,11 @@
  * Вынесено из `attachment-storage.ts` (решение 210): тем же заголовком теперь
  * отдаются отчёты и выгрузки реестров — Safari берёт имя из `filename*`.
  */
-export function contentDisposition(originalName: string): string {
+export function contentDisposition(originalName: string, disposition: 'attachment' | 'inline' = 'attachment'): string {
   const stripped = originalName.replace(/[\r\n\u0000-\u001f"\\]/g, '').trim()
   const safeName = stripped.length > 0 ? stripped : 'file'
   const ascii = safeName.replace(/[^\x20-\x7e]/g, '_').slice(0, 150) || 'file'
   const encoded = encodeURIComponent(safeName)
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`
+  // `inline` — открыть в браузере с тем же именем для «Сохранить как…» (решение 212).
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encoded}`
 }

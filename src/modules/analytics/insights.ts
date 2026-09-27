@@ -37,7 +37,7 @@ export const METRIC_LABELS: Record<SeriesMetric, { name: string; of: string }> =
   new_cooperations: { name: 'Новые связки', of: 'новых связок' },
   stage_transitions: { name: 'Переходы этапов', of: 'закрытых этапов' },
   meetings: { name: 'Встречи', of: 'встреч' },
-  dismissed_recommendations: { name: 'Отклонённые рекомендации', of: 'отклонённых рекомендаций' },
+  dismissed_recommendations: { name: 'Отклонённые задачи', of: 'отклонённых задач' },
 }
 
 export interface SeriesPoint {

@@ -24,10 +24,12 @@ import {
   Card,
   DataTable,
   DocumentStatusBadge,
+  DownloadButton,
   Drawer,
   EmptyState,
   ResetFilters,
   ErrorState,
+  InfoHint,
   Icon,
   Input,
   NO_DATA,
@@ -64,6 +66,7 @@ import {
   formatPersonShort,
   ListTitle,
 } from '@/ui'
+import { isPlaceholderReference } from '@/shared/utils/url'
 import { Attachments } from '../Attachments'
 import { CreateDocumentModal } from './CreateDocumentModal'
 import styles from './documents.module.css'
@@ -106,6 +109,16 @@ function signingEffectText(effect: SigningChecklistEffectDto | undefined): strin
     default:
       return null
   }
+}
+
+/** Файл документа: открыть в браузере или скачать (решение 212). */
+function documentFileHref(id: string, download = false): string {
+  return `/api/documents/${id}/file${download ? '?download=1' : ''}`
+}
+
+/** Подписан или в архиве: правка закрыта, чтение — нет (решение 212). */
+function isClosedDocument(status: DocumentStatus): boolean {
+  return status === 'SIGNED' || status === 'ARCHIVED'
 }
 
 /** Отклонение и возврат на доработку сервер без основания не примет. */
@@ -283,7 +296,10 @@ function DocumentsView() {
     <>
       <PageHeader
         title="Документы"
-        description="Договоры, соглашения и приложения по связкам. Реквизиты, ссылка на внешний документ, текст, собранный из шаблона, и файлы, приложенные к документу вручную."
+        description="Договоры, соглашения и приложения по связкам. Любой документ открывается и скачивается, подписанный тоже; пакет связки целиком — после выбора связки в фильтре."
+        meta={
+          <InfoHint text="Путь документа: черновик → на согласовании → согласован → подписан. «Отклонён» — вернули с замечанием, «В архиве» — заменён новой версией. Подписанный и архивный не правится, но открывается и скачивается всегда." />
+        }
         actions={
           user.permissions.canWrite ? (
             <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
@@ -293,7 +309,26 @@ function DocumentsView() {
         }
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        actions={
+          hasFilters ? (
+            <>
+              {/* Выбрана связка — её пакет одним архивом, в любом статусе (решение 212). */}
+              {cooperationId && (
+                <DownloadButton
+                  href={`/api/cooperations/${cooperationId}/documents/package`}
+                  fallbackName="Документы связки.zip"
+                  size="sm"
+                  title="Все документы выбранной связки и приложенные к ним файлы одним архивом"
+                >
+                  Скачать пакет связки
+                </DownloadButton>
+              )}
+              <ResetFilters active onReset={resetFilters} />
+            </>
+          ) : undefined
+        }
+      >
         <ToolbarSearch>
           <Input
             label="Поиск"
@@ -588,9 +623,49 @@ function DocumentDrawer({
             <DocumentLinks links={card.links} />
           </section>
 
+          {/* Открыть и скачать — в любом статусе (решение 212): подписанный или
+              архивный документ закрыт для правки, а не для чтения. Раньше у
+              подписанного была только ссылка на внешний файл — в демо на
+              несуществующий адрес, — и открыть его было нечем. */}
           <section className={styles.block}>
-            <h3 className={styles.blockTitle}>Ссылка на документ</h3>
-            {card.fileReference ? (
+            <h3 className={styles.blockTitle}>Документ</h3>
+            <div className={styles.fileActions}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="external"
+                href={documentFileHref(card.id)}
+                external
+                newTab
+                title="Реквизиты, текст, ссылка на оригинал и история статусов — в новой вкладке"
+                aria-label={`Открыть «${card.title}» в новой вкладке`}
+              >
+                Открыть
+              </Button>
+              <DownloadButton
+                href={documentFileHref(card.id, true)}
+                fallbackName={`${card.title}.html`}
+                size="sm"
+                variant="ghost"
+              >
+                Скачать
+              </DownloadButton>
+            </div>
+            {isClosedDocument(card.status) && (
+              <p className={styles.note}>
+                {card.status === 'SIGNED' ? 'Подписанный' : 'Архивный'} документ закрыт для правки, а не для чтения:
+                открыть и скачать его можно всегда.
+              </p>
+            )}
+          </section>
+
+          <section className={styles.block}>
+            <h3 className={styles.blockTitle}>Оригинал во внешней системе</h3>
+            {card.fileReference && isPlaceholderReference(card.fileReference) ? (
+              <p className={styles.note}>
+                Демонстрационная ссылка — файла по ней нет. Документ открывается кнопкой «Открыть» выше.
+              </p>
+            ) : card.fileReference ? (
               <a
                 className={styles.fileLink}
                 href={card.fileReference}

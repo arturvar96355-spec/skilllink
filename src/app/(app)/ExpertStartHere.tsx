@@ -76,8 +76,8 @@ export function ExpertStartHere() {
           <li className={styles.expertStep}>
             <span className={styles.expertStepNo}>1</span>
             <span className={styles.expertStepText}>
-              <Link href={ROUTES.recommendations}>Что сделать сегодня</Link> — приоритетные рекомендации системы
-              и почему они предложены.
+              <Link href={ROUTES.recommendations}>Список задач</Link> — что система предлагает сделать
+              и почему каждая задача появилась.
             </span>
           </li>
           <li className={styles.expertStep}>

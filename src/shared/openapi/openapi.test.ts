@@ -140,3 +140,20 @@ describe('сборка документа', () => {
     expect(description).toContain('ADMIN')
   })
 })
+
+describe('версия в спецификации (решение 212)', () => {
+  it('info.version совпадает с версией приложения и равна 1.0.0', async () => {
+    const pkg = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
+    expect(pkg.version).toBe('1.0.0')
+    const document = buildOpenApiDocument() as { info: { version: string } }
+    expect(document.info.version).toBe(pkg.version)
+  })
+})
+
+describe('разделы спецификации подписаны (решение 212)', () => {
+  it('у каждого раздела есть описание одной фразой', async () => {
+    const { TAG_DESCRIPTIONS } = await import('./build')
+    const missing = [...new Set(ENDPOINTS.map((spec) => spec.tag))].filter((tag) => !TAG_DESCRIPTIONS[tag])
+    expect(missing, `нет описания раздела: ${missing.join(', ')}`).toEqual([])
+  })
+})
