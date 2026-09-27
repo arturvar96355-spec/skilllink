@@ -1,0 +1,73 @@
+/*
+ * «?» со ссылкой в документацию (решение 214). Вид значка и пузыря — из
+ * Tooltip.module.css (`trigger`, `hintIcon`, `bubble`), здесь только то,
+ * чем окошко отличается от подсказки: в нём можно нажать ссылку.
+ */
+
+.trigger {
+  /* Цель нажатия 32×32 при значке 16: на телефоне попасть пальцем. */
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  margin: -8px;
+  border-radius: var(--radius-pill);
+  vertical-align: middle;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -4px;
+}
+
+.trigger[aria-expanded='true'] :global(svg) {
+  color: var(--text-primary);
+}
+
+/* Пузырь подсказки принимает нажатия и держит строки как абзацы, а не `pre-line`. */
+.panel[role='dialog'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: max-content;
+  max-width: min(320px, calc(100vw - 16px));
+  padding: var(--space-3) var(--space-4);
+  white-space: normal;
+  pointer-events: auto;
+  outline: none;
+}
+
+.title {
+  color: var(--text-primary);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  line-height: var(--text-body-sm-line);
+}
+
+.text {
+  color: var(--text-secondary);
+  font-size: var(--text-caption-size);
+  line-height: 1.5;
+}
+
+.more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  margin-top: var(--space-1);
+  color: var(--text-accent);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-xs);
+}
+
+.more:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.more:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
