@@ -237,6 +237,12 @@
   background: color-mix(in srgb, var(--status-danger) 45%, transparent);
 }
 
+/* Та же блокировка у ответственного — не жёлтым словом, а красным, как полоса. */
+:global(html[data-mode='work'][data-work-theme]) .personCounts [data-badge][data-tone='warning'] {
+  color: var(--status-danger);
+  font-weight: 500;
+}
+
 /*
  * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
  * ответственные и долгие просрочки — строки списка, а не плашки.
