@@ -12,6 +12,7 @@ import {
 } from '@/shared/contracts'
 import {
   EmptyState,
+  ScrollArea,
   SkeletonLines,
   buildQuery,
   cooperationHref,
@@ -195,7 +196,7 @@ export function UniversityGraph({
         ) : layout.programList.length === 0 ? (
           <EmptyState title="Программ пока нет" description="Граф появится, когда у вуза будет первая программа." />
         ) : (
-          <div className={styles.scroll}>
+          <ScrollArea frameClassName={styles.scrollFrame} className={styles.scroll} edges="start">
             <div className={styles.stage} style={{ width: contentWidth, height: layout.height }}>
               <svg className={styles.wires} width={contentWidth} height={layout.height} aria-hidden>
                 {/* Вуз → программы */}
@@ -336,7 +337,7 @@ export function UniversityGraph({
                 </p>
               )}
             </div>
-          </div>
+          </ScrollArea>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { CSSProperties, ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
+import { ScrollArea } from '../primitives/ScrollArea'
 import { formatNumber, pluralize } from '../lib/format'
 import { startMorph } from '../lib/morph'
 import { tableMinWidth } from './table-width'
@@ -93,7 +94,9 @@ export function DataTable<T>({
   }
 
   return (
-    <div
+    // Таблица шире экрана листается вбок внутри себя; край, за которым ещё
+    // столбцы, растворяется, у шапки — шеврон (ScrollArea, решение 195).
+    <ScrollArea
       className={[
         styles.wrapper,
         appearance === 'cards' ? styles.cards : '',
@@ -101,6 +104,8 @@ export function DataTable<T>({
       ]
         .filter(Boolean)
         .join(' ')}
+      edges="start"
+      label={caption}
     >
       <table
         className={[styles.table, isRefreshing ? styles.refreshing : ''].filter(Boolean).join(' ')}
@@ -234,7 +239,7 @@ export function DataTable<T>({
           Показаны первые {formatNumber(rows.length)} из {formatNumber(total)}
         </p>
       )}
-    </div>
+    </ScrollArea>
   )
 }
 

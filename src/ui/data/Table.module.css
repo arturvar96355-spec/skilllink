@@ -386,7 +386,8 @@
  * Заголовки, по которым можно сортировать, становятся рядом кнопок над списком.
  */
 @media (max-width: 720px) {
-  .cards {
+  /* .wrapper — чтобы перебить прокрутку ScrollArea при любом порядке стилей. */
+  .wrapper.cards {
     padding: 0;
     overflow-x: visible;
   }
@@ -401,10 +402,11 @@
     display: block;
   }
 
+  /* Кнопки сортировки переносятся, как в ленте: полоса вбок прятала часть из них. */
   .cards thead tr {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--space-2);
-    overflow-x: auto;
     padding: 0 0 var(--space-3);
   }
 
@@ -475,7 +477,7 @@
  * чьё значение уже сказано пояснением, скрыты (`hideInList`), но их заголовок
  * остаётся кнопкой сортировки. Карточка ~52 px: на экран — 12–14 записей.
  */
-.list {
+.wrapper.list {
   padding: 0;
   overflow-x: visible;
 }

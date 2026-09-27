@@ -14,7 +14,21 @@
   padding: var(--space-5) var(--space-5) var(--space-4);
   border-radius: var(--radius-panel);
   background: var(--surface-1);
-  overflow-x: auto;
+}
+
+/*
+ * Фазы и этапы — полосой ScrollArea (решение 195): до краёв ленты, чтобы
+ * растворение и шеврон стояли у её края, а не в отступе от него.
+ */
+.scrollerFrame {
+  margin: 0 calc(var(--space-5) * -1);
+}
+
+.scroller {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
   /* Узлы ленты в 3D выступают вверх — без этого появлялась вертикальная прокрутка. */
   overflow-y: hidden;
 }

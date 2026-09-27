@@ -16,9 +16,17 @@
 .nav {
   position: sticky;
   top: calc(var(--header-height) + var(--space-6));
+}
+
+/*
+ * Список — внутри ScrollArea (решение 195). На широком экране колонка
+ * не листается: без прокрутки не срезается и рамка фокуса у крайних пунктов.
+ */
+.nav .navList {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow: visible;
 }
 
 .navItem {
@@ -299,16 +307,19 @@
 
   .nav {
     position: static;
+    margin: 0 calc(var(--space-4) * -1);
+  }
+
+  .nav .navList {
     flex-direction: row;
     overflow-x: auto;
     /* Только вбок: без этого ряд разделов можно было дёрнуть вверх-вниз (бриф v2, 1.4). */
     overflow-y: hidden;
     scrollbar-width: none;
-    margin: 0 calc(var(--space-4) * -1);
     padding: 0 var(--space-4);
   }
 
-  .nav::-webkit-scrollbar {
+  .nav .navList::-webkit-scrollbar {
     display: none;
   }
 
