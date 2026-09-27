@@ -11,8 +11,8 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * 3D-созвездие «Вузы × IT-компании» за экраном входа (07, раздел 31: Three.js —
  * только для необязательной картинки входа и только с запасным вариантом).
  *
- * Два скопления светящихся точек — вузы вверху слева, IT-компании на кромке формы
- * входа, — между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
+ * Два скопления светящихся точек — вузы вверху слева, IT-компании под маршрутом
+ * связки, между текстом и формой, — между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
  * Сцена покачивается и поворачивается за курсором; при появлении камера подлетает.
  *
  * Вход — «варп в систему» (решения 72, 75):
@@ -29,8 +29,9 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * и освобождает ресурсы сам.
  *
  * Поток (решение 199): голова кометы — скопление вузов в верхнем левом углу,
- * связи сходятся в сгусток на кромке формы входа, импульсы с хвостом бегут
- * к нему и, приходя, подсвечивают его — видно, куда идёт поток.
+ * связи идут по прямой, как линия знака SkillLink, под текстом левой колонки
+ * мягко гаснут и сходятся в сгусток под маршрутом связки; импульсы с хвостом
+ * бегут к нему и, приходя, подсвечивают его — видно, куда идёт поток.
  *
  * Сцена (constellation-scene.ts) рисуется в фоновом потоке на OffscreenCanvas
  * (constellation.worker.ts): сразу после входа браузер загружает и собирает
@@ -68,10 +69,20 @@ const VEIL_FADE_MS = 700
 /** Панель входа доиграла появление (panelIn: 180 + 760 мс) — её место окончательное. */
 const PANEL_SETTLED_MS = 1100
 
+/** Запас вокруг текста левой колонки, где поток уже гаснет (пучок шириной около 20 px). */
+const TEXT_PADDING = 20
+/** Голова кометы и конец потока не ближе этого к краям экрана. */
+const EDGE_MARGIN = 96
+
 /**
- * Куда идёт поток (решение 199). Голова кометы — в пустом углу над знаком
- * SkillLink, приёмник — на левой кромке формы входа, на уровне заголовка «Вход»:
- * поток идёт над текстом и приходит в форму, а не режет пространство между ними.
+ * Куда идёт поток (решение 199). Поток — прямая, как линия между двумя точками
+ * знака SkillLink. Голова кометы — выше и левее знака, у угла экрана, но не
+ * в край. Конец — свободное место под маршрутом «Вуз — Программа — IT-продукт»:
+ * по горизонтали на 55 % пути от правого края текста к форме (не ближе 90 px
+ * к форме), по вертикали на 100 px ниже маршрута. Прямая из угла туда неизбежно
+ * проходит через текстовую колонку: холст созвездия лежит под текстом, а на
+ * участках над подписью знака, заголовком, абзацем и маршрутом (`veil`, с запасом
+ * 20 px) поток мягко гаснет — текст читается, а прямая видна до текста и после него.
  * Только для раскладки в две колонки (шире 960 px); в одну колонку — null,
  * сцена как раньше.
  */
@@ -80,13 +91,58 @@ function measureAnchors(): StreamAnchors | null {
   const height = window.innerHeight
   if (width <= 960) return null
   const panel = document.querySelector<HTMLElement>(`.${styles.panel}`)
-  const brand = document.querySelector<HTMLElement>(`.${styles.brandRow}`)
   if (!panel) return null
+  const rect = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null
   const form = panel.getBoundingClientRect()
-  const top = brand?.getBoundingClientRect().top ?? height * 0.3
-  const source: [number, number] = [Math.round(width * 0.21), Math.round(Math.max(60, Math.min(height * 0.19, top - 90)))]
-  const target: [number, number] = [Math.round(form.left) - 4, Math.round(Math.max(form.top + 64, source[1] + 24))]
-  return { source, target }
+  const brand = rect(`.${styles.brandRow}`)
+  // Текст левой колонки: подпись знака, заголовок, абзац, маршрут.
+  const brandText = document.querySelector<HTMLElement>(`.${styles.brandName}`)?.parentElement?.getBoundingClientRect() ?? null
+  const text = [brandText, rect(`.${styles.headline}`), rect(`.${styles.lead}`), rect(`.${styles.map}`)].filter(
+    (box): box is DOMRect => box !== null && box.width > 0,
+  )
+  if (text.length === 0) return null
+  const columnRight = Math.max(...text.map((box) => box.right))
+  const routeBottom = Math.max(...text.map((box) => box.bottom))
+
+  // Голова: левее начала знака и заметно выше него.
+  const source: [number, number] = [
+    Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48)),
+    Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150)),
+  ]
+  // Конец: под маршрутом, между текстом и формой, не ближе 90 px к форме.
+  const target: [number, number] = [
+    Math.round(Math.min(columnRight + (form.left - columnRight) * 0.55, form.left - 90)),
+    Math.round(Math.max(routeBottom + 40, Math.min(routeBottom + 100, height - EDGE_MARGIN))),
+  ]
+
+  // Участки прямой над каждым блоком текста (отсечение отрезка прямоугольником с запасом).
+  const dx = target[0] - source[0]
+  const dy = target[1] - source[1]
+  const over = (box: DOMRect): [number, number] | null => {
+    let from = 0
+    let to = 1
+    const clip = (p: number, q: number) => {
+      if (p === 0) return q >= 0
+      const r = q / p
+      if (p < 0) from = Math.max(from, r)
+      else to = Math.min(to, r)
+      return from <= to
+    }
+    const inside =
+      clip(-dx, source[0] - (box.left - TEXT_PADDING)) &&
+      clip(dx, box.right + TEXT_PADDING - source[0]) &&
+      clip(-dy, source[1] - (box.top - TEXT_PADDING)) &&
+      clip(dy, box.bottom + TEXT_PADDING - source[1])
+    return inside && to > from ? [from, to] : null
+  }
+  // Близкие участки сливаются: поток не вспыхивает в узких просветах между строками.
+  const veil: Array<[number, number]> = []
+  for (const range of text.map(over).filter((r): r is [number, number] => r !== null).sort((a, b) => a[0] - b[0])) {
+    const last = veil.at(-1)
+    if (last && range[0] - last[1] < 0.08) last[1] = Math.max(last[1], range[1])
+    else veil.push([...range])
+  }
+  return { source, target, veil }
 }
 
 type Channel = {
@@ -287,7 +343,7 @@ export function Constellation() {
         x: event.clientX / window.innerWidth - 0.5,
         y: event.clientY / window.innerHeight - 0.5,
       })
-    /** Форма встала на место или окно изменилось — поток идёт в её кромку. */
+    /** Форма встала на место или окно изменилось — концы потока считаются заново. */
     const sendAnchors = () => {
       const anchors = measureAnchors()
       if (anchors) channel?.send({ type: 'anchor', anchors, width: window.innerWidth, height: window.innerHeight })
