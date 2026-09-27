@@ -375,12 +375,21 @@ export type HelpTopicId = keyof typeof HELP_TOPICS
 /** Все ключи в порядке оглавления. */
 export const HELP_TOPIC_IDS = Object.keys(HELP_TOPICS) as HelpTopicId[]
 
+/**
+ * Якорь раздела или его подраздела («кнопки и блока» экрана, `tools.ts`):
+ * `<раздел>--<подраздел>`. Двойной дефис не встречается в ключах разделов
+ * (тест), поэтому якорь подраздела не совпадёт ни с одним разделом.
+ */
+export function helpAnchor(id: HelpTopicId, section?: string): string {
+  return section ? `${id}--${section}` : id
+}
+
 /** Где раздел открывается внутри системы: справка в каркасе приложения. */
-export function helpHref(id: HelpTopicId): string {
-  return `/help#${id}`
+export function helpHref(id: HelpTopicId, section?: string): string {
+  return `/help#${helpAnchor(id, section)}`
 }
 
 /** Публичная документация без входа. */
-export function docsHref(id: HelpTopicId): string {
-  return `/docs#${id}`
+export function docsHref(id: HelpTopicId, section?: string): string {
+  return `/docs#${helpAnchor(id, section)}`
 }

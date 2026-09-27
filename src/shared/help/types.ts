@@ -44,6 +44,20 @@ export interface HelpTopicBody {
   rights?: HelpRightsRow[]
 }
 
+/**
+ * Подраздел — кнопка или блок экрана (решение 217): краткая часть из `tools.ts`
+ * и полный текст из `content/tools.ts`. `anchor` — `<раздел>--<подраздел>`.
+ */
+export interface HelpToolSection {
+  key: string
+  anchor: string
+  title: string
+  short: string
+  how: string
+  who: string
+  details: readonly string[]
+}
+
 /** Раздел целиком: краткая часть из `topics.ts` и полный текст. */
 export interface HelpSection extends HelpTopicBody {
   id: HelpTopicId
@@ -51,6 +65,8 @@ export interface HelpSection extends HelpTopicBody {
   title: string
   short: string
   how: string
+  /** Кнопки и блоки экрана — пусто, если подразделов у раздела нет. */
+  tools: readonly HelpToolSection[]
 }
 
 export interface HelpTerm {

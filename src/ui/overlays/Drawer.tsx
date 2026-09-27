@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import type { HelpRef } from '@/shared/help/tools'
+import { HelpHint } from '../primitives/HelpHint'
 import { IconButton } from '../primitives/IconButton'
 import { useEscape } from '../hooks/dom'
 import { useFocusTrap } from '../hooks/focus-trap'
@@ -12,6 +14,8 @@ export interface DrawerProps {
   onClose: () => void
   title: string
   description?: string
+  /** «?» у заголовка окна — что делает действие и ссылка в документацию (решение 217). */
+  help?: HelpRef
   footer?: ReactNode
   children: ReactNode
 }
@@ -20,7 +24,7 @@ export interface DrawerProps {
  * Боковая панель для подробностей, ради которых не стоит уходить с экрана:
  * объяснение рекомендации, просмотр документа, история этапа (раздел 24).
  */
-export function Drawer({ isOpen, onClose, title, description, footer, children }: DrawerProps) {
+export function Drawer({ isOpen, onClose, title, description, help, footer, children }: DrawerProps) {
   useEscape(onClose, isOpen)
   const dialogRef = useRef<HTMLElement>(null)
   useFocusTrap(dialogRef, isOpen, 'container')
@@ -53,7 +57,14 @@ export function Drawer({ isOpen, onClose, title, description, footer, children }
       >
         <div className={styles.head}>
           <div className={styles.titleGroup}>
-            <h2 className={styles.title}>{title}</h2>
+            {help ? (
+              <div className={styles.titleRow}>
+                <h2 className={styles.title}>{title}</h2>
+                <HelpHint {...help} />
+              </div>
+            ) : (
+              <h2 className={styles.title}>{title}</h2>
+            )}
             {description && <p className={styles.description}>{description}</p>}
           </div>
           <IconButton icon="close" label="Закрыть" size="sm" onClick={onClose} data-dialog-close />

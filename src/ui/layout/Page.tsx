@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
+import type { HelpRef } from '@/shared/help/tools'
+import { HelpHint } from '../primitives/HelpHint'
 import { Icon } from '../primitives/Icon'
 import { ScrollArea } from '../primitives/ScrollArea'
 import { InfoHint } from '../primitives/Tooltip'
@@ -55,6 +57,11 @@ export interface PageHeaderProps {
   breadcrumbs?: Crumb[]
   /** Значки рядом с заголовком: статус, пометка демонстрационных данных. */
   meta?: ReactNode
+  /**
+   * «?» у заголовка страницы — что это за экран и ссылка на его раздел
+   * документации (решение 217). Стоит сразу за заголовком, перед `meta`.
+   */
+  help?: HelpRef
   actions?: ReactNode
   /**
    * `display` — крупный заголовок с засечками для страниц объекта (вуз,
@@ -75,6 +82,7 @@ export function PageHeader({
   description,
   breadcrumbs,
   meta,
+  help,
   actions,
   variant = 'default',
   subtitle,
@@ -96,6 +104,7 @@ export function PageHeader({
             <h1 ref={titleRef} className={`${styles.title} ${variant === 'display' ? styles.titleDisplay : ''}`}>
               {scramble ? <ScrambleText text={title} /> : title}
             </h1>
+            {help && <HelpHint {...help} />}
             {meta}
           </div>
           {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
@@ -107,29 +116,42 @@ export function PageHeader({
   )
 }
 
-export interface SectionProps {
+interface SectionBaseProps {
   title?: string
   description?: string
-  /**
-   * Как считается — значок «?» у заголовка (решение 215). Под заголовком остаётся
-   * вывод одной фразой, методика уходит в подсказку.
-   */
-  hint?: string
   action?: ReactNode
   children: ReactNode
 }
 
-export function Section({ title, description, hint, action, children }: SectionProps) {
+/**
+ * У заголовка блока — один «?»: либо `help` — раздел документации о том, что это
+ * за блок и что в нём нажимать (решение 217), либо `hint` — как считается число
+ * (решение 215). Оба сразу типы не пропускают: два значка рядом — это дубль.
+ */
+export type SectionProps = SectionBaseProps &
+  (
+    | {
+        /**
+         * Как считается — значок «?» у заголовка (решение 215). Под заголовком остаётся
+         * вывод одной фразой, методика уходит в подсказку.
+         */
+        hint?: string
+        help?: never
+      }
+    | { hint?: never; help?: HelpRef }
+  )
+
+export function Section({ title, description, hint, help, action, children }: SectionProps) {
   return (
     <section className={styles.section}>
       {(title || action) && (
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitleBlock}>
             {title &&
-              (hint ? (
+              (hint || help ? (
                 <div className={styles.sectionTitleRow}>
                   <h2 className={styles.sectionTitle}>{title}</h2>
-                  <InfoHint text={hint} />
+                  {help ? <HelpHint {...help} /> : <InfoHint text={hint!} />}
                 </div>
               ) : (
                 <h2 className={styles.sectionTitle}>{title}</h2>
