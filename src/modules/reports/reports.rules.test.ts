@@ -166,4 +166,24 @@ describe('фильтры отчётов в файле (решение 172)', () 
       '',
     )
   })
+  it('период из запроса — московские даты в шапке и в имени файла (решение 210, S10)', async () => {
+    // Схема делает из «2026-01-01» начало суток по Москве в UTC — «2025-12-31T21:00Z»;
+    // раньше шапка и имя файла брали первые десять знаков и показывали 31.12.2025.
+    const { reportQuerySchema } = await import('./reports.schema')
+    const { format: _format, ...filters } = reportQuerySchema.parse({ dateFrom: '2026-01-01', dateTo: '2026-09-27', format: 'xlsx' })
+    expect(filters.dateFrom).toBe('2025-12-31T21:00:00.000Z')
+    expect(reportFiltersSummary(filters, {})).toBe('Фильтры: период 01.01.2026 — 27.09.2026')
+    expect(reportFileNameSuffix(filters)).toBe('_from-2026-01-01_to-2026-09-27')
+  })
+
+  it('имя файла отчёта — и в filename, и в filename* (Safari берёт второе)', async () => {
+    const { reportFileResponse } = await import('./reports.http')
+    const payload = { columns: ['Вуз'], rows: [['СПбГУТ']] }
+    for (const format of ['xlsx', 'csv', 'json'] as const) {
+      const response = reportFileResponse('tz-report', payload, format, {}, {}, new Date('2026-09-27T10:00:00Z'))
+      expect(response.headers.get('content-disposition')).toBe(
+        `attachment; filename="skilllink-tz-report-2026-09-27.${format}"; filename*=UTF-8''skilllink-tz-report-2026-09-27.${format}`,
+      )
+    }
+  })
 })

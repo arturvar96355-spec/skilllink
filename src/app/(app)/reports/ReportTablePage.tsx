@@ -180,9 +180,11 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
   const product = useResource<ProductListItemDto>(
     filters.productId ? `/api/products/${encodeURIComponent(filters.productId)}` : null,
   )
-  const responsible = useResource<UserDto>(
-    filters.responsibleId ? `/api/users/${encodeURIComponent(filters.responsibleId)}` : null,
-  )
+  // Имя ответственного — из справочника (право ANALYTICS), а не из карточки
+  // пользователя `/api/users/:id`: она только администратору, и у менеджера строка
+  // фильтров была «ответственный «…»» с 403 в консоли (решение 210, S10).
+  const staff = useResource<UserDto[]>(filters.responsibleId ? '/api/users?pageSize=100' : null)
+  const responsible = { data: staff.data?.find((row) => row.id === filters.responsibleId) }
   const filtersLine = reportFiltersLine(filters, {
     universityName: university.data?.shortName ?? university.data?.name,
     programName: program.data?.name,

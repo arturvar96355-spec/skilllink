@@ -241,19 +241,40 @@ export async function apiDownload(
   if (!response.ok) throw toApiError(response, await response.json().catch(() => null))
 
   const filename = filenameFromDisposition(response.headers.get('content-disposition'), fallbackName)
-  const url = URL.createObjectURL(await response.blob())
+  saveBlob(await response.blob(), filename)
+  return { filename }
+}
+
+/**
+ * Сколько живёт ссылка `blob:` на скачанный файл (решение 210, S10). Раньше — 1 с:
+ * Chrome забирает файл сразу, а Safari на iPhone сначала спрашивает «Загрузить?»
+ * и читает ссылку только после ответа — к этому времени она уже была отозвана,
+ * и файл не сохранялся. Пять минут хватает на ответ; память — только сам файл.
+ */
+export const DOWNLOAD_URL_TTL_MS = 5 * 60 * 1000
+
+/** Отдать браузеру файл из памяти под именем `filename` (ссылка с `download`). */
+export function saveBlob(
+  blob: Blob,
+  filename: string,
+  env: { document: Document; url: Pick<typeof URL, 'createObjectURL' | 'revokeObjectURL'>; setTimeout: (fn: () => void, ms: number) => unknown } = {
+    document,
+    url: URL,
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+  },
+): void {
+  const url = env.url.createObjectURL(blob)
   try {
-    const link = document.createElement('a')
+    const link = env.document.createElement('a')
     link.href = url
     link.download = filename
-    document.body.append(link)
+    link.rel = 'noopener'
+    env.document.body.append(link)
     link.click()
     link.remove()
   } finally {
-    // Отзыв — после того как браузер успел начать скачивание.
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+    env.setTimeout(() => env.url.revokeObjectURL(url), DOWNLOAD_URL_TTL_MS)
   }
-  return { filename }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
