@@ -1,0 +1,274 @@
+/* Вкладка «Когорты» (решение 220): полосы сравнения на одном сроке и тепловая лестница. */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.horizon {
+  width: min(100%, 20rem);
+}
+
+.base {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+/* ───────────── Лестница: строка — когорта, колонка — квартал работы ───────────── */
+
+.ladderWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ladder {
+  --cell-min: 6.25rem;
+  border-collapse: separate;
+  border-spacing: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.corner,
+.colHead,
+.halfHead {
+  padding: 0 var(--space-1) var(--space-1);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.corner {
+  text-align: left;
+}
+
+.colHead {
+  width: var(--cell-min);
+  min-width: var(--cell-min);
+  text-align: center;
+}
+
+.halfHead {
+  padding-right: var(--space-5);
+  text-align: left;
+}
+
+.halfHeadInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Название когорты держится у левого края, пока лестница листается вбок. */
+.rowHead,
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface-card);
+}
+
+.rowHead {
+  min-width: 8.5rem;
+  padding: var(--space-1) var(--space-3) var(--space-1) 0;
+  text-align: left;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
+.rowLabel {
+  display: block;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.rowSize {
+  display: block;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.labelShort {
+  display: none;
+}
+
+.rowHalf {
+  display: none;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+}
+
+.rowBadge {
+  display: block;
+  margin-top: var(--space-1);
+}
+
+.cellTd,
+.future {
+  width: var(--cell-min);
+  min-width: var(--cell-min);
+  padding: 0;
+}
+
+/* Клетка: доля крупно, «сколько из скольких» — под ней. Цвет — насыщенность доли. */
+.cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Три строки у каждой клетки — доля, «из N», «пока»: ряды лестницы одной высоты. */
+  min-height: 4.5rem;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-xs);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+/* Квартал ещё идёт: пунктир — число «пока» и может вырасти. */
+.cell[data-open] {
+  outline: 1px dashed var(--line-strong);
+  outline-offset: -3px;
+}
+
+/* Малая когорта: без цвета, текст приглушён — её доля не сигнал. */
+.cell[data-small] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+  color: var(--text-secondary);
+}
+
+.share {
+  font-size: var(--text-body-size);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.count,
+.pending {
+  font-size: var(--text-caption-size);
+  line-height: 1.2;
+}
+
+.pending {
+  font-style: italic;
+}
+
+/* Квартал ещё не наступил — пустая ступень лестницы. */
+.future {
+  background: transparent;
+}
+
+.half {
+  padding: 0 var(--space-5) 0 var(--space-1);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.half[data-none] {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+tr[data-small] .half {
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* ───────────── Легенда ───────────── */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legendScale {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.legendCell,
+.legendOpen,
+.legendSmall {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--surface-sunken);
+}
+
+.legendOpen {
+  outline: 1px dashed var(--line-strong);
+  outline-offset: -1px;
+}
+
+.legendSmall {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-subtle);
+}
+
+@media screen and (max-width: 480px) {
+  .ladder {
+    --cell-min: 4.25rem;
+  }
+
+  /* Узкий экран: «Половина подписала» — строкой под когортой, лестнице остаётся ширина. */
+  .half,
+  .halfHead {
+    display: none;
+  }
+
+  .rowHalf {
+    display: block;
+  }
+
+  /* Короткая подпись «1-й кв. 2026» — чтобы название не ломалось на три строки. */
+  .labelShort {
+    display: inline;
+  }
+
+  .labelFull {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .rowHead {
+    min-width: 7.5rem;
+    padding-right: var(--space-2);
+  }
+
+  .share {
+    font-size: var(--text-body-sm-size);
+  }
+}
