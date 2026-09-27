@@ -1,0 +1,181 @@
+/*
+ * Полоса с прокруткой вбок (решение 195): растворённый край и шеврон там,
+ * где за краем есть ещё. Атрибуты data-more-* ставит ScrollArea.tsx.
+ */
+
+@property --scroll-fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+.frame {
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+}
+
+.scroll {
+  /* Ширина растворения: шеврон (30 px) целиком лежит на растворённой части. */
+  --scroll-fade-size: var(--space-12);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  transition:
+    --scroll-fade-start var(--motion-surface) var(--ease-out),
+    --scroll-fade-end var(--motion-surface) var(--ease-out);
+}
+
+/*
+ * Маска — только когда есть что прятать: у маски своя область отрисовки,
+ * и подсказка, вылезающая из таблицы без прокрутки, иначе обрезалась бы.
+ */
+.frame[data-more-start] > .scroll,
+.frame[data-more-end] > .scroll {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--scroll-fade-start),
+    black calc(100% - var(--scroll-fade-end)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--scroll-fade-start),
+    black calc(100% - var(--scroll-fade-end)),
+    transparent
+  );
+}
+
+.frame[data-more-start] > .scroll {
+  --scroll-fade-start: var(--scroll-fade-size);
+}
+
+.frame[data-more-end] > .scroll {
+  --scroll-fade-end: var(--scroll-fade-size);
+}
+
+/* Область с фокусом (таблица отчёта): рамка фокуса внутрь — снаружи её срезал бы край. */
+.scroll:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: -2px;
+}
+
+/*
+ * Направляющая шевронов. У низкой полосы — во всю рамку, шевроны посередине
+ * высоты. Щелчки проходят сквозь неё к содержимому, ловят их только шевроны.
+ */
+.rail {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/*
+ * У высокой полосы (таблица, граф) — нулевой высоты у верхнего края и липнет
+ * под шапкой страницы: шеврон виден, пока на экране хоть часть таблицы.
+ */
+.edgesStart > .rail {
+  position: sticky;
+  inset: auto;
+  top: calc(var(--header-height) + var(--space-2));
+  height: 0;
+}
+
+/*
+ * Шеврон у края: приподнятая плашка поверх растворения. Появляется вместе
+ * с краем, исчезает, когда полоса долистана.
+ */
+.edge {
+  position: absolute;
+  top: 50%;
+  background: var(--surface-floating);
+  border-color: var(--border-subtle);
+  box-shadow: var(--shadow-base);
+  color: var(--text-secondary);
+  opacity: 0;
+  pointer-events: none;
+  touch-action: manipulation;
+  transform: translateY(-50%) scale(0.9);
+  transition:
+    opacity var(--motion-surface) var(--ease-out),
+    transform var(--motion-surface) var(--ease-out),
+    background var(--motion-micro) var(--ease-out),
+    color var(--motion-micro) var(--ease-out);
+}
+
+/* Палец крупнее курсора: область нажатия шире видимой плашки. */
+.edge::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-2) * -1);
+}
+
+.edgePrev {
+  left: var(--space-1);
+}
+
+.edgeNext {
+  right: var(--space-1);
+}
+
+.frame[data-more-start] > .rail > .edgePrev,
+.frame[data-more-end] > .rail > .edgeNext {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(-50%) scale(1);
+}
+
+/* Плашка остаётся непрозрачной и при наведении: под ней — растворённое содержимое. */
+.edge:hover:not(:disabled) {
+  background: var(--surface-floating);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.edge:active:not(:disabled) {
+  transform: translateY(-50%) scale(0.94);
+}
+
+/* Высокая полоса: шевроны — чуть ниже верхнего края, у шапки таблицы. */
+.edgesStart > .rail > .edge {
+  top: var(--space-2);
+  transform: scale(0.9);
+}
+
+.edgesStart[data-more-start] > .rail > .edgePrev,
+.edgesStart[data-more-end] > .rail > .edgeNext {
+  transform: scale(1);
+}
+
+.edgesStart > .rail > .edge:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll,
+  .edge {
+    transition: none;
+  }
+}
+
+/* На бумаге листать нечего: ни растворения, ни шевронов. */
+@media print {
+  .frame[data-more-start] > .scroll,
+  .frame[data-more-end] > .scroll {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .rail {
+    display: none;
+  }
+}
