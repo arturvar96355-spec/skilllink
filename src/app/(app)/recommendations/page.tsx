@@ -76,6 +76,10 @@ import styles from './recommendations.module.css'
 
 const PAGE_SIZE = 20
 
+/** Что за процент у задачи — одной фразой (решение 212). */
+const SCORE_HINT =
+  'Балл задачи: насколько такие задачи раньше оказывались полезными по решениям сотрудников, плюс ценность случая и приоритет. Цветные части полосы — эти три вклада.'
+
 /** Как список обновляется — кнопки «Пересобрать» больше нет (решение 212). */
 const REFRESH_HINT =
   'Список обновляется сам: по связке — сразу при смене этапа, всё остальное (сроки, программы, навыки) — не реже раза в 10 минут. Ушла проблема — задача закрывается сама.'
@@ -663,7 +667,10 @@ function RecommendationDetail({
         </p>
       )}
 
-      <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
+      <div className={styles.scoreRow}>
+        <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
+        <HelpHint text={SCORE_HINT} />
+      </div>
       {item.isDeferred && (
         <p className={styles.note}>Отложена защитой от перегрузки: у ответственного много невыполненных задач.</p>
       )}

@@ -25,6 +25,7 @@ import {
   MockBadge,
   mockMarks,
   NO_DATA,
+  HelpHint,
   PageHeader,
   Pagination,
   ProgramStatusBadge,
@@ -246,7 +247,13 @@ export default function ProgramsPage() {
       <PageHeader
         title="Программы"
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
-        meta={marks.section ? <MockBadge /> : undefined}
+        meta={
+          <>
+            {marks.section && <MockBadge />}
+            {/* Три неочевидных знака реестра — одной подсказкой (решение 212). */}
+            <HelpHint text="«≈360» — оценка, а не точное число: вуз дал показатель приблизительно. «Нет данных» — показатель не внесён (это не ноль). Цифры вида 09.03.04 — код направления подготовки." />
+          </>
+        }
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же программы, что в реестре. */}
@@ -306,7 +313,7 @@ export default function ProgramsPage() {
           <Select
             label="Уровень"
             hideLabel
-            placeholder="Любой"
+            placeholder="Любой уровень"
             options={LEVEL_OPTIONS}
             value={level}
             onValueChange={(value) => {
@@ -319,7 +326,7 @@ export default function ProgramsPage() {
           <Select
             label="Статус"
             hideLabel
-            placeholder="Любой"
+            placeholder="Любой статус"
             options={STATUS_OPTIONS}
             value={status}
             onValueChange={(value) => {

@@ -22,6 +22,7 @@ import {
   ErrorState,
   Input,
   MockBadge,
+  HelpHint,
   PageHeader,
   Pagination,
   Section,
@@ -306,7 +307,13 @@ function CooperationsView() {
       <PageHeader
         title="Связки"
         description="Связки «вуз — программа — IT-продукт». Каждая проходит четырнадцать этапов."
-        meta={containsMock ? <MockBadge /> : undefined}
+        meta={
+          <>
+            {containsMock && <MockBadge />}
+            {/* «07 / 14» рядом с «6 из 13» эксперт принял за ошибку (решение 212). */}
+            <HelpHint text="«07 / 14» — номер текущего этапа из 14. Прогресс считается из 13: последний, «Контроль выполнения», закрывается сам, когда закрыты остальные. «План сдвинут» — срок этапа прошёл, пока шли этапы до него; это не просрочка. «Срок» — плановая дата завершения всей связки." />
+          </>
+        }
         actions={
           <>
             <DownloadButton
