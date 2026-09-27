@@ -23,7 +23,7 @@ describe('priorityActionsEmptyState', () => {
     expect(state.title).not.toBe('Рекомендаций нет')
     expect(state.description).not.toMatch(/закрыт/)
     expect(state.description).toContain('Требует внимания')
-    expect(state.description).toContain('рекомендаций')
+    expect(state.description).toContain('«Списке задач»')
   })
 
   it('не говорит «выше»: на широком экране соседний блок слева, а не над этим (решение 206)', () => {

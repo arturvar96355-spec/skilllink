@@ -70,7 +70,7 @@ describe('ответ проверки живости', () => {
       status: 'misconfigured',
       uptimeSeconds: 3,
       commit: 'a1b2c3d',
-      version: '0.1.0',
+      version: '1.0.0',
       hint: 'Не задан AUTH_SECRET',
       time: TIME,
     }
@@ -78,7 +78,7 @@ describe('ответ проверки живости', () => {
       status: 'degraded',
       uptimeSeconds: 3,
       commit: 'a1b2c3d',
-      version: '0.1.0',
+      version: '1.0.0',
       time: TIME,
     })
     expect(publicLiveness(secretMissing, false)).toEqual(secretMissing)

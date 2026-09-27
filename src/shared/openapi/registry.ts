@@ -50,6 +50,7 @@ import {
 import {
   changeDocumentStatusSchema,
   createDocumentSchema,
+  documentFileQuerySchema,
   documentListQuerySchema,
   generateDocumentsSchema,
   updateDocumentSchema,
@@ -1095,6 +1096,19 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     bodyOptional: true,
     errors: [...WRITE_ERRORS, 'CONFLICT'],
   },
+  {
+    method: 'get',
+    path: '/api/cooperations/{id}/documents/package',
+    tag: 'Документы',
+    summary: 'Скачать пакет документов связки одним архивом',
+    description:
+      'Решение 212. ZIP: по папке на документ — файл документа (как `GET /api/documents/{id}/file`) ' +
+      'и все приложенные файлы. Все статусы документов и любой статус связки: закрытие запрещает ' +
+      'правку, а не чтение. Представителю вуза — только своя связка. Документов нет — 404.',
+    permission: 'READ',
+    fileContentType: 'application/zip',
+    errors: READ_ERRORS,
+  },
 
   // ── Workflow ──────────────────────────────────────────────────────────────
   {
@@ -1516,9 +1530,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/recommendations/generate',
-    tag: 'Рекомендации',
-    summary: 'Пересобрать рекомендации по правилам',
+    tag: 'Список задач',
+    summary: 'Пересобрать список задач по правилам сейчас',
     description:
+      'Решение 212: в интерфейсе кнопки нет — список пересобирается сам при чтении списка и главной, ' +
+      'если с прошлой пересборки прошло больше RECOMMENDATION_AUTO_REFRESH_MINUTES (10 минут), ' +
+      'а задачи связки сверяются сразу при смене этапа. Метод оставлен для сценариев и интеграций. ' +
       'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
       'вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после ' +
       'отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.',
@@ -1528,8 +1545,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations',
-    tag: 'Рекомендации',
-    summary: 'Список рекомендаций',
+    tag: 'Список задач',
+    summary: 'Список задач (рекомендации)',
     description:
       'sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность ' +
       'случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, ' +
@@ -1542,7 +1559,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/why-not',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Почему по объекту нет рекомендации',
     description:
       'Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при ' +
@@ -1555,7 +1572,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/rules/stats',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Вес каждого правила рекомендаций',
     description:
       'Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по ' +
@@ -1567,7 +1584,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/{id}',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Карточка рекомендации',
     permission: 'ANALYTICS',
     errors: READ_ERRORS,
@@ -1575,7 +1592,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'patch',
     path: '/api/recommendations/{id}',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Принять, взять в работу, закрыть или отклонить рекомендацию',
     description:
       'Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию ' +
@@ -1588,7 +1605,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/experiment',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Работают ли рекомендации: контрольная группа и прирост',
     description:
       'Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный ' +
@@ -1820,6 +1837,21 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Создать новую версию документа',
     description: 'Исходный документ уходит в архив.',
     permission: 'WRITE',
+    errors: READ_ERRORS,
+  },
+  {
+    method: 'get',
+    path: '/api/documents/{id}/file',
+    tag: 'Документы',
+    summary: 'Открыть или скачать документ (в любом статусе)',
+    description:
+      'Решение 212. HTML-страница без скриптов: реквизиты, текст из шаблона, ссылка на оригинал, ' +
+      'список приложенных файлов и история статусов (внутренние комментарии представителю вуза не показываются). ' +
+      'Без параметра — `Content-Disposition: inline` (открыть в браузере), `download=1` — `attachment`. ' +
+      'Подписанный и архивный документ открывается так же: закрыта правка, а не чтение.',
+    permission: 'READ',
+    query: documentFileQuerySchema,
+    fileContentType: 'text/html',
     errors: READ_ERRORS,
   },
   {

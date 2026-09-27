@@ -183,9 +183,9 @@ export const REASON_TEXTS: Record<ReasonCode, ReasonText> = {
     pass: (f) =>
       num(f.trialsEff) < 1 && f.pSource === 'global'
         ? `Вес правила ${share(f.p)}: решений по правилу «${str(f.ruleLabel)}» пока нет — оценка нейтральная`
-        : `Вес правила ${share(f.p)}: по решениям сотрудников рекомендации «${str(f.ruleLabel)}» полезны примерно в ${percent(f.p)} случаев`,
+        : `Вес правила ${share(f.p)}: по решениям сотрудников задачи «${str(f.ruleLabel)}» полезны примерно в ${percent(f.p)} случаев`,
     fail: (f) =>
-      `Вес правила ${share(f.p)} ниже ${share(f.threshold)}: рекомендации «${str(f.ruleLabel)}» полезны лишь примерно в ${percent(f.p)} случаев — балл снижен`,
+      `Вес правила ${share(f.p)} ниже ${share(f.threshold)}: задачи «${str(f.ruleLabel)}» полезны лишь примерно в ${percent(f.p)} случаев — балл снижен`,
   },
   manager_overloaded: {
     label: 'Нагрузка менеджера',

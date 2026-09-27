@@ -53,7 +53,8 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
     { href: ROUTES.dashboard, label: 'Главная', icon: 'home' },
     { href: ROUTES.universities, label: 'Вузы', icon: 'university' },
     { href: ROUTES.programs, label: 'Программы', icon: 'program' },
-    { href: ROUTES.recommendations, label: 'Рекомендации', icon: 'recommendation' },
+    // «Список задач» — бывшие «Рекомендации» (решение 212): так понятнее, что это.
+    { href: ROUTES.recommendations, label: 'Список задач', icon: 'recommendation' },
     { href: ROUTES.cooperations, label: 'Связки', icon: 'cooperation' },
     // Отчёты — в первой группе меню (решение 180, п. 4): ресерч отметил, что
     // пункт терялся во второй группе «Инструменты» рядом с настройками,

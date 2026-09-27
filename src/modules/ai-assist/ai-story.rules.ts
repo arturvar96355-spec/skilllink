@@ -302,8 +302,8 @@ export function cooperationStoryTemplate(facts: CooperationStoryFacts): string {
 
   sentences.push(
     facts.openRecommendations > 0
-      ? `Открытых рекомендаций по связке: ${facts.openRecommendations}.`
-      : 'Открытых рекомендаций по связке нет.',
+      ? `Открытых задач по связке: ${facts.openRecommendations}.`
+      : 'Открытых задач по связке нет.',
   )
 
   const classes = formatDate(facts.classesStartAt)

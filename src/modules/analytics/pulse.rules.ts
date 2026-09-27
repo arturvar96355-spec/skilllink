@@ -137,7 +137,7 @@ export const PULSE_GROUPS: Record<PulseKind, { section: PulseSectionKey; title: 
   'meeting.action-due': { section: 'today', title: 'Действия по встречам на сегодня' },
   'stage.due-soon': { section: 'today', title: 'Скоро срок' },
   'recommendation.stale': { section: 'decide', title: 'Ждут решения больше 7 дней' },
-  'recommendation.open': { section: 'decide', title: 'Рекомендации' },
+  'recommendation.open': { section: 'decide', title: 'Список задач' },
   'stage.completed': { section: 'wins', title: 'Закрыты этапы за сутки' },
 }
 

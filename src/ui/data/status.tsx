@@ -157,11 +157,11 @@ const PRIORITY_HINTS: Record<RecommendationPriority, string> = {
 }
 
 const RECOMMENDATION_STATUS_HINTS: Record<RecommendationStatus, string> = {
-  NEW: 'Новая рекомендация, ещё не рассмотрена.',
-  IN_PROGRESS: 'Рекомендация в работе.',
-  ACCEPTED: 'Рекомендация принята.',
-  DISMISSED: 'Рекомендация отклонена.',
-  DONE: 'Рекомендация выполнена.',
+  NEW: 'Новая задача, ещё не рассмотрена.',
+  IN_PROGRESS: 'Задача в работе.',
+  ACCEPTED: 'Задача принята.',
+  DISMISSED: 'Задача отклонена.',
+  DONE: 'Задача выполнена.',
 }
 
 const TRANSFER_STATUS_HINTS: Record<TransferStatus, string> = {

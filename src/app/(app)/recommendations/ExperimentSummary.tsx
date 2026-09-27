@@ -35,7 +35,7 @@ export function RecommendationExperiment() {
   if (!isOpen) {
     return (
       <Button variant="secondary" icon="analytics" className={styles.open} onClick={() => setIsOpen(true)}>
-        Работают ли рекомендации?
+        Помогает ли список задач?
       </Button>
     )
   }
@@ -49,13 +49,13 @@ export function RecommendationExperiment() {
   return (
     <Card className={styles.card}>
       <div className={styles.head}>
-        <span className={styles.title}>Работают ли рекомендации</span>
+        <span className={styles.title}>Помогает ли список задач</span>
         <Badge tone={STATUS_TONE[overall.status]}>{overall.statusLabel}</Badge>
       </div>
 
       {!data.enabled && (
         <p className={styles.note}>
-          Эксперимент выключен на этом стенде: рекомендации показываются всем без исключений, каждый сигнал всё равно
+          Эксперимент выключен на этом стенде: задачи показываются всем без исключений, каждый сигнал всё равно
           пишется в журнал с отметкой «эксперимент выключен», группа контроля не набирается.
         </p>
       )}
@@ -63,7 +63,7 @@ export function RecommendationExperiment() {
       <div className={styles.stats}>
         <div className={styles.stat}>
           <span className={styles.value}>{formatShare(overall.convT)}</span>
-          <span className={styles.label}>с рекомендацией, n = {overall.nTreatment}</span>
+          <span className={styles.label}>с задачей, n = {overall.nTreatment}</span>
         </div>
         <div className={styles.stat}>
           <span className={styles.value}>{formatShare(overall.convC)}</span>
@@ -81,7 +81,7 @@ export function RecommendationExperiment() {
         Честная оценка: интервал разности — метод 10 Ньюкомба, порог «хватает данных» — не меньше{' '}
         {data.minControlForVerdict} исходов в каждой группе. Знаменатель — все назначенные сигналы (по хешу правило +
         объект + период), а не только показанные или взятые в работу — иначе оценка была бы смещена в пользу тех,
-        кто рекомендацию выполнил.
+        кто задачу выполнил.
       </p>
 
       <p className={styles.note}>

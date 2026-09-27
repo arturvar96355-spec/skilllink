@@ -176,6 +176,13 @@
   color: var(--text-primary);
 }
 
+/* «Открыть» и «Скачать» документа (решение 212): в ряд, на узком — переносятся. */
+.fileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 .fileLink {
   display: inline-flex;
   align-items: center;

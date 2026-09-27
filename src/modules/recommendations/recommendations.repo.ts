@@ -19,6 +19,16 @@ import {
 import { isPauseOver } from './recommendations.learning'
 import type { ScopeSource } from './recommendations.stats.repo'
 
+/** Время последней пересборки списка — по журналу действий (решение 212). */
+export async function lastGenerationAt(): Promise<Date | null> {
+  const row = await prisma.auditLog.findFirst({
+    where: { action: 'recommendation.generate' },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  })
+  return row?.createdAt ?? null
+}
+
 export const recommendationSelect = {
   id: true,
   type: true,

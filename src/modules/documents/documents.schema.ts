@@ -67,3 +67,8 @@ export const generateDocumentsSchema = z.object({
 })
 
 export type GenerateDocumentsInput = z.infer<typeof generateDocumentsSchema>
+
+/** `GET /api/documents/:id/file` (решение 212): `download=1` — скачать, без него — открыть. */
+export const documentFileQuerySchema = z.object({
+  download: z.enum(['1'], { message: 'download принимает только значение 1' }).optional(),
+})

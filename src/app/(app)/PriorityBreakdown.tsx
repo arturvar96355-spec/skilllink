@@ -48,7 +48,7 @@ export function PriorityBreakdown() {
     { priority: 'LOW', ...low },
   ]
 
-  const allLink = <QueueFootLink href={ROUTES.recommendations}>Все рекомендации</QueueFootLink>
+  const allLink = <QueueFootLink href={ROUTES.recommendations}>Весь список задач</QueueFootLink>
 
   // Не ответил хотя бы один запрос или ещё грузится — только ссылка: неполная сводка хуже никакой.
   if (rows.some((row) => row.error) || rows.some((row) => row.count === null)) {

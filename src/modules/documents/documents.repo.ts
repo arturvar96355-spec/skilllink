@@ -276,3 +276,31 @@ export async function loadTemplateContextSource(cooperationId: string) {
     },
   })
 }
+
+/**
+ * Связка для пакета документов (решение 212): имена вуза и программы для имени
+ * архива. Представителю вуза — только своя связка; чужая — как несуществующая.
+ * Статус связки не проверяется: пакет закрытой связки читается так же.
+ */
+export async function findCooperationForPackage(cooperationId: string, scope: { universityId?: string }) {
+  return prisma.cooperation.findFirst({
+    where: { id: cooperationId, ...(scope.universityId ? { universityId: scope.universityId } : {}) },
+    select: {
+      id: true,
+      university: { select: { name: true, shortName: true } },
+      program: { select: { name: true } },
+    },
+  })
+}
+
+/** Все документы связки в любом статусе, с историей — для пакета (решение 212). */
+export async function findCooperationDocuments(
+  cooperationId: string,
+  scope: { universityId?: string },
+): Promise<DocumentDetailRow[]> {
+  return prisma.document.findMany({
+    where: { cooperationId, ...scopeFilter(scope) },
+    select: detailSelect,
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  })
+}

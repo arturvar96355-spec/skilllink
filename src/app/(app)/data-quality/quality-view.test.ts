@@ -8,9 +8,13 @@ import {
   issueAction,
   issueLevel,
   pointsWord,
+  ISSUE_NOUNS,
+  ISSUE_WHY,
   qualityConclusion,
+  qualitySummary,
   scoreLevel,
 } from './quality-view'
+import { readFileSync } from 'node:fs'
 
 function issue(code: string, count: number, penalty: number): QualityIssueDto {
   return { code, title: code, count, share: count / 10, weight: 0.5, penalty, items: [] }
@@ -29,9 +33,10 @@ describe('уровни качества данных', () => {
   it('группирует по уровням и ставит тяжёлые проблемы первыми', () => {
     const report: QualityReportDto = {
       score: 80,
+      recordsToFix: 6,
       entities: [
-        { entity: 'skill', title: 'Навыки', total: 10, score: 90, weight: 0.5, issues: [issue('small', 1, 2), issue('none', 0, 0)] },
-        { entity: 'product', title: 'IT-продукты', total: 10, score: 70, weight: 0.5, issues: [issue('big', 4, 27), issue('mid', 2, 6)] },
+        { entity: 'skill', title: 'Навыки', total: 10, recordsToFix: 1, score: 90, weight: 0.5, issues: [issue('small', 1, 2), issue('none', 0, 0)] },
+        { entity: 'product', title: 'IT-продукты', total: 10, recordsToFix: 5, score: 70, weight: 0.5, issues: [issue('big', 4, 27), issue('mid', 2, 6)] },
       ],
       duplicates: { university: 0, skill: 0, program: 0, product: 0 },
       explanation: '',
@@ -55,17 +60,19 @@ describe('уровни качества данных', () => {
 function report(overrides: Partial<QualityReportDto> = {}): QualityReportDto {
   return {
     score: 92.6,
+    recordsToFix: 9,
     entities: [
-      { entity: 'university', title: 'Вузы', total: 17, score: 100, weight: 0.3, issues: [issue('university.noContacts', 0, 0)] },
+      { entity: 'university', title: 'Вузы', total: 17, recordsToFix: 0, score: 100, weight: 0.3, issues: [issue('university.noContacts', 0, 0)] },
       {
         entity: 'product',
         title: 'IT-продукты',
         total: 23,
+        recordsToFix: 9,
         score: 72.6,
         weight: 0.2,
         issues: [{ ...issue('product.noSkills', 9, 27.4), title: 'IT-продукт без навыков' }, issue('product.duplicates', 0, 0)],
       },
-      { entity: 'cooperation', title: 'Связки', total: 0, score: null, weight: 0.2, issues: [] },
+      { entity: 'cooperation', title: 'Связки', total: 0, recordsToFix: 0, score: null, weight: 0.2, issues: [] },
     ],
     duplicates: { university: 0, skill: 0, program: 0, product: 0 },
     explanation: '',
@@ -113,5 +120,52 @@ describe('действие по проверке', () => {
     expect(issueAction(toRecord)).toEqual({ kind: 'link', href: '/cooperations/c1', label: 'Исправить' })
     expect(issueAction(toRegistry)).toEqual({ kind: 'link', href: '/products', label: 'Открыть' })
     expect(issueAction(issue('program.noSkills', 0, 0))).toBeNull()
+  })
+})
+
+describe('качество данных простыми словами (решение 212)', () => {
+  it('сводка: сколько записей править и каких, без повторов', () => {
+    const data = report({
+      recordsToFix: 14,
+      entities: [
+        {
+          entity: 'university',
+          title: 'Вузы',
+          total: 17,
+          recordsToFix: 7,
+          score: 80,
+          weight: 0.3,
+          issues: [issue('university.noContacts', 6, 12), issue('university.noPrograms', 2, 3)],
+        },
+        {
+          entity: 'program',
+          title: 'Программы',
+          total: 40,
+          recordsToFix: 7,
+          score: 85,
+          weight: 0.3,
+          issues: [issue('program.noSkills', 5, 6), issue('program.stale', 1, 1), issue('program.duplicates', 1, 1)],
+        },
+      ],
+    })
+    expect(qualitySummary(data)).toBe(
+      '14 записей требуют правки: 6 вузов без контактов, 5 программ без навыков, 2 вуза без программ, ' +
+        '1 программа давно не обновлялась и ещё 1 проверка.',
+    )
+  })
+
+  it('править нечего и пустые справочники — своими словами', () => {
+    expect(qualitySummary(report({ recordsToFix: 0, entities: [] }))).toBe(
+      'Все записи в порядке: ни одна проверка не нашла, что править.',
+    )
+    expect(qualitySummary(report({ score: null }))).toBe('Справочники пусты — проверять пока нечего.')
+  })
+
+  it('у каждой проверки сервера есть «почему это важно» и слова для сводки', () => {
+    const rules = readFileSync('src/modules/data-quality/quality.rules.ts', 'utf8')
+    const codes = [...rules.matchAll(/code: '([a-z]+\.[A-Za-z]+)'/g)].map((match) => match[1]!)
+    expect(codes.length).toBeGreaterThan(10)
+    expect(codes.filter((code) => !ISSUE_WHY[code])).toEqual([])
+    expect(codes.filter((code) => !ISSUE_NOUNS[code])).toEqual([])
   })
 })
