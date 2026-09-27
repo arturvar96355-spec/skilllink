@@ -176,6 +176,23 @@
 
   .labels {
     font-size: var(--text-caption-size);
+    row-gap: 2px;
+  }
+
+  /*
+   * Названия фаз («Привлечение», «Эксплуатация») шире шага на телефоне и
+   * обрезались многоточием. Теперь подписи — в два ряда вперемежку: у каждой
+   * место на два шага, она по центру своего шага и видна целиком (решение 208).
+   */
+  .labels li {
+    width: 200%;
+    margin-left: -50%;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .labels li:nth-child(even) {
+    grid-row: 2;
   }
 
   .pill {
