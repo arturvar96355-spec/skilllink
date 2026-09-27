@@ -59,6 +59,7 @@ export function CreateSkillModal({ onClose }: { onClose: (created: SkillDto | nu
       isOpen
       onClose={() => onClose(null)}
       title="Добавить навык"
+      help={{ topic: 'workflow-settings', section: 'skills' }}
       description="Навык попадёт в общий справочник — им можно будет привязать программы и продукты."
       closeOnBackdrop={false}
       footer={
@@ -135,6 +136,7 @@ export function EditSkillModal({ skill, onClose }: { skill: SkillDto; onClose: (
       isOpen
       onClose={() => onClose(false)}
       title="Изменить навык"
+      help={{ topic: 'workflow-settings', section: 'skills' }}
       closeOnBackdrop={false}
       footer={
         <>
@@ -210,6 +212,7 @@ export function MergeSkillModal({ skill, onClose }: { skill: SkillDto; onClose: 
       isOpen
       onClose={() => onClose(false)}
       title={`Объединить «${skill.name}»`}
+      help={{ topic: 'workflow-settings', section: 'skills' }}
       description="Навык-дубль будет удалён, его программы, продукты, спрос и задачи из списка перейдут на выбранный целевой навык."
       closeOnBackdrop={false}
       footer={
@@ -266,6 +269,7 @@ export function DeleteSkillModal({ skill, onClose }: { skill: SkillDto; onClose:
       isOpen
       onClose={() => onClose(false)}
       title="Удалить навык"
+      help={{ topic: 'workflow-settings', section: 'skills' }}
       description={`«${skill.name}» — ${skill.category}.`}
       closeOnBackdrop={false}
       footer={
