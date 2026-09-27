@@ -192,9 +192,12 @@ export function createConstellation(
         .replace(
           '#include <map_particle_fragment>',
           `float pointDistance = length(gl_PointCoord - vec2(0.5)) * 2.0;
-          float pointCore = 1.0 - smoothstep(0.0, 0.45, pointDistance);
-          float pointHalo = 1.0 - smoothstep(0.2, 1.0, pointDistance);
-          diffuseColor.a *= (0.55 * pointHalo + 0.45 * pointCore) * vPointFade;`,
+          // Резкое ядро с краем в пиксель и тонкий ореол: звезда читается точкой,
+          // а не пятнышком. Ширина края — по производной, одинаковая при любом размере.
+          float pointEdge = fwidth(pointDistance) * 1.2;
+          float pointCore = 1.0 - smoothstep(0.42 - pointEdge, 0.42 + pointEdge, pointDistance);
+          float pointHalo = 1.0 - smoothstep(0.3, 1.0, pointDistance);
+          diffuseColor.a *= (pointCore + 0.28 * pointHalo * pointHalo) * vPointFade;`,
         )
     }
     return material
@@ -441,7 +444,9 @@ export function createConstellation(
     for (let i = 0; i < skySize; i += 1) {
       swirl(i, t, gather, burst, time, point)
       let glow = 1
-      let bright = 1
+      // В воронке звёзды ярче: тусклые (30–75 %) на тёмном фоне во вращении
+      // сливались в мутную пыль.
+      let bright = 1 + 0.9 * gather
       if (assembleAt !== null) {
         const local = t - assembleAt - skyDelay[i]!
         const p = clamp01(local / TRAVEL_MS)
@@ -455,7 +460,7 @@ export function createConstellation(
         point[1] = a * point[1]! + b * skyVia[i * 2 + 1]! + c * skyTarget[i * 3 + 1]!
         point[2] = point[2]! * (1 - e) + Math.sin(p * Math.PI) * 3
         // В полёте звезда разгорается, у блока — гаснет, вливаясь в него.
-        bright = 1 + 0.4 * e
+        bright = (1 + 0.9 * gather) * (1 + 0.4 * e)
         glow = 1 - clamp01((local - TRAVEL_MS + ABSORB_LEAD_MS) / ABSORB_MS)
       }
       skyPositions.set(point, i * 3)
