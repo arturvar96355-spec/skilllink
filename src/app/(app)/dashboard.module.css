@@ -16,7 +16,34 @@
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: var(--space-8);
-  align-items: start;
+  /* Колонки одной высоты (решение 215): низ «Связок в работе» и «Ключевых программ»
+     выровнен — строки более короткой колонки растягиваются, пустоты внизу нет. */
+  align-items: stretch;
+}
+
+.columnFill {
+  display: flex;
+  flex-direction: column;
+}
+
+.columnFill > section {
+  flex: 1 1 auto;
+}
+
+.columnFill .routes,
+.columnFill .ranking {
+  flex: 1 1 auto;
+}
+
+.columnFill .routes > li,
+.columnFill .ranking > li {
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.columnFill .routes > li > a,
+.columnFill .ranking > li > a {
+  flex: 1 1 auto;
 }
 
 @media (max-width: 1080px) {

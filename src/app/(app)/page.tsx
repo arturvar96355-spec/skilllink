@@ -708,7 +708,7 @@ function Dashboard() {
           </div>
 
           <div className={styles.columns}>
-            <div className={styles.reveal} data-assemble="left" style={{ '--delay': '620ms' } as CSSProperties}>
+            <div className={`${styles.reveal} ${styles.columnFill}`} data-assemble="left" style={{ '--delay': '620ms' } as CSSProperties}>
               <Section
                 title="Связки в работе"
                 description="Вуз — программа — IT-продукт. Справа — текущий этап из 14, полоса — пройденные этапы."
@@ -795,7 +795,7 @@ function Dashboard() {
               </Section>
             </div>
 
-            <div className={styles.reveal} data-assemble="right" style={{ '--delay': '700ms' } as CSSProperties}>
+            <div className={`${styles.reveal} ${styles.columnFill}`} data-assemble="right" style={{ '--delay': '700ms' } as CSSProperties}>
               <Section
                 title="Ключевые программы"
                 description="Верх рейтинга. Балл от 0 до 100 — по заявкам, обучающимся и группам в сравнении с другими программами, а не оценка качества."
