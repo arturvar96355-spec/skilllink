@@ -54,8 +54,14 @@ export interface ScrollAreaProps extends HTMLAttributes<HTMLDivElement> {
   revealAlign?: 'nearest' | 'center'
 }
 
-/** Запас в пикселях: дробная прокрутка на экранах с плотностью 3× не даёт ровного нуля. */
-const EDGE_EPSILON = 2
+/**
+ * Сколько содержимого должно прятаться за краем, чтобы это считалось «есть ещё».
+ * Меньше — это выступ, а не содержимое: тень строки, этап ленты, выдвинутый
+ * в 3D. На 1440 лента этапов выступала на 8 px и получала шеврон впустую.
+ */
+const MIN_HIDDEN = 24
+/** Запас у края: дробная прокрутка на экранах 3× и тот же выступ не дают ровного нуля. */
+const EDGE_EPSILON = 12
 
 export function ScrollArea({
   children,
@@ -83,7 +89,7 @@ export function ScrollArea({
       const max = scroller.scrollWidth - scroller.clientWidth
       // Вид, который вбок не листается (лента реестра, карточки на телефоне),
       // может выступать за край тенью или меткой — это не «есть ещё».
-      const scrolls = max > EDGE_EPSILON && getComputedStyle(scroller).overflowX !== 'visible'
+      const scrolls = max > MIN_HIDDEN && getComputedStyle(scroller).overflowX !== 'visible'
       frame.toggleAttribute('data-more-start', scrolls && scroller.scrollLeft > EDGE_EPSILON)
       frame.toggleAttribute('data-more-end', scrolls && scroller.scrollLeft < max - EDGE_EPSILON)
       // Фокус — только у полосы, которая и правда листается: на широком экране
