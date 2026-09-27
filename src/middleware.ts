@@ -32,11 +32,15 @@ const PUBLIC_PATHS = ['/login']
  * со значками браузер запрашивает без входа — иначе получал бы перенаправление
  * на страницу входа.
  *
+ * Документация (`/docs` и её якоря, решение 214) — тоже: её читают эксперты и те,
+ * у кого входа ещё нет. На странице только текст из реестра `shared/help`, без
+ * запросов к API и к базе — данных системы она не показывает (проверяет тест).
+ *
  * `/presentation` здесь не было смысла держать: страницы и файлов `public/presentation/`
  * нет — вход отдавал бы всем без исключения 404 на публичном пути (риск 13 ревизии
  * от 26.09.2026). Появится страница презентации — путь возвращается сюда.
  */
-const OPEN_PATHS = ['/privacy', '/manifest.webmanifest']
+const OPEN_PATHS = ['/privacy', '/docs', '/manifest.webmanifest']
 
 function matches(paths: readonly string[], pathname: string): boolean {
   return paths.some((path) => pathname === path || pathname.startsWith(`${path}/`))
