@@ -52,7 +52,7 @@ describe('показатели отчёта', () => {
   it('сравнение за период: знак, пункты у долей, ноль без слов', () => {
     expect(trendText({ previous: 6, delta: 1, direction: 'up', periodLabel: 'за 30 дней' }, false)).toBe('+1 за 30 дней')
     expect(trendText({ previous: 90, delta: -2.46, direction: 'down', periodLabel: 'за 30 дней' }, true)).toBe(
-      '−2,5 п.п. за 30 дней',
+      '−2,5 пункта за 30 дней',
     )
     expect(trendText({ previous: 7, delta: 0, direction: 'flat', periodLabel: 'за 30 дней' }, false)).toBe('0 за 30 дней')
   })
@@ -161,7 +161,7 @@ describe('строка об источнике', () => {
 
   it('называет период спроса и прямо говорит о демонстрационных данных', () => {
     const line = sourceLine({ skillMatch, containsMockData: true })
-    expect(line).toContain('за период 2026-Q1')
+    expect(line).toContain('за 1-й квартал 2026')
     expect(line).toContain('демонстрационная')
   })
 

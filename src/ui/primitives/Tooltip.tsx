@@ -154,10 +154,14 @@ export function Tooltip({ text, children, disabled = false, interactive = true, 
  * Значок пояснения рядом с термином или числом (решение 211): «что это
  * и откуда цифра» простыми словами. Тот же пузырь, что у `Tooltip`; на
  * телефоне открывается нажатием. Имя для программ чтения с экрана — сам текст.
+ *
+ * `interactive={false}` — значок внутри ссылки: своей точки фокуса у него нет
+ * (вложенная кнопка в ссылке — ошибка доступности), пузырь — по наведению,
+ * а текст для программ чтения с экрана страница кладёт в ссылку сама.
  */
-export function InfoHint({ text }: { text: string }) {
+export function InfoHint({ text, interactive = true }: { text: string; interactive?: boolean }) {
   return (
-    <Tooltip text={text} openOnTap>
+    <Tooltip text={text} openOnTap interactive={interactive}>
       <span className={styles.hintIcon}>
         <Icon name="help" size={16} />
       </span>

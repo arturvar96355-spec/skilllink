@@ -118,6 +118,8 @@ export {
   formatDate,
   formatDateTime,
   formatDayMonth,
+  formatPeriod,
+  formatPoints,
   formatFileSize,
   formatRelative,
   formatCount,

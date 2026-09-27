@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import type { CSSProperties } from 'react'
 import type { CooperationListItemDto, MetricTrendDto } from '@/shared/contracts'
-import { formatNumber, formatRelative, pluralize, useCountUp } from '@/ui'
+import { InfoHint, formatNumber, formatPoints, formatRelative, pluralize, useCountUp } from '@/ui'
 import { LiveRailRoute } from './LiveRailRoute'
 import type { RouteView } from './route-rail'
 import styles from './LiveRail.module.css'
@@ -88,6 +88,11 @@ export function LiveRail({
       </div>
 
       <LiveRailRoute cooperations={cooperations} view={routeView} />
+      {/* Легенда маршрута (решение 211): без неё кружки с числами не читались с первого взгляда. */}
+      <p className={styles.legend}>
+        Кружок — этап из 14, число в нём — сколько связок сейчас на этом этапе; красная дуга — у части из них
+        просрочка или блок. Наведите или нажмите на кружок — откроется список.
+      </p>
 
       <div className={styles.foot}>
         <a href="#attention" className={styles.attention}>
@@ -131,7 +136,18 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
       <span className={styles.motion}>
         {number.value !== null && <RailMotion motion={motion} value={number.value} />}
       </span>
-      <span className={styles.label}>{number.label}</span>
+      {/* Откуда число — значком «?» у подписи, а не только браузерным title,
+          который никто не находит (решение 211). В ссылке значок без своей
+          точки фокуса, пояснение для программ чтения с экрана — скрытым текстом. */}
+      <span className={styles.label}>
+        {number.label}
+        {number.explanation && (
+          <>
+            <InfoHint text={number.explanation} interactive={!number.href} />
+            {number.href && <span className="visually-hidden">. {number.explanation}</span>}
+          </>
+        )}
+      </span>
       {/* Сравнение — в строке пометок, а не отдельной строкой: ряд чисел выровнен
           по нижнему краю, и лишняя строка поднимала бы свою колонку над соседними. */}
       {(number.note || number.denominatorLabel || number.isMock || (showTrend && number.trend)) && (
@@ -155,7 +171,6 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
         href={number.href}
         className={className}
         style={{ '--order': order } as CSSProperties}
-        title={number.explanation}
       >
         {content}
       </Link>
@@ -163,7 +178,7 @@ function RailValue({ number, order, showTrend }: { number: RailNumber; order: nu
   }
 
   return (
-    <div className={className} style={{ '--order': order } as CSSProperties} title={number.explanation}>
+    <div className={className} style={{ '--order': order } as CSSProperties}>
       {content}
     </div>
   )
@@ -203,10 +218,14 @@ function RailMotion({ motion, value }: { motion: NonNullable<RailNumber['motion'
  */
 function RailTrend({ trend, isShare }: { trend: MetricTrendDto; isShare: boolean }) {
   const size = Math.abs(trend.delta)
-  const amount = isShare ? `${formatNumber(Number(size.toFixed(1)))} п.п.` : formatNumber(size)
+  // Доля меняется в процентных пунктах — словом, без сокращения «п.п.» (решение 211).
+  const amount = isShare ? formatPoints(size) : formatNumber(size)
   const sign = trend.direction === 'up' ? '+' : trend.direction === 'down' ? '−' : ''
   return (
-    <span className={[styles.trend, styles[trend.direction]].join(' ')} title={`Было ${formatNumber(trend.previous)}`}>
+    <span
+      className={[styles.trend, styles[trend.direction]].join(' ')}
+      title={isShare ? `Было ${formatNumber(trend.previous)}%; изменение — в процентных пунктах` : `Было ${formatNumber(trend.previous)}`}
+    >
       {trend.direction !== 'flat' && (
         <span className={styles.trendArrow} aria-hidden>
           {trend.direction === 'up' ? '↑' : '↓'}
@@ -214,7 +233,7 @@ function RailTrend({ trend, isShare }: { trend: MetricTrendDto; isShare: boolean
       )}
       {/* «Без изменений» словами не пишется (ТЗ фронту, задача 1) — ноль и нейтральный цвет. */}
       {sign}
-      {trend.direction === 'flat' ? (isShare ? '0 п.п.' : '0') : amount} {trend.periodLabel}
+      {trend.direction === 'flat' ? (isShare ? formatPoints(0) : '0') : amount} {trend.periodLabel}
     </span>
   )
 }

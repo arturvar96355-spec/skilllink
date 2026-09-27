@@ -65,6 +65,20 @@
   color: var(--text-secondary);
 }
 
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Легенда маршрута связок (решение 211). */
+.legend {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
 .note {
   display: inline-flex;
   flex-wrap: wrap;

@@ -55,6 +55,7 @@ import {
   cooperationHref,
   firstNameOf,
   formatNumber,
+  formatPeriod,
   formatPercent,
   formatScore,
   pluralize,
@@ -181,14 +182,19 @@ function activeBreakdown(counts: CooperationCountsDto): string {
   return `${head} (${formatNumber(counts.inWork)} в работе, ${formatNumber(counts.drafts)} ${pluralize(counts.drafts, ['черновик', 'черновика', 'черновиков'])})`
 }
 
-/** Из кого сложилась воронка: «8 связок в воронке: 7 активных, 1 завершённая». */
-function funnelComposition(counts: CooperationCountsDto): string {
+/** Состав связок без отменённых: «65 активных, 6 на паузе, 6 завершённых». */
+function compositionParts(counts: CooperationCountsDto): string {
   const parts = [`${formatNumber(counts.active)} ${pluralize(counts.active, ['активная', 'активные', 'активных'])}`]
   if (counts.paused > 0) parts.push(`${formatNumber(counts.paused)} на паузе`)
   if (counts.completed > 0) {
     parts.push(`${formatNumber(counts.completed)} ${pluralize(counts.completed, ['завершённая', 'завершённые', 'завершённых'])}`)
   }
-  return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${parts.join(', ')}.`
+  return parts.join(', ')
+}
+
+/** Из кого сложилась воронка: «8 связок в воронке: 7 активных, 1 завершённая». */
+function funnelComposition(counts: CooperationCountsDto): string {
+  return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${compositionParts(counts)}.`
 }
 
 /**
@@ -514,7 +520,7 @@ function Dashboard() {
                     <HealthPie
                       title="Покрытие навыков"
                       short="покрыто"
-                      caption={`Востребованные рынком навыки в программах · ${data.skillMatch.period}`}
+                      caption={`Востребованные рынком навыки, которым учат программы вузов · ${formatPeriod(data.skillMatch.period)}`}
                       share={data.skillMatch.coveragePercent}
                       counts={
                         data.skillMatch.coveredSkills !== null && data.skillMatch.demandedSkills !== null
@@ -534,7 +540,7 @@ function Dashboard() {
                 <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
                   <Section
                     title="Где сейчас связки"
-                    description="Фаза текущего этапа каждой связки. Наведите на сектор или подпись."
+                    description={`Фаза текущего этапа у каждой связки. В центре — все, кроме отменённых: ${compositionParts(data.cooperationCounts)}. Наведите на сектор или подпись.`}
                     action={
                       <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
                         Печать / PDF
@@ -683,7 +689,7 @@ function Dashboard() {
           <div className={styles.reveal} data-assemble="center" style={{ '--delay': '540ms' } as CSSProperties}>
             <Section
               title="Воронка связок"
-              description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы. Отменённые не входят."
+              description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы; процент — доля от всех связок в воронке. Отменённые не входят."
               action={
                 <div className={styles.sectionActions}>
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
@@ -719,7 +725,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="left" style={{ '--delay': '620ms' } as CSSProperties}>
               <Section
                 title="Связки в работе"
-                description="Вуз — программа — IT-продукт и этап, на котором связка сейчас."
+                description="Вуз — программа — IT-продукт. Справа — текущий этап из 14, полоса — пройденные этапы."
                 action={
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все связки
@@ -806,7 +812,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="right" style={{ '--delay': '700ms' } as CSSProperties}>
               <Section
                 title="Ключевые программы"
-                description="Верх рейтинга. Балл относительный — программы сравниваются между собой."
+                description="Верх рейтинга. Балл от 0 до 100 — по заявкам, обучающимся и группам в сравнении с другими программами, а не оценка качества."
                 action={
                   <Button href="/analytics" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Вся аналитика
@@ -885,7 +891,7 @@ function Dashboard() {
                   <div className={styles.coverageTop}>
                     <span className={styles.coverageValue}>{formatPercent(data.skillMatch.coveragePercent)}</span>
                     <span className={styles.coverageNote}>
-                      покрытие навыков · период {data.skillMatch.period}
+                      покрытие навыков за {formatPeriod(data.skillMatch.period)}
                       {data.skillMatch.isMock && ' · демонстрационные данные'}
                     </span>
                   </div>

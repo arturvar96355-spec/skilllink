@@ -1,5 +1,5 @@
 import type { RecommendationScoreDto } from '@/shared/contracts'
-import { ScoreBar, ScoreLegend, formatNumber, formatShare } from '@/ui'
+import { InfoHint, ScoreBar, ScoreLegend, formatNumber, formatShare } from '@/ui'
 import { partsOf } from './recommendation-score'
 import styles from './RecommendationScore.module.css'
 
@@ -22,6 +22,24 @@ const SOURCE_LABEL: Record<RecommendationScoreDto['pSource'], string> = {
   global: 'общая оценка',
 }
 
+/**
+ * Что значит число — для «?» рядом (решение 211): «68% по своим решениям»
+ * без пояснения эксперт не прочтёт. Источник веса — словами, а не кодом.
+ */
+const SOURCE_HINT: Record<RecommendationScoreDto['pSource'], string> = {
+  local: 'сотрудники уже не раз решали по таким советам — берётся, как часто их принимали.',
+  pooled: 'своих решений по этому совету пока мало — добавлена оценка по похожим советам.',
+  global: 'своих решений по этому совету ещё нет — взята общая оценка по всем советам.',
+}
+
+function scoreHint(source: RecommendationScoreDto['pSource']): string {
+  return (
+    'Важность совета от 0 до 100%: чем выше, тем раньше за него стоит взяться. ' +
+    'Складывается из трёх частей (полоса): насколько такие советы оказывались полезны, насколько ценен случай и его приоритет.\n' +
+    `Полезность — ${SOURCE_HINT[source]}`
+  )
+}
+
 export interface RecommendationScoreProps {
   score: number | null
   breakdown: RecommendationScoreDto | null
@@ -38,7 +56,8 @@ export function RecommendationScore({ score, breakdown, variant = 'compact' }: R
     <div className={styles.root}>
       <div className={styles.head}>
         <span className={styles.value}>{formatShare(score)}</span>
-        <span className={styles.source}>{SOURCE_LABEL[breakdown.pSource]}</span>
+        <span className={styles.source}>важность совета · {SOURCE_LABEL[breakdown.pSource]}</span>
+        <InfoHint text={scoreHint(breakdown.pSource)} />
       </div>
       <ScoreBar parts={partsOf(breakdown)} />
       {variant === 'full' && (
