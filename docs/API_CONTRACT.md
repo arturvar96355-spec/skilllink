@@ -1795,8 +1795,13 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
       { "cooperationId": "…", "universityName": "…", "universityShortName": "СПбГУТ",
         "programName": "…", "reason": "Этап просрочен на 12 дн.",
         "stageId": "…", "stageNumber": 6,
-        "stageTitle": "Подписание документов", "daysOverdue": 12 }
+        "stageTitle": "Подписание документов", "daysOverdue": 12,
+        "severity": "overdue", "deadline": "2026-09-15T00:00:00.000Z",
+        "blockingReason": null,
+        "responsible": { "id": "…", "fullName": "Савельева Ольга Дмитриевна" } }
     ],
+    "problemStageTotal": 13,
+    "problemGroups": { "overdueLong": 3, "overdue": 4, "blocked": 6, "longOverdueDays": 30 },
     "skillMatch": {
       "coveragePercent": 88.9, "coveredSkills": 16, "demandedSkills": 18,
       "criticalGaps": 2, "period": "2026-Q1", "isMock": true
@@ -1837,14 +1842,33 @@ curl -X PATCH http://localhost:3000/api/workflow/tasks/<taskId> \
 `stageId` — этап, на котором связка встала: ссылка с главной ведёт прямо к нему.
 Оба поля добавлены 23.09.2026, прежние не менялись.
 
-`priorityActions` не включает рекомендации `stage.overdue` (решение 180: та же
+Добавлено 27.09.2026 (решение 206, блок «Требует внимания» — очередь по серьёзности),
+прежние поля не менялись:
+
+- `problemCooperations[].severity` — `overdue-long` (срок вышел больше
+  `problemGroups.longOverdueDays` дней назад), `overdue` (позже, включая «сегодня»),
+  `blocked` (этап заблокирован; срок тогда не важен, `daysOverdue: null`);
+- `problemCooperations[].deadline` — срок этапа (ISO 8601), `null` — не задан;
+- `problemCooperations[].blockingReason` — причина блокировки как её записали (без
+  приставки «Этап заблокирован:», которая есть в `reason`), `null` у незаблокированного;
+- `problemCooperations[].responsible` — ответственный **за этап** `{ id, fullName }`
+  (тот же, по которому считает просрочки `GET /api/team`), `null` — не назначен;
+- `problemGroups` — сколько проблемных этапов в каждой группе по **всем** этапам,
+  а не по десяти показанным: `overdueLong + overdue + blocked = problemStageTotal`.
+  Серьёзность строки и счётчики считает одна функция (`problemSeverity`), порог —
+  `PROBLEM_LONG_OVERDUE_DAYS` (TEMP, 30) в `analytics.config.ts`.
+
+`priorityActions` — по приоритету, внутри приоритета по баллу `score` (пустой балл
+последним), затем по дате создания; отложенные защитой от перегрузки (`isDeferred: true`)
+не входят (решение 206, до 27.09.2026 вторым ключом была дата создания, и отложенная
+запись могла попасть на главную). Не включает рекомендации `stage.overdue` (решение 180: та же
 просрочка уже названа в `problemCooperations`) — поэтому пустой `priorityActions`
 не значит «открытых рекомендаций нет вообще». `openRecommendationsTotal`
 (добавлено 27.09.2026, решение 187) — сколько их открыто на самом деле, **включая**
 `stage.overdue`; фронт выбирает по этому числу текст пустого состояния блока
 «Приоритетные действия»: `0` — «рекомендаций нет», больше нуля — что открытые
-рекомендации есть, но это просрочки этапов, и они показаны в блоке
-«Требует внимания» выше.
+рекомендации есть, но это просрочки этапов (они показаны в блоке
+«Требует внимания» рядом) или отложенные системой — они на странице рекомендаций.
 
 ### GET /api/analytics/programs
 

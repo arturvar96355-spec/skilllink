@@ -19,15 +19,17 @@ import { Finale } from './Finale'
 import { ExpertStartHere } from './ExpertStartHere'
 import { phaseFunnel } from './phase-funnel'
 import { priorityActionsEmptyState } from './priority-actions-empty'
+import { AttentionQueue } from './AttentionQueue'
+import { PriorityQueue } from './PriorityQueue'
+import { attentionSummary } from './attention-queue'
+import { actionsSummary } from './priority-queue'
 import { cityCoordinates } from './city-coordinates'
 import { usePrintBlock } from './print-block'
 import {
-  Badge,
   Button,
   CardsSkeleton,
   BarsFlat,
   CooperationPeek,
-  DeadlineStrip,
   Funnel,
   GapBars,
   PeekProvider,
@@ -37,7 +39,6 @@ import {
   StageBar,
   RussiaMap,
   Ticker,
-  Tooltip,
   notificationHref,
   universityHref,
   type MapPoint,
@@ -46,23 +47,19 @@ import {
   ErrorState,
   MockBadge,
   PageHeader,
-  PriorityBadge,
   Progress,
   ROUTES,
   Section,
   apiPost,
   buildQuery,
   cooperationHref,
-  deadlineBadgeText,
   firstNameOf,
   formatNumber,
   formatPercent,
   formatScore,
   pluralize,
   programHref,
-  recommendationHref,
   useCurrentUser,
-  useIsTruncated,
   useMutation,
   useResource,
   useToast,
@@ -74,7 +71,6 @@ import {
   type DonutTexture,
   type DonutTone,
 } from '@/ui'
-import { PriorityBreakdown } from './PriorityBreakdown'
 import styles from './dashboard.module.css'
 
 /** Знаков после запятой у показателей главной. Остальные — целые. */
@@ -101,21 +97,6 @@ function unitFor(key: string, value: number | null, fallback: string): string {
   if (!forms || value === null) return fallback
   const digits = FRACTION_DIGITS[key] ?? 0
   return pluralize(Number(value.toFixed(digits)), forms)
-}
-
-/**
- * Подпись над списком проблем.
- *
- * Считаются этапы, а не связки: у одной связки их бывает несколько, и это
- * разные проблемы с разными сроками. Если показаны не все, так и сказано —
- * выдать десять строк за всё, когда их тринадцать, значит соврать на первом
- * же экране.
- */
-function problemSummary(total: number, shown: number): string {
-  if (total === 0) return 'Просроченных и заблокированных этапов нет.'
-  const stages = `${formatNumber(total)} ${pluralize(total, ['этап стоит', 'этапа стоят', 'этапов стоят'])}`
-  if (shown < total) return `${stages}: срок вышел или этап заблокирован. Показаны ${shown} самых давних.`
-  return `${stages}: срок вышел или этап заблокирован.`
 }
 
 /** Номер этапа в записи маршрута: «06 / 14» (07, раздел 30). */
@@ -207,26 +188,6 @@ function funnelComposition(counts: CooperationCountsDto): string {
     parts.push(`${formatNumber(counts.completed)} ${pluralize(counts.completed, ['завершённая', 'завершённые', 'завершённых'])}`)
   }
   return `${formatNumber(counts.total)} ${pluralize(counts.total, ['связка', 'связки', 'связок'])} в воронке: ${parts.join(', ')}.`
-}
-
-/**
- * Обоснование в «Приоритетных действиях» — обрезано до одной строки.
- *
- * Подсказка с полным текстом — только когда обрезка правда есть, и без своей
- * точки фокуса: строка лежит внутри ссылки-плашки действия, и вложенный
- * интерактивный элемент был бы второй лишней остановкой Tab на то же самое
- * место (решение 140, п. 7). Раньше подсказка с `title` закрывала строку
- * с названием вуза и программы под ней.
- */
-function ActionJustification({ text }: { text: string }) {
-  const [ref, isTruncated] = useIsTruncated<HTMLSpanElement>([text])
-  return (
-    <Tooltip text={text} disabled={!isTruncated} interactive={false}>
-      <span ref={ref} className={styles.actionWhy}>
-        {text}
-      </span>
-    </Tooltip>
-  )
 }
 
 /**
@@ -621,7 +582,7 @@ function Dashboard() {
             <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': isWork ? '160ms' : '410ms' } as CSSProperties}>
               <Section
                 title="Требует внимания"
-                description={problemSummary(data.problemStageTotal, data.problemCooperations.length)}
+                description={attentionSummary(data.problemStageTotal, data.problemGroups)}
                 action={
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все связки
@@ -630,91 +591,34 @@ function Dashboard() {
               >
                 {data.problemCooperations.length === 0 ? (
                   <EmptyState
-                    title="Проблемных связок нет"
-                    description="Ни одна связка не просрочена и не заблокирована."
+                    title="Проблемных этапов нет"
+                    description="Ни один этап не просрочен и не заблокирован."
                   />
                 ) : (
-                  <>
-                  {showcase && (
-                    <DeadlineStrip
-                      items={data.problemCooperations.map((row) => ({
-                        key: `${row.cooperationId}:${row.stageId ?? row.reason}`,
-                        label: `${row.universityShortName ?? row.universityName} — ${row.programName}`,
-                        daysOverdue: row.daysOverdue,
-                        href: cooperationHref(row.cooperationId, row.stageId),
-                      }))}
-                      itemProps={(item) => {
-                        const row = data.problemCooperations.find(
-                          (candidate) => `${candidate.cooperationId}:${candidate.stageId ?? candidate.reason}` === item.key,
-                        )!
-                        return coopPeek(
-                          row.cooperationId,
-                          {
-                            university: row.universityShortName ?? row.universityName,
-                            program: row.programName,
-                            stage: row.stageNumber,
-                            stageTitle: row.stageTitle,
-                          },
-                          row.daysOverdue,
-                          row.reason,
-                        )
-                      }}
-                    />
-                  )}
-                  {/* Лента событий, а не таблица в рамке (07, раздел 10.E): точка
-                      на линии времени, связка, этап в записи маршрута, срок. */}
-                  <ol className={styles.queue}>
-                    {data.problemCooperations.map((row) => (
-                      <li
-                        key={`${row.cooperationId}:${row.stageId ?? row.reason}`}
-                        className={styles.event}
-                        {...coopPeek(
-                          row.cooperationId,
-                          {
-                            university: row.universityShortName ?? row.universityName,
-                            program: row.programName,
-                            stage: row.stageNumber,
-                            stageTitle: row.stageTitle,
-                          },
-                          row.daysOverdue,
-                          row.reason,
-                        )}
-                      >
-                        <span
-                          className={[styles.eventMark, row.daysOverdue === null ? styles.blocked : ''].filter(Boolean).join(' ')}
-                          aria-hidden
-                        />
-                        <Link
-                          className={styles.eventLink}
-                          href={cooperationHref(row.cooperationId, row.stageId)}
-                          onClick={(event) => startMorph(event.currentTarget, event)}
-                        >
-                          <span className={styles.eventText}>
-                            <span className={styles.eventTitle} data-morph-title>
-                              {row.universityShortName ?? row.universityName} — {row.programName}
-                            </span>
-                            {row.stageNumber !== null && (
-                              <span className={styles.eventMeta}>
-                                <span className={styles.notation}>{stageNotation(row.stageNumber)}</span>
-                                {row.stageTitle}
-                              </span>
-                            )}
-                          </span>
-                          {/* Значок внутри ссылки: вся плашка — одна цель для щелчка. */}
-                          {row.daysOverdue === null ? (
-                            <Badge tone="warning" withDot>
-                              блок
-                            </Badge>
-                          ) : (
-                            <Badge tone="danger" withDot>
-                              {deadlineBadgeText('overdue', row.daysOverdue, true)}
-                            </Badge>
-                          )}
-                        </Link>
-                      </li>
-                    ))}
-                  </ol>
-                  </>
+                  // Очередь по серьёзности (решение 206, вариант A): три группы, у строки
+                  // одно действие. Шкала сроков убрана: точки слипались у «сегодня».
+                  <AttentionQueue
+                    rows={data.problemCooperations}
+                    groups={data.problemGroups}
+                    canWrite={user.permissions.canWrite}
+                    onChanged={() => {
+                      overview.reload()
+                      active.reload()
+                    }}
+                    itemProps={(row) =>
+                      coopPeek(
+                        row.cooperationId,
+                        {
+                          university: row.universityShortName ?? row.universityName,
+                          program: row.programName,
+                          stage: row.stageNumber,
+                          stageTitle: row.stageTitle,
+                        },
+                        row.daysOverdue,
+                        row.blockingReason ?? undefined,
+                      )
+                    }
+                  />
                 )}
               </Section>
             </div>
@@ -722,7 +626,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="right" style={{ '--delay': isWork ? '220ms' : '480ms' } as CSSProperties}>
               <Section
                 title="Приоритетные действия"
-                description="Открытые рекомендации с наибольшим приоритетом."
+                description={actionsSummary(data.priorityActions)}
                 action={
                   <Button href="/recommendations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все
@@ -742,22 +646,14 @@ function Dashboard() {
                     }
                   />
                 ) : (
-                  <ul className={styles.actions}>
-                    {data.priorityActions.map((action) => (
-                      <li key={action.id}>
-                        <Link className={styles.action} href={recommendationHref(action.id)}>
-                          <span className={styles.actionHead}>
-                            <span className={styles.actionTitle}>{action.title}</span>
-                            <PriorityBadge priority={action.priority} />
-                          </span>
-                          <ActionJustification text={action.justification} />
-                          <span className={styles.actionTarget}>{action.target.label}</span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
+                  // Очередь (решение 206, вариант A): «Новые / В работе», одно действие в строке,
+                  // обоснование — в раскрытии, первая строка раскрыта.
+                  <PriorityQueue
+                    actions={data.priorityActions}
+                    canWork={user.permissions.canWorkAnalytics}
+                    onChanged={overview.reload}
+                  />
                 )}
-                {data.priorityActions.length > 0 && <PriorityBreakdown />}
               </Section>
             </div>
           </div>

@@ -2,12 +2,11 @@
 
 import Link from 'next/link'
 import {
-  RECOMMENDATION_PRIORITY_LABELS,
   type RecommendationDto,
   type RecommendationPriority,
 } from '@/shared/contracts'
-import { Icon, OPEN_RECOMMENDATION_STATUSES, PriorityBadge, ROUTES, buildQuery, formatNumber, pluralize, useResource } from '@/ui'
-import styles from './dashboard.module.css'
+import { OPEN_RECOMMENDATION_STATUSES, QueueFoot, QueueFootLink, ROUTES, buildQuery, formatNumber, useResource } from '@/ui'
+import styles from './PriorityQueue.module.css'
 
 /** Число открытых рекомендаций одного приоритета — из `meta.total`, строки не нужны. */
 function useOpenCount(priority: RecommendationPriority) {
@@ -17,17 +16,27 @@ function useOpenCount(priority: RecommendationPriority) {
   return { count: resource.meta?.total ?? null, error: resource.error }
 }
 
+/** «критичных 3» — прилагательное во мн. ч. род. п.: одна форма на любое число после «Всего открыто N:». */
+const PRIORITY_WORDS: Record<RecommendationPriority, string> = {
+  CRITICAL: 'критичных',
+  HIGH: 'высоких',
+  MEDIUM: 'средних',
+  LOW: 'низких',
+}
+
 /**
- * Открытые рекомендации по приоритету — под «Приоритетными действиями».
+ * Открытые рекомендации по приоритету — подвалом очереди «Приоритетные действия».
  *
- * Сервер отдаёт на главную пять самых важных рекомендаций, а «Требует внимания»
- * рядом — десять этапов: правая колонка обрывалась, под ней зияла пустота
- * (ТЗ дизайна 26–29.09, п. 1.2). Здесь — сколько всего открытого за этими пятью,
- * и каждая строка ведёт в ленту с уже выбранным приоритетом (п. 3.5).
+ * Сервер отдаёт на главную пять самых важных; здесь — сколько всего открытого
+ * за ними, и каждое число ведёт в ленту с уже выбранным приоритетом (ТЗ дизайна
+ * 26–29.09, п. 3.5). Решение 206: одной строкой в подвале очереди вместо сетки
+ * из четырёх плашек — колонка больше не свисает ниже соседнего блока. Сюда
+ * входят и просрочки этапов (`stage.overdue`): в пятёрке их нет (решение 180),
+ * они в соседнем блоке — это сказано прямо, чтобы «критичных 3» не читалось как
+ * «критичные есть, а показаны высокие».
  */
 export function PriorityBreakdown() {
-  // Сверху — самое важное, как в ленте «сначала важное». Хуки — по одному на
-  // приоритет, в постоянном порядке.
+  // Хуки — по одному на приоритет, в постоянном порядке.
   const critical = useOpenCount('CRITICAL')
   const high = useOpenCount('HIGH')
   const medium = useOpenCount('MEDIUM')
@@ -39,33 +48,34 @@ export function PriorityBreakdown() {
     { priority: 'LOW', ...low },
   ]
 
-  // Не ответил хотя бы один запрос — блок не показываем: неполная сводка хуже никакой.
-  if (rows.some((row) => row.error)) return null
-  const loaded = rows.every((row) => row.count !== null)
-  const total = loaded ? rows.reduce((sum, row) => sum + (row.count ?? 0), 0) : null
+  const allLink = <QueueFootLink href={ROUTES.recommendations}>Все рекомендации</QueueFootLink>
+
+  // Не ответил хотя бы один запрос или ещё грузится — только ссылка: неполная сводка хуже никакой.
+  if (rows.some((row) => row.error) || rows.some((row) => row.count === null)) {
+    return <QueueFoot>{allLink}</QueueFoot>
+  }
+  const total = rows.reduce((sum, row) => sum + (row.count ?? 0), 0)
+  const present = rows.filter((row) => (row.count ?? 0) > 0)
 
   return (
-    <div className={styles.priorities}>
-      <span className={styles.prioritiesTitle}>
-        {total === null
-          ? 'Открытые рекомендации'
-          : `${formatNumber(total)} ${pluralize(total, ['открытая рекомендация', 'открытые рекомендации', 'открытых рекомендаций'])}`}
-      </span>
-      <ul className={styles.priorityRows}>
-        {rows.map((row) => (
-          <li key={row.priority}>
+    <QueueFoot>
+      <span className={styles.summaryText}>
+        Всего открыто {formatNumber(total)}
+        {present.length > 0 && ': '}
+        {present.map((row, index) => (
+          <span key={row.priority}>
+            {index > 0 && ', '}
             <Link
-              className={styles.priorityRow}
+              className={styles.summaryLink}
               href={`${ROUTES.recommendations}${buildQuery({ priority: row.priority })}`}
-              aria-label={`${RECOMMENDATION_PRIORITY_LABELS[row.priority]} приоритет: ${row.count ?? '…'} — открыть в рекомендациях`}
             >
-              <PriorityBadge priority={row.priority} />
-              <span className={styles.priorityCount}>{row.count === null ? '…' : formatNumber(row.count)}</span>
-              <Icon name="chevronRight" size={16} />
+              {PRIORITY_WORDS[row.priority]} {formatNumber(row.count)}
             </Link>
-          </li>
+          </span>
         ))}
-      </ul>
-    </div>
+        . Просрочки этапов — в «Требует внимания».
+      </span>
+      {allLink}
+    </QueueFoot>
   )
 }
