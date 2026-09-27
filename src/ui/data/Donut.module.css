@@ -1,0 +1,231 @@
+/* Плоское кольцо долей (решение 196, по образцу Bklit Pie/Donut). */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  width: 100%;
+  /* Касания и наведение не выделяют текст блока заливкой ::selection. */
+  user-select: none;
+}
+
+.stage {
+  /* Диаметр и отверстие приходят из компонента (size, thickness); здесь — запасные. */
+  --donut-size: 260px;
+  --donut-hole: 58%;
+  position: relative;
+  width: min(100%, var(--donut-size));
+  aspect-ratio: 1;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* Дорожка под секторами: видна в зазорах и пока дуга дорисовывается. */
+.track {
+  fill: none;
+  stroke: var(--line-faint);
+}
+
+.trackEmpty {
+  fill: none;
+  stroke: var(--line-subtle);
+}
+
+/* Сектор: цвет — currentColor от тона, движение — сдвиг наружу и приглушение. */
+.slice {
+  pointer-events: none;
+  transition:
+    transform var(--motion-control) var(--ease-out),
+    opacity var(--motion-control) var(--ease-out);
+}
+
+.slice[data-dim] {
+  opacity: 0.32;
+}
+
+.fill_solid {
+  fill: currentColor;
+}
+
+/* Тот же тон светлее: полупрозрачная заливка поверх поверхности блока. */
+.fill_soft {
+  fill: currentColor;
+  fill-opacity: 0.48;
+}
+
+/* Под штриховкой — лёгкая подложка тона: сектор читается площадью, а не только линиями. */
+.fill_diagonal,
+.fill_vertical,
+.fill_cross,
+.fill_dots {
+  fill: currentColor;
+  fill-opacity: 0.12;
+}
+
+.hatch {
+  stroke-width: 1.6;
+}
+
+.pattern {
+  pointer-events: none;
+}
+
+/* Выбор с клавиатуры: обводка по самому выдвинутому сектору вместо рамки браузера. */
+.slice[data-focus] path:first-child {
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: default;
+  /* Касание выбирает сектор сразу, без задержки двойного касания; прокрутка остаётся.
+     Системная подсветка касания не нужна — выбор показывает сам сектор. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hit:focus,
+.hit:focus-visible {
+  outline: none;
+}
+
+/* Дорисовка дуги: маска открывает кольцо по часовой стрелке от «12 часов».
+   Маска по прозрачности, а не по яркости: цвет штриха любой непрозрачный. */
+.drawMask {
+  mask-type: alpha;
+}
+
+.drawArc,
+.drawArcHidden {
+  fill: none;
+  stroke: var(--text-primary);
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+}
+
+.drawArc {
+  animation: donutDraw 600ms var(--ease-out) both;
+}
+
+@keyframes donutDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Число и подпись в отверстии. */
+.center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  margin: auto;
+  width: calc(var(--donut-hole) * 0.8);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity var(--motion-panel) var(--ease-out);
+}
+
+.root[data-phase='hidden'] .center {
+  opacity: 0;
+}
+
+.centerValue {
+  font-size: var(--text-kpi-lg-size);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  transition: color var(--motion-micro) var(--ease-out);
+}
+
+.root[data-large] .centerValue {
+  font-size: var(--text-kpi-xl-size);
+}
+
+.centerLabel {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+  text-wrap: balance;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Подписи со значениями — всегда видны, наведение ничего не прячет. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legendItem {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption-size);
+  cursor: default;
+  transition:
+    background var(--motion-micro) var(--ease-out),
+    border-color var(--motion-micro) var(--ease-out);
+}
+
+.legendItem[data-active] {
+  border-color: var(--line-subtle);
+  background: var(--surface-2);
+}
+
+.swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.legendLabel {
+  color: var(--text-secondary);
+}
+
+.legendValue {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.legendShare {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slice,
+  .center,
+  .centerValue,
+  .legendItem {
+    transition: none;
+  }
+}
