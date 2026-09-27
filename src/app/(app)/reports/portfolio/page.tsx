@@ -154,7 +154,7 @@ export default function ManagerReportPage() {
         description="Состояние сотрудничества с вузами — документ A4 для печати и отправки. «Сохранить в PDF» открывает окно печати браузера: выберите в нём «Сохранить как PDF» (на iPhone — «Поделиться» → «Сохранить в Файлы»)."
         actions={
           isReady ? (
-            <Button variant="primary" icon="download" onClick={() => window.print()} title={PDF_HINT}>
+            <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
               Сохранить в PDF
             </Button>
           ) : undefined

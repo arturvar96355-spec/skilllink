@@ -22,6 +22,12 @@ interface CommonProps {
   iconPosition?: 'left' | 'right'
   isLoading?: boolean
   fullWidth?: boolean
+  /**
+   * Кнопка стоит на месте: не тянется за курсором и не приподнимается при
+   * наведении (решение 211). Для спокойного действия над документом —
+   * «Сохранить в PDF» у отчёта, — где живое движение отвлекает от листа.
+   */
+  still?: boolean
   children?: ReactNode
 }
 
@@ -51,6 +57,7 @@ export function Button({
   iconPosition = 'left',
   isLoading = false,
   fullWidth = false,
+  still = false,
   href,
   external = false,
   scroll,
@@ -68,12 +75,13 @@ export function Button({
     styles[variant],
     styles[size],
     fullWidth ? styles.full : '',
+    still ? styles.still : '',
     className ?? '',
   ]
     .filter(Boolean)
     .join(' ')
   // Главные действия чуть тянутся за курсором (layout/magnetic.ts).
-  const magnetic = variant === 'primary' || variant === 'accent' ? true : undefined
+  const magnetic = !still && (variant === 'primary' || variant === 'accent') ? true : undefined
 
   const iconSize = size === 'lg' ? 20 : 18
   const content = (
