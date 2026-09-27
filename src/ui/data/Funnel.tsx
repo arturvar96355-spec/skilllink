@@ -72,9 +72,15 @@ export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string })
   const max = steps[0]?.value ?? 0
   const values = steps.map((step) => step.value)
   const width = steps.length * 100
+  /*
+   * «Спокойно» (уменьшить движение, рабочий режим) узнаётся уже после первого
+   * рисунка: раньше лента в этот момент теряла `animate` и застывала там, куда
+   * успела дорасти, — обычно у нуля, воронка на телефоне была пустой. Теперь она
+   * сразу встаёт в конечное состояние (решение 208).
+   */
   const grow = (delay: number) =>
     reduced
-      ? {}
+      ? { initial: false as const, animate: { scaleY: 1, opacity: 1 }, transition: { duration: 0 } }
       : {
           initial: { scaleY: 0, opacity: 0 },
           animate: { scaleY: 1, opacity: 1 },
@@ -177,7 +183,11 @@ export function Funnel({ steps, label }: { steps: FunnelStep[]; label: string })
 
       <ol className={styles.labels}>
         {steps.map((step, index) => (
-          <li key={step.key} className={hovered !== null && hovered !== index ? styles.dim : undefined}>
+          <li
+            key={step.key}
+            className={hovered !== null && hovered !== index ? styles.dim : undefined}
+            style={{ gridColumn: index + 1 }}
+          >
             {step.label}
           </li>
         ))}

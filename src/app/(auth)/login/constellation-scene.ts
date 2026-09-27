@@ -76,6 +76,12 @@ export interface StreamAnchors {
   source: [number, number]
   target: [number, number]
   veil?: Array<[number, number]>
+  /**
+   * Масштаб головы и её облака (решение 208): 1 — как задумано; меньше —
+   * в невысоком окне, где над знаком SkillLink мало места и полная голова легла бы
+   * на знак. В прыжке голова возвращается к полному размеру вместе со слиянием.
+   */
+  headScale?: number
 }
 
 /** Участков в связи потока: яркость меняется вдоль прямой (гаснет под текстом). */
@@ -224,15 +230,20 @@ export function createConstellation(
   const homeGoal = hubs.map((hub) => hub.home.clone())
   /** Где поток идёт под текстом (участки пути в долях). */
   let veil: Array<[number, number]> = []
+  /** Масштаб головы: к цели подтягивается плавно, как и места скоплений. */
+  let headScaleGoal = 1
+  let headScale = 1
   const placeHubs = (anchors: StreamAnchors, screenW: number, screenH: number) => {
     if (narrow) return
     homeGoal[0]!.copy(toWorld(anchors.source[0], anchors.source[1], hubs[0]!.home.z, screenW, screenH))
     homeGoal[1]!.copy(toWorld(anchors.target[0], anchors.target[1], hubs[1]!.home.z, screenW, screenH))
     veil = anchors.veil ?? []
+    headScaleGoal = Math.min(1, Math.max(0.3, anchors.headScale ?? 1))
   }
   if (streamed && options.anchors) {
     placeHubs(options.anchors, options.width, options.height)
     hubs.forEach((hub, i) => hub.home.copy(homeGoal[i]!))
+    headScale = headScaleGoal
   }
 
   // ── Скопления: у каждого своя группа — их можно свести вместе ──────────
@@ -643,6 +654,8 @@ export function createConstellation(
     },
     still() {
       setOpacity(1)
+      left.group.scale.setScalar(headScale)
+      coreMaterial.size = 1.4 * headScale
       world.rotation.set(0.05, 0.1, 0)
       updateLinks(0.4)
       renderer.render(scene, camera)
@@ -652,6 +665,7 @@ export function createConstellation(
       const intro = 1 - Math.pow(1 - Math.min(1, time / 1.8), 3)
       // Форма сдвинулась (окно, первая раскладка) — скопления подтягиваются без скачка.
       hubs.forEach((hub, i) => hub.home.lerp(homeGoal[i]!, 0.08))
+      headScale += (headScaleGoal - headScale) * 0.08
 
       const t = warpSince === null ? 0 : now - warpSince
 
@@ -660,7 +674,9 @@ export function createConstellation(
       left.group.position.lerpVectors(left.home, meetLeft, merge)
       right.group.position.lerpVectors(right.home, meetRight, merge)
       const squeeze = 1 - 0.55 * merge
-      left.group.scale.setScalar(squeeze)
+      // Сжатая в тесном окне голова к слиянию возвращается к полному размеру.
+      const head = headScale + (1 - headScale) * merge
+      left.group.scale.setScalar(squeeze * head)
       right.group.scale.setScalar(squeeze)
       // Запасной разлёт — только если страница так и не пришла.
       if (warpSince !== null && assembleAt === null && releaseAt === null && t > HOLD_LIMIT_MS) releaseAt = t
@@ -671,7 +687,7 @@ export function createConstellation(
       // заливка для видеокарты, конец прыжка от неё подтормаживал.
       clusterMaterial.size = 0.11
       fieldMaterial.size = 0.11 * (1 + 0.5 * merge) * (1 + 1.2 * burst)
-      coreMaterial.size = 1.4 * (1 + 1.2 * merge)
+      coreMaterial.size = 1.4 * (1 + 1.2 * merge) * head
       receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
       // Концы потока привязаны к раскладке (голова у угла, приёмник под маршрутом) и
