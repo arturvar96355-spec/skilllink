@@ -5,6 +5,7 @@ import {
   type QualityIssueDto,
   type QualityReportDto,
 } from '@/shared/contracts'
+import { plural } from '@/shared/utils/text'
 
 /**
  * Раскладка отчёта качества данных по уровням (ТЗ дизайна 26–29.09, п. 4.4):
@@ -143,4 +144,79 @@ export function issueAction(issue: QualityIssueDto): IssueAction | null {
   // Ссылка на саму запись (…/id) — «Исправить»; на общий реестр или настройки — «Открыть».
   const label = first.href.endsWith(`/${first.id}`) ? 'Исправить' : 'Открыть'
   return { kind: 'link', href: first.href, label }
+}
+
+/**
+ * Почему проверка важна — одной строкой (решение 212). Эксперт спросил, есть ли
+ * в «качестве данных» смысл: смысл в том, что каждая дыра в справочнике ломает
+ * конкретную работу. Ключ — код проверки с сервера (`quality.rules.ts`); полноту
+ * списка сторожит тест.
+ */
+export const ISSUE_WHY: Record<string, string> = {
+  'university.noContacts': 'Без контактов не с кем согласовать этап и некому отправить документы.',
+  'university.noPrograms': 'Без действующей программы связку с вузом не собрать — работать не над чем.',
+  'university.duplicates': 'Один вуз двумя записями делит историю, документы и числа отчётов пополам.',
+  'program.noSkills': 'Без навыков программе не подобрать IT-продукт и не посчитать дефицит.',
+  'program.stale': 'Старые показатели искажают рейтинг программ и прогноз связок.',
+  'program.duplicates': 'Дубль программы раздваивает заявки, обучающихся и рейтинг.',
+  'skill.demandWithoutPrograms': 'Рынку навык нужен, а учить ему негде — подсказка, какую программу предложить вузу.',
+  'skill.unused': 'Лишний навык засоряет справочник и подбор продуктов под дефицит.',
+  'skill.duplicates': 'Один навык под двумя названиями дробит спрос и дефициты.',
+  'product.noSkills': 'Продукт без навыков не попадёт в подбор под дефицит — его никто не предложит.',
+  'product.duplicates': 'Дубль продукта раздваивает связки и лицензии.',
+  'cooperation.noResponsible': 'Связку без действующего ответственного никто не ведёт — сроки сорвутся незаметно.',
+  'cooperation.noMeetings': 'Долгое молчание — первый признак, что связка застряла.',
+}
+
+/** Как проверка звучит в сводке: «12 вузов без контактов». */
+export const ISSUE_NOUNS: Record<string, [string, string, string]> = {
+  'university.noContacts': ['вуз без контактов', 'вуза без контактов', 'вузов без контактов'],
+  'university.noPrograms': ['вуз без программ', 'вуза без программ', 'вузов без программ'],
+  'university.duplicates': ['вуз похож на дубль', 'вуза похожи на дубли', 'вузов похожи на дубли'],
+  'program.noSkills': ['программа без навыков', 'программы без навыков', 'программ без навыков'],
+  'program.stale': ['программа давно не обновлялась', 'программы давно не обновлялись', 'программ давно не обновлялись'],
+  'program.duplicates': ['программа похожа на дубль', 'программы похожи на дубли', 'программ похожи на дубли'],
+  'skill.demandWithoutPrograms': [
+    'навык нужен рынку, но не преподаётся',
+    'навыка нужны рынку, но не преподаются',
+    'навыков нужны рынку, но не преподаются',
+  ],
+  'skill.unused': ['навык без спроса и программ', 'навыка без спроса и программ', 'навыков без спроса и программ'],
+  'skill.duplicates': ['навык похож на дубль', 'навыка похожи на дубли', 'навыков похожи на дубли'],
+  'product.noSkills': ['IT-продукт без навыков', 'IT-продукта без навыков', 'IT-продуктов без навыков'],
+  'product.duplicates': ['IT-продукт похож на дубль', 'IT-продукта похожи на дубли', 'IT-продуктов похожи на дубли'],
+  'cooperation.noResponsible': ['связка без ответственного', 'связки без ответственного', 'связок без ответственного'],
+  'cooperation.noMeetings': ['связка давно без встреч', 'связки давно без встреч', 'связок давно без встреч'],
+}
+
+/** Сколько проверок назвать в сводке поимённо; остальные — «и ещё N». */
+const SUMMARY_ISSUES = 4
+
+function count(value: number): string {
+  return value.toLocaleString('ru-RU')
+}
+
+/**
+ * Главная фраза страницы (решение 212): не индекс, а сколько записей править
+ * и каких — «14 записей требуют правки: 6 вузов без контактов, 5 программ без
+ * навыков…». Число записей — без повторов (`recordsToFix`): запись с двумя
+ * замечаниями — одна запись к правке. Проверки — по числу записей, крупные первыми.
+ */
+export function qualitySummary(report: QualityReportDto): string {
+  if (report.score === null) return 'Справочники пусты — проверять пока нечего.'
+  const failing = report.entities
+    .flatMap((entity) => entity.issues)
+    .filter((issue) => issue.count > 0)
+    .sort((a, b) => b.count - a.count)
+  if (report.recordsToFix === 0 || failing.length === 0) {
+    return 'Все записи в порядке: ни одна проверка не нашла, что править.'
+  }
+  const named = failing.slice(0, SUMMARY_ISSUES).map((issue) => {
+    const nouns = ISSUE_NOUNS[issue.code]
+    return nouns ? `${count(issue.count)} ${plural(issue.count, nouns)}` : `${issue.title.toLowerCase()}: ${count(issue.count)}`
+  })
+  const rest = failing.length - named.length
+  const tail = rest > 0 ? ` и ещё ${count(rest)} ${plural(rest, ['проверка', 'проверки', 'проверок'])}` : ''
+  const head = `${count(report.recordsToFix)} ${plural(report.recordsToFix, ['запись требует', 'записи требуют', 'записей требуют'])} правки`
+  return `${head}: ${named.join(', ')}${tail}.`
 }

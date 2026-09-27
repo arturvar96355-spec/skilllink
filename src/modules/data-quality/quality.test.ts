@@ -175,3 +175,28 @@ describe('оценка качества справочника', () => {
     expect(issue.items).toHaveLength(QUALITY.sampleLimit)
   })
 })
+
+describe('записей к правке — без повторов (решение 212)', () => {
+  it('вуз без контактов и без программ — одна запись к правке, а не две', () => {
+    const report = computeQualityReport(
+      input({
+        universities: [
+          { id: 'u1', name: 'Первый', isMock: false, contacts: [], programs: [] },
+          { id: 'u2', name: 'Второй', isMock: false, contacts: [contact], programs: [{ id: 'p2' }] },
+        ],
+        products: [{ id: 'r1', name: 'Платформа', isMock: false, _count: { skills: 0 } }],
+      }),
+      noDuplicates(),
+      NOW,
+    )
+    const university = report.entities.find((entity) => entity.entity === 'university')!
+    expect(university.issues.filter((item) => item.count > 0)).toHaveLength(2)
+    expect(university.recordsToFix).toBe(1)
+    // Один вуз и один продукт.
+    expect(report.recordsToFix).toBe(2)
+  })
+
+  it('без замечаний — ноль записей к правке', () => {
+    expect(computeQualityReport(input(), noDuplicates(), NOW).recordsToFix).toBe(0)
+  })
+})
