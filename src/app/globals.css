@@ -708,8 +708,17 @@ html[data-theme-switch='reveal']::view-transition-new(root) {
  * пока звёзды кружат в ядре и ждут страницу, её части и загрузочная заготовка
  * каркаса скрыты — иначе они проступали бы под звёздами до сборки.
  */
-body[data-star-assembly='pending'] :is(aside, header, [data-page] > *, [data-assemble], [data-shell-loading]) {
+body[data-star-assembly='pending'] :is(aside, header, footer, [data-page] > *, [data-assemble], [data-shell-loading]) {
   opacity: 0;
+}
+
+/*
+ * Подвал звёзды не собирают: пока они ждут страницу, он скрыт вместе с ней (раньше
+ * строка подвала висела внизу пустого экрана — решение 199), а со стартом сборки
+ * проявляется мягко, не вспышкой.
+ */
+body[data-star-assembly] footer {
+  transition: opacity 400ms var(--ease-out);
 }
 
 /*

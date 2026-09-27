@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import { TRAVEL_MS, type AssemblyTarget } from './constellation-scene'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { TRAVEL_MS, type AssemblyTarget, type StreamAnchors } from './constellation-scene'
 import type { WorkerMessage, WorkerReply } from './constellation.worker'
 import styles from './login.module.css'
 
@@ -11,8 +11,8 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * 3D-созвездие «Вузы × IT-компании» за экраном входа (07, раздел 31: Three.js —
  * только для необязательной картинки входа и только с запасным вариантом).
  *
- * Два скопления светящихся точек — вузы вверху слева, IT-компании внизу справа, —
- * между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
+ * Два скопления светящихся точек — вузы вверху слева, IT-компании на кромке формы
+ * входа, — между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
  * Сцена покачивается и поворачивается за курсором; при появлении камера подлетает.
  *
  * Вход — «варп в систему» (решения 72, 75):
@@ -24,9 +24,13 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  *
  * Звёздное небо рассчитано под окно с запасом по краям: раньше пыль лежала
  * коробкой 22×12, и при нырке её края читались как отдельный квадрат.
- * Экран входа уходит на середине прыжка, поэтому холст на время прыжка
- * переносится в `body` поверх всего и доигрывает уже над сайтом, а потом гаснет
+ * Экран входа уходит на середине прыжка, поэтому холст в момент его снятия
+ * переносится в `body` (под содержимое сайта) и доигрывает там, а потом гаснет
  * и освобождает ресурсы сам.
+ *
+ * Поток (решение 199): голова кометы — скопление вузов в верхнем левом углу,
+ * связи сходятся в сгусток на кромке формы входа, импульсы с хвостом бегут
+ * к нему и, приходя, подсвечивают его — видно, куда идёт поток.
  *
  * Сцена (constellation-scene.ts) рисуется в фоновом потоке на OffscreenCanvas
  * (constellation.worker.ts): сразу после входа браузер загружает и собирает
@@ -42,8 +46,12 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
 
 /** Сколько ядро ждёт главную, прежде чем отпустить звёзды. */
 const PAGE_WAIT_MS = 10000
-/** Шаг между блоками: звёзды собирают экран по одному блоку. */
-const BLOCK_STEP_MS = 150
+/**
+ * Шаг между блоками: звёзды собирают экран по одному блоку. Было 150 мс — сборка
+ * видимой части главной тянулась почти 2 с и читалась как подтормаживание;
+ * при 90 мс порядок «меню — шапка — блоки сверху вниз» по-прежнему виден.
+ */
+const BLOCK_STEP_MS = 90
 /**
  * Блок проявляется, пока звёзды к нему летят, и становится непрозрачным
  * (половина BLOCK_REVEAL_MS) ровно к их прилёту — звёзды гаснут уже под ним.
@@ -52,6 +60,34 @@ const BLOCK_REVEAL_MS = 600
 const REVEAL_LEAD_MS = BLOCK_REVEAL_MS / 2
 /** Разброс вылета звёзд одного блока (SCATTER_MS в сцене) — с запасом. */
 const SCATTER_ALLOWANCE_MS = 80
+/**
+ * Тёмная подложка экрана входа гаснет под звёздами, а не обрывается: в светлой
+ * теме главная иначе вспыхивала белым в момент смены страницы (решение 199).
+ */
+const VEIL_FADE_MS = 700
+/** Панель входа доиграла появление (panelIn: 180 + 760 мс) — её место окончательное. */
+const PANEL_SETTLED_MS = 1100
+
+/**
+ * Куда идёт поток (решение 199). Голова кометы — в пустом углу над знаком
+ * SkillLink, приёмник — на левой кромке формы входа, на уровне заголовка «Вход»:
+ * поток идёт над текстом и приходит в форму, а не режет пространство между ними.
+ * Только для раскладки в две колонки (шире 960 px); в одну колонку — null,
+ * сцена как раньше.
+ */
+function measureAnchors(): StreamAnchors | null {
+  const width = window.innerWidth
+  const height = window.innerHeight
+  if (width <= 960) return null
+  const panel = document.querySelector<HTMLElement>(`.${styles.panel}`)
+  const brand = document.querySelector<HTMLElement>(`.${styles.brandRow}`)
+  if (!panel) return null
+  const form = panel.getBoundingClientRect()
+  const top = brand?.getBoundingClientRect().top ?? height * 0.3
+  const source: [number, number] = [Math.round(width * 0.21), Math.round(Math.max(60, Math.min(height * 0.19, top - 90)))]
+  const target: [number, number] = [Math.round(form.left) - 4, Math.round(Math.max(form.top + 64, source[1] + 24))]
+  return { source, target }
+}
 
 type Channel = {
   send: (message: WorkerMessage, transfer?: Transferable[]) => void
@@ -60,6 +96,17 @@ type Channel = {
 
 export function Constellation() {
   const hostRef = useRef<HTMLDivElement | null>(null)
+  /** Перенести холст прыжка в body — ровно в момент, когда экран входа снимается. */
+  const handOffRef = useRef<(() => void) | null>(null)
+
+  /**
+   * Холст уходит в body не в момент щелчка, а когда React снимает экран входа
+   * (очистка эффекта разметки идёт в том же коммите, до отрисовки). Раньше он
+   * переносился сразу — под непрозрачный фон экрана входа (слой −1), и первые
+   * 0,4–0,6 с прыжка экран был пуст, а звёзды появлялись уже посреди воронки:
+   * это и читалось как «лаг» (решение 199).
+   */
+  useLayoutEffect(() => () => handOffRef.current?.(), [])
 
   useEffect(() => {
     const host = hostRef.current
@@ -90,6 +137,7 @@ export function Constellation() {
       pixelRatio: window.devicePixelRatio,
       reduced,
       narrow: window.innerWidth < 720,
+      anchors: measureAnchors(),
     }
 
     let unmounted = false
@@ -97,6 +145,8 @@ export function Constellation() {
     let handedOff = false
     let channel: Channel | null = null
     let cleanupTimer = 0
+    let veil: HTMLDivElement | null = null
+    let settleTimer = 0
 
     const onReady = () => {
       // Метка для формы входа: прыжок будет — переход на сайт ждёт пика вспышки.
@@ -106,12 +156,14 @@ export function Constellation() {
     function finish() {
       window.clearTimeout(cleanupTimer)
       window.clearTimeout(readyTimer)
+      window.clearTimeout(settleTimer)
       window.clearInterval(pollTimer)
       // Идущую сборку снимет её собственный таймер, когда блоки доиграют.
       if (document.body.dataset.starAssembly === 'pending') stopAssembly()
       channel?.close()
       channel = null
       canvas.remove()
+      veil?.remove()
       observer.disconnect()
       window.removeEventListener('pointermove', onPointer)
       window.removeEventListener('resize', onResize)
@@ -129,6 +181,7 @@ export function Constellation() {
         if (!scene) return void pending.push(message)
         if (message.type === 'pointer') scene.pointer(message.x, message.y)
         else if (message.type === 'resize') scene.resize(message.width, message.height)
+        else if (message.type === 'anchor') scene.anchor(message.anchors, message.width, message.height)
         else if (message.type === 'warp') {
           warping = true
           scene.warp(performance.now())
@@ -234,12 +287,20 @@ export function Constellation() {
         x: event.clientX / window.innerWidth - 0.5,
         y: event.clientY / window.innerHeight - 0.5,
       })
-    const onResize = () =>
+    /** Форма встала на место или окно изменилось — поток идёт в её кромку. */
+    const sendAnchors = () => {
+      const anchors = measureAnchors()
+      if (anchors) channel?.send({ type: 'anchor', anchors, width: window.innerWidth, height: window.innerHeight })
+    }
+    const onResize = () => {
       channel?.send({
         type: 'resize',
         width: window.innerWidth,
         height: window.innerHeight,
       })
+      sendAnchors()
+    }
+    settleTimer = window.setTimeout(sendAnchors, PANEL_SETTLED_MS)
     const onVisibility = () => channel?.send({ type: 'visibility', hidden: document.hidden })
     window.addEventListener('pointermove', onPointer, { passive: true })
     window.addEventListener('resize', onResize)
@@ -247,9 +308,10 @@ export function Constellation() {
     onVisibility()
 
     /**
-     * Прыжок: форма входа ставит `body[data-auth-leaving]`. Холст переносится
-     * в body поверх всего — экран входа уйдёт, а прыжок доиграет над сайтом.
-     * Звёзды гаснут сами, собрав страницу (решение 76).
+     * Прыжок: форма входа ставит `body[data-auth-leaving]`. Пока экран входа на
+     * месте, звёзды летят в своём слое за колонками; когда React его снимает,
+     * холст переходит в body (handOffRef) и доигрывает под сайтом. Звёзды гаснут
+     * сами, собрав страницу (решение 76).
      */
     // ── Сборка главной звёздами (решение 76) ───────────────────────────────
     let pollTimer = 0
@@ -401,8 +463,21 @@ export function Constellation() {
     const observer = new MutationObserver(() => {
       if (handedOff || reduced || !document.body.dataset.authLeaving || !channel) return
       handedOff = true
-      canvas.className = `${styles.sceneCanvas} ${styles.warpCanvas}`
-      document.body.appendChild(canvas)
+      handOffRef.current = () => {
+        handOffRef.current = null
+        // Подложка — под холстом (тот же слой, раньше в документе): звёзды поверх неё.
+        const layer = document.createElement('div')
+        layer.className = styles.warpVeil ?? ''
+        layer.dataset.forceDark = ''
+        layer.setAttribute('aria-hidden', 'true')
+        document.body.appendChild(layer)
+        veil = layer
+        layer
+          .animate([{ opacity: 1 }, { opacity: 0 }], { duration: VEIL_FADE_MS, easing: 'ease-out', fill: 'forwards' })
+          .finished.then(() => layer.remove(), () => layer.remove())
+        canvas.className = `${styles.sceneCanvas} ${styles.warpCanvas}`
+        document.body.appendChild(canvas)
+      }
       channel.send({ type: 'warp' })
       if (assembles) waitForPage()
       // Без сборки — звёзды собираются в диск и разлетаются, сайт приходит сам.
