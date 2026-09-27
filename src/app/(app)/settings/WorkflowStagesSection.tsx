@@ -151,6 +151,7 @@ function EditWorkflowStageModal({
       isOpen
       onClose={onClose}
       title={`Этап ${stage.stageNumber} — ${stage.phaseLabel}`}
+      help={{ topic: 'workflow-settings' }}
       description="Правится только название и нормативный срок. Признак «Контрольная точка» задан в коде и здесь не меняется."
       closeOnBackdrop={false}
       footer={

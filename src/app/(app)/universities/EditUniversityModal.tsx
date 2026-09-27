@@ -76,6 +76,7 @@ export function EditUniversityModal({
       isOpen
       onClose={() => onClose(false)}
       title="Изменить вуз"
+      help={{ topic: 'university-card' }}
       description="Адрес, ИНН, ОГРН и контакты правятся отдельно в карточке."
       closeOnBackdrop={false}
       footer={

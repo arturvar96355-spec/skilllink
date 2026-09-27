@@ -57,6 +57,7 @@ export function MergeWithDuplicate({
           isOpen
           onClose={close}
           title="Слить с дублем"
+          help={{ topic: 'data-quality', section: 'merge' }}
           description="Выберите вуз, который на самом деле тот же, что этот. На следующем шаге — сравнение полей, выбор, какой оставить, и отмена сразу после слияния. Пары, которые система нашла сама, — в «Качество данных» → «Кандидаты в дубли»."
           closeOnBackdrop={false}
           footer={

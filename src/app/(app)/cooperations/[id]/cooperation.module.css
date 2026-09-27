@@ -32,6 +32,13 @@
   color: var(--text-tertiary);
 }
 
+/* Подпись с «?» (решение 217): значок на одной линии с подписью, не ниже неё. */
+.factLabelHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .factValue {
   font-size: var(--text-card-title-size);
   font-weight: 600;
@@ -272,6 +279,12 @@
   color: var(--text-tertiary);
 }
 
+.blockLabelHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .blockText {
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
@@ -349,6 +362,7 @@
 
 .actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
 }
@@ -451,6 +465,7 @@
 .tabActions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
 }

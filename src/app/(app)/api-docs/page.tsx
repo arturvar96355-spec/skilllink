@@ -1,4 +1,4 @@
-import { Button, InfoHint, PageHeader } from '@/ui'
+import { Button, PageHeader } from '@/ui'
 import { SwaggerView } from './SwaggerView'
 
 /**
@@ -21,9 +21,10 @@ export default function ApiDocsPage() {
       <PageHeader
         title="Swagger: описание API"
         description="Описание всех методов API в формате OpenAPI 3; можно выполнить запрос прямо отсюда."
-        meta={
-          <InfoHint text="Раскройте метод, нажмите «Try it out», затем «Execute»: запрос уйдёт от вашего имени, с правами вашей роли. Изменяющие методы меняют данные по-настоящему." />
-        }
+        help={{
+          topic: 'api',
+          note: 'Раскройте метод, нажмите «Try it out», затем «Execute»: запрос уйдёт от вашего имени, с правами вашей роли. Изменяющие методы меняют данные по-настоящему.',
+        }}
         actions={
           <Button
             variant="secondary"

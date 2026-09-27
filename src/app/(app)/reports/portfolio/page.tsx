@@ -8,6 +8,7 @@ import {
   Button,
   CardsSkeleton,
   ErrorState,
+  HelpHint,
   MockBadge,
   NO_DATA,
   PageHeader,
@@ -151,13 +152,17 @@ export default function ManagerReportPage() {
     <>
       <PageHeader
         title="Отчёт руководителю"
+        help={{ topic: 'reports', section: 'portfolio' }}
         breadcrumbs={[{ label: 'Главная', href: ROUTES.dashboard }, { label: 'Отчёт руководителю' }]}
         description="Состояние сотрудничества с вузами — документ A4 для печати и отправки. «Сохранить в PDF» открывает окно печати браузера: выберите в нём «Сохранить как PDF» (на iPhone — «Поделиться» → «Сохранить в Файлы»)."
         actions={
           isReady ? (
-            <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
-              Сохранить в PDF
-            </Button>
+            <>
+              <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
+                Сохранить в PDF
+              </Button>
+              <HelpHint topic="exports" section="pdf" />
+            </>
           ) : undefined
         }
       />

@@ -86,6 +86,7 @@ export function CreateDsarRequestModal({ onClose, onCreated }: { onClose: () => 
       isOpen
       onClose={onClose}
       title="Зарегистрировать запрос субъекта"
+      help={{ topic: 'dsar', section: 'register' }}
       description="Для запроса, который пришёл письмом: срок ответа считается от даты получения, а не от сегодняшнего дня."
       footer={
         <>
@@ -191,6 +192,7 @@ export function EraseSubjectModal({
       onClose={onClose}
       closeOnBackdrop={false}
       title="Обезличить по запросу субъекта"
+      help={{ topic: 'dsar', section: 'fulfil' }}
       description="Необратимо: персональные данные будут стёрты, запись останется без ФИО, почты и телефона — ради связей и истории работы."
       footer={
         <>

@@ -54,6 +54,13 @@
   border-left: 1px solid var(--border-divider);
 }
 
+/* Подпись с «?» (решение 217). */
+.labelHelp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .ratingLabel {
   font-size: var(--text-caption-size);
   font-weight: var(--text-caption-weight);

@@ -52,6 +52,7 @@ export function ChangeCooperationStatusModal({
       isOpen
       onClose={() => onClose(null)}
       title="Сменить статус связки"
+      help={{ topic: 'cooperation-card', section: 'status' }}
       description="Статус отражает состояние сотрудничества с вузом в целом — отдельно от того, на каком этапе сейчас работа."
       closeOnBackdrop={false}
       footer={

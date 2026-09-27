@@ -16,7 +16,7 @@ import {
   ErrorState,
   Input,
   MockBadge,
-  InfoHint,
+  HelpHint,
   PageHeader,
   Pagination,
   Section,
@@ -266,13 +266,13 @@ export default function UniversitiesPage() {
       <PageHeader
         title="Вузы"
         description="Реестр вузов, с которыми ведётся работа. Балл сравнивает вузы между собой."
-        meta={
-          <>
-            {containsMock && <MockBadge />}
-            {/* Рейтинг и статусы — одной подсказкой (решение 212). */}
-            <InfoHint text="Рейтинг — балл от 0 до 100: среднее по программам вуза (заявки, обучающиеся, параллельные группы) относительно всех программ в системе. Статус: «В работе» — связки заведены, «Активен» — обучение уже идёт. «4 из 5 связок в работе» — сколько связок вуза сейчас идут." />
-          </>
-        }
+        // Рейтинг и статусы — одной подсказкой (решение 212), в том же «?», что ведёт
+        // в документацию (решение 217): второго значка у заголовка нет.
+        help={{
+          topic: 'universities',
+          note: 'Рейтинг — балл от 0 до 100: среднее по программам вуза (заявки, обучающиеся, параллельные группы) относительно всех программ в системе. Статус: «В работе» — связки заведены, «Активен» — обучение уже идёт. «4 из 5 связок в работе» — сколько связок вуза сейчас идут.',
+        }}
+        meta={containsMock ? <MockBadge /> : undefined}
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же вузы, что в реестре. */}
@@ -283,6 +283,7 @@ export default function UniversitiesPage() {
             >
               Выгрузить
             </DownloadButton>
+            <HelpHint topic="exports" section="registry" />
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Добавить вуз
@@ -292,7 +293,10 @@ export default function UniversitiesPage() {
         }
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         {!isWork && (
           <ToolbarItem>
             <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">

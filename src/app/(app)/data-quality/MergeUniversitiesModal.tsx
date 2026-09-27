@@ -142,6 +142,7 @@ export function MergeUniversitiesModal({ pair, onClose, onMerged }: Props) {
     <Modal
       isOpen
       title="Слить дубли вузов"
+      help={{ topic: 'data-quality', section: 'merge' }}
       description="Один вуз останется, второй уйдёт в архив со ссылкой на него — все его программы, связки, контакты, встречи, документы, заявки и учётные записи представителей переедут к оставшемуся."
       onClose={onClose}
       wide

@@ -30,6 +30,7 @@ import {
   DocumentStatusBadge,
   EmptyState,
   ErrorState,
+  HelpHint,
   hasActiveFilters,
   Icon,
   Modal,
@@ -470,6 +471,7 @@ export default function UniversityPage() {
       <PageHeader
         variant="display"
         title={data.shortName ?? data.name}
+        help={{ topic: 'university-card' }}
         subtitle={data.shortName ? data.name : undefined}
         breadcrumbs={[{ label: 'Вузы', href: '/universities' }, { label: data.shortName ?? data.name }]}
         meta={
@@ -552,7 +554,10 @@ export default function UniversityPage() {
 
         {data.rating && (
           <Card padding="md" className={styles.ratingCard}>
-            <span className={styles.factLabel}>Рейтинг вуза</span>
+            <span className={[styles.factLabel, styles.labelHelp].join(' ')}>
+              Рейтинг вуза
+              <HelpHint topic="university-card" section="rating" />
+            </span>
             {data.rating.score === null ? (
               <span className={styles.ratingEmpty}>Нет данных</span>
             ) : (
@@ -587,6 +592,7 @@ export default function UniversityPage() {
         // Граф связей — первым: суть вуза в SkillLink видна до контактов и реквизитов (решение 79).
         <Section
           title="Связи вуза"
+          help={{ topic: 'university-card', section: 'links' }}
           description="Программы вуза и IT-продукты, с которыми они связаны. Цвет провода — статус связки, метка — текущий этап."
         >
           <UniversityGraph
@@ -602,7 +608,7 @@ export default function UniversityPage() {
       {tab === 'overview' && (
         <div className={styles.grid}>
           <Card>
-            <Section title="Контакты">
+            <Section title="Контакты" help={{ topic: 'personal-data' }}>
               <ContactsCard universityId={data.id} contacts={data.contacts} onChanged={() => university.reload()} />
             </Section>
           </Card>
@@ -645,7 +651,10 @@ export default function UniversityPage() {
               </div>
 
               <div className={styles.responsibleRow}>
-                <span className={styles.factLabel}>Ответственный</span>
+                <span className={[styles.factLabel, styles.labelHelp].join(' ')}>
+                  Ответственный
+                  <HelpHint topic="university-card" section="responsible" />
+                </span>
                 <span className={styles.factValue}>
                   {data.responsible ? data.responsible.fullName : 'Не назначен'}
                 </span>
@@ -714,9 +723,12 @@ export default function UniversityPage() {
         </Card>
       )}
 
-      {tab === 'gaps' && gapMarks.section && (
+      {tab === 'gaps' && (
         <div className={styles.tableNote}>
-          <MockBadge title="Спрос рынка в этой таблице — демонстрационный набор, а не подтверждённая статистика." />
+          {gapMarks.section && (
+            <MockBadge title="Спрос рынка в этой таблице — демонстрационный набор, а не подтверждённая статистика." />
+          )}
+          <HelpHint topic="programs" section="demand" />
         </div>
       )}
       {tab === 'gaps' && (
@@ -818,6 +830,7 @@ export default function UniversityPage() {
               />
             </div>
             {hasTimelineFilters && <ResetFilters active onReset={resetTimelineFilters} />}
+            <HelpHint topic="university-card" section="history" />
           </div>
           {timelineItems.length === 0 && timeline.isLoading ? (
             <TableSkeleton rows={5} columns={2} />
@@ -900,6 +913,7 @@ export default function UniversityPage() {
           isOpen
           onClose={() => setIsArchiving(false)}
           title="Перенести вуз в архив"
+          help={{ topic: 'university-card', section: 'archive' }}
           description="Вуз пропадёт из активных списков и его нельзя будет изменять, пока не вернёте из архива. Программы, связки и история сотрудничества останутся."
           closeOnBackdrop={false}
           footer={
@@ -921,6 +935,7 @@ export default function UniversityPage() {
           isOpen
           onClose={() => setIsRestoring(false)}
           title="Вернуть вуз из архива"
+          help={{ topic: 'university-card', section: 'archive' }}
           description="Вуз снова появится в активных списках, и его можно будет изменять."
           closeOnBackdrop={false}
           footer={
@@ -940,6 +955,7 @@ export default function UniversityPage() {
       {changingResponsible && (
         <ChangeResponsibleModal
           title={data.responsible ? 'Сменить ответственного за вуз' : 'Назначить ответственного за вуз'}
+          help={{ topic: 'university-card', section: 'responsible' }}
           description="Ответственный за вуз — сотрудник, который ведёт работу с ним в целом, отдельно от ответственных по конкретным связкам."
           endpoint={`/api/universities/${id}/responsible`}
           consequence="Новый ответственный увидит назначение в уведомлениях и получит сообщение в подключённый мессенджер, смена попадёт в журнал действий. Ответственные по связкам вуза не меняются."

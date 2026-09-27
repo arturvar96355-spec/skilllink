@@ -22,7 +22,7 @@ import {
   ErrorState,
   Input,
   MockBadge,
-  InfoHint,
+  HelpHint,
   PageHeader,
   Pagination,
   Section,
@@ -331,13 +331,13 @@ function CooperationsView() {
       <PageHeader
         title="Связки"
         description="Связки «вуз — программа — IT-продукт». Каждая проходит четырнадцать этапов."
-        meta={
-          <>
-            {containsMock && <MockBadge />}
-            {/* «07 / 14» рядом с «6 из 13» эксперт принял за ошибку (решение 212). */}
-            <InfoHint text="«07 / 14» — номер текущего этапа из 14. Прогресс считается из 13: последний, «Контроль выполнения», закрывается сам, когда закрыты остальные. «План сдвинут» — срок этапа прошёл, пока шли этапы до него; это не просрочка. «Срок» — плановая дата завершения всей связки." />
-          </>
-        }
+        // «07 / 14» рядом с «6 из 13» эксперт принял за ошибку (решение 212) — как читать
+        // строку, сказано в том же «?», что ведёт в документацию (решение 217).
+        help={{
+          topic: 'cooperations',
+          note: '«07 / 14» — номер текущего этапа из 14. Прогресс считается из 13: последний, «Контроль выполнения», закрывается сам, когда закрыты остальные. «План сдвинут» — срок этапа прошёл, пока шли этапы до него; это не просрочка. «Срок» — плановая дата завершения всей связки.',
+        }}
+        meta={containsMock ? <MockBadge /> : undefined}
         actions={
           <>
             <DownloadButton
@@ -347,6 +347,7 @@ function CooperationsView() {
             >
               Выгрузить
             </DownloadButton>
+            <HelpHint topic="exports" section="registry" />
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Создать связку
@@ -356,7 +357,10 @@ function CooperationsView() {
         }
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         <ToolbarSearch>
           <Input
             label="Поиск"

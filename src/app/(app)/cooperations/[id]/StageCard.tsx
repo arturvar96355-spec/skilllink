@@ -17,6 +17,7 @@ import {
   DeadlineBadge,
   Drawer,
   ErrorState,
+  HelpHint,
   Icon,
   Checkbox,
   Modal,
@@ -305,9 +306,12 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
 
             {stage.tasks.length > 0 && (
               <div className={styles.block}>
-                <span className={styles.blockLabel}>
-                  Чек-лист этапа
-                  {requiredLeft > 0 && ` · не закрыто обязательных: ${requiredLeft}`}
+                <span className={[styles.blockLabel, styles.blockLabelHelp].join(' ')}>
+                  <span>
+                    Чек-лист этапа
+                    {requiredLeft > 0 && ` · не закрыто обязательных: ${requiredLeft}`}
+                  </span>
+                  <HelpHint topic="stages" section="checklist" />
                 </span>
                 <div className={styles.tasks}>
                   {stage.tasks.map((task) => (
@@ -367,7 +371,10 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
             )}
 
             <div className={styles.block}>
-              <span className={styles.blockLabel}>Файлы</span>
+              <span className={[styles.blockLabel, styles.blockLabelHelp].join(' ')}>
+                Файлы
+                <HelpHint topic="stages" section="files" />
+              </span>
               <Attachments ownerType="STAGE" ownerId={stage.id} canWrite={canWrite} />
             </div>
 
@@ -433,6 +440,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
               <Button variant="ghost" size="sm" icon="clock" onClick={() => setIsHistoryOpen(true)}>
                 История
               </Button>
+              <HelpHint topic="stages" section="actions" />
             </div>
 
             {(stage.startedAt || stage.completedAt) && (
@@ -467,6 +475,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
           isOpen
           onClose={closeNote}
           title="Подтверждение вуза"
+          help={{ topic: 'stages', section: 'uni-confirm' }}
           description="У вуза нет представителя в системе, поэтому пункт отмечает сотрудник. Укажите, чем вуз подтвердил получение материалов."
           closeOnBackdrop={false}
           footer={
@@ -522,6 +531,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
       {isResponsibleOpen && (
         <ChangeResponsibleModal
           title={`Ответственный этапа ${stage.stageNumber}`}
+          help={{ topic: 'stages', section: 'responsible' }}
           description={`«${stage.title}»`}
           endpoint={`/api/workflow/stages/${stage.id}`}
           consequence="Новый ответственный увидит назначение в уведомлениях и получит сообщение в подключённый мессенджер, смена попадёт в журнал действий — с автором и временем."
@@ -548,7 +558,13 @@ function StageHistoryDrawer({
   const history = useResource<StageHistoryEntryDto[]>(`/api/workflow/stages/${stageId}/history`)
 
   return (
-    <Drawer isOpen onClose={onClose} title="История этапа" description={stageTitle}>
+    <Drawer
+      isOpen
+      onClose={onClose}
+      title="История этапа"
+      description={stageTitle}
+      help={{ topic: 'stages', section: 'history' }}
+    >
       {history.isLoading ? (
         <SkeletonLines count={4} />
       ) : history.error ? (

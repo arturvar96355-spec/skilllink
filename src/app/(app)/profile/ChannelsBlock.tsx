@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { ChannelConnectDto, ChannelId, ChannelStatusDto } from '@/shared/contracts'
 import {
+  HelpHint,
   Badge,
   Button,
   Skeleton,
@@ -113,7 +114,7 @@ export function ChannelsBlock() {
 
   return (
     <>
-      {data.map((row) => {
+      {data.map((row, index) => {
         const link = links[row.id]
         let caption: string
         let side: ReactNode = null
@@ -164,7 +165,11 @@ export function ChannelsBlock() {
         return (
           <div className={styles.row} key={row.id}>
             <div className={styles.rowText}>
-              <span className={styles.rowTitle}>{row.title}</span>
+              <span className={styles.rowTitle}>
+                {row.title}
+                {/* Один «?» на все каналы — у первого (решение 217): строки одинаковые. */}
+                {index === 0 && <HelpHint topic="channels" section="personal" />}
+              </span>
               <span className={styles.rowCaption}>{caption}</span>
             </div>
             <div className={styles.rowSide}>{side}</div>

@@ -10,6 +10,7 @@ import {
   Badge,
   Button,
   Card,
+  HelpHint,
   Icon,
   SkeletonLines,
   Textarea,
@@ -17,6 +18,7 @@ import {
   formatDateTime,
   useMutation,
   useToast,
+  type HelpHintProps,
 } from '@/ui'
 import { LetterRewrite, rewrittenNote, useDraftRewrite } from './LetterRewrite'
 import styles from './AiDraft.module.css'
@@ -140,6 +142,8 @@ export function AiDraftLoading() {
 
 export interface AiAssistCardProps {
   title: string
+  /** «?» у заголовка — что делает помощник здесь (решение 217). */
+  help?: HelpHintProps
   description: string
   actionLabel: string
   /** Маршрут генерации: POST без тела. */
@@ -150,7 +154,7 @@ export interface AiAssistCardProps {
  * Блок помощника с кнопкой. Ничего не генерируется при открытии страницы —
  * только по нажатию: каждый вызов модели стоит денег и идёт в лимит.
  */
-export function AiAssistCard({ title, description, actionLabel, endpoint }: AiAssistCardProps) {
+export function AiAssistCard({ title, help, description, actionLabel, endpoint }: AiAssistCardProps) {
   const toast = useToast()
   const [draft, setDraft] = useState<AiDraftDto | null>(null)
   const generate = useMutation(async () => (await apiPost<AiDraftDto>(endpoint)).data)
@@ -171,6 +175,7 @@ export function AiAssistCard({ title, description, actionLabel, endpoint }: AiAs
           <span className={styles.title}>
             <Icon name="spark" size={16} />
             {title}
+            {help && <HelpHint {...help} />}
           </span>
           <p className={styles.description}>{description}</p>
           <p className={styles.note}>Цифры считает код, текст пишет YandexGPT, решение принимает человек</p>

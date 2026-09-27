@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { HELP_TOPICS, helpHref, type HelpTopicId } from '@/shared/help/topics'
+import { helpEntry, type HelpRef } from '@/shared/help/tools'
 import { useEscape, useMediaQuery } from '../hooks/dom'
 import { Icon } from './Icon'
 import tooltipStyles from './Tooltip.module.css'
@@ -16,9 +16,18 @@ const HOVER_OPEN_MS = 180
 /** И закрывает не сразу: курсор успевает перейти со значка на ссылку в окне. */
 const HOVER_CLOSE_MS = 220
 
-export interface HelpHintProps {
-  /** Раздел документации — ключ реестра `shared/help`. Неизвестный ключ — ошибка типов. */
-  topic: HelpTopicId
+/**
+ * Раздел документации — ключ реестра `shared/help` — и, если «?» стоит у
+ * конкретной кнопки или блока, его подраздел (`tools.ts`, решение 217).
+ * Неизвестный раздел и подраздел чужого раздела — ошибка типов.
+ */
+export type HelpHintProps = HelpRef & {
+  /**
+   * Как читать числа и пометки именно этого экрана — строка, которая раньше
+   * стояла отдельным `InfoHint` рядом (решение 217): два «?» у одного заголовка
+   * не ставим, пояснение переезжает в окошко документации.
+   */
+  note?: string
 }
 
 /**
@@ -27,7 +36,8 @@ export interface HelpHintProps {
  * Тот же значок и тот же пузырь, что у `InfoHint` (решение 211), — классы
  * `Tooltip.module.css`: третьего вида «?» в системе нет. Разница в содержимом:
  * заголовок раздела, `short` — что это, `how` — как пользоваться, и ссылка
- * «Подробнее в документации →». Текст — из реестра `shared/help/topics.ts`,
+ * «Подробнее в документации →». Текст — из реестра `shared/help/topics.ts`
+ * (у кнопки или блока — подраздел из `tools.ts`, решение 217),
  * того же, из которого собраны `/docs`, `/help` и `docs/USER_GUIDE.md`.
  *
  * Поэтому это не подсказка (`role="tooltip"` не может содержать ссылку), а
@@ -41,8 +51,8 @@ export interface HelpHintProps {
  * подсказка бывает только на экранах системы, и переход остаётся в каркасе —
  * без перезагрузки, с шапкой и кнопкой «Назад». Текст там тот же, что на `/docs`.
  */
-export function HelpHint({ topic }: HelpHintProps) {
-  const entry = HELP_TOPICS[topic]
+export function HelpHint(props: HelpHintProps) {
+  const entry = helpEntry(props)
   const panelId = useId()
   const titleId = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -184,6 +194,9 @@ export function HelpHint({ topic }: HelpHintProps) {
             id={panelId}
             role="dialog"
             aria-labelledby={titleId}
+            // Окошко лежит в body, а открыто из меню, колокольчика или модального окна:
+            // по этой пометке их «нажатие вне» и удержание фокуса считают его своим.
+            data-floating-layer=""
             tabIndex={-1}
             className={[tooltipStyles.bubble, styles.panel].join(' ')}
             style={position ? { left: position.left, top: position.top } : { left: 0, top: 0, visibility: 'hidden' }}
@@ -201,8 +214,9 @@ export function HelpHint({ topic }: HelpHintProps) {
               {entry.title}
             </span>
             <span className={styles.text}>{entry.short}</span>
+            {props.note && <span className={styles.text}>{props.note}</span>}
             <span className={styles.text}>{entry.how}</span>
-            <Link href={helpHref(topic)} className={styles.more} onClick={() => close(false)}>
+            <Link href={entry.href} className={styles.more} onClick={() => close(false)}>
               Подробнее в документации
               <Icon name="arrowRight" size={16} />
             </Link>

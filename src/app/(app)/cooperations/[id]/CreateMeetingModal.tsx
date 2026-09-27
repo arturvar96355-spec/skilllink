@@ -93,6 +93,7 @@ export function CreateMeetingModal({
       isOpen
       onClose={() => onClose(false)}
       title="Записать встречу"
+      help={{ topic: 'meetings' }}
       description="Что обсудили и что дальше. Следующий шаг без срока не принимается: иначе он потеряется."
       closeOnBackdrop={false}
       footer={

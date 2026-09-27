@@ -87,6 +87,11 @@
   color: var(--text-primary);
 }
 
+/* «?» (решение 217) — по середине строки заголовка, а не нижним краем на базовой линии. */
+.title > button {
+  align-self: center;
+}
+
 .count {
   font-size: var(--text-caption-size);
   font-weight: 500;

@@ -48,6 +48,7 @@ export function LicenseModal({
       isOpen
       onClose={() => onClose(null)}
       title="Лицензия и передача ПО"
+      help={{ topic: 'cooperation-card', section: 'license' }}
       description="Реквизиты договора и статус передачи продукта вузу — колонки «Каталога по ТЗ». Вендор и ПО берутся из выбранного продукта связки."
       closeOnBackdrop={false}
       footer={

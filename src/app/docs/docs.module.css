@@ -712,6 +712,59 @@
   text-align: right;
 }
 
+/*
+ * «Кнопки и блоки» (решение 217): подразделы раздела — кнопка или блок экрана.
+ * Тише раздела: заголовок размером текста, без «#»; разделены тонкой линией,
+ * как частые вопросы. На подраздел ведёт «?» у кнопки — он отмечается тихим
+ * фоном в цвет акцента, чтобы после перехода глаз сразу нашёл место.
+ */
+.tools {
+  display: flex;
+  flex-direction: column;
+}
+
+.tool {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--line-subtle);
+  scroll-margin-top: calc(var(--docs-top) + var(--space-4));
+  transition: background var(--motion-micro) var(--ease-out);
+}
+
+.tool:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.tool:target,
+.tool[data-doc-target] {
+  margin: 0 calc(var(--space-3) * -1);
+  padding: var(--space-3);
+  border-top-color: transparent;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--accent-violet) 10%, transparent);
+}
+
+.toolTitle {
+  margin-bottom: var(--space-1);
+  color: var(--text-primary);
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  line-height: var(--text-body-sm-line);
+}
+
+.tool p + p {
+  margin-top: var(--space-2);
+}
+
+.toolWho {
+  color: var(--text-tertiary);
+  font-size: var(--text-body-sm-size);
+}
+
+.toolWhoLabel {
+  font-weight: 600;
+}
+
 .faq {
   display: flex;
   flex-direction: column;
@@ -1000,7 +1053,8 @@
     display: flex;
   }
 
-  .section {
+  .section,
+  .tool {
     scroll-margin-top: calc(var(--docs-top) + 72px);
   }
 

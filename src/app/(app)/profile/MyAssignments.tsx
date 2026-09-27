@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { AssignmentDto, AssignmentStatus } from '@/shared/contracts'
 import {
+  HelpHint,
   Card,
   EmptyState,
   ErrorState,
@@ -82,10 +83,13 @@ export function MyAssignments() {
     <section id="my-assignments" className={[styles.block, rowStyles.block].join(' ')} aria-labelledby="profile-assignments">
       <div className={styles.blockHead}>
         <div>
-          <h2 id="profile-assignments" className={styles.blockTitle}>
-            Мои поручения
-            {items.some((item) => item.isMock) && <MockBadge />}
-          </h2>
+          <div className={styles.blockTitleRow}>
+            <h2 id="profile-assignments" className={styles.blockTitle}>
+              Мои поручения
+              {items.some((item) => item.isMock) && <MockBadge />}
+            </h2>
+            <HelpHint topic="assignments" section="statuses" />
+          </div>
           {list.data && (
             <p className={rowStyles.summary}>
               {open.length === 0

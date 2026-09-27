@@ -36,6 +36,7 @@ export function CalendarFeedModal({ issued, onClose }: { issued: IssuedCalendarF
       onClose={onClose}
       closeOnBackdrop={false}
       title={issued.replaced ? 'Новая ссылка на календарь' : 'Календарь подключён'}
+      help={{ topic: 'calendar' }}
       description="Ссылка показывается один раз. Больше мы её не покажем — только выпустим новую, а эта перестанет работать."
       footer={
         <Button variant="primary" onClick={onClose}>

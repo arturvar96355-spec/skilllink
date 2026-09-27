@@ -169,6 +169,13 @@
   gap: var(--space-3);
 }
 
+/* Заголовок блока с «?» (решение 217): значок сразу за текстом. */
+.blockHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .blockTitle {
   font-size: var(--text-h3-size);
   font-weight: var(--text-h3-weight);

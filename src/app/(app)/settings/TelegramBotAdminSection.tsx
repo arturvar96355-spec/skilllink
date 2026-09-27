@@ -88,6 +88,7 @@ function ChangeTokenModal({ onClose, onChanged }: { onClose: () => void; onChang
       onClose={onClose}
       closeOnBackdrop={false}
       title="Сменить токен бота"
+      help={{ topic: 'telegram' }}
       description="Токен выдаёт @BotFather (команда /token или /newbot). Хранится зашифрованно."
       footer={
         <>
@@ -128,6 +129,7 @@ function DisconnectModal({ onClose, onConfirm, isPending }: { onClose: () => voi
       isOpen
       onClose={onClose}
       title="Отключить бота?"
+      help={{ topic: 'telegram' }}
       description="Токен удаляется из базы, вебхук снимается, приём обновлений останавливается. Токен, заданный переменной окружения сервера (если есть), продолжит действовать."
       footer={
         <>
@@ -215,7 +217,10 @@ export function TelegramBotAdminSection() {
               `· сейчас: ${RUNNING_LABELS[data.running]}`
             : 'Токен не задан'
         }
-        hint="Токен — из переменной окружения сервера или из этой админки (сохранённый здесь — главнее). Ни тот ни другой нигде не показываются."
+        help={{
+          topic: 'telegram',
+          note: 'Токен — из переменной окружения сервера или из этой админки (сохранённый здесь — главнее). Ни тот ни другой нигде не показываются.',
+        }}
       >
         <Badge tone={tone} withDot>
           {label}

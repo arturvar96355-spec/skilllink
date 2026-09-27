@@ -32,6 +32,16 @@ function sectionMarkdown(section: HelpSection): string {
   section.steps.forEach((step, index) => lines.push(`${index + 1}. ${step}`))
   lines.push('')
 
+  if (section.tools.length > 0) {
+    lines.push('**Кнопки и блоки.**', '')
+    for (const tool of section.tools) {
+      lines.push(`<a id="${tool.anchor}"></a>`, '', `#### ${tool.title}`, '')
+      lines.push(`${tool.short} ${tool.how}`, '')
+      for (const paragraph of tool.details) lines.push(paragraph, '')
+      lines.push(`*Кто может:* ${tool.who}`, '')
+    }
+  }
+
   if (section.rights) {
     lines.push(`| Что можно | ${HELP_ROLE_COLUMNS.map((column) => column.label).join(' | ')} |`)
     lines.push(`|---|${HELP_ROLE_COLUMNS.map(() => ':---:').join('|')}|`)

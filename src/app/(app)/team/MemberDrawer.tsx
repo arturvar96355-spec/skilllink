@@ -15,6 +15,7 @@ import {
   Button,
   Drawer,
   ErrorState,
+  HelpHint,
   MockBadge,
   SkeletonLines,
   buildQuery,
@@ -25,6 +26,7 @@ import {
   pluralize,
   useResource,
   type Resource,
+  type HelpHintProps,
 } from '@/ui'
 import { AssignmentModal } from '../AssignmentModal'
 import { AssignmentRows } from '../AssignmentRows'
@@ -42,13 +44,34 @@ const MEETINGS_SHOWN = 6
 /** Сделанных поручений в панели — последние; вся история — в журнале. */
 const DONE_ASSIGNMENTS_SHOWN = 3
 
-function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
+function Section({
+  title,
+  count,
+  help,
+  children,
+}: {
+  title: string
+  count?: number
+  /** «?» у заголовка блока — что в нём можно сделать (решение 217). */
+  help?: HelpHintProps
+  children: ReactNode
+}) {
+  const heading = (
+    <h3 className={styles.panelTitle}>
+      {title}
+      {count !== undefined && <span className={styles.count}>{count}</span>}
+    </h3>
+  )
   return (
     <section className={styles.panelSection}>
-      <h3 className={styles.panelTitle}>
-        {title}
-        {count !== undefined && <span className={styles.count}>{count}</span>}
-      </h3>
+      {help ? (
+        <div className={styles.panelHead}>
+          {heading}
+          <HelpHint {...help} />
+        </div>
+      ) : (
+        heading
+      )}
       {children}
     </section>
   )
@@ -84,7 +107,7 @@ function AssignmentsSection({ resource }: { resource: Resource<AssignmentDto[]> 
   const { open, done } = splitByDone(items)
   const overdue = open.filter((item) => item.dueState === 'overdue').length
   return (
-    <Section title="Поручения" count={open.length}>
+    <Section title="Поручения" count={open.length} help={{ topic: 'assignments', section: 'statuses' }}>
       {resource.isLoading && !resource.data ? (
         <SkeletonLines count={2} />
       ) : resource.error ? (
@@ -162,6 +185,7 @@ export function MemberDrawer({
         onClose={onClose}
         title={title}
         description={description}
+        help={{ topic: 'team', section: 'roster' }}
         footer={
           data && canAssignTasks ? (
             <Button variant="primary" icon="plus" onClick={() => setAssigning(true)}>
@@ -264,7 +288,11 @@ export function MemberDrawer({
             </Section>
 
             {data.cooperations.length > 0 && (
-              <Section title="Связки в работе" count={data.cooperations.length}>
+              <Section
+                title="Связки в работе"
+                count={data.cooperations.length}
+                help={{ topic: 'team', section: 'transfer' }}
+              >
                 <ul className={styles.coopList}>
                   {(showAll ? data.cooperations : data.cooperations.slice(0, COOPERATIONS_SHOWN)).map((coop) => (
                     <li key={coop.id} className={styles.coopItem}>
@@ -339,6 +367,7 @@ export function MemberDrawer({
       {transfer && member && (
         <ChangeResponsibleModal
           title="Передать связку"
+          help={{ topic: 'team', section: 'transfer' }}
           description={`${transfer.universityShortName ?? transfer.universityName} → ${transfer.programName}`}
           consequence="Смена попадёт в журнал действий. Ответственные за отдельные этапы не меняются: их просрочки останутся за прежним сотрудником."
           endpoint={`/api/cooperations/${transfer.id}`}

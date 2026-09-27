@@ -64,6 +64,7 @@ export function ExpertStartHere() {
   return (
     <Section
       title="С чего начать"
+      help={{ topic: 'expert-start' }}
       description="Маршрут по ядру системы на пять минут — для эксперта хакатона."
       action={
         <Button variant="secondary" size="sm" onClick={toggle} aria-expanded={!collapsed}>

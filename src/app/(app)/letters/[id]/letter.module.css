@@ -160,9 +160,11 @@
 }
 
 /* «?» рядом с заголовком или подписью поля (решение 213). */
-.help {
-  color: var(--text-tertiary);
-  vertical-align: -2px;
+/* Заголовок блока и «?» к нему (решение 217): значок сразу за текстом. */
+.blockHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .blockTitle,
@@ -216,4 +218,9 @@
 .acceptIcon {
   color: var(--status-success);
   flex: none;
+}
+
+/* Подпись с «?» — пошире обычного зазора: цель нажатия у значка 32 px. */
+.labelHelp {
+  gap: var(--space-2);
 }

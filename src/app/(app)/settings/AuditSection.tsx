@@ -90,7 +90,11 @@ function IntegritySection() {
             caption
           )
         }
-        hint="Проверка сверяет цепочку хешей записей и печати (решение 115): владелец базы не может незаметно изменить или удалить записи журнала."
+        help={{
+          topic: 'audit-log',
+          section: 'verify',
+          note: 'Владелец базы не может незаметно изменить или удалить записи журнала: проверка сверяет цепочку хешей и печати.',
+        }}
       >
         <Button variant="secondary" size="sm" icon="refresh" onClick={run} isLoading={check.isPending}>
           Проверить
@@ -98,6 +102,7 @@ function IntegritySection() {
       </Row>
       <Row
         title="Выгрузка журнала"
+        help={{ topic: 'audit-log', section: 'export' }}
         caption={`Файл для внешней системы контроля: до ${AUDIT_EXPORT_LIMIT} последних записей, все поля. Фильтры списка ниже на неё не действуют.`}
       >
         <DownloadButton

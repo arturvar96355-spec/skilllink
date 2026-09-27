@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { RESPONSIBLE_ROLES, USER_ROLE_LABELS, type UserDto } from '@/shared/contracts'
-import { Button, Modal, Select, apiPatch, fieldErrors, useMutation, useResource, useToast } from '@/ui'
+import { Button, Modal, Select, apiPatch, fieldErrors, useMutation, useResource, useToast, type HelpHintProps } from '@/ui'
 import styles from './ChangeResponsibleModal.module.css'
 import { deliveryNotice } from './responsible-delivery'
 
@@ -32,6 +32,8 @@ export interface ChangeResponsibleModalProps {
    * «кто сейчас → кого можно назначить → что произойдёт».
    */
   consequence?: string
+  /** Раздел документации у заголовка окна: ответственный за связку, этап или вуз (решение 217). */
+  help?: HelpHintProps
   onClose: (changed: boolean) => void
 }
 
@@ -49,6 +51,7 @@ export function ChangeResponsibleModal({
   currentResponsibleName,
   allowNone = false,
   consequence,
+  help,
   onClose,
 }: ChangeResponsibleModalProps) {
   const toast = useToast()
@@ -95,6 +98,7 @@ export function ChangeResponsibleModal({
       onClose={() => onClose(false)}
       title={title}
       description={description}
+      help={help}
       closeOnBackdrop={false}
       footer={
         <>

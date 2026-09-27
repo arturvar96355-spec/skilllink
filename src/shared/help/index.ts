@@ -4,8 +4,10 @@ import { NOTIFY_TECH_BODIES } from './content/notify-tech'
 import { REPORTS_ADMIN_BODIES } from './content/reports-admin'
 import { START_BODIES } from './content/start'
 import { TEAM_LETTERS_BODIES } from './content/team-letters'
-import { HELP_GROUPS, HELP_TOPICS, HELP_TOPIC_IDS, type HelpGroupId, type HelpTopicId } from './topics'
-import type { HelpSection, HelpTopicBody } from './types'
+import { TOOL_BODIES, type HelpToolBody } from './content/tools'
+import { HELP_TOOLS, type HelpToolSummary } from './tools'
+import { HELP_GROUPS, HELP_TOPICS, HELP_TOPIC_IDS, helpAnchor, type HelpGroupId, type HelpTopicId } from './topics'
+import type { HelpSection, HelpToolSection, HelpTopicBody } from './types'
 
 /**
  * Документация SkillLink целиком (решение 214): краткая часть из `topics.ts`
@@ -25,10 +27,28 @@ const BODIES: Record<HelpTopicId, HelpTopicBody> = {
   ...NOTIFY_TECH_BODIES,
 }
 
+/** Подразделы раздела в порядке реестра `tools.ts` — с полным текстом из `content/tools.ts`. */
+function toolSections(id: HelpTopicId): HelpToolSection[] {
+  const summaries = (HELP_TOOLS as Readonly<Partial<Record<HelpTopicId, Readonly<Record<string, HelpToolSummary>>>>>)[id]
+  const bodies = (TOOL_BODIES as Readonly<Partial<Record<HelpTopicId, Readonly<Record<string, HelpToolBody>>>>>)[id]
+  if (!summaries) return []
+  return Object.entries(summaries).map(([key, summary]) => {
+    const body = bodies?.[key]
+    return {
+      key,
+      anchor: helpAnchor(id, key),
+      ...summary,
+      who: body?.who ?? '',
+      details: body?.details ?? [],
+    }
+  })
+}
+
 export const HELP_SECTIONS: readonly HelpSection[] = HELP_TOPIC_IDS.map((id) => ({
   id,
   ...HELP_TOPICS[id],
   ...BODIES[id],
+  tools: toolSections(id),
 }))
 
 export interface HelpSectionGroup {
@@ -57,7 +77,18 @@ export const HELP_ROLE_COLUMNS = [
   { key: 'REVIEWER', label: 'Эксперт' },
 ] as const
 
-export { HELP_GROUPS, HELP_TOPICS, HELP_TOPIC_IDS, docsHref, helpHref } from './topics'
+export { HELP_GROUPS, HELP_TOPICS, HELP_TOPIC_IDS, docsHref, helpAnchor, helpHref } from './topics'
 export type { HelpGroupId, HelpTopicId, HelpTopicSummary } from './topics'
-export type { HelpFaq, HelpRightsRow, HelpRoleColumn, HelpSection, HelpTerm, HelpTopicBody, HelpWhere } from './types'
+export { HELP_TOOLS, helpEntry } from './tools'
+export type { HelpEntry, HelpRef, HelpToolKey, HelpToolSummary, HelpToolTopic } from './tools'
+export type {
+  HelpFaq,
+  HelpRightsRow,
+  HelpRoleColumn,
+  HelpSection,
+  HelpTerm,
+  HelpToolSection,
+  HelpTopicBody,
+  HelpWhere,
+} from './types'
 export { HELP_TERMS } from './terms'
