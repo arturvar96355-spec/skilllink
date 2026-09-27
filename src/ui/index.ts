@@ -183,3 +183,6 @@ export { OPEN_RECOMMENDATION_STATUSES, CLOSED_RECOMMENDATION_STATUSES } from './
 export { RussiaMap, type MapPoint } from './data/RussiaMap'
 export { Ticker, type TickerItem } from './data/Ticker'
 export { Radar, type RadarAxis, type RadarSeries } from './data/Radar'
+
+// «?» со ссылкой в документацию (решение 214) — отдельной строкой, чтобы не спорить с правками строки Tooltip.
+export { HelpHint } from './primitives/HelpHint'
