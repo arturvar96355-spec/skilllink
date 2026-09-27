@@ -119,6 +119,9 @@
 }
 
 .checkLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--text-caption-size);
   font-weight: 600;
   letter-spacing: var(--text-kicker-tracking);
@@ -149,6 +152,14 @@
 @media (max-width: 720px) {
   .verdict {
     flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-4);
+    padding: var(--space-5);
+  }
+
+  /* Текст рядом с маяком — во всю оставшуюся ширину, кнопка уходит на свою строку. */
+  .verdictText {
+    flex: 1 1 calc(100% - 48px - var(--space-4));
   }
 }
 

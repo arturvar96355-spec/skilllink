@@ -6,7 +6,7 @@ import type {
   SkillMatchSummaryDto,
   StageWithCooperationDto,
 } from '@/shared/contracts'
-import { NO_DATA, formatDate, formatNumber, pluralize } from '@/ui/lib/format'
+import { NO_DATA, formatDate, formatNumber, formatPeriod, formatPoints, pluralize } from '@/ui/lib/format'
 
 /**
  * Тексты отчёта руководителю (решение 97).
@@ -46,13 +46,14 @@ export function metricValueText(metric: Pick<DashboardMetricDto, 'key' | 'value'
 }
 
 /**
- * Сравнение с прошлым периодом, как на главной: «+1 за 30 дней», «−2,5 п.п. за 30 дней».
+ * Сравнение с прошлым периодом, как на главной: «+1 за 30 дней», «−2,5 пункта за 30 дней»
+ * (доля — в процентных пунктах, словом, без «п.п.», решение 211).
  * Без изменений — «0 за 30 дней», словами «без изменений» не пишется (ТЗ фронту, задача 1).
  */
 export function trendText(trend: MetricTrendDto, isShare: boolean): string {
-  if (trend.direction === 'flat') return `${isShare ? '0 п.п.' : '0'} ${trend.periodLabel}`
+  if (trend.direction === 'flat') return `${isShare ? formatPoints(0) : '0'} ${trend.periodLabel}`
   const size = Math.abs(trend.delta)
-  const amount = isShare ? `${formatNumber(Number(size.toFixed(1)))} п.п.` : formatNumber(size)
+  const amount = isShare ? formatPoints(size) : formatNumber(size)
   const sign = trend.direction === 'up' ? '+' : '−'
   return `${sign}${amount} ${trend.periodLabel}`
 }
@@ -212,6 +213,6 @@ export function reportDocumentTitle(generatedAt: string): string {
 export function sourceLine(overview: Pick<DashboardOverviewDto, 'skillMatch' | 'containsMockData'>): string {
   const base =
     'Данные — учёт SkillLink на момент формирования: связки, этапы и рекомендации; рейтинг программ — ' +
-    `по заявкам, обучающимся и группам; спрос рынка на навыки — за период ${overview.skillMatch.period}.`
+    `по заявкам, обучающимся и группам; спрос рынка на навыки — за ${formatPeriod(overview.skillMatch.period)}.`
   return overview.containsMockData ? `${base} Часть данных демонстрационная и не является подтверждённой статистикой.` : base
 }

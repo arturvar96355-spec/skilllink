@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useMediaQuery } from '../hooks/dom'
 import { Icon } from './Icon'
@@ -28,6 +28,13 @@ export interface TooltipProps {
    * Подсказка в этом случае — только по наведению мышью.
    */
   interactive?: boolean
+  /**
+   * На сенсорном экране открывать нажатием (и закрывать нажатием мимо).
+   * Только для явного значка пояснения («?» у термина — `InfoHint`): там
+   * нажатие и есть просьба объяснить. Обрезанному тексту это не нужно
+   * (решение 140, п. 7), поэтому по умолчанию выключено.
+   */
+  openOnTap?: boolean
 }
 
 /** Отступ подсказки от края окна и от того, к чему она относится. */
@@ -44,7 +51,7 @@ const GAP = 8
  * (`position: fixed` — не раздвигает страницу и не зависит от обрезки
  * контейнера), вынесен в body и сдвигается так, чтобы целиком оставаться в окне.
  */
-export function Tooltip({ text, children, disabled = false, interactive = true }: TooltipProps) {
+export function Tooltip({ text, children, disabled = false, interactive = true, openOnTap = false }: TooltipProps) {
   const id = useId()
   const triggerRef = useRef<HTMLSpanElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
@@ -55,6 +62,7 @@ export function Tooltip({ text, children, disabled = false, interactive = true }
   // соседний текст карточки, и закрыть его нечем, кроме тапа мимо (решение 140, п. 7).
   const canHover = useMediaQuery('(hover: hover) and (pointer: fine)')
   const show = !disabled && canHover
+  const tap = !disabled && openOnTap && !canHover
 
   const open = useCallback(() => {
     if (show) setIsOpen(true)
@@ -77,6 +85,16 @@ export function Tooltip({ text, children, disabled = false, interactive = true }
     const top = above >= GAP ? above : trigger.bottom + GAP
     setPosition({ left, top })
   }, [isOpen, text])
+
+  // Открыто нажатием на телефоне — нажатие мимо закрывает.
+  useEffect(() => {
+    if (!isOpen || !tap) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!triggerRef.current?.contains(event.target as Node)) close()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [isOpen, tap, close])
 
   // Прокрутка уводит значок из-под пузыря — закрываем, а не держим в воздухе.
   useLayoutEffect(() => {
@@ -104,6 +122,7 @@ export function Tooltip({ text, children, disabled = false, interactive = true }
         role={interactive ? 'button' : undefined}
         aria-label={interactive ? text : undefined}
         aria-describedby={isOpen ? id : undefined}
+        onClick={tap ? () => (isOpen ? close() : setIsOpen(true)) : undefined}
       >
         {children}
       </span>
@@ -132,15 +151,18 @@ export function Tooltip({ text, children, disabled = false, interactive = true }
 }
 
 /**
- * Значок «?» с пояснением одной фразой (решение 212): там, где смысл числа,
- * названия или статуса неочевиден за три секунды. Раньше жил в настройках
- * (`settings/SettingsRow.tsx`), теперь общий — один вид «?» на всех страницах.
- * С клавиатуры — своя точка фокуса, текст — имя для программ чтения с экрана.
+ * Значок пояснения рядом с термином или числом (решение 211): «что это
+ * и откуда цифра» простыми словами. Тот же пузырь, что у `Tooltip`; на
+ * телефоне открывается нажатием. Имя для программ чтения с экрана — сам текст.
+ *
+ * `interactive={false}` — значок внутри ссылки: своей точки фокуса у него нет
+ * (вложенная кнопка в ссылке — ошибка доступности), пузырь — по наведению,
+ * а текст для программ чтения с экрана страница кладёт в ссылку сама.
  */
-export function HelpHint({ text }: { text: string }) {
+export function InfoHint({ text, interactive = true }: { text: string; interactive?: boolean }) {
   return (
-    <Tooltip text={text}>
-      <span className={styles.helpHint}>
+    <Tooltip text={text} openOnTap interactive={interactive}>
+      <span className={styles.hintIcon}>
         <Icon name="help" size={16} />
       </span>
     </Tooltip>

@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   listNoticeRecipientIds: vi.fn(async () => [] as string[]),
   completeTask: vi.fn(),
+  findAcceptances: vi.fn(async () => [] as Array<{ userId: string; userName: string | null; acceptedAt: Date }>),
 }))
 
 const notifyMocks = vi.hoisted(() => ({
@@ -47,6 +48,8 @@ vi.mock('@/modules/ai-assist/ai-assist.repo', () => ({
   findRedactionContext: vi.fn(async () => ({ people: { staff: [], contacts: [] }, universityNames: [] as string[] })),
 }))
 vi.mock('@/modules/notify-channels/notify-channels.service', () => notifyMocks)
+const instructionMocks = vi.hoisted(() => ({ loadLetterInstruction: vi.fn(async () => null as string | null) }))
+vi.mock('@/modules/ai-assist/ai-assist.letter-instruction', () => instructionMocks)
 
 const service = await import('./inbound-letters.service')
 
@@ -660,5 +663,66 @@ describe('acceptLetter: «Принял, беру в работу» кнопко�
     mocks.findById.mockResolvedValueOnce(null)
     await expectRejectCode(service.acceptLetter(user('ADMIN'), 'nope', { source: 'telegram' }), 'NOT_FOUND')
     expect(auditMocks.recordAuditOnce).not.toHaveBeenCalled()
+  })
+})
+
+describe('«Принять в работу» из карточки письма и колокольчика (решение 213)', () => {
+  beforeEach(() => {
+    auditMocks.recordAuditOnce.mockReset()
+    mocks.findById.mockReset()
+    mocks.findAcceptances.mockReset()
+    mocks.findAcceptances.mockResolvedValue([])
+  })
+
+  it('та же отметка, что у Telegram, но повтор тем же человеком не создаёт записи никогда', async () => {
+    const at = new Date('2026-09-27T17:00:00.000Z')
+    mocks.findById.mockResolvedValue(letterRow({ status: 'ANALYZED' }))
+    auditMocks.recordAuditOnce.mockResolvedValue({ created: true, at })
+
+    const result = await service.acceptLetterFromWeb(user('ADMIN'), 'letter-1', new Date('2026-09-27T17:00:00.000Z'))
+    expect(result).toEqual({ acceptedAt: at.toISOString(), alreadyAccepted: false })
+
+    const [entry, since] = auditMocks.recordAuditOnce.mock.calls[0]! as [Record<string, unknown>, Date]
+    expect(entry).toMatchObject({ action: 'inbound_letter.accept', objectId: 'letter-1', payload: { source: 'web' } })
+    // Окна нет: отметка «я занимаюсь» ставится один раз за всё время.
+    expect(since.getTime()).toBe(0)
+    expect(mocks.saveAnalysis).not.toHaveBeenCalled()
+  })
+
+  it('идемпотентно: второе нажатие — alreadyAccepted и время первой отметки', async () => {
+    const first = new Date('2026-09-20T09:00:00.000Z')
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    auditMocks.recordAuditOnce.mockResolvedValue({ created: false, at: first })
+    await expect(service.acceptLetterFromWeb(user('HEAD'), 'letter-1')).resolves.toEqual({
+      acceptedAt: first.toISOString(),
+      alreadyAccepted: true,
+    })
+  })
+
+  it('права — как у разбора письма: менеджер, аналитик, наблюдатель, эксперт — 403', async () => {
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    for (const role of ['MANAGER', 'ANALYST', 'VIEWER', 'UNIVERSITY_REP'] as const) {
+      await expectRejectCode(service.acceptLetterFromWeb(user(role), 'letter-1'), 'FORBIDDEN')
+    }
+    await expectRejectCode(service.acceptLetterFromWeb(user('ADMIN', { isReviewer: true }), 'letter-1'), 'FORBIDDEN')
+    expect(auditMocks.recordAuditOnce).not.toHaveBeenCalled()
+  })
+
+  it('проверенное письмо — 409', async () => {
+    mocks.findById.mockResolvedValueOnce(letterRow({ status: 'CORRECTED' }))
+    await expectRejectCode(service.acceptLetterFromWeb(user('ADMIN'), 'letter-1'), 'CONFLICT')
+  })
+
+  it('карточка письма показывает, кто принял в работу; в списке этого поля нет', async () => {
+    mocks.findById.mockResolvedValue(letterRow())
+    mocks.findAcceptances.mockResolvedValue([
+      { userId: 'u-HEAD', userName: 'Руководитель', acceptedAt: new Date('2026-09-27T17:00:00.000Z') },
+    ])
+    const card = await service.getById(user('ADMIN'), 'letter-1')
+    expect(card.acceptances).toEqual([{ userId: 'u-HEAD', userName: 'Руководитель', acceptedAt: '2026-09-27T17:00:00.000Z' }])
+
+    mocks.findMany.mockResolvedValue({ rows: [letterRow()], total: 1 })
+    const { data } = await service.list(user('ADMIN'), { page: 1, pageSize: 20 })
+    expect(data[0]).not.toHaveProperty('acceptances')
   })
 })

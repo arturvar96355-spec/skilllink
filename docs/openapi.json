@@ -2,130 +2,98 @@
   "openapi": "3.1.0",
   "info": {
     "title": "SkillLink API",
-    "license": {
-      "name": "MIT",
-      "identifier": "MIT"
-    },
     "version": "1.0.0",
     "description": "Система контроля взаимодействия с учебными заведениями (IT Школа РТК).\n\nСпецификация собирается из тех же Zod-схем, которыми API проверяет входные данные,\nпоэтому параметры и тела запросов не расходятся с кодом.\nПоля ответов подробно описаны в docs/API_CONTRACT.md.\n\nАутентификация: NextAuth.js, вход по паролю через /api/auth/callback/credentials.\nМаршруты /api/auth/* обслуживает NextAuth и в этой спецификации не описаны."
   },
   "servers": [
     {
-      "url": "/"
+      "url": "http://localhost:3000"
     }
   ],
   "tags": [
     {
-      "name": "Служебное",
-      "description": "Живость и готовность сервера, спецификация, метрики — без входа"
+      "name": "Служебное"
     },
     {
-      "name": "Пользователи",
-      "description": "Текущий пользователь, его права, личная статистика и календарь"
+      "name": "Пользователи"
     },
     {
-      "name": "Права субъекта ПД",
-      "description": "Выгрузка и обезличивание персональных данных по 152-ФЗ"
+      "name": "Права субъекта ПД"
     },
     {
-      "name": "Университеты",
-      "description": "Реестр вузов, карточка, контакты и лента событий вуза"
+      "name": "Университеты"
     },
     {
-      "name": "Программы",
-      "description": "Образовательные программы вузов, их навыки и рейтинг"
+      "name": "Программы"
     },
     {
-      "name": "Навыки",
-      "description": "Справочник навыков, рыночный спрос и дефициты"
+      "name": "Навыки"
     },
     {
-      "name": "IT-продукты",
-      "description": "Продукты компании и навыки, которые они требуют"
+      "name": "IT-продукты"
     },
     {
-      "name": "Сотрудничество",
-      "description": "Связки «вуз — программа — продукт» и их статусы"
+      "name": "Сотрудничество"
     },
     {
-      "name": "Документы",
-      "description": "Договоры и приложения: реестр, статусы, версии, файл и пакет связки"
+      "name": "Документы"
     },
     {
-      "name": "Workflow",
-      "description": "14 этапов связки: статусы, чек-листы, сроки и файлы этапов"
+      "name": "Workflow"
     },
     {
-      "name": "Файлы",
-      "description": "Скачивание и удаление файлов, приложенных к документам и этапам"
+      "name": "Файлы"
     },
     {
-      "name": "Аналитика",
-      "description": "Сводка главной, рейтинги, воронка, аналитика этапов"
+      "name": "Аналитика"
     },
     {
-      "name": "Качество данных",
-      "description": "Проверки полноты и дублей: что в данных требует правки"
+      "name": "Качество данных"
     },
     {
-      "name": "Поручения",
-      "description": "Поручения сотрудникам и их статусы"
+      "name": "Поручения"
     },
     {
-      "name": "Прогноз",
-      "description": "Прогноз исхода связки и его объяснение"
+      "name": "Прогноз"
     },
     {
-      "name": "Список задач",
-      "description": "Что система предлагает сделать и почему (в коде — рекомендации)"
+      "name": "Рекомендации"
     },
     {
-      "name": "ИИ-помощник",
-      "description": "Черновики писем и сводки; без модели — шаблон"
+      "name": "ИИ-помощник"
     },
     {
-      "name": "История сотрудничества",
-      "description": "Рассказ о ходе связки и предложения правок"
+      "name": "Настройки"
     },
     {
-      "name": "Встречи",
-      "description": "Встречи с вузами: план, итоги, участники"
+      "name": "История сотрудничества"
     },
     {
-      "name": "Кабинет вуза",
-      "description": "Кабинет представителя вуза: только свой вуз"
+      "name": "Встречи"
     },
     {
-      "name": "Источники данных",
-      "description": "Откуда пришли данные и загрузка рыночного спроса"
+      "name": "Кабинет вуза"
     },
     {
-      "name": "Выгрузка",
-      "description": "Выгрузка реестров и отчётов в CSV, XLSX и JSON"
+      "name": "Источники данных"
     },
     {
-      "name": "Вендоры",
-      "description": "Внешние поставщики курсов и их контакты"
+      "name": "Выгрузка"
     },
     {
-      "name": "Набор на курсы",
-      "description": "Заявки и загрузка слушателей в LMS"
+      "name": "Вендоры"
     },
     {
-      "name": "Настройки",
-      "description": "Параметры расчётов и этапы работы"
+      "name": "Набор на курсы"
     },
     {
-      "name": "Администрирование",
-      "description": "Пользователи, роли, секреты и одобрение операций"
+      "name": "Администрирование"
     },
     {
-      "name": "Журнал",
-      "description": "Журнал действий с проверяемой цепочкой записей"
+      "name": "Журнал"
     },
     {
-      "name": "Письма вузов",
-      "description": "Входящие письма вузов: разбор и решения"
+      "name": "Письма вузов"
     }
   ],
   "paths": {
@@ -21887,242 +21855,6 @@
         }
       }
     },
-    "/api/cooperations/{id}/documents/package": {
-      "get": {
-        "tags": [
-          "Документы"
-        ],
-        "summary": "Скачать пакет документов связки одним архивом",
-        "description": "Решение 212. ZIP: по папке на документ — файл документа (как `GET /api/documents/{id}/file`) и все приложенные файлы. Все статусы документов и любой статус связки: закрытие запрещает правку, а не чтение. Представителю вуза — только своя связка. Документов нет — 404.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
-        "operationId": "get_api_cooperations__id__documents_package",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Идентификатор (cuid)"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Успех",
-            "content": {
-              "application/zip": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UNAUTHORIZED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "description": "INTERNAL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/workflow/stages/{id}": {
       "patch": {
         "tags": [
@@ -30878,10 +30610,10 @@
     "/api/recommendations/generate": {
       "post": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
-        "summary": "Пересобрать список задач по правилам сейчас",
-        "description": "Решение 212: в интерфейсе кнопки нет — список пересобирается сам при чтении списка и главной, если с прошлой пересборки прошло больше RECOMMENDATION_AUTO_REFRESH_MINUTES (10 минут), а задачи связки сверяются сразу при смене этапа. Метод оставлен для сценариев и интеграций. Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
+        "summary": "Пересобрать рекомендации по правилам",
+        "description": "Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
         "operationId": "post_api_recommendations_generate",
         "responses": {
           "200": {
@@ -31061,9 +30793,9 @@
     "/api/recommendations": {
       "get": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
-        "summary": "Список задач (рекомендации)",
+        "summary": "Список рекомендаций",
         "description": "sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, scoreBreakdown (почему выше), reasons (почему предложена) и isDeferred. deferred=false — без отложенных.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "get_api_recommendations",
         "parameters": [
@@ -31426,7 +31158,7 @@
     "/api/recommendations/why-not": {
       "get": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
         "summary": "Почему по объекту нет рекомендации",
         "description": "Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при пересборке, и возвращает каждую: пройдена ли и почему (уже есть сотрудничество, спрос ниже порога, отклонена N дней назад — пауза до даты, правило выключено).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
@@ -31744,7 +31476,7 @@
     "/api/recommendations/rules/stats": {
       "get": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
         "summary": "Вес каждого правила рекомендаций",
         "description": "Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по счётчикам с затуханием), 90-процентный интервал, полные и эффективные показы и успехи — общий уровень, вузы и менеджеры.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
@@ -31927,7 +31659,7 @@
     "/api/recommendations/{id}": {
       "get": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
         "summary": "Карточка рекомендации",
         "description": "Право доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
@@ -32169,7 +31901,7 @@
       },
       "patch": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
         "summary": "Принять, взять в работу, закрыть или отклонить рекомендацию",
         "description": "Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию о просрочке, застое, невыбранном продукте или недостающих показателях можно, только когда условие ушло (иначе CONFLICT). Отклонение требует комментария с основанием.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, HEAD.",
@@ -32549,7 +32281,7 @@
     "/api/recommendations/experiment": {
       "get": {
         "tags": [
-          "Список задач"
+          "Рекомендации"
         ],
         "summary": "Работают ли рекомендации: контрольная группа и прирост",
         "description": "Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный и относительный прирост, 95 % интервал разности долей (метод 10 Ньюкомба), дни до сдвига (интервал Уэлча), последовательная проверка Вальда, статус insufficient-data | not-proven | lift | negative и since. Считаются только сигналы, назначенные в группу по хешу, по принципу «по назначению». Только чтение.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
@@ -33225,6 +32957,1188 @@
         "summary": "Что сделать сегодня: 3–7 дел текущего пользователя",
         "description": "Открытые рекомендации и проблемные этапы связок пользователя; порядок задают правила рекомендаций, модель только формулирует. Без модели — шаблон. Тело не нужно.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, HEAD.",
         "operationId": "post_api_ai_today",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/rewrite": {
+      "get": {
+        "tags": [
+          "ИИ-помощник"
+        ],
+        "summary": "Можно ли сейчас переделывать черновик письма моделью",
+        "description": "`{ available, reason }`: модель выключена или не настроена — `available: false` и причина простыми словами (кнопки «Короче», «Мягче»… в интерфейсе неактивны).\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
+        "operationId": "get_api_ai_rewrite",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ИИ-помощник"
+        ],
+        "summary": "Переделать черновик письма: короче, мягче, настойчивее, официальнее, проще, подробнее",
+        "description": "`target.type`: `recommendation-letter` (письмо вузу по рекомендации, право WRITE) или `inbound-letter-reply` (ответ на письмо вуза, право INBOUND_REVIEW). Текст — с правками сотрудника; перед отправкой в модель он маскируется так же, как факты исходного черновика, к системному промпту добавляется инструкция администратора (не отменяет базовых правил). Лимит генераций и журнал (`ai.rewrite`) — общие с черновиками. Ответ всегда 200: не вышло — `rewritten: false`, прежний текст и `notice`. В базу ничего не пишется.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
+        "operationId": "post_api_ai_rewrite",
+        "responses": {
+          "201": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "recommendation-letter",
+                          "inbound-letter-reply"
+                        ]
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 64
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "id"
+                    ]
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "style": {
+                    "type": "string",
+                    "enum": [
+                      "shorter",
+                      "softer",
+                      "firmer",
+                      "formal",
+                      "simpler",
+                      "longer"
+                    ]
+                  }
+                },
+                "required": [
+                  "target",
+                  "text",
+                  "style"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/ai-letter-instruction": {
+      "get": {
+        "tags": [
+          "Настройки"
+        ],
+        "summary": "Инструкция для писем ИИ и базовые правила",
+        "description": "Пустой `text` и `isDefault: true` — письма пишутся только по базовым правилам (`baseRules`).\n\nПраво доступа: Роль: ADMIN.",
+        "operationId": "get_api_settings_ai-letter-instruction",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Настройки"
+        ],
+        "summary": "Сохранить инструкцию для писем ИИ",
+        "description": "Тон, подпись, что упоминать, чего избегать — до 1000 знаков. Пустой текст — то же, что сброс. Изменение пишется в журнал (`ai.letter_instruction.update`, без текста).\n\nПраво доступа: Роль: ADMIN.",
+        "operationId": "put_api_settings_ai-letter-instruction",
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "text"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Настройки"
+        ],
+        "summary": "Вернуть инструкцию для писем по умолчанию",
+        "description": "Инструкция удаляется; сброс пишется в журнал (`ai.letter_instruction.reset`), повтор — без записи.\n\nПраво доступа: Роль: ADMIN.",
+        "operationId": "delete_api_settings_ai-letter-instruction",
         "responses": {
           "200": {
             "description": "Успех",
@@ -36635,253 +37549,6 @@
                       "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
                     }
                   }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UNAUTHORIZED",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "FORBIDDEN",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "NOT_FOUND",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "description": "INTERNAL",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "error"
-                  ],
-                  "properties": {
-                    "error": {
-                      "type": "object",
-                      "required": [
-                        "code",
-                        "message"
-                      ],
-                      "properties": {
-                        "code": {
-                          "type": "string",
-                          "enum": [
-                            "VALIDATION_ERROR",
-                            "NOT_FOUND",
-                            "FORBIDDEN",
-                            "UNAUTHORIZED",
-                            "CONFLICT",
-                            "INVALID_TRANSITION",
-                            "INTEGRATION_ERROR",
-                            "RATE_LIMITED",
-                            "INTERNAL",
-                            "SERVICE_UNAVAILABLE"
-                          ]
-                        },
-                        "message": {
-                          "type": "string",
-                          "description": "Текст на русском языке"
-                        },
-                        "details": {
-                          "description": "Для ошибок валидации — массив { field, message }"
-                        },
-                        "requestId": {
-                          "type": "string",
-                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/documents/{id}/file": {
-      "get": {
-        "tags": [
-          "Документы"
-        ],
-        "summary": "Открыть или скачать документ (в любом статусе)",
-        "description": "Решение 212. HTML-страница без скриптов: реквизиты, текст из шаблона, ссылка на оригинал, список приложенных файлов и история статусов (внутренние комментарии представителю вуза не показываются). Без параметра — `Content-Disposition: inline` (открыть в браузере), `download=1` — `attachment`. Подписанный и архивный документ открывается так же: закрыта правка, а не чтение.\n\nПраво доступа: Роли: ADMIN, MANAGER, ANALYST, VIEWER, UNIVERSITY_REP, HEAD.",
-        "operationId": "get_api_documents__id__file",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Идентификатор (cuid)"
-          },
-          {
-            "name": "download",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "1"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Успех",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
                 }
               }
             }
@@ -53288,6 +53955,300 @@
                 "required": [
                   "text"
                 ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/inbound-letters/{id}/accept": {
+      "post": {
+        "tags": [
+          "Письма вузов"
+        ],
+        "summary": "Принять письмо в работу",
+        "description": "То же, что «✓ Принял» под уведомлением в Telegram (решение 200), — из карточки письма и колокольчика (решение 213). Тело не нужно. Письмо не меняется: отметка в журнале (`inbound_letter.accept`), видна в карточке (`acceptances`). Повтор тем же человеком — `alreadyAccepted: true`, новой записи нет. Проверенное или отклонённое письмо — CONFLICT.\n\nПраво доступа: undefined.",
+        "operationId": "post_api_inbound-letters__id__accept",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Идентификатор (cuid)"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "description": "Полезная нагрузка. Поля — в docs/API_CONTRACT.md"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "description": "INTERNAL",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           }

@@ -71,6 +71,24 @@ export interface InboundLetterTaskDto {
   createdAt: string
 }
 
+/**
+ * Кто принял письмо в работу (решение 200 — кнопкой в Telegram, решение 213 — ещё и
+ * в карточке письма и в колокольчике). Письмо при этом не меняется: отметка — запись
+ * журнала `inbound_letter.accept`, по одной на человека.
+ */
+export interface InboundLetterAcceptanceDto {
+  userId: string
+  userName: string | null
+  acceptedAt: string
+}
+
+/** Ответ `POST /api/inbound-letters/:id/accept`. */
+export interface InboundLetterAcceptDto {
+  acceptedAt: string
+  /** Этот человек уже принимал письмо раньше — новая отметка не создана. */
+  alreadyAccepted: boolean
+}
+
 export interface InboundLetterDto {
   id: string
   senderEmail: string
@@ -90,6 +108,8 @@ export interface InboundLetterDto {
   review: InboundLetterReviewDto | null
   task: InboundLetterTaskDto | null
   replyDraft: InboundLetterReplyDraftDto | null
+  /** Кто принял в работу, по времени; пусто — никто. */
+  acceptances: InboundLetterAcceptanceDto[]
 
   isMock: boolean
   createdAt: string
@@ -97,7 +117,7 @@ export interface InboundLetterDto {
 }
 
 /** Строка списка — без полного текста письма, как у соседних реестров. */
-export type InboundLetterListItemDto = Omit<InboundLetterDto, 'bodyText' | 'replyDraft'> & {
+export type InboundLetterListItemDto = Omit<InboundLetterDto, 'bodyText' | 'replyDraft' | 'acceptances'> & {
   /** Начало текста письма — превью в таблице. */
   bodyPreview: string
 }

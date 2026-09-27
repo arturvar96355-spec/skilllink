@@ -353,3 +353,23 @@ export function isoToDateInput(iso: string | null | undefined): string {
   if (Number.isNaN(date.getTime())) return ''
   return moscowIsoDate(date)
 }
+
+/**
+ * Период рыночных данных человеку: «2026-Q3» → «3-й квартал 2026» (решение 211).
+ * Сокращение «Q3» эксперт за три секунды не прочтёт. Другой вид периода
+ * («2026», «2026-09») выводится как есть; пусто — «Нет данных».
+ */
+export function formatPeriod(period: string | null | undefined): string {
+  if (!period) return NO_DATA
+  const quarter = /^(\d{4})-Q([1-4])$/.exec(period.trim())
+  return quarter ? `${quarter[2]}-й квартал ${quarter[1]}` : period
+}
+
+/**
+ * Изменение доли в процентных пунктах — словом, без сокращения «п.п.»
+ * (решение 211): «2,5 пункта», «1 пункт», «0 пунктов».
+ */
+export function formatPoints(value: number): string {
+  const rounded = Number(value.toFixed(1))
+  return `${formatNumber(rounded)} ${pluralize(rounded, ['пункт', 'пункта', 'пунктов'])}`
+}

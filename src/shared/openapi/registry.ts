@@ -3,6 +3,7 @@ import type { ErrorCode } from '@/shared/http/errors'
 import type { Permission } from '@/shared/auth/permissions'
 
 import { createProposalSchema } from '@/modules/ai-assist/ai-story.schema'
+import { aiRewriteSchema, letterInstructionSchema } from '@/modules/ai-assist/ai-assist.schema'
 import { auditListQuerySchema, universityEventsQuerySchema } from '@/modules/audit/audit.schema'
 import { paginationSchema } from '@/shared/http/pagination'
 import { exportQuerySchema } from '@/modules/export/export.schema'
@@ -1656,6 +1657,65 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: COMMON_ERRORS,
   },
 
+  // ── Переделка черновика письма и инструкция для писем (решение 213) ─────────
+  {
+    method: 'get',
+    path: '/api/ai/rewrite',
+    tag: 'ИИ-помощник',
+    summary: 'Можно ли сейчас переделывать черновик письма моделью',
+    description:
+      '`{ available, reason }`: модель выключена или не настроена — `available: false` и причина ' +
+      'простыми словами (кнопки «Короче», «Мягче»… в интерфейсе неактивны).',
+    permission: 'READ',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/ai/rewrite',
+    tag: 'ИИ-помощник',
+    summary: 'Переделать черновик письма: короче, мягче, настойчивее, официальнее, проще, подробнее',
+    description:
+      '`target.type`: `recommendation-letter` (письмо вузу по рекомендации, право WRITE) или ' +
+      '`inbound-letter-reply` (ответ на письмо вуза, право INBOUND_REVIEW). Текст — с правками ' +
+      'сотрудника; перед отправкой в модель он маскируется так же, как факты исходного черновика, ' +
+      'к системному промпту добавляется инструкция администратора (не отменяет базовых правил). ' +
+      'Лимит генераций и журнал (`ai.rewrite`) — общие с черновиками. Ответ всегда 200: не вышло — ' +
+      '`rewritten: false`, прежний текст и `notice`. В базу ничего не пишется.',
+    permission: 'READ',
+    body: aiRewriteSchema,
+    errors: [...WRITE_ERRORS, 'CONFLICT'],
+  },
+  {
+    method: 'get',
+    path: '/api/settings/ai-letter-instruction',
+    tag: 'Настройки',
+    summary: 'Инструкция для писем ИИ и базовые правила',
+    description: 'Пустой `text` и `isDefault: true` — письма пишутся только по базовым правилам (`baseRules`).',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+  {
+    method: 'put',
+    path: '/api/settings/ai-letter-instruction',
+    tag: 'Настройки',
+    summary: 'Сохранить инструкцию для писем ИИ',
+    description:
+      'Тон, подпись, что упоминать, чего избегать — до 1000 знаков. Пустой текст — то же, что сброс. ' +
+      'Изменение пишется в журнал (`ai.letter_instruction.update`, без текста).',
+    permission: 'ADMIN',
+    body: letterInstructionSchema,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'delete',
+    path: '/api/settings/ai-letter-instruction',
+    tag: 'Настройки',
+    summary: 'Вернуть инструкцию для писем по умолчанию',
+    description: 'Инструкция удаляется; сброс пишется в журнал (`ai.letter_instruction.reset`), повтор — без записи.',
+    permission: 'ADMIN',
+    errors: COMMON_ERRORS,
+  },
+
   // ── История сотрудничества и «Предложить план» (решение 138) ────────────────
   {
     method: 'get',
@@ -2522,6 +2582,19 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     permission: 'INBOUND_REVIEW',
     body: updateReplyDraftSchema,
     errors: WRITE_ERRORS,
+  },
+  {
+    method: 'post',
+    path: '/api/inbound-letters/{id}/accept',
+    tag: 'Письма вузов',
+    summary: 'Принять письмо в работу',
+    description:
+      'То же, что «✓ Принял» под уведомлением в Telegram (решение 200), — из карточки письма и ' +
+      'колокольчика (решение 213). Тело не нужно. Письмо не меняется: отметка в журнале ' +
+      '(`inbound_letter.accept`), видна в карточке (`acceptances`). Повтор тем же человеком — ' +
+      '`alreadyAccepted: true`, новой записи нет. Проверенное или отклонённое письмо — CONFLICT.',
+    permission: 'INBOUND_REVIEW',
+    errors: [...READ_ERRORS, 'CONFLICT'],
   },
   {
     method: 'post',

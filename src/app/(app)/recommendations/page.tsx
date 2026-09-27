@@ -28,7 +28,7 @@ import {
   OPEN_RECOMMENDATION_STATUSES,
   CLOSED_RECOMMENDATION_STATUSES,
   ErrorState,
-  HelpHint,
+  InfoHint,
   Icon,
   Modal,
   PageHeader,
@@ -329,7 +329,7 @@ function RecommendationsContent() {
       <PageHeader
         title="Список задач"
         description="Что система предлагает сделать: просрочки, застрявшие связки, дефициты навыков. Каждая задача объясняет, почему она появилась."
-        meta={<HelpHint text={REFRESH_HINT} />}
+        meta={<InfoHint text={REFRESH_HINT} />}
       />
 
       <AiAssistCard
@@ -669,7 +669,7 @@ function RecommendationDetail({
 
       <div className={styles.scoreRow}>
         <RecommendationScore score={item.score} breakdown={item.scoreBreakdown} />
-        <HelpHint text={SCORE_HINT} />
+        <InfoHint text={SCORE_HINT} />
       </div>
       {item.isDeferred && (
         <p className={styles.note}>Отложена защитой от перегрузки: у ответственного много невыполненных задач.</p>

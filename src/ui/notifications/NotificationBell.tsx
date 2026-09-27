@@ -2,12 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { NotificationDto, NotificationFeedDto } from '@/shared/contracts'
+import type { InboundLetterAcceptDto, NotificationDto, NotificationFeedDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
 import { Icon, type IconName } from '../primitives/Icon'
 import { IconButton } from '../primitives/IconButton'
 import { Skeleton } from '../primitives/Skeleton'
 import { useResource } from '../hooks/useResource'
+import { useMutation } from '../hooks/useMutation'
+import { useToast } from '../overlays/Toast'
 import { useOutsideClick, useEscape, useStoredValue } from '../hooks/dom'
 import { apiPost, buildQuery } from '../lib/api'
 import { formatRelative } from '../lib/format'
@@ -41,6 +43,8 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
   'assignment.new': 'check',
   'assignment.due-soon': 'clock',
   'assignment.overdue': 'alert',
+  // Новое письмо вуза (решение 213).
+  'letter.new': 'mail',
 }
 
 /**
@@ -53,6 +57,7 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
  */
 export function NotificationBell() {
   const router = useRouter()
+  const toast = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const { value: seenAt, store: storeSeenAt, isReady } = useStoredValue(SEEN_KEY)
 
@@ -97,6 +102,25 @@ export function NotificationBell() {
     const seenAt = new Date().toISOString()
     storeSeenAt(seenAt)
     markSeenOnServer(seenAt)
+  }
+
+  // «Принять в работу» прямо из ленты (решение 213) — то же, что «✓ Принял» в Telegram.
+  const [acceptingId, setAcceptingId] = useState<string | null>(null)
+  const accept = useMutation(
+    async (letterId: string) =>
+      (await apiPost<InboundLetterAcceptDto>(`/api/inbound-letters/${letterId}/accept`)).data,
+  )
+
+  async function acceptLetter(letterId: string) {
+    setAcceptingId(letterId)
+    const result = await accept.run(letterId)
+    setAcceptingId(null)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success(result.data.alreadyAccepted ? 'Вы уже приняли это письмо в работу' : 'Письмо принято в работу')
+    feed.reload()
   }
 
   function openTarget(item: NotificationDto) {
@@ -148,26 +172,65 @@ export function NotificationBell() {
             <p className={styles.empty}>Событий, требующих внимания, нет.</p>
           ) : (
             <div className={styles.list}>
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={[styles.item, item.isUnread ? styles.unread : ''].filter(Boolean).join(' ')}
-                  onClick={() => openTarget(item)}
-                >
-                  <span className={[styles.icon, styles[item.severity]].join(' ')}>
-                    <Icon name={KIND_ICONS[item.kind]} size={18} />
-                  </span>
-                  <span className={styles.text}>
-                    <span className={styles.itemTitle}>{item.title}</span>
-                    {item.description && (
-                      <span className={styles.itemDescription}>{item.description}</span>
-                    )}
-                    <span className={styles.time}>{formatRelative(item.occurredAt, now)}</span>
-                  </span>
-                  {item.isUnread && <span className={styles.dot} aria-label="Новое" />}
-                </button>
-              ))}
+              {items.map((item) => {
+                const body = (
+                  <>
+                    <span className={[styles.icon, styles[item.severity]].join(' ')}>
+                      <Icon name={KIND_ICONS[item.kind]} size={18} />
+                    </span>
+                    <span className={styles.text}>
+                      <span className={styles.itemTitle}>{item.title}</span>
+                      {item.description && (
+                        <span className={styles.itemDescription}>{item.description}</span>
+                      )}
+                      <span className={styles.time}>{formatRelative(item.occurredAt, now)}</span>
+                    </span>
+                    {item.isUnread && <span className={styles.dot} aria-label="Новое" />}
+                  </>
+                )
+                const rowClass = [styles.item, item.isUnread ? styles.unread : ''].filter(Boolean).join(' ')
+                if (!item.accept) {
+                  return (
+                    <button key={item.id} type="button" className={rowClass} onClick={() => openTarget(item)}>
+                      {body}
+                    </button>
+                  )
+                }
+                // Строка с действием: переход и «Принять в работу» — две отдельные
+                // кнопки, не вложенные одна в другую.
+                const acceptTarget = item.accept
+                return (
+                  <div key={item.id} className={[rowClass, styles.withAction].join(' ')}>
+                    <button type="button" className={styles.itemMain} onClick={() => openTarget(item)}>
+                      {body}
+                    </button>
+                    <div className={styles.itemAction}>
+                      {acceptTarget.acceptedByMe ? (
+                        <span className={styles.accepted}>
+                          <Icon name="check" size={16} />
+                          Вы приняли в работу
+                        </span>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon="check"
+                            onClick={() => acceptLetter(acceptTarget.id)}
+                            isLoading={acceptingId === acceptTarget.id}
+                            disabled={acceptingId !== null && acceptingId !== acceptTarget.id}
+                          >
+                            Принять в работу
+                          </Button>
+                          {acceptTarget.acceptedByName && (
+                            <span className={styles.time}>Уже принял: {acceptTarget.acceptedByName}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

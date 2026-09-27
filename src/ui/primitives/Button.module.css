@@ -159,3 +159,9 @@
     transform: rotate(360deg);
   }
 }
+
+/* Неподвижная кнопка (проп still, решение 211): меняется только цвет. */
+.still:hover:not(:disabled),
+.still:active:not(:disabled) {
+  transform: none;
+}

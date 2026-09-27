@@ -15,6 +15,23 @@
 
 .statsCard {
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Заголовок полос точности и «?» к нему (решение 213). */
+.statsTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.help {
+  color: var(--text-tertiary);
 }
 
 .statsGrid {

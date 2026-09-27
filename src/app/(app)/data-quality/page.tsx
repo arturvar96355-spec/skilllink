@@ -12,7 +12,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
-  HelpHint,
+  InfoHint,
   Icon,
   MockBadge,
   PageHeader,
@@ -215,7 +215,7 @@ function QualityIndex({ report }: { report: QualityReportDto }) {
       <div className={styles.indexHead}>
         <h2 id="quality-index-title" className={styles.indexTitle}>
           Индекс качества
-          <HelpHint text={INDEX_HINT} />
+          <InfoHint text={INDEX_HINT} />
         </h2>
         <span className={styles.generated}>Проверено {formatDateTime(report.generatedAt)}</span>
       </div>

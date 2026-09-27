@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { HelpHint, Skeleton } from '@/ui'
+import { InfoHint, Skeleton } from '@/ui'
 import styles from './settings.module.css'
 
 /**
@@ -11,7 +11,7 @@ import styles from './settings.module.css'
  */
 
 /** Тот же «?», что на остальных страницах (решение 212). */
-export const Hint = HelpHint
+export const Hint = InfoHint
 
 /** Строка: слева название и короткая подпись, справа значение или действие. */
 export function Row({

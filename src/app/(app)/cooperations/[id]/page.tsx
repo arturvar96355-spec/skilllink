@@ -628,14 +628,14 @@ function CooperationContent() {
         <div className={styles.stages}>
           <Section
             title="Прогноз"
-            description="Дойдёт ли связка до ближайшей ещё не пройденной вехи — оценка модели или простого правила, если модель не прошла проверку качества (решение 135)."
+            description="Насколько вероятно, что связка дойдёт до следующей важной точки — подписанного договора или начала занятий."
           >
             <CooperationForecast cooperationId={params.id} />
           </Section>
 
           <Section
             title="Что мешает"
-            description="Список уже посчитанных препятствий по контрольным точкам, чек-листу и статусу связки — без модели."
+            description="Препятствия, которые система уже нашла: незакрытые контрольные точки, пункты чек-листа, статус связки."
           >
             <Card>
               <CooperationBlockers cooperationId={params.id} />

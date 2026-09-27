@@ -2862,6 +2862,69 @@ curl -s -X POST http://localhost:3000/api/recommendations/<id>/ai-letter
 }
 ```
 
+### GET /api/ai/rewrite
+### POST /api/ai/rewrite
+
+Переделка черновика письма кнопками «Короче», «Мягче», «Настойчивее», «Официальнее»,
+«Проще», «Подробнее» (решение 213).
+
+**GET** — право `READ`: можно ли сейчас переделывать моделью. Модель выключена
+(`AI_ASSIST_PROVIDER=off`) или не настроена — `available: false` и причина простыми словами;
+кнопки в интерфейсе неактивны.
+
+```json
+{ "data": { "available": false, "reason": "ИИ-помощник выключен на сервере — переделать текст нечем. Черновик можно править вручную." } }
+```
+
+**POST** — переделать текст сотрудника (с его правками) по заданию кнопки. Права — у письма,
+которое переделывается: `recommendation-letter` — `WRITE` (как `POST /api/recommendations/:id/ai-letter`),
+чужая или несуществующая рекомендация — 404; `inbound-letter-reply` — `INBOUND_REVIEW`
+(как `POST /api/inbound-letters/:id/reply-draft`), письмо `NEW` или `DISMISSED` — `CONFLICT` 409.
+
+```bash
+curl -s -X POST http://localhost:3000/api/ai/rewrite \
+  -H 'Content-Type: application/json' \
+  -d '{"target":{"type":"inbound-letter-reply","id":"<id письма>"},"text":"Уважаемые коллеги!\n…\nС уважением,\nИТ-Школа РТК","style":"shorter"}'
+```
+
+| Поле | Что это |
+| --- | --- |
+| `target.type` | `recommendation-letter` или `inbound-letter-reply` |
+| `target.id` | рекомендация или письмо вуза |
+| `text` | текущий текст черновика, 1–4000 знаков |
+| `style` | `shorter`, `softer`, `firmer`, `formal`, `simpler`, `longer` |
+
+Текст перед отправкой в модель проходит ту же маскировку, что и факты исходного черновика
+(почта, телефоны, паспорт, СНИЛС, ник, известные ФИО; названия вуза не трогаются). В системный
+промпт после задания кнопки добавляется инструкция администратора (`/api/settings/ai-letter-instruction`),
+а после неё — базовые правила писем, которые она не отменяет. Лимит генераций, кэш и журнал
+(`ai.rewrite`, без текста) — общие с черновиками. В базу ничего не пишется: новый вариант
+сохраняет человек (`PATCH …/reply-draft`) или копирует.
+
+Ответ всегда 200. Не вышло (модель выключена, упала, не уложилась в лимит, потеряла подпись
+«ИТ-Школа РТК» или дописала пометку маскировки, которой не было) — `rewritten: false`, прежний
+текст и `notice` с причиной.
+
+```json
+{
+  "data": {
+    "text": "Уважаемые коллеги!\n\nБлагодарим за письмо — ответим по существу в ближайшее время.\n\nС уважением,\nИТ-Школа РТК",
+    "rewritten": true,
+    "style": "shorter",
+    "source": "yandexgpt",
+    "model": "yandexgpt-lite/latest",
+    "fallbackReason": null,
+    "notice": null,
+    "masked": false,
+    "cached": false,
+    "generatedAt": "…"
+  }
+}
+```
+
+`POST /api/recommendations/:id/ai-letter` с решения 213 возвращает ещё `rewriteTarget:
+{ "type": "recommendation-letter", "id": "<id>" }` — по нему интерфейс показывает кнопки переделки.
+
 ### POST /api/ai/today
 
 Право: `ANALYTICS`. Представителю вуза — 403.
@@ -3829,6 +3892,12 @@ curl -i http://localhost:3000/api/calendar/<токен>.ics
 | `assignment.new` | вам дали поручение (решение 207); своё себе — не событие | `info`, важное — `warning` |
 | `assignment.due-soon` | срок вашего открытого поручения — завтра | `warning` |
 | `assignment.overdue` | срок вашего открытого поручения прошёл (со следующего дня после срока) | `critical` |
+| `letter.new` | письмо вуза ждёт проверки (статус `NEW` или `ANALYZED`) — только тем, у кого право `INBOUND_REVIEW` (решение 213); до 10 последних за окно ленты | `warning`, уже принятое кем-то — `info` |
+
+Письмо вуза ведёт в его карточку (`target.type: "letter"`), и у пункта есть поле `accept`:
+`{ "type": "letter", "id": "<письмо>", "acceptedByMe": false, "acceptedByName": null }` —
+кнопка «Принять в работу» прямо в ленте (`POST /api/inbound-letters/:id/accept`). В тексте —
+только вуз и группа, без ФИО, почты и текста письма, как в сообщении Telegram (решение 183).
 
 Поручения ведут в «Мои поручения» личного кабинета: `target.type: "assignment"`,
 `target.id` — поручение (`/profile?assignment=<id>#my-assignments`). Просроченное поручение,
@@ -4688,6 +4757,38 @@ curl -s -OJ "http://localhost:3000/api/export?dataset=cooperations&q=спбгу�
 `defaultTasks` — снимок чек-листа по умолчанию, только для отображения: этой версией API
 пункты не редактируются.
 
+### GET /api/settings/ai-letter-instruction
+### PUT /api/settings/ai-letter-instruction
+### DELETE /api/settings/ai-letter-instruction
+
+Право: `ADMIN` (решение 213). Инструкция для писем ИИ: тон, подпись, что упоминать, чего
+избегать. Хранится в `system_secrets` открытым значением (как имя бота Telegram, решение 142),
+новой таблицы нет. Подставляется в системный промпт письма вузу по рекомендации, ответа на письмо
+вуза и их переделки — перед базовыми правилами, которые она не отменяет; персональные данные
+из инструкции в модель не уходят (та же маскировка).
+
+```json
+{ "data": {
+  "text": "Тон — доброжелательный, на «вы».",
+  "isDefault": false,
+  "maxLength": 1000,
+  "updatedAt": "2026-09-27T17:00:00.000Z",
+  "updatedByName": "Администратор",
+  "baseRules": ["Не указывай имён, должностей и контактов — ни получателя, ни отправителя.", "…"]
+} }
+```
+
+`PUT` — тело `{ "text": "…" }`, до 1000 знаков, без служебных символов (`VALIDATION_ERROR` 422).
+Пустой текст — то же, что `DELETE`. `DELETE` — «Вернуть по умолчанию». Изменение и сброс пишутся
+в журнал (`ai.letter_instruction.update` с длиной до и после, `ai.letter_instruction.reset`) без
+самого текста.
+
+```bash
+curl -s -X PUT http://localhost:3000/api/settings/ai-letter-instruction \
+  -H 'Content-Type: application/json' -d '{"text":"Тон — доброжелательный, на «вы»."}'
+curl -s -X DELETE http://localhost:3000/api/settings/ai-letter-instruction
+```
+
 ### PATCH /api/settings/workflow/stages/:number
 
 Право: `ADMIN`. Только `title` и `normativeDays` — любое из двух, оба или ни одного (в теле
@@ -5372,6 +5473,26 @@ curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/analyze
 curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/task/done
 ```
 
+### POST /api/inbound-letters/:id/accept
+
+Право: `INBOUND_REVIEW` (ADMIN, HEAD). «Принять в работу» из карточки письма и из колокольчика
+(решение 213) — то же, что «✓ Принял» под уведомлением в Telegram (решение 200). Тело не нужно.
+Письмо не меняется: отметка — запись журнала `inbound_letter.accept` (`payload.source: "web"`),
+видна в карточке полем `acceptances` (кто и когда, первая отметка каждого человека). Повтор тем
+же человеком новой записи не создаёт — `alreadyAccepted: true` и время первой отметки.
+Письмо уже проверено или отклонено — `CONFLICT` 409.
+
+```bash
+curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/accept
+```
+
+```json
+{ "data": { "acceptedAt": "2026-09-27T17:05:00.000Z", "alreadyAccepted": false } }
+```
+
+Email-канала уведомлений в системе нет (каналы — Telegram, MAX, VK), поэтому кнопки
+«Принять в работу» в письме-уведомлении тоже нет.
+
 ### POST /api/inbound-letters/:id/dismiss
 
 Право: `INBOUND_REVIEW`. Доступно, пока не проверено, иначе `CONFLICT` 409. Тело
@@ -5408,7 +5529,10 @@ curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/reply-draft
 ```
 
 Ответ — вся карточка письма (как у остальных маршрутов этого раздела), здесь показано
-только поле `replyDraft`.
+только поле `replyDraft`. В карточке с решения 213 есть и `acceptances` — кто принял письмо
+в работу (`[{ "userId", "userName", "acceptedAt" }]`, пусто — никто); в списке писем этого
+поля нет. Инструкция администратора для писем (`/api/settings/ai-letter-instruction`)
+подставляется и в этот черновик.
 
 ### PATCH /api/inbound-letters/:id/reply-draft
 

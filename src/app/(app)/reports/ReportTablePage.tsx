@@ -215,7 +215,7 @@ function ReportTableView({ title, breadcrumbLabel, description, endpoint }: Repo
         description={description}
         actions={
           data ? (
-            <Button variant="primary" icon="download" onClick={() => window.print()} title={PDF_HINT}>
+            <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
               Сохранить в PDF
             </Button>
           ) : undefined

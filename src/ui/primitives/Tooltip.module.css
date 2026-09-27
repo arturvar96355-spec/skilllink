@@ -23,7 +23,8 @@
   line-height: 1.45;
   font-weight: 400;
   text-align: left;
-  white-space: normal;
+  /* Перенос строки в тексте подсказки — новый абзац (пояснения «?», решение 211). */
+  white-space: pre-line;
   pointer-events: none;
   animation: bubbleIn var(--motion-micro) var(--ease-out) both;
 }
@@ -53,14 +54,15 @@
   font: inherit;
 }
 
-/* «?» рядом с неочевидным (решение 212): тихий, пока на него не смотрят. */
-.helpHint {
+/* Значок пояснения «?» (InfoHint, решение 211) — тихий, темнеет при наведении и фокусе. */
+.hintIcon {
   display: inline-flex;
   color: var(--text-tertiary);
-  cursor: help;
+  vertical-align: middle;
   transition: color var(--motion-micro) var(--ease-out);
 }
 
-.helpHint:hover {
+.trigger:hover .hintIcon,
+.trigger:focus-visible .hintIcon {
   color: var(--text-secondary);
 }

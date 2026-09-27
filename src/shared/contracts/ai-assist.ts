@@ -67,6 +67,93 @@ export interface AiDraftDto {
   fallbackReason: AiFallbackReason | null
   /** Ответ модели взят из кэша: те же факты недавно уже формулировались. */
   cached: boolean
+  /**
+   * Что это за письмо для переделки кнопками «Короче», «Мягче»… (решение 213).
+   * Есть только у писем вузу; у сводки и «дел на сегодня» — нет.
+   */
+  rewriteTarget?: AiRewriteTargetDto | null
+}
+
+// ─────────────────────── Переделка черновика письма (решение 213) ───────────
+
+/** Как переделать черновик: кнопки под текстом письма. */
+export const AI_REWRITE_STYLES = ['shorter', 'softer', 'firmer', 'formal', 'simpler', 'longer'] as const
+export type AiRewriteStyle = (typeof AI_REWRITE_STYLES)[number]
+
+export const AI_REWRITE_STYLE_LABELS: Record<AiRewriteStyle, string> = {
+  shorter: 'Короче',
+  softer: 'Мягче',
+  firmer: 'Настойчивее',
+  formal: 'Официальнее',
+  simpler: 'Проще',
+  longer: 'Подробнее',
+}
+
+/** Подсказка к кнопке: что именно сделает модель. */
+export const AI_REWRITE_STYLE_HINTS: Record<AiRewriteStyle, string> = {
+  shorter: 'Сократить примерно вдвое, оставив суть и просьбу',
+  softer: 'Смягчить тон: без давления, с благодарностью',
+  firmer: 'Ясно попросить ответ — без грубости и новых сроков',
+  formal: 'Официально-деловой стиль письма организации',
+  simpler: 'Короткие предложения, без канцелярита',
+  longer: 'Раскрыть уже сказанное подробнее — без новых фактов',
+}
+
+/**
+ * Какое письмо переделывается — от этого зависят права и то, чьи названия
+ * не прячутся при маскировке:
+ * - `recommendation-letter` — письмо вузу по рекомендации (право WRITE), `id` — рекомендация;
+ * - `inbound-letter-reply` — ответ на письмо вуза (право INBOUND_REVIEW), `id` — письмо.
+ */
+export const AI_REWRITE_TARGET_TYPES = ['recommendation-letter', 'inbound-letter-reply'] as const
+export type AiRewriteTargetType = (typeof AI_REWRITE_TARGET_TYPES)[number]
+
+export interface AiRewriteTargetDto {
+  type: AiRewriteTargetType
+  id: string
+}
+
+/** Ответ `POST /api/ai/rewrite`. Ответ всегда 200: не вышло — прежний текст и пояснение. */
+export interface AiRewriteDto {
+  /** Новый вариант; если `rewritten: false` — прежний текст без изменений. */
+  text: string
+  rewritten: boolean
+  style: AiRewriteStyle
+  source: AiDraftSource
+  model: string | null
+  /** Почему текст не переделан. null — переделан моделью. */
+  fallbackReason: AiFallbackReason | null
+  /**
+   * Что сказать человеку: почему не переделано, или что перед отправкой в ИИ
+   * из текста скрыты персональные данные. null — сказать нечего.
+   */
+  notice: string | null
+  /** Перед отправкой в модель из текста что-то вырезано маскировкой персональных данных. */
+  masked: boolean
+  cached: boolean
+  generatedAt: string
+}
+
+/** Ответ `GET /api/ai/rewrite`: можно ли сейчас переделывать текст моделью. */
+export interface AiRewriteStatusDto {
+  available: boolean
+  /** Почему нельзя — простыми словами; null — можно. */
+  reason: string | null
+}
+
+// ─────────────────── Инструкция администратора для писем (решение 213) ──────
+
+/** Ответ `GET/PUT/DELETE /api/settings/ai-letter-instruction`. */
+export interface AiLetterInstructionDto {
+  /** Текст инструкции; пустая строка — действуют только базовые правила. */
+  text: string
+  /** Инструкции нет — письма пишутся по базовым правилам. */
+  isDefault: boolean
+  maxLength: number
+  updatedAt: string | null
+  updatedByName: string | null
+  /** Базовые правила писем — действуют всегда, инструкция их не отменяет. Для показа в настройках. */
+  baseRules: string[]
 }
 
 export const AI_DRAFT_SOURCE_LABELS: Record<AiDraftSource, string> = {
