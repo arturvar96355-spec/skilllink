@@ -15,7 +15,9 @@ import {
   todayIso,
 } from '@/modules/assignments/assignments.rules'
 import type { AssignmentPriority, AssignmentStatus, InboundLetterGroup } from '@/shared/contracts/enums'
-import { INBOUND_LETTER_GROUP_LABELS } from '@/shared/contracts/labels'
+import { APPROVAL_ACTION_LABELS, INBOUND_LETTER_GROUP_LABELS } from '@/shared/contracts/labels'
+import type { ApprovalAction, ApprovalStatus } from '@/shared/contracts/approval'
+import { formatPersonShort } from '@/ui/lib/format'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -128,6 +130,22 @@ export interface LetterFeedSource {
   acceptedByName: string | null
 }
 
+/** Запрос «четырёх глаз» (решение 218) — для ленты администратора. */
+export interface ApprovalFeedSource {
+  id: string
+  action: ApprovalAction
+  status: ApprovalStatus
+  /** Автор запроса — этот пользователь: тогда пункт о решении, иначе — «нужно ваше согласование». */
+  mine: boolean
+  /** ФИО того, над кем операция; null — пользователя нет в справочнике. */
+  targetName: string | null
+  requesterName: string
+  /** Кто решил: согласовал или отклонил. */
+  deciderName: string | null
+  createdAt: Date
+  decidedAt: Date | null
+}
+
 export interface FeedSources {
   deadlines: StageDeadlineSource[]
   stageChanges: StageChangeSource[]
@@ -138,6 +156,56 @@ export interface FeedSources {
   assignments: AssignmentFeedSource[]
   /** Непроверенные письма вузов (решение 213) — только тем, кто их разбирает. */
   letters?: LetterFeedSource[]
+  /** Запросы «четырёх глаз» (решение 218) — только администратору. */
+  approvals?: ApprovalFeedSource[]
+}
+
+/**
+ * Пункт ленты по запросу «четырёх глаз» (решение 218). Чужой ждущий — «нужно ваше
+ * согласование» (скоро понадобится); свой согласованный — «осталось выполнить»:
+ * без этого шага операция не случится; свой отклонённый — к сведению.
+ * Остальное (свой ждущий, выполненный, истёкший) в ленту не попадает.
+ */
+export function approvalItem(source: ApprovalFeedSource): Omit<NotificationDto, 'isUnread'> | null {
+  const action = APPROVAL_ACTION_LABELS[source.action].toLowerCase()
+  const target = source.targetName ? formatPersonShort(source.targetName) : 'пользователь удалён'
+  const ref = { type: 'approval' as const, id: source.id, cooperationId: null, stageId: null }
+  const decider = source.deciderName ? formatPersonShort(source.deciderName) : 'администратор'
+  if (!source.mine && source.status === 'REQUESTED') {
+    return {
+      id: `approval-requested:${source.id}`,
+      kind: 'approval.requested',
+      severity: 'warning',
+      title: `Нужно ваше согласование: ${action}`,
+      description: `${target} · просит ${formatPersonShort(source.requesterName)}`,
+      occurredAt: source.createdAt.toISOString(),
+      target: ref,
+    }
+  }
+  if (!source.mine || !source.decidedAt) return null
+  if (source.status === 'APPROVED') {
+    return {
+      id: `approval-decided:${source.id}`,
+      kind: 'approval.decided',
+      severity: 'warning',
+      title: `Согласовано: ${action} — осталось выполнить`,
+      description: `${target} · решение: ${decider}`,
+      occurredAt: source.decidedAt.toISOString(),
+      target: ref,
+    }
+  }
+  if (source.status === 'REJECTED') {
+    return {
+      id: `approval-decided:${source.id}`,
+      kind: 'approval.decided',
+      severity: 'info',
+      title: `Отклонено: ${action}`,
+      description: `${target} · решение: ${decider}`,
+      occurredAt: source.decidedAt.toISOString(),
+      target: ref,
+    }
+  }
+  return null
 }
 
 /**
@@ -415,6 +483,11 @@ export function buildFeed(
 
   for (const letter of sources.letters ?? []) {
     items.push(letterItem(letter))
+  }
+
+  for (const approval of sources.approvals ?? []) {
+    const item = approvalItem(approval)
+    if (item) items.push(item)
   }
 
   // Новые сверху; при равном времени — порядок по id, чтобы лента не «прыгала»

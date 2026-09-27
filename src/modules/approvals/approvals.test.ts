@@ -43,7 +43,36 @@ vi.mock('./approvals.repo', () => ({
   expireStale: async (now: Date) => {
     for (const row of rows().values()) if ((row.status === 'REQUESTED' || row.status === 'APPROVED') && row.expiresAt <= now) row.status = 'EXPIRED'
   },
-  list: async () => ({ rows: [...rows().values()].map(view), total: rows().size }),
+  list: async (query: { scope?: string }, viewerId: string, now: Date) => {
+    const all = [...rows().values()].filter((row) => {
+      if (query.scope === 'awaiting') return row.status === 'REQUESTED' && row.expiresAt > now && row.requestedById !== viewerId
+      if (query.scope === 'mine') return row.requestedById === viewerId
+      if (query.scope === 'history') return row.status !== 'REQUESTED'
+      return true
+    })
+    return { rows: all.map(view), total: all.length }
+  },
+  summary: async (viewerId: string, now: Date) => ({
+    awaiting: [...rows().values()].filter((row) => row.status === 'REQUESTED' && row.expiresAt > now && row.requestedById !== viewerId).length,
+    readyToRun: [...rows().values()].filter((row) => row.status === 'APPROVED' && row.requestedById === viewerId && row.expiresAt > now).length,
+  }),
+  loadDetails: async (list: Array<{ id: string; payload: Record<string, unknown> }>) => {
+    const reasons = new Map<string, string>()
+    const rejectReasons = new Map<string, string>()
+    for (const entry of mocks.audit) {
+      const reason = (entry.payload as { reason?: string } | undefined)?.reason
+      if (!reason || !list.some((row) => row.id === entry.objectId)) continue
+      if (entry.action === 'approval.requested') reasons.set(entry.objectId, reason)
+      if (entry.action === 'approval.rejected') rejectReasons.set(entry.objectId, reason)
+    }
+    const targets = new Map(
+      list
+        .map((row) => mocks.users.get(String(row.payload.userId)))
+        .filter((user): user is { id: string; role: string; isActive: boolean } => user !== undefined)
+        .map((user) => [user.id, { ...user, fullName: `Имя ${user.id}` }]),
+    )
+    return { targets, reasons, rejectReasons }
+  },
   approve: async (id: string, approverId: string, now: Date) => {
     const row = rows().get(id)
     if (!row || row.status !== 'REQUESTED' || row.requestedById === approverId || row.expiresAt <= now) return false
@@ -177,5 +206,58 @@ describe('поток одобрения', () => {
     await expect(service.request(alice, { action: 'user.grant_admin', payload: { userId: 'nobody' } })).rejects.toMatchObject({ code: 'NOT_FOUND' })
     await expect(service.request(alice, { action: 'user.grant_admin', payload: { userId: 'target', email: 'x@y.ru' } })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
     await expect(service.request(admin('m', 'MANAGER'), { action: 'user.grant_admin', payload: { userId: 'target' } })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+})
+
+describe('экран «Согласования» (решение 218)', () => {
+  it('вкладки: ждут меня — только чужие ждущие; мои — свои; история — с решением', async () => {
+    const fromAlice = await service.request(alice, { action: 'user.grant_admin', payload: { userId: 'target' } })
+    const fromBob = await service.request(bob, { action: 'user.grant_admin', payload: { userId: 'target' } })
+    await service.reject(bob, fromBob.id, { reason: 'Передумал' })
+
+    const awaiting = await service.list(bob, { page: 1, pageSize: 20, scope: 'awaiting' })
+    expect(awaiting.data.map((item) => item.id)).toEqual([fromAlice.id])
+    expect(awaiting.data[0]?.canApprove).toBe(true)
+
+    const mine = await service.list(bob, { page: 1, pageSize: 20, scope: 'mine' })
+    expect(mine.data.map((item) => item.id)).toEqual([fromBob.id])
+    const history = await service.list(alice, { page: 1, pageSize: 20, scope: 'history' })
+    expect(history.data.map((item) => item.id)).toEqual([fromBob.id])
+  })
+
+  it('причина запроса и причина отказа — в ответе; цель — ФИО пользователя', async () => {
+    const request = await service.request(alice, {
+      action: 'user.grant_admin',
+      payload: { userId: 'target' },
+      reason: 'Замещает на время отпуска',
+    })
+    expect(request).toMatchObject({ reason: 'Замещает на время отпуска', rejectReason: null, target: { id: 'target', role: 'MANAGER' } })
+    const rejected = await service.reject(bob, request.id, { reason: 'Хватит роли менеджера' })
+    expect(rejected).toMatchObject({ status: 'REJECTED', reason: 'Замещает на время отпуска', rejectReason: 'Хватит роли менеджера' })
+  })
+
+  it('сводка: ждут меня и мои согласованные; флаг требования', async () => {
+    const mineRequest = await service.request(alice, { action: 'user.grant_admin', payload: { userId: 'target' } })
+    await service.request(bob, { action: 'user.grant_admin', payload: { userId: 'target' } })
+    await service.approve(bob, mineRequest.id)
+    await expect(service.summary(alice)).resolves.toEqual({ required: true, awaiting: 1, readyToRun: 1, ttlHours: 24 })
+    // Те же счётчики — в meta списка при любой вкладке: пункт меню берёт их оттуда.
+    const listed = await service.list(alice, { page: 1, pageSize: 1, scope: 'awaiting' })
+    expect(listed.meta).toMatchObject({ total: 1, awaiting: 1, readyToRun: 1, required: true })
+    vi.stubEnv('APPROVALS_REQUIRED', '')
+    await expect(service.summary(bob)).resolves.toMatchObject({ required: false, awaiting: 0, readyToRun: 0 })
+  })
+
+  it('эксперт с ролью администратора видит запросы, но не решает; не администратор — 403', async () => {
+    const reviewer: CurrentUser = { ...admin('expert'), isReviewer: true }
+    const request = await service.request(alice, { action: 'user.grant_admin', payload: { userId: 'target' } })
+    const listed = await service.list(reviewer, { page: 1, pageSize: 20 })
+    expect(listed.data[0]).toMatchObject({ id: request.id, canApprove: false })
+    // Число во вкладке совпадает со списком — одна база подсчёта; решать эксперт всё равно не может.
+    await expect(service.summary(reviewer)).resolves.toMatchObject({ awaiting: 1, readyToRun: 0 })
+    await expect(service.approve(reviewer, request.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(service.reject(reviewer, request.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(service.list(admin('m', 'MANAGER'), { page: 1, pageSize: 20 })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(service.summary(admin('m', 'MANAGER'))).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })

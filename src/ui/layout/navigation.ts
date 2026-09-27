@@ -16,6 +16,17 @@ export interface NavItem {
   icon: IconName
   /** Совпадение по началу пути: /universities/<id> подсвечивает «Университеты». */
   match?: string
+  /**
+   * Сколько дел ждёт человека в разделе — число у пункта (решение 218, «Согласования»).
+   * Пусто или 0 — числа нет.
+   */
+  count?: number
+}
+
+/** Числа у пунктов меню, которые приходят отдельными запросами (AppShell). */
+export interface NavCounts {
+  /** «Согласования»: ждут моего решения плюс мои согласованные, которые осталось выполнить. */
+  approvals?: number
 }
 
 export interface NavGroup {
@@ -34,7 +45,17 @@ export function canReadLetters(user: CurrentUserDto): boolean {
   return user.role === 'ADMIN' || user.role === 'HEAD' || user.role === 'MANAGER'
 }
 
-export function navigationFor(user: CurrentUserDto): NavGroup[] {
+/**
+ * «Согласования» (решение 218) — администратору, в том числе эксперту с ролью
+ * администратора: сервер отдаёт ему список только для чтения.
+ */
+export function canSeeApprovals(user: CurrentUserDto): boolean {
+  // У эксперта `isAdmin` в `/api/me` выключен (решение 147: право ADMIN — изменяющее), а читать
+  // запросы сервер ему даёт по роли — жюри должно видеть экран, не имея кнопок.
+  return user.permissions.isAdmin || (user.isReviewer && user.role === 'ADMIN')
+}
+
+export function navigationFor(user: CurrentUserDto, counts: NavCounts = {}): NavGroup[] {
   // У представителя вуза свой кабинет: внутренние реестры и аналитика ему закрыты.
   if (user.role === 'UNIVERSITY_REP') {
     return [
@@ -97,6 +118,11 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   // ничего не может отправить, только запутывает.
   if (user.permissions.canWrite) {
     tools.push({ href: ROUTES.import, label: 'Импорт', icon: 'attach' })
+  }
+  // «Четыре глаза» (решение 218): рядом с «Настройками», где живут «Пользователи» —
+  // оттуда уходят запросы. Число — дела, которые ждут именно этого администратора.
+  if (canSeeApprovals(user)) {
+    tools.push({ href: ROUTES.approvals, label: 'Согласования', icon: 'lock', count: counts.approvals })
   }
   tools.push({ href: ROUTES.settings, label: 'Настройки', icon: 'settings' })
 
@@ -195,6 +221,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.import, allowed: (user) => user.permissions.canWrite },
   { prefix: ROUTES.portal, allowed: (user) => user.permissions.canUsePortal },
+  { prefix: ROUTES.approvals, allowed: canSeeApprovals },
 ]
 
 /**

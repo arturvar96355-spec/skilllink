@@ -1,12 +1,11 @@
 import { writeAudit } from '@/shared/audit/audit'
-import { assertCan } from '@/shared/auth/permissions'
+import { assertCan, can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { APPROVALS, approvalsRequired } from '@/shared/config/approvals.config'
-import type { PageMeta } from '@/shared/contracts/common'
-import type { ApprovalAction, ApprovalDto } from '@/shared/contracts/approval'
+import type { ApprovalAction, ApprovalDto, ApprovalListMetaDto, ApprovalSummaryDto } from '@/shared/contracts/approval'
 import type { Prisma } from '@/generated/prisma/client'
 import type { prisma } from '@/shared/db/prisma'
-import { AppError, conflict, notFound, validationError } from '@/shared/http/errors'
+import { AppError, conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './approvals.repo'
@@ -15,7 +14,7 @@ import {
   approvalPayloadHash,
   type ApprovalPayload,
 } from './approvals.rules'
-import type { ApprovalListQuery, CreateApprovalInput } from './approvals.schema'
+import type { ApprovalListQuery, CreateApprovalInput, RejectApprovalInput } from './approvals.schema'
 
 /**
  * «Четыре глаза» для опасных операций (решение 133).
@@ -31,11 +30,15 @@ import type { ApprovalListQuery, CreateApprovalInput } from './approvals.schema'
 
 type Client = Prisma.TransactionClient | typeof prisma
 
-function toDto(row: repo.ApprovalRow, viewer: CurrentUser, now: Date): ApprovalDto {
+const NO_DETAILS: repo.ApprovalDetails = { targets: new Map(), reasons: new Map(), rejectReasons: new Map() }
+
+function toDto(row: repo.ApprovalRow, viewer: CurrentUser, now: Date, details: repo.ApprovalDetails = NO_DETAILS): ApprovalDto {
+  const payload = (row.payload ?? {}) as Record<string, unknown>
+  const targetId = typeof payload.userId === 'string' ? payload.userId : null
   return {
     id: row.id,
     action: row.action as ApprovalAction,
-    payload: (row.payload ?? {}) as Record<string, unknown>,
+    payload,
     status: row.status,
     requestedBy: row.requestedBy,
     approvedBy: row.approvedBy,
@@ -44,8 +47,27 @@ function toDto(row: repo.ApprovalRow, viewer: CurrentUser, now: Date): ApprovalD
     decidedAt: toIso(row.decidedAt),
     expiresAt: toIsoRequired(row.expiresAt),
     consumedAt: toIso(row.consumedAt),
-    canApprove: row.status === 'REQUESTED' && row.requestedById !== viewer.id && row.expiresAt > now,
+    // Эксперт хакатона (решение 147) видит запросы, но решать не может — сервер откажет.
+    canApprove:
+      row.status === 'REQUESTED' && row.requestedById !== viewer.id && row.expiresAt > now && !viewer.isReviewer,
+    target: targetId ? (details.targets.get(targetId) ?? null) : null,
+    reason: details.reasons.get(row.id) ?? null,
+    rejectReason: details.rejectReasons.get(row.id) ?? null,
   }
+}
+
+/** Один запрос — с тем, над кем операция, и причинами из журнала. */
+async function toDtoWithDetails(row: repo.ApprovalRow, viewer: CurrentUser, now: Date): Promise<ApprovalDto> {
+  return toDto(row, viewer, now, await repo.loadDetails([row]))
+}
+
+/**
+ * Читать запросы — администратору, в том числе учётке эксперта с ролью администратора
+ * (решение 218): эксперт видит экран «Согласования», но решать не может —
+ * `approve`/`reject`/`request` идут через `assertCan` и ему закрыты (решение 147).
+ */
+function assertCanReadApprovals(user: CurrentUser): void {
+  if (!can(user, 'ADMIN')) throw forbidden('Согласования видит только администратор')
 }
 
 function parsePayload(action: ApprovalAction, payload: unknown): ApprovalPayload {
@@ -86,20 +108,30 @@ export async function request(user: CurrentUser, input: CreateApprovalInput, now
     action: 'approval.requested',
     objectType: 'Approval',
     objectId: row.id,
-    payload: { action: input.action, ...payload },
+    payload: { action: input.action, ...payload, ...(input.reason ? { reason: input.reason } : {}) },
   })
-  return toDto(row, user, now)
+  return toDtoWithDetails(row, user, now)
 }
 
 export async function list(
   user: CurrentUser,
   query: ApprovalListQuery,
   now = new Date(),
-): Promise<{ data: ApprovalDto[]; meta: PageMeta }> {
-  assertCan(user, 'ADMIN')
+): Promise<{ data: ApprovalDto[]; meta: ApprovalListMetaDto }> {
+  assertCanReadApprovals(user)
   await repo.expireStale(now)
-  const { rows, total } = await repo.list(query)
-  return { data: rows.map((row) => toDto(row, user, now)), meta: pageMeta(query, total) }
+  const [{ rows, total }, counts] = await Promise.all([repo.list(query, user.id, now), summary(user, now)])
+  const details = await repo.loadDetails(rows)
+  return { data: rows.map((row) => toDto(row, user, now, details)), meta: { ...pageMeta(query, total), ...counts } }
+}
+
+/** Счётчик на пункте меню и вкладках (решение 218) и включено ли требование вообще — в `meta` списка. */
+export async function summary(user: CurrentUser, now = new Date()): Promise<ApprovalSummaryDto> {
+  assertCanReadApprovals(user)
+  // Эксперту — те же числа, что во вкладках (одна база подсчёта): решать он не может,
+  // поэтому счётчик на пункте меню ему не рисуется (navigation.ts), а числа во вкладках — да.
+  const counts = await repo.summary(user.id, now)
+  return { required: approvalsRequired(), ...counts, ttlHours: Math.round(APPROVALS.ttlMs / 3600_000) }
 }
 
 /** Почему решение не прошло — по перечитанной записи, для понятного ответа. */
@@ -125,10 +157,15 @@ export async function approve(user: CurrentUser, id: string, now = new Date()): 
     objectId: id,
     payload: { action: before.action, requestedBy: before.requestedById },
   })
-  return toDto((await repo.findById(id))!, user, now)
+  return toDtoWithDetails((await repo.findById(id))!, user, now)
 }
 
-export async function reject(user: CurrentUser, id: string, now = new Date()): Promise<ApprovalDto> {
+export async function reject(
+  user: CurrentUser,
+  id: string,
+  input: RejectApprovalInput = {},
+  now = new Date(),
+): Promise<ApprovalDto> {
   assertCan(user, 'ADMIN')
   const before = await repo.findById(id)
   if (!before) throw notFound('Запрос на одобрение не найден')
@@ -140,9 +177,13 @@ export async function reject(user: CurrentUser, id: string, now = new Date()): P
     action: 'approval.rejected',
     objectType: 'Approval',
     objectId: id,
-    payload: { action: before.action, requestedBy: before.requestedById },
+    payload: {
+      action: before.action,
+      requestedBy: before.requestedById,
+      ...(input.reason ? { reason: input.reason } : {}),
+    },
   })
-  return toDto((await repo.findById(id))!, user, now)
+  return toDtoWithDetails((await repo.findById(id))!, user, now)
 }
 
 // ──────────────── Точка подключения для опасных операций ────────────────

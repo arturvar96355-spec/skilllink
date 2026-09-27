@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { USER_ROLES, USER_ROLE_LABELS, type IssuedPasswordDto, type UserDto } from '@/shared/contracts'
 import {
   Badge,
@@ -16,6 +16,7 @@ import {
   ToolbarItem,
   ToolbarSearch,
   buildQuery,
+  apiGet,
   useCurrentUser,
   useDebounced,
   usePageInRange,
@@ -52,6 +53,32 @@ export function UsersSection() {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<UserDto | null>(null)
   const [issued, setIssued] = useState<IssuedPassword | null>(null)
+
+  // Ссылка «Открыть пользователя» из «Согласований» (решение 218): `/settings?user=<id>#users`
+  // открывает окно этого пользователя; параметр снимается, чтобы «Назад» не открывал окно снова.
+  useEffect(() => {
+    const id = new URL(window.location.href).searchParams.get('user')
+    if (!id) return
+    let cancelled = false
+    const dropParam = () => {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('user')
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+    apiGet<UserDto>(`/api/users/${encodeURIComponent(id)}`)
+      .then((result) => {
+        if (cancelled) return
+        setEditing(result.data)
+        dropParam()
+      })
+      .catch(() => {
+        // Пользователя нет или нет прав — остаётся обычный список.
+        if (!cancelled) dropParam()
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const query = useDebounced(search.trim(), 300)
   const users = useResource<UserDto[]>(
