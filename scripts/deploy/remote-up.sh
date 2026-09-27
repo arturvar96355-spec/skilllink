@@ -144,6 +144,46 @@ fi
 
 echo "── Стенд поднят"
 
+# ── Caddy: перезапуск при изменении настроек (риск 27.09.2026) ──────────────
+#
+# Выкладка каждый раз заменяет каталог приложения целиком (deploy.sh, `git archive`
+# → новый `app/`), а Caddy держит Caddyfile примонтированным по одному пути и
+# продолжает видеть старый файл, пока его не перезапустят: 27.09 так пропал маршрут
+# `/auth` (Keycloak) до ручного `docker restart`. Сумма — вне каталога `app/`, рядом
+# с `$ENV_FILE` (тот не переписывается выкладкой целиком, живёт между развёртываниями),
+# поэтому сравнение работает и после того, как эта копия кода исчезнет.
+sync_caddy_config() {
+  local caddyfile=deploy/yandex-cloud/Caddyfile
+  local caddy_id
+  # Через `compose ps` по имени сервиса — не по имени контейнера: у локальной
+  # копии стенда (scripts/ops/compose.local.yml) оно другое (skilllink-ops-caddy).
+  caddy_id=$($COMPOSE ps -q caddy 2>/dev/null || true)
+  if [ -z "$caddy_id" ]; then
+    echo "Caddy: контейнер не поднят — пропускаю"
+    return 0
+  fi
+  if [ ! -f "$caddyfile" ]; then
+    echo "Caddy: $caddyfile не найден — пропускаю"
+    return 0
+  fi
+
+  local state_dir hash_file new_hash old_hash
+  state_dir=$(dirname "$(realpath "$ENV_FILE")")
+  hash_file="$state_dir/.caddyfile.sha256"
+  new_hash=$(sha256sum "$caddyfile" | awk '{print $1}')
+  old_hash=$(cat "$hash_file" 2>/dev/null || true)
+
+  if [ "$new_hash" = "$old_hash" ]; then
+    echo "Caddy: настройки не менялись"
+    return 0
+  fi
+
+  echo "Caddy перезапущен: изменился файл настроек"
+  docker restart "$caddy_id" > /dev/null
+  echo "$new_hash" > "$hash_file"
+}
+sync_caddy_config
+
 # ── Проверка после выкладки (решение 118) ───────────────────────────────────
 #
 # «Контейнер здоров» значит только, что процесс жив (/api/health не ходит в базу).
