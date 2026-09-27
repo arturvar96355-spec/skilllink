@@ -223,6 +223,12 @@ describe('подвал', () => {
     expect(isSectionAllowed(user(role), ROUTES.help)).toBe(true)
   })
 
+  it.each(ROLES)('у роли %s в подвале рядом со справкой есть документация (решение 214)', (role) => {
+    const hrefs = serviceLinksFor(user(role)).map((link) => link.href)
+    expect(hrefs).toContain(ROUTES.docs)
+    expect(hrefs.indexOf(ROUTES.docs)).toBe(hrefs.indexOf(ROUTES.help) + 1)
+  })
+
   it.each(ROLES)('у роли %s в подвале есть политика обработки персональных данных', (role) => {
     expect(serviceLinksFor(user(role)).map((link) => link.href)).toContain(ROUTES.privacy)
   })

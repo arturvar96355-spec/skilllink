@@ -123,6 +123,7 @@ export function serviceLinksFor(user: CurrentUserDto): ServiceLink[] {
     // внутри приложения (решение 126).
     { href: API_CONTRACT_URL, label: 'Контракт API', external: true },
     { href: ROUTES.help, label: 'Справка' },
+    { href: ROUTES.docs, label: 'Документация' },
     { href: ROUTES.status, label: 'Состояние системы' },
   ]
   if (user.role !== 'UNIVERSITY_REP') {
