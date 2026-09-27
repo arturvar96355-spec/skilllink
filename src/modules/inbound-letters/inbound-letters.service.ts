@@ -7,7 +7,7 @@ import { log } from '@/shared/log/logger'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { UploadedFile } from '@/shared/http/request'
-import type { AiDraftSource } from '@/shared/contracts/ai-assist'
+import type { AiDraftSource, AiRewriteDto, AiRewriteStyle } from '@/shared/contracts/ai-assist'
 import type { PageMeta } from '@/shared/contracts/common'
 import {
   INBOUND_LETTER_GROUPS,
@@ -16,6 +16,8 @@ import {
   type InboundLetterStatus,
 } from '@/shared/contracts/enums'
 import type {
+  InboundLetterAcceptDto,
+  InboundLetterAcceptanceDto,
   InboundLetterAnalysisDto,
   InboundLetterDto,
   InboundLetterGroupStatsDto,
@@ -24,7 +26,8 @@ import type {
 } from '@/shared/contracts/inbound-letters'
 import { INBOUND_LETTER_LEARNING, LETTER_PREVIEW_LENGTH, SIMILAR_EXAMPLES_LIMIT } from '@/shared/config/inbound-letters.config'
 import { getLlmProvider } from '@/integrations/llm'
-import { compose } from '@/modules/ai-assist/ai-assist.service'
+import { compose, rewriteDraft } from '@/modules/ai-assist/ai-assist.service'
+import { loadLetterInstruction } from '@/modules/ai-assist/ai-assist.letter-instruction'
 import { findRedactionContext } from '@/modules/ai-assist/ai-assist.repo'
 import { createRedactor, type Redact } from '@/modules/ai-assist/ai-assist.privacy'
 import { coolDown } from '@/modules/recommendations/recommendations.learning'
@@ -129,7 +132,11 @@ function analysisOf(
   }
 }
 
-function toDto(row: repo.LetterRow, universityNames: ReadonlyMap<string, string>): InboundLetterDto {
+function toDto(
+  row: repo.LetterRow,
+  universityNames: ReadonlyMap<string, string>,
+  acceptances: readonly InboundLetterAcceptanceDto[] = [],
+): InboundLetterDto {
   return {
     id: row.id,
     senderEmail: row.senderEmail,
@@ -195,6 +202,7 @@ function toDto(row: repo.LetterRow, universityNames: ReadonlyMap<string, string>
             mailto: mailtoLink(row.senderEmail, row.subject, row.replyDraft),
           }
         : null,
+    acceptances: [...acceptances],
     isMock: row.isMock,
     createdAt: toIsoRequired(row.createdAt),
     updatedAt: toIsoRequired(row.updatedAt),
@@ -219,6 +227,20 @@ async function withUniversityNames(rows: readonly repo.LetterRow[]): Promise<Map
   return repo.findUniversityNames(ids)
 }
 
+/**
+ * Карточка одного письма целиком: названия вузов и кто принял письмо в работу
+ * (решение 213). Все ответы по одному письму собираются здесь — иначе ответ
+ * «Верно» показывал бы карточку без отметок «Принято», а перезагрузка — с ними.
+ */
+async function presentOne(row: repo.LetterRow): Promise<InboundLetterDto> {
+  const [universityNames, acceptances] = await Promise.all([withUniversityNames([row]), repo.findAcceptances(row.id)])
+  return toDto(
+    row,
+    universityNames,
+    acceptances.map((item) => ({ userId: item.userId, userName: item.userName, acceptedAt: item.acceptedAt.toISOString() })),
+  )
+}
+
 // ────────────────────────────────── Доступ ───────────────────────────────────
 
 function scopeFor(user: CurrentUser) {
@@ -241,7 +263,7 @@ export async function list(
   const { rows, total } = await repo.findMany(query, scopeFor(user))
   const universityNames = await withUniversityNames(rows)
   const data = rows.map((row) => {
-    const { bodyText, replyDraft, ...rest } = toDto(row, universityNames)
+    const { bodyText, replyDraft, acceptances, ...rest } = toDto(row, universityNames)
     return { ...rest, bodyPreview: bodyPreview(bodyText, LETTER_PREVIEW_LENGTH) }
   })
   return { data, meta: pageMeta({ page: query.page, pageSize: query.pageSize }, total) }
@@ -252,8 +274,7 @@ export async function getById(user: CurrentUser, id: string): Promise<InboundLet
   const row = await repo.findById(id)
   if (!row) throw notFound('Обращение не найдено')
   await assertVisible(user, row)
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
 }
 
 // ──────────────────────────────────── Загрузка ───────────────────────────────
@@ -393,15 +414,20 @@ function taskTitle(group: InboundLetterGroup): string {
 
 /**
  * «Принял, беру в работу» по письму вуза (решение 200) — кнопкой под уведомлением
- * о новом письме. Права — как у разбора письма (`review`): `INBOUND_REVIEW`
- * (ADMIN и HEAD; эксперту — 403). Письмо уже проверено или отклонено — принимать
- * нечего (409). Письмо не меняется: отметка пишется в журнал (`inbound_letter.accept`),
- * повторное нажатие в пределах срока жизни кнопки новой записи не создаёт.
+ * о новом письме в Telegram, а с решения 213 — и в интерфейсе: в карточке письма
+ * и в колокольчике (`source: 'web'`). Права — как у разбора письма (`review`):
+ * `INBOUND_REVIEW` (ADMIN и HEAD; эксперту и менеджеру — 403). Письмо уже проверено
+ * или отклонено — принимать нечего (409). Само письмо не меняется: отметка пишется
+ * в журнал (`inbound_letter.accept`) и видна в карточке строкой «Принято в работу».
+ *
+ * Повтор тем же человеком новой записи не создаёт: у кнопки в Telegram — в пределах
+ * срока жизни кнопки, в интерфейсе — никогда (отметка «я занимаюсь» ставится один раз,
+ * второе нажатие — та же отметка с прежним временем).
  */
 export async function acceptLetter(
   user: CurrentUser,
   id: string,
-  options: { source: 'telegram'; now?: Date },
+  options: { source: 'telegram' | 'web'; now?: Date },
 ): Promise<{ acceptedAt: Date; alreadyAccepted: boolean; label: null }> {
   assertCan(user, 'INBOUND_REVIEW')
   const existing = await repo.findById(id)
@@ -410,12 +436,19 @@ export async function acceptLetter(
     throw conflict('Обращение уже проверено')
   }
   const now = options.now ?? new Date()
+  const since = options.source === 'web' ? new Date(0) : new Date(now.getTime() - TELEGRAM_ACTIONS.ttlMs)
   const { created, at } = await recordAuditOnce(
     { userId: user.id, action: 'inbound_letter.accept', objectType: 'InboundLetter', objectId: id, payload: { source: options.source } },
-    new Date(now.getTime() - TELEGRAM_ACTIONS.ttlMs),
+    since,
   )
   // Уведомление — об одном письме: строке «✓ Принято» подпись не нужна.
   return { acceptedAt: at, alreadyAccepted: !created, label: null }
+}
+
+/** «Принять в работу» из интерфейса — карточка письма и колокольчик (решение 213). */
+export async function acceptLetterFromWeb(user: CurrentUser, id: string, now: Date = new Date()): Promise<InboundLetterAcceptDto> {
+  const result = await acceptLetter(user, id, { source: 'web', now })
+  return { acceptedAt: result.acceptedAt.toISOString(), alreadyAccepted: result.alreadyAccepted }
 }
 
 export async function review(user: CurrentUser, id: string, input: ReviewLetterInput): Promise<InboundLetterDto> {
@@ -516,8 +549,7 @@ export async function review(user: CurrentUser, id: string, input: ReviewLetterI
     payload: { verdict: input.verdict, group, universityId, taskCreated: true },
   })
 
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
 }
 
 // ─────────────────────────────────── Отклонение ──────────────────────────────
@@ -541,8 +573,7 @@ export async function dismissLetter(user: CurrentUser, id: string, input: Dismis
     payload: {},
   })
 
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
 }
 
 // ──────────────────────────────── Задание по письму ───────────────────────────
@@ -578,8 +609,7 @@ export async function completeTask(user: CurrentUser, id: string, now: Date = ne
     payload: {},
   })
 
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
 }
 
 // ────────────────────────────────── Черновик ответа ──────────────────────────
@@ -601,7 +631,8 @@ export async function generateReplyDraft(user: CurrentUser, id: string): Promise
   const universityName = existing.universityId ? (await repo.findUniversityNames([existing.universityId])).get(existing.universityId) ?? null : null
   const redact = await redactorFor(existing.universityId ? [existing.universityId] : [], universityName ? [universityName] : [])
 
-  const prompt = buildReplyDraftPrompt({ universityName, subject: existing.subject, group, action }, redact)
+  const instruction = await loadLetterInstruction()
+  const prompt = buildReplyDraftPrompt({ universityName, subject: existing.subject, group, action }, redact, instruction)
   const outcome = await compose(prompt, user.id, { redact, provider: getLlmProvider() })
 
   const now = new Date()
@@ -615,8 +646,7 @@ export async function generateReplyDraft(user: CurrentUser, id: string): Promise
     payload: { source: outcome.draft.source, fallbackReason: outcome.draft.fallbackReason },
   })
 
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
 }
 
 export async function updateReplyDraft(user: CurrentUser, id: string, input: UpdateReplyDraftInput): Promise<InboundLetterDto> {
@@ -635,8 +665,34 @@ export async function updateReplyDraft(user: CurrentUser, id: string, input: Upd
     payload: {},
   })
 
-  const universityNames = await withUniversityNames([row])
-  return toDto(row, universityNames)
+  return presentOne(row)
+}
+
+/**
+ * «Короче», «Мягче»… у черновика ответа (решение 213). Права — как у самого
+ * черновика (`INBOUND_REVIEW`); маскировка — та же, что у `generateReplyDraft`:
+ * название вуза письма не прячется, ФИО и контакты — да. Текст берётся из запроса
+ * (с правками сотрудника), в базу ничего не пишется: новый вариант сохраняет
+ * человек кнопкой «Сохранить правку».
+ */
+export async function rewriteReplyDraft(
+  user: CurrentUser,
+  id: string,
+  input: { text: string; style: AiRewriteStyle },
+): Promise<AiRewriteDto> {
+  assertCan(user, 'INBOUND_REVIEW')
+  const existing = await repo.findById(id)
+  if (!existing) throw notFound('Обращение не найдено')
+  if (existing.status === 'NEW') throw conflict('Сначала разберите письмо')
+  if (existing.status === 'DISMISSED') throw conflict('Письмо отклонено как не по работе — черновик ответа не нужен')
+
+  const universityName = existing.universityId ? (await repo.findUniversityNames([existing.universityId])).get(existing.universityId) ?? null : null
+  const redact = await redactorFor(existing.universityId ? [existing.universityId] : [], universityName ? [universityName] : [])
+  return rewriteDraft(
+    user,
+    { kind: 'inbound-letter-reply', text: input.text, style: input.style },
+    { redact, provider: getLlmProvider(), subject: { objectType: 'InboundLetter', objectId: id } },
+  )
 }
 
 // ───────────────────────────────────── Статистика ────────────────────────────

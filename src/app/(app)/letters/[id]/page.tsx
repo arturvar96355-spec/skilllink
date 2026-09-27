@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
+  AI_DRAFT_SOURCE_LABELS,
   INBOUND_LETTER_GROUP_LABELS,
   INBOUND_LETTER_SOURCE_LABELS,
   INBOUND_LETTER_TASK_STATUS_LABELS,
   INBOUND_LETTER_VERDICT_LABELS,
   type CurrentUserDto,
+  type InboundLetterAcceptDto,
   type InboundLetterDto,
 } from '@/shared/contracts'
 import {
@@ -24,6 +26,8 @@ import {
   Section,
   SkeletonLines,
   Textarea,
+  Tooltip,
+  Icon,
   apiPatch,
   apiPost,
   cooperationHref,
@@ -36,6 +40,8 @@ import {
   ROUTES,
 } from '@/ui'
 import { DismissModal, ReviewModal } from '../LetterReviewModals'
+import { DraftSourceLine } from '../../AiDraft'
+import { LetterRewrite, rewrittenNote, useDraftRewrite } from '../../LetterRewrite'
 import { analyzedByNote, formatLetterConfidence, highlightQuotes } from '../letters-view'
 import styles from './letter.module.css'
 
@@ -103,7 +109,11 @@ export default function LetterPage() {
                 icon="close"
                 onClick={() => setReviewMode('INCORRECT')}
                 disabled={card.status !== 'ANALYZED'}
-                title={card.status !== 'ANALYZED' ? 'Сначала разберите письмо' : undefined}
+                title={
+                  card.status !== 'ANALYZED'
+                    ? 'Сначала разберите письмо'
+                    : 'Разбор ошибся: укажете правильные вуз, группу и действие'
+                }
               >
                 Неверно
               </Button>
@@ -117,7 +127,7 @@ export default function LetterPage() {
                     ? 'Сначала разберите письмо'
                     : card.current.universityId === null
                       ? 'Разбор не нашёл вуз — используйте «Неверно» и укажите его вручную'
-                      : undefined
+                      : 'Разбор правильный: ответственному за вуз уйдёт задание'
                 }
               >
                 Верно
@@ -164,13 +174,18 @@ export default function LetterPage() {
             </Card>
 
             <Card className={styles.analysisCard}>
-              <h2 className={styles.blockTitle}>Что поняла система</h2>
-              <p className={styles.note}>
-                Перед отправкой в ИИ письмо и черновик ответа очищаются: скрываются почта,
-                телефоны, паспорт, СНИЛС и ФИО, известные системе. Имя и фамилия постороннего
-                человека без отчества могут остаться — текст ответа перед отправкой проверяет
-                человек.
-              </p>
+              <h2 className={styles.blockTitle}>
+                Что поняла система
+                <HelpTip text="Система сама разбирает письмо: по адресу отправителя находит вуз и связку, по тексту — группу и что сделать. Перед отправкой в ИИ из письма скрываются почта, телефоны, паспорт, СНИЛС и известные системе ФИО; имя постороннего человека без отчества может остаться, поэтому ответ перед отправкой проверяет человек." />
+              </h2>
+              {user.permissions.canReviewLetters && card.status === 'ANALYZED' && (
+                <p className={styles.note}>
+                  Проверьте разбор: «Верно» — система заведёт задание ответственному за вуз;
+                  «Неверно» — укажете правильные вуз, группу и действие, и система учтёт исправление
+                  в следующих письмах.
+                </p>
+              )}
+              <AcceptBlock card={card} user={user} onChanged={letter.reload} />
               <dl className={styles.facts}>
                 <Fact
                   label="Вуз"
@@ -199,6 +214,7 @@ export default function LetterPage() {
                 <Fact label="Этап" value={card.current.stageNumber !== null ? `${card.current.stageNumber} из 14` : NO_DATA} />
                 <Fact
                   label="Группа"
+                  help="Тема обращения: договор, встреча, документы и другие. По группе система предлагает действие и заводит задание."
                   value={card.current.group ? <Badge tone="accent">{INBOUND_LETTER_GROUP_LABELS[card.current.group]}</Badge> : NO_DATA}
                 />
                 <Fact label="Предлагаемое действие" value={card.current.action ?? NO_DATA} />
@@ -361,7 +377,10 @@ function ReviewSummary({ card, user, onChanged }: { card: InboundLetterDto; user
   )
 }
 
-/** Черновик ответа вузу: правка, «Открыть в почте», «Скопировать» (решение 170/171). */
+/**
+ * Черновик ответа вузу: правка, переделка кнопками «Короче», «Мягче»… (решение 213),
+ * «Открыть в почте», «Скопировать» (решение 170/171).
+ */
 function ReplyDraft({
   letterId,
   draft,
@@ -372,13 +391,15 @@ function ReplyDraft({
   onChanged: () => void
 }) {
   const toast = useToast()
-  const [text, setText] = useState(draft?.text ?? '')
+  const reply = useDraftRewrite(draft?.text ?? '')
+  const text = reply.text
   const [copied, setCopied] = useState(false)
   const [confirmRecompose, setConfirmRecompose] = useState(false)
+  const { reset } = reply
 
   useEffect(() => {
-    setText(draft?.text ?? '')
-  }, [draft?.text])
+    reset(draft?.text ?? '')
+  }, [draft?.text, reset])
 
   const compose = useMutation(
     async () => (await apiPost<InboundLetterDto>(`/api/inbound-letters/${letterId}/reply-draft`)).data,
@@ -434,7 +455,10 @@ function ReplyDraft({
   if (!draft) {
     return (
       <div className={styles.replyEmpty}>
-        <p className={styles.note}>Черновика ещё нет.</p>
+        <p className={styles.note}>
+          Черновика ещё нет. Система соберёт вежливый ответ по группе письма и предлагаемому действию —
+          моделью ИИ, если она подключена, иначе шаблоном. Отправляете вы сами.
+        </p>
         <Button variant="secondary" icon="mail" onClick={onCompose} isLoading={compose.isPending}>
           Собрать черновик ответа
         </Button>
@@ -443,30 +467,66 @@ function ReplyDraft({
   }
 
   const dirty = text !== draft.text
+  const byModel = draft.source !== 'template'
 
   return (
     <div className={styles.reply}>
-      <Textarea
-        id={REPLY_TEXTAREA_ID}
-        label="Черновик ответа"
-        rows={8}
-        value={text}
-        onChange={(event) => {
-          setText(event.target.value)
-          setCopied(false)
-        }}
-      />
+      {reply.style ? (
+        <DraftSourceLine byModel badge="ИИ · переделка" note={rewrittenNote(reply.style)} />
+      ) : (
+        <DraftSourceLine
+          byModel={byModel}
+          badge={byModel ? `ИИ · ${AI_DRAFT_SOURCE_LABELS[draft.source]}` : 'Без ИИ'}
+          note={
+            byModel
+              ? 'Черновик написал ИИ — проверьте перед отправкой'
+              : 'Черновик собран шаблоном или поправлен вручную — проверьте перед отправкой'
+          }
+        />
+      )}
+      <div className={reply.fieldClassName} aria-busy={reply.pending}>
+        <Textarea
+          id={REPLY_TEXTAREA_ID}
+          label="Черновик ответа"
+          rows={8}
+          value={text}
+          readOnly={reply.pending}
+          onChange={(event) => {
+            reply.setText(event.target.value)
+            setCopied(false)
+          }}
+        />
+      </div>
+      <LetterRewrite target={{ type: 'inbound-letter-reply', id: letterId }} {...reply.barProps} />
       <div className={styles.replyActions}>
-        <Button variant="primary" icon="check" onClick={onSave} disabled={!dirty} isLoading={save.isPending}>
+        <Button
+          variant="primary"
+          icon="check"
+          onClick={onSave}
+          disabled={!dirty || reply.pending}
+          isLoading={save.isPending}
+        >
           Сохранить правку
         </Button>
-        <Button variant="secondary" icon="refresh" onClick={onRecompose} isLoading={compose.isPending}>
+        <Button
+          variant="secondary"
+          icon="refresh"
+          onClick={onRecompose}
+          isLoading={compose.isPending}
+          disabled={reply.pending}
+        >
           Собрать заново
         </Button>
         <Button variant="secondary" icon={copied ? 'check' : undefined} onClick={onCopy}>
           {copied ? 'Скопировано' : 'Скопировать'}
         </Button>
-        <Button variant="ghost" icon="mail" href={draft.mailto} external>
+        <Button
+          variant="ghost"
+          icon="mail"
+          href={draft.mailto}
+          external
+          title={dirty ? 'В почту уйдёт сохранённый текст — сначала сохраните правку' : undefined}
+        >
           Открыть в почте
         </Button>
       </div>
@@ -501,11 +561,80 @@ function ReplyDraft({
   )
 }
 
-function Fact({ label, value }: { label: string; value: ReactNode }) {
+function Fact({ label, value, help }: { label: string; value: ReactNode; help?: string }) {
   return (
     <div className={styles.fact}>
-      <dt className={styles.factLabel}>{label}</dt>
+      <dt className={styles.factLabel}>
+        {label}
+        {help && <HelpTip text={help} />}
+      </dt>
       <dd className={styles.factValue}>{value}</dd>
+    </div>
+  )
+}
+
+/** «?» с коротким пояснением — существующая подсказка `Tooltip` со значком вопроса. */
+function HelpTip({ text }: { text: string }) {
+  return (
+    <Tooltip text={text}>
+      <Icon name="help" size={16} className={styles.help} />
+    </Tooltip>
+  )
+}
+
+/**
+ * Кто занимается письмом (решение 213): «Принять в работу» — то же, что «✓ Принял»
+ * в Telegram (решение 200). Отметку видят коллеги, она пишется в журнал; разбор
+ * письма не меняется. Кнопка — тем, кто разбирает письма, и пока письмо не проверено:
+ * после «Верно»/«Неверно» им уже занимается ответственный по заданию.
+ */
+function AcceptBlock({ card, user, onChanged }: { card: InboundLetterDto; user: CurrentUserDto; onChanged: () => void }) {
+  const toast = useToast()
+  const accept = useMutation(
+    async () => (await apiPost<InboundLetterAcceptDto>(`/api/inbound-letters/${card.id}/accept`)).data,
+  )
+  const open = card.status === 'NEW' || card.status === 'ANALYZED'
+  const acceptedByMe = card.acceptances.some((item) => item.userId === user.id)
+  const canAccept = user.permissions.canReviewLetters && open && !acceptedByMe
+
+  // Проверенному письму, которое никто не принимал, строка не нужна — есть задание.
+  if (!open && card.acceptances.length === 0) return null
+
+  async function onAccept() {
+    const result = await accept.run(undefined)
+    if (!result.ok) {
+      toast.error(result.error.message)
+      return
+    }
+    toast.success(result.data.alreadyAccepted ? 'Вы уже приняли это письмо в работу' : 'Письмо принято в работу')
+    onChanged()
+  }
+
+  return (
+    <div className={styles.acceptBlock}>
+      <div className={styles.acceptText}>
+        <span className={styles.factLabel}>
+          Кто занимается
+          <HelpTip text="«Принять в работу» — отметка «я занимаюсь этим письмом»: её видят коллеги, она попадает в журнал действий. То же, что кнопка «✓ Принял» под уведомлением в Telegram. Разбор письма она не меняет." />
+        </span>
+        {card.acceptances.length === 0 ? (
+          <span className={styles.acceptNone}>Письмо ещё никто не принял в работу</span>
+        ) : (
+          <ul className={styles.acceptList}>
+            {card.acceptances.map((item) => (
+              <li key={item.userId}>
+                <Icon name="check" size={16} className={styles.acceptIcon} />
+                {item.userId === user.id ? 'Вы' : item.userName ?? 'Сотрудник'} — в работе с {formatDateTime(item.acceptedAt)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {canAccept && (
+        <Button variant="secondary" size="sm" icon="check" onClick={onAccept} isLoading={accept.isPending}>
+          Принять в работу
+        </Button>
+      )}
     </div>
   )
 }

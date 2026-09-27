@@ -123,6 +123,10 @@ function stem(word: string): string {
 export function namePartPattern(part: string): string | null {
   const clean = part.replace(/[^A-Za-zА-Яа-яЁё-]/g, '')
   if (clean.length < 3) return null
+  // Часть «ФИО» со строчной буквы — не имя, а обычное слово: у демо-учётки
+  // «Эксперт — представитель вуза» слово «вуза» иначе резало «с вузом» в любом
+  // тексте до «с представитель вуза» (решение 213).
+  if (!/^[A-ZА-ЯЁ]/.test(clean)) return null
   const base = escapeRegExp(stem(clean)).replace(/[её]/g, '[её]').replace(/[ЕЁ]/g, '[ЕЁ]')
   return `${NOT_LETTER_BEFORE}${base}[а-яё]{0,3}${NOT_LETTER_AFTER}`
 }

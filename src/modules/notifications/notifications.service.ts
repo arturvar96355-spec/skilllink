@@ -38,7 +38,13 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
   const now = new Date()
   const windowStart = new Date(now.getTime() - NOTIFICATION_WINDOW_DAYS * DAY_MS)
 
-  const [sources, serverSeenAt] = await Promise.all([
+  // Письма вузов (решение 213) — только тем, кто их разбирает: им же уходит
+  // уведомление о новом письме в Telegram (решение 183). Эксперту — нет: кнопка
+  // «Принять в работу» ему недоступна (решение 147), как и разбор письма.
+  const canTakeLetters = can(user, 'INBOUND_REVIEW') && !user.isReviewer
+  const lettersPromise = canTakeLetters ? repo.loadNewLetters(user.id, windowStart) : Promise.resolve([])
+
+  const [sources, serverSeenAt, letters] = await Promise.all([
     user.role === 'UNIVERSITY_REP'
       ? user.universityId
         ? repo.loadForUniversity(user.universityId, user.id, windowStart)
@@ -52,11 +58,12 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
           })
       : repo.loadForStaff(user.id, windowStart, can(user, 'ANALYTICS')),
     repo.getSeenAt(user.id),
+    lettersPromise,
   ])
 
   const clientSince = query.since ? new Date(query.since) : null
 
-  return buildFeed(sources, {
+  return buildFeed(letters.length > 0 ? { ...sources, letters } : sources, {
     now,
     since: laterOf(clientSince, serverSeenAt),
     limit: query.limit,

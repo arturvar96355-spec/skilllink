@@ -158,3 +158,62 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/* «?» рядом с заголовком или подписью поля (решение 213). */
+.help {
+  color: var(--text-tertiary);
+  vertical-align: -2px;
+}
+
+.blockTitle,
+.factLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* «Кто занимается» и «Принять в работу» (решение 213). */
+.acceptBlock {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.acceptText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.acceptNone {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.acceptList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.acceptList li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.acceptIcon {
+  color: var(--status-success);
+  flex: none;
+}
