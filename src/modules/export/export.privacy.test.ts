@@ -51,6 +51,7 @@ const ROW: UniversityListItemDto = {
   programCount: 2,
   cooperationCount: 1,
   activeCooperationCount: 1,
+  cooperationCountExcludingCancelled: 1,
   isMock: true,
   responsible: null,
   rating: null,

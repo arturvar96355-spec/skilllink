@@ -169,20 +169,43 @@ export async function findById(
   return prisma.university.findUnique({ where: { id }, select: detailSelect })
 }
 
-/** Количество активных связей по каждому вузу. Отдельный запрос: _count не умеет фильтровать так. */
-export async function countActiveCooperations(
+export interface CooperationCounts {
+  /** Черновики и связки в работе (`ACTIVE_COOPERATION_STATUSES`) — как в шапке главной. */
+  active: number
+  /**
+   * Все связки, кроме отменённых (решение 197) — та же база, что у столбцов
+   * «Связки по вузам» и воронки главной (`FUNNEL_PATH`, `CooperationCountsDto.total`).
+   */
+  excludingCancelled: number
+}
+
+const ZERO_COOPERATION_COUNTS: CooperationCounts = { active: 0, excludingCancelled: 0 }
+
+/**
+ * Связки по каждому вузу — сразу в двух базах (решение 197): активные (для
+ * показателей, которые о них говорят) и без отменённых (для карты и колонок,
+ * которые должны совпадать между собой). Один запрос: `_count` не умеет
+ * отдавать разбивку по нескольким вузам и статусам одновременно.
+ */
+export async function countCooperationsByUniversity(
   universityIds: string[],
-): Promise<Map<string, number>> {
+): Promise<Map<string, CooperationCounts>> {
   if (universityIds.length === 0) return new Map()
   const rows = await prisma.cooperation.groupBy({
-    by: ['universityId'],
-    where: {
-      universityId: { in: universityIds },
-      status: { in: [...ACTIVE_COOPERATION_STATUSES] },
-    },
+    by: ['universityId', 'status'],
+    where: { universityId: { in: universityIds } },
     _count: { _all: true },
   })
-  return new Map(rows.map((row) => [row.universityId, row._count._all]))
+  const result = new Map<string, CooperationCounts>()
+  for (const row of rows) {
+    const entry = result.get(row.universityId) ?? { ...ZERO_COOPERATION_COUNTS }
+    if ((ACTIVE_COOPERATION_STATUSES as readonly string[]).includes(row.status)) {
+      entry.active += row._count._all
+    }
+    if (row.status !== 'CANCELLED') entry.excludingCancelled += row._count._all
+    result.set(row.universityId, entry)
+  }
+  return result
 }
 
 export async function create(

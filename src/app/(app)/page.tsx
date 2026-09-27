@@ -31,7 +31,7 @@ import {
   Funnel,
   GapBars,
   PeekProvider,
-  Pie3D,
+  Donut,
   ScoreBar,
   ScoreLegend,
   StageBar,
@@ -70,8 +70,9 @@ import {
   usePeek,
   startMorph,
   type Bars3DGroup,
-  type Pie3DSlice,
-  type Pie3DTone,
+  type DonutSlice,
+  type DonutTexture,
+  type DonutTone,
 } from '@/ui'
 import { PriorityBreakdown } from './PriorityBreakdown'
 import styles from './dashboard.module.css'
@@ -287,7 +288,10 @@ function Dashboard() {
     [feed.data],
   )
 
-  // Карта: вузы в своих городах, размер точки — число связок.
+  // Карта: вузы в своих городах, размер точки — число связок без отменённых
+  // (решение 197) — та же база, что у колонок «Связки по вузам» ниже: раньше
+  // точка считала и отменённые связки, а колонка — нет, и одна и та же пара
+  // «вуз — сколько связок» на одном экране называла два разных числа.
   const universities = useResource<UniversityListItemDto[]>(
     user.role === 'UNIVERSITY_REP' || isWork ? null : '/api/universities?withRating=false&pageSize=100&sort=name',
   )
@@ -302,8 +306,8 @@ function Dashboard() {
             label: row.shortName ?? row.name,
             city: row.city,
             ...at,
-            value: row.cooperationCount,
-            detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
+            value: row.cooperationCountExcludingCancelled,
+            detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCountExcludingCancelled)} связок в работе`,
             href: universityHref(row.id),
             active: row.activeCooperationCount > 0,
           },
@@ -339,17 +343,20 @@ function Dashboard() {
   )
 
   // Где сейчас связки: фаза текущего этапа; без текущего этапа — все пройдены.
-  const phaseSlices: Pie3DSlice[] = useMemo(() => {
+  // Один тон разной светлоты и штриховки по порядку фаз (решение 196), а не радуга.
+  const phaseSlices: DonutSlice[] = useMemo(() => {
     const list = funnelSource.data ?? []
-    const tones: Pie3DTone[] = ['violet', 'pink', 'orange', 'cyan', 'warning']
-    const slices: Pie3DSlice[] = STAGE_PHASES.map((phase, index) => ({
+    const textures: DonutTexture[] = ['solid', 'soft', 'diagonal', 'vertical', 'cross']
+    const slices: DonutSlice[] = STAGE_PHASES.map((phase, index) => ({
       key: phase,
       label: STAGE_PHASE_LABELS[phase],
       value: list.filter((item) => item.currentStage?.phase === phase).length,
-      tone: tones[index] ?? 'muted',
+      tone: 'violet',
+      texture: textures[index] ?? 'dots',
     }))
     const finished = list.filter((item) => item.currentStage === null).length
-    if (finished > 0) slices.push({ key: 'done', label: 'Все этапы пройдены', value: finished, tone: 'success' })
+    if (finished > 0)
+      slices.push({ key: 'done', label: 'Все этапы пройдены', value: finished, tone: 'violet', texture: 'dots' })
     return slices.filter((slice) => slice.value > 0)
   }, [funnelSource.data])
 
@@ -508,7 +515,7 @@ function Dashboard() {
           />
 
           {/*
-            Презентационный режим (решения 79, 95): здоровье портфеля — объёмными
+            Презентационный режим (решения 79, 95, 196): здоровье портфеля — плоскими
             кольцами, где сейчас связки — большим кольцом рядом с картой вузов.
           */}
           {showcase && (
@@ -522,8 +529,8 @@ function Dashboard() {
                       caption="Закрыты до своего срока — из всех закрытых"
                       share={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
                       parts={[
-                        { key: 'ontime', label: 'В срок', tone: 'success' },
-                        { key: 'late', label: 'С опозданием', tone: 'danger' },
+                        { key: 'ontime', label: 'В срок', tone: 'violet' },
+                        { key: 'late', label: 'С опозданием', tone: 'violet' },
                       ]}
                     />
                     <HealthPie
@@ -536,8 +543,8 @@ function Dashboard() {
                         cooperations.filter((item) => item.progress.overdueStages > 0).length,
                       ]}
                       parts={[
-                        { key: 'clean', label: 'Без просрочек', tone: 'cyan' },
-                        { key: 'late', label: 'С просрочкой', tone: 'danger' },
+                        { key: 'clean', label: 'Без просрочек', tone: 'violet' },
+                        { key: 'late', label: 'С просрочкой', tone: 'violet' },
                       ]}
                     />
                     <HealthPie
@@ -551,8 +558,8 @@ function Dashboard() {
                           : undefined
                       }
                       parts={[
-                        { key: 'covered', label: 'Покрыто', tone: 'pink' },
-                        { key: 'gap', label: 'Дефицит', tone: 'muted' },
+                        { key: 'covered', label: 'Покрыто', tone: 'violet' },
+                        { key: 'gap', label: 'Дефицит', tone: 'violet' },
                       ]}
                     />
                   </div>
@@ -571,7 +578,7 @@ function Dashboard() {
                     }
                   >
                     <div className={styles.panel3d} ref={phasePiePrint.ref}>
-                      <Pie3D slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
+                      <Donut slices={phaseSlices} label="Связки по фазам работы" centerLabel="связок" size={300} />
                     </div>
                   </Section>
                 </div>
@@ -995,13 +1002,20 @@ function Dashboard() {
                   {/* Кольцо покрытия уже есть в бенто выше — здесь то, из чего складывается дефицит. */}
                   {showcase && gaps.data && gaps.data.length > 0 && (
                     <div className={styles.gapsBlock}>
-                      <span className={styles.gapsTitle}>Самые большие дефициты · спрос рынка из 100, бирюзой — покрыто</span>
+                      {/*
+                        Решение 197: число справа — сам дефицит (спрос минус покрытие
+                        программой), а не спрос рынка, — раньше подпись и число называли
+                        дефицитом спрос, из-за чего в списке выглядели «дефицитными»
+                        хорошо покрытые навыки с большим спросом.
+                      */}
+                      <span className={styles.gapsTitle}>Самые большие дефициты · число справа — дефицит из 100, бирюзой — покрыто</span>
                       <GapBars
                         rows={gaps.data.map((gap) => ({
                           key: gap.skillId,
                           name: gap.name,
                           demand: gap.demandNormalized ?? 0,
                           coverage: gap.coverage,
+                          gap: gap.gap,
                           isCritical: gap.isCritical,
                           explanation: gap.explanation,
                         }))}
@@ -1064,7 +1078,7 @@ export default function DashboardPage() {
 }
 
 /**
- * Объёмное кольцо-доля для «Здоровья портфеля»: доля и остаток; если известны
+ * Плоское кольцо-доля для «Здоровья портфеля» (решение 196): доля и остаток; если известны
  * количества — сектора по ним (подсказка покажет штуки), иначе по процентам.
  */
 function HealthPie({
@@ -1081,20 +1095,26 @@ function HealthPie({
   caption: string
   share: number | null
   counts?: [number, number]
-  parts: [{ key: string; label: string; tone: Pie3DTone }, { key: string; label: string; tone: Pie3DTone }]
+  parts: [{ key: string; label: string; tone: DonutTone }, { key: string; label: string; tone: DonutTone }]
 }) {
   const values: [number, number] =
     counts ?? (share === null ? [0, 0] : [Math.round(share * 10) / 10, Math.round((100 - share) * 10) / 10])
   return (
     <figure className={styles.healthItem}>
-      <Pie3D
-        slices={parts.map((part, index) => ({ ...part, value: values[index] ?? 0 }))}
+      <Donut
+        slices={parts.map((part, index) => ({
+          ...part,
+          value: values[index] ?? 0,
+          // Одна фиолетовая гамма, как у «Где сейчас связки» (решение 196, 27.09):
+          // основная доля — сплошной, остаток («с опозданием», «дефицит») — штриховкой
+          // того же тона. «Плохую» долю выдаёт узор и подпись, а не красный цвет.
+          texture: index === 0 ? 'solid' : 'diagonal',
+        }))}
         label={title}
         centerLabel={short}
         centerValue={share === null ? undefined : `${share.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`}
         valueSuffix={counts ? '' : '%'}
         size={220}
-        thickness={0.6}
       />
       <figcaption className={styles.healthCaption}>
         <strong className={styles.healthTitle}>{title}</strong>
