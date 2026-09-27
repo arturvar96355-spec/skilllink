@@ -18,6 +18,7 @@ import {
   ErrorState,
   InboundLetterStatusBadge,
   Input,
+  DownloadButton,
   ListTitle,
   NO_DATA,
   PageHeader,
@@ -206,8 +207,27 @@ function LettersView() {
     <>
       <PageHeader
         title="Письма вузов"
-        description="Письма вузов как обращения: разбор системы, проверка сотрудником и задание ответственному. Живого почтового ящика нет — демо-письма и загрузка .eml."
-        actions={user.permissions.canReviewLetters ? <UploadLetterButton onUploaded={(id) => router.push(letterHref(id))} /> : undefined}
+        description={
+          user.permissions.canReviewLetters
+            ? 'Письма вузов как обращения: разбор системы, проверка сотрудником и задание ответственному. Живого почтового ящика нет — демо-письма и загрузка .eml (кнопка справа; пример письма — рядом).'
+            : 'Письма вузов как обращения: разбор системы, проверка сотрудником и задание ответственному. Живого почтового ящика нет — демо-письма и загрузка .eml. Загружать и разбирать письма могут администратор и руководитель.'
+        }
+        actions={
+          user.permissions.canReviewLetters ? (
+            <>
+              {/* Решение 210 (В7): чем проверить загрузку, если своего .eml нет. */}
+              <DownloadButton
+                href="/demo/pismo-vuza.eml"
+                fallbackName="pismo-vuza.eml"
+                variant="ghost"
+                title="Демонстрационное письмо МТУСИ: загрузите его кнопкой «Загрузить письмо», второй раз — «Это письмо уже загружено»"
+              >
+                Пример письма
+              </DownloadButton>
+              <UploadLetterButton onUploaded={(id) => router.push(letterHref(id))} />
+            </>
+          ) : undefined
+        }
       />
 
       <Section>
