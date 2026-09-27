@@ -11,6 +11,7 @@ import {
   useState,
   type CSSProperties,
   type FocusEvent,
+  type KeyboardEvent,
   type PointerEvent,
   type RefObject,
 } from 'react'
@@ -350,6 +351,16 @@ function StageItem({
       }
     : {}
 
+  // Панель — в body, в конце документа: Tab с отметки сам бы в неё не попал.
+  // Открыта — Tab ведёт в первую строку списка.
+  const enterList = (event: KeyboardEvent) => {
+    if (event.key !== 'Tab' || event.shiftKey || !isOpen) return
+    const first = popRef.current?.querySelector<HTMLElement>('a[href]') ?? popRef.current?.querySelector<HTMLElement>('button')
+    if (!first) return
+    event.preventDefault()
+    first.focus()
+  }
+
   const listLabel = `Этап ${number} из ${TOTAL_STAGES}: ${formatNumber(group.count)} ${cooperationsWord(group.count)}${
     stuck ? `, ${formatNumber(group.stuckCount)} ${attentionWord(group.stuckCount)} внимания` : ''
   }`
@@ -384,6 +395,7 @@ function StageItem({
             aria-controls={isOpen ? listId : undefined}
             aria-label={`${listLabel}. ${countLabel(group)}. Показать список`}
             onClick={() => popover.toggle(number)}
+            onKeyDown={enterList}
           >
             <span aria-hidden>{countText(group.count)}</span>
           </button>
@@ -410,6 +422,7 @@ function StageItem({
               aria-controls={isOpen ? listId : undefined}
               aria-label={`${listLabel}. Ещё ${formatNumber(marker.more)} — показать все`}
               onClick={() => popover.toggle(number)}
+            onKeyDown={enterList}
             >
               +{formatNumber(marker.more)}
             </button>
@@ -519,6 +532,15 @@ function StageList({
       className={isSheet ? `${styles.pop} ${styles.popSheet}` : styles.pop}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
+      onKeyDown={(event) => {
+        // Выход из панели с клавиатуры — назад на отметку этапа: дальше Tab идёт по маршруту как обычно.
+        if (event.key !== 'Tab') return
+        const items = [...(popRef.current?.querySelectorAll<HTMLElement>('a[href], button') ?? [])]
+        const edge = event.shiftKey ? items[0] : items.at(-1)
+        if (document.activeElement !== edge) return
+        event.preventDefault()
+        onClose()
+      }}
       style={
         isSheet
           ? undefined
