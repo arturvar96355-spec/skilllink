@@ -59,6 +59,7 @@ import { CohortsTab } from './CohortsTab'
 import { FunnelTab } from './FunnelTab'
 import { demandConclusion, demandRows, gapRows, gapsConclusion, ratingConclusion } from './analytics-view'
 import { MeetingsHeatmap } from './MeetingsHeatmap'
+import { ProductRecommendationsTab } from './ProductRecommendationsTab'
 import { StagesTab } from './StagesTab'
 import styles from './analytics.module.css'
 
@@ -66,6 +67,8 @@ const TABS: TabItem[] = [
   { key: 'rating', label: 'Рейтинг программ' },
   { key: 'skills', label: 'Навыки и дефициты' },
   { key: 'demand', label: 'Спрос рынка' },
+  // Какой IT-продукт какой программе предложить (решение 223).
+  { key: 'products', label: 'Рекомендации продуктов' },
   // Переходы между фазами и выбывшие связки (решение 215).
   { key: 'funnel', label: 'Воронка' },
   // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
@@ -76,13 +79,14 @@ const TABS: TabItem[] = [
   { key: 'meetings', label: 'Встречи' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand' | 'funnel' | 'stages' | 'cohorts' | 'meetings'
+type TabKey = 'rating' | 'skills' | 'demand' | 'products' | 'funnel' | 'stages' | 'cohorts' | 'meetings'
 
 function isTabKey(value: string | null): value is TabKey {
   return (
     value === 'rating' ||
     value === 'skills' ||
     value === 'demand' ||
+    value === 'products' ||
     value === 'funnel' ||
     value === 'stages' ||
     value === 'cohorts' ||
@@ -140,7 +144,7 @@ function AnalyticsView() {
       <PageHeader
         title="Аналитика"
         help={{ topic: 'analytics' }}
-        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, где связки выбывают и застревают, как быстро когорты доходят до договора, когда встречаются с вузами."
+        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, какой продукт куда предложить, где связки выбывают и застревают, как быстро когорты доходят до договора, когда встречаются с вузами."
         actions={
           // Лист A4 для печати и PDF (решение 97): сводка всего раздела на одной странице.
           <Button href={ROUTES.managerReport} icon="document" variant="secondary">
@@ -159,6 +163,7 @@ function AnalyticsView() {
         />
       )}
       {tab === 'demand' && <DemandTab />}
+      {tab === 'products' && <ProductRecommendationsTab />}
       {tab === 'funnel' && <FunnelTab />}
       {tab === 'stages' && <StagesTab />}
       {tab === 'cohorts' && <CohortsTab />}

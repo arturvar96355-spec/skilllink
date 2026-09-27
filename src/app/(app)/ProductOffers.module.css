@@ -1,0 +1,182 @@
+/*
+ * «Что предложить вузу» и черновик письма-предложения (решение 223).
+ * Только токены из globals.css: своих цветов и кеглей здесь нет.
+ */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.summary {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.method {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.common {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.offer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line-subtle);
+}
+
+.offer:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-body-sm-size);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.reasons li::marker {
+  color: var(--text-tertiary);
+}
+
+.confidence {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.confidence[data-low] {
+  color: var(--status-warning);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.excluded {
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+.excluded summary {
+  cursor: pointer;
+  color: var(--text-tertiary);
+}
+
+.excluded ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+.excludedName {
+  color: var(--text-primary);
+}
+
+.foot {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* ── Черновик письма ── */
+
+.letter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.letterFacts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+}
+
+.letterFacts > div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.letterFacts dt {
+  color: var(--text-tertiary);
+}
+
+.letterFacts dd {
+  margin: 0;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.masked {
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+.letterHint {
+  color: var(--text-tertiary);
+}
+
+.mockWarning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .letterFacts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
