@@ -351,3 +351,9 @@
     justify-content: flex-start;
   }
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .navItem {
+    min-height: var(--touch-target);
+  }
+}

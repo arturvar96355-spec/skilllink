@@ -1,6 +1,8 @@
 /* Кнопка-иконка: компактный прямоугольник со скруглением, не идеальный круг (раздел 8). */
 
 .button {
+  /* Зона нажатия 44 × 44 на сенсорном экране при видимых 30 и 38 px (решение 219). */
+  composes: hit from './HitArea.module.css';
   display: inline-flex;
   align-items: center;
   justify-content: center;

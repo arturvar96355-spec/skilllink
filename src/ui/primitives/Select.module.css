@@ -178,3 +178,16 @@
   font-size: var(--text-label-size);
 }
 
+/*
+ * Телефон (решение 219): список — в рост пальца, вровень с полем ввода
+ * и кнопкой; варианты в раскрытом списке тоже не меньше 44 px.
+ */
+@media (max-width: 767px) {
+  .trigger {
+    height: var(--touch-target);
+  }
+
+  .option {
+    min-height: var(--touch-target);
+  }
+}

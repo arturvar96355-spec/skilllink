@@ -144,3 +144,10 @@
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .itemLink {
+    display: block;
+    min-height: var(--touch-target);
+  }
+}

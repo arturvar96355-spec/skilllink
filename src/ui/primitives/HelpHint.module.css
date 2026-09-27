@@ -71,3 +71,11 @@
   outline: 2px solid var(--border-active);
   outline-offset: 2px;
 }
+
+/* «Подробнее в документации» под пальцем: строка ссылки — 44 px (решение 219). */
+@media (pointer: coarse) {
+  .more {
+    min-height: var(--touch-target);
+    margin-top: 0;
+  }
+}

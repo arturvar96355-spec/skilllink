@@ -314,3 +314,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Сроки и важность поручения под пальцем — 44 px (решение 219). */
+@media (pointer: coarse) {
+  .chip,
+  .segment {
+    min-height: var(--touch-target);
+  }
+}

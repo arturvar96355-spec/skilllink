@@ -11,6 +11,7 @@
 }
 
 .crumbLink {
+  composes: hit from '../primitives/HitArea.module.css';
   transition: color var(--motion-micro) var(--ease-out);
 }
 
@@ -186,6 +187,33 @@
   justify-content: center;
   height: 38px;
   padding: 0 var(--space-1);
+}
+
+/* Телефон: поля здесь 44 px (решение 219) — «?» по-прежнему по их середине. */
+/*
+ * Телефон (решение 219). Поля здесь 44 px — «?» по-прежнему по их середине.
+ * Фильтры заполняют ряд: поиск — во всю строку, списки — по два в ряд
+ * поровну, а не узкими столбиками по 150 px с пустотой справа.
+ * Блок действий шапки с полем поиска («Команда») — тоже во всю строку:
+ * иначе он сжимался по содержимому, и поиск был шириной в две трети экрана.
+ */
+@media (max-width: 767px) {
+  .toolbarHelp {
+    height: var(--touch-target);
+  }
+
+  .toolbarSearch {
+    flex-basis: 100%;
+  }
+
+  .toolbarItem {
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .actions:has(input) {
+    flex: 1 1 100%;
+  }
 }
 
 .toolbarActions {

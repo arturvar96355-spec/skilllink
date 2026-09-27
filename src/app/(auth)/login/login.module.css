@@ -702,3 +702,30 @@
   width: 100%;
   height: 100%;
 }
+
+/*
+ * Вход с телефона (решение 219): поля — 44 px и 16 px кегля (общее правило
+ * globals.css — иначе iOS увеличивает страницу при фокусе), кнопки быстрого
+ * входа — в рост пальца, а не 30 px, ссылки подвала — строкой 44 px.
+ */
+@media (max-width: 767px) {
+  .form input {
+    height: var(--touch-target);
+  }
+}
+
+@media (pointer: coarse) {
+  .expertLoginButtons > button {
+    height: var(--touch-target);
+  }
+
+  .panelFoot {
+    row-gap: 0;
+  }
+
+  .privacyLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--touch-target);
+  }
+}

@@ -1,6 +1,7 @@
 /* Кнопки — единственный источник их вида. Отдельных стилей кнопок на страницах быть не должно. */
 
 .button {
+  composes: hit from './HitArea.module.css';
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -40,6 +41,17 @@
   padding: 0 var(--space-5);
   font-size: var(--text-body-size);
   font-weight: 650;
+}
+
+/*
+ * Телефон (решение 219): обычная кнопка — в рост пальца, вровень с полями
+ * ввода и списками, которые здесь тоже 44 px. Маленькая остаётся 30 px
+ * на вид, зону нажатия ей добирает HitArea.
+ */
+@media (max-width: 767px) {
+  .md {
+    height: var(--touch-target);
+  }
 }
 
 /*
