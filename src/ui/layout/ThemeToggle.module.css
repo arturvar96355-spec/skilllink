@@ -26,11 +26,26 @@
 .core {
   fill: currentColor;
   transform-origin: 12px 12px;
-  transition: transform var(--motion-panel) var(--ease-out);
+  transition:
+    transform var(--motion-panel) var(--ease-out),
+    opacity var(--motion-surface) var(--ease-out);
 }
 
 .bite {
   transition: transform var(--motion-panel) var(--ease-out);
+}
+
+.moon {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  transform-origin: 12px 12px;
+  opacity: 0;
+  transform: rotate(-30deg) scale(0.5);
+  transition:
+    transform var(--motion-panel) var(--ease-out),
+    opacity var(--motion-surface) var(--ease-out);
 }
 
 .rays {
@@ -43,9 +58,15 @@
     opacity var(--motion-surface) var(--ease-out);
 }
 
-/* Тёмная тема — показываем луну: круг больше, тень наезжает, лучей нет. */
+/* Тёмная тема — показываем луну: солнце сжимается и гаснет, месяц проявляется. */
 .toggle[data-theme-icon='dark'] .core {
   transform: scale(1.4);
+  opacity: 0;
+}
+
+.toggle[data-theme-icon='dark'] .moon {
+  opacity: 1;
+  transform: scale(0.82);
 }
 
 .toggle[data-theme-icon='dark'] .bite {
@@ -60,6 +81,7 @@
 @media (prefers-reduced-motion: reduce) {
   .core,
   .bite,
+  .moon,
   .rays {
     transition: none;
   }
