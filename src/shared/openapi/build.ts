@@ -2,6 +2,7 @@ import { z } from '@/shared/zod'
 import { ERROR_STATUS, type ErrorCode } from '@/shared/http/errors'
 import { rateLimitGroup } from '@/shared/http/rate-limit'
 import { ENDPOINTS, type EndpointSpec } from './registry'
+import packageJson from '../../../package.json'
 
 /**
  * Сборка спецификации OpenAPI 3.1 из реестра эндпоинтов.
@@ -254,7 +255,9 @@ export function buildOpenApiDocument(baseUrl = 'http://localhost:3000'): JsonSch
     openapi: '3.1.0',
     info: {
       title: 'SkillLink API',
-      version: '1.0.0',
+      // Версия API — версия приложения из package.json (решение 212): одна на /api/health,
+      // метрики и спецификацию, расходиться им не с чего.
+      version: String(packageJson.version),
       description: [
         'Система контроля взаимодействия с учебными заведениями (IT Школа РТК).',
         '',

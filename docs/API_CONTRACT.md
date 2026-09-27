@@ -434,7 +434,7 @@ curl -s http://localhost:3000/api/health
 ```
 
 ```json
-{ "data": { "status": "ok", "uptimeSeconds": 5321, "commit": "a1b2c3d", "version": "0.1.0",
+{ "data": { "status": "ok", "uptimeSeconds": 5321, "commit": "a1b2c3d", "version": "1.0.0",
             "time": "2026-09-25T20:35:05.744Z" } }
 ```
 

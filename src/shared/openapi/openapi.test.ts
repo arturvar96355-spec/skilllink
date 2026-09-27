@@ -140,3 +140,11 @@ describe('сборка документа', () => {
     expect(description).toContain('ADMIN')
   })
 })
+
+describe('версия в спецификации (решение 212)', () => {
+  it('info.version совпадает с версией приложения и равна 1.0.0', async () => {
+    const pkg = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
+    expect(pkg.version).toBe('1.0.0')
+    expect(buildOpenApiDocument().info.version).toBe(pkg.version)
+  })
+})
