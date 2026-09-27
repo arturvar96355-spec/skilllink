@@ -89,6 +89,15 @@ latest_backup() {
   printf '%s' "$latest"
 }
 
+# Самый свежий архив загруженных файлов (решение 216) — так же, по дате в имени.
+latest_uploads() {
+  local file latest=""
+  for file in "$BACKUP_DIR"/skilllink-uploads-*.tar.gz; do
+    [ -f "$file" ] && latest=$file
+  done
+  printf '%s' "$latest"
+}
+
 # Код ответа адреса; с RESOLVE=host:port:ip — соединение на ip с именем host (как у Caddy).
 http_code() {
   local url=$1 out=${2:-/dev/null}
