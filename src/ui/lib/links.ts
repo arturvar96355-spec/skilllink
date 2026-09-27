@@ -96,6 +96,14 @@ export function letterHref(id: string): string {
   return `${ROUTES.letters}/${id}`
 }
 
+/**
+ * Поручение (решение 207) — в «Моих поручениях» личного кабинета: блок открывается
+ * на нужной вкладке, строка подсвечивается и прокручивается в видимую часть.
+ */
+export function assignmentHref(id: string): string {
+  return `${ROUTES.profile}?assignment=${encodeURIComponent(id)}#my-assignments`
+}
+
 /** Результат глобального поиска ведёт на страницу своего объекта. */
 export function searchItemHref(type: SearchEntityType, id: string): string {
   switch (type) {
@@ -128,6 +136,8 @@ export function notificationHref(target: NotificationTargetDto): string {
       return recommendationHref(target.id)
     case 'university':
       return universityHref(target.id)
+    case 'assignment':
+      return assignmentHref(target.id)
   }
 }
 

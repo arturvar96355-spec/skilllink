@@ -7,6 +7,8 @@ import type {
 } from './dsar'
 import type {
   ApplicationStatus,
+  AssignmentPriority,
+  AssignmentStatus,
   ConfidenceLevel,
   ConsentForm,
   ConsentStatus,
@@ -330,6 +332,19 @@ export const INBOUND_LETTER_TASK_STATUS_LABELS: Record<InboundLetterTaskStatus, 
   DONE: 'Выполнено',
 }
 
+/** Статус поручения (решение 207) — так его видят и сотрудник, и руководитель. */
+export const ASSIGNMENT_STATUS_LABELS: Record<AssignmentStatus, string> = {
+  NEW: 'Новое',
+  IN_PROGRESS: 'В работе',
+  DONE: 'Сделано',
+}
+
+/** Важность поручения (решение 207). */
+export const ASSIGNMENT_PRIORITY_LABELS: Record<AssignmentPriority, string> = {
+  NORMAL: 'Обычная',
+  HIGH: 'Важная',
+}
+
 /** Происхождение показателя: как объяснить пользователю, откуда взялось число. */
 export const METRIC_BASIS_LABELS = {
   actual: 'Фактические данные',
@@ -445,6 +460,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditActionCode, string> = {
   'inbound_letter.accept': 'Письмо вуза принято в работу (кнопка в Telegram)',
   'cooperation.responsible.set': 'Изменён ответственный за связку',
   'stage.responsible.set': 'Изменён ответственный за этап',
+  'assignment.create': 'Дано поручение',
+  'assignment.update': 'Изменено поручение',
+  'assignment.status': 'Изменён статус поручения',
 }
 
 /** Тип объекта записи журнала — словами, для фильтра и строки записи. */
@@ -474,6 +492,7 @@ export const AUDIT_OBJECT_TYPE_LABELS: Record<AuditObjectType, string> = {
   WorkflowStageTemplate: 'Шаблон этапа workflow',
   Attachment: 'Файл',
   InboundLetter: 'Письмо вуза',
+  Assignment: 'Поручение',
 }
 
 /** Статус запроса на одобрение (решение 133). */

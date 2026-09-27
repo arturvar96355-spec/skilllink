@@ -65,6 +65,19 @@ describe('ограничения схемы, которые живут толь�
     expect(schema).toContain('universities_name_lower_idx')
   })
 
+  it('решение 207: поручения — текст 1–300 без краевых пробелов, дата выполнения ровно у «Сделано»', () => {
+    expect(migrations).toContain('assignments_text_check')
+    expect(migrations).toMatch(/char_length\("text"\) BETWEEN 1 AND 300/)
+    expect(migrations).toContain('assignments_done_at_check')
+    expect(migrations).toMatch(/\("status" = 'DONE'\) = \("done_at" IS NOT NULL\)/)
+    // Схема упоминает оба ограничения — иначе их не найти.
+    expect(schema).toContain('assignments_text_check')
+    expect(schema).toContain('assignments_done_at_check')
+    // Индексы под «Мои поручения» и колокольчик.
+    expect(schema).toMatch(/@@index\(\[assigneeId, status\]\)/)
+    expect(schema).toMatch(/@@index\(\[dueAt\]\)/)
+  })
+
   it('статистика правил рекомендаций: успехов не больше показов (решение 119)', () => {
     // successes_eff ≤ trials_eff держит запись (GREATEST в upsert); CHECK — страховка.
     expect(migrations).toContain('recommendation_rule_stats_counts_check')

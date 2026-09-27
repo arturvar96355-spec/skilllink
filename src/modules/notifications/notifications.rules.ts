@@ -7,6 +7,13 @@ import type {
 } from '@/shared/contracts/notification'
 import { documentEventTitle, stageEventTitle } from '@/modules/audit/audit.rules'
 import { isDueSoon, isOverdue } from '@/modules/workflow/workflow.rules'
+import {
+  daysBetweenIso,
+  dueDateValue,
+  isAssignmentOverdue,
+  todayIso,
+} from '@/modules/assignments/assignments.rules'
+import type { AssignmentPriority, AssignmentStatus } from '@/shared/contracts/enums'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -89,12 +96,92 @@ export type ResponsibleAssignedSource =
       stageTitle: string
     })
 
+/** Открытое поручение пользователю (решение 207). */
+export interface AssignmentFeedSource {
+  id: string
+  text: string
+  status: AssignmentStatus
+  priority: AssignmentPriority
+  /** Срок — календарная дата `ГГГГ-ММ-ДД`. */
+  dueDate: string
+  /** Краткое название вуза; `null` — поручение без вуза. */
+  universityName: string | null
+  cooperationId: string | null
+  /** Поручил не сам пользователь — тогда оно «новое» для него. */
+  fromSomeoneElse: boolean
+  createdAt: Date
+}
+
 export interface FeedSources {
   deadlines: StageDeadlineSource[]
   stageChanges: StageChangeSource[]
   documentChanges: DocumentChangeSource[]
   recommendations: RecommendationSource[]
   responsibleAssignments: ResponsibleAssignedSource[]
+  /** Открытые поручения пользователю (решение 207); у представителя вуза их нет. */
+  assignments: AssignmentFeedSource[]
+}
+
+/** Длиннее — обрезаем с многоточием: заголовок пункта ленты в одну-две строки. */
+const ASSIGNMENT_TITLE_TEXT = 90
+
+function quoteAssignment(text: string): string {
+  const short = text.length > ASSIGNMENT_TITLE_TEXT ? `${text.slice(0, ASSIGNMENT_TITLE_TEXT - 1).trimEnd()}…` : text
+  return `«${short}»`
+}
+
+function assignmentWhere(source: AssignmentFeedSource, dueText: string): string {
+  return [source.universityName, dueText].filter(Boolean).join(' · ')
+}
+
+/**
+ * Пункты ленты по поручению: «Вам поручение» — если дал кто-то другой; «Срок поручения
+ * завтра» — накануне; «Срок поручения прошёл» — после дня срока. Просрочка — тем же
+ * правилом, что список поручений (`isAssignmentOverdue`). Время события — когда оно
+ * наступило: создание, начало дня накануне срока, начало дня после срока (по Москве) —
+ * иначе «прочитано» не работало бы, как и у сроков этапов.
+ */
+function assignmentItems(source: AssignmentFeedSource, now: Date): Array<Omit<NotificationDto, 'isUnread'>> {
+  const today = todayIso(now)
+  const target = { type: 'assignment' as const, id: source.id, cooperationId: source.cooperationId, stageId: null }
+  const [year, month, day] = source.dueDate.split('-')
+  const dueText = `срок ${day}.${month}.${year}`
+  const items: Array<Omit<NotificationDto, 'isUnread'>> = []
+  if (source.fromSomeoneElse) {
+    items.push({
+      id: `assignment-new:${source.id}`,
+      kind: 'assignment.new',
+      severity: source.priority === 'HIGH' ? 'warning' : 'info',
+      title: `Вам поручение${source.priority === 'HIGH' ? ' (важное)' : ''}: ${quoteAssignment(source.text)}`,
+      description: assignmentWhere(source, dueText),
+      occurredAt: source.createdAt.toISOString(),
+      target,
+    })
+  }
+  // Начало московских суток даты `iso`: столбец `date` — полночь UTC, по Москве это 03:00.
+  const moscowStart = (iso: string) => new Date(dueDateValue(iso).getTime() - 3 * 60 * 60 * 1000)
+  if (isAssignmentOverdue(source.dueDate, source.status, today)) {
+    items.push({
+      id: `assignment-overdue:${source.id}`,
+      kind: 'assignment.overdue',
+      severity: 'critical',
+      title: `Срок поручения прошёл: ${quoteAssignment(source.text)}`,
+      description: assignmentWhere(source, dueText),
+      occurredAt: new Date(moscowStart(source.dueDate).getTime() + DAY_MS).toISOString(),
+      target,
+    })
+  } else if (daysBetweenIso(today, source.dueDate) === 1) {
+    items.push({
+      id: `assignment-due-soon:${source.id}`,
+      kind: 'assignment.due-soon',
+      severity: 'warning',
+      title: `Срок поручения завтра: ${quoteAssignment(source.text)}`,
+      description: assignmentWhere(source, dueText),
+      occurredAt: moscowStart(today).toISOString(),
+      target,
+    })
+  }
+  return items
 }
 
 function where(universityName: string, programName: string): string {
@@ -280,6 +367,10 @@ export function buildFeed(
     items.push({ id: `responsible:${change.auditLogId}`, severity: 'info', ...responsibleItem(change) })
   }
 
+  for (const assignment of sources.assignments) {
+    items.push(...assignmentItems(assignment, now))
+  }
+
   // Новые сверху; при равном времени — порядок по id, чтобы лента не «прыгала»
   // между запросами.
   items.sort((a, b) => b.occurredAt.localeCompare(a.occurredAt) || a.id.localeCompare(b.id))
@@ -295,12 +386,14 @@ export function buildFeed(
   // статистике (решения 37 и 50). Поэтому в показанную часть сначала попадают
   // все просрочки, а остальное место — по времени. Порядок внутри ленты — от новых
   // к старым, как у остальной ленты.
+  // Просроченное поручение (решение 207) — такое же состояние «ждёт действия».
+  const isOverdueItem = (item: NotificationDto) => item.kind === 'stage.overdue' || item.kind === 'assignment.overdue'
   const overdueIds = withUnread
-    .filter((item) => item.kind === 'stage.overdue')
+    .filter(isOverdueItem)
     .slice(0, limit)
     .map((item) => item.id)
   const restIds = withUnread
-    .filter((item) => item.kind !== 'stage.overdue')
+    .filter((item) => !isOverdueItem(item))
     .slice(0, limit - overdueIds.length)
     .map((item) => item.id)
   const shown = new Set([...overdueIds, ...restIds])

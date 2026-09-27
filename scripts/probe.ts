@@ -2928,6 +2928,13 @@ async function checkSearchAndNotifications(ctx: ProbeContext): Promise<void> {
     check('просрочка в ленте не повторяется рекомендацией', duplicates.length === 0, `повторов ${duplicates.length}`)
     let broken = 0
     for (const item of feed.body.data?.items ?? []) {
+      // Поручение (решение 207) отдельной карточки в API не имеет — открывается в
+      // «Моих поручениях»: проверяем, что оно есть в списке исполнителя.
+      if (item.target.type === 'assignment') {
+        const mine = await call<Array<{ id: string }>>('GET', `/api/assignments?assigneeId=${managerId}`)
+        if (mine.status !== 200 || !(mine.body.data ?? []).some((row) => row.id === item.target.id)) broken += 1
+        continue
+      }
       const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
       if (opened.status !== 200) broken += 1
     }
@@ -2969,6 +2976,13 @@ async function checkSearchAndNotifications(ctx: ProbeContext): Promise<void> {
     check('в ленте представителя вуза нет внутреннего', feed.status === 200 && internal === 0)
     let broken = 0
     for (const item of feed.body.data?.items ?? []) {
+      // Поручение (решение 207) отдельной карточки в API не имеет — открывается в
+      // «Моих поручениях»: проверяем, что оно есть в списке исполнителя.
+      if (item.target.type === 'assignment') {
+        const mine = await call<Array<{ id: string }>>('GET', `/api/assignments?assigneeId=${managerId}`)
+        if (mine.status !== 200 || !(mine.body.data ?? []).some((row) => row.id === item.target.id)) broken += 1
+        continue
+      }
       const opened = await call('GET', `${targetPath[item.target.type]}${item.target.id}`)
       if (opened.status !== 200) broken += 1
     }

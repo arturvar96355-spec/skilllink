@@ -24,6 +24,7 @@ import type { CurrentUser } from '@/shared/auth/current-user'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
+import { seedAssignments } from './seed-assignments'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
 import { validInn, validOgrn } from './demo/random'
@@ -85,6 +86,8 @@ async function clean(): Promise<void> {
   ])
   await prisma.universityMerge.deleteMany()
   await prisma.duplicateDismissal.deleteMany()
+  // Поручения (решение 207) — до пользователей: у исполнителя и автора RESTRICT.
+  await prisma.assignment.deleteMany()
   // Письма вузов (решение 170): задания и статистика — до связок и вузов, на которые
   // они ссылаются (RESTRICT у InboundLetterTask.universityId).
   await prisma.inboundLetterTask.deleteMany()
@@ -2379,6 +2382,7 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
     Документы: await prisma.document.count(),
     Встречи: await prisma.meeting.count(),
     'Заявки на обучение': await prisma.application.count(),
+    Поручения: await prisma.assignment.count(),
     'Записи журнала': await prisma.auditLog.count(),
     'Печати журнала': await prisma.auditSeal.count(),
     Пользователи: await prisma.user.count(),
@@ -2413,7 +2417,7 @@ async function main(): Promise<void> {
   await clean()
 
   const users = await seedUsers()
-  await seedHeadUser(users.demoPasswordHash)
+  const head = await seedHeadUser(users.demoPasswordHash)
   await seedWorkflowStageTemplates()
   const mockSource = await seedDataSources()
   const skillId = await seedSkills()
@@ -2439,6 +2443,19 @@ async function main(): Promise<void> {
     manager2: users.manager2.id,
   })
   console.log(`  письма вузов (решение 170): ${letters.letters}, заданий по ним: ${letters.tasks}`)
+  const assignments = await seedAssignments(prisma, {
+    now,
+    daysAgo,
+    stabilize,
+    universityId,
+    cooperationId: (key) => cooperationByKey(cooperations, key).id,
+    head: head.id,
+    admin: users.admin.id,
+    manager: users.manager.id,
+    manager2: users.manager2.id,
+    analyst: users.analyst.id,
+  })
+  console.log(`  поручения сотрудникам (решение 207): ${assignments}`)
   // Первая печать журнала (решение 115, решение 141): снимается в середине заливки,
   // до расширенного набора — вторая, в конце, покажет другое число строк и хеш.
   await auditSeal(prisma)

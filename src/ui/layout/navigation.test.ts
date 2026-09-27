@@ -51,6 +51,7 @@ function user(role: UserRole): CurrentUserDto {
       canAssignResponsible: role === 'ADMIN' || role === 'HEAD',
       canReviewLetters: role === 'ADMIN' || role === 'HEAD',
       canSeeTeam: role === 'ADMIN' || role === 'HEAD',
+      canAssignTasks: role === 'ADMIN' || role === 'HEAD',
     },
     passwordTemporary: false,
   }

@@ -59,6 +59,11 @@ import {
   updateMeetingSchema,
 } from '@/modules/meetings/meetings.schema'
 import {
+  assignmentListQuerySchema,
+  createAssignmentSchema,
+  updateAssignmentSchema,
+} from '@/modules/assignments/assignments.schema'
+import {
   applicationListQuerySchema,
   confirmMaterialSchema,
   submitApplicationSchema,
@@ -1418,6 +1423,56 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     accessNote: 'ADMIN и HEAD; эксперт хакатона — только чтение. Остальным — 403.',
     pathParams: { userId: 'Идентификатор сотрудника' },
     errors: [...COMMON_ERRORS, 'NOT_FOUND', 'VALIDATION_ERROR'],
+  },
+
+  // ── Поручения сотрудникам (решение 207) ──────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/assignments',
+    tag: 'Поручения',
+    summary: 'Поручения: мои или сотрудника',
+    description:
+      'Фильтры assigneeId, status (можно несколько), overdue=true — только просроченные: не сделано ' +
+      'и срок раньше сегодняшней московской даты. Сортировка — ближайший срок первым, при равном ' +
+      'сроке важные выше. В строке — dueState (overdue, today, tomorrow, later, done), canEdit, canChangeStatus.',
+    permission: 'READ',
+    accessNote:
+      'ADMIN, HEAD и эксперт хакатона видят все; остальные сотрудники — только свои (чужой assigneeId — 403); ' +
+      'представителю вуза — 403.',
+    query: assignmentListQuerySchema,
+    list: true,
+    errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/assignments',
+    idempotent: true,
+    tag: 'Поручения',
+    summary: 'Дать поручение сотруднику',
+    description:
+      'Кому — действующему сотруднику ИТ-Школы (не представителю вуза и не учётке эксперта). ' +
+      'Срок — дата ГГГГ-ММ-ДД, не раньше сегодняшней московской. Вуз связки подставляется сам. ' +
+      'Исполнителю — пункт в колокольчике и сообщение в подключённый мессенджер (без текста ' +
+      'поручения: только вуз и срок) с кнопкой «Открыть поручение». Сбой отправки поручение не откатывает.',
+    permission: 'ASSIGN_TASKS',
+    body: createAssignmentSchema,
+    errors: WRITE_ERRORS,
+  },
+  {
+    method: 'patch',
+    path: '/api/assignments/{id}',
+    tag: 'Поручения',
+    summary: 'Изменить поручение или его статус',
+    description:
+      'Автор меняет всё; исполнитель — только status (NEW, IN_PROGRESS, DONE, из «Сделано» — обратно ' +
+      'в работу). doneAt ставится и снимается сервером. Каждое изменение — в журнал действий ' +
+      '(assignment.update, assignment.status). Смена исполнителя — уведомление новому.',
+    permission: 'READ',
+    accessNote:
+      'Автор (ADMIN или HEAD) — любые поля; исполнитель — только статус; остальным — 403, а чужое ' +
+      'поручение для того, кто видит только свои, — 404. Эксперт хакатона — 403.',
+    body: updateAssignmentSchema,
+    errors: WRITE_ERRORS,
   },
 
   // ── Прогноз связок (решение 135) ─────────────────────────────────────────

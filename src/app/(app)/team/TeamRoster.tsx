@@ -63,6 +63,18 @@ function LastAction({ member, now }: { member: TeamMemberDto; now: number }) {
   )
 }
 
+/** Поручения (решение 207): открытые числом, просроченные из них — красным под числом. */
+function Assignments({ member }: { member: TeamMemberDto }) {
+  const { open, overdue } = member.assignments
+  if (open === 0) return <span className={styles.zero}>0</span>
+  return (
+    <>
+      {open}
+      {overdue > 0 && <span className={[styles.numNote, styles.signal].join(' ')}>просрочено {overdue}</span>}
+    </>
+  )
+}
+
 function Overdue({ value }: { value: number }) {
   return value > 0 ? <span className={styles.signal}>{value}</span> : <span className={styles.zero}>0</span>
 }
@@ -153,6 +165,9 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
         <td className={styles.num}>
           {member.openLetterTasks > 0 ? member.openLetterTasks : <span className={styles.zero}>0</span>}
         </td>
+        <td className={styles.num}>
+          <Assignments member={member} />
+        </td>
         <td>
           {load ? (
             <div className={styles.loadCell}>
@@ -174,7 +189,7 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
     list.length > 0 && (
       <tbody>
         <tr className={styles.groupRow}>
-          <th colSpan={7} scope="colgroup">
+          <th colSpan={8} scope="colgroup">
             {title}
             <span className={styles.count}>{list.length}</span>
           </th>
@@ -187,16 +202,17 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
     <ScrollArea className={styles.tableWrap} label="Сотрудники команды">
       <table className={styles.table}>
         <caption className="visually-hidden">
-          Сотрудники: связки в работе, ближайший срок, просрочки, встречи, письма и нагрузка
+          Сотрудники: связки в работе, ближайший срок, просрочки, встречи, письма, поручения и нагрузка
         </caption>
         <colgroup>
-          <col style={{ width: '27%' }} />
-          <col style={{ width: '14%' }} />
-          <col style={{ width: '18%' }} />
+          <col style={{ width: '25%' }} />
+          <col style={{ width: '13%' }} />
+          <col style={{ width: '17%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '10%' }} />
+          <col style={{ width: '9%' }} />
           <col style={{ width: '7%' }} />
-          <col style={{ width: '15%' }} />
+          <col style={{ width: '9%' }} />
+          <col style={{ width: '11%' }} />
         </colgroup>
         <thead>
           <tr>
@@ -216,6 +232,9 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
             <th scope="col" className={styles.num} title="Открытые задания по письмам вузов">
               Письма
             </th>
+            <th scope="col" className={styles.num} title="Открытые поручения («Новое» и «В работе»); красным — сколько из них просрочено">
+              Поручения
+            </th>
             <th scope="col">Нагрузка</th>
           </tr>
         </thead>
@@ -223,6 +242,20 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
         {group('Не ведут связки', others)}
       </table>
     </ScrollArea>
+  )
+}
+
+/** Строка поручений в блоке телефона (макет A, 390 px): только если они есть. */
+function AssignmentsLine({ member }: { member: TeamMemberDto }) {
+  const { open, overdue } = member.assignments
+  if (open === 0) return null
+  return (
+    <p className={styles.blockQuiet}>
+      <span>
+        Поручения: {open} {pluralize(open, ['открытое', 'открытых', 'открытых'])}
+      </span>
+      {overdue > 0 && <span className={styles.signal}>просрочено {overdue}</span>}
+    </p>
   )
 }
 
@@ -284,6 +317,7 @@ export function TeamList({ members, rule, currentUserId, selectedId, now, onOpen
                 </dd>
               </div>
             </dl>
+            <AssignmentsLine member={member} />
           </>
         ) : (
           <p className={styles.blockQuiet}>
@@ -296,6 +330,7 @@ export function TeamList({ members, rule, currentUserId, selectedId, now, onOpen
             {member.overdueStages > 0 && <span className={styles.signal}>просрочено {member.overdueStages}</span>}
           </p>
         )}
+        {!load && <AssignmentsLine member={member} />}
         <LastAction member={member} now={now} />
       </li>
     )
