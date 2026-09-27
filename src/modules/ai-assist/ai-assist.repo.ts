@@ -184,3 +184,20 @@ export async function findProblemStagesOf(
     siblings: row.cooperation.stages,
   }))
 }
+
+/**
+ * Инструкция администратора для писем (решение 213) — запись `system_secrets`
+ * с открытым значением: это не секрет, а настройка, как имя бота Telegram
+ * (решение 142). Пишется через `shared/db/system-secrets.repo.ts`; здесь — чтение
+ * вместе с тем, кто и когда менял, для строки «Изменил …» в настройках.
+ */
+export async function findLetterInstruction(
+  name: string,
+): Promise<{ value: string; updatedAt: Date; updatedByName: string | null } | null> {
+  const row = await prisma.systemSecret.findUnique({
+    where: { name },
+    select: { value: true, rotatedAt: true, rotatedBy: { select: { fullName: true } } },
+  })
+  if (!row || row.value === null) return null
+  return { value: row.value, updatedAt: row.rotatedAt, updatedByName: row.rotatedBy?.fullName ?? null }
+}

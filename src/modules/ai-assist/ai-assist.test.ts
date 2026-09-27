@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   findProblemStagesOf: vi.fn(),
   writeAudit: vi.fn(),
   getLlmProvider: vi.fn(),
+  findLetterInstruction: vi.fn(async () => null),
 }))
 
 vi.mock('@/modules/cooperation/cooperation.service', () => ({ getById: mocks.getCooperation }))
@@ -62,6 +63,7 @@ vi.mock('./ai-assist.repo', () => ({
   findOpenRecommendationsOf: mocks.findOpenRecommendationsOf,
   findGeneralRecommendations: mocks.findGeneralRecommendations,
   findProblemStagesOf: mocks.findProblemStagesOf,
+  findLetterInstruction: mocks.findLetterInstruction,
 }))
 vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))
 vi.mock('@/integrations/llm', async (importOriginal) => {
@@ -115,7 +117,12 @@ function assertNoPersonalData(text: string): void {
     expect(text, name).not.toContain(name)
     const [surname, first, patronymic] = name.split(' ')
     expect(text, surname).not.toContain(surname!)
-    if (patronymic) expect(text, `${first} ${patronymic}`).not.toContain(`${first} ${patronymic}`)
+    // «Эксперт — менеджер» у демо-учёток эксперта — не имя и отчество, а подпись роли:
+    // слова со строчной буквы маскировка за имя не считает (решение 213).
+    const isName = (part: string | undefined) => part !== undefined && /^[А-ЯЁ]/.test(part)
+    if (isName(first) && isName(patronymic)) {
+      expect(text, `${first} ${patronymic}`).not.toContain(`${first} ${patronymic}`)
+    }
   }
   for (const email of SEED_EMAILS) expect(text, email).not.toContain(email)
   expect(text).not.toMatch(/@/)
