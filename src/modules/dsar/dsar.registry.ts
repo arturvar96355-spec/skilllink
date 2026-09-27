@@ -569,6 +569,32 @@ const USER_ENTRIES: readonly DsarEntry[] = [
     reason: KEEP_REFERENCE,
   },
   {
+    // Решение 207: поручения сотруднику и поручения, которые он дал, — рабочие записи
+    // оператора, как задания по письмам. Текст — свободный: в нём бывают ФИО контактов.
+    section: 'assignmentsReceived',
+    model: 'Assignment',
+    title: 'Поручения сотруднику (решение 207)',
+    links: ['assigneeId'],
+    where: (subject) => ({ assigneeId: subject.id }),
+    select: { id: true, status: true, priority: true, dueAt: true, universityId: true, cooperationId: true, createdAt: true },
+    omitted: { text: FREE_TEXT },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
+    section: 'assignmentsAuthored',
+    model: 'Assignment',
+    title: 'Поручения, которые дал сотрудник (решение 207)',
+    links: ['authorId'],
+    where: (subject) => ({ authorId: subject.id }),
+    select: { id: true, status: true, priority: true, dueAt: true, universityId: true, cooperationId: true, createdAt: true },
+    omitted: { text: FREE_TEXT },
+    orderBy: { createdAt: 'desc' },
+    erase: 'keep',
+    reason: KEEP_REFERENCE,
+  },
+  {
     section: 'auditByActor',
     model: 'AuditLog',
     title: 'Действия, совершённые пользователем',

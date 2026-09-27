@@ -224,6 +224,13 @@ export const AUDIT_ACTIONS = [
   'cooperation.responsible.set',
   /** Назначен, сменён или снят ответственный за этап. payload: новый и прежний responsibleId, номер этапа. */
   'stage.responsible.set',
+  // ── Решение 207: поручения сотрудникам ──
+  /** Дано поручение. payload: assigneeId, priority, dueDate (текст не пишется — свободный, в нём бывают ФИО). */
+  'assignment.create',
+  /** Автор изменил поручение. payload: fields — какие поля; при смене исполнителя — прежний и новый assigneeId. */
+  'assignment.update',
+  /** Сменён статус поручения (исполнителем или автором). payload: from, to. */
+  'assignment.status',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
@@ -257,6 +264,7 @@ export const AUDIT_OBJECT_TYPES = [
   'WorkflowStageTemplate',
   'Attachment',
   'InboundLetter',
+  'Assignment',
 ] as const
 export type AuditObjectType = (typeof AUDIT_OBJECT_TYPES)[number]
 

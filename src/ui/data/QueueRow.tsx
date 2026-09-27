@@ -21,14 +21,29 @@ export function Queue({ children, className }: { children: ReactNode; className?
   return <div className={[styles.queue, className ?? ''].filter(Boolean).join(' ')}>{children}</div>
 }
 
-/** Группа очереди: маленький заголовок с числом и строки под ним. */
-export function QueueGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
+/**
+ * Группа очереди: маленький заголовок с числом и строки под ним.
+ * `total` — сколько всего в группе, если показана только часть (лента по страницам):
+ * тогда число читается «17 из 18», а не одно «17», расходящееся с остальным экраном.
+ */
+export function QueueGroup({
+  label,
+  count,
+  total,
+  children,
+}: {
+  label: string
+  count: number
+  total?: number
+  children: ReactNode
+}) {
   const id = useId()
+  const partial = total !== undefined && total > count
   return (
     <section className={styles.group} aria-labelledby={id}>
       <h3 className={styles.groupHead} id={id}>
         <span>{label}</span>
-        <span className={styles.groupCount}>{count}</span>
+        <span className={styles.groupCount}>{partial ? `${count} из ${total}` : count}</span>
       </h3>
       <ul className={styles.rows}>{children}</ul>
     </section>

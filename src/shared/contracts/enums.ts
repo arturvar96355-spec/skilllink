@@ -229,3 +229,11 @@ export type InboundLetterVerdict = (typeof INBOUND_LETTER_VERDICTS)[number]
 /** Статус задания, которое создаёт проверка письма ответственному за вуз. */
 export const INBOUND_LETTER_TASK_STATUSES = ['OPEN', 'DONE'] as const
 export type InboundLetterTaskStatus = (typeof INBOUND_LETTER_TASK_STATUSES)[number]
+
+/** Статус поручения (решение 207): новое → в работе → сделано. */
+export const ASSIGNMENT_STATUSES = ['NEW', 'IN_PROGRESS', 'DONE'] as const
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number]
+
+/** Важность поручения (решение 207). */
+export const ASSIGNMENT_PRIORITIES = ['NORMAL', 'HIGH'] as const
+export type AssignmentPriority = (typeof ASSIGNMENT_PRIORITIES)[number]

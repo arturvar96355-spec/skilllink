@@ -56,6 +56,8 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 | `audit_chain_cuts_check` | точка чистки — номер > 0, хеш 32 байта, удалено > 0 строк |
 | `recommendation_signals_arm_check` | у `control` нет `recommendation_id` и он назначен только по хешу (миграция `20260926000000_recommendation_signals`, решение 136) |
 | `recommendation_signals_assigned_by_check` | `assigned_by` из закрытого списка (`hash`, `experiment-off`, `excluded-rule`, `already-shown`, `dismissed`, `resolved`) |
+| `assignments_text_check` | текст поручения — 1–300 символов без краевых пробелов (миграция `20260927180000_assignments`, решение 207) |
+| `assignments_done_at_check` | `done_at` заполнено ровно у поручения в статусе `DONE` |
 
 В `schema.prisma` ограничения не описываются (Prisma их не выражает), только
 в `migration.sql`; у модели стоит комментарий. Новое ограничение сначала
@@ -77,7 +79,8 @@ API отдаёт как `422 VALIDATION_ERROR` с `details.constraint` — им�
 обезличенного контакта с датой и документом отзыва, основание контакта совпадает
 с последней записью его истории (решение 111); в статистике правил рекомендаций
 `successes_eff ≤ trials_eff` и успехов не больше показов, успех засчитан только показанной
-рекомендации, балл — в [0..1] (решение 119). Последнее правило — цепочка хешей
+рекомендации, балл — в [0..1] (решение 119); у поручения со связкой вуз — вуз связки,
+исполнитель поручения — не представитель вуза (решение 207). Последнее правило — цепочка хешей
 журнала действий цела и сходится с печатями: проверка функцией в базе и независимо кодом
 приложения, в своей транзакции REPEATABLE READ READ ONLY (решение 115). С `--demo` — ещё
 пометка `is_mock` у всего демо-набора.
@@ -694,6 +697,43 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 терялась бы при смене устройства или очистке хранилища. Отдельного CHECK не требует —
 обычная метка времени без связей с другими таблицами.
 
+### assignments — поручения сотрудникам (решение 207)
+
+Руководитель или администратор даёт сотруднику конкретное дело — «Позвонить в МТУСИ
+до пятницы» — по вузу, связке или без привязки. Не `tasks` (пункт чек-листа этапа,
+`stage_id` обязателен) и не `inbound_letter_tasks` (задание по письму вуза).
+
+| Поле | Тип | Примечание |
+| --- | --- | --- |
+| id | text PK | |
+| assignee_id | text FK → users, RESTRICT | кому поручено: действующий сотрудник, не представитель вуза и не учётка эксперта — проверяет сервис |
+| author_id | text FK → users, RESTRICT | кто поручил: ADMIN или HEAD (право `ASSIGN_TASKS`) |
+| text | text | что сделать, 1–300 символов (CHECK `assignments_text_check`) |
+| university_id | text? FK → universities, SET NULL | необязательно; при заданной связке — вуз связки |
+| cooperation_id | text? FK → cooperations, SET NULL | необязательно |
+| due_at | **date** | срок — календарная дата, а не момент: «до пятницы» — весь московский день пятницы |
+| priority | AssignmentPriority | `NORMAL` (обычная), `HIGH` (важная) |
+| status | AssignmentStatus | `NEW` → `IN_PROGRESS` → `DONE`; из «Сделано» можно вернуть в работу |
+| done_at | timestamp? | когда отмечено «Сделано»; ровно у `DONE` (CHECK `assignments_done_at_check`) |
+| is_mock | boolean | демо-набор |
+| created_at, updated_at | timestamp | |
+
+Индексы: `(assignee_id, status)` — «Мои поручения» и счётчик открытых на экране «Команда»;
+`due_at` — просроченные и «срок завтра» в колокольчике; `author_id`, `university_id`,
+`cooperation_id` — индексы на внешние ключи (правило решения 104).
+
+Просрочено — статус не `DONE` и `due_at` раньше сегодняшней московской даты
+(`assignments.rules.ts`, `isAssignmentOverdue`): одна база подсчёта для списка,
+колокольчика и столбца «Поручения» на экране «Команда».
+
+Права роли приложения (`create-app-role.sql`) таблица получает сама — через
+`ALTER DEFAULT PRIVILEGES` владельца миграций: SELECT, INSERT, UPDATE, DELETE, сужать
+нечего. Перезапускать скрипт после миграции не нужно (проверено на отдельной базе:
+скрипт до миграции, миграция после — у `skilllink_app` ровно эти четыре права).
+
+Межтабличное правило — в `npm run db:verify`: у поручения со связкой и вузом вуз совпадает
+с вузом связки; исполнитель — не представитель вуза.
+
 ## Поведение при удалении
 
 | Связь | Действие | Почему |
@@ -721,6 +761,8 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | school_course → course_streams, site_orders | RESTRICT (заказы), CASCADE (потоки) | заказы нельзя потерять молча — курс с заказами не удаляется; потоки без курса не нужны |
 | course_stream → site_orders | SET NULL | заказ не привязан к потоку жёстко — поток можно убрать |
 | user → site_orders (imported_by_id) | SET NULL | увольнение не удаляет историю загрузок |
+| user → assignments (assignee_id, author_id) | RESTRICT | кому и кто поручил — часть поручения; сотрудники не удаляются, а блокируются и обезличиваются (решение 116) |
+| university, cooperation → assignments | SET NULL | поручение остаётся без привязки, если вуз или связку убрали |
 
 ## Согласованные изменения после первой версии
 
@@ -741,6 +783,7 @@ CHECK: `due_at > requested_at`, `completed_at ≥ requested_at`, COMPLETED ⇔ `
 | Таблицы `telegram_updates_seen`, `system_secrets`, `approvals`, `idempotency_keys`; 5 колонок согласия у `contacts`/`contact_basis_history` | Безопасность, волна 2 (решение 133): дедуп апдейтов Telegram, ротация секрета вебхука, «четыре глаза» на опасные операции, идемпотентность POST. Согласовано, с правкой (решение 143: `approvals_decided_at_check` — `decided_at` согласован со статусом, миграция `20260926200000_schema_review`) | `20260926120000_security_wave_2` |
 | Таблица `forecast_models`, перечисление `ForecastModelStatus` | Прогноз «дойдёт ли связка до вехи» (решение 135); `UNIQUE(milestone_stage)` — ровно одна (последняя) модель на веху. Согласовано (решение 143) | `20260926140000_forecast_models` |
 | `users.notifications_seen_at` | Время последнего просмотра ленты уведомлений — источник истины на сервере, а не `localStorage` (решение 139). Согласовано (решение 143) | `20260926150000_notifications_seen_at` |
+| Таблица `assignments`, перечисления `AssignmentPriority`, `AssignmentStatus`, 2 CHECK | Поручения сотрудникам от руководителя и администратора (решение 207). Только добавление таблицы; откат — в комментарии миграции | `20260927180000_assignments` |
 
 ## Ревью схемы 26.09.2026 (решение 143)
 

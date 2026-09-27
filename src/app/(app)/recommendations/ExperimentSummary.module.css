@@ -60,3 +60,8 @@
   font-size: var(--text-caption-size);
   color: var(--status-warning);
 }
+
+/* Свёрнутый вид — обычная кнопка у левого края, а не полоса во всю ширину над лентой. */
+.open {
+  align-self: flex-start;
+}

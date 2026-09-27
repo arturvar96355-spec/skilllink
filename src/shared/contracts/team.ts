@@ -1,4 +1,6 @@
+import type { AssignmentCountsDto } from './assignment'
 import type { CooperationStatus, MeetingFormat, StageStatus, UserRole } from './enums'
+import type { ChannelId } from './notify-channels'
 
 /**
  * Экран «Команда» (решение 203): `GET /api/team` и `GET /api/team/:userId`.
@@ -94,6 +96,14 @@ export interface TeamMemberDto {
   meetingsAhead: number
   /** Открытые задания по письмам вузов на нём. */
   openLetterTasks: number
+  /** Поручения (решение 207): открытые и из них просроченные — то же правило, что в списке поручений. */
+  assignments: AssignmentCountsDto
+  /**
+   * Куда уйдёт уведомление о новом поручении помимо колокольчика: мессенджер, который
+   * сотрудник подключил и который настроен на сервере (основной — первым, как у `sendToUser`).
+   * `null` — только в SkillLink. Окно «Дать поручение» пишет это под «Кому».
+   */
+  messenger: ChannelId | null
   /** Его этапы, закрытые в срок: `percent: null` — закрытых со сроком ещё нет. */
   onTime: { closedOnTime: number; closedWithDeadline: number; percent: number | null }
   /** Последняя запись журнала от его имени (без входов); `null` — записей нет. */

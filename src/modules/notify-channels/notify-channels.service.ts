@@ -257,6 +257,28 @@ export async function sendToUser(userId: string, message: string | ChannelMessag
   return { sent: false, channel: null }
 }
 
+/**
+ * Куда `sendToUser` отправил бы сообщение каждому из пользователей — без отправки
+ * (решение 207: окно «Дать поручение» пишет под «Кому», куда уйдёт уведомление).
+ * Тот же порядок: основной канал, затем остальные по `CHANNEL_IDS`; только привязанные
+ * и настроенные на сервере. `null` — ни одного: уведомление останется в колокольчике.
+ */
+export async function deliveryChannels(userIds: readonly string[]): Promise<Map<string, ChannelId | null>> {
+  const result = new Map<string, ChannelId | null>()
+  if (userIds.length === 0) return result
+  const byUser = await repo.findChannelsByUsers(userIds)
+  for (const userId of userIds) {
+    const found = byUser.get(userId)
+    if (!found) {
+      result.set(userId, null)
+      continue
+    }
+    const order = found.primary ? [found.primary, ...CHANNEL_IDS.filter((id) => id !== found.primary)] : CHANNEL_IDS
+    result.set(userId, order.find((id) => found.channels.includes(id) && adapterFor(id).configured()) ?? null)
+  }
+  return result
+}
+
 /** Ключ получателя для оповещений владельцу: `<канал>:<чат>` — используется owner-alert.ts. */
 export async function ownerRecipientKeys(): Promise<string[]> {
   const keys: string[] = []

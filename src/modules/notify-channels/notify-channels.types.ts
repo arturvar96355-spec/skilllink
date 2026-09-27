@@ -58,6 +58,8 @@ export const ACTION_TEXTS = {
   openCooperation: 'Открыть связку',
   openStage: 'Открыть этап',
   openUniversity: 'Открыть вуз',
+  // Поручение сотруднику (решение 207).
+  openAssignment: 'Открыть поручение',
 } as const
 
 /** Сообщение канала: текст и, если есть, строки кнопок. */

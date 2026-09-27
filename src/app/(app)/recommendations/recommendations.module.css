@@ -1,187 +1,109 @@
 /*
- * Лента рекомендаций (07, разделы 11 и 26). Каждая рекомендация — отдельная
- * карточка с воздухом вокруг: на общей поверхности с линиями строки слипались
- * в сплошной текст, и было непонятно, где кончается одна и что в ней нажимается.
- * Тип и приоритет читаются подписью над заголовком, статус — словом справа.
+ * Лента рекомендаций (решение 209). Строки, группы и полоска приоритета —
+ * общий QueueRow (решение 206), здесь только раскрытие строки и боковая
+ * панель «Подробнее». Размеры и цвета — только переменные.
  */
 
-.rows {
+/* ── Раскрытая строка ───────────────────────────────────────────────────── */
+
+.detail {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-5) var(--space-6);
-  background: var(--surface-1);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-card);
-  transition: background var(--motion-fast) var(--ease-out);
-}
-
-/* Метка важности слева: критичные и важные видны, не читая подписи. */
-.row:has(.priority[data-priority='CRITICAL']) {
-  box-shadow: inset 3px 0 0 var(--status-danger);
-}
-
-.row:has(.priority[data-priority='HIGH']) {
-  box-shadow: inset 3px 0 0 var(--status-warning);
-}
-
-/* Наведение: карточка светлеет, рамка проступает; сдвиг на 4px — прежний. */
-.row:hover {
-  background: var(--surface-2);
-  border-color: var(--line-strong);
-}
-
-.row > * {
-  transition: transform var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
-}
-
-.row:hover > * {
-  transform: translateX(4px);
-}
-
-/* Номер рекомендации — тихий, при наведении становится ярче (раздел 26). */
-.index {
-  padding-top: 2px;
-  font-size: var(--text-body-size);
-  font-weight: 600;
-  color: var(--text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-.row:hover .index {
-  color: var(--text-primary);
-}
-
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
+  max-width: 72ch;
 }
 
-.kicker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-3);
-  font-size: var(--text-kicker-size);
-  font-weight: 600;
-  letter-spacing: var(--text-kicker-tracking);
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-
-.priority {
-  color: var(--text-tertiary);
-}
-
-.priority[data-priority='HIGH'] {
-  color: var(--status-warning);
-}
-
-.priority[data-priority='CRITICAL'] {
-  color: var(--status-danger);
-}
-
-.title {
-  align-self: flex-start;
-  font-size: var(--text-h3-size);
-  font-weight: 650;
-  line-height: 1.35;
-  color: var(--text-primary);
-}
-
-/* Стрелка говорит, что заголовок открывает подробности. */
-.title::after {
-  content: ' →';
-  color: var(--text-tertiary);
-}
-
-.title:hover {
-  color: var(--text-accent);
-}
-
-.title:hover::after {
-  color: var(--text-accent);
-}
-
-.title:focus-visible {
-  outline: 2px solid var(--border-accent);
-  outline-offset: 2px;
-  border-radius: var(--radius-control);
-}
-
-.description {
-  font-size: var(--text-body-size);
-  line-height: var(--text-body-line);
-  color: var(--text-secondary);
-}
-
-/*
- * Обоснование системы. Показывается всегда: рекомендация без объяснения —
- * это «машина так решила», и доверия к ней нет. Цитатой, а не плашкой в рамке.
- */
-.why {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--line-strong);
+.text {
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
   color: var(--text-secondary);
 }
 
-/* Текст обоснования и описания в ленте — не длиннее двух строк; целиком — в подсказке. */
-.whyText,
-.rows .description {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+.note {
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--text-secondary);
 }
 
-.whyLabel {
-  font-size: var(--text-caption-size);
-  font-weight: 600;
+/* Проверки правила — обоснование данными. Фиолетовая гамма: здесь нет тревоги. */
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+.checkMark {
+  flex: none;
+  margin-top: 2px;
+}
+
+.check[data-pass='yes'] .checkMark {
+  color: var(--text-accent);
+}
+
+.check[data-pass='no'] .checkMark {
   color: var(--text-tertiary);
 }
 
-.foot {
+.resolution {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+}
+
+.resolutionLabel {
+  color: var(--text-tertiary);
+}
+
+.detailFoot {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-2) var(--space-4);
   flex-wrap: wrap;
-  padding-top: var(--space-1);
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
 }
 
 .target {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--space-1) var(--space-3);
+  gap: var(--space-2);
+  max-width: 100%;
+  min-width: 0;
   font-size: var(--text-body-sm-size);
-  font-weight: 500;
-  color: var(--text-primary);
-  background: var(--surface-3);
-  border: 1px solid var(--line-subtle);
-  border-radius: var(--radius-pill);
-  transition: color var(--motion-fast) var(--ease-out);
+  font-weight: 600;
+  color: var(--text-accent);
+  text-decoration: none;
+  border-radius: var(--radius-xs);
 }
 
-/* Объект рекомендации — чип-ссылка: видно, что по нему переходят. */
-.target:hover {
-  color: var(--text-accent);
-  border-color: var(--border-active);
+.target > svg {
+  flex: none;
+  align-self: center;
+}
+
+.target > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target:hover > span {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .target:focus-visible {
@@ -191,83 +113,50 @@
 
 .meta {
   font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
   color: var(--text-tertiary);
 }
 
-/* Справа — где рекомендация сейчас и что с ней можно сделать. */
-.side {
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.dismiss {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: var(--space-3);
 }
 
-.status {
-  font-size: var(--text-body-size);
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
+.refusal {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-danger-soft);
 }
 
-.status[data-status='NEW'] {
-  color: var(--text-primary);
-}
-
-.status[data-status='ACCEPTED'],
-.status[data-status='DONE'] {
-  color: var(--status-success);
-}
-
-.status[data-status='DISMISSED'] {
+/* Пояснение к режиму ленты «По баллу» (решение 178, п. 3). */
+.sortNote {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  max-width: 90ch;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
   color: var(--text-tertiary);
 }
 
-.actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  max-width: 280px;
-}
+/* ── Боковая панель «Подробнее» ─────────────────────────────────────────── */
 
-.resolution {
-  font-size: var(--text-body-sm-size);
-  color: var(--text-secondary);
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--success-border);
-}
-
-/* На узком экране действия уходят под текст, номер остаётся слева. */
-@media (max-width: 720px) {
-  .row {
-    grid-template-columns: 28px minmax(0, 1fr);
-    padding: var(--space-4);
-  }
-
-  .side {
-    grid-column: 2;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .actions {
-    justify-content: flex-start;
-    max-width: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .row:hover > * {
-    transform: none;
-  }
-}
-
-/* Подробности в боковой панели */
-.detail {
+.panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
+}
+
+/* Вид, приоритет и статус — одной фразой, без подписи капсом над заголовком. */
+.panelLine {
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
 }
 
 .block {
@@ -277,6 +166,7 @@
 }
 
 .blockLabel {
+  margin: 0;
   font-size: var(--text-label-size);
   font-weight: 600;
   color: var(--text-tertiary);
@@ -308,19 +198,20 @@
   cursor: pointer;
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
+  border-radius: var(--radius-xs);
 }
 
 .source summary:hover {
   color: var(--text-secondary);
 }
 
-.source[open] summary {
-  margin-bottom: var(--space-2);
+.source summary:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
 }
 
-/* Внутри подписи над заголовком статус — того же кегля, что и соседние слова. */
-.kicker .status {
-  font-size: var(--text-kicker-size);
+.source[open] summary {
+  margin-bottom: var(--space-2);
 }
 
 .data {
@@ -338,19 +229,9 @@
   overflow-x: auto;
 }
 
-/* Пояснение к режиму ленты «По баллу» (решение 178, п. 3). */
-.sortNote {
-  margin: calc(-1 * var(--space-2)) 0 0;
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
-}
-
-/* Балл — под обоснованием, тем же полем «Как посчитан балл». */
-.score {
-  margin-top: var(--space-1);
-}
-
-.deferred {
-  font-size: var(--text-caption-size);
-  color: var(--status-warning);
+@media (max-width: 480px) {
+  .fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
 }

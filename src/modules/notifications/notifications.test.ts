@@ -47,6 +47,7 @@ function sources(overrides: Partial<FeedSources> = {}): FeedSources {
     documentChanges: [],
     recommendations: [],
     responsibleAssignments: [],
+    assignments: [],
     ...overrides,
   }
 }

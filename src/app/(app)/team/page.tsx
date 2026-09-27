@@ -20,6 +20,7 @@ import {
   useMediaQuery,
   useResource,
 } from '@/ui'
+import { AssignmentModal } from '../AssignmentModal'
 import { MemberDrawer } from './MemberDrawer'
 import { TeamList, TeamTable } from './TeamRoster'
 import { TeamSummary } from './TeamSummary'
@@ -80,6 +81,10 @@ function TeamView() {
   const data = team.data
   const openedId = searchParams.get('member')
   const canAssign = user.permissions.canAssignResponsible
+  // Поручения (решение 207): ADMIN и HEAD; эксперту кнопки нет — сервер всё равно ответит 403.
+  const canAssignTasks = user.permissions.canAssignTasks
+  // Окно «Дать поручение» из шапки.
+  const [assignOpen, setAssignOpen] = useState(false)
   const now = Date.now()
 
   function setParam(key: 'member' | 'tab', value: string | null) {
@@ -120,17 +125,24 @@ function TeamView() {
       }
       meta={data?.containsMockData ? <MockBadge /> : undefined}
       actions={
-        <div className={styles.search}>
-          <Input
-            label="Поиск по команде"
-            hideLabel
-            icon="search"
-            type="search"
-            placeholder="ФИО, роль или вуз"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            autoComplete="off"
-          />
+        <div className={styles.headActions}>
+          <div className={styles.search}>
+            <Input
+              label="Поиск по команде"
+              hideLabel
+              icon="search"
+              type="search"
+              placeholder="ФИО, роль или вуз"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          {canAssignTasks && data && members.length > 0 && (
+            <Button variant="primary" icon="plus" onClick={() => setAssignOpen(true)}>
+              Дать поручение
+            </Button>
+          )}
         </div>
       }
     />
@@ -278,14 +290,33 @@ function TeamView() {
           </>
         )}
         <p className={styles.note}>
-          Встречи впереди — с этого момента до конца недели {weekText}. Письма — открытые задания по письмам вузов. Просрочено — текущие начатые
+          Встречи впереди — с этого момента до конца недели {weekText}. Письма — открытые задания по письмам вузов.
+          Поручения — открытые поручения, красным — просроченные из них. Просрочено — текущие начатые
           этапы после срока. Без движения — нет записей в журнале {data.staleDays} дней и дольше.
         </p>
       </div>
 
       {/* Своя копия панели на каждого сотрудника: у соседнего не мелькнут данные прежнего. */}
       {openedId !== null && (
-        <MemberDrawer key={openedId} userId={openedId} canAssign={canAssign} onClose={closeMember} onChanged={team.reload} />
+        <MemberDrawer
+          key={openedId}
+          userId={openedId}
+          canAssign={canAssign}
+          canAssignTasks={canAssignTasks}
+          members={members}
+          onClose={closeMember}
+          onChanged={team.reload}
+        />
+      )}
+
+      {assignOpen && (
+        <AssignmentModal
+          members={members}
+          onClose={(created) => {
+            setAssignOpen(false)
+            if (created) team.reload()
+          }}
+        />
       )}
     </>
   )
