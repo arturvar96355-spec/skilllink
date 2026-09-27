@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   webhookInfoQueue: [] as WebhookInfoResult[],
   webhookInfoCalls: 0,
   deleteWebhookCalls: 0,
-  acceptUpdate: vi.fn(async () => true),
+  acceptUpdate: vi.fn(async (_updateId: number) => true),
   handleUpdate: vi.fn(async () => undefined),
   writeAudit: vi.fn(async () => undefined),
   notifyOwner: vi.fn(),
@@ -138,6 +138,28 @@ describe('startPollingLoop / stopPollingLoop', () => {
     await runtime.startPollingLoop('secret')
     await vi.waitFor(() => expect(mocks.acceptUpdate).toHaveBeenCalledTimes(1))
     expect(mocks.handleUpdate).not.toHaveBeenCalled()
+  })
+
+  it('нажатие кнопки (callback_query) идёт тем же путём, повтор того же update_id — не второй раз (решение 200)', async () => {
+    const press = {
+      update_id: 11,
+      callback_query: {
+        id: 'cb-1',
+        from: { id: 1 },
+        message: { message_id: 3, chat: { id: 1, type: 'private' }, text: 'Сводка' },
+        data: 'as' + 'A'.repeat(20) + 'cmstage0000000000000000001',
+      },
+    }
+    const seen = new Set<number>()
+    mocks.acceptUpdate.mockImplementation(async (id: number) => (seen.has(id) ? false : (seen.add(id), true)))
+    // Telegram прислал то же нажатие дважды (например, после переключения режима).
+    mocks.getUpdatesQueue.push({ ok: true, updates: [press] }, { ok: true, updates: [press] })
+    await runtime.startPollingLoop('secret')
+    await vi.waitFor(() => expect(mocks.acceptUpdate).toHaveBeenCalledTimes(2))
+    expect(mocks.handleUpdate).toHaveBeenCalledTimes(1)
+    expect(mocks.handleUpdate).toHaveBeenCalledWith(expect.objectContaining({ update_id: 11, callback_query: expect.objectContaining({ id: 'cb-1' }) }), {
+      secret: 'secret',
+    })
   })
 
   it('stop() прерывает висящий getUpdates быстро, а не ждёт таймаута Telegram', async () => {

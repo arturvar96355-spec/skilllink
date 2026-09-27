@@ -25,7 +25,7 @@ import {
   Badge,
   Button,
   CardsSkeleton,
-  Bars3D,
+  BarsFlat,
   CooperationPeek,
   DeadlineStrip,
   Funnel,
@@ -304,6 +304,7 @@ function Dashboard() {
           {
             key: row.id,
             label: row.shortName ?? row.name,
+            city: row.city,
             ...at,
             value: row.cooperationCountExcludingCancelled,
             detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCountExcludingCancelled)} связок в работе`,
@@ -528,8 +529,8 @@ function Dashboard() {
                       caption="Закрыты до своего срока — из всех закрытых"
                       share={data.metrics.find((metric) => metric.key === 'stagesOnTimePercent')?.value ?? null}
                       parts={[
-                        { key: 'ontime', label: 'В срок', tone: 'success' },
-                        { key: 'late', label: 'С опозданием', tone: 'danger' },
+                        { key: 'ontime', label: 'В срок', tone: 'violet' },
+                        { key: 'late', label: 'С опозданием', tone: 'violet' },
                       ]}
                     />
                     <HealthPie
@@ -542,8 +543,8 @@ function Dashboard() {
                         cooperations.filter((item) => item.progress.overdueStages > 0).length,
                       ]}
                       parts={[
-                        { key: 'clean', label: 'Без просрочек', tone: 'cyan' },
-                        { key: 'late', label: 'С просрочкой', tone: 'danger' },
+                        { key: 'clean', label: 'Без просрочек', tone: 'violet' },
+                        { key: 'late', label: 'С просрочкой', tone: 'violet' },
                       ]}
                     />
                     <HealthPie
@@ -557,8 +558,8 @@ function Dashboard() {
                           : undefined
                       }
                       parts={[
-                        { key: 'covered', label: 'Покрыто', tone: 'pink' },
-                        { key: 'gap', label: 'Дефицит', tone: 'muted' },
+                        { key: 'covered', label: 'Покрыто', tone: 'violet' },
+                        { key: 'gap', label: 'Дефицит', tone: 'violet' },
                       ]}
                     />
                   </div>
@@ -773,7 +774,8 @@ function Dashboard() {
                 }
               >
                 <div className={styles.panel3d} ref={universityBarsPrint.ref}>
-                  <Bars3D groups={universityBars} label="Связки по вузам" unit={['связка', 'связки', 'связок']} />
+                  {/* Вид столбиков (решение 198): 'grouped' — пара со скруглением, 'indicator' — градиент и штриховка. */}
+                  <BarsFlat variant="grouped" groups={universityBars} label="Связки по вузам" />
                 </div>
               </Section>
             </div>
@@ -1103,7 +1105,9 @@ function HealthPie({
         slices={parts.map((part, index) => ({
           ...part,
           value: values[index] ?? 0,
-          // Основная доля — сплошной, остаток («с опозданием», «дефицит») — штриховкой.
+          // Одна фиолетовая гамма, как у «Где сейчас связки» (решение 196, 27.09):
+          // основная доля — сплошной, остаток («с опозданием», «дефицит») — штриховкой
+          // того же тона. «Плохую» долю выдаёт узор и подпись, а не красный цвет.
           texture: index === 0 ? 'solid' : 'diagonal',
         }))}
         label={title}
