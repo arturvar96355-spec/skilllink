@@ -766,7 +766,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="center" style={{ '--delay': '520ms' } as CSSProperties}>
               <Section
                 title="Связки по вузам"
-                description="Высота колонки — число связок вуза, красная часть — сколько из них требует внимания. Щелчок — страница вуза."
+                description="Пара столбиков у вуза: сколько связок идёт по плану и сколько требует внимания. Щелчок — страница вуза."
                 action={
                   <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
                     Печать / PDF
