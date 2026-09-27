@@ -20,6 +20,7 @@ import {
   Input,
   PageHeader,
   RemoteSelect,
+  ScrollArea,
   ResetFilters,
   ROUTES,
   Select,
@@ -362,7 +363,9 @@ function ReportSheet({
           }
         />
       ) : (
-        <div className={styles.tableWrapper}>
+        // Край, за которым ещё колонки, растворяется, у шапки — шеврон; таблицу
+        // листают и стрелками с клавиатуры (ScrollArea, решение 195).
+        <ScrollArea className={styles.tableWrapper} edges="start" label="Таблица отчёта">
           <table className={styles.table}>
             <thead>
               <tr>
@@ -386,7 +389,7 @@ function ReportSheet({
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       )}
     </article>
   )

@@ -3,7 +3,7 @@
 import type { CSSProperties } from 'react'
 import { STAGE_PHASES, STAGE_PHASE_LABELS, STAGE_STATUS_LABELS } from '@/shared/contracts'
 import type { StagePhase, WorkflowStageDto } from '@/shared/contracts'
-import { Icon } from '@/ui'
+import { Icon, ScrollArea } from '@/ui'
 import styles from './StageRibbon.module.css'
 
 /**
@@ -111,86 +111,100 @@ export function StageRibbon({ stages, controlPoints, selectedStageId, onSelect }
         )}
       </div>
 
-      <div
-        className={styles.phases}
-        style={{
-          gridTemplateColumns: phaseSpans.map((item) => `minmax(0, ${item.span}fr)`).join(' '),
-        }}
+      {/*
+        Вбок листаются только фазы и этапы (ScrollArea, решение 195): заголовок
+        и легенда стоят на месте. Край, за которым есть ещё этапы, растворяется,
+        у него шеврон; текущий этап при открытии доезжает в видимую часть.
+      */}
+      <ScrollArea
+        frameClassName={styles.scrollerFrame}
+        className={styles.scroller}
+        revealSelector="[data-current]"
+        revealKey={current?.id ?? ''}
+        revealAlign="center"
       >
-        {phaseSpans.map((item) => (
-          <div
-            key={item.phase}
-            className={[styles.phase, item.isCurrent ? styles.phaseCurrent : '']
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <span className={styles.phaseName} title={STAGE_PHASE_LABELS[item.phase]}>
-              {STAGE_PHASE_LABELS[item.phase]}
-            </span>
-            <span className={styles.phaseCount}>
-              {item.closed} из {item.span}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div
-        className={styles.track}
-        style={
-          {
-            gridTemplateColumns: columns,
-            // Точка схода — у текущего этапа: глубина читается от него в обе стороны.
-            '--focus': `${((focus - 0.5) / ordered.length) * 100}%`,
-          } as CSSProperties
-        }
-      >
-        <span className={styles.line} aria-hidden="true" />
-        <span className={styles.lineDone} style={{ width: `${donePercent}%` }} aria-hidden="true" />
-
-        {ordered.map((stage) => {
-          const isControlPoint = controlPoints.includes(stage.stageNumber)
-          const deadline = stage.isOverdue
-            ? 'просрочен'
-            : stage.isPlanShifted
-              ? 'план сдвинут'
-              : stage.isDueSoon
-                ? 'скоро срок'
-                : null
-          const depth = depthOf(stage, focus)
-          return (
-            <button
-              key={stage.id}
-              type="button"
-              className={[
-                styles.node,
-                stateClass(stage),
-                stage.id === current?.id ? styles.focus : '',
-                stage.id === selectedStageId ? styles.selected : '',
-              ]
+        <div
+          className={styles.phases}
+          style={{
+            gridTemplateColumns: phaseSpans.map((item) => `minmax(0, ${item.span}fr)`).join(' '),
+          }}
+        >
+          {phaseSpans.map((item) => (
+            <div
+              key={item.phase}
+              className={[styles.phase, item.isCurrent ? styles.phaseCurrent : '']
                 .filter(Boolean)
                 .join(' ')}
-              style={{ '--z': `${depth}px` } as CSSProperties}
-              onClick={() => onSelect(stage.id)}
-              aria-label={
-                `Этап ${stage.stageNumber}: ${stage.title}. ` +
-                `${STAGE_STATUS_LABELS[stage.status]}${deadline ? `, ${deadline}` : ''}` +
-                `${isControlPoint ? '. Контрольная точка' : ''}` +
-                `${stage.isAutoManaged ? '. Вычисляется системой' : ''}`
-              }
             >
-              <span className={styles.dot}>
-                {stage.stageNumber}
-                {isControlPoint && (
-                  <span className={styles.control} aria-hidden="true">
-                    <Icon name="lock" size={16} />
-                  </span>
-                )}
+              <span className={styles.phaseName} title={STAGE_PHASE_LABELS[item.phase]}>
+                {STAGE_PHASE_LABELS[item.phase]}
               </span>
-              <span className={styles.label}>{stage.title}</span>
-            </button>
-          )
-        })}
-      </div>
+              <span className={styles.phaseCount}>
+                {item.closed} из {item.span}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div
+          className={styles.track}
+          style={
+            {
+              gridTemplateColumns: columns,
+              // Точка схода — у текущего этапа: глубина читается от него в обе стороны.
+              '--focus': `${((focus - 0.5) / ordered.length) * 100}%`,
+            } as CSSProperties
+          }
+        >
+          <span className={styles.line} aria-hidden="true" />
+          <span className={styles.lineDone} style={{ width: `${donePercent}%` }} aria-hidden="true" />
+
+          {ordered.map((stage) => {
+            const isControlPoint = controlPoints.includes(stage.stageNumber)
+            const deadline = stage.isOverdue
+              ? 'просрочен'
+              : stage.isPlanShifted
+                ? 'план сдвинут'
+                : stage.isDueSoon
+                  ? 'скоро срок'
+                  : null
+            const depth = depthOf(stage, focus)
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                className={[
+                  styles.node,
+                  stateClass(stage),
+                  stage.id === current?.id ? styles.focus : '',
+                  stage.id === selectedStageId ? styles.selected : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                style={{ '--z': `${depth}px` } as CSSProperties}
+                data-current={stage.id === current?.id || undefined}
+                onClick={() => onSelect(stage.id)}
+                aria-label={
+                  `Этап ${stage.stageNumber}: ${stage.title}. ` +
+                  `${STAGE_STATUS_LABELS[stage.status]}${deadline ? `, ${deadline}` : ''}` +
+                  `${isControlPoint ? '. Контрольная точка' : ''}` +
+                  `${stage.isAutoManaged ? '. Вычисляется системой' : ''}`
+                }
+              >
+                <span className={styles.dot}>
+                  {stage.stageNumber}
+                  {isControlPoint && (
+                    <span className={styles.control} aria-hidden="true">
+                      <Icon name="lock" size={16} />
+                    </span>
+                  )}
+                </span>
+                <span className={styles.label}>{stage.title}</span>
+              </button>
+            )
+          })}
+        </div>
+      </ScrollArea>
 
       <div className={styles.legend}>
         <span className={styles.legendItem}>

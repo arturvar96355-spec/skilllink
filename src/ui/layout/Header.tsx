@@ -98,7 +98,12 @@ export function Header({ groups, onMenuClick }: { groups: NavGroup[]; onMenuClic
         </button>
         <Link
           href={ROUTES.help}
-          className={[iconButtonStyles.button, iconButtonStyles.md, pathname === ROUTES.help ? iconButtonStyles.active : '']
+          className={[
+            iconButtonStyles.button,
+            iconButtonStyles.md,
+            styles.helpLink,
+            pathname === ROUTES.help ? iconButtonStyles.active : '',
+          ]
             .filter(Boolean)
             .join(' ')}
           aria-label="Справка"

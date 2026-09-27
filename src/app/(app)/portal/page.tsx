@@ -419,6 +419,7 @@ function PortalScreen() {
                   getRowKey={(row) => row.id}
                   isRefreshing={overview.isRefreshing}
                   caption="Сотрудничества вуза"
+                  narrow="stack"
                 />
               )}
             </Card>
@@ -442,6 +443,7 @@ function PortalScreen() {
                   getRowKey={(row) => row.id}
                   isRefreshing={overview.isRefreshing}
                   caption="Образовательные программы вуза"
+                  narrow="stack"
                 />
               )}
             </Card>
@@ -578,6 +580,7 @@ function PortalScreen() {
                 getRowKey={(row) => row.id}
                 isRefreshing={applications.isRefreshing}
                 caption="Заявки вуза на обучение"
+                narrow="stack"
               />
               {applications.meta && (
                 <Pagination

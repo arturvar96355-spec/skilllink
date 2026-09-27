@@ -2,7 +2,7 @@
 
 import { Fragment, type CSSProperties } from 'react'
 import type { MeetingsHeatmapDto } from '@/shared/contracts'
-import { Card, EmptyState, ErrorState, MockBadge, Section, TableSkeleton, useResource } from '@/ui'
+import { Card, EmptyState, ErrorState, MockBadge, ScrollArea, Section, TableSkeleton, useResource } from '@/ui'
 import { heatIntensity } from './heatmap-color'
 import styles from './MeetingsHeatmap.module.css'
 
@@ -49,31 +49,34 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
 
   return (
     <div className={styles.wrap}>
-      <div className={styles.grid}>
-        <span aria-hidden="true" />
-        {hours.map((hour) => (
-          <span key={hour} className={styles.hourLabel}>
-            {hour}
-          </span>
-        ))}
+      {/* Сетка шире узкого экрана листается вбок с растворённым краем (решение 195). */}
+      <ScrollArea label="Тепловая карта встреч по дням и часам">
+        <div className={styles.grid}>
+          <span aria-hidden="true" />
+          {hours.map((hour) => (
+            <span key={hour} className={styles.hourLabel}>
+              {hour}
+            </span>
+          ))}
 
-        {data.dayLabels.map((label, dayIndex) => (
-          <Fragment key={label}>
-            <span className={styles.dayLabel}>{label}</span>
-            {hours.map((hour) => {
-              const value = data.cells[dayIndex]?.[hour] ?? 0
-              return (
-                <span
-                  key={`${label}-${hour}`}
-                  className={styles.cell}
-                  style={cellStyle(value, data.max)}
-                  title={`${label}, ${hour}:00 — ${value} ${value === 1 ? 'встреча' : 'встреч'}`}
-                />
-              )
-            })}
-          </Fragment>
-        ))}
-      </div>
+          {data.dayLabels.map((label, dayIndex) => (
+            <Fragment key={label}>
+              <span className={styles.dayLabel}>{label}</span>
+              {hours.map((hour) => {
+                const value = data.cells[dayIndex]?.[hour] ?? 0
+                return (
+                  <span
+                    key={`${label}-${hour}`}
+                    className={styles.cell}
+                    style={cellStyle(value, data.max)}
+                    title={`${label}, ${hour}:00 — ${value} ${value === 1 ? 'встреча' : 'встреч'}`}
+                  />
+                )
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </ScrollArea>
 
       <span className={styles.legend}>
         Всего встреч: {data.total} · часовой пояс {data.timeZone}

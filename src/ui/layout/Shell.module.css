@@ -118,6 +118,8 @@
   left: auto;
   right: 0;
   min-width: 260px;
+  /* Меню профиля прижато к правому краю шапки и не шире экрана. */
+  max-width: calc(100vw - var(--space-4) * 2);
 }
 
 @keyframes dropIn {
@@ -275,8 +277,22 @@
   color: var(--text-primary);
 }
 
-/* Меньше 380 px шапка с названием не влезала: профиль уезжал за край (решение 129). */
-@media (max-width: 379px) {
+/*
+ * Телефон (решение 195, раньше — решение 129 только до 379 px). Меню, логотип
+ * с названием и пять кнопок справа занимают 440 px: на 390 профиль уезжал за
+ * край на 34 px, и его меню обрезалось на столько же. Название остаётся
+ * на логотипе-ссылке подписью для чтения с экрана, промежутки — теснее.
+ * Шапка тогда — 352 px: влезает с запасом от 360 px.
+ */
+@media (max-width: 459px) {
+  .header {
+    gap: var(--space-2);
+  }
+
+  .home {
+    padding: 0 var(--space-2);
+  }
+
   .homeName {
     display: none;
   }
@@ -362,6 +378,21 @@
 
   .profileText,
   .context {
+    display: none;
+  }
+}
+
+/* Самые узкие (320–359 px): кнопки вплотную, справка — в подвале. */
+@media (max-width: 359px) {
+  .header {
+    padding: 0 var(--space-3);
+  }
+
+  .headerRight {
+    gap: var(--space-1);
+  }
+
+  .headerRight .helpLink {
     display: none;
   }
 }

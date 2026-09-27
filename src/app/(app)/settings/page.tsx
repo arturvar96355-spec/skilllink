@@ -18,6 +18,7 @@ import {
   ErrorState,
   Icon,
   PageHeader,
+  ScrollArea,
   UiModeSwitch,
   apiPost,
   buildQuery,
@@ -223,13 +224,6 @@ export default function SettingsPage() {
     window.addEventListener('hashchange', sync)
     return () => window.removeEventListener('hashchange', sync)
   }, [isAdmin])
-
-  // На телефоне разделы — полосой с прокруткой: выбранный должен быть виден.
-  useEffect(() => {
-    document
-      .querySelector(`.${styles.nav} [aria-current='page']`)
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-  }, [active])
 
   function choose(key: SectionKey) {
     setActive(key)
@@ -448,21 +442,33 @@ export default function SettingsPage() {
 
       <div className={[styles.layout, WIDE_SECTIONS.includes(current.key) ? styles.layoutWide : ''].filter(Boolean).join(' ')}>
         <nav className={styles.nav} aria-label="Разделы настроек">
-          {sections.map((section) => (
-            <a
-              key={section.key}
-              href={`#${section.key}`}
-              className={styles.navItem}
-              aria-current={section.key === current.key ? 'page' : undefined}
-              onClick={(event) => {
-                event.preventDefault()
-                choose(section.key)
-              }}
-            >
-              <Icon name={section.icon} size={16} />
-              {section.label}
-            </a>
-          ))}
+          {/*
+            На телефоне разделы — полосой с прокруткой (решение 195): край,
+            за которым есть ещё, растворяется, у него шеврон — «Пользователи»
+            и «Журнал действий» администратора не прячутся за обрезом.
+            Выбранный раздел доезжает в видимую часть сам.
+          */}
+          <ScrollArea
+            className={styles.navList}
+            revealSelector="[aria-current='page']"
+            revealKey={current.key}
+          >
+            {sections.map((section) => (
+              <a
+                key={section.key}
+                href={`#${section.key}`}
+                className={styles.navItem}
+                aria-current={section.key === current.key ? 'page' : undefined}
+                onClick={(event) => {
+                  event.preventDefault()
+                  choose(section.key)
+                }}
+              >
+                <Icon name={section.icon} size={16} />
+                {section.label}
+              </a>
+            ))}
+          </ScrollArea>
         </nav>
 
         <section

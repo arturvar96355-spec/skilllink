@@ -61,7 +61,16 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   hideLabel?: boolean
 }
 
-export function Input({ label, hint, error, icon, hideLabel, id, className, ...props }: InputProps) {
+/**
+ * Поля даты и времени рисует сам браузер (решение 195). Язык поля — русский
+ * явно, а не только наследством от `<html lang="ru">`: так он верен, даже
+ * если поле окажется внутри блока с другим языком. Порядок «дд.мм.гггг»
+ * браузеры берут из языка браузера или телефона: в русском Chrome и Safari
+ * он такой и есть, в английском — «мм/дд/гггг», и атрибут это не меняет.
+ */
+const DATE_INPUT_TYPES = new Set(['date', 'datetime-local', 'month', 'week', 'time'])
+
+export function Input({ label, hint, error, icon, hideLabel, id, className, lang, ...props }: InputProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
   const control = (
@@ -71,6 +80,7 @@ export function Input({ label, hint, error, icon, hideLabel, id, className, ...p
         .filter(Boolean)
         .join(' ')}
       aria-invalid={error ? true : undefined}
+      lang={lang ?? (props.type && DATE_INPUT_TYPES.has(props.type) ? 'ru' : undefined)}
       {...props}
     />
   )
