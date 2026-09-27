@@ -451,7 +451,8 @@
     box-shadow: none;
   }
 
-  .cards .td:first-child {
+  .cards .td:first-child,
+  .cards .td[data-wide] {
     grid-column: 1 / -1;
   }
 
@@ -542,7 +543,8 @@
     transform: none;
   }
 
-  .stack .td:first-child {
+  .stack .td:first-child,
+  .stack .td[data-wide] {
     grid-column: 1 / -1;
   }
 
@@ -706,7 +708,8 @@
     padding: var(--space-3) var(--space-4);
   }
 
-  .list .td:first-child {
+  .list .td:first-child,
+  .list .td[data-wide] {
     flex-basis: 100%;
   }
 }

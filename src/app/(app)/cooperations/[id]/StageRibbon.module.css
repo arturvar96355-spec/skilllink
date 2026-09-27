@@ -54,6 +54,8 @@
   font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
+  /* «07 / 14» не рвётся посередине (решение 195). */
+  white-space: nowrap;
 }
 
 .headTitle {

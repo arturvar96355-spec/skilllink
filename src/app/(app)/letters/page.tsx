@@ -148,6 +148,7 @@ function LettersView() {
     {
       key: 'sender',
       title: 'Отправитель',
+      wide: true,
       render: (row: InboundLetterListItemDto) => (
         <ListTitle
           title={row.senderName ?? row.senderEmail}

@@ -35,6 +35,12 @@ export interface Column<T> {
    * пояснения под названием. Заголовок остаётся кнопкой сортировки.
    */
   hideInList?: boolean
+  /**
+   * На телефоне, где строка раскладывается карточкой (`cards`, `narrow="stack"`),
+   * ячейка занимает всю ширину, а не половину: отправитель письма с адресом
+   * в половине карточки обрезался до «Приёмная СП…» (решение 195).
+   */
+  wide?: boolean
   render: (row: T) => ReactNode
 }
 
@@ -216,6 +222,7 @@ export function DataTable<T>({
                     // карточкой, и у каждого значения видно, что это (вид `cards`).
                     data-label={column.title}
                     data-hidden-in-list={column.hideInList || undefined}
+                    data-wide={column.wide || undefined}
                     // В ленте ширина факта — ширина столбца: «Текущий этап» шире «Срока».
                     style={column.width ? ({ '--col-w': column.width } as CSSProperties) : undefined}
                   >
