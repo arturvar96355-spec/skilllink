@@ -226,3 +226,13 @@
 .block {
   margin-top: var(--space-8);
 }
+
+/*
+ * Спокойный рабочий режим (src/ui/lib/work-theme.ts): просрочка и блокировка —
+ * обе «требуют внимания», один тон красного разной светлоты (решение 215:
+ * части одного сигнала — светлотой одного тона), без второго, жёлтого, цвета.
+ */
+:global(html[data-mode='work'][data-work-theme]) .problemBlocked,
+:global(html[data-mode='work'][data-work-theme]) .legendBlocked {
+  background: color-mix(in srgb, var(--status-danger) 45%, transparent);
+}

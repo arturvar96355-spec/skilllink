@@ -416,6 +416,84 @@
   --button-accent-hover: #5b3dd4;
 }
 
+/*
+ * Спокойный вид рабочего режима — варианты на выбор (src/ui/lib/work-theme.ts).
+ * Замечание эксперта: рабочий режим «аляпится». Правило всех вариантов — цвет
+ * только сигнал: красный — требует внимания, жёлтый — ниже цели, фиолетовый —
+ * выбранное и основное; остальное — нейтральные серые. Презентационный режим
+ * не затронут: всё ниже действует только вместе с data-mode="work".
+ *
+ * Вариант А (и всё, что строже него): переопределение токенов. Розовый,
+ * оранжевый и бирюзовый становятся нейтральной меткой, зелёный «всё хорошо» —
+ * обычным текстом, фиолетовый текст ссылок и номеров — основным текстом
+ * (ссылку выдаёт вес и стрелка, а не цвет), свечения, дымка и тени погашены.
+ */
+html[data-mode='work'][data-work-theme] {
+  --calm-mark: rgb(var(--ink-rgb) / 0.34);
+  --calm-mark-soft: rgb(var(--ink-rgb) / 0.16);
+
+  --accent-pink: var(--calm-mark);
+  --accent-orange: var(--calm-mark);
+  --accent-cyan: var(--calm-mark);
+  --gradient-brand: var(--accent-violet);
+
+  --status-success: var(--text-secondary);
+  --success-surface: transparent;
+  --success-border: var(--line-subtle);
+
+  --text-accent: var(--text-primary);
+  --text-accent-soft: var(--text-secondary);
+  --text-accent-pale: var(--text-primary);
+  --text-violet: var(--text-secondary);
+  --text-warm: var(--text-tertiary);
+  --border-accent: var(--line-strong);
+
+  --bg-glow: transparent;
+  --bg-glow-deep: transparent;
+  --bg-haze-violet: transparent;
+  --bg-haze-deep: transparent;
+
+  --shadow-base: none;
+  --glow-hover: 0 0 0 1px var(--line-strong);
+  --glow-hover-danger: 0 0 0 1px var(--danger-border);
+  --hover-lift: 0px;
+  --hover-lift-strong: 0px;
+}
+
+/*
+ * Статус — словом и точкой, без плашки (все варианты). Слово нейтральное;
+ * цвет остаётся у точки только там, где он сигнал: красный — просрочено,
+ * заблокировано, отказ; жёлтый — ниже цели, на согласовании; фиолетовый —
+ * текущее, в работе. У «опасного» и «ниже цели» цветное и слово: это то, что
+ * должно читаться первым. Демо-пометка остаётся — нейтральным словом.
+ */
+html[data-mode='work'][data-work-theme] [data-badge] {
+  padding-inline: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+html[data-mode='work'][data-work-theme] [data-badge] > :not([data-badge-label]) {
+  color: var(--text-disabled);
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='accent'] > :not([data-badge-label]) {
+  color: var(--accent-violet);
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='danger'],
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='danger'] > :not([data-badge-label]) {
+  color: var(--status-danger);
+  font-weight: 600;
+}
+
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'],
+html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'] > :not([data-badge-label]) {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+
 /* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */
 html[data-theme-switch='fade'] *,
 html[data-theme-switch='fade'] *::before,

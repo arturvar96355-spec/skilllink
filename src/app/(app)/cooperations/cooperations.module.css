@@ -236,3 +236,11 @@ div.registry {
   font-size: var(--text-caption-size);
   color: var(--text-tertiary);
 }
+
+/*
+ * Спокойный рабочий режим (src/ui/lib/work-theme.ts): блокировка — требует
+ * внимания, поэтому красная, как на главной и в карточке; «скоро срок» — жёлтый.
+ */
+:global(html[data-mode='work'][data-work-theme]) .segment[data-state='blocked'] {
+  background: var(--status-danger);
+}
