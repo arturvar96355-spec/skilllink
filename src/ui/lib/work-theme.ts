@@ -30,7 +30,7 @@
 export type WorkTheme = 'a' | 'b' | 'c'
 
 /** `null` — рабочий режим как был, до выбора владельца. */
-export const DEFAULT_WORK_THEME: WorkTheme | null = null
+export const DEFAULT_WORK_THEME: WorkTheme | null = 'a'
 
 /** Ключ предпросмотра в localStorage — только чтобы сравнить варианты вживую. */
 export const WORK_THEME_PREVIEW_KEY = 'skilllink.workTheme.preview'
