@@ -2219,6 +2219,137 @@ no-store`** (в файле ФИО, телефоны и почты слушате
 
 ---
 
+## 9в. Команда (решение 203)
+
+Экран «Команда» для руководителя: кто что ведёт, у кого горит и кто может взять ещё.
+**Права:** `TEAM` — роли `ADMIN`, `HEAD`; учётная запись эксперта хакатона (`isReviewer`)
+любой роли сотрудника читает так же. `MANAGER`, `ANALYST`, `VIEWER` и `UNIVERSITY_REP`
+(в том числе эксперт-представитель) — `403 FORBIDDEN` до любого запроса к базе. Фронт
+смотрит на `permissions.canSeeTeam` из `GET /api/me`.
+
+**Одна база подсчёта с главной и личным кабинетом:**
+
+- «связки в работе» — статусы `DRAFT` и `ACTIVE`, как `activeCooperations` в
+  `GET /api/analytics/overview`; `summary.activeCooperations` — ровно то же число,
+  сумма `members[].activeCooperations` + `summary.activeCooperationsOutsideTeam` — тоже;
+- «просрочено» — этапы, где сотрудник ответственный за этап, срок вышел, статус
+  `IN_PROGRESS` или `BLOCKED` (правило `isOverdue`, бейдж карточки связки), без этапа 14,
+  в незакрытых связках — то же условие, что `overdueStages` в `GET /api/me/stats`;
+- «этапы в срок» — завершённые этапы со сроком без этапа 14: `summary.stagesOnTime`
+  совпадает с `stagesOnTimePercent` главной, `members[].onTime` — с `GET /api/me/stats` сотрудника;
+- «встречи на неделе» — московская календарная неделя (`week.from` — понедельник 00:00 МСК,
+  `week.to` — следующий понедельник, не включая); встреча считается, если сотрудник её
+  ведёт или приглашён участником (как в личном календаре). `meetingsThisWeek` — все встречи
+  недели, `meetingsAhead` — из них ещё впереди (с момента запроса до `week.to`);
+- «письма» — открытые задания по письмам вузов (`InboundLetterTask`, `OPEN`) на сотруднике.
+
+**Нагрузка:** `points` = связки в работе + встречи впереди на неделе (`meetingsAhead`:
+с момента запроса до конца московской недели; прошедшие — уже не нагрузка) +
+`overdueWeight` × просроченные этапы; `load.meetings` = `meetingsAhead`. До `normMax` — `NORMAL`, до `highMax` — `HIGH`, выше — `OVERLOADED`. Пороги —
+`shared/config/team.config.ts` (TEMP), приходят в `loadRule`. Кто связки не ведёт —
+`load: null` (не «норма 0»).
+
+**Последнее действие** — последняя запись журнала от имени сотрудника, кроме входов
+(`auth.*`) и отказов по частоте (`api.*`). Только безопасные поля: действие словами,
+вид объекта словами, краткое название вуза объекта (если это вуз, связка, этап,
+встреча или документ) и время. Ни идентификаторов, ни `payload`, ни адреса — полный журнал
+по-прежнему только у администратора (`GET /api/audit`). `isStale` — последнее
+действие `staleDays` (7) суток назад и раньше или действий не было.
+
+Сотрудники в списке — действующие учётные записи, кроме представителей вузов и
+учётных записей экспертов хакатона.
+
+### GET /api/team
+
+Сводка по всем сотрудникам — постоянное число запросов к базе на любую команду (без N+1).
+
+```json
+{
+  "data": {
+    "members": [
+      {
+        "id": "…", "fullName": "Кириллов Пётр Андреевич", "position": "Менеджер партнёрств ИТ-Школы",
+        "role": "MANAGER", "canBeResponsible": true,
+        "activeCooperations": 36, "universitiesCount": 15, "universities": ["ННГУ", "ПГУТИ", "УУНиТ"],
+        "nearestDeadline": {
+          "stageId": "…", "stageNumber": 6, "title": "Подписание документов", "status": "NOT_STARTED",
+          "deadline": "2026-09-29T09:00:00.000Z", "cooperationId": "…",
+          "universityName": "…", "universityShortName": "ИРНИТУ", "programName": "…", "daysOverdue": null
+        },
+        "overdueStages": 3, "meetingsThisWeek": 12, "meetingsAhead": 9, "openLetterTasks": 2,
+        "onTime": { "closedOnTime": 560, "closedWithDeadline": 630, "percent": 88.9 },
+        "lastAction": { "action": "stage.status.change", "label": "Изменён статус этапа",
+                        "objectLabel": "Этап связки", "universityShortName": "ННГУ",
+                        "at": "2026-09-27T14:50:00.000Z" },
+        "daysSinceLastAction": 0, "isStale": false,
+        "load": { "points": 54, "level": "OVERLOADED", "cooperations": 36, "meetings": 9, "overdue": 3 }
+      }
+    ],
+    "summary": {
+      "averageLoad": 45, "averageLevel": "HIGH", "loadMembers": 2,
+      "stagesOnTime": { "closedOnTime": 1103, "closedWithDeadline": 1218, "percent": 90.6 },
+      "activeCooperations": 65, "activeCooperationsOutsideTeam": 0,
+      "available": [ { "userId": "…", "fullName": "…", "points": 36, "capacity": 4 } ]
+    },
+    "week": { "from": "2026-09-20T21:00:00.000Z", "to": "2026-09-27T21:00:00.000Z" },
+    "loadRule": { "overdueWeight": 3, "normMax": 40, "highMax": 50, "scaleMax": 60 },
+    "staleDays": 7,
+    "containsMockData": true,
+    "generatedAt": "2026-09-27T15:30:00.000Z"
+  }
+}
+```
+
+`nearestDeadline` — ближайший ещё не наступивший срок незакрытого этапа сотрудника в связке
+«Черновик»/«В работе»; `null` — сроков впереди нет. `onTime.percent: null` — закрытых со
+сроком этапов нет («Нет данных», не ноль). `summary.available` — кто может быть
+ответственным и в норме, по возрастанию баллов; `capacity` — запас до `normMax`.
+
+```bash
+curl -s -b cookies.txt http://localhost:3000/api/team
+```
+
+### GET /api/team/:userId
+
+Боковая панель сотрудника. `member` — та же строка, что в сводке, тем же правилом.
+Сотрудник вне команды (представитель вуза, эксперт, заблокированный, нет такого) — `404`.
+
+```json
+{
+  "data": {
+    "member": { "id": "…", "…": "…" },
+    "cooperations": [
+      { "id": "…", "status": "ACTIVE", "universityId": "…", "universityName": "…",
+        "universityShortName": "ННГУ", "programName": "…",
+        "currentStage": { "stageNumber": 11, "title": "…", "deadline": "…", "isOverdue": false },
+        "overdueStages": 0, "isMock": true }
+    ],
+    "overdueStages": [ { "stageId": "…", "stageNumber": 8, "…": "…", "daysOverdue": 6 } ],
+    "weekStages": [ { "stageId": "…", "stageNumber": 3, "…": "…", "daysOverdue": null } ],
+    "weekMeetings": [
+      { "id": "…", "date": "…", "topic": "…", "format": "ONLINE", "universityShortName": "ВГУ",
+        "cooperationId": "…", "role": "RESPONSIBLE", "isAhead": true }
+    ],
+    "recentActions": [ { "action": "…", "label": "…", "objectLabel": "…", "universityShortName": null, "at": "…" } ],
+    "week": { "from": "…", "to": "…" }, "loadRule": { "…": "…" }, "staleDays": 7,
+    "containsMockData": true, "generatedAt": "…"
+  }
+}
+```
+
+`cooperations` — связки в работе, где он ответственный за связку; `overdueStages` у связки —
+как в её карточке (по всем этапам связки). `weekStages` — его незакрытые этапы со сроком
+на этой неделе. `weekMeetings` — все встречи недели; `isAhead: true` — ещё впереди и входит
+в нагрузку, `false` — уже прошла. `recentActions` — последние 10 записей журнала, те же безопасные поля.
+«Передать связку» — существующий `PATCH /api/cooperations/:id` с `responsibleId`
+(право `ASSIGN_RESPONSIBLE`): меняется ответственный за связку, ответственные за этапы — нет.
+
+```bash
+curl -s -b cookies.txt http://localhost:3000/api/team/<userId>
+```
+
+---
+
 ## 10. Рекомендации
 
 Рекомендация не заменяет решение сотрудника (раздел 4 ТЗ): она объясняет, почему система
@@ -3244,7 +3375,9 @@ sha256; без исходного имени файла и без содержи
     "role": "MANAGER", "universityId": null, "universityName": null,
     "permissions": { "canWrite": true, "canSeeAnalytics": true, "canWorkAnalytics": true,
                      "canUsePortal": true, "canWritePortal": false,
-                     "canSeeContactDetails": true, "isAdmin": false },
+                     "canSeeContactDetails": true, "isAdmin": false,
+                     "canAssignResponsible": false, "canReviewLetters": false,
+                     "canSeeTeam": false },
     "passwordTemporary": false
   }
 }
@@ -3259,6 +3392,10 @@ sha256; без исходного имени файла и без содержи
 `canSeeContactDetails` (с 25.09.2026, решение 106) — видит ли пользователь почту и телефон
 контактных лиц любого вуза: `true` у ADMIN и MANAGER. У представителя вуза `false`, хотя
 контакты своего вуза он видит: что именно скрыто, говорит `contactDetailsHidden` в контакте.
+
+`canSeeTeam` (с 27.09.2026, решение 203) — открыт ли экран «Команда» (`GET /api/team`):
+`true` у `ADMIN`, `HEAD` и у эксперта хакатона любой роли сотрудника (только чтение),
+`false` у представителя вуза всегда. По нему строятся пункт меню и охранник раздела.
 
 `passwordTemporary` (с 25.09.2026, решение 99) — действующий пароль выдан администратором
 как временный: личный кабинет показывает плашку «смените временный пароль». Отдельного

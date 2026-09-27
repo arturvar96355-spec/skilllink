@@ -65,6 +65,16 @@ export function navigationFor(user: CurrentUserDto): NavGroup[] {
   // Отдельного флага чтения в правах нет (только canReviewLetters — это право
   // разбирать и решать, а не видеть раздел), поэтому здесь смотрим на роль
   // напрямую, как и у остальных пунктов этой функции.
+  // «Команда» (решение 203): руководитель, администратор и эксперт — тот же флаг
+  // `canSeeTeam`, по которому сервер пускает к `GET /api/team`. Ставится сразу за
+  // «Связками»: это те же связки, разложенные по людям.
+  if (user.permissions.canSeeTeam) {
+    workspace.splice(workspace.findIndex((item) => item.href === ROUTES.cooperations) + 1, 0, {
+      href: ROUTES.team,
+      label: 'Команда',
+      icon: 'team',
+    })
+  }
   if (canReadLetters(user)) {
     workspace.push({ href: ROUTES.letters, label: 'Письма вузов', icon: 'mail' })
   }
@@ -177,6 +187,7 @@ const SECTION_GUARDS: ReadonlyArray<{ prefix: string; allowed: (user: CurrentUse
   { prefix: ROUTES.settings, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.reports, allowed: (user) => user.role !== 'UNIVERSITY_REP' },
   { prefix: ROUTES.letters, allowed: canReadLetters },
+  { prefix: ROUTES.team, allowed: (user) => user.permissions.canSeeTeam },
   { prefix: ROUTES.analytics, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.dataQuality, allowed: (user) => user.permissions.canSeeAnalytics },
   { prefix: ROUTES.vendors, allowed: (user) => user.permissions.canSeeAnalytics },
