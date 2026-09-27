@@ -65,6 +65,7 @@ import {
   useToast,
   useUiMode,
   usePeek,
+  usePeekEnabled,
   startMorph,
   type Bars3DGroup,
   type DonutSlice,
@@ -289,6 +290,8 @@ function Dashboard() {
   // при наведении на связку — всплывающая карточка. В рабочем режиме главная прежняя.
   const showcase = !isWork
   const peek = usePeek()
+  // Где работает карточка при наведении, у строк нет своего `title` — иначе две подсказки сразу (решение 211).
+  const peekOn = usePeekEnabled()
 
   // Связки по id: у проблемного этапа на главной нет продукта и прогресса —
   // карточке при наведении они берутся из уже загруженных связок.
@@ -609,7 +612,7 @@ function Dashboard() {
                       coopPeek(
                         row.cooperationId,
                         {
-                          university: row.universityShortName ?? row.universityName,
+                          university: row.universityName,
                           program: row.programName,
                           stage: row.stageNumber,
                           stageTitle: row.stageTitle,
@@ -733,7 +736,7 @@ function Dashboard() {
                         {...coopPeek(
                           item.id,
                           {
-                            university: item.universityShortName ?? item.universityName,
+                            university: item.universityName,
                             program: item.programName,
                             stage: item.currentStage?.stageNumber ?? null,
                             stageTitle: item.currentStage?.title ?? null,
@@ -744,7 +747,7 @@ function Dashboard() {
                         <Link
                           className={styles.route}
                           href={cooperationHref(item.id)}
-                          title={`${item.universityName} → ${item.programName} → ${item.productName ?? 'продукт не выбран'}`}
+                          title={peekOn ? undefined : `${item.universityName} → ${item.programName} → ${item.productName ?? 'продукт не выбран'}`}
                           onClick={(event) => startMorph(event.currentTarget, event)}
                         >
                           {/* Две строки вместо одной: в одну вуз, программа и продукт обрезались до 10–15 букв. */}
