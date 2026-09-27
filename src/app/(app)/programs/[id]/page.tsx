@@ -30,6 +30,7 @@ import {
   DocumentStatusBadge,
   EmptyState,
   ErrorState,
+  HelpHint,
   Icon,
   MetricValue,
   MockBadge,
@@ -575,6 +576,7 @@ export default function ProgramPage() {
         variant="display"
         breadcrumbs={[{ label: 'Программы', href: ROUTES.programs }, { label: data.name }]}
         title={data.name}
+        help={{ topic: 'programs', section: 'card' }}
         description={data.direction ?? undefined}
         meta={data.isMock ? <MockBadge /> : undefined}
         actions={
@@ -616,7 +618,10 @@ export default function ProgramPage() {
 
           {data.rating && (
             <div className={styles.rating}>
-              <span className={styles.ratingLabel}>Балл рейтинга</span>
+              <span className={[styles.ratingLabel, styles.labelHelp].join(' ')}>
+                Балл рейтинга
+                <HelpHint topic="programs" section="rating" />
+              </span>
               <span className={data.rating.score === null ? styles.scoreEmpty : styles.score}>
                 {data.rating.score === null ? NO_DATA : formatScore(data.rating.score)}
               </span>
@@ -660,6 +665,7 @@ export default function ProgramPage() {
         <>
           <Section
             title="Показатели набора"
+            help={{ topic: 'programs', section: 'indicators' }}
             description="Заявки, обучающиеся и параллельные группы — те самые три показателя, по которым считается рейтинг."
           >
             {/* Три числа на одной поверхности, а не три одинаковые карточки (07, раздел 40). */}
@@ -697,6 +703,7 @@ export default function ProgramPage() {
           {user.permissions.canSeeAnalytics && (
             <Section
               title="Задачи по программе"
+              help={{ topic: 'task-list' }}
               description="Какие правила система проверяет по этой программе и что им сейчас мешает сработать."
             >
               <Card>
@@ -708,6 +715,7 @@ export default function ProgramPage() {
           {user.permissions.canSeeAnalytics && (
             <Section
               title="Похожие программы"
+              help={{ topic: 'programs', section: 'similar' }}
               description="По навыкам: чем больше общих и чем важнее они для обеих программ, тем выше сходство."
             >
               <SimilarPrograms programId={data.id} />
@@ -719,6 +727,7 @@ export default function ProgramPage() {
       {activeTab === 'skills' && (
         <Section
           title="Навыки программы"
+          help={{ topic: 'programs', section: 'skills' }}
           action={
             user.permissions.canWrite ? (
               <Button variant="secondary" size="sm" icon="plus" onClick={() => setIsAddSkillOpen(true)}>
@@ -757,8 +766,12 @@ export default function ProgramPage() {
         // Было радаром (решение 79); по единому языку диаграмм — полосы с отметкой спроса (решение 215).
         <Section
           title="Спрос против покрытия"
+          help={{
+            topic: 'programs',
+            section: 'demand',
+            note: 'Навыки, которые программа уже даёт, и самые востребованные из тех, что она не даёт. Полоса — покрытие навыка программой по шкале 0–100 (нет — 0, базовый — 34, средний — 67, продвинутый — 100). Отметка — спрос рынка на ту же шкалу. Отметка правее конца полосы — дефицит: жёлтым — навык есть, но уровень ниже спроса; красным — востребованного навыка в программе нет.',
+          }}
           description={coverageConclusion(gapRows)}
-          hint="Навыки, которые программа уже даёт, и самые востребованные из тех, что она не даёт. Полоса — покрытие навыка программой по шкале 0–100 (нет — 0, базовый — 34, средний — 67, продвинутый — 100). Отметка — спрос рынка на ту же шкалу. Отметка правее конца полосы — дефицит: жёлтым — навык есть, но уровень ниже спроса; красным — востребованного навыка в программе нет."
         >
           <Card>
             <MeasureBars
@@ -872,6 +885,7 @@ export default function ProgramPage() {
           isOpen
           onClose={() => setIsArchiving(false)}
           title="Перенести программу в архив"
+          help={{ topic: 'programs', section: 'card' }}
           description="Программа пропадёт из активных списков. Связки, документы и история останутся, вернуть можно в любой момент."
           closeOnBackdrop={false}
           footer={
@@ -893,6 +907,7 @@ export default function ProgramPage() {
           isOpen
           onClose={() => setIsRestoring(false)}
           title="Вернуть программу из архива"
+          help={{ topic: 'programs', section: 'card' }}
           description="Программа снова появится в активных списках."
           closeOnBackdrop={false}
           footer={

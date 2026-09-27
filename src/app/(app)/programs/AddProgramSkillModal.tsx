@@ -103,6 +103,7 @@ export function AddProgramSkillModal({
       isOpen
       onClose={() => onClose(false)}
       title="Добавить навык"
+      help={{ topic: 'programs', section: 'skills' }}
       description="Навык из общего справочника — с уровнем и важностью для этой программы."
       closeOnBackdrop={false}
       footer={

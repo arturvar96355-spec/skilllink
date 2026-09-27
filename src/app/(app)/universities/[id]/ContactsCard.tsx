@@ -139,6 +139,7 @@ function RevealAction({ contact }: { contact: ContactDto }) {
           isOpen
           onClose={() => setIsOpen(false)}
           title="Показать почту и телефон"
+          help={{ topic: 'personal-data', section: 'show' }}
           description={`Контакт: ${contact.fullName}. Раскрытие записывается в журнал действий с указанной причиной.`}
           footer={
             <>
@@ -222,6 +223,7 @@ function EditBasisModal({
       isOpen
       onClose={onClose}
       title="Правовое основание обработки ПД"
+      help={{ topic: 'personal-data', section: 'basis' }}
       description={`Контакт: ${contact.fullName}. Основание фиксируется по документу — файл не загружается, только ссылка на него.`}
       footer={
         <>
@@ -324,6 +326,7 @@ function WithdrawConsentModal({
       onClose={onClose}
       closeOnBackdrop={false}
       title="Отозвать согласие"
+      help={{ topic: 'personal-data', section: 'revoke' }}
       description={`Контакт: ${contact.fullName}. Необратимо: согласие — единственное основание обработки, поэтому контакт будет обезличен сразу же — ФИО, должность, почта, телефон и заметки будут стёрты.`}
       footer={
         <>
@@ -366,7 +369,13 @@ function HistoryDrawer({ contact, universityId, onClose }: { contact: ContactDto
   )
 
   return (
-    <Drawer isOpen onClose={onClose} title="История основания и согласия" description={contact.fullName}>
+    <Drawer
+      isOpen
+      onClose={onClose}
+      title="История основания и согласия"
+      description={contact.fullName}
+      help={{ topic: 'personal-data', section: 'basis' }}
+    >
       {history.isLoading && <p className={styles.rowMeta}>Загрузка…</p>}
       {history.error && <ErrorState error={history.error} onRetry={history.reload} />}
       {history.data && history.data.length === 0 && (
@@ -502,6 +511,7 @@ function AnonymizeModal({
       isOpen
       onClose={onClose}
       title="Удалить персональные данные контакта"
+      help={{ topic: 'personal-data', section: 'erase' }}
       description="Необратимо. ФИО, должность, почта, телефон и заметки будут стёрты, запись останется как «Контакт удалён» — ради встреч и истории работы с вузом."
       closeOnBackdrop={false}
       footer={

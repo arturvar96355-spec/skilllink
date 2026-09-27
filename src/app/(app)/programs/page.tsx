@@ -25,7 +25,7 @@ import {
   MockBadge,
   mockMarks,
   NO_DATA,
-  InfoHint,
+  HelpHint,
   PageHeader,
   Pagination,
   ProgramStatusBadge,
@@ -247,13 +247,13 @@ export default function ProgramsPage() {
       <PageHeader
         title="Программы"
         description="Образовательные программы вузов: уровень, набор и связи с IT-продуктами."
-        meta={
-          <>
-            {marks.section && <MockBadge />}
-            {/* Три неочевидных знака реестра — одной подсказкой (решение 212). */}
-            <InfoHint text="«≈360» — оценка, а не точное число: вуз дал показатель приблизительно. «Нет данных» — показатель не внесён (это не ноль). Цифры вида 09.03.04 — код направления подготовки." />
-          </>
-        }
+        // Три неочевидных знака реестра — одной подсказкой (решение 212), в том же «?»,
+        // что ведёт в документацию (решение 217).
+        help={{
+          topic: 'programs',
+          note: '«≈360» — оценка, а не точное число: вуз дал показатель приблизительно. «Нет данных» — показатель не внесён (это не ноль). Цифры вида 09.03.04 — код направления подготовки.',
+        }}
+        meta={marks.section ? <MockBadge /> : undefined}
         actions={
           <>
             {/* Выгрузка берёт фильтры и порядок экрана: в файле те же программы, что в реестре. */}
@@ -264,6 +264,7 @@ export default function ProgramsPage() {
             >
               Выгрузить
             </DownloadButton>
+            <HelpHint topic="exports" section="registry" />
             {user.permissions.canWrite && (
               <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
                 Создать программу
@@ -273,7 +274,10 @@ export default function ProgramsPage() {
         }
       />
 
-      <Toolbar actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}>
+      <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
+        actions={hasFilters ? <ResetFilters active onReset={resetFilters} /> : undefined}
+      >
         {!isWork && (
           <ToolbarItem>
             <div className={styles.viewSwitch} role="group" aria-label="Вид реестра">

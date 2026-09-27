@@ -67,6 +67,7 @@ export function AddProductSkillModal({
       isOpen
       onClose={() => onClose(false)}
       title="Добавить навык"
+      help={{ topic: 'products' }}
       description="Навык из общего справочника — с тем, насколько он ключевой для этого продукта."
       closeOnBackdrop={false}
       footer={
