@@ -522,6 +522,7 @@ function GapsTab({
             selectedKey={selectedSkillId}
             isRefreshing={gaps.isRefreshing}
             caption="Дефицит навыков"
+            narrow="stack"
           />
         )}
       </Card>
@@ -708,6 +709,7 @@ function DemandTab() {
             getRowKey={(row) => row.skillId}
             isRefreshing={demand.isRefreshing}
             caption="Востребованность навыков на рынке"
+            narrow="stack"
           />
         )}
       </Card>

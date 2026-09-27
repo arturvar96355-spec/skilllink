@@ -67,6 +67,14 @@ export interface DataTableProps<T> {
    * фактов с подписями; сортировка — кнопками над списком.
    */
   appearance?: 'grid' | 'cards' | 'list'
+  /**
+   * Вид `grid` на телефоне (до 720 px). `scroll` — таблица листается вбок
+   * (растворённый край и шеврон). `stack` — строка раскладывается блоком:
+   * первый столбец во всю ширину, остальные значения сеткой в два столбца
+   * с подписями. Для таблиц, где в первом столбце — абзац пояснения: в полосе
+   * шириной 156 px он становился стеной из семи строк (решение 195).
+   */
+  narrow?: 'scroll' | 'stack'
 }
 
 export function DataTable<T>({
@@ -81,6 +89,7 @@ export function DataTable<T>({
   caption,
   total = null,
   appearance = 'grid',
+  narrow = 'scroll',
 }: DataTableProps<T>) {
   const router = useRouter()
 
@@ -101,6 +110,7 @@ export function DataTable<T>({
         styles.wrapper,
         appearance === 'cards' ? styles.cards : '',
         appearance === 'list' ? styles.list : '',
+        appearance === 'grid' && narrow === 'stack' ? styles.stack : '',
       ]
         .filter(Boolean)
         .join(' ')}
