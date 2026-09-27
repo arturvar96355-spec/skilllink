@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   findUniversityNames: vi.fn(async () => new Map<string, string>()),
   findUniversityDomains: vi.fn(async () => [] as Array<{ universityId: string; domains: string[] }>),
   findActiveCooperation: vi.fn(async () => null as { cooperationId: string; stageNumber: number | null } | null),
+  findCurrentStageNumber: vi.fn(async () => null as number | null),
   findLabeledExamples: vi.fn(async () => [] as unknown[]),
   saveAnalysis: vi.fn(),
   saveReviewAndCreateTask: vi.fn(),
@@ -396,12 +397,14 @@ describe('review: «Верно»/«Неверно» → статус и зада
     )
   })
 
-  it('«Неверно» со связкой, указанной сотрудником, отличной от активной — этап не приписывается чужой связке', async () => {
+  it('«Неверно» со связкой, указанной сотрудником, отличной от активной — текущий этап именно этой связки (решение 210)', async () => {
     mocks.findById.mockResolvedValue(letterRow())
     mocks.findResponsible.mockResolvedValue(null)
     mocks.cooperationBelongsToUniversity.mockResolvedValue(true)
-    // Система считает активной coop-2 (этап 7), но сотрудник выбрал другую связку того же вуза.
+    // Система считает активной coop-2 (этап 7), но сотрудник выбрал другую связку того же вуза:
+    // этап 7 ей не приписывается — берётся её собственный текущий этап.
     mocks.findActiveCooperation.mockResolvedValue({ cooperationId: 'coop-2', stageNumber: 7 })
+    mocks.findCurrentStageNumber.mockResolvedValue(2)
     mocks.saveReviewAndCreateTask.mockResolvedValue(letterRow({ status: 'CORRECTED', verdict: 'INCORRECT' }))
 
     await service.review(user('HEAD'), 'letter-1', {
@@ -413,8 +416,33 @@ describe('review: «Верно»/«Неверно» → статус и зада
       comment: 'Вуз определён неверно',
     })
 
+    expect(mocks.findCurrentStageNumber).toHaveBeenCalledWith('coop-3')
     expect(mocks.saveReviewAndCreateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ cooperationId: 'coop-3', stageNumber: null }),
+      expect.objectContaining({ cooperationId: 'coop-3', stageNumber: 2 }),
+      expect.anything(),
+    )
+  })
+
+  it('«Неверно» с одной сменой группы — связка и этап письма на месте (решение 210, S9)', async () => {
+    // Стенд: у вуза несколько связок, «активной» система считала другую, и этап
+    // письма (6) обнулялся, хотя сотрудник исправил только группу.
+    mocks.findById.mockResolvedValue(letterRow({ cooperationId: 'coop-1', stageNumber: 6 }))
+    mocks.findResponsible.mockResolvedValue(null)
+    mocks.findActiveCooperation.mockResolvedValue({ cooperationId: 'coop-2', stageNumber: 7 })
+    mocks.saveReviewAndCreateTask.mockResolvedValue(letterRow({ status: 'CORRECTED', verdict: 'INCORRECT' }))
+
+    await service.review(user('HEAD'), 'letter-1', {
+      verdict: 'INCORRECT',
+      universityId: 'uni-1',
+      cooperationId: 'coop-1',
+      group: 'QUESTION',
+      action: 'Ответить на вопрос вуза',
+      comment: 'Это вопрос, а не встреча',
+    })
+
+    expect(mocks.findCurrentStageNumber).not.toHaveBeenCalled()
+    expect(mocks.saveReviewAndCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'CORRECTED', cooperationId: 'coop-1', stageNumber: 6, group: 'QUESTION' }),
       expect.anything(),
     )
   })
