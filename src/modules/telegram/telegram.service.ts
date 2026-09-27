@@ -11,7 +11,7 @@ import type {
 import { forbidden, integrationError } from '@/shared/http/errors'
 import { addDays } from '@/shared/utils/date'
 import type { TelegramConfig } from '@/integrations/config'
-import { effectiveTelegramConfig, TelegramClient } from '@/integrations/telegram'
+import { effectiveTelegramConfig, TelegramClient, type TelegramInlineKeyboard } from '@/integrations/telegram'
 import { pulseSourcesFor } from '@/modules/analytics/pulse.service'
 import * as repo from './telegram.repo'
 import {
@@ -21,8 +21,10 @@ import {
   webhookSecretHash,
 } from './telegram.link-token'
 import { BOT_REPLIES, buildDigest, parseCommand, type Digest } from './telegram.rules'
+import { actionSigningSecret, toInlineKeyboard, withoutAcceptActions } from './telegram.actions'
 import type { TelegramUpdate } from './telegram.schema'
 import { log } from '@/shared/log/logger'
+import { publicBaseUrl } from '@/shared/config/public-url'
 
 /**
  * Личные уведомления в Telegram (решение 102): «что горит у меня» — менеджеру
@@ -38,19 +40,6 @@ import { log } from '@/shared/log/logger'
 
 function telegramConfig(): TelegramConfig {
   return effectiveTelegramConfig()
-}
-
-/**
- * Публичный адрес стенда для ссылок в сводке: AUTH_URL (адрес за прокси, его видит
- * человек), иначе APP_BASE_URL. Ни того ни другого — сводка без ссылок.
- */
-function publicBaseUrl(): string | null {
-  const raw = process.env.AUTH_URL?.trim() || process.env.APP_BASE_URL?.trim() || ''
-  try {
-    return raw ? new URL(raw).origin : null
-  } catch {
-    return null
-  }
 }
 
 // ─────────────────────────── Личный кабинет ─────────────────────────────────
@@ -113,7 +102,11 @@ export async function disconnect(user: CurrentUser): Promise<TelegramStatusDto> 
  * (аналитика): представителю вуза сводки нет.
  */
 export async function digestFor(user: CurrentUser, now = new Date()): Promise<Digest> {
-  return buildDigest(await pulseSourcesFor(user, now), { now, baseUrl: publicBaseUrl() })
+  const digest = buildDigest(await pulseSourcesFor(user, now), { now, baseUrl: publicBaseUrl() })
+  // «Принял» по этапу — право изменения этапов (решение 200): аналитику и наблюдателю
+  // кнопка, которая всегда ответит отказом, не нужна; ссылки «Открыть» остаются.
+  // Эксперт кнопку видит и получает отказ при нажатии — как 403 на сайте.
+  return can(user, 'WRITE') ? digest : { ...digest, actions: withoutAcceptActions(digest.actions) }
 }
 
 export interface DigestRunSummary {
@@ -177,7 +170,13 @@ export async function sendDigests(options: {
         summary.sent += 1
         continue
       }
-      const result = await client.sendMessage(recipient.chatId, digest.text)
+      const replyMarkup = toInlineKeyboard(digest.actions, {
+        secret: actionSigningSecret(),
+        chatId: recipient.chatId,
+        userId: recipient.user.id,
+        now: now.getTime(),
+      })
+      const result = await client.sendMessage(recipient.chatId, digest.text, replyMarkup ? { replyMarkup } : {})
       if (result.ok) summary.sent += 1
       else if (result.reason === 'blocked') summary.blocked += 1
       else summary.failed += 1
@@ -295,13 +294,16 @@ export async function rotateWebhookSecret(
   return run
 }
 
+/** Ответ бота: текст и, для сводки, кнопки этапов (решение 200). */
+type BotReply = string | { text: string; replyMarkup?: TelegramInlineKeyboard }
+
 async function replyTo(
   update: TelegramUpdate,
   config: TelegramConfig,
   secret: string,
   now: Date,
   client: TelegramClient,
-): Promise<string | null> {
+): Promise<BotReply | null> {
   const message = update.message
   if (!message || message.text === undefined) return null
   const chatId = String(message.chat.id)
@@ -343,7 +345,11 @@ async function replyTo(
       const user = await repo.findActiveUserByChat(chatId)
       if (!user) return BOT_REPLIES.notLinked
       if (!can(user, 'ANALYTICS')) return BOT_REPLIES.unavailable
-      return (await digestFor(user, now)).text
+      const digest = await digestFor(user, now)
+      return {
+        text: digest.text,
+        replyMarkup: toInlineKeyboard(digest.actions, { secret, chatId, userId: user.id, now: now.getTime() }),
+      }
     }
     case 'stop': {
       const userId = await repo.unlinkChat(chatId)
@@ -377,7 +383,20 @@ export async function handleUpdate(
   const client = options.client ?? new TelegramClient(config)
   const now = options.now ?? new Date()
 
-  let reply: string | null
+  if (update.callback_query) {
+    // Нажатие кнопки (решение 200). Модуль подгружается по требованию: он зовёт
+    // сервисы этапов и писем, а те через каналы уведомлений — этот модуль;
+    // статический импорт замкнул бы круг зависимостей.
+    try {
+      const { handleCallbackQuery } = await import('./telegram.callbacks')
+      await handleCallbackQuery(update.callback_query, { secret: options.secret, client, now })
+    } catch (error) {
+      log.error('[telegram] нажатие кнопки не обработано', { updateId: update.update_id, err: error })
+    }
+    return
+  }
+
+  let reply: BotReply | null
   try {
     reply = await replyTo(update, config, options.secret, now, client)
   } catch (error) {
@@ -386,6 +405,7 @@ export async function handleUpdate(
   }
   if (reply !== null && update.message) {
     // Результат не проверяем: сбой доставки клиент уже записал в журнал.
-    await client.sendMessage(String(update.message.chat.id), reply)
+    const { text, replyMarkup } = typeof reply === 'string' ? { text: reply, replyMarkup: undefined } : reply
+    await client.sendMessage(String(update.message.chat.id), text, replyMarkup ? { replyMarkup } : {})
   }
 }

@@ -767,6 +767,23 @@
   }
 }
 
+/*
+ * Сцена входа со звёздами (решение 199): живой фон главной не вспыхивает поверх
+ * тёмного экрана входа в момент смены страницы, а проявляется под звёздами,
+ * пока они ждут страницу. Только прозрачность слоя — работа видеокарты.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  :global(body[data-star-assembly]) .liveBackground {
+    animation: liveBackgroundIn 700ms var(--ease-out) both;
+  }
+}
+
+@keyframes liveBackgroundIn {
+  from {
+    opacity: 0;
+  }
+}
+
 /* Рабочий режим (решение 80): фон неподвижен — дымка не дышит, свечение не ходит за курсором. */
 :global(html[data-mode='work']) .haze {
   animation: none;
