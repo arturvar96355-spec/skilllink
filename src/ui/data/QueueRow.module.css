@@ -368,3 +368,15 @@
     margin-right: var(--space-1);
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * очередь — список под тонкой линией, без плашки.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .queue {
+  padding-inline: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}

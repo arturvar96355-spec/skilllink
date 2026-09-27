@@ -542,3 +542,33 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * списки «Связки в работе» и «Ключевые программы» — строки
+ * с тонким разделителем, а не стопка плашек; полоса балла — фиолетовая.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .routes {
+  gap: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .route,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .rank {
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+  padding-inline: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .route:hover,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .rank:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+  transform: none;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .rankBarFill {
+  background: var(--calm-chart);
+  opacity: 1;
+}

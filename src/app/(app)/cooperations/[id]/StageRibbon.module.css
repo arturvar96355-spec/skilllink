@@ -407,3 +407,19 @@
 :global(html[data-mode='work'][data-work-theme]) .phaseCurrent .phaseName {
   color: var(--accent-violet);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * лента этапов без плашки; пройденная линия — нейтральная,
+ * фиолетовым — только текущий этап.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .ribbon {
+  padding-inline: 0;
+  border-top: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .lineDone {
+  background: var(--calm-mark);
+}

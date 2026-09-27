@@ -431,6 +431,8 @@
 html[data-mode='work'][data-work-theme] {
   --calm-mark: rgb(var(--ink-rgb) / 0.34);
   --calm-mark-soft: rgb(var(--ink-rgb) / 0.16);
+  /* Цвет графиков в строгом варианте; в графите — серый (ниже). */
+  --calm-chart: var(--accent-violet);
 
   --accent-pink: var(--calm-mark);
   --accent-orange: var(--calm-mark);
@@ -492,6 +494,15 @@ html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'],
 html[data-mode='work'][data-work-theme] [data-badge][data-tone='warning'] > :not([data-badge-label]) {
   color: var(--status-warning);
   font-weight: 600;
+}
+
+/*
+ * Вариант Б «строгий» (и графит): статус этапа — монохромный. Точка «в работе»
+ * тоже серая: фиолетовым текущий этап выделен в ленте этапов, второй раз
+ * его красить не нужно. Цвет — только у просрочки, блокировки и «ниже цели».
+ */
+html[data-mode='work'][data-work-theme]:not([data-work-theme='a']) [data-badge][data-tone='accent'] > :not([data-badge-label]) {
+  color: var(--text-disabled);
 }
 
 /* Плавная смена темы там, где нет View Transitions: цвета перетекают, а не щёлкают. */

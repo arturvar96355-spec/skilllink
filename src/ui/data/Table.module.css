@@ -729,3 +729,30 @@
     transform: translateY(10px) scale(0.99);
   }
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * строки-плашки становятся строками списка с тонким разделителем.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards {
+  padding-inline: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards .table {
+  border-spacing: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards .td {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  border-radius: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards .clickable:hover > .td {
+  background: var(--surface-2);
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards .clickable:hover > .td:first-child {
+  box-shadow: none;
+}

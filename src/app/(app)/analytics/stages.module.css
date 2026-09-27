@@ -236,3 +236,16 @@
 :global(html[data-mode='work'][data-work-theme]) .legendBlocked {
   background: color-mix(in srgb, var(--status-danger) 45%, transparent);
 }
+
+/*
+ * Спокойный рабочий режим, вариант Б «строгий» и строже (src/ui/lib/work-theme.ts):
+ * ответственные и долгие просрочки — строки списка, а не плашки.
+ */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .late,
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .person {
+  padding-inline: 0;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  border-radius: 0;
+  background: transparent;
+}
