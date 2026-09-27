@@ -9,6 +9,7 @@ import type {
   TelegramWebhookSecretRotatedDto,
 } from '@/shared/contracts/telegram'
 import { forbidden, integrationError } from '@/shared/http/errors'
+import { USER_ROLE_LABELS } from '@/shared/contracts/labels'
 import { addDays } from '@/shared/utils/date'
 import type { TelegramConfig } from '@/integrations/config'
 import { effectiveTelegramConfig, TelegramClient, type TelegramInlineKeyboard } from '@/integrations/telegram'
@@ -20,7 +21,7 @@ import {
   matchesWebhookSecretHash,
   webhookSecretHash,
 } from './telegram.link-token'
-import { BOT_REPLIES, buildDigest, parseCommand, type Digest } from './telegram.rules'
+import { BOT_REPLIES, buildDigest, linkedReply, parseCommand, type Digest } from './telegram.rules'
 import { actionSigningSecret, toInlineKeyboard, withoutAcceptActions } from './telegram.actions'
 import type { TelegramUpdate } from './telegram.schema'
 import { log } from '@/shared/log/logger'
@@ -102,7 +103,21 @@ export async function disconnect(user: CurrentUser): Promise<TelegramStatusDto> 
  * (аналитика): представителю вуза сводки нет.
  */
 export async function digestFor(user: CurrentUser, now = new Date()): Promise<Digest> {
-  const digest = buildDigest(await pulseSourcesFor(user, now), { now, baseUrl: publicBaseUrl() })
+  const sources = await pulseSourcesFor(user, now)
+  // Решение 210 (S8): у руководителя и администратора своих связок часто нет, и сводка
+  // была из одной «Системы заметила» — без этапов и без кнопок. Им, как на главной,
+  // — горящие этапы всего портфеля; у кого свои горящие есть — только свои.
+  const portfolio = sources.stages.length === 0 && can(user, 'ASSIGN_RESPONSIBLE')
+  const stages = portfolio ? await repo.findDigestStages(null, now, TELEGRAM_DIGEST.stagesFetch) : sources.stages
+  const digest = buildDigest(
+    { ...sources, stages },
+    {
+      now,
+      baseUrl: publicBaseUrl(),
+      account: USER_ROLE_LABELS[user.role],
+      scope: portfolio && stages.length > 0 ? 'portfolio' : 'own',
+    },
+  )
   // «Принял» по этапу — право изменения этапов (решение 200): аналитику и наблюдателю
   // кнопка, которая всегда ответит отказом, не нужна; ссылки «Открыть» остаются.
   // Эксперт кнопку видит и получает отказ при нажатии — как 403 на сайте.
@@ -339,7 +354,7 @@ async function replyTo(
         objectId: user.id,
         payload: { source: 'telegram', relinked },
       })
-      return BOT_REPLIES.linked
+      return linkedReply(USER_ROLE_LABELS[user.role])
     }
     case 'today': {
       const user = await repo.findActiveUserByChat(chatId)

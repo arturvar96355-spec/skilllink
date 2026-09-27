@@ -3,7 +3,7 @@ import type { CurrentUser } from '@/shared/auth/current-user'
 import { TELEGRAM_DEFAULT_API_BASE, type TelegramConfig } from '@/integrations/config'
 import { TelegramClient } from '@/integrations/telegram'
 import { createLinkToken, resetSpentLinkTokens } from './telegram.link-token'
-import { BOT_REPLIES } from './telegram.rules'
+import { BOT_REPLIES, linkedReply } from './telegram.rules'
 
 /**
  * Сервис бота: привязка, команды, рассылка. База и Telegram подменены —
@@ -180,7 +180,7 @@ describe('вебхук', () => {
     await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
 
     expect(mocks.linkChat).toHaveBeenCalledWith(manager.id, '777', 'ivan')
-    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
+    expect(sent).toEqual([{ chatId: '777', text: linkedReply('Менеджер партнёрств') }])
     const audit = mocks.writeAudit.mock.calls[0]![0] as { action: string; payload: unknown }
     expect(audit.action).toBe('telegram.link')
     expect(JSON.stringify(audit)).not.toMatch(/777|ivan/)
@@ -205,7 +205,7 @@ describe('вебхук', () => {
     await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
 
     expect(mocks.linkChat).toHaveBeenCalledWith(manager.id, '777', 'ivan')
-    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
+    expect(sent).toEqual([{ chatId: '777', text: linkedReply('Менеджер партнёрств') }])
   })
 
   it('перепривязка на ДРУГОЙ чат того же сотрудника — старый чат получает уведомление о переносе', async () => {
@@ -219,7 +219,7 @@ describe('вебхук', () => {
     expect(mocks.linkChat).toHaveBeenCalledWith(manager.id, '888', 'ivan')
     expect(sent).toEqual([
       { chatId: '777', text: BOT_REPLIES.movedElsewhere },
-      { chatId: '888', text: BOT_REPLIES.linked },
+      { chatId: '888', text: linkedReply('Менеджер партнёрств') },
     ])
   })
 
@@ -231,7 +231,7 @@ describe('вебхук', () => {
     const { client, sent } = recordingClient()
     await service.handleUpdate(update(`/start ${token}`), { secret: SECRET, client })
 
-    expect(sent).toEqual([{ chatId: '777', text: BOT_REPLIES.linked }])
+    expect(sent).toEqual([{ chatId: '777', text: linkedReply('Менеджер партнёрств') }])
   })
 
   it('та же ссылка второй раз не срабатывает', async () => {
@@ -324,6 +324,50 @@ describe('вебхук', () => {
     await service.handleUpdate(update('/today'), { secret: SECRET, client, now: new Date('2026-09-28T09:00:00Z') })
     expect(send.mock.calls[0]![1]).toContain('Этап 3')
     expect(send.mock.calls[0]![2]).toEqual({})
+  })
+
+  it('/today администратору без своих этапов — этапы портфеля с кнопками и роль в шапке (решение 210, S8)', async () => {
+    // На стенде чат проверяющего был привязан к admin@: своих связок у него нет, и
+    // сводка была из одной «Системы заметила» — без этапов и без кнопок.
+    const admin: CurrentUser = { ...manager, id: 'cmuser0admin00000000000000', role: 'ADMIN' }
+    mocks.findActiveUserByChat.mockResolvedValue(admin)
+    mocks.findDigestStages.mockImplementation(async (userId: string | null) =>
+      userId === null
+        ? [
+            {
+              stageId: 'cmstage0000000000000000009',
+              stageNumber: 7,
+              stageTitle: 'Передача материалов',
+              status: 'IN_PROGRESS',
+              deadline: new Date('2026-09-01T00:00:00Z'),
+              cooperationId: 'coop-9',
+              universityName: 'МТУСИ',
+              programName: 'Программа',
+              siblings: [],
+            },
+          ]
+        : [],
+    )
+    const client = new TelegramClient(enabledConfig())
+    const send = vi.spyOn(client, 'sendMessage').mockResolvedValue({ ok: true })
+    await service.handleUpdate(update('/today'), { secret: SECRET, client, now: new Date('2026-09-28T09:00:00Z') })
+
+    expect(mocks.findDigestStages).toHaveBeenCalledWith(admin.id, expect.any(Date), expect.any(Number))
+    expect(mocks.findDigestStages).toHaveBeenCalledWith(null, expect.any(Date), expect.any(Number))
+    const text = send.mock.calls[0]![1]
+    expect(text).toContain('Учётная запись: Администратор')
+    expect(text).toContain('этапы всего портфеля')
+    expect(text).toContain('Этап 7')
+    const options = send.mock.calls[0]![2] as { replyMarkup?: { inline_keyboard: Array<Array<{ callback_data?: string }>> } }
+    expect(options.replyMarkup?.inline_keyboard[0]!.some((button) => button.callback_data)).toBe(true)
+  })
+
+  it('/today менеджеру без горящих этапов — портфель не подставляется', async () => {
+    mocks.findActiveUserByChat.mockResolvedValue(manager)
+    const { client, sent } = recordingClient()
+    await service.handleUpdate(update('/today'), { secret: SECRET, client })
+    expect(mocks.findDigestStages).not.toHaveBeenCalledWith(null, expect.any(Date), expect.any(Number))
+    expect(sent[0]!.text).toContain('ничего не горит')
   })
 
   it('/stop отвязывает чат и пишет журнал', async () => {

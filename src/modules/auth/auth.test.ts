@@ -6,10 +6,15 @@ import type { UserRole } from '@/shared/contracts/enums'
  * Справочник пользователей и почта в нём. База подменена: проверяется, что
  * сервис отдаёт и по чему ищет, а не сама выборка.
  */
-const mocks = vi.hoisted(() => ({ findMany: vi.fn(), count: vi.fn() }))
+const mocks = vi.hoisted(() => ({ findMany: vi.fn(), count: vi.fn(), deliveryChannels: vi.fn() }))
 
 vi.mock('@/shared/db/prisma', () => ({
   prisma: { user: { findMany: mocks.findMany, count: mocks.count } },
+}))
+
+vi.mock('@/modules/notify-channels/notify-channels.service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/modules/notify-channels/notify-channels.service')>()),
+  deliveryChannels: mocks.deliveryChannels,
 }))
 
 const { describeCurrentUser, listUsers } = await import('./auth.service')
@@ -41,6 +46,7 @@ describe('справочник пользователей', () => {
     vi.clearAllMocks()
     mocks.findMany.mockResolvedValue([row])
     mocks.count.mockResolvedValue(1)
+    mocks.deliveryChannels.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, null])))
   })
 
   it('менеджер и администратор видят почту и ищут по ней', async () => {
@@ -80,6 +86,33 @@ describe('справочник пользователей', () => {
     mocks.findMany.mockResolvedValue([{ ...row, id: 'expert-1', role: 'ADMIN', isReviewer: true }])
     const { data } = await listUsers(as('ADMIN'), query)
     expect(data[0]).toMatchObject({ isReviewer: true, canBeResponsible: false })
+  })
+})
+
+describe('куда уйдёт уведомление о назначении (решение 210, S4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.findMany.mockResolvedValue([row, { ...row, id: 'expert-1', role: 'ADMIN', isReviewer: true }])
+    mocks.count.mockResolvedValue(2)
+    mocks.deliveryChannels.mockResolvedValue(new Map([['u1', 'telegram']]))
+  })
+
+  it('тем, кто назначает, — канал у сотрудника, который годится в ответственные', async () => {
+    for (const role of ['ADMIN', 'HEAD'] as const) {
+      const { data } = await listUsers(as(role), query)
+      expect(data[0]?.messenger).toBe('telegram')
+      // Эксперт ответственным не бывает — и канал его не нужен.
+      expect(data[1]).not.toHaveProperty('messenger')
+    }
+    expect(mocks.deliveryChannels).toHaveBeenCalledWith(['u1'])
+  })
+
+  it('остальным поля нет, каналы не читаются', async () => {
+    for (const role of ['MANAGER', 'ANALYST', 'VIEWER'] as const) {
+      const { data } = await listUsers(as(role), query)
+      expect(data[0]).not.toHaveProperty('messenger')
+    }
+    expect(mocks.deliveryChannels).not.toHaveBeenCalled()
   })
 })
 

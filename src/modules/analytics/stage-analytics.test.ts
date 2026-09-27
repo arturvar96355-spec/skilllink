@@ -730,3 +730,31 @@ describe('пульс', () => {
     expect(attention.items[0]!.text).toContain('при пороге 21')
   })
 })
+
+describe('заголовок отклонения без «странных» процентов (решение 210, В4)', () => {
+  it('стенд 27.09: 13,9 встречи в день против 2,6 — «в 5,3 раза», с числами, а не «на 424%»', async () => {
+    const { changePhrase } = await import('./insights')
+    const series = [...Array.from({ length: 28 }, (_, day) => (day % 10 === 0 ? 9 : 2)), 18, 10, 20, 27, 22, 0, 0]
+    const result = detectAnomaly(series)
+    expect(result.isAnomaly).toBe(true)
+    const phrase = changePhrase(result, 'в день')
+    expect(phrase).not.toMatch(/%/)
+    expect(phrase).toMatch(/^в \d+(,\d)? раза больше обычного \(13,9 в день против 2,\d\)$/)
+  })
+
+  it('умеренный рост и спад — процентом, с числами', async () => {
+    const { changePhrase } = await import('./insights')
+    const up = detectAnomaly([...Array.from({ length: 28 }, (_, day) => (day % 2 === 0 ? 10 : 11)), ...Array(7).fill(15)])
+    expect(changePhrase(up, 'в день')).toMatch(/^на \d+% больше обычного \(15 в день против 10,5\)$/)
+    const down = detectAnomaly([...Array(28).fill(5), ...Array(7).fill(1)])
+    expect(changePhrase(down, 'в день')).toBe('на 80% меньше обычного (1 в день против 5)')
+  })
+
+  it('от почти пустого фона отношение не называется', async () => {
+    const { changePhrase } = await import('./insights')
+    const result = detectAnomaly([...Array(27).fill(0), 1, ...Array(7).fill(3)])
+    expect(changePhrase(result, 'в день')).toBe('заметно больше, фон почти нулевой (3 в день против 0)')
+    const fromZero = detectAnomaly([...Array(28).fill(0), ...Array(7).fill(3)])
+    expect(changePhrase(fromZero, 'в день')).toBe('появились при нулевом фоне (3 в день против 0)')
+  })
+})

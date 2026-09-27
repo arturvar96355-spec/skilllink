@@ -74,6 +74,7 @@ import { EditMeetingModal } from '../../EditMeetingModal'
 import { EditUniversityModal } from '../EditUniversityModal'
 import { UniversityGraph } from '../UniversityGraph'
 import { ContactsCard } from './ContactsCard'
+import { MergeWithDuplicate } from './MergeWithDuplicate'
 import { UniversityAssistant } from './UniversityAssistant'
 import styles from './university.module.css'
 
@@ -488,6 +489,13 @@ export default function UniversityPage() {
                   <Button variant="secondary" onClick={() => setIsArchiving(true)}>
                     В архив
                   </Button>
+                  {/* Решение 210 (В6): слияние было только среди найденных системой пар. */}
+                  {user.permissions.isAdmin && (
+                    <MergeWithDuplicate
+                      university={{ id: data.id, name: data.name, city: data.city }}
+                      onMerged={() => university.reload()}
+                    />
+                  )}
                 </>
               )}
               {user.permissions.canWrite && data.archivedAt !== null && (

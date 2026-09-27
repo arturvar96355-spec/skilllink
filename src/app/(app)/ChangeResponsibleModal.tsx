@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { RESPONSIBLE_ROLES, USER_ROLE_LABELS, type UserDto } from '@/shared/contracts'
 import { Button, Modal, Select, apiPatch, fieldErrors, useMutation, useResource, useToast } from '@/ui'
 import styles from './ChangeResponsibleModal.module.css'
+import { deliveryNotice } from './responsible-delivery'
 
 /**
  * Смена ответственного за вуз или за связку (ТЗ, роль «Руководитель», решение 146).
@@ -76,6 +77,11 @@ export function ChangeResponsibleModal({
     onClose(true)
   }
 
+  const delivery =
+    responsibleId !== '' && responsibleId !== (currentResponsibleId ?? '')
+      ? deliveryNotice(users.data?.find((row) => row.id === responsibleId))
+      : null
+
   const options = (users.data ?? [])
     // Сервер примет только ADMIN, MANAGER или HEAD (RESPONSIBLE_ROLES) и не эксперта
     // хакатона (isReviewer) — считается на сервере в `UserDto.canBeResponsible`,
@@ -127,6 +133,12 @@ export function ChangeResponsibleModal({
         options={options}
         error={errorFor('responsibleId')}
       />
+
+      {delivery && (
+        <p className={styles.delivery} role="status">
+          {delivery}
+        </p>
+      )}
 
       {consequence && <p className={styles.consequence}>{consequence}</p>}
     </Modal>

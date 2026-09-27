@@ -255,6 +255,43 @@ describe('сводка «что горит у меня»', () => {
     expect(result.text).toContain(`Открыть SkillLink: ${BASE}/`)
   })
 
+  it('только «Система заметила» — под сводкой кнопка «Открыть SkillLink» (решение 210, S8)', () => {
+    const extras = {
+      stalled: [],
+      meetingsWithoutResult: [],
+      meetingsToday: [],
+      actionsToday: [],
+      completions: [],
+      insights: [
+        {
+          code: 'cooperations.stalled',
+          severity: 'warning' as const,
+          title: 'Связок без движения дольше порога: 25',
+          detail: '',
+          facts: {},
+          link: '/recommendations',
+        },
+      ],
+      insightChecks: 8,
+    }
+    const result = digest({ extras })
+    expect(result.text).toContain('Система заметила — 1')
+    expect(result.actions).toEqual([[{ kind: 'open', text: 'Открыть SkillLink', url: `${BASE}/` }]])
+    // Без адреса стенда кнопке вести некуда — её нет.
+    expect(digest({ extras }, null).actions).toEqual([])
+  })
+
+  it('шапка называет учётную запись и портфельный режим (решение 210)', () => {
+    const result = buildDigest(
+      { stages: [stage({})], recommendations: [] },
+      { now: at, baseUrl: BASE, account: 'Администратор', scope: 'portfolio' },
+    )
+    const [, second, third] = result.text.split('\n')
+    expect(second).toBe('Учётная запись: Администратор')
+    expect(third).toContain('этапы всего портфеля')
+    expect(result.actions).toHaveLength(1)
+  })
+
   it('без адреса стенда — текст без ссылок, но со всеми пунктами', () => {
     const result = digest({ stages: [stage({})] }, null)
     expect(result.text).not.toContain('http')

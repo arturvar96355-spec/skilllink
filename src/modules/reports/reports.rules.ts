@@ -1,6 +1,7 @@
 import { readXlsx, writeXlsx, XLSX_CONTENT_TYPE } from '@/shared/files/xlsx'
 import { escapeCsvValue, toCsv, UTF8_BOM, type CsvValue } from '@/modules/export/export.rules'
 import { COOPERATION_STATUS_LABELS } from '@/shared/contracts/labels'
+import { moscowIsoDate } from '@/shared/utils/date'
 import type { ReportFilterLabels } from './reports.repo'
 import type { ReportFilters } from './reports.schema'
 
@@ -97,8 +98,18 @@ export function readReportXlsxRows(buffer: Buffer): string[][] {
 export { XLSX_CONTENT_TYPE }
 
 /** «01.01.2026» из «2026-01-01…» (голова ISO-строки, дата в любом часовом поясе не нужна). */
+/**
+ * Московская дата границы периода `ГГГГ-ММ-ДД`. Схема превращает «2026-01-01» в
+ * «2025-12-31T21:00:00.000Z» (начало суток по Москве), и срез первых десяти знаков
+ * давал в шапке и в имени файла 31.12.2025 вместо 01.01.2026 (решение 210, S10).
+ */
+function moscowDatePart(iso: string): string {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? iso.slice(0, 10) : moscowIsoDate(date)
+}
+
 function ruDatePart(iso: string): string {
-  const [year, month, day] = iso.slice(0, 10).split('-')
+  const [year, month, day] = moscowDatePart(iso).split('-')
   return `${day}.${month}.${year}`
 }
 
@@ -136,8 +147,8 @@ export function reportFiltersSummary(filters: ReportFilters, labels: ReportFilte
  */
 export function reportFileNameSuffix(filters: ReportFilters): string {
   const parts: string[] = []
-  if (filters.dateFrom) parts.push(`from-${filters.dateFrom.slice(0, 10)}`)
-  if (filters.dateTo) parts.push(`to-${filters.dateTo.slice(0, 10)}`)
+  if (filters.dateFrom) parts.push(`from-${moscowDatePart(filters.dateFrom)}`)
+  if (filters.dateTo) parts.push(`to-${moscowDatePart(filters.dateTo)}`)
   if (filters.status) parts.push(`status-${filters.status.toLowerCase().replace(/_/g, '-')}`)
   return parts.length > 0 ? `_${parts.join('_')}` : ''
 }

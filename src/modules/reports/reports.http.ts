@@ -1,3 +1,4 @@
+import { contentDisposition } from '@/shared/http/content-disposition'
 import {
   reportCsv,
   reportFileNameSuffix,
@@ -38,7 +39,7 @@ export function reportFileResponse(
       headers: {
         ...commonHeaders,
         'content-type': XLSX_CONTENT_TYPE,
-        'content-disposition': `attachment; filename="${fileName}"`,
+        'content-disposition': contentDisposition(fileName),
       },
     })
   }
@@ -50,7 +51,7 @@ export function reportFileResponse(
       headers: {
         ...commonHeaders,
         'content-type': 'application/json; charset=utf-8',
-        'content-disposition': `attachment; filename="${fileName}"`,
+        'content-disposition': contentDisposition(fileName),
       },
     })
   }
@@ -61,7 +62,7 @@ export function reportFileResponse(
     headers: {
       ...commonHeaders,
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="${fileName}"`,
+      'content-disposition': contentDisposition(fileName),
     },
   })
 }
