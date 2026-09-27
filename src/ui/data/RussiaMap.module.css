@@ -1,4 +1,10 @@
-/* Карта России (решения 79, 123): неоновый контур, сетка, светящиеся точки, дуги-связи. */
+/*
+ * Карта России (решения 79, 123, 198): тонкий контур, сетка, точки и кучки вузов,
+ * дуги от центра. Решение 198 сделало её тише: свечение уже, дуги тоньше
+ * и прозрачнее, точки не пульсируют — пульсирует только центр (ИТ-Школа).
+ * Линии — `vector-effect: non-scaling-stroke`: толщина в пикселях экрана,
+ * на телефоне не истончается вместе с картой.
+ */
 
 .root {
   margin: 0;
@@ -29,43 +35,46 @@
 .grid {
   fill: none;
   stroke: var(--accent-violet);
-  stroke-width: 0.8;
-  opacity: 0.16;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.1;
 }
 
-/* Неоновый контур: тонкая линия со свечением (фильтр в разметке). */
+/* Контур: тонкая линия с узким свечением (фильтр в разметке). */
 .coast {
   fill: none;
   stroke: var(--accent-violet);
-  stroke-width: 1.4;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
   stroke-linejoin: round;
-  opacity: 0.85;
+  opacity: 0.5;
 }
 
-/* Дуги-связи: тонкие и тихие; наведённая — ярче. */
+/* Дуги-связи: волосяные и тихие; у наведённой — сплошная линия. */
 .linkLine {
   fill: none;
   stroke: var(--accent-cyan);
-  stroke-width: 1.6;
-  stroke-dasharray: 4 5;
-  opacity: 0.6;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-dasharray: 2 5;
+  opacity: 0.32;
   transition: opacity var(--motion-fast) var(--ease-out);
 }
 
 .linkLit .linkLine {
   stroke-dasharray: none;
-  stroke-width: 2;
-  opacity: 0.95;
+  stroke-width: 1.4;
+  opacity: 0.85;
 }
 
 /* Импульс бежит по дуге; у каждой дуги — своя очередь, одновременно горит одна. */
 .linkPulse {
   fill: none;
   stroke: var(--accent-cyan);
-  stroke-width: 2.4;
+  stroke-width: 1.8;
   stroke-linecap: round;
-  stroke-dasharray: 0.08 1;
-  stroke-dashoffset: 1.08;
+  stroke-dasharray: 0.06 1;
+  stroke-dashoffset: 1.06;
   opacity: 0;
   animation-name: travel;
   animation-timing-function: var(--ease-in-out);
@@ -74,15 +83,15 @@
 
 @keyframes travel {
   0% {
-    stroke-dashoffset: 1.08;
+    stroke-dashoffset: 1.06;
     opacity: 0;
   }
   4% {
-    opacity: 0.9;
+    opacity: 0.55;
   }
   18% {
     stroke-dashoffset: 0;
-    opacity: 0.9;
+    opacity: 0.55;
   }
   22%,
   100% {
@@ -91,32 +100,61 @@
   }
 }
 
-/* Центр — ИТ-Школа РТК: ядро и мягкий ореол. */
+/* Центр — ИТ-Школа РТК: ядро, мягкий ореол и медленное «дыхание». */
 .hubHalo {
   fill: var(--accent-cyan);
-  opacity: 0.22;
+  opacity: 0.16;
 }
 
 .hubCore {
   fill: var(--accent-cyan);
   stroke: var(--surface-1);
-  stroke-width: 2;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.hubPulse {
+  fill: none;
+  stroke: var(--accent-cyan);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: breathe 4.8s var(--ease-out) infinite;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.45;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.2);
+  }
 }
 
 .point {
   cursor: pointer;
   outline: none;
+  /* Без задержки двойного касания: касание сразу открывает вуз или список. */
+  touch-action: manipulation;
 }
 
-/* Точка вуза: ореол градиентом и яркое ядро. */
+/* Невидимая мишень под пальцем и курсором. */
+.hit {
+  fill: transparent;
+}
+
+/* Точка вуза: мягкий ореол градиентом и ядро. */
 .dotCore {
   stop-color: var(--accent-violet);
-  stop-opacity: 0.55;
+  stop-opacity: 0.34;
 }
 
 .dotMid {
   stop-color: var(--accent-violet);
-  stop-opacity: 0.18;
+  stop-opacity: 0.1;
 }
 
 .dotEdge {
@@ -125,14 +163,32 @@
 }
 
 .halo {
+  opacity: 0.8;
   transition: opacity var(--motion-fast) var(--ease-out);
 }
 
 .dot {
   fill: var(--accent-violet);
   stroke: var(--text-accent-pale);
-  stroke-width: 1.5;
+  stroke-width: 1.25;
+  vector-effect: non-scaling-stroke;
   transition: fill var(--motion-fast) var(--ease-out);
+}
+
+/* Кучка: второе кольцо — «здесь несколько», число вузов — внутри. */
+.stack {
+  fill: none;
+  stroke: var(--accent-violet);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.55;
+}
+
+.count {
+  fill: var(--text-inverse);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 
 /* Вуз без связок в работе — тише. */
@@ -145,10 +201,18 @@
   opacity: 0.3;
 }
 
+.pointDim .stack {
+  stroke: var(--text-tertiary);
+}
+
 .point:hover .dot,
-.point:focus-visible .dot,
 .pointLit .dot {
   fill: var(--accent-pink);
+}
+
+.point:hover .stack,
+.pointLit .stack {
+  stroke: var(--accent-pink);
 }
 
 .point:focus-visible .halo,
@@ -156,38 +220,25 @@
   opacity: 1;
 }
 
-.pulse {
-  fill: none;
-  stroke: var(--accent-violet);
-  stroke-width: 1.5;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pulse 3.6s var(--ease-out) infinite;
-}
-
-@keyframes pulse {
-  from {
-    opacity: 0.6;
-    transform: scale(0.6);
-  }
-  to {
-    opacity: 0;
-    transform: scale(2.2);
-  }
+/* Фокус с клавиатуры — заметное кольцо вокруг точки, как у остальных элементов. */
+.point:focus-visible .dot {
+  fill: var(--accent-pink);
+  stroke: var(--text-primary);
+  stroke-width: 2.5;
 }
 
 .label {
   fill: var(--text-secondary);
-  font-size: 22px;
   font-weight: 600;
   paint-order: stroke;
   stroke: var(--surface-1);
-  stroke-width: 4px;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 
 .pointLit .label,
-.point:hover .label {
+.point:hover .label,
+.point:focus-visible .label {
   fill: var(--text-primary);
 }
 
@@ -200,13 +251,10 @@
   width: max-content;
   max-width: 240px;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--glass-edge);
+  border: 1px solid var(--line-strong);
   border-radius: var(--radius-card-sm);
-  background: var(--glass-search);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--surface-floating);
   box-shadow: var(--shadow-floating);
-  transform: translate(-50%, calc(-100% - 18px));
   pointer-events: none;
   animation: tipIn var(--motion-fast) var(--ease-out) both;
 }
@@ -214,7 +262,7 @@
 @keyframes tipIn {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-100% - 12px));
+    transform: translateY(4px);
   }
 }
 
@@ -229,10 +277,84 @@
   color: var(--text-tertiary);
 }
 
+/* Список вузов кучки — всплывающее окно рядом с точкой. */
+.pop {
+  /* Окно живёт в body (см. RussiaMap.tsx) — слой всплывающих элементов. */
+  position: absolute;
+  z-index: var(--z-floating);
+  width: min(280px, 100%);
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-card-sm);
+  background: var(--surface-floating);
+  box-shadow: var(--shadow-floating);
+  animation: tipIn var(--motion-fast) var(--ease-out) both;
+}
+
+.popHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0 0 var(--space-1) var(--space-2);
+}
+
+.popTitle {
+  font-size: var(--text-body-sm-size);
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.popList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.popLink {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+
+.popLink:hover {
+  background: var(--surface-hover);
+}
+
+.popLink:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: -2px;
+  background: var(--surface-hover);
+}
+
+.popName {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.popDetail {
+  font-size: var(--text-label-size);
+  color: var(--text-tertiary);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pulse,
+  .hubPulse,
   .linkPulse {
     animation: none;
     opacity: 0;
+  }
+
+  .tooltip,
+  .pop {
+    animation: none;
   }
 }
