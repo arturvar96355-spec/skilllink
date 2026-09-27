@@ -44,7 +44,10 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
   const canTakeLetters = can(user, 'INBOUND_REVIEW') && !user.isReviewer
   const lettersPromise = canTakeLetters ? repo.loadNewLetters(user.id, windowStart) : Promise.resolve([])
 
-  const [sources, serverSeenAt, letters] = await Promise.all([
+  // «Четыре глаза» (решение 218) — только администратору: согласует и выполняет только он.
+  const approvalsPromise = user.role === 'ADMIN' ? repo.loadApprovals(user.id, windowStart, now) : Promise.resolve([])
+
+  const [sources, serverSeenAt, letters, approvals] = await Promise.all([
     user.role === 'UNIVERSITY_REP'
       ? user.universityId
         ? repo.loadForUniversity(user.universityId, user.id, windowStart)
@@ -59,11 +62,16 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
       : repo.loadForStaff(user.id, windowStart, can(user, 'ANALYTICS')),
     repo.getSeenAt(user.id),
     lettersPromise,
+    approvalsPromise,
   ])
 
   const clientSince = query.since ? new Date(query.since) : null
 
-  return buildFeed(letters.length > 0 ? { ...sources, letters } : sources, {
+  const extra = {
+    ...(letters.length > 0 ? { letters } : {}),
+    ...(approvals.length > 0 ? { approvals } : {}),
+  }
+  return buildFeed({ ...sources, ...extra }, {
     now,
     since: laterOf(clientSince, serverSeenAt),
     limit: query.limit,

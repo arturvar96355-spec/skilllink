@@ -18,6 +18,7 @@ const repo = vi.hoisted(() => ({
   getSeenAt: vi.fn(),
   setSeenAt: vi.fn(),
   loadNewLetters: vi.fn(),
+  loadApprovals: vi.fn(),
 }))
 
 vi.mock('./notifications.repo', () => repo)
@@ -52,6 +53,7 @@ beforeEach(() => {
   repo.loadForStaff.mockResolvedValue(EMPTY_SOURCES)
   repo.getSeenAt.mockResolvedValue(null)
   repo.loadNewLetters.mockResolvedValue([])
+  repo.loadApprovals.mockResolvedValue([])
 })
 
 afterEach(() => vi.useRealTimers())
@@ -219,5 +221,54 @@ describe('письма вузов в ленте (решение 213)', () => {
     repo.loadNewLetters.mockResolvedValue([{ ...LETTER, acceptedByName: 'Руководитель' }])
     const result = await service.feed(as('ADMIN'), { limit: 20 })
     expect(result.items[0]).toMatchObject({ severity: 'info', accept: { acceptedByName: 'Руководитель' } })
+  })
+})
+
+describe('«четыре глаза» в ленте (решение 218)', () => {
+  const base = {
+    action: 'user.grant_admin' as const,
+    targetName: 'Орлов Михаил Юрьевич',
+    requesterName: 'Соловьёва Марина Дмитриевна',
+    deciderName: null,
+    createdAt: new Date(NOW.getTime() - 30 * 60 * 1000),
+    decidedAt: null,
+  }
+  const admin: CurrentUser = { ...manager(), id: 'admin-1', role: 'ADMIN' }
+
+  it('чужой ждущий — «Нужно ваше согласование», ведёт на запрос', async () => {
+    repo.loadApprovals.mockResolvedValue([{ ...base, id: 'ap-1', status: 'REQUESTED', mine: false }])
+    const result = await service.feed(admin, { limit: 20 })
+    expect(result.items[0]).toMatchObject({
+      kind: 'approval.requested',
+      severity: 'warning',
+      title: 'Нужно ваше согласование: назначить администратором',
+      description: 'Орлов М. Ю. · просит Соловьёва М. Д.',
+      target: { type: 'approval', id: 'ap-1' },
+      isUnread: true,
+    })
+  })
+
+  it('свой согласованный — «осталось выполнить», свой отклонённый — к сведению, свой ждущий — не событие', async () => {
+    const decidedAt = new Date(NOW.getTime() - 10 * 60 * 1000)
+    repo.loadApprovals.mockResolvedValue([
+      { ...base, id: 'ap-2', status: 'APPROVED', mine: true, deciderName: 'Демидова Анна Сергеевна', decidedAt },
+      { ...base, id: 'ap-3', status: 'REJECTED', mine: true, deciderName: 'Демидова Анна Сергеевна', decidedAt },
+      { ...base, id: 'ap-4', status: 'REQUESTED', mine: true },
+    ])
+    const result = await service.feed(admin, { limit: 20 })
+    const byId = new Map(result.items.map((item) => [item.target.id, item]))
+    expect(byId.get('ap-2')).toMatchObject({
+      kind: 'approval.decided',
+      severity: 'warning',
+      title: 'Согласовано: назначить администратором — осталось выполнить',
+      description: 'Орлов М. Ю. · решение: Демидова А. С.',
+    })
+    expect(byId.get('ap-3')).toMatchObject({ kind: 'approval.decided', severity: 'info', title: 'Отклонено: назначить администратором' })
+    expect(byId.has('ap-4')).toBe(false)
+  })
+
+  it('не администратору база о запросах не спрашивается', async () => {
+    await service.feed(manager(), { limit: 20 })
+    expect(repo.loadApprovals).not.toHaveBeenCalled()
   })
 })

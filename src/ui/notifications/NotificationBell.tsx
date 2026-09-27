@@ -45,6 +45,9 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
   'assignment.overdue': 'alert',
   // Новое письмо вуза (решение 213).
   'letter.new': 'mail',
+  // «Четыре глаза» (решение 218).
+  'approval.requested': 'lock',
+  'approval.decided': 'lock',
 }
 
 /**

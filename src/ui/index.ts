@@ -149,6 +149,7 @@ export {
   skillHref,
   letterHref,
   assignmentHref,
+  approvalHref,
   searchItemHref,
   notificationHref,
   recommendationTargetHref,

@@ -46,6 +46,16 @@ export const NOTIFICATION_KINDS = [
    * «Новое» и «Разобрано»: проверенное письмо из ленты уходит.
    */
   'letter.new',
+  /**
+   * «Четыре глаза» (решения 133, 218): запрос ждёт решения этого администратора —
+   * чужой, ещё без решения и не истёкший. Источник — таблица `approvals`.
+   */
+  'approval.requested',
+  /**
+   * По своему запросу есть решение: согласовано — осталось выполнить, или отклонено.
+   * Только автору запроса; выполненный (`CONSUMED`) из ленты уходит.
+   */
+  'approval.decided',
 ] as const
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 
@@ -58,7 +68,7 @@ export type NotificationSeverity = 'critical' | 'warning' | 'info'
  * сразу к нужному этапу связки.
  */
 export interface NotificationTargetDto {
-  type: 'cooperation' | 'document' | 'recommendation' | 'university' | 'assignment' | 'letter'
+  type: 'cooperation' | 'document' | 'recommendation' | 'university' | 'assignment' | 'letter' | 'approval'
   id: string
   cooperationId: string | null
   stageId: string | null
