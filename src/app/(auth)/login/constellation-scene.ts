@@ -620,7 +620,10 @@ export function createConstellation(
       coreMaterial.size = 1.4 * (1 + 1.2 * merge)
       receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
-      const sway = 1 - merge
+      // Концы потока привязаны к раскладке (голова у угла, приёмник на кромке формы) и
+      // стоят далеко от центра: полное покачивание уводило их на 30–60 px — голову
+      // к краю экрана, приёмник с кромки формы. В режиме потока сцена качается втрое тише.
+      const sway = (1 - merge) * (streamed ? 0.35 : 1)
       world.rotation.y += ((pointerX * 0.35 + Math.sin(time * 0.15) * 0.12) * sway - world.rotation.y) * 0.06
       world.rotation.x += ((pointerY * 0.22 + Math.cos(time * 0.12) * 0.05) * sway - world.rotation.x) * 0.06
       world.rotation.z = merge * 0.9

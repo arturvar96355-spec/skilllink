@@ -69,24 +69,59 @@ const VEIL_FADE_MS = 700
 const PANEL_SETTLED_MS = 1100
 
 /**
- * Куда идёт поток (решение 199). Голова кометы — в пустом углу над знаком
- * SkillLink, приёмник — на левой кромке формы входа, на уровне заголовка «Вход»:
- * поток идёт над текстом и приходит в форму, а не режет пространство между ними.
- * Только для раскладки в две колонки (шире 960 px); в одну колонку — null,
- * сцена как раньше.
+ * Зазор между осью потока и заголовком «Партнёрство с вузами…», пиксели: пучок
+ * у заголовка ещё шириной около 20 px и слегка покачивается.
+ */
+const HEADLINE_CLEARANCE = 56
+/** Голова кометы не ближе этого к краям экрана. */
+const EDGE_MARGIN = 96
+
+/**
+ * Куда идёт поток (решение 199). Голова кометы — выше и левее знака SkillLink,
+ * у угла экрана, но не в край; приёмник — на левой кромке формы входа, на уровне
+ * полей и кнопки «Войти». Поток идёт длинной диагональю над заголовком левой
+ * колонки и приходит в форму там, где человек вводит почту и пароль.
+ * Невысокий экран: если прямая задевает заголовок, приёмник поднимается к полю
+ * пароля, затем к полю почты, в крайнем случае голова сдвигается вправо — но не
+ * в край и не на заголовок. Только для раскладки в две колонки (шире 960 px); в одну
+ * колонку — null, сцена как раньше.
  */
 function measureAnchors(): StreamAnchors | null {
   const width = window.innerWidth
   const height = window.innerHeight
   if (width <= 960) return null
   const panel = document.querySelector<HTMLElement>(`.${styles.panel}`)
-  const brand = document.querySelector<HTMLElement>(`.${styles.brandRow}`)
   if (!panel) return null
   const form = panel.getBoundingClientRect()
-  const top = brand?.getBoundingClientRect().top ?? height * 0.3
-  const source: [number, number] = [Math.round(width * 0.21), Math.round(Math.max(60, Math.min(height * 0.19, top - 90)))]
-  const target: [number, number] = [Math.round(form.left) - 4, Math.round(Math.max(form.top + 64, source[1] + 24))]
-  return { source, target }
+  const brand = document.querySelector<HTMLElement>(`.${styles.brandRow}`)?.getBoundingClientRect() ?? null
+  const headline = document.querySelector<HTMLElement>(`.${styles.headline}`)?.getBoundingClientRect() ?? null
+  const center = (selector: string) => {
+    const rect = panel.querySelector<HTMLElement>(selector)?.getBoundingClientRect()
+    return rect ? (rect.top + rect.bottom) / 2 : null
+  }
+  const email = center('input[name="email"]')
+  const password = center('input[name="password"]')
+  const submit = center('button[type="submit"]')
+
+  // Голова: левее начала знака и заметно выше него.
+  let sourceX = Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48))
+  const sourceY = Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150))
+  // Приёмник: между полем пароля и кнопкой «Войти», не ниже экрана.
+  const fields = password !== null && submit !== null ? password * 0.6 + submit * 0.4 : form.top + form.height * 0.45
+  let targetY = Math.round(Math.min(height - EDGE_MARGIN, fields))
+  const targetX = Math.round(form.left) - 4
+
+  /** Ось потока проходит над правым верхним углом заголовка с запасом. */
+  const clears = () => {
+    if (!headline || headline.right <= sourceX) return true
+    const t = (headline.right - sourceX) / (targetX - sourceX)
+    return sourceY + (targetY - sourceY) * t <= headline.top - HEADLINE_CLEARANCE
+  }
+  if (!clears() && password !== null) targetY = Math.round(password)
+  if (!clears() && email !== null) targetY = Math.round(email)
+  const limitX = Math.min(headline?.right ?? width * 0.3, width * 0.3)
+  while (!clears() && sourceX + 20 <= limitX) sourceX += 20
+  return { source: [sourceX, sourceY], target: [targetX, targetY] }
 }
 
 type Channel = {
