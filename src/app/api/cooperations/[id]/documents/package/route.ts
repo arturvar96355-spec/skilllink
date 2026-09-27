@@ -16,7 +16,7 @@ export const GET = handle<Context>(async (_request, context) => {
   const file = await service.documentPackage(user, id)
 
   // Представление поверх того же буфера, без копии: архив бывает до 100 МБ (решение 222).
-  return new Response(new Uint8Array(file.bytes.buffer, file.bytes.byteOffset, file.bytes.byteLength), {
+  return new Response(new Uint8Array(file.bytes.buffer as ArrayBuffer, file.bytes.byteOffset, file.bytes.byteLength), {
     status: 200,
     headers: {
       'content-type': file.mime,
