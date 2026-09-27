@@ -35,6 +35,7 @@ import * as repo from './documents.repo'
 import * as attachmentsRepo from '@/modules/attachments/attachments.repo'
 import { readAttachmentFile } from '@/shared/files/attachment-storage'
 import { writeZip, type ZipEntry } from '@/shared/files/zip'
+import { MAX_DOCUMENT_PACKAGE_BYTES } from '@/shared/config/attachments.config'
 import {
   documentFileName,
   packageFileName,
@@ -182,6 +183,15 @@ export async function documentPackage(user: CurrentUser, cooperationId: string):
     'DOCUMENT',
     rows.map((row) => row.id),
   )
+  // Размер — по записям в базе, до чтения файлов с диска (решение 222).
+  const totalBytes = attachments.reduce((sum, file) => sum + file.size, 0)
+  if (totalBytes > MAX_DOCUMENT_PACKAGE_BYTES) {
+    const limitMb = Math.round(MAX_DOCUMENT_PACKAGE_BYTES / (1024 * 1024))
+    throw conflict(
+      `Файлов в пакете больше ${limitMb} МБ — одним архивом не собрать. Скачайте файлы по одному из карточек документов.`,
+      { totalBytes, limitBytes: MAX_DOCUMENT_PACKAGE_BYTES },
+    )
+  }
   const entries: ZipEntry[] = []
   for (const [index, row] of rows.entries()) {
     const folder = packageFolderName(index, row)
