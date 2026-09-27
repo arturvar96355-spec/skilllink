@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRef, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import type { CooperationListItemDto, MetricTrendDto } from '@/shared/contracts'
 import { formatNumber, formatRelative, pluralize, useCountUp } from '@/ui'
 import { LiveRailRoute } from './LiveRailRoute'
@@ -75,10 +75,9 @@ export function LiveRail({
   generatedAt: string
   routeView?: RouteView
 }) {
-  const frameRef = useRef<HTMLElement>(null)
 
   return (
-    <section ref={frameRef} className={styles.rail} aria-label="Активно сейчас">
+    <section className={styles.rail} aria-label="Активно сейчас">
       <span className={styles.kicker}>Активно сейчас</span>
 
       {/* Сравнение за 30 дней — в обоих режимах: это данные, а не украшение (ТЗ фронту, задача 1). */}
@@ -88,7 +87,7 @@ export function LiveRail({
         ))}
       </div>
 
-      <LiveRailRoute cooperations={cooperations} view={routeView} frameRef={frameRef} />
+      <LiveRailRoute cooperations={cooperations} view={routeView} />
 
       <div className={styles.foot}>
         <a href="#attention" className={styles.attention}>

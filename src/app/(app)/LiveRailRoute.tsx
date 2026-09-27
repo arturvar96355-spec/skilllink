@@ -16,7 +16,18 @@ import {
 } from 'react'
 import { STAGE_PHASE_LABELS, type CooperationListItemDto } from '@/shared/contracts'
 import { WORKFLOW_STAGES } from '@/shared/config/workflow.config'
-import { IconButton, cooperationHref, formatNumber, pluralize } from '@/ui'
+import { createPortal } from 'react-dom'
+import {
+  IconButton,
+  ROUTES,
+  buildQuery,
+  cooperationHref,
+  formatDayMonth,
+  formatNumber,
+  formatPersonShort,
+  pluralize,
+  useMediaQuery,
+} from '@/ui'
 import { pushEscapeLayer } from '@/ui/hooks/escape-stack'
 import {
   TOTAL_STAGES,
@@ -35,11 +46,15 @@ import styles from './LiveRailRoute.module.css'
 
 /** Ширина дорожки до первого замера — примерно блок на 1440. */
 const DEFAULT_WIDTH = 1100
-/** Список этапа: ширина, отступ от края блока, зазор до отметки, наименьшая высота, px. */
-const POP_WIDTH = 360
+/** Панель этапа: ширина, отступ от края окна, зазор до отметки, px. */
+const POP_WIDTH = 480
 const POP_EDGE = 12
-const POP_GAP = 10
-const POP_MIN_HEIGHT = 140
+const POP_GAP = 12
+/** До стольких связок панель показывает все; больше — первые POP_SHORT и ссылку на реестр. */
+const POP_FULL = 12
+const POP_SHORT = 10
+/** Телефон: панель — нижний лист во всю ширину. */
+const SHEET_QUERY = '(max-width: 640px)'
 /** Пауза перед закрытием списка, когда указатель ушёл: успеть дойти до списка. */
 const CLOSE_DELAY = 160
 
@@ -59,10 +74,26 @@ const STAGE_TITLES = new Map(WORKFLOW_STAGES.map((stage) => [stage.number, stage
 const cooperationsWord = (count: number) => pluralize(count, ['связка', 'связки', 'связок'])
 const attentionWord = (count: number) => pluralize(count, ['требует', 'требуют', 'требуют'])
 
-function stuckNote(item: CooperationListItemDto): string | null {
-  if (item.progress.overdueStages > 0) return 'просрочка'
-  if (item.progress.blockedStages > 0) return 'заблокирован'
-  return null
+/**
+ * Срок текущего этапа словами — вторая строка в панели этапа: что с ним
+ * и к какому числу. `tone` — сигнал: просрочка и блок — красным, скорый срок — жёлтым.
+ */
+function deadlineNote(item: CooperationListItemDto): { text: string; tone: 'danger' | 'warning' | 'calm' } {
+  const stage = item.currentStage
+  if (!stage) return { text: 'все этапы пройдены', tone: 'calm' }
+  if (stage.status === 'BLOCKED') return { text: 'этап заблокирован', tone: 'danger' }
+  const days = stage.daysToDeadline
+  if (stage.isOverdue) {
+    const passed = days === null ? null : Math.abs(days)
+    return {
+      text: passed === null || passed === 0 ? 'срок вышел' : `просрочен на ${formatNumber(passed)} ${pluralize(passed, ['день', 'дня', 'дней'])}`,
+      tone: 'danger',
+    }
+  }
+  if (!stage.deadline) return { text: 'срок не задан', tone: 'calm' }
+  if (stage.isDueSoon) return { text: `срок ${formatDayMonth(stage.deadline)} — скоро`, tone: 'warning' }
+  if (stage.isPlanShifted) return { text: `план сдвинут, срок был ${formatDayMonth(stage.deadline)}`, tone: 'calm' }
+  return { text: `срок ${formatDayMonth(stage.deadline)}`, tone: 'calm' }
 }
 
 function dotLabel(item: CooperationListItemDto, stage: number): string {
@@ -127,12 +158,9 @@ function useTrackWidth(trackRef: RefObject<HTMLDivElement | null>) {
 export function LiveRailRoute({
   cooperations,
   view,
-  frameRef,
 }: {
   cooperations: CooperationListItemDto[]
   view: RouteView
-  /** Рамка блока: список этапа не выходит за неё. */
-  frameRef: RefObject<HTMLElement | null>
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const width = useTrackWidth(trackRef)
@@ -201,7 +229,6 @@ export function LiveRailRoute({
             order={order}
             lineY={layout.lineY}
             popover={popover}
-            frameRef={frameRef}
           />
         ))}
       </ul>
@@ -262,18 +289,18 @@ function StageItem({
   order,
   lineY,
   popover,
-  frameRef,
 }: {
   stage: StageMarker
   order: number
   lineY: number
   popover: Popover
-  frameRef: RefObject<HTMLElement | null>
 }) {
   const { group, marker } = stage
   const number = group.stage
   const itemRef = useRef<HTMLLIElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  /** Панель этапа живёт в body (портал) — «внутри» для щелчка и фокуса проверяется и она. */
+  const popRef = useRef<HTMLDivElement>(null)
   const listId = `${useId()}-stage`
   const isOpen = popover.open?.stage === number
   const stuck = group.stuckCount > 0
@@ -284,13 +311,14 @@ function StageItem({
     if (!isOpen) return
     const removeLayer = pushEscapeLayer(() => {
       hide(number)
-      if (itemRef.current?.contains(document.activeElement)) {
+      if (itemRef.current?.contains(document.activeElement) || popRef.current?.contains(document.activeElement)) {
         skipFocus.current = true
         triggerRef.current?.focus()
       }
     })
     const onPointerDown = (event: globalThis.PointerEvent) => {
-      if (!itemRef.current?.contains(event.target as Node)) hide(number)
+      const target = event.target as Node
+      if (!itemRef.current?.contains(target) && !popRef.current?.contains(target)) hide(number)
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => {
@@ -316,7 +344,8 @@ function StageItem({
           popover.show(number)
         },
         onBlur: (event: FocusEvent) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) popover.hide(number)
+          const next = event.relatedTarget as Node | null
+          if (!event.currentTarget.contains(next) && !popRef.current?.contains(next)) popover.hide(number)
         },
       }
     : {}
@@ -392,10 +421,17 @@ function StageItem({
         <StageList
           id={listId}
           group={group}
-          rise={stage.rise}
           label={listLabel}
-          frameRef={frameRef}
+          anchorRef={triggerRef}
           itemRef={itemRef}
+          pinned={popover.open?.pinned ?? false}
+          popRef={popRef}
+          onPointerEnter={(event) => {
+            if (event.pointerType === 'mouse') popover.show(number)
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === 'mouse') popover.hideLater(number)
+          }}
           onClose={() => {
             popover.hide(number)
             skipFocus.current = true
@@ -408,90 +444,138 @@ function StageItem({
 }
 
 /**
- * Список связок этапа — над отметкой, внутри рамки блока: по ширине сдвигается
- * от краёв, по высоте не выше верха блока (дальше — прокрутка списка).
+ * Панель этапа (решение 211): заголовок «Этап N · название», строки связок
+ * целиком — вуз и программа, ответственный, срок или просрочка — без
+ * прокрутки внутри. До POP_FULL связок видны все; больше — первые POP_SHORT
+ * (требующие внимания идут первыми) и ссылка на реестр с отбором по этапу.
+ *
+ * Панель — в body, а не внутри блока: раньше её высоту ограничивал блок
+ * «Активно сейчас», и список прокручивался в окошке на четыре строки.
+ * Место — по окну: под отметкой, если помещается, иначе над ней; по ширине
+ * сдвигается от краёв экрана. На телефоне — нижний лист во всю ширину.
  */
 function StageList({
   id,
   group,
-  rise,
   label,
-  frameRef,
+  anchorRef,
   itemRef,
+  popRef,
+  pinned,
+  onPointerEnter,
+  onPointerLeave,
   onClose,
 }: {
   id: string
   group: StageGroup
-  rise: number
   label: string
-  frameRef: RefObject<HTMLElement | null>
+  anchorRef: RefObject<HTMLElement | null>
   itemRef: RefObject<HTMLLIElement | null>
+  popRef: RefObject<HTMLDivElement | null>
+  /** Открыта нажатием, а не наведением: тогда панель докручивается в окно целиком. */
+  pinned: boolean
+  onPointerEnter: (event: PointerEvent) => void
+  onPointerLeave: (event: PointerEvent) => void
   onClose: () => void
 }) {
-  const [place, setPlace] = useState<{ left: number; width: number; maxHeight: number } | null>(null)
+  const isSheet = useMediaQuery(SHEET_QUERY)
+  const [place, setPlace] = useState<{ left: number; top: number; width: number } | null>(null)
 
-  // Место — по рамке блока и точке этапа (элемент списка стоит на линии, в середине этапа).
+  // Место — в координатах страницы: панель едет вместе с прокруткой, а не висит над ней.
   useLayoutEffect(() => {
-    const frame = frameRef.current?.getBoundingClientRect()
-    const anchor = itemRef.current?.getBoundingClientRect()
-    if (!frame || !anchor) return
-    const width = Math.min(POP_WIDTH, frame.width - 2 * POP_EDGE)
-    const wanted = anchor.left - width / 2
-    const left = Math.min(Math.max(wanted, frame.left + POP_EDGE), frame.right - POP_EDGE - width) - anchor.left
-    const maxHeight = Math.max(POP_MIN_HEIGHT, anchor.top - rise - POP_GAP - frame.top - POP_EDGE)
-    setPlace({ left, width, maxHeight })
-  }, [frameRef, itemRef, rise])
+    if (isSheet) return
+    const anchor = (anchorRef.current ?? itemRef.current)?.getBoundingClientRect()
+    const pop = popRef.current?.getBoundingClientRect()
+    if (!anchor || !pop) return
+    const viewport = document.documentElement.clientWidth
+    const width = Math.min(POP_WIDTH, viewport - 2 * POP_EDGE)
+    const center = anchor.left + anchor.width / 2
+    const left = Math.min(Math.max(center - width / 2, POP_EDGE), viewport - POP_EDGE - width)
+    const below = anchor.bottom + POP_GAP
+    const above = anchor.top - POP_GAP - pop.height
+    const fitsBelow = below + pop.height <= window.innerHeight - POP_EDGE
+    const top = fitsBelow || above < POP_EDGE ? below : above
+    setPlace({ left: left + window.scrollX, top: top + window.scrollY, width })
+  }, [isSheet, anchorRef, itemRef, popRef])
+
+  // Нажали, а панель не поместилась в окно, — докрутить страницу, чтобы она была видна целиком.
+  // Наведение страницу не двигает: человек только смотрит.
+  useEffect(() => {
+    if (!pinned || isSheet || !place) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    popRef.current?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
+  }, [pinned, isSheet, place, popRef])
 
   const title = STAGE_TITLES.get(group.stage)
+  const shown = group.count > POP_FULL ? group.items.slice(0, POP_SHORT) : group.items
+  const allHref = `${ROUTES.cooperations}${buildQuery({ stage: String(group.stage) })}`
 
-  return (
+  const panel = (
     <div
+      ref={popRef}
       id={id}
       role="group"
       aria-label={label}
-      className={styles.pop}
+      className={isSheet ? `${styles.pop} ${styles.popSheet}` : styles.pop}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       style={
-        {
-          '--rise': `${rise}px`,
-          ...(place ? { left: place.left, width: place.width, maxHeight: place.maxHeight } : { visibility: 'hidden' }),
-        } as unknown as CSSProperties
+        isSheet
+          ? undefined
+          : place
+            ? { left: place.left, top: place.top, width: place.width }
+            : { left: 0, top: 0, width: POP_WIDTH, visibility: 'hidden' }
       }
     >
       <div className={styles.popHead}>
         <div className={styles.popHeading}>
           <span className={styles.popTitle}>
-            Этап {group.stage} · {formatNumber(group.count)} {cooperationsWord(group.count)}
+            Этап {group.stage}
+            {title && <> · {title}</>}
+          </span>
+          <span className={styles.popStage}>
+            {formatNumber(group.count)} {cooperationsWord(group.count)} сейчас на этом этапе
             {group.stuckCount > 0 && (
               <span className={styles.popAttention}>
                 , {formatNumber(group.stuckCount)} {attentionWord(group.stuckCount)} внимания
               </span>
             )}
           </span>
-          {title && <span className={styles.popStage}>{title}</span>}
         </div>
         <IconButton icon="close" label="Закрыть список" size="sm" onClick={onClose} />
       </div>
       <ul className={styles.popList}>
-        {group.items.map((item) => {
-          const note = stuckNote(item)
+        {shown.map((item) => {
+          const note = deadlineNote(item)
+          const stuck = isStuck(item)
           return (
             <li key={item.id}>
-              <Link
-                href={cooperationHref(item.id)}
-                className={styles.popLink}
-                title={`${universityLabel(item)} — ${item.programName}`}
-              >
-                <span className={[styles.popMark, note ? styles.popMarkStuck : ''].filter(Boolean).join(' ')} aria-hidden />
+              <Link href={cooperationHref(item.id)} className={styles.popLink}>
+                <span className={[styles.popMark, stuck ? styles.popMarkStuck : ''].filter(Boolean).join(' ')} aria-hidden />
                 <span className={styles.popText}>
-                  <span className={styles.popName}>{universityLabel(item)}</span>
-                  <span className={styles.popProgram}> · {item.programName}</span>
+                  <span className={styles.popRoute}>
+                    <span className={styles.popName}>{universityLabel(item)}</span>
+                    <span className={styles.popProgram}> · {item.programName}</span>
+                  </span>
+                  <span className={styles.popMeta}>
+                    <span>{formatPersonShort(item.responsible.fullName)}</span>
+                    <span className={styles.popDeadline} data-tone={note.tone}>
+                      {note.text}
+                    </span>
+                  </span>
                 </span>
-                {note && <span className={styles.popNote}>{note}</span>}
               </Link>
             </li>
           )
         })}
       </ul>
+      {shown.length < group.count && (
+        <Link href={allHref} className={styles.popAll}>
+          Все {formatNumber(group.count)} {cooperationsWord(group.count)} этапа {group.stage} →
+        </Link>
+      )}
     </div>
   )
+
+  return createPortal(panel, document.body)
 }
