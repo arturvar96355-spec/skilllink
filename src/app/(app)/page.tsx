@@ -25,7 +25,7 @@ import {
   Badge,
   Button,
   CardsSkeleton,
-  Bars3D,
+  BarsFlat,
   CooperationPeek,
   DeadlineStrip,
   Funnel,
@@ -300,6 +300,7 @@ function Dashboard() {
           {
             key: row.id,
             label: row.shortName ?? row.name,
+            city: row.city,
             ...at,
             value: row.cooperationCount,
             detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
@@ -766,7 +767,8 @@ function Dashboard() {
                 }
               >
                 <div className={styles.panel3d} ref={universityBarsPrint.ref}>
-                  <Bars3D groups={universityBars} label="Связки по вузам" unit={['связка', 'связки', 'связок']} />
+                  {/* Вид столбиков (решение 198): 'grouped' — пара со скруглением, 'indicator' — градиент и штриховка. */}
+                  <BarsFlat variant="grouped" groups={universityBars} label="Связки по вузам" />
                 </div>
               </Section>
             </div>
