@@ -499,8 +499,7 @@ function RecommendationsContent() {
                             refusal={dismissing === item.id ? (update.error?.message ?? null) : null}
                             onLetter={() => void openLetter(item)}
                             letterPending={draftLetter.isPending && letter?.item.id === item.id}
-                            // Панель открывается адресом: ссылка из уведомления ведёт туда же. Страница не прыгает вверх.
-                            onMore={() => router.push(`/recommendations?recommendation=${item.id}`, { scroll: false })}
+                            moreHref={`/recommendations?recommendation=${item.id}`}
                           />
                         }
                       />
@@ -641,7 +640,7 @@ function RecommendationDetail({
   refusal,
   onLetter,
   letterPending,
-  onMore,
+  moreHref,
 }: {
   item: RecommendationDto
   canWork: boolean
@@ -656,7 +655,8 @@ function RecommendationDetail({
   refusal: string | null
   onLetter: () => void
   letterPending: boolean
-  onMore: () => void
+  /** Панель открывается адресом — туда же ведёт ссылка из уведомления. */
+  moreHref: string
 }) {
   // Письмо — только по открытой рекомендации: по закрытой писать вузу не о чем.
   const isOpen = item.status !== 'DONE' && item.status !== 'DISMISSED'
@@ -744,7 +744,7 @@ function RecommendationDetail({
               Черновик письма
             </Button>
           )}
-          <Button variant="ghost" size="sm" icon="recommendation" onClick={onMore}>
+          <Button variant="ghost" size="sm" icon="recommendation" href={moreHref} scroll={false}>
             Подробнее
           </Button>
         </div>

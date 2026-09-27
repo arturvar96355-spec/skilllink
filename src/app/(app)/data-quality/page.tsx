@@ -110,13 +110,14 @@ export default function DataQualityPage() {
       ) : report.error ? (
         <ErrorState error={report.error} onRetry={report.reload} />
       ) : report.data ? (
-        <QualityReport report={report.data} />
+        <QualityReport report={report.data} onChanged={report.reload} />
       ) : null}
     </>
   )
 }
 
-function QualityReport({ report }: { report: QualityReportDto }) {
+function QualityReport({ report, onChanged }: { report: QualityReportDto; onChanged: () => void }) {
+  const user = useCurrentUser()
   const groups = groupIssues(report)
   const [dupEntity, setDupEntity] = useState<DuplicateEntityType | null>(
     () => DUPLICATE_ENTITY_TYPES.find((entity) => report.duplicates[entity] > 0) ?? null,
@@ -146,8 +147,20 @@ function QualityReport({ report }: { report: QualityReportDto }) {
         description={`Сгруппированы по тому, сколько баллов отнимают у своего справочника: «критично» — от ${CRITICAL_PENALTY} баллов. Справа — сколько записей нарушают проверку.`}
       >
         <Queue>
-          <IssueGroup level="critical" items={groups.critical} empty="Критичных проблем нет." onDuplicates={showDuplicates} />
-          <IssueGroup level="attention" items={groups.attention} empty="Мелких проблем тоже нет." onDuplicates={showDuplicates} />
+          <IssueGroup
+            level="critical"
+            items={groups.critical}
+            empty="Критичных проблем нет."
+            canWrite={user.permissions.canWrite}
+            onDuplicates={showDuplicates}
+          />
+          <IssueGroup
+            level="attention"
+            items={groups.attention}
+            empty="Мелких проблем тоже нет."
+            canWrite={user.permissions.canWrite}
+            onDuplicates={showDuplicates}
+          />
           <QueueGroup label={QUALITY_LEVEL_LABELS.ok} count={groups.ok.length}>
             {groups.ok.length === 0 ? (
               <li className={styles.none}>Пока ни одна проверка не пройдена без замечаний.</li>
@@ -169,7 +182,7 @@ function QualityReport({ report }: { report: QualityReportDto }) {
         </Queue>
       </Section>
 
-      <Duplicates counts={report.duplicates} entity={dupEntity} onEntity={setDupEntity} />
+      <Duplicates counts={report.duplicates} entity={dupEntity} onEntity={setDupEntity} onChanged={onChanged} />
     </>
   )
 }
@@ -249,11 +262,13 @@ function IssueGroup({
   level,
   items,
   empty,
+  canWrite,
   onDuplicates,
 }: {
   level: Exclude<QualityLevel, 'ok'>
   items: LeveledIssue[]
   empty: string
+  canWrite: boolean
   onDuplicates: (entity: DuplicateEntityType) => void
 }) {
   // Первая строка группы «Критично» раскрыта сразу: какие записи и почему — видно без щелчка.
@@ -270,6 +285,7 @@ function IssueGroup({
             key={item.issue.code}
             item={item}
             level={level}
+            canWrite={canWrite}
             expanded={openCode === item.issue.code}
             onToggle={() => setChoice(openCode === item.issue.code ? null : item.issue.code)}
             onDuplicates={onDuplicates}
@@ -283,18 +299,22 @@ function IssueGroup({
 function IssueRow({
   item,
   level,
+  canWrite,
   expanded,
   onToggle,
   onDuplicates,
 }: {
   item: LeveledIssue
   level: Exclude<QualityLevel, 'ok'>
+  canWrite: boolean
   expanded: boolean
   onToggle: () => void
   onDuplicates: (entity: DuplicateEntityType) => void
 }) {
   const { issue } = item
   const action = issueAction(issue)
+  // Эксперт (только чтение) исправить не может — для него это «Открыть».
+  const linkLabel = action?.kind === 'link' && canWrite ? action.label : 'Открыть'
   const hidden = issue.count - Math.min(issue.items.length, ITEMS_SHOWN)
   const penalty = `−${formatPoints(issue.penalty)} ${pointsWord(issue.penalty)}`
   const count = `${formatNumber(issue.count)} из ${formatNumber(item.entityTotal)}`
@@ -331,9 +351,9 @@ function IssueRow({
             size="sm"
             icon="arrowRight"
             href={action.href}
-            aria-label={`${action.label}: ${issue.items[0]?.name ?? issue.title}`}
+            aria-label={`${linkLabel}: ${issue.items[0]?.name ?? issue.title}`}
           >
-            {action.label}
+            {linkLabel}
           </Button>
         ) : undefined
       }
@@ -370,10 +390,13 @@ function Duplicates({
   counts,
   entity,
   onEntity,
+  onChanged,
 }: {
   counts: Record<DuplicateEntityType, number>
   entity: DuplicateEntityType | null
   onEntity: (entity: DuplicateEntityType) => void
+  /** Пару разобрали — отчёт перечитывается: числа вкладок и проверки дублей сходятся со списком. */
+  onChanged: () => void
 }) {
   const withPairs = DUPLICATE_ENTITY_TYPES.filter((key) => counts[key] > 0)
 
@@ -402,7 +425,7 @@ function Duplicates({
                 </button>
               ))}
             </div>
-            {entity && <DuplicatePairs key={entity} entity={entity} />}
+            {entity && <DuplicatePairs key={entity} entity={entity} onChanged={onChanged} />}
           </>
         )}
       </Section>
@@ -410,7 +433,7 @@ function Duplicates({
   )
 }
 
-function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
+function DuplicatePairs({ entity, onChanged }: { entity: DuplicateEntityType; onChanged: () => void }) {
   const user = useCurrentUser()
   const toast = useToast()
   const pairs = useResource<DuplicatePairDto[]>(`/api/data-quality/duplicates${buildQuery({ entity })}`)
@@ -435,6 +458,7 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
     }
     toast.success(`«${pair.a.name}» и «${pair.b.name}» отмечены как разные записи`)
     pairs.reload()
+    onChanged()
   }
 
   if (pairs.isLoading) return <TableSkeleton rows={3} columns={2} />
@@ -508,7 +532,10 @@ function DuplicatePairs({ entity }: { entity: DuplicateEntityType }) {
           })}
         </QueueGroup>
       </Queue>
-      {merging && <MergeUniversitiesModal pair={merging} onClose={() => setMerging(null)} onMerged={() => pairs.reload()} />}
+      {merging && <MergeUniversitiesModal pair={merging} onClose={() => setMerging(null)} onMerged={() => {
+            pairs.reload()
+            onChanged()
+          }} />}
     </>
   )
 }
