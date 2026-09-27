@@ -35,6 +35,9 @@ const mocks = vi.hoisted(() => ({
   handleUpdate: vi.fn(async () => undefined),
   writeAudit: vi.fn(async () => undefined),
   notifyOwner: vi.fn(),
+  logWarn: vi.fn(),
+  logInfo: vi.fn(),
+  logError: vi.fn(),
 }))
 
 class FakeTelegramClient {
@@ -75,6 +78,9 @@ vi.mock('@/integrations/telegram/runtime-config', () => ({
 vi.mock('./telegram.service', () => ({ acceptUpdate: mocks.acceptUpdate, handleUpdate: mocks.handleUpdate }))
 vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))
 vi.mock('@/shared/ops/owner-alert', () => ({ notifyOwner: mocks.notifyOwner }))
+vi.mock('@/shared/log/logger', () => ({
+  log: { warn: mocks.logWarn, info: mocks.logInfo, error: mocks.logError },
+}))
 
 const runtime = await import('./telegram.runtime')
 
@@ -98,6 +104,9 @@ beforeEach(() => {
   mocks.handleUpdate.mockReset().mockResolvedValue(undefined)
   mocks.writeAudit.mockReset()
   mocks.notifyOwner.mockReset()
+  mocks.logWarn.mockReset()
+  mocks.logInfo.mockReset()
+  mocks.logError.mockReset()
   runtime.resetRuntimeForTests()
 })
 
@@ -159,15 +168,96 @@ describe('startPollingLoop / stopPollingLoop', () => {
 
       const afterFirstFailure = mocks.getUpdatesCalls.length
       // Без продвижения таймеров вторая попытка не должна была уже случиться —
-      // цикл обязан ждать паузу, а не звать getUpdates немедленно.
+      // цикл обязан ждать паузу (даже минимальную ~1 с с разбросом), а не звать getUpdates немедленно.
       await Promise.resolve()
       expect(mocks.getUpdatesCalls.length).toBe(afterFirstFailure)
 
+      // Первая пауза — около 1 с (0.8–1.2 с с разбросом): 2.5 с заведомо достаточно.
       await vi.advanceTimersByTimeAsync(2_500)
       await vi.waitFor(() => expect(mocks.getUpdatesCalls.length).toBeGreaterThan(afterFirstFailure))
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('нарастающая пауза: 1 → 2 → 4 с при подряд идущих сбоях, а не фиксированная задержка', async () => {
+    // Разброс — не 0 (проверен отдельно в telegram.backoff.test.ts), здесь фиксируем
+    // его на «без отклонения», чтобы границы окна не гонялись за случайным числом.
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    vi.useFakeTimers()
+    try {
+      // Четыре сбоя подряд — паузы должны расти, а не оставаться одинаковыми.
+      for (let i = 0; i < 4; i += 1) {
+        mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      }
+      await runtime.startPollingLoop('secret')
+      // 1-й запрос происходит синхронно внутри startPollingLoop (до всякой паузы) —
+      // проверяем это без vi.waitFor: у него на fake-timers свой интервал ожидания,
+      // и лишнее «тиканье» до первой проверки испортило бы дальше отсчёт от t=0.
+      expect(mocks.getUpdatesCalls.length).toBe(1) // 1-й сбой, t=0
+
+      // Без разброса паузы идут ровно 1с → 2с → 4с от старта: дедлайны на абсолютной
+      // шкале фейкового времени — t=1000 (2-й сбой), t=3000 (3-й), t=7000 (4-й).
+      await vi.advanceTimersByTimeAsync(850) // t=850 — до дедлайна 1000
+      expect(mocks.getUpdatesCalls.length).toBe(1)
+      await vi.advanceTimersByTimeAsync(300) // t=1150 — дедлайн 1000 точно прошёл
+      expect(mocks.getUpdatesCalls.length).toBe(2) // 2-й сбой
+
+      await vi.advanceTimersByTimeAsync(1_700) // t=2850 — до дедлайна 3000
+      expect(mocks.getUpdatesCalls.length).toBe(2)
+      await vi.advanceTimersByTimeAsync(300) // t=3150 — дедлайн 3000 точно прошёл
+      expect(mocks.getUpdatesCalls.length).toBe(3) // 3-й сбой
+
+      await vi.advanceTimersByTimeAsync(3_700) // t=6850 — до дедлайна 7000
+      expect(mocks.getUpdatesCalls.length).toBe(3)
+      await vi.advanceTimersByTimeAsync(300) // t=7150 — дедлайн 7000 точно прошёл
+      expect(mocks.getUpdatesCalls.length).toBe(4) // 4-й сбой
+    } finally {
+      vi.useRealTimers()
+      randomSpy.mockRestore()
+    }
+  })
+
+  it('в журнал — одна запись на смену состояния, не на каждую попытку', async () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    vi.useFakeTimers()
+    try {
+      mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+      mocks.getUpdatesQueue.push({ ok: true, updates: [] }) // связь восстановилась
+      await runtime.startPollingLoop('secret')
+      expect(mocks.getUpdatesCalls.length).toBe(1) // 1-й сбой, t=0 (см. пояснение в тесте выше)
+
+      // Без разброса дедлайны на абсолютной шкале: t=1000, t=3000, t=7000.
+      await vi.advanceTimersByTimeAsync(1_200) // t=1200 — 1-я пауза (до 1000) прошла
+      expect(mocks.getUpdatesCalls.length).toBe(2)
+      await vi.advanceTimersByTimeAsync(2_100) // t=3300 — 2-я пауза (до 3000) прошла
+      expect(mocks.getUpdatesCalls.length).toBe(3)
+      await vi.advanceTimersByTimeAsync(4_000) // t=7300 — 3-я пауза (до 7000) прошла
+      // Успех (4-й вызов) — связь восстановлена; цикл сразу зовёт getUpdates дальше без паузы (5-й вызов).
+      expect(mocks.getUpdatesCalls.length).toBeGreaterThanOrEqual(4)
+
+      // Одно предупреждение при первом сбое (не три — по одному на каждый).
+      expect(mocks.logWarn.mock.calls.filter(([msg]) => String(msg).includes('связь потеряна'))).toHaveLength(1)
+      // И одна запись о восстановлении после серии сбоев.
+      expect(mocks.logInfo.mock.calls.filter(([msg]) => String(msg).includes('связь восстановлена'))).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+      randomSpy.mockRestore()
+    }
+  })
+
+  it('stop() прерывает ожидание паузы сразу же, а не ждёт её конца', async () => {
+    mocks.getUpdatesQueue.push({ ok: false, reason: 'failed', status: null, description: 'connect ECONNREFUSED' })
+    await runtime.startPollingLoop('secret')
+    // Ждём реальным временем, пока цикл дойдёт до сбоя и начнёт паузу (~60с максимум).
+    await vi.waitFor(() => expect(mocks.getUpdatesCalls.length).toBeGreaterThanOrEqual(1))
+
+    const startedAt = Date.now()
+    await runtime.stop()
+    expect(Date.now() - startedAt).toBeLessThan(1000)
+    expect(runtime.getRuntimeStatus().running).toBe('off')
   })
 })
 
