@@ -111,6 +111,7 @@ const MODELS: readonly ModelSpec[] = [
   { model: 'inboundLetter', label: 'Письма вузов (решение 170)' },
   { model: 'inboundLetterTask', label: 'Задания по письмам вузов' },
   { model: 'inboundLetterGroupStats', label: 'Точность разбора писем по группе' },
+  { model: 'assignment', label: 'Поручения сотрудникам (решение 207)' },
 ]
 
 async function main(): Promise<void> {

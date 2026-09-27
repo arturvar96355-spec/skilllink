@@ -1,0 +1,316 @@
+/*
+ * Поручения (решение 207): строки, окно «Дать поручение».
+ * Строка — система строки очереди главной (решение 206): полоска слева, текст и мета,
+ * справа срок и одна кнопка. Цвета и размеры — только переменные.
+ */
+
+/* ── Строки ─────────────────────────────────────────────────────────────── */
+
+.rows {
+  container: assignments / inline-size;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.row {
+  position: relative;
+  border-radius: var(--radius-row);
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--surface-2);
+}
+
+.row[data-highlight] {
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--accent-violet);
+}
+
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+}
+
+/* Полоска: красный — только просрочка, остальное — фиолетовая гамма по важности. */
+.ind {
+  position: absolute;
+  left: var(--space-2);
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+}
+
+.row[data-tone='critical'] > .ind {
+  background: var(--status-danger);
+}
+
+.row[data-tone='accent-soft'] > .ind {
+  background: color-mix(in srgb, var(--accent-violet) 55%, transparent);
+}
+
+.row[data-tone='accent-faint'] > .ind {
+  background: color-mix(in srgb, var(--accent-violet) 30%, transparent);
+}
+
+.main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--text-body-size);
+  font-weight: 600;
+  line-height: var(--text-body-sm-line);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.row[data-tone='accent-faint'] .title {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-3);
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--text-secondary);
+}
+
+.status {
+  flex: none;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+  color: var(--text-accent);
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+}
+
+.status[data-status='DONE'] {
+  color: var(--text-secondary);
+  background: var(--surface-2);
+}
+
+.high {
+  flex: none;
+  font-weight: 600;
+  color: var(--text-accent);
+}
+
+.metaText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metaTail {
+  color: var(--text-tertiary);
+}
+
+.value {
+  min-width: 64px;
+  text-align: right;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.value[data-overdue] {
+  color: var(--status-danger);
+}
+
+.act {
+  display: inline-flex;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .row {
+    transition: background var(--motion-fast) var(--ease-out);
+  }
+}
+
+/* Узкий список: срок над кнопкой справа, текст слева на обе строки. */
+@container assignments (max-width: 480px) {
+  .head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--space-2);
+    row-gap: var(--space-1);
+    padding-right: var(--space-1);
+  }
+
+  .main {
+    grid-column: 1 / -1;
+  }
+
+  .value {
+    grid-column: 1;
+    text-align: left;
+    min-width: 0;
+    align-self: center;
+  }
+
+  .act {
+    grid-column: 2;
+    justify-self: end;
+  }
+}
+
+/* ── Блок «Мои поручения» ───────────────────────────────────────────────── */
+
+.block {
+  scroll-margin-top: calc(var(--space-5) * 4);
+}
+
+.summary {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--text-secondary);
+}
+
+.summaryDanger {
+  color: var(--status-danger);
+  font-weight: 600;
+}
+
+.skeletonRow {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-5);
+}
+
+/* ── Окно «Дать поручение» ──────────────────────────────────────────────── */
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+/* Срок с тремя быстрыми кнопками шире важности: кнопки встают в одну строку. */
+.pairDue {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.groupLabel {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-label-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.chip {
+  touch-action: manipulation;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.chip:hover {
+  color: var(--text-primary);
+  background: var(--surface-2);
+}
+
+.chip[aria-pressed='true'] {
+  color: var(--text-primary);
+  font-weight: 600;
+  border-color: var(--accent-violet);
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+}
+
+.chip:focus-visible,
+.segment:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-control);
+  background: var(--surface-2);
+}
+
+.segment {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-caption-size);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--text-primary);
+}
+
+.segment[aria-checked='true'] {
+  color: var(--text-primary);
+  font-weight: 600;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-base);
+}
+
+.notice {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-caption-line);
+  color: var(--text-tertiary);
+}
+
+@media (max-width: 560px) {
+  .pair,
+  .pairDue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

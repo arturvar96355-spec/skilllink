@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { signOut } from 'next-auth/react'
-import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { Suspense, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   USER_ROLE_LABELS,
   type CalendarFeedStatusDto,
@@ -51,6 +51,7 @@ import { CalendarFeedModal } from './CalendarFeedModal'
 import { ChannelsBlock } from './ChannelsBlock'
 import { ProfileInsights } from './ProfileInsights'
 import { ProfilePulse } from './ProfilePulse'
+import { MyAssignments } from './MyAssignments'
 import styles from './profile.module.css'
 
 /**
@@ -316,6 +317,17 @@ export default function ProfilePage() {
           </div>
         ) : null}
       </section>
+
+      {/*
+        «Мои поручения» (решение 207): поручения руководителя сотруднику ИТ-Школы.
+        Представителю вуза их не дают — у него блока нет. Suspense — для
+        useSearchParams (подсветка поручения по ссылке из колокольчика).
+      */}
+      {!isRep && (
+        <Suspense fallback={null}>
+          <MyAssignments />
+        </Suspense>
+      )}
 
       {/*
         «Система заметила» и «Пульс» (решение 120) — раньше были только

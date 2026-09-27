@@ -342,6 +342,9 @@ model User {
   /// Письма вузов, которые этот пользователь проверил («Верно»/«Неверно», решение 170).
   inboundLettersReviewed        InboundLetter[]           @relation("InboundLetterReviewer")
   inboundLetterTasksResponsible InboundLetterTask[]       @relation("InboundLetterTaskResponsible")
+  /// Поручения сотруднику и поручения, которые он дал (решение 207).
+  assignmentsReceived           Assignment[]              @relation("AssignmentAssignee")
+  assignmentsAuthored           Assignment[]              @relation("AssignmentAuthor")
 
   @@index([role])
   @@index([universityId])
@@ -402,6 +405,7 @@ model University {
   /// с тем, что нашёл разбор, если решением «Неверно» его поправили).
   inboundLetters     InboundLetter[]      @relation("InboundLetterUniversity")
   inboundLetterTasks InboundLetterTask[]  @relation("InboundLetterTaskUniversity")
+  assignments        Assignment[]         @relation("AssignmentUniversity")
 
   @@index([status])
   @@index([region])
@@ -875,6 +879,7 @@ model Cooperation {
   externalImportLinks ExternalImportLink[]
   inboundLetters      InboundLetter[]      @relation("InboundLetterCooperation")
   inboundLetterTasks  InboundLetterTask[]  @relation("InboundLetterTaskCooperation")
+  assignments         Assignment[]         @relation("AssignmentCooperation")
 
   @@index([universityId])
   @@index([programId])
@@ -1920,4 +1925,62 @@ model InboundLetterGroupStats {
   updatedAt    DateTime           @updatedAt @map("updated_at")
 
   @@map("inbound_letter_group_stats")
+}
+
+// ──────────────────────────────── Поручения (решение 207) ───────────────────────────────
+
+/// Важность поручения: обычная или важная.
+enum AssignmentPriority {
+  NORMAL
+  HIGH
+}
+
+/// Статус поручения: новое → в работе → сделано (исполнитель двигает одной кнопкой).
+enum AssignmentStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+}
+
+/// Поручение сотруднику (решение 207): руководитель или администратор даёт конкретное
+/// дело — «Позвонить в МТУСИ до пятницы» — по вузу, связке или без привязки.
+///
+/// Не `Task` (пункт чек-листа этапа, `stageId` обязателен) и не `InboundLetterTask`
+/// (задание по письму вуза): у поручения свой автор, исполнитель и срок-дата.
+///
+/// Срок — календарная дата (`date`), а не момент: «до пятницы» — весь московский день
+/// пятницы. Просрочено — статус не «Сделано» и срок раньше сегодняшней московской даты
+/// (`assignments.rules.ts`, `isAssignmentOverdue`).
+///
+/// CHECK в базе (миграция assignments): текст 1–300 символов без краевых пробелов
+/// (`assignments_text_check`); `done_at` заполнено ровно у статуса DONE
+/// (`assignments_done_at_check`).
+model Assignment {
+  id            String             @id @default(cuid())
+  /// Кому поручено — сотрудник ИТ-Школы (не представитель вуза и не учётка эксперта).
+  assigneeId    String             @map("assignee_id")
+  /// Кто поручил — ADMIN или HEAD (право ASSIGN_TASKS).
+  authorId      String             @map("author_id")
+  text          String
+  universityId  String?            @map("university_id")
+  cooperationId String?            @map("cooperation_id")
+  dueAt         DateTime           @map("due_at") @db.Date
+  priority      AssignmentPriority @default(NORMAL)
+  status        AssignmentStatus   @default(NEW)
+  doneAt        DateTime?          @map("done_at")
+  isMock        Boolean            @default(false) @map("is_mock")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  assignee    User         @relation("AssignmentAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  author      User         @relation("AssignmentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  university  University?  @relation("AssignmentUniversity", fields: [universityId], references: [id], onDelete: SetNull)
+  cooperation Cooperation? @relation("AssignmentCooperation", fields: [cooperationId], references: [id], onDelete: SetNull)
+
+  @@index([assigneeId, status])
+  @@index([dueAt])
+  @@index([authorId])
+  @@index([universityId])
+  @@index([cooperationId])
+  @@map("assignments")
 }

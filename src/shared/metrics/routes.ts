@@ -47,6 +47,8 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/analytics/programs',
   '/api/analytics/stage-durations',
   '/api/analytics/stalled-preview',
+  '/api/assignments',
+  '/api/assignments/[id]',
   '/api/audit',
   '/api/audit/seals',
   '/api/audit/verify',

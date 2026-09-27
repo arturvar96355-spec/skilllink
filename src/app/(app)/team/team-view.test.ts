@@ -24,6 +24,8 @@ function member(partial: Partial<TeamMemberDto> & Pick<TeamMemberDto, 'id' | 'fu
     meetingsThisWeek: 0,
     meetingsAhead: 0,
     openLetterTasks: 0,
+    assignments: { open: 0, overdue: 0 },
+    messenger: null,
     onTime: { closedOnTime: 0, closedWithDeadline: 0, percent: null },
     lastAction: null,
     daysSinceLastAction: null,
