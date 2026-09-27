@@ -14,7 +14,7 @@ import { revealContactSchema } from './universities.schema'
  */
 const repo = vi.hoisted(() => ({
   findById: vi.fn(),
-  countActiveCooperations: vi.fn(),
+  countCooperationsByUniversity: vi.fn(),
   findContactById: vi.fn(),
 }))
 const audit = vi.hoisted(() => ({ writeAudit: vi.fn() }))
@@ -99,7 +99,7 @@ const ROW = {
 
 beforeEach(() => {
   repo.findById.mockReset().mockResolvedValue(ROW)
-  repo.countActiveCooperations.mockReset().mockResolvedValue(new Map())
+  repo.countCooperationsByUniversity.mockReset().mockResolvedValue(new Map())
   analytics.universityRatingsForPage.mockReset().mockResolvedValue(new Map())
 })
 

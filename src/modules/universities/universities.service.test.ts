@@ -10,7 +10,7 @@ import type { CurrentUser } from '@/shared/auth/current-user'
 const repo = vi.hoisted(() => ({
   findById: vi.fn(),
   update: vi.fn(),
-  countActiveCooperations: vi.fn(),
+  countCooperationsByUniversity: vi.fn(),
 }))
 vi.mock('./universities.repo', () => repo)
 
@@ -64,7 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   repo.findById.mockResolvedValue(EXISTING)
   repo.update.mockResolvedValue({ ...EXISTING, responsibleId: 'user-2', responsible: { id: 'user-2', fullName: 'Новый Ответственный', role: 'MANAGER' } })
-  repo.countActiveCooperations.mockResolvedValue(new Map())
+  repo.countCooperationsByUniversity.mockResolvedValue(new Map())
   analytics.universityRatingsForPage.mockResolvedValue(new Map())
 })
 

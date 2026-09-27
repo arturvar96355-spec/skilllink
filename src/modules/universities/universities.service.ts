@@ -43,6 +43,9 @@ import {
   type WithdrawConsentBody,
 } from './universities.schema'
 
+/** Только что созданный, архивный или слитый вуз — связок точно нет ни в одной базе. */
+const NO_COOPERATIONS: repo.CooperationCounts = { active: 0, excludingCancelled: 0 }
+
 /**
  * Почта и телефон прямо в карточке (решение 106) — если роль вправе их видеть
  * и не включён строгий режим раскрытия (CONTACT_REVEAL_REQUIRED, решение 133):
@@ -149,7 +152,7 @@ function ratingFor(
 
 function toListItem(
   row: repo.UniversityListRow,
-  activeCooperations: number,
+  cooperationCounts: repo.CooperationCounts,
   rating: UniversityRatingDto | null = null,
 ): UniversityListItemDto {
   return {
@@ -161,7 +164,8 @@ function toListItem(
     status: row.status,
     programCount: row._count.programs,
     cooperationCount: row._count.cooperations,
-    activeCooperationCount: activeCooperations,
+    activeCooperationCount: cooperationCounts.active,
+    cooperationCountExcludingCancelled: cooperationCounts.excludingCancelled,
     isMock: row.isMock,
     responsible: row.responsible,
     rating,
@@ -173,14 +177,14 @@ function toListItem(
 export function toDetail(
   user: CurrentUser,
   row: repo.UniversityDetailRow,
-  activeCooperations: number,
+  cooperationCounts: repo.CooperationCounts,
   rating: UniversityRatingDto | null = null,
 ): UniversityDto {
   const showDetails = canSeeContactDetails(user, row.id)
   const showBasis = can(user, 'CONTACT_BASIS')
   const contacts = row.contacts.map((contact) => toContactDto(contact, showDetails, showBasis))
   return {
-    ...toListItem(row, activeCooperations, rating),
+    ...toListItem(row, cooperationCounts, rating),
     address: row.address,
     website: row.website,
     description: row.description,
@@ -262,13 +266,13 @@ export async function list(
     const pageIds = ordered.slice(skip, skip + pagination.pageSize)
     const rows = await repo.findByIds(pageIds)
     const byId = new Map(rows.map((row) => [row.id, row]))
-    const activeByUniversity = await repo.countActiveCooperations(pageIds)
+    const cooperationCountsByUniversity = await repo.countCooperationsByUniversity(pageIds)
 
     return {
       data: pageIds.flatMap((id) => {
         const row = byId.get(id)
         return row
-          ? [toListItem(row, activeByUniversity.get(id) ?? 0, ratingFor(id, ratings))]
+          ? [toListItem(row, cooperationCountsByUniversity.get(id) ?? NO_COOPERATIONS, ratingFor(id, ratings))]
           : []
       }),
       meta: pageMeta(pagination, ordered.length),
@@ -278,8 +282,8 @@ export async function list(
   const { rows, total } = await repo.findMany(query, universityScope(user), restrictToIds)
   const pageIds = rows.map((row) => row.id)
 
-  const [activeByUniversity, pageRatings] = await Promise.all([
-    repo.countActiveCooperations(pageIds),
+  const [cooperationCountsByUniversity, pageRatings] = await Promise.all([
+    repo.countCooperationsByUniversity(pageIds),
     ratings
       ? Promise.resolve(ratings)
       : wantsRating
@@ -289,7 +293,7 @@ export async function list(
 
   return {
     data: rows.map((row) =>
-      toListItem(row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, pageRatings)),
+      toListItem(row, cooperationCountsByUniversity.get(row.id) ?? NO_COOPERATIONS, ratingFor(row.id, pageRatings)),
     ),
     meta: pageMeta(pagination, total),
   }
@@ -300,7 +304,7 @@ export async function getById(user: CurrentUser, id: string): Promise<University
   const row = await repo.findById(id, universityScope(user))
   // Чужой вуз для представителя — NOT_FOUND, существование записи не раскрывается.
   if (!row) throw notFound('Вуз не найден')
-  const activeByUniversity = await repo.countActiveCooperations([row.id])
+  const cooperationCountsByUniversity = await repo.countCooperationsByUniversity([row.id])
 
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
@@ -309,7 +313,7 @@ export async function getById(user: CurrentUser, id: string): Promise<University
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, cooperationCountsByUniversity.get(row.id) ?? NO_COOPERATIONS, ratingFor(row.id, ratings))
 }
 
 export async function create(
@@ -332,7 +336,7 @@ export async function create(
     objectId: row.id,
     payload: { fields: Object.keys(fields), contacts: contacts?.length ?? 0 },
   })
-  return toDetail(user, row, 0)
+  return toDetail(user, row, NO_COOPERATIONS)
 }
 
 export async function update(
@@ -353,7 +357,7 @@ export async function update(
     objectId: id,
     payload: { fields: Object.keys(input) },
   })
-  const activeByUniversity = await repo.countActiveCooperations([row.id])
+  const cooperationCountsByUniversity = await repo.countCooperationsByUniversity([row.id])
 
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
@@ -362,7 +366,7 @@ export async function update(
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, cooperationCountsByUniversity.get(row.id) ?? NO_COOPERATIONS, ratingFor(row.id, ratings))
 }
 
 /** Архивирование вместо удаления: история сотрудничества должна сохраняться. */
@@ -370,7 +374,7 @@ export async function archive(user: CurrentUser, id: string): Promise<University
   assertCan(user, 'WRITE')
   const existing = await repo.findById(id, universityScope(user))
   if (!existing) throw notFound('Вуз не найден')
-  if (existing.archivedAt) return toDetail(user, existing, 0)
+  if (existing.archivedAt) return toDetail(user, existing, NO_COOPERATIONS)
 
   const openCooperations = await prisma.cooperation.count({
     where: { universityId: id, status: { in: ['DRAFT', 'ACTIVE', 'PAUSED'] } },
@@ -384,7 +388,7 @@ export async function archive(user: CurrentUser, id: string): Promise<University
     objectType: 'University',
     objectId: id,
   })
-  return toDetail(user, row, 0)
+  return toDetail(user, row, NO_COOPERATIONS)
 }
 
 export async function restore(user: CurrentUser, id: string): Promise<UniversityDto> {
@@ -401,7 +405,7 @@ export async function restore(user: CurrentUser, id: string): Promise<University
     objectType: 'University',
     objectId: id,
   })
-  const activeByUniversity = await repo.countActiveCooperations([row.id])
+  const cooperationCountsByUniversity = await repo.countCooperationsByUniversity([row.id])
 
   // Карточка — единственное место, где рейтинг нужно раскрыть: с сильнейшей программой
   // и пояснением, по скольким программам он посчитан. Поэтому здесь он считается всегда,
@@ -410,7 +414,7 @@ export async function restore(user: CurrentUser, id: string): Promise<University
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
 
-  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, cooperationCountsByUniversity.get(row.id) ?? NO_COOPERATIONS, ratingFor(row.id, ratings))
 }
 
 /**
@@ -448,11 +452,11 @@ export async function setResponsible(
     payload: { responsibleId: input.responsibleId, previousResponsibleId: existing.responsibleId },
   })
 
-  const activeByUniversity = await repo.countActiveCooperations([row.id])
+  const cooperationCountsByUniversity = await repo.countCooperationsByUniversity([row.id])
   const ratings = can(user, 'ANALYTICS')
     ? await analyticsService.universityRatingsForPage(user, [row.id])
     : null
-  return toDetail(user, row, activeByUniversity.get(row.id) ?? 0, ratingFor(row.id, ratings))
+  return toDetail(user, row, cooperationCountsByUniversity.get(row.id) ?? NO_COOPERATIONS, ratingFor(row.id, ratings))
 }
 
 /**
