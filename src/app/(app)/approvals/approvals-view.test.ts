@@ -10,6 +10,7 @@ import {
   decisionText,
   executionBody,
   findOwnRequest,
+  groupApprovals,
   timeLeftText,
 } from './approvals-view'
 
@@ -118,5 +119,23 @@ describe('выполнение и ответ 403', () => {
     expect(findOwnRequest([own], 'user.block_admin', 'u-target', me.id, NOW)).toBeNull()
     expect(findOwnRequest([{ ...own, status: 'REJECTED' }], 'user.grant_admin', 'u-target', me.id, NOW)).toBeNull()
     expect(findOwnRequest([item()], 'user.grant_admin', 'u-target', me.id, NOW)).toBeNull()
+  })
+})
+
+describe('группы очереди', () => {
+  it('сверху — ждёт моего действия, ниже — чужого решения, внизу — решённое', () => {
+    const mineWaiting = item({ id: 'w', requestedBy: { id: me.id, fullName: 'Я', role: 'ADMIN' }, canApprove: false })
+    const mineApproved = item({ id: 'r', status: 'APPROVED', canApprove: false, requestedBy: { id: me.id, fullName: 'Я', role: 'ADMIN' } })
+    const rejected = item({ id: 'd', status: 'REJECTED', canApprove: false })
+    const groups = groupApprovals([rejected, mineWaiting, item({ id: 'a' }), mineApproved], me, NOW)
+    expect(groups.map((group) => [group.key, group.items.map((entry) => entry.id)])).toEqual([
+      ['act', ['a', 'r']],
+      ['wait', ['w']],
+      ['done', ['d']],
+    ])
+  })
+
+  it('эксперту ждущий — «ждут решения», а не «нужно ваше действие»', () => {
+    expect(groupApprovals([item()], { ...me, isReviewer: true }, NOW).map((group) => group.key)).toEqual(['wait'])
   })
 })

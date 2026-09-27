@@ -50,7 +50,9 @@ export function canReadLetters(user: CurrentUserDto): boolean {
  * администратора: сервер отдаёт ему список только для чтения.
  */
 export function canSeeApprovals(user: CurrentUserDto): boolean {
-  return user.permissions.isAdmin
+  // У эксперта `isAdmin` в `/api/me` выключен (решение 147: право ADMIN — изменяющее), а читать
+  // запросы сервер ему даёт по роли — жюри должно видеть экран, не имея кнопок.
+  return user.permissions.isAdmin || (user.isReviewer && user.role === 'ADMIN')
 }
 
 export function navigationFor(user: CurrentUserDto, counts: NavCounts = {}): NavGroup[] {

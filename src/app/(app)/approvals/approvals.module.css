@@ -143,3 +143,10 @@
   margin: 0;
   color: var(--text-secondary);
 }
+
+/* На телефоне значок отнимал колонку у текста — без него пояснение читается шире. */
+@media (max-width: 480px) {
+  .panel > svg:first-child {
+    display: none;
+  }
+}

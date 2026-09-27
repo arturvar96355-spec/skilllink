@@ -128,7 +128,9 @@ export async function list(
 /** Счётчик на пункте меню и вкладках (решение 218) и включено ли требование вообще — в `meta` списка. */
 export async function summary(user: CurrentUser, now = new Date()): Promise<ApprovalSummaryDto> {
   assertCanReadApprovals(user)
-  const counts = user.isReviewer ? { awaiting: 0, readyToRun: 0 } : await repo.summary(user.id, now)
+  // Эксперту — те же числа, что во вкладках (одна база подсчёта): решать он не может,
+  // поэтому счётчик на пункте меню ему не рисуется (navigation.ts), а числа во вкладках — да.
+  const counts = await repo.summary(user.id, now)
   return { required: approvalsRequired(), ...counts, ttlHours: Math.round(APPROVALS.ttlMs / 3600_000) }
 }
 

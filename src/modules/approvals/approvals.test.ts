@@ -253,7 +253,8 @@ describe('экран «Согласования» (решение 218)', () => {
     const request = await service.request(alice, { action: 'user.grant_admin', payload: { userId: 'target' } })
     const listed = await service.list(reviewer, { page: 1, pageSize: 20 })
     expect(listed.data[0]).toMatchObject({ id: request.id, canApprove: false })
-    await expect(service.summary(reviewer)).resolves.toMatchObject({ awaiting: 0, readyToRun: 0 })
+    // Число во вкладке совпадает со списком — одна база подсчёта; решать эксперт всё равно не может.
+    await expect(service.summary(reviewer)).resolves.toMatchObject({ awaiting: 1, readyToRun: 0 })
     await expect(service.approve(reviewer, request.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
     await expect(service.reject(reviewer, request.id)).rejects.toMatchObject({ code: 'FORBIDDEN' })
     await expect(service.list(admin('m', 'MANAGER'), { page: 1, pageSize: 20 })).rejects.toMatchObject({ code: 'FORBIDDEN' })

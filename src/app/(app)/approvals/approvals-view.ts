@@ -174,3 +174,33 @@ export function findOwnRequest(
     ) ?? null
   )
 }
+
+/** Группа очереди: ждёт моего действия, ждёт чужого решения, уже решено. */
+export type ApprovalGroupKey = 'act' | 'wait' | 'done'
+
+export const APPROVAL_GROUP_LABELS: Record<ApprovalGroupKey, string> = {
+  act: 'Нужно ваше действие',
+  wait: 'Ждут решения',
+  done: 'Решено или истекло',
+}
+
+/**
+ * Строки вкладки группами (решение 206): сверху то, что ждёт именно меня, ниже —
+ * то, что ждёт других, внизу — решённое. Пустые группы не показываются, порядок
+ * внутри группы — как пришёл с сервера (новые сверху).
+ */
+export function groupApprovals(
+  items: readonly ApprovalDto[],
+  viewer: Viewer,
+  now: number,
+): Array<{ key: ApprovalGroupKey; label: string; items: ApprovalDto[] }> {
+  const groups: Record<ApprovalGroupKey, ApprovalDto[]> = { act: [], wait: [], done: [] }
+  for (const item of items) {
+    const step = approvalStep(item, viewer, now)
+    const key: ApprovalGroupKey = step === 'approve' || step === 'run' ? 'act' : isLive(item, now) ? 'wait' : 'done'
+    groups[key].push(item)
+  }
+  return (['act', 'wait', 'done'] as const)
+    .filter((key) => groups[key].length > 0)
+    .map((key) => ({ key, label: APPROVAL_GROUP_LABELS[key], items: groups[key] }))
+}

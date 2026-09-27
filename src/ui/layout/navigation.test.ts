@@ -265,4 +265,12 @@ describe('«Согласования» (решение 218)', () => {
       expect(isSectionAllowed(user(role), ROUTES.approvals)).toBe(false)
     },
   )
+
+  it('эксперт с ролью администратора видит раздел (только чтение), эксперт-менеджер — нет', () => {
+    const base = user('ADMIN')
+    const expertAdmin = { ...base, isReviewer: true, permissions: { ...base.permissions, isAdmin: false } }
+    expect(navigationFor(expertAdmin).flatMap((group) => group.items.map((item) => item.href))).toContain(ROUTES.approvals)
+    expect(isSectionAllowed(expertAdmin, ROUTES.approvals)).toBe(true)
+    expect(isSectionAllowed({ ...user('MANAGER'), isReviewer: true }, ROUTES.approvals)).toBe(false)
+  })
 })

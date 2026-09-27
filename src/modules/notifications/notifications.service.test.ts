@@ -267,8 +267,9 @@ describe('«четыре глаза» в ленте (решение 218)', () =>
     expect(byId.has('ap-4')).toBe(false)
   })
 
-  it('не администратору база о запросах не спрашивается', async () => {
+  it('не администратору и эксперту база о запросах не спрашивается', async () => {
     await service.feed(manager(), { limit: 20 })
+    await service.feed({ ...admin, isReviewer: true }, { limit: 20 })
     expect(repo.loadApprovals).not.toHaveBeenCalled()
   })
 })

@@ -50,6 +50,7 @@ import {
   decisionText,
   executionBody,
   executionDoneText,
+  groupApprovals,
   isApprovalScope,
   type ApprovalStep,
 } from './approvals-view'
@@ -61,8 +62,7 @@ const PAGE_SIZE = 20
 const EMPTY: Record<ApprovalScope, { title: string; description: string }> = {
   awaiting: {
     title: 'Ничего не ждёт вашего решения',
-    description:
-      'Когда другой администратор попросит согласовать операцию, запрос появится здесь и в колокольчике.',
+    description: 'Когда другой администратор попросит согласовать операцию, запрос появится здесь и в колокольчике.',
   },
   mine: {
     title: 'Вы ничего не отправляли на согласование',
@@ -107,11 +107,16 @@ function ApprovalsContent() {
   const [openId, setOpenId] = useState<string | null>(openParam)
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
-  const [pending, setPending] = useState<{ id: string; kind: 'approve' | 'reject' | 'run' } | null>(null)
+  const [pending, setPending] = useState<{
+    id: string
+    kind: 'approve' | 'reject' | 'run'
+  } | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   // Переход из колокольчика (`?open=`): вкладку выбирает сам запрос — ждёт меня, мой или в истории.
-  const opened = useResource<ApprovalDto[]>(openParam && !isApprovalScope(tabParam) ? '/api/admin/approvals?pageSize=100' : null)
+  const opened = useResource<ApprovalDto[]>(
+    openParam && !isApprovalScope(tabParam) ? '/api/admin/approvals?pageSize=100' : null,
+  )
   useEffect(() => {
     if (!openParam || !opened.data) return
     const found = opened.data.find((item) => item.id === openParam)
@@ -131,21 +136,29 @@ function ApprovalsContent() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const decide = useMutation(async (input: { item: ApprovalDto; kind: 'approve' | 'reject' | 'run'; reason?: string }) => {
-    setPending({ id: input.item.id, kind: input.kind })
-    try {
-      if (input.kind === 'approve') await apiPost(`/api/admin/approvals/${input.item.id}/approve`)
-      if (input.kind === 'reject') {
-        await apiPost(`/api/admin/approvals/${input.item.id}/reject`, input.reason ? { reason: input.reason } : undefined)
+  const decide = useMutation(
+    async (input: { item: ApprovalDto; kind: 'approve' | 'reject' | 'run'; reason?: string }) => {
+      setPending({ id: input.item.id, kind: input.kind })
+      try {
+        if (input.kind === 'approve') await apiPost(`/api/admin/approvals/${input.item.id}/approve`)
+        if (input.kind === 'reject') {
+          await apiPost(
+            `/api/admin/approvals/${input.item.id}/reject`,
+            input.reason ? { reason: input.reason } : undefined,
+          )
+        }
+        if (input.kind === 'run') {
+          await apiPatch(
+            `/api/users/${String(input.item.payload.userId)}`,
+            executionBody(input.item.action, input.item.id),
+          )
+        }
+        return input
+      } finally {
+        setPending(null)
       }
-      if (input.kind === 'run') {
-        await apiPatch(`/api/users/${String(input.item.payload.userId)}`, executionBody(input.item.action, input.item.id))
-      }
-      return input
-    } finally {
-      setPending(null)
-    }
-  })
+    },
+  )
 
   async function act(item: ApprovalDto, kind: 'approve' | 'reject' | 'run', reason?: string) {
     const result = await decide.run({ item, kind, reason })
@@ -156,8 +169,9 @@ function ApprovalsContent() {
       return
     }
     const title = approvalTitle(item)
-    if (kind === 'approve') toast.success(`Согласовано: ${title}. Выполнит тот, кто просил`)
-    if (kind === 'reject') toast.success(item.requestedBy.id === me.id ? `Запрос отозван: ${title}` : `Отклонено: ${title}`)
+    if (kind === 'approve') toast.success(`Согласовано: ${title} — выполнит тот, кто просил`)
+    if (kind === 'reject')
+      toast.success(item.requestedBy.id === me.id ? `Запрос отозван: ${title}` : `Отклонено: ${title}`)
     if (kind === 'run') toast.success(executionDoneText(item))
     setRejecting(null)
     setRejectReason('')
@@ -175,11 +189,18 @@ function ApprovalsContent() {
   }
 
   const rows = list.data ?? []
+  const viewer = { id: me.id, isReviewer: me.isReviewer }
+  const groups = groupApprovals(rows, viewer, now)
   const tabs = APPROVAL_TABS.map((item) => ({
     key: item.key,
     label: item.label,
     // Число — только там, где ждут моего действия: иначе «Мои запросы 3» читалось бы как «3 дела».
-    count: item.key === 'awaiting' ? (meta?.awaiting ?? null) : item.key === 'mine' && meta?.readyToRun ? meta.readyToRun : null,
+    count:
+      item.key === 'awaiting'
+        ? (meta?.awaiting ?? null)
+        : item.key === 'mine' && meta?.readyToRun
+          ? meta.readyToRun
+          : null,
   }))
 
   function detail(item: ApprovalDto, step: ApprovalStep) {
@@ -198,7 +219,7 @@ function ApprovalsContent() {
             <dt>Над кем</dt>
             <dd>
               {approvalTargetText(item)}
-              {item.target && (
+              {item.target && !me.isReviewer && (
                 <>
                   {' '}
                   <Link className={styles.link} href={`/settings?user=${encodeURIComponent(item.target.id)}#users`}>
@@ -285,12 +306,24 @@ function ApprovalsContent() {
           (step === 'approve' || step === 'withdraw' || step === 'run') && (
             <div className={styles.actions}>
               {step === 'approve' && (
-                <Button variant="primary" size="sm" icon="check" onClick={() => act(item, 'approve')} isLoading={busy && pending?.kind === 'approve'}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon="check"
+                  onClick={() => act(item, 'approve')}
+                  isLoading={busy && pending?.kind === 'approve'}
+                >
                   Согласовать
                 </Button>
               )}
               {step === 'run' && (
-                <Button variant="primary" size="sm" icon="play" onClick={() => act(item, 'run')} isLoading={busy && pending?.kind === 'run'}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon="play"
+                  onClick={() => act(item, 'run')}
+                  isLoading={busy && pending?.kind === 'run'}
+                >
                   Выполнить
                 </Button>
               )}
@@ -353,58 +386,67 @@ function ApprovalsContent() {
         ) : (
           <>
             <Queue>
-              <QueueGroup
-                label={APPROVAL_TABS.find((item) => item.key === tab)!.label}
-                count={rows.length}
-                total={meta?.total}
-              >
-                {rows.map((item) => {
-                  const step = approvalStep(item, { id: me.id, isReviewer: me.isReviewer }, now)
-                  const button = step ? STEP_BUTTON[step] : undefined
-                  const title = approvalTitle(item)
-                  const isOpen = openId === item.id
-                  const who = item.requestedBy.id === me.id ? 'вы' : formatPersonShort(item.requestedBy.fullName)
-                  const value = approvalValue(item, now)
-                  return (
-                    <QueueRow
-                      key={item.id}
-                      tone={approvalTone(item, now)}
-                      title={title}
-                      meta={{
-                        text: item.reason ?? 'Причина не указана',
-                        tail: `просит ${who}, ${formatRelative(item.createdAt, now)}`,
-                      }}
-                      value={value}
-                      label={queueRowLabel([
-                        title,
-                        `просит ${who}`,
-                        value.text,
-                        isOpen ? 'Свернуть подробности' : 'Показать подробности',
-                      ])}
-                      expanded={isOpen}
-                      onToggle={() => {
-                        setOpenId(isOpen ? null : item.id)
-                        setRejecting(null)
-                      }}
-                      action={
-                        button ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={button.icon}
-                            onClick={() => act(item, step === 'run' ? 'run' : 'approve')}
-                            isLoading={pending?.id === item.id && pending.kind !== 'reject'}
-                            aria-label={`${button.label}: ${title}`}
-                          >
-                            {button.label}
-                          </Button>
-                        ) : undefined
-                      }
-                      detail={detail(item, step)}
-                    />
-                  )
-                })}
-              </QueueGroup>
+              {groups.map((group) => (
+                <QueueGroup
+                  key={group.key}
+                  label={group.label}
+                  count={group.items.length}
+                  // «17 из 18» — только когда группа одна, а список разбит на страницы.
+                  total={groups.length === 1 ? meta?.total : undefined}
+                >
+                  {group.items.map((item) => {
+                    const step = approvalStep(item, viewer, now)
+                    const button = step ? STEP_BUTTON[step] : undefined
+                    const title = approvalTitle(item)
+                    const isOpen = openId === item.id
+                    // «ваш запрос», а не «просит вы»; чужой — «просит Соловьёва М. Д.».
+                    const who =
+                      item.requestedBy.id === me.id ? 'ваш запрос' : `просит ${formatPersonShort(item.requestedBy.fullName)}`
+                    const value = approvalValue(item, now)
+                    return (
+                      <QueueRow
+                        key={item.id}
+                        tone={approvalTone(item, now)}
+                        title={title}
+                        meta={{
+                          text: item.reason ?? 'Причина не указана',
+                          tail: `${who}, ${formatRelative(item.createdAt, now)}`,
+                          // На телефоне хвост короче — иначе причина ужимается до многоточия.
+                          tailShort: formatRelative(item.createdAt, now),
+                          tailTitle: `${who}, ${formatDateTime(item.createdAt)}`,
+                        }}
+                        value={value}
+                        label={queueRowLabel([
+                          title,
+                          who,
+                          value.text,
+                          isOpen ? 'Свернуть подробности' : 'Показать подробности',
+                        ])}
+                        expanded={isOpen}
+                        onToggle={() => {
+                          setOpenId(isOpen ? null : item.id)
+                          setRejecting(null)
+                        }}
+                        action={
+                          button ? (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={button.icon}
+                              onClick={() => act(item, step === 'run' ? 'run' : 'approve')}
+                              isLoading={pending?.id === item.id && pending.kind !== 'reject'}
+                              aria-label={`${button.label}: ${title}`}
+                            >
+                              {button.label}
+                            </Button>
+                          ) : undefined
+                        }
+                        detail={detail(item, step)}
+                      />
+                    )
+                  })}
+                </QueueGroup>
+              ))}
             </Queue>
             {meta && meta.total > PAGE_SIZE && (
               <Pagination
@@ -418,7 +460,6 @@ function ApprovalsContent() {
           </>
         )}
       </Section>
-
     </>
   )
 }

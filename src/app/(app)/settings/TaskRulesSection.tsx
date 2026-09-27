@@ -16,15 +16,23 @@ import {
   useResource,
 } from '@/ui'
 import { Row, RowsSkeleton } from './SettingsRow'
-import { outcomesText, ruleInfo, ruleThresholds, usefulnessConclusion, usefulnessRows } from './task-rules-view'
+import {
+  DEFAULT_MIN_TRIALS,
+  outcomesText,
+  ruleInfo,
+  ruleThresholds,
+  usefulnessConclusion,
+  usefulnessRows,
+} from './task-rules-view'
 import settings from './settings.module.css'
 import styles from './TaskRules.module.css'
 
 const USEFULNESS_HINT =
   'Полезность — вероятность, что задача правила пригодится: её взяли в работу и довели до дела или связка ' +
   'сдвинулась в течение 30 дней. Считается по решениям сотрудников, свежие весят больше старых (память — 30 дней). ' +
-  'Пока своих решений мало, оценка ближе к общему уровню всех правил. Чем выше полоса, тем выше задачи правила ' +
-  'стоят в «Списке задач». Отметка на шкале — порог: ниже него правило «чаще отклоняют».'
+  'Пока решений мало, оценка приблизительная. Поэтому она может отличаться от доли «взяли в работу» ниже: та — ' +
+  'просто счёт задач, а полезность учитывает и движение связки, и давность. Чем выше полоса, тем выше задачи ' +
+  'правила стоят в «Списке задач». Отметка на шкале — порог: ниже него правило «чаще отклоняют».'
 
 const CONFIG_HINT =
   'Пороги и включение правил задаются в конфигурации сервера и утверждаются с заказчиком вместе с методикой — ' +
@@ -51,6 +59,8 @@ export function TaskRulesSection() {
   const params = parameters.data?.groups.flatMap((group) => group.parameters) ?? []
   const lowParam = params.find((param) => param.configKey === 'RECOMMENDATION_LEARNING.lowRuleWeight')
   const lowRuleWeight = typeof lowParam?.value === 'number' ? lowParam.value : null
+  const trialsParam = params.find((param) => param.configKey === 'RECOMMENDATION_LEARNING.localDataTrials')
+  const minTrials = typeof trialsParam?.value === 'number' ? trialsParam.value : DEFAULT_MIN_TRIALS
 
   return (
     <>
@@ -64,11 +74,11 @@ export function TaskRulesSection() {
           Полезность правил
           <InfoHint text={USEFULNESS_HINT} />
         </h3>
-        <p className={settings.muted}>{usefulnessConclusion(rules)}</p>
+        <p className={settings.muted}>{usefulnessConclusion(rules, minTrials)}</p>
         <div className={styles.chart}>
           <MeasureBars
             label="Полезность правил списка задач, процентов"
-            rows={usefulnessRows(rules, lowRuleWeight)}
+            rows={usefulnessRows(rules, lowRuleWeight, minTrials)}
             max={100}
             markerLabel={lowRuleWeight === null ? undefined : `порог «чаще отклоняют» — ${formatShare(lowRuleWeight)}`}
             valueWidth="4rem"

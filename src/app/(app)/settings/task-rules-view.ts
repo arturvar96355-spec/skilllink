@@ -105,15 +105,26 @@ export function outcomesText(outcomes: RuleOutcomesDto): string {
   if (outcomes.total === 0) return 'Задач ещё не создавало'
   const created = `Создало ${formatCount(outcomes.total, ['задачу', 'задачи', 'задач'])}`
   return (
-    `${created}: взяли в работу ${formatNumber(outcomes.taken)} (${share(outcomes.taken, outcomes.total)}%), ` +
-    `отклонили ${formatNumber(outcomes.dismissed)} (${share(outcomes.dismissed, outcomes.total)}%), ` +
+    `${created}: взяли в работу ${countWithShare(outcomes.taken, outcomes.total)}, ` +
+    `отклонили ${countWithShare(outcomes.dismissed, outcomes.total)}, ` +
     `ждут решения ${formatNumber(outcomes.open)}`
   )
 }
 
-/** Оценка опирается на свои решения по правилу, а не на общий уровень. */
-function hasOwnData(rule: Pick<RuleStatsDto, 'pSource'>): boolean {
-  return rule.pSource === 'local'
+/**
+ * С какого числа эффективных показов оценке правила можно верить (`localDataTrials`,
+ * решение 119) — если параметр не пришёл, то же значение, что в конфигурации.
+ */
+export const DEFAULT_MIN_TRIALS = 5
+
+/** Решений по правилу хватает, чтобы оценка опиралась на них, а не на априорное «50 на 50». */
+function hasEnoughData(rule: Pick<RuleStatsDto, 'trialsEff'>, minTrials: number): boolean {
+  return rule.trialsEff >= minTrials
+}
+
+/** Доля у отказов и взятых: у нуля процент не пишем — «отклонили 0», а не «0 (0%)». */
+function countWithShare(part: number, total: number): string {
+  return part > 0 ? `${formatNumber(part)} (${share(part, total)}%)` : '0'
 }
 
 /**
@@ -122,7 +133,11 @@ function hasOwnData(rule: Pick<RuleStatsDto, 'pSource'>): boolean {
  * Ниже порога — жёлтая (ниже цели); число подписано всегда; рядом — интервал
  * или честное «мало данных».
  */
-export function usefulnessRows(rules: readonly RuleStatsDto[], lowRuleWeight: number | null): MeasureBarRow[] {
+export function usefulnessRows(
+  rules: readonly RuleStatsDto[],
+  lowRuleWeight: number | null,
+  minTrials: number = DEFAULT_MIN_TRIALS,
+): MeasureBarRow[] {
   return rules.map((rule) => {
     const percent = Math.round(rule.p * 100)
     const below = lowRuleWeight !== null && rule.p < lowRuleWeight
@@ -134,25 +149,25 @@ export function usefulnessRows(rules: readonly RuleStatsDto[], lowRuleWeight: nu
       valueText: formatShare(rule.p),
       marker: lowRuleWeight === null ? null : Math.round(lowRuleWeight * 100),
       tone: below ? 'warning' : 'default',
-      note: hasOwnData(rule)
-        ? `${below ? 'чаще отклоняют; ' : ''}скорее всего ${Math.round(low * 100)}–${formatShare(high)}`
-        : 'мало решений — оценка по общему уровню',
+      note: hasEnoughData(rule, minTrials)
+        ? `${below ? 'чаще отклоняют; ' : ''}скорее всего от ${Math.round(low * 100)} до ${formatShare(high)}`
+        : 'мало решений — оценка пока приблизительная',
       noteTone: below ? 'warning' : 'muted',
     }
   })
 }
 
 /** Вывод одной фразой под заголовком диаграммы (решение 215) — из самих данных. */
-export function usefulnessConclusion(rules: readonly RuleStatsDto[]): string {
-  const measured = rules.filter(hasOwnData)
+export function usefulnessConclusion(rules: readonly RuleStatsDto[], minTrials: number = DEFAULT_MIN_TRIALS): string {
+  const measured = rules.filter((rule) => hasEnoughData(rule, minTrials))
   if (measured.length === 0) {
-    return 'Решений по задачам пока мало — полезность правил видна только по общему уровню.'
+    return 'Решений по задачам пока мало — полезность правил оценена приблизительно.'
   }
   const sorted = [...measured].sort((a, b) => b.p - a.p)
   const best = sorted[0]!
   const worst = sorted[sorted.length - 1]!
   if (best.ruleKey === worst.ruleKey) {
-    return `Своих решений хватает только у правила «${best.ruleLabel}»: полезны ${formatShare(best.p)} его задач.`
+    return `Решений хватает только у правила «${best.ruleLabel}»: полезны ${formatShare(best.p)} его задач.`
   }
   return (
     `Полезнее всего задачи правила «${best.ruleLabel}» (${formatShare(best.p)}), ` +

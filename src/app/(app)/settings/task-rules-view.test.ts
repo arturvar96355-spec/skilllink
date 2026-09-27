@@ -65,23 +65,26 @@ describe('правила списка задач (решение 218)', () => {
     expect(outcomesText({ total: 15, open: 4, taken: 6, dismissed: 5 })).toBe(
       'Создало 15 задач: взяли в работу 6 (40%), отклонили 5 (33%), ждут решения 4',
     )
+    expect(outcomesText({ total: 3, open: 3, taken: 0, dismissed: 0 })).toBe(
+      'Создало 3 задачи: взяли в работу 0, отклонили 0, ждут решения 3',
+    )
     expect(outcomesText({ total: 0, open: 0, taken: 0, dismissed: 0 })).toBe('Задач ещё не создавало')
   })
 
   it('полезность: процент на общей шкале, ниже порога — жёлтая, без своих данных — честная пометка', () => {
     const rows = usefulnessRows(
-      [rule(), rule({ ruleKey: 'cooperation.stalled', ruleLabel: 'Связка без движения', p: 0.2, ci90: [0.08, 0.36] }), rule({ ruleKey: 'x', ruleLabel: 'Новое', pSource: 'global', p: 0.5 })],
+      [rule(), rule({ ruleKey: 'cooperation.stalled', ruleLabel: 'Связка без движения', p: 0.2, ci90: [0.08, 0.36] }), rule({ ruleKey: 'x', ruleLabel: 'Новое', trialsEff: 2, p: 0.5 })],
       0.35,
     )
-    expect(rows[0]).toMatchObject({ value: 62, valueText: '62%', marker: 35, tone: 'default', note: 'скорее всего 41–80%' })
-    expect(rows[1]).toMatchObject({ tone: 'warning', note: 'чаще отклоняют; скорее всего 8–36%' })
-    expect(rows[2]?.note).toBe('мало решений — оценка по общему уровню')
+    expect(rows[0]).toMatchObject({ value: 62, valueText: '62%', marker: 35, tone: 'default', note: 'скорее всего от 41 до 80%' })
+    expect(rows[1]).toMatchObject({ tone: 'warning', note: 'чаще отклоняют; скорее всего от 8 до 36%' })
+    expect(rows[2]?.note).toBe('мало решений — оценка пока приблизительная')
   })
 
   it('вывод одной фразой — из данных', () => {
     expect(
       usefulnessConclusion([rule(), rule({ ruleKey: 'cooperation.stalled', ruleLabel: 'Связка без движения', p: 0.2 })]),
     ).toBe('Полезнее всего задачи правила «Просроченный этап» (62%), реже всего пригождаются — «Связка без движения» (20%).')
-    expect(usefulnessConclusion([rule({ pSource: 'global' })])).toContain('пока мало')
+    expect(usefulnessConclusion([rule({ trialsEff: 1 })])).toContain('пока мало')
   })
 })

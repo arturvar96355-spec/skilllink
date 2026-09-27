@@ -45,7 +45,9 @@ export async function feed(user: CurrentUser, query: NotificationFeedQuery): Pro
   const lettersPromise = canTakeLetters ? repo.loadNewLetters(user.id, windowStart) : Promise.resolve([])
 
   // «Четыре глаза» (решение 218) — только администратору: согласует и выполняет только он.
-  const approvalsPromise = user.role === 'ADMIN' ? repo.loadApprovals(user.id, windowStart, now) : Promise.resolve([])
+  // Эксперту — нет: «нужно ваше согласование» звало бы к кнопке, которой у него нет.
+  const approvalsPromise =
+    user.role === 'ADMIN' && !user.isReviewer ? repo.loadApprovals(user.id, windowStart, now) : Promise.resolve([])
 
   const [sources, serverSeenAt, letters, approvals] = await Promise.all([
     user.role === 'UNIVERSITY_REP'
