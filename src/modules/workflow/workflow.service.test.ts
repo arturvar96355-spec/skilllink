@@ -22,6 +22,7 @@ interface FakeStage {
   startedAt: Date | null
   completedAt: Date | null
   completedById: string | null
+  responsibleId?: string | null
 }
 
 interface FakeTask {
@@ -69,6 +70,10 @@ vi.mock('@/shared/audit/audit', () => ({ writeAudit: mocks.writeAudit }))
 vi.mock('@/modules/recommendations/recommendations.service', () => ({
   syncCooperation: mocks.syncRecommendations,
 }))
+// Уведомление новому ответственному (решение 205): здесь — только что и когда сервис
+// его зовёт; сама отправка — notifications.assignment.test.ts.
+const notifications = vi.hoisted(() => ({ notifyResponsibleAssigned: vi.fn() }))
+vi.mock('@/modules/notifications/notifications.service', () => notifications)
 
 const service = await import('./workflow.service')
 
@@ -110,7 +115,7 @@ function stageRow(stage: FakeStage) {
     startedAt: stage.startedAt,
     completedAt: stage.completedAt,
     updatedAt: new Date('2026-09-20T10:00:00Z'),
-    responsible: null,
+    responsible: stage.responsibleId ? { id: stage.responsibleId, fullName: 'Сотрудник', role: 'MANAGER' } : null,
     completedBy: null,
     tasks: db.tasks
       .filter((task) => task.stageId === stage.id)
@@ -198,7 +203,12 @@ beforeEach(() => {
       .map((stage) => ({ id: stage.id, stageNumber: stage.stageNumber, title: stage.title, status: stage.status })),
   )
   mocks.workflowStage.updateMany.mockImplementation(async ({ where, data }) => {
-    const stage = db.stages.find((row) => row.id === where.id && row.status === where.status)
+    const stage = db.stages.find(
+      (row) =>
+        row.id === where.id &&
+        row.status === where.status &&
+        (!('responsibleId' in where) || (row.responsibleId ?? null) === where.responsibleId),
+    )
     if (!stage) return { count: 0 }
     Object.assign(stage, data)
     return { count: 1 }
@@ -232,7 +242,10 @@ beforeEach(() => {
         (task) => task.stageId === where.stageId && task.isRequired === where.isRequired && task.isDone === where.isDone,
       ).length,
   )
-  mocks.user.findFirst.mockImplementation(async () => (db.hasRep ? { id: 'rep-1' } : null))
+  // По id — проверка ответственного (assertStaffResponsible), иначе — поиск представителя вуза.
+  mocks.user.findFirst.mockImplementation(async ({ where }) =>
+    where?.id ? { role: 'MANAGER', isReviewer: false } : db.hasRep ? { id: 'rep-1' } : null,
+  )
   mocks.stageHistory.create.mockResolvedValue({})
   mocks.queryRaw.mockResolvedValue([])
 })
@@ -561,6 +574,63 @@ describe('updateStage: смена статуса этапа', () => {
     expect(mocks.stageHistory.create).not.toHaveBeenCalled()
     expect(mocks.writeAudit).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'stage.fields.change', payload: { stageNumber: 3, fields: ['deadline'] } }),
+    )
+  })
+})
+
+describe('updateStage: смена ответственного этапа (решение 205)', () => {
+  const auditActions = () => mocks.writeAudit.mock.calls.map(([entry]) => entry.action)
+
+  it('новый ответственный: журнал stage.responsible.set и уведомление ему — после записи', async () => {
+    await service.updateStage(MANAGER, 'stage-8', { responsibleId: 'manager-2' })
+    expect(stageOf(8).responsibleId).toBe('manager-2')
+    expect(mocks.writeAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'stage.responsible.set',
+        objectType: 'WorkflowStage',
+        objectId: 'stage-8',
+        payload: { responsibleId: 'manager-2', previousResponsibleId: null, stageNumber: 8 },
+      }),
+    )
+    expect(notifications.notifyResponsibleAssigned).toHaveBeenCalledWith({
+      scope: 'stage',
+      objectId: 'stage-8',
+      actorId: MANAGER.id,
+      responsibleId: 'manager-2',
+      previousResponsibleId: null,
+    })
+  })
+
+  it('повторный PATCH с тем же ответственным — ни записи о смене, ни уведомления', async () => {
+    stageOf(8).responsibleId = 'manager-2'
+    await service.updateStage(MANAGER, 'stage-8', { responsibleId: 'manager-2' })
+    expect(auditActions()).not.toContain('stage.responsible.set')
+    expect(notifications.notifyResponsibleAssigned).not.toHaveBeenCalled()
+  })
+
+  it('правка без поля responsibleId ответственного не трогает и не уведомляет', async () => {
+    stageOf(8).responsibleId = 'manager-2'
+    await service.updateStage(MANAGER, 'stage-8', { comment: 'уточнение' })
+    expect(notifications.notifyResponsibleAssigned).not.toHaveBeenCalled()
+  })
+
+  it('ответственного успели сменить между чтением и записью — 409, уведомления нет', async () => {
+    // Чтение видит прежнего (null), а к записи в базе уже другой — условие не сходится.
+    mocks.workflowStage.findUnique.mockImplementationOnce(async () => stageRow(stageOf(8)))
+    mocks.queryRaw.mockImplementationOnce(async () => {
+      stageOf(8).responsibleId = 'manager-3'
+      return []
+    })
+    await expectRejectCode(service.updateStage(MANAGER, 'stage-8', { responsibleId: 'manager-2' }), 'CONFLICT')
+    expect(notifications.notifyResponsibleAssigned).not.toHaveBeenCalled()
+  })
+
+  it('снятие ответственного пишется в журнал (лента прежнего), уведомление решает notifyResponsibleAssigned', async () => {
+    stageOf(8).responsibleId = 'manager-2'
+    await service.updateStage(MANAGER, 'stage-8', { responsibleId: null })
+    expect(auditActions()).toContain('stage.responsible.set')
+    expect(notifications.notifyResponsibleAssigned).toHaveBeenCalledWith(
+      expect.objectContaining({ responsibleId: null, previousResponsibleId: 'manager-2' }),
     )
   })
 })

@@ -221,6 +221,22 @@ export async function update(
   return prisma.university.update({ where: { id }, data, select: detailSelect })
 }
 
+/**
+ * Сменить ответственного за вуз, только если он всё ещё `expected` (решение 205):
+ * `false` — его успели сменить между чтением и записью, сервис отвечает 409.
+ */
+export async function setResponsibleIfUnchanged(
+  id: string,
+  expected: string | null,
+  next: string | null,
+): Promise<boolean> {
+  const result = await prisma.university.updateMany({
+    where: { id, responsibleId: expected },
+    data: { responsibleId: next },
+  })
+  return result.count > 0
+}
+
 export async function exists(id: string): Promise<boolean> {
   const found = await prisma.university.findUnique({ where: { id }, select: { id: true } })
   return found !== null

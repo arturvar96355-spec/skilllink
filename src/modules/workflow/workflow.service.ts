@@ -8,6 +8,7 @@ import {
   universityScope,
 } from '@/shared/auth/permissions'
 import { recordAuditOnce, writeAudit } from '@/shared/audit/audit'
+import { notifyResponsibleAssigned } from '@/modules/notifications/notifications.service'
 import { TELEGRAM_ACTIONS } from '@/shared/config/telegram.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
@@ -166,6 +167,11 @@ export async function updateStage(
 
   const requiredTasks = stage.tasks.filter((task) => task.isRequired)
   const statusChanged = input.status !== undefined && input.status !== stage.status
+  // Смена ответственного этапа (решение 205): запись в журнал для ленты и уведомление
+  // новому ответственному. Повторное сохранение того же — не смена.
+  const previousResponsibleId = stage.responsible?.id ?? null
+  const responsibleChanged =
+    input.responsibleId !== undefined && (input.responsibleId ?? null) !== previousResponsibleId
 
   if (input.status !== undefined) {
     // Контрольная точка проверяется до таблицы переходов: сообщение «сначала
@@ -248,8 +254,14 @@ export async function updateStage(
     // Обновление условное: статус меняется, только если он всё ещё тот, который мы прочитали.
     // Иначе два одновременных запроса (двойной клик) оба прошли бы проверку перехода
     // и записали бы в историю два одинаковых события.
+    // При смене ответственного условие строже: он тоже должен быть прежним — иначе два
+    // одинаковых PATCH подряд прислали бы новому ответственному два уведомления.
     const changed = await tx.workflowStage.updateMany({
-      where: { id: stageId, status: stage.status },
+      where: {
+        id: stageId,
+        status: stage.status,
+        ...(responsibleChanged ? { responsibleId: previousResponsibleId } : {}),
+      },
       data: {
         ...(input.status !== undefined ? { status: input.status } : {}),
         ...(input.responsibleId !== undefined ? { responsibleId: input.responsibleId } : {}),
@@ -316,6 +328,18 @@ export async function updateStage(
         fields: Object.keys(input).filter((key) => key !== 'status'),
       },
     })
+  }
+
+  if (responsibleChanged) {
+    const change = { responsibleId: input.responsibleId ?? null, previousResponsibleId }
+    await writeAudit({
+      userId: user.id,
+      action: 'stage.responsible.set',
+      objectType: 'WorkflowStage',
+      objectId: stageId,
+      payload: { ...change, stageNumber: stage.stageNumber },
+    })
+    notifyResponsibleAssigned({ scope: 'stage', objectId: stageId, actorId: user.id, ...change })
   }
 
   // Рекомендации связки о просрочке и застое сверяются с новым состоянием этапа:

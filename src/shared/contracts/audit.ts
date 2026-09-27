@@ -215,6 +215,15 @@ export const AUDIT_ACTIONS = [
   'stage.accept',
   /** «Принял, беру в работу» по письму вуза — кнопкой под уведомлением. payload: source. */
   'inbound_letter.accept',
+  // ── Решение 205: уведомление о назначении ответственным ──
+  /**
+   * Сменён ответственный за связку (PATCH /api/cooperations/:id, поле responsibleId).
+   * payload: новый и прежний responsibleId (id, не ФИО). По записи строится пункт
+   * ленты под колокольчиком; новому ответственному уходит и сообщение в мессенджер.
+   */
+  'cooperation.responsible.set',
+  /** Назначен, сменён или снят ответственный за этап. payload: новый и прежний responsibleId, номер этапа. */
+  'stage.responsible.set',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 
