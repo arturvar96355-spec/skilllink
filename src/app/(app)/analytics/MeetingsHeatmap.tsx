@@ -2,8 +2,8 @@
 
 import { Fragment, type CSSProperties } from 'react'
 import type { MeetingsHeatmapDto } from '@/shared/contracts'
-import { Card, EmptyState, ErrorState, MockBadge, ScrollArea, Section, TableSkeleton, useResource } from '@/ui'
-import { heatIntensity } from './heatmap-color'
+import { Card, EmptyState, ErrorState, MockBadge, ScrollArea, Section, TableSkeleton, pluralize, useResource } from '@/ui'
+import { dayTotals, heatIntensity, heatmapConclusion } from './heatmap-color'
 import styles from './MeetingsHeatmap.module.css'
 
 /**
@@ -16,7 +16,12 @@ export function MeetingsHeatmap() {
   return (
     <Section
       title="Когда проходят встречи"
-      description="Проведённые встречи по дню недели и часу, московское время. Помогает увидеть, когда с вузами реально удаётся встречаться, а не только планировать."
+      description={
+        heatmap.data
+          ? heatmapConclusion(heatmap.data.cells, heatmap.data.total)
+          : 'Когда с вузами реально удаётся встречаться — по дню недели и часу.'
+      }
+      hint="Проведённые встречи по дню недели и часу, московское время. Число в клетке — сколько встреч было в этот час этого дня недели за весь период; чем темнее клетка, тем их больше. Справа — сколько встреч за день и какая это доля от всех. Помогает увидеть, когда с вузами реально удаётся встречаться, а не только планировать."
       action={heatmap.data?.isMock ? <MockBadge /> : undefined}
     >
       <Card>
@@ -41,11 +46,16 @@ export function MeetingsHeatmap() {
 function cellStyle(value: number, max: number): CSSProperties {
   const intensity = heatIntensity(value, max)
   if (intensity === 0) return {}
-  return { background: `color-mix(in srgb, var(--accent-violet) ${intensity}%, var(--surface-sunken))` }
+  return {
+    background: `color-mix(in srgb, var(--accent-violet) ${intensity}%, var(--surface-sunken))`,
+    // Число в клетке читается на любой насыщенности: на тёмной — светлым, на светлой — обычным.
+    color: intensity >= 60 ? 'var(--text-inverse)' : undefined,
+  }
 }
 
 function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
   const hours = Array.from({ length: 24 }, (_, hour) => hour)
+  const totals = dayTotals(data.cells)
 
   return (
     <div className={styles.wrap}>
@@ -58,6 +68,7 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
               {hour}
             </span>
           ))}
+          <span className={styles.totalHead}>за день</span>
 
           {data.dayLabels.map((label, dayIndex) => (
             <Fragment key={label}>
@@ -69,17 +80,27 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
                     key={`${label}-${hour}`}
                     className={styles.cell}
                     style={cellStyle(value, data.max)}
-                    title={`${label}, ${hour}:00 — ${value} ${value === 1 ? 'встреча' : 'встреч'}`}
-                  />
+                    role="img"
+                    aria-label={`${label}, ${hour}:00 — ${value} ${pluralize(value, ['встреча', 'встречи', 'встреч'])}`}
+                  >
+                    {value > 0 ? value : ''}
+                  </span>
                 )
               })}
+              <span className={styles.total}>
+                <span className={styles.totalValue}>{totals[dayIndex] ?? 0}</span>
+                <span className={styles.totalShare}>
+                  {data.total > 0 ? `${Math.round(((totals[dayIndex] ?? 0) / data.total) * 100)} %` : ''}
+                </span>
+              </span>
             </Fragment>
           ))}
         </div>
       </ScrollArea>
 
       <span className={styles.legend}>
-        Всего встреч: {data.total} · часовой пояс {data.timeZone}
+        Всего встреч: {data.total} · московское время
+        <span className={styles.legendText}>меньше</span>
         <span className={styles.legendScale}>
           {[0, 25, 50, 75, 100].map((step) => (
             <span
@@ -90,6 +111,7 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
             />
           ))}
         </span>
+        <span className={styles.legendText}>больше</span>
       </span>
     </div>
   )

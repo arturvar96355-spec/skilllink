@@ -20,6 +20,11 @@
   background: var(--status-danger);
 }
 
+/* Ниже цели — жёлтым (решение 215): сигнал, а не украшение. */
+.warning {
+  background: var(--status-warning);
+}
+
 .success {
   background: var(--status-success);
 }

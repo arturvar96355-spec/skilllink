@@ -9,18 +9,18 @@
 
 .grid {
   display: grid;
-  grid-template-columns: 40px repeat(24, minmax(20px, 1fr));
+  grid-template-columns: 40px repeat(24, minmax(22px, 1fr)) 64px;
   gap: 3px;
-  min-width: 640px;
+  min-width: 720px;
 }
 
-/* Узкий экран: клетки и подписи мельче, чтобы прокрутка не растягивалась
-   на всю тепловую карту (390 px из FRONTEND.md), подписи часов и дней остаются читаемыми. */
+/* Узкий экран: карта листается вбок — клетки не мельче 22 px, иначе в них не
+   поместится число встреч (решение 215: число подписано на карте без наведения). */
 @media screen and (max-width: 480px) {
   .grid {
-    grid-template-columns: 26px repeat(24, minmax(12px, 1fr));
+    grid-template-columns: 26px repeat(24, minmax(22px, 1fr)) 56px;
     gap: 2px;
-    min-width: 362px;
+    min-width: 660px;
   }
 }
 
@@ -40,9 +40,47 @@
 }
 
 .cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   aspect-ratio: 1;
   border-radius: 3px;
   background: var(--surface-sunken);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.totalHead {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
+/* Итог дня — число и доля от всех встреч: у каждого числа есть с чем сравнить. */
+.total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.totalValue {
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.totalShare {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legendText {
+  margin-left: var(--space-2);
 }
 
 .legend {

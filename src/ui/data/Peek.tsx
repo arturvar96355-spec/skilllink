@@ -260,22 +260,20 @@ export function CooperationPeek({
         </li>
       </ol>
 
-      {/* Лента этапов лежит на наклонной плоскости; текущий этап — поднятая колонна. */}
-      <div className={styles.floor} aria-hidden>
-        <div className={styles.plane}>
-          {Array.from({ length: total }, (_, index) => {
-            const number = index + 1
-            const kind =
-              number === stage ? styles[state] : done !== null && index < done ? styles.done : ''
-            return (
-              <span
-                key={index}
-                className={[styles.cell, kind, number === stage ? styles.pillar : ''].filter(Boolean).join(' ')}
-                style={{ '--c': index } as CSSProperties}
-              />
-            )
-          })}
-        </div>
+      {/* Лента этапов — плоская, текущий этап выше соседних (решение 215). */}
+      <div className={styles.strip} aria-hidden>
+        {Array.from({ length: total }, (_, index) => {
+          const number = index + 1
+          const kind =
+            number === stage ? styles[state] : done !== null && index < done ? styles.done : ''
+          return (
+            <span
+              key={index}
+              className={[styles.cell, kind, number === stage ? styles.current : ''].filter(Boolean).join(' ')}
+              style={{ '--c': index } as CSSProperties}
+            />
+          )
+        })}
       </div>
 
       <div className={styles.stageLine}>

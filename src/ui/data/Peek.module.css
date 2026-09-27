@@ -95,41 +95,30 @@
   }
 }
 
-/* Наклонная плоскость ленты этапов: смотрим на неё сверху под углом. */
-.floor {
-  /* Колонна текущего этапа поднимается над плоскостью — место над лентой, чтобы не задеть название продукта. */
-  margin-top: var(--space-4);
-  height: 40px;
-  perspective: 420px;
-  perspective-origin: 50% 0%;
-}
-
-.plane {
+/*
+ * Лента этапов — плоская (решение 215, правило 1 единого языка диаграмм): была
+ * наклонной плоскостью с поднятой светящейся колонной, и колонна залезала на
+ * название продукта над лентой. Теперь 13 делений в строку, текущее — своим цветом
+ * и чуть выше соседних, без свечения и объёма.
+ */
+.strip {
   display: grid;
   grid-template-columns: repeat(13, minmax(0, 1fr));
-  gap: 4px;
-  padding: 6px;
-  border-radius: var(--radius-xs);
-  background: var(--surface-sunken);
-  box-shadow: inset 0 0 0 1px var(--line-subtle);
-  transform: rotateX(56deg);
-  transform-origin: 50% 0%;
-  transform-style: preserve-3d;
+  align-items: center;
+  gap: 3px;
+  height: 12px;
 }
 
 .cell {
-  position: relative;
-  height: 22px;
-  border-radius: 3px;
+  height: 6px;
+  border-radius: var(--radius-pill);
   background: var(--line-subtle);
-  transform-style: preserve-3d;
-  animation: cellIn 360ms var(--ease-out) calc(var(--c, 0) * 28ms) both;
+  animation: cellIn 320ms var(--ease-out) calc(var(--c, 0) * 24ms) both;
 }
 
 @keyframes cellIn {
   from {
     opacity: 0;
-    transform: translateZ(-12px);
   }
 }
 
@@ -138,47 +127,21 @@
   opacity: 0.75;
 }
 
-/* Цвет задан и текстом: им светится колонна (box-shadow берёт currentColor). */
 .ok {
-  color: var(--accent-violet);
   background: var(--accent-violet);
 }
 
 .overdue {
-  color: var(--status-danger);
   background: var(--status-danger);
 }
 
 .blocked {
-  color: var(--status-warning);
   background: var(--status-warning);
 }
 
-/* Текущий этап — колонна: поднята над плоскостью, передняя грань — псевдоэлементом. */
-.pillar {
-  animation: pillarUp 620ms var(--ease-out) 360ms both;
-  transform: translateZ(22px);
-  box-shadow: 0 0 16px currentColor;
-}
-
-.pillar::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  height: 22px;
-  border-radius: 0 0 3px 3px;
-  background: inherit;
-  filter: brightness(0.6);
-  transform-origin: top center;
-  transform: rotateX(-90deg);
-}
-
-@keyframes pillarUp {
-  from {
-    transform: translateZ(0);
-  }
+/* Текущий этап — деление выше соседних: видно, где связка, без подсветки. */
+.current {
+  height: 12px;
 }
 
 .stageLine {
@@ -228,8 +191,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .route::before,
-  .cell,
-  .pillar {
+  .cell {
     animation: none;
   }
 }
