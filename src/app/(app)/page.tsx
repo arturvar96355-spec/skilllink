@@ -17,7 +17,7 @@ import type {
 import { LiveRail, type RailNumber } from './LiveRail'
 import { Finale } from './Finale'
 import { ExpertStartHere } from './ExpertStartHere'
-import { phaseFunnel } from './phase-funnel'
+import { PHASE_FUNNEL_PATH, phaseFunnel } from './phase-funnel'
 import { priorityActionsEmptyState } from './priority-actions-empty'
 import { AttentionQueue } from './AttentionQueue'
 import { PriorityQueue } from './PriorityQueue'
@@ -117,15 +117,10 @@ function greeting(now = new Date()): string {
   return 'Добрый вечер'
 }
 
+/** Связки для воронки — общий адрес с вкладкой «Воронка» аналитики (решение 215). */
+const FUNNEL_PATH = PHASE_FUNNEL_PATH
+
 /** Связки в работе — для маршрута и строк «вуз — программа — продукт». */
-/**
- * Связки для воронки: все, кроме отменённых. Больше сотни API за раз не отдаёт —
- * тогда под воронкой честно написано, по скольким она посчитана.
- */
-const FUNNEL_PATH = `/api/cooperations${buildQuery({
-  status: ['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED'],
-  pageSize: 100,
-})}`
 
 const ACTIVE_COOPERATIONS_PATH = `/api/cooperations${buildQuery({
   status: ['DRAFT', 'ACTIVE'],

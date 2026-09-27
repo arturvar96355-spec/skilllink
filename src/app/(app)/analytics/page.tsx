@@ -54,6 +54,7 @@ import {
   formatShare,
   ListTitle,
 } from '@/ui'
+import { FunnelTab } from './FunnelTab'
 import { MeetingsHeatmap } from './MeetingsHeatmap'
 import { StagesTab } from './StagesTab'
 import styles from './analytics.module.css'
@@ -62,19 +63,22 @@ const TABS: TabItem[] = [
   { key: 'rating', label: 'Рейтинг программ' },
   { key: 'skills', label: 'Навыки и дефициты' },
   { key: 'demand', label: 'Спрос рынка' },
+  // Переходы между фазами и выбывшие связки (решение 215).
+  { key: 'funnel', label: 'Воронка' },
   // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
   { key: 'stages', label: 'Этапы' },
   // Тепловая карта встреч 7×24 (решение 178, п. 7).
   { key: 'meetings', label: 'Встречи' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand' | 'stages' | 'meetings'
+type TabKey = 'rating' | 'skills' | 'demand' | 'funnel' | 'stages' | 'meetings'
 
 function isTabKey(value: string | null): value is TabKey {
   return (
     value === 'rating' ||
     value === 'skills' ||
     value === 'demand' ||
+    value === 'funnel' ||
     value === 'stages' ||
     value === 'meetings'
   )
@@ -129,7 +133,7 @@ function AnalyticsView() {
     <>
       <PageHeader
         title="Аналитика"
-        description="Рейтинг программ, дефициты навыков и востребованность на рынке. Это три разных инструмента: балл рейтинга не смешивается с дефицитами, потому что отвечает на другой вопрос."
+        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, где связки выбывают и застревают, когда встречаются с вузами."
         actions={
           // Лист A4 для печати и PDF (решение 97): сводка всего раздела на одной странице.
           <Button href={ROUTES.managerReport} icon="document" variant="secondary">
@@ -148,6 +152,7 @@ function AnalyticsView() {
         />
       )}
       {tab === 'demand' && <DemandTab />}
+      {tab === 'funnel' && <FunnelTab />}
       {tab === 'stages' && <StagesTab />}
       {tab === 'meetings' && <MeetingsHeatmap />}
     </>

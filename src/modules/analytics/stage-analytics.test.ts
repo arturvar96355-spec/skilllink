@@ -13,7 +13,7 @@ import {
   stageObservation,
   type TimelineCooperationInput,
 } from './stage-timeline'
-import { buildCohorts, buildFunnel, MILESTONE_STEPS, STAGE_STEPS, type FunnelSubject } from './funnel'
+import { buildCohorts, buildFunnel, MILESTONE_STEPS, STAGE_STEPS, statusChangedAt, type FunnelSubject } from './funnel'
 import {
   ANOMALY_DAILY,
   ANOMALY_WEEKLY,
@@ -311,6 +311,26 @@ describe('воронка и когорты', () => {
     // В работе сейчас: a — на этапе 4, d — на этапе 3.
     expect(funnel.steps[3]!.inProgress).toBe(1)
     expect(funnel.steps[2]!.inProgress).toBe(1)
+  })
+
+  it('дата выбытия — последняя правка статуса по журналу, иначе null (решение 215)', () => {
+    const late = new Date('2026-08-20T10:00:00Z')
+    const early = new Date('2026-05-01T10:00:00Z')
+    // Сид пишет значение статуса, приложение — список изменённых полей.
+    expect(statusChangedAt([{ payload: { status: 'PAUSED' }, createdAt: early }], 'PAUSED')).toEqual(early)
+    expect(
+      statusChangedAt(
+        [
+          { payload: { fields: ['notes'] }, createdAt: late },
+          { payload: { fields: ['status', 'notes'] }, createdAt: early },
+        ],
+        'PAUSED',
+      ),
+    ).toEqual(early)
+    // Запись о другом статусе и правка без статуса датой паузы не считаются.
+    expect(statusChangedAt([{ payload: { status: 'ACTIVE' }, createdAt: late }], 'PAUSED')).toBeNull()
+    expect(statusChangedAt([{ payload: null, createdAt: late }], 'PAUSED')).toBeNull()
+    expect(statusChangedAt([], 'CANCELLED')).toBeNull()
   })
 
   it('вехи вместо этапов и разрез по признаку', () => {

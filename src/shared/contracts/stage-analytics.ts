@@ -1,4 +1,4 @@
-import type { CooperationStatus } from './enums'
+import type { CooperationStatus, StagePhase } from './enums'
 
 /**
  * Аналитика этапов на статистике (решение 120): длительность этапов по
@@ -104,6 +104,22 @@ export interface FunnelDroppedDto {
   title: string
   status: CooperationStatus
   href: string
+  /** Самый дальний этап, до которого связка дошла (1–13), — где она выбыла (решение 215). */
+  stageNumber: number
+  stageTitle: string
+  phase: StagePhase
+  /**
+   * Когда выбыла: у отменённой — дата закрытия, у приостановленной — последняя правка
+   * статуса по журналу. null — дата не записана.
+   */
+  stoppedAt: string | null
+  /**
+   * Откуда дата: `status` — смена статуса (закрытие, журнал), `last-move` — смены статуса
+   * в журнале нет, взято последнее движение по этапам. null — даты нет.
+   */
+  stoppedAtBasis: 'status' | 'last-move' | null
+  /** Причина — заметка связки, как её записал менеджер. null — причина не записана. */
+  reason: string | null
 }
 
 export interface FunnelStepDto {

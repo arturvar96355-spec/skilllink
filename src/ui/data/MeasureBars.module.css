@@ -1,0 +1,270 @@
+/* Горизонтальные полосы аналитики (решение 215): плоско, число на полосе, норма отметкой. */
+
+.root {
+  --mb-bar: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.root[data-notes] .row {
+  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr) minmax(0, 13rem);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label,
+.link {
+  font-size: var(--text-body-sm-size);
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--motion-micro) var(--ease-out);
+}
+
+.link:hover {
+  text-decoration-color: currentColor;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+.caption {
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+/* Шкала: полоса и подпись числа живут на одной дорожке; справа — запас под подпись. */
+.track {
+  position: relative;
+  height: 24px;
+  min-width: 0;
+}
+
+.track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: var(--mb-reserve);
+  top: 50%;
+  height: var(--mb-bar);
+  margin-top: calc(var(--mb-bar) / -2);
+  border-radius: var(--radius-pill);
+  background: rgb(var(--ink-rgb) / 0.07);
+}
+
+.fill {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: calc(var(--p) * (100% - var(--mb-reserve)));
+  height: var(--mb-bar);
+  margin-top: calc(var(--mb-bar) / -2);
+  border-radius: var(--radius-pill);
+  background: var(--accent-violet);
+  transform-origin: left center;
+  animation: grow 640ms var(--ease-out) calc(var(--i, 0) * 45ms) backwards;
+}
+
+/* Шаги одного процесса — светлотой одного тона, а не разными цветами. */
+.fill[data-shade='1'] {
+  background: color-mix(in oklab, var(--accent-violet) 82%, var(--surface-1));
+}
+
+.fill[data-shade='2'] {
+  background: color-mix(in oklab, var(--accent-violet) 66%, var(--surface-1));
+}
+
+.fill[data-shade='3'] {
+  background: color-mix(in oklab, var(--accent-violet) 52%, var(--surface-1));
+}
+
+.fill[data-shade='4'] {
+  background: color-mix(in oklab, var(--accent-violet) 40%, var(--surface-1));
+}
+
+.fill[data-tone='warning'] {
+  background: var(--status-warning);
+}
+
+.fill[data-tone='danger'] {
+  background: var(--status-danger);
+}
+
+.fill[data-tone='muted'] {
+  background: var(--line-strong);
+}
+
+/* Норма или цель — тонкая отметка поперёк шкалы. */
+.marker {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: calc(var(--m) * (100% - var(--mb-reserve)) - 1px);
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  opacity: 0.55;
+}
+
+.value {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--p) * (100% - var(--mb-reserve)) + var(--space-2));
+  transform: translateY(-50%);
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  animation: appear 320ms var(--ease-out) calc(var(--i, 0) * 45ms + 380ms) backwards;
+}
+
+.value[data-empty] {
+  left: 0;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.note {
+  font-size: var(--text-caption-size);
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.note[data-tone='warning'] {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+
+.note[data-tone='danger'] {
+  color: var(--text-danger-strong);
+  font-weight: 600;
+}
+
+.note[data-tone='muted'] {
+  color: var(--text-tertiary);
+}
+
+/* Переход от шага к шагу — строка над полосой, под колонкой шкалы. */
+.between {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: calc(var(--mb-label) + var(--space-4));
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.between[data-tone='danger'] {
+  color: var(--text-danger-strong);
+  font-weight: 600;
+}
+
+.between[data-tone='warning'] {
+  color: var(--status-warning);
+  font-weight: 600;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+  font-size: var(--text-caption-size);
+  color: var(--text-tertiary);
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.legendMarker {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--text-primary);
+  opacity: 0.55;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+
+.root[data-calm] .fill,
+.root[data-calm] .value {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill,
+  .value {
+    animation: none;
+  }
+}
+
+/* Узкий экран: название над шкалой, сравнение — под ней. */
+@media (max-width: 720px) {
+  .row,
+  .root[data-notes] .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .between {
+    padding-left: 0;
+  }
+}
