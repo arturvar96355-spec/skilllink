@@ -11,8 +11,8 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * 3D-созвездие «Вузы × IT-компании» за экраном входа (07, раздел 31: Three.js —
  * только для необязательной картинки входа и только с запасным вариантом).
  *
- * Два скопления светящихся точек — вузы вверху слева, IT-компании на кромке формы
- * входа, — между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
+ * Два скопления светящихся точек — вузы вверху слева, IT-компании под маршрутом
+ * связки, между текстом и формой, — между ними тонкие связи, по связям бегут импульсы: знак SkillLink в пространстве.
  * Сцена покачивается и поворачивается за курсором; при появлении камера подлетает.
  *
  * Вход — «варп в систему» (решения 72, 75):
@@ -29,8 +29,9 @@ export { WARP_NAVIGATE_MS } from './constellation-scene'
  * и освобождает ресурсы сам.
  *
  * Поток (решение 199): голова кометы — скопление вузов в верхнем левом углу,
- * связи сходятся в сгусток на кромке формы входа, импульсы с хвостом бегут
- * к нему и, приходя, подсвечивают его — видно, куда идёт поток.
+ * связи дугой обходят текст справа и сходятся в сгусток под маршрутом связки,
+ * импульсы с хвостом бегут к нему и, приходя, подсвечивают его — видно, куда
+ * идёт поток.
  *
  * Сцена (constellation-scene.ts) рисуется в фоновом потоке на OffscreenCanvas
  * (constellation.worker.ts): сразу после входа браузер загружает и собирает
@@ -68,23 +69,25 @@ const VEIL_FADE_MS = 700
 /** Панель входа доиграла появление (panelIn: 180 + 760 мс) — её место окончательное. */
 const PANEL_SETTLED_MS = 1100
 
-/**
- * Зазор между осью потока и заголовком «Партнёрство с вузами…», пиксели: пучок
- * у заголовка ещё шириной около 20 px и слегка покачивается.
- */
-const HEADLINE_CLEARANCE = 56
-/** Голова кометы не ближе этого к краям экрана. */
+/** Зазор между осью потока и текстом левой колонки (пучок шириной около 20 px и покачивается). */
+const TEXT_CLEARANCE = 40
+/** Зазор между осью потока (и скоплением в его конце) и формой входа. */
+const FORM_CLEARANCE = 56
+/** Голова кометы и конец потока не ближе этого к краям экрана. */
 const EDGE_MARGIN = 96
 
 /**
  * Куда идёт поток (решение 199). Голова кометы — выше и левее знака SkillLink,
- * у угла экрана, но не в край; приёмник — на левой кромке формы входа, на уровне
- * полей и кнопки «Войти». Поток идёт длинной диагональю над заголовком левой
- * колонки и приходит в форму там, где человек вводит почту и пароль.
- * Невысокий экран: если прямая задевает заголовок, приёмник поднимается к полю
- * пароля, затем к полю почты, в крайнем случае голова сдвигается вправо — но не
- * в край и не на заголовок. Только для раскладки в две колонки (шире 960 px); в одну
- * колонку — null, сцена как раньше.
+ * у угла экрана, но не в край. Конец потока — свободное место под маршрутом
+ * «Вуз — Программа — IT-продукт»: по горизонтали между правым краем текста и
+ * формой (чуть ближе к форме), по вертикали на 100 px ниже маршрута. Там поток
+ * заканчивается мягким скоплением и не упирается в форму. Прямая из угла туда
+ * прошла бы через заголовок и абзац, поэтому поток изогнут: уходит вправо над
+ * заголовком и спускается правее текста (`bend` — точка изгиба кривой). Кривая
+ * проверяется по точкам: правее текста на уровне текста и левее формы везде;
+ * если нет — изгиб поднимается или отходит от формы.
+ * Только для раскладки в две колонки (шире 960 px); в одну колонку — null,
+ * сцена как раньше.
  */
 function measureAnchors(): StreamAnchors | null {
   const width = window.innerWidth
@@ -92,36 +95,55 @@ function measureAnchors(): StreamAnchors | null {
   if (width <= 960) return null
   const panel = document.querySelector<HTMLElement>(`.${styles.panel}`)
   if (!panel) return null
+  const rect = (selector: string) => document.querySelector<HTMLElement>(selector)?.getBoundingClientRect() ?? null
   const form = panel.getBoundingClientRect()
-  const brand = document.querySelector<HTMLElement>(`.${styles.brandRow}`)?.getBoundingClientRect() ?? null
-  const headline = document.querySelector<HTMLElement>(`.${styles.headline}`)?.getBoundingClientRect() ?? null
-  const center = (selector: string) => {
-    const rect = panel.querySelector<HTMLElement>(selector)?.getBoundingClientRect()
-    return rect ? (rect.top + rect.bottom) / 2 : null
-  }
-  const email = center('input[name="email"]')
-  const password = center('input[name="password"]')
-  const submit = center('button[type="submit"]')
+  const brand = rect(`.${styles.brandRow}`)
+  const text = [rect(`.${styles.headline}`), rect(`.${styles.lead}`), rect(`.${styles.map}`)].filter(
+    (box): box is DOMRect => box !== null,
+  )
+  if (text.length === 0) return null
+  const textTop = Math.min(...text.map((box) => box.top))
+  const textBottom = Math.max(...text.map((box) => box.bottom))
+  const textRight = Math.max(...text.map((box) => box.right))
 
   // Голова: левее начала знака и заметно выше него.
-  let sourceX = Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48))
-  const sourceY = Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150))
-  // Приёмник: между полем пароля и кнопкой «Войти», не ниже экрана.
-  const fields = password !== null && submit !== null ? password * 0.6 + submit * 0.4 : form.top + form.height * 0.45
-  let targetY = Math.round(Math.min(height - EDGE_MARGIN, fields))
-  const targetX = Math.round(form.left) - 4
+  const source: [number, number] = [
+    Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48)),
+    Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150)),
+  ]
+  // Конец: под маршрутом, между текстом и формой.
+  const target: [number, number] = [
+    // Скопление в конце потока — не ближе 90 px к форме (на 1280 зазор узкий).
+    Math.round(Math.min(textRight + (form.left - textRight) * 0.55, form.left - 90)),
+    Math.round(Math.max(textBottom + 40, Math.min(textBottom + 100, height - EDGE_MARGIN))),
+  ]
+  // Изгиб: правее конца, над заголовком.
+  const bend: [number, number] = [
+    Math.round(target[0] + (form.left - target[0]) * 0.5),
+    Math.round(Math.max(source[1] + 20, textTop - 70)),
+  ]
 
-  /** Ось потока проходит над правым верхним углом заголовка с запасом. */
-  const clears = () => {
-    if (!headline || headline.right <= sourceX) return true
-    const t = (headline.right - sourceX) / (targetX - sourceX)
-    return sourceY + (targetY - sourceY) * t <= headline.top - HEADLINE_CLEARANCE
+  /** Точка кривой source → bend → target. */
+  const at = (t: number): [number, number] => {
+    const u = 1 - t
+    return [
+      u * u * source[0] + 2 * u * t * bend[0] + t * t * target[0],
+      u * u * source[1] + 2 * u * t * bend[1] + t * t * target[1],
+    ]
   }
-  if (!clears() && password !== null) targetY = Math.round(password)
-  if (!clears() && email !== null) targetY = Math.round(email)
-  const limitX = Math.min(headline?.right ?? width * 0.3, width * 0.3)
-  while (!clears() && sourceX + 20 <= limitX) sourceX += 20
-  return { source: [sourceX, sourceY], target: [targetX, targetY] }
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    let hitsText = false
+    let hitsForm = false
+    for (let t = 0; t <= 1; t += 0.02) {
+      const [x, y] = at(t)
+      if (y >= textTop - TEXT_CLEARANCE / 2 && y <= textBottom && x < textRight + TEXT_CLEARANCE) hitsText = true
+      if (x > form.left - FORM_CLEARANCE) hitsForm = true
+    }
+    if (!hitsText && !hitsForm) break
+    if (hitsForm) bend[0] -= 10
+    if (hitsText) bend[1] = Math.max(source[1], bend[1] - 15)
+  }
+  return { source, target, bend }
 }
 
 type Channel = {
@@ -322,7 +344,7 @@ export function Constellation() {
         x: event.clientX / window.innerWidth - 0.5,
         y: event.clientY / window.innerHeight - 0.5,
       })
-    /** Форма встала на место или окно изменилось — поток идёт в её кромку. */
+    /** Форма встала на место или окно изменилось — концы потока считаются заново. */
     const sendAnchors = () => {
       const anchors = measureAnchors()
       if (anchors) channel?.send({ type: 'anchor', anchors, width: window.innerWidth, height: window.innerHeight })

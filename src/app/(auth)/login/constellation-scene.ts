@@ -66,13 +66,19 @@ function gaussian(): number {
 
 /**
  * Куда идёт поток (решение 199), пиксели экрана: `source` — голова кометы
- * (скопление вузов), `target` — точка на кромке формы входа, где поток
- * «приходит». Нет — раскладка в одну колонку, сцена как раньше.
+ * (скопление вузов), `target` — свободное место под маршрутом связки, между
+ * текстом и формой, где поток заканчивается мягким скоплением; `bend` — точка
+ * изгиба: поток идёт вправо над заголовком и спускается правее текста, не
+ * пересекая ни его, ни форму. Нет — раскладка в одну колонку, сцена как раньше.
  */
 export interface StreamAnchors {
   source: [number, number]
   target: [number, number]
+  bend?: [number, number]
 }
+
+/** Участков в изогнутой связи потока. */
+const CURVE_STEPS = 20
 
 export interface SceneOptions {
   width: number
@@ -97,7 +103,7 @@ export interface ConstellationScene {
   /** Курсор, доли экрана от −0,5 до 0,5. */
   pointer(x: number, y: number): void
   resize(width: number, height: number): void
-  /** Форма входа сдвинулась (окно, первая раскладка) — поток идёт в новую точку. */
+  /** Раскладка входа сдвинулась (окно, первая раскладка) — поток идёт в новую точку. */
   anchor(anchors: StreamAnchors, width: number, height: number): void
   /** Начать прыжок. */
   warp(now: number): void
@@ -120,7 +126,7 @@ export function createConstellation(
 ): ConstellationScene | null {
   const { reduced, narrow } = options
   const scale = narrow ? 0.5 : 1
-  /** Поток идёт в форму входа: приёмник — плотный сгусток на её кромке. */
+  /** Поток привязан к раскладке входа: приёмник — плотный сгусток в конце потока. */
   const streamed = Boolean(options.anchors) && !narrow
 
   let renderer: InstanceType<Three['WebGLRenderer']>
@@ -192,7 +198,7 @@ export function createConstellation(
       from: new THREE.Color(BRAND_VIOLET),
       to: new THREE.Color(BRAND_PINK),
       core: BRAND_VIOLET,
-      // Приёмник на кромке формы — не второе облако, а сгусток, где поток копится.
+      // Приёмник в конце потока — не второе облако, а сгусток, где поток копится.
       spread: streamed ? 0.42 : 1,
       count: streamed ? 380 : 900,
     },
@@ -211,14 +217,21 @@ export function createConstellation(
   }
   /** Где скопления должны стоять; сами они подтягиваются к этим точкам плавно. */
   const homeGoal = hubs.map((hub) => hub.home.clone())
+  /** Точка изгиба потока (мир); null — связи прямые. */
+  const bend = new THREE.Vector3()
+  const bendGoal = new THREE.Vector3()
+  let bent = false
   const placeHubs = (anchors: StreamAnchors, screenW: number, screenH: number) => {
     if (narrow) return
     homeGoal[0]!.copy(toWorld(anchors.source[0], anchors.source[1], hubs[0]!.home.z, screenW, screenH))
     homeGoal[1]!.copy(toWorld(anchors.target[0], anchors.target[1], hubs[1]!.home.z, screenW, screenH))
+    bent = Boolean(anchors.bend)
+    if (anchors.bend) bendGoal.copy(toWorld(anchors.bend[0], anchors.bend[1], -0.3, screenW, screenH))
   }
   if (streamed && options.anchors) {
     placeHubs(options.anchors, options.width, options.height)
     hubs.forEach((hub, i) => hub.home.copy(homeGoal[i]!))
+    bend.copy(bendGoal)
   }
 
   // ── Скопления: у каждого своя группа — их можно свести вместе ──────────
@@ -253,7 +266,7 @@ export function createConstellation(
       // Ядро скопления — концы связей.
       if (t < 0.35 && anchors.length < 120) anchors.push(new THREE.Vector3(x, y, z))
     }
-    // Поток сходится в одну точку приёмника: пучок сужается к форме — видно, куда он идёт.
+    // Поток сходится в одну точку приёмника: пучок сужается к ней — видно, куда он идёт.
     if (streamed && hubIndex === 1) {
       anchors.length = 0
       for (let i = 0; i < 40; i += 1) anchors.push(new THREE.Vector3(gaussian() * 0.08, gaussian() * 0.08, 0))
@@ -435,11 +448,26 @@ export function createConstellation(
     const b = right.anchors[Math.floor(Math.random() * right.anchors.length)]
     if (a && b) links.push([a, b])
   }
-  const linePositions = new Float32Array(links.length * 6)
-  const lineColors = new Float32Array(links.length * 6)
+  /**
+   * В режиме потока связь — кривая из CURVE_STEPS отрезков (квадратичная кривая
+   * через точку изгиба), цвет плавно идёт от фиолетового к розовому; иначе —
+   * прямой отрезок, как раньше. У каждой связи свой небольшой сдвиг изгиба —
+   * пучок, а не одна линия.
+   */
+  const steps = streamed ? CURVE_STEPS : 1
+  const linePositions = new Float32Array(links.length * steps * 6)
+  const lineColors = new Float32Array(links.length * steps * 6)
   const violet = new THREE.Color(BRAND_VIOLET)
   const pink = new THREE.Color(BRAND_PINK)
-  links.forEach((_, i) => lineColors.set([...violet.toArray(), ...pink.toArray()], i * 6))
+  const mixed = new THREE.Color()
+  links.forEach((_, i) => {
+    for (let k = 0; k < steps; k += 1) {
+      const from = mixed.copy(violet).lerp(pink, k / steps).toArray()
+      const to = mixed.copy(violet).lerp(pink, (k + 1) / steps).toArray()
+      lineColors.set([...from, ...to], (i * steps + k) * 6)
+    }
+  })
+  const bendJitter = links.map(() => new THREE.Vector3(gaussian() * 0.35, gaussian() * 0.35, gaussian() * 0.2))
   const lineGeometry = new THREE.BufferGeometry()
   lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
   lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3))
@@ -456,7 +484,7 @@ export function createConstellation(
   /**
    * Импульсы. В режиме потока их меньше, и у каждого короткий хвост: светлая
    * голова впереди, хвост гаснет назад — направление читается без стрелок.
-   * Импульс разгоняется к форме и гаснет, входя в приёмник.
+   * Импульс разгоняется к приёмнику и гаснет, входя в него.
    */
   const pulseCount = streamed ? 12 : links.length
   const pulsePositions = new Float32Array(pulseCount * 3)
@@ -488,35 +516,46 @@ export function createConstellation(
   /** Связи и импульсы — по текущему положению скоплений: при слиянии они сжимаются. */
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
-  const updateLinks = (time: number) => {
+  const c = new THREE.Vector3()
+  const p0 = new THREE.Vector3()
+  const p1 = new THREE.Vector3()
+  /** Точка кривой a → c → b в доле `t`; без изгиба — прямая a → b. */
+  const along = (t: number, out: InstanceType<typeof THREE.Vector3>) => {
+    const u = 1 - t
+    return out.set(
+      u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+      u * u * a.y + 2 * u * t * c.y + t * t * b.y,
+      u * u * a.z + 2 * u * t * c.z + t * t * b.z,
+    )
+  }
+  const updateLinks = (time: number, merge = 0) => {
     arrival = 0
     links.forEach(([fromAnchor, toAnchor], i) => {
       a.copy(fromAnchor).multiplyScalar(left.group.scale.x).add(left.group.position)
       b.copy(toAnchor).multiplyScalar(right.group.scale.x).add(right.group.position)
-      linePositions.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6)
+      // Изгиб распрямляется, когда скопления сходятся в ядро (прыжок).
+      c.copy(a).add(b).multiplyScalar(0.5)
+      if (bent) c.lerp(p0.copy(bend).add(bendJitter[i]!), 1 - merge)
+      for (let k = 0; k < steps; k += 1) {
+        along(k / steps, p0)
+        along((k + 1) / steps, p1)
+        linePositions.set([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z], (i * steps + k) * 6)
+      }
       if (i >= pulseCount) return
       const cycle = (phases[i]! + time * speeds[i]!) % 1
       if (!streamed) {
         pulsePositions.set([a.x + (b.x - a.x) * cycle, a.y + (b.y - a.y) * cycle, a.z + (b.z - a.z) * cycle], i * 3)
         return
       }
-      // Разгон к форме: медленно из скопления, быстрее к приёмнику.
+      // Разгон: медленно из скопления, быстрее к приёмнику.
       const head = Math.pow(cycle, 1.35)
       const tail = Math.pow(Math.max(0, cycle - 0.085), 1.35)
       // Входя в приёмник, импульс гаснет — его свет «остаётся» в сгустке.
       const fade = 1 - clamp01((cycle - 0.9) / 0.1)
-      pulsePositions.set([a.x + (b.x - a.x) * head, a.y + (b.y - a.y) * head, a.z + (b.z - a.z) * head], i * 3)
-      trailPositions.set(
-        [
-          a.x + (b.x - a.x) * head,
-          a.y + (b.y - a.y) * head,
-          a.z + (b.z - a.z) * head,
-          a.x + (b.x - a.x) * tail,
-          a.y + (b.y - a.y) * tail,
-          a.z + (b.z - a.z) * tail,
-        ],
-        i * 6,
-      )
+      along(head, p0)
+      along(tail, p1)
+      pulsePositions.set([p0.x, p0.y, p0.z], i * 3)
+      trailPositions.set([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z], i * 6)
       trailColors.set([pulseColor.r * fade, pulseColor.g * fade, pulseColor.b * fade, 0, 0, 0], i * 6)
       // Только что пришедший импульс (цикл начался заново) подсвечивает приёмник.
       arrival += Math.exp(-cycle * 9) + (cycle > 0.9 ? (cycle - 0.9) * 4 : 0)
@@ -598,6 +637,7 @@ export function createConstellation(
       const intro = 1 - Math.pow(1 - Math.min(1, time / 1.8), 3)
       // Форма сдвинулась (окно, первая раскладка) — скопления подтягиваются без скачка.
       hubs.forEach((hub, i) => hub.home.lerp(homeGoal[i]!, 0.08))
+      bend.lerp(bendGoal, 0.08)
 
       const t = warpSince === null ? 0 : now - warpSince
 
@@ -620,9 +660,9 @@ export function createConstellation(
       coreMaterial.size = 1.4 * (1 + 1.2 * merge)
       receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
-      // Концы потока привязаны к раскладке (голова у угла, приёмник на кромке формы) и
+      // Концы потока привязаны к раскладке (голова у угла, приёмник под маршрутом) и
       // стоят далеко от центра: полное покачивание уводило их на 30–60 px — голову
-      // к краю экрана, приёмник с кромки формы. В режиме потока сцена качается втрое тише.
+      // к краю экрана, а приёмник — к тексту или форме. В режиме потока сцена качается втрое тише.
       const sway = (1 - merge) * (streamed ? 0.35 : 1)
       world.rotation.y += ((pointerX * 0.35 + Math.sin(time * 0.15) * 0.12) * sway - world.rotation.y) * 0.06
       world.rotation.x += ((pointerY * 0.22 + Math.cos(time * 0.12) * 0.05) * sway - world.rotation.x) * 0.06
@@ -635,7 +675,7 @@ export function createConstellation(
 
       const done =
         warpSince !== null && (assembleAt !== null ? t >= assemblyEnd : releaseAt !== null && t >= releaseAt + BURST_MS)
-      updateLinks(time)
+      updateLinks(time, merge)
       renderer.render(scene, camera)
       return done
     },
