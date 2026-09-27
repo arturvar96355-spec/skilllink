@@ -72,7 +72,7 @@ export async function countUniversitiesInWork(scope: { universityId?: string }):
  * в процент прохождения (docs/TECHNICAL_DECISIONS.md, решение 8).
  * Одно определение на главную и личный кабинет.
  */
-const ON_TIME_CANDIDATES = {
+export const ON_TIME_CANDIDATES = {
   status: 'COMPLETED',
   deadline: { not: null },
   completedAt: { not: null },
@@ -369,15 +369,23 @@ export async function findCompletedStagesWithDeadlineOf(userId: string) {
  * контрольный этап не считается, закрытые связки тоже.
  */
 export async function countOverdueStagesOf(userId: string, now: Date): Promise<number> {
-  return prisma.workflowStage.count({
-    where: {
-      responsibleId: userId,
-      deadline: { lt: now },
-      status: { in: [...OVERDUE_STAGE_STATUSES] },
-      stageNumber: { not: CONTROL_STAGE_NUMBER },
-      cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
-    },
-  })
+  return prisma.workflowStage.count({ where: { responsibleId: userId, ...overdueStageWhere(now) } })
+}
+
+/**
+ * Условие «этап просрочен» для выборок по сотрудникам — то же правило, что
+ * `isOverdue` и бейдж карточки связки: срок вышел, этап в работе или заблокирован
+ * (`OVERDUE_STAGE_STATUSES`), без контрольного этапа 14, только в незакрытых связках.
+ * Одно условие на личный кабинет (`countOverdueStagesOf`) и экран «Команда»
+ * (решение 203): иначе «просрочено 3» в профиле и в команде могли бы разойтись.
+ */
+export function overdueStageWhere(now: Date) {
+  return {
+    deadline: { lt: now },
+    status: { in: [...OVERDUE_STAGE_STATUSES] },
+    stageNumber: { not: CONTROL_STAGE_NUMBER },
+    cooperation: { status: { in: [...OPEN_COOPERATION_STATUSES] } },
+  }
 }
 
 /** Сколько действующих программ в рейтинге всего — а не в срезе, который считается. */
