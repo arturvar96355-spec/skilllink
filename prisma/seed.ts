@@ -185,7 +185,7 @@ async function seedUsers() {
       email: 'viewer@skilllink.demo',
       passwordHash: demoPasswordHash,
       fullName: 'Лебедева Анна Сергеевна',
-      position: 'Руководитель направления',
+      position: 'Аудитор проектов (только просмотр)',
       role: 'VIEWER',
     },
   })

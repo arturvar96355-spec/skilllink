@@ -266,6 +266,13 @@ export function useNavigationMotion(pathname: string): NavigationMotion {
         root.removeAttribute(NAV_TRANSITION_ATTRIBUTE)
       }
       transition.finished.then(cleanup, cleanup)
+      // Браузер может оборвать анимацию (InvalidStateError: два элемента с одним
+      // именем, пока данные новой страницы не успели прийти). Переход по адресу
+      // при этом уже выполнен внутри обратного вызова — теряется только анимация.
+      // Без обработчика отказ `ready` всплывал необработанной ошибкой в консоль
+      // и в оверлей разработки (живая проверка 27.09, решение 191).
+      transition.ready.catch(() => undefined)
+      transition.updateCallbackDone.catch(() => undefined)
     }
 
     function onClick(event: MouseEvent) {
