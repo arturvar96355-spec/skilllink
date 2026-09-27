@@ -20,15 +20,11 @@
 .label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-2);
   font-size: var(--text-body-sm-size);
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
-}
-
-.help {
-  color: var(--text-tertiary);
 }
 
 .styles {

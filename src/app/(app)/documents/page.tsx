@@ -29,7 +29,7 @@ import {
   EmptyState,
   ResetFilters,
   ErrorState,
-  InfoHint,
+  HelpHint,
   Icon,
   Input,
   NO_DATA,
@@ -297,9 +297,10 @@ function DocumentsView() {
       <PageHeader
         title="Документы"
         description="Договоры, соглашения и приложения по связкам. Любой документ открывается и скачивается, подписанный тоже; пакет связки целиком — после выбора связки в фильтре."
-        meta={
-          <InfoHint text="Путь документа: черновик → на согласовании → согласован → подписан. «Отклонён» — вернули с замечанием, «В архиве» — заменён новой версией. Подписанный и архивный не правится, но открывается и скачивается всегда." />
-        }
+        help={{
+          topic: 'documents',
+          note: 'Путь документа: черновик → на согласовании → согласован → подписан. «Отклонён» — вернули с замечанием, «В архиве» — заменён новой версией. Подписанный и архивный не правится, но открывается и скачивается всегда.',
+        }}
         actions={
           user.permissions.canWrite ? (
             <Button variant="primary" icon="plus" onClick={() => setIsCreateOpen(true)}>
@@ -310,6 +311,7 @@ function DocumentsView() {
       />
 
       <Toolbar
+        help={{ topic: 'navigation', section: 'filters' }}
         actions={
           hasFilters ? (
             <>
@@ -324,6 +326,7 @@ function DocumentsView() {
                   Скачать пакет связки
                 </DownloadButton>
               )}
+              {cooperationId && <HelpHint topic="documents" section="archive" />}
               <ResetFilters active onReset={resetFilters} />
             </>
           ) : undefined
@@ -577,6 +580,7 @@ function DocumentDrawer({
       isOpen
       onClose={onClose}
       title={card?.title ?? 'Документ'}
+      help={{ topic: 'documents' }}
       description={
         card ? `${DOCUMENT_TYPE_LABELS[card.type]} · версия ${card.version}` : undefined
       }
@@ -660,7 +664,10 @@ function DocumentDrawer({
           </section>
 
           <section className={styles.block}>
-            <h3 className={styles.blockTitle}>Оригинал во внешней системе</h3>
+            <div className={styles.blockHead}>
+              <h3 className={styles.blockTitle}>Оригинал во внешней системе</h3>
+              <HelpHint topic="documents" section="original" />
+            </div>
             {card.fileReference && isPlaceholderReference(card.fileReference) ? (
               <p className={styles.note}>
                 Демонстрационная ссылка — файла по ней нет. Документ открывается кнопкой «Открыть» выше.
@@ -694,7 +701,10 @@ function DocumentDrawer({
 
           {canWrite && (
             <section className={styles.block}>
-              <h3 className={styles.blockTitle}>Смена статуса</h3>
+              <div className={styles.blockHead}>
+                <h3 className={styles.blockTitle}>Смена статуса</h3>
+                <HelpHint topic="documents" section="status" />
+              </div>
               {allowed.length === 0 ? (
                 <p className={styles.note}>
                   Из статуса «{DOCUMENT_STATUS_LABELS[card.status]}» переходов нет: это конечное
