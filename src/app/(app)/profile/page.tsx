@@ -280,14 +280,14 @@ export default function ProfilePage() {
                           key: 'ontime',
                           label: 'В срок',
                           value: Math.round(data.stagesOnTimePercent * 10) / 10,
-                          tone: 'success',
+                          tone: 'violet',
                           texture: 'solid',
                         },
                         {
                           key: 'late',
                           label: 'С опозданием',
                           value: Math.round((100 - data.stagesOnTimePercent) * 10) / 10,
-                          tone: 'danger',
+                          tone: 'violet',
                           texture: 'diagonal',
                         },
                       ]
