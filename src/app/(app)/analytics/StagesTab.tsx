@@ -12,6 +12,7 @@ import {
   EmptyState,
   ErrorState,
   KpiStrip,
+  MeasureBars,
   MockBadge,
   ROUTES,
   Section,
@@ -22,6 +23,7 @@ import {
   useResource,
   type Column,
 } from '@/ui'
+import { durationRows, durationsConclusion, stagesConclusion } from './stages-view'
 import styles from './stages.module.css'
 
 /** Этап с полями связки — так отдают `/api/workflow/overdue` и `/api/workflow/blocked`. */
@@ -137,6 +139,12 @@ export function StagesTab() {
   const dropped = (funnel.data?.steps ?? []).reduce((sum, step) => sum + step.droppedCount, 0)
   const isMock = Boolean(funnel.data?.isMock || durations.data?.isMock)
   const maxProblems = Math.max(1, ...stageRows.map((row) => row.overdue + row.blocked))
+  const overdueTotal = overdue.meta?.total ?? null
+  const blockedTotal = blocked.meta?.total ?? null
+  const stageUnit = (value: number | null) =>
+    value === null ? 'этапов' : pluralize(value, ['этап', 'этапа', 'этапов'])
+  const durationStages = durations.data?.stages ?? []
+  const durationChart = durationRows(durationStages)
 
   const stageColumns: Column<StageRow>[] = [
     {
@@ -173,49 +181,36 @@ export function StagesTab() {
         </span>
       ),
     },
-    {
-      key: 'median',
-      title: 'Обычно',
-      width: '120px',
-      render: (row) => (
-        <span className={styles.durationCell}>
-          {days(row.duration?.median ?? null)}
-          {row.duration?.status === 'insufficient_data' && <span className={styles.muted}>данных мало</span>}
-        </span>
-      ),
-    },
-    {
-      key: 'threshold',
-      title: 'Застой после',
-      width: '130px',
-      render: (row) =>
-        row.duration ? (
-          <span className={styles.durationCell}>
-            {days(row.duration.threshold.days)}
-            <span className={styles.muted}>{row.duration.threshold.source === 'km' ? 'по данным' : 'норматив'}</span>
-          </span>
-        ) : (
-          <span className={styles.muted}>Нет данных</span>
-        ),
-    },
   ]
 
   return (
     <>
       <div className={styles.head}>
         <p className={styles.lead}>
-          Где связки задерживаются: сколько их сейчас на каждом этапе, где просрочки и блокировки, сколько этап
-          обычно длится и у кого из ответственных накопились проблемы.
+          Где связки задерживаются: сколько их на каждом этапе, где просрочки и блокировки, сколько этап обычно
+          длится и у кого накопились проблемы.
         </p>
         {isMock && <MockBadge />}
       </div>
 
       <KpiStrip
         items={[
-          { key: 'now', label: 'На этапах сейчас', value: inProgress, unit: 'связок' },
-          { key: 'overdue', label: 'С просрочкой', value: overdue.meta?.total ?? null, unit: 'этапов' },
-          { key: 'blocked', label: 'Заблокировано', value: blocked.meta?.total ?? null, unit: 'этапов' },
-          { key: 'dropped', label: 'Выбыли', value: dropped, unit: 'связок', explanation: 'Отменённые и приостановленные связки, не прошедшие этап' },
+          {
+            key: 'now',
+            label: 'На этапах сейчас',
+            value: inProgress,
+            unit: pluralize(inProgress, ['связка', 'связки', 'связок']),
+            explanation: 'Связки в работе, без черновиков, на паузе и отменённых',
+          },
+          { key: 'overdue', label: 'С просрочкой', value: overdueTotal, unit: stageUnit(overdueTotal) },
+          { key: 'blocked', label: 'Заблокировано', value: blockedTotal, unit: stageUnit(blockedTotal) },
+          {
+            key: 'dropped',
+            label: 'Выбыли',
+            value: dropped,
+            unit: pluralize(dropped, ['связка', 'связки', 'связок']),
+            explanation: 'На паузе и отменённые — где, когда и почему, во вкладке «Воронка»',
+          },
         ]}
       />
       <div className={styles.jump}>
@@ -237,11 +232,15 @@ export function StagesTab() {
         >
           Заблокированные связки
         </Button>
+        <Button href={`${ROUTES.analytics}${buildQuery({ tab: 'funnel' })}`} variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+          Выбывшие связки
+        </Button>
       </div>
 
       <Section
         title="Где застревают связки"
-        description="Этапы 1–13. «Сейчас» — связки в работе на этапе, без черновиков; просрочки и блокировки — по всем связкам. Красной биркой — три этапа, где их больше всего. «Обычно» — медиана длительности этапа, «застой после» — сколько дней система считает долгим: по истории этапов, а если её мало — по нормативу."
+        description={stagesConclusion(stageRows)}
+        hint="Этапы 1–13. «Сейчас» — связки в работе на этапе, без черновиков; просрочки и блокировки — по всем связкам. Полоса — доля от самого проблемного этапа: красным просрочки, жёлтым блокировки. Красной биркой — три этапа, где их больше всего."
       >
         <Card padding="none">
           <DataTable rows={stageRows} columns={stageColumns} getRowKey={(row) => String(row.stageNumber)} caption="Состояние этапов" />
@@ -251,6 +250,27 @@ export function StagesTab() {
           <span className={styles.legendBlocked} aria-hidden /> заблокировано
         </p>
       </Section>
+
+      {durationStages.length > 0 && (
+        <div className={styles.block}>
+          <Section
+            title="Сколько длится этап"
+            description={durationsConclusion(durationStages)}
+            hint="Полоса — медиана: за столько дней этап проходит половина связок. Отметка — порог застоя: после скольких дней без движения система считает связку застрявшей. Порог считается по истории этапов, а если истории мало — берётся норматив. Жёлтым — этапы, которые обычно идут дольше порога. «Данных мало» — оценка по небольшому числу связок."
+          >
+            <Card>
+              <MeasureBars
+                rows={durationChart.rows}
+                max={durationChart.max}
+                label="Медиана длительности этапов и порог застоя"
+                markerLabel="порог застоя"
+                valueWidth="6rem"
+                labelWidth="19rem"
+              />
+            </Card>
+          </Section>
+        </div>
+      )}
 
       <div className={styles.columns}>
         <Section title="Ответственные" description="У кого сейчас просроченные и заблокированные этапы.">

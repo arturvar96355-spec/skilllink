@@ -7,7 +7,7 @@ import styles from './Progress.module.css'
 export interface ProgressProps {
   /** 0..100. null — «Нет данных»: полоса остаётся пустой, значение не подменяется нулём. */
   value: number | null
-  tone?: 'default' | 'danger' | 'success'
+  tone?: 'default' | 'danger' | 'warning' | 'success'
   /** Показать число справа от полосы. */
   withValue?: boolean
   label?: string

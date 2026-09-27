@@ -1,7 +1,10 @@
 /* Горизонтальные полосы аналитики (решение 215): плоско, число на полосе, норма отметкой. */
 
 .root {
+  /* Значения по умолчанию; компонент задаёт свои через style. */
   --mb-bar: 10px;
+  --mb-label: 14rem;
+  --mb-reserve: 7rem;
   margin: 0;
   min-width: 0;
 }
@@ -24,14 +27,14 @@
 
 .row {
   display: grid;
-  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr);
+  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr) minmax(0, var(--mb-reserve));
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
 }
 
 .root[data-notes] .row {
-  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr) minmax(0, 13rem);
+  grid-template-columns: minmax(0, var(--mb-label)) minmax(0, 1fr) minmax(0, var(--mb-reserve)) minmax(0, 13rem);
 }
 
 .head {
@@ -72,8 +75,10 @@
   color: var(--text-tertiary);
 }
 
-/* Шкала: полоса и подпись числа живут на одной дорожке; справа — запас под подпись. */
+/* Шкала: дорожка во всю ширину колонки, полоса — доля от правого края. */
 .track {
+  --p: 0;
+  --m: 0;
   position: relative;
   height: 24px;
   min-width: 0;
@@ -83,7 +88,7 @@
   content: '';
   position: absolute;
   left: 0;
-  right: var(--mb-reserve);
+  right: 0;
   top: 50%;
   height: var(--mb-bar);
   margin-top: calc(var(--mb-bar) / -2);
@@ -95,7 +100,7 @@
   position: absolute;
   left: 0;
   top: 50%;
-  width: calc(var(--p) * (100% - var(--mb-reserve)));
+  width: calc(var(--p) * 100%);
   height: var(--mb-bar);
   margin-top: calc(var(--mb-bar) / -2);
   border-radius: var(--radius-pill);
@@ -138,7 +143,7 @@
   position: absolute;
   top: 2px;
   bottom: 2px;
-  left: calc(var(--m) * (100% - var(--mb-reserve)) - 1px);
+  left: calc(var(--m) * 100% - 1px);
   width: 2px;
   border-radius: var(--radius-pill);
   background: var(--text-primary);
@@ -146,10 +151,6 @@
 }
 
 .value {
-  position: absolute;
-  top: 50%;
-  left: calc(var(--p) * (100% - var(--mb-reserve)) + var(--space-2));
-  transform: translateY(-50%);
   font-size: var(--text-caption-size);
   font-weight: 600;
   color: var(--text-primary);
@@ -159,7 +160,6 @@
 }
 
 .value[data-empty] {
-  left: 0;
   font-weight: 500;
   color: var(--text-tertiary);
 }
@@ -260,8 +260,13 @@
 @media (max-width: 720px) {
   .row,
   .root[data-notes] .row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-1);
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .head,
+  .note {
+    grid-column: 1 / -1;
   }
 
   .between {

@@ -14,7 +14,8 @@ import styles from './MeasureBars.module.css'
  * - плоско: полоса без объёма и свечения, одно движение — дорастает до значения один раз;
  * - цвет — сигнал: фиолетовый — основное, жёлтый — «ниже цели», красный — «требует
  *   внимания»; шаги одного процесса — светлотой одного тона (`shade`), а не разными цветами;
- * - число подписано на полосе всегда, без наведения (`valueText`);
+ * - число подписано у полосы всегда, без наведения (`valueText`, колонка сразу за шкалой —
+ *   так подпись не ложится на отметку нормы и на хвост шкалы);
  * - рядом с числом — с чем сравнить: отметка нормы или цели на шкале (`marker`) и
  *   отклонение словами (`note`);
  * - остаток списка назван строкой (`rest`: «и ещё 9 вузов»).
@@ -65,7 +66,7 @@ export function MeasureBars({
   markerLabel?: string
   /** Остаток списка словами: «и ещё 9 навыков — в таблице ниже». */
   rest?: string
-  /** Место справа от самой длинной полосы под подпись числа. */
+  /** Ширина колонки с подписью числа — сразу справа от шкалы. */
   valueWidth?: string
   /** Ширина колонки названий на широком экране. */
   labelWidth?: string
@@ -123,9 +124,9 @@ export function MeasureBars({
                     />
                   )}
                   {markerShare !== null && <span className={styles.marker} aria-hidden />}
-                  <span className={styles.value} data-empty={share === null || undefined}>
-                    {row.valueText}
-                  </span>
+                </span>
+                <span className={styles.value} data-empty={share === null || undefined} style={{ '--i': index } as CSSProperties}>
+                  {row.valueText}
                 </span>
                 {hasNotes && (
                   <span className={styles.note} data-tone={row.noteTone ?? 'default'}>
