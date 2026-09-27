@@ -756,3 +756,27 @@
 :global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .cards .clickable:hover > .td:first-child {
   box-shadow: none;
 }
+
+/* Лента-список (реестр связок, письма): строки под тонкой линией, без плашек. */
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .list tbody {
+  gap: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .list .row {
+  padding-inline: var(--space-3);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-subtle);
+  border-radius: 0;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .list .clickable:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+  transform: none;
+}
+
+:global(html[data-mode='work'][data-work-theme]:not([data-work-theme='a'])) .list .selected {
+  background: var(--surface-2);
+  box-shadow: inset 2px 0 0 var(--accent-violet);
+}
