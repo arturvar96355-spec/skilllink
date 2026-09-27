@@ -1,4 +1,6 @@
-import { TELEGRAM_DIGEST, TELEGRAM_LINK } from '@/shared/config/telegram.config'
+import { TELEGRAM_ACTIONS, TELEGRAM_DIGEST, TELEGRAM_LINK } from '@/shared/config/telegram.config'
+import type { MessageAction } from '@/modules/notify-channels/notify-channels.types'
+import { ACTION_TEXTS, acceptStageText, openStageText } from './telegram.actions'
 import { countWithNoun } from '@/shared/utils/text'
 import { ROUTES } from '@/ui/lib/links'
 import { formatDay } from '@/modules/ai-assist/ai-assist.rules'
@@ -107,6 +109,12 @@ export type {
 
 export interface Digest {
   text: string
+  /**
+   * Кнопки под сводкой (решение 200): строка на этап из показанных в тексте —
+   * «↗ Этап N · вуз» и «Принял, беру в работу», не больше `TELEGRAM_ACTIONS.digestStagesMax`.
+   * Каналы без кнопок их пропускают.
+   */
+  actions: MessageAction[][]
   /** Ничего не горит и нечем порадовать: рассылка по расписанию такое не отправляет. */
   isEmpty: boolean
   counts: { overdue: number; blocked: number; dueSoon: number; recommendations: number }
@@ -118,9 +126,14 @@ function absolute(baseUrl: string | null, path: string | null): string | null {
   return baseUrl ? `${baseUrl.replace(/\/+$/, '')}${path}` : null
 }
 
+/** Пункты группы, которые попадут в текст сводки, — и кнопки только для них. */
+function shownOf(items: readonly PulseItem[]): readonly PulseItem[] {
+  return items.slice(0, TELEGRAM_DIGEST.perSection)
+}
+
 function group(title: string, items: readonly PulseItem[], baseUrl: string | null): string[] {
   if (items.length === 0) return []
-  const shown = items.slice(0, TELEGRAM_DIGEST.perSection)
+  const shown = shownOf(items)
   const rest = items.length - shown.length
   return [
     `${title} — ${items.length}`,
@@ -129,6 +142,17 @@ function group(title: string, items: readonly PulseItem[], baseUrl: string | nul
       return link ? [`• ${entry.text}`, `  ${link}`] : [`• ${entry.text}`]
     }),
     ...(rest > 0 ? [`…и ещё ${rest} — в системе`] : []),
+  ]
+}
+
+/** Строка кнопок этапа: «↗ Этап N · вуз» и «Принял, беру в работу». */
+function stageActions(stage: NonNullable<PulseItem['stageRef']>, url: string | null): MessageAction[] {
+  const target = { type: 'stage', id: stage.stageId } as const
+  // Без адреса стенда кнопки «Открыть» нет — тогда сама «Принял» говорит, какой это этап.
+  if (!url) return [{ kind: 'accept', text: acceptStageText(stage.stageNumber, stage.universityName), target }]
+  return [
+    { kind: 'open', text: openStageText(stage.stageNumber, stage.universityName), url },
+    { kind: 'accept', text: ACTION_TEXTS.accept, target },
   ]
 }
 
@@ -156,22 +180,31 @@ export function buildDigest(
   const home = absolute(baseUrl, ROUTES.dashboard)
 
   if (pulse.items.length === 0) {
-    return { text: `SkillLink · ${today}. ${calmText(pulse.checkedRules)}`, isEmpty: true, counts }
+    return { text: `SkillLink · ${today}. ${calmText(pulse.checkedRules)}`, isEmpty: true, counts, actions: [] }
   }
 
   const kinds = Object.keys(PULSE_GROUPS) as PulseKind[]
+  const actions: MessageAction[][] = []
   const lines = [
     `SkillLink · что горит на ${today} · проверено ` +
       countWithNoun(pulse.checkedRules, ['правило', 'правила', 'правил']),
   ]
   if (pulse.isCalm) lines.push('', 'Внимания ничего не требует.')
   for (const section of PULSE_SECTIONS) {
-    const body = kinds
-      .filter((kind) => PULSE_GROUPS[kind].section === section.key)
-      .flatMap((kind) => group(PULSE_GROUPS[kind].title, pulse.items.filter((entry) => entry.kind === kind), baseUrl))
+    const sectionKinds = kinds.filter((kind) => PULSE_GROUPS[kind].section === section.key)
+    const body = sectionKinds.flatMap((kind) =>
+      group(PULSE_GROUPS[kind].title, pulse.items.filter((entry) => entry.kind === kind), baseUrl),
+    )
     if (body.length > 0) lines.push('', section.title.toUpperCase(), ...body)
+    // Кнопки — в том же порядке, что пункты в тексте: сначала «Внимание», потом «Сегодня».
+    for (const kind of sectionKinds) {
+      for (const entry of shownOf(pulse.items.filter((candidate) => candidate.kind === kind))) {
+        if (!entry.stageRef || actions.length >= TELEGRAM_ACTIONS.digestStagesMax) continue
+        actions.push(stageActions(entry.stageRef, absolute(baseUrl, entry.href)))
+      }
+    }
   }
   if (home) lines.push('', `Открыть SkillLink: ${home}`)
 
-  return { text: lines.join('\n'), isEmpty: false, counts }
+  return { text: lines.join('\n'), isEmpty: false, counts, actions }
 }

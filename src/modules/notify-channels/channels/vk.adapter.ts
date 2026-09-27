@@ -2,7 +2,7 @@ import { getIntegrationsConfig } from '@/integrations/config'
 import { getVkClient } from '@/integrations/vk'
 import { vkCallbackEventSchema } from '../notify-channels.schema'
 import { parseChannelCommand } from '../notify-channels.rules'
-import type { ChannelAdapter, ChannelSendResult, ParsedInbound } from '../notify-channels.types'
+import { toChannelMessage, type ChannelAdapter, type ChannelSendResult, type ParsedInbound } from '../notify-channels.types'
 
 /**
  * `club<id>` работает для любого сообщества без настроенного короткого имени
@@ -20,8 +20,9 @@ export const vkAdapter: ChannelAdapter = {
     return getVkClient().enabled
   },
 
-  async send(chatRef, text): Promise<ChannelSendResult> {
-    const result = await getVkClient().sendMessage(chatRef, text)
+  // Кнопок у канала пока нет (решение 200): уходит только текст, ссылки в нём уже есть.
+  async send(chatRef, message): Promise<ChannelSendResult> {
+    const result = await getVkClient().sendMessage(chatRef, toChannelMessage(message).text)
     if (result.ok) return { ok: true }
     return { ok: false, reason: result.reason }
   },

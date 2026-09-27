@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   vk: null as VkConfig | null,
   maxSend: vi.fn(),
   vkSend: vi.fn(),
+  telegramEnabled: false,
+  telegramSend: vi.fn(),
 }))
 
 vi.mock('./notify-channels.repo', () => ({
@@ -62,6 +64,9 @@ vi.mock('@/integrations/config', async (importOriginal) => {
 })
 vi.mock('@/integrations/max', () => ({ getMaxClient: () => ({ enabled: mocks.max?.enabled ?? false, sendMessage: mocks.maxSend }) }))
 vi.mock('@/integrations/vk', () => ({ getVkClient: () => ({ enabled: mocks.vk?.enabled ?? false, sendMessage: mocks.vkSend }) }))
+vi.mock('@/integrations/telegram', () => ({
+  getTelegramClient: () => ({ enabled: mocks.telegramEnabled, sendMessage: mocks.telegramSend }),
+}))
 
 const service = await import('./notify-channels.service')
 const { captureLog } = await import('@/shared/log/logger')
@@ -101,6 +106,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   mocks.max = null
   mocks.vk = null
+  mocks.telegramEnabled = false
   mocks.findLinksByUser.mockResolvedValue([])
   mocks.getPrimaryChannel.mockResolvedValue(null)
   const { resetSpentLinkCodes } = await import('./notify-channels.link-token')
@@ -327,6 +333,63 @@ describe('sendToUser', () => {
     mocks.maxSend.mockResolvedValue({ ok: true })
     const result = await service.sendToUser('u1', 'текст')
     expect(result).toEqual({ sent: true, channel: 'max' })
+  })
+})
+
+describe('кнопки в сообщении канала (решение 200)', () => {
+  const message = {
+    text: 'Новое письмо от вуза СПбГУТ: Встреча',
+    actions: [
+      [
+        { kind: 'open' as const, text: 'Открыть письмо', url: 'https://skilllink.example.test/letters/l1' },
+        { kind: 'accept' as const, text: '✓ Принял, беру в работу', target: { type: 'letter' as const, id: 'cmletter000000000000000001' } },
+      ],
+    ],
+  }
+
+  it('Telegram рисует клавиатуру: ссылка и «Принял», подписанный для этого чата и адресата', async () => {
+    mocks.telegramEnabled = true
+    mocks.findLinksByUser.mockResolvedValue([{ channel: 'telegram', chatRef: '777', username: null, linkedAt: new Date() }])
+    mocks.telegramSend.mockResolvedValue({ ok: true })
+
+    expect(await service.sendToUser('u-manager', message)).toEqual({ sent: true, channel: 'telegram' })
+    const [chatId, text, options] = mocks.telegramSend.mock.calls[0]! as [string, string, { replyMarkup: { inline_keyboard: Array<Array<Record<string, string>>> } }]
+    expect(chatId).toBe('777')
+    expect(text).toBe(message.text)
+    const [open, accept] = options.replyMarkup.inline_keyboard[0]!
+    expect(open).toEqual({ text: 'Открыть письмо', url: 'https://skilllink.example.test/letters/l1' })
+    const { verifyAcceptData, actionSigningSecret } = await import('@/modules/telegram/telegram.actions')
+    expect(verifyAcceptData(actionSigningSecret()!, accept!.callback_data!, { chatId: '777', userId: 'u-manager' })).toEqual({
+      ok: true,
+      target: { type: 'letter', id: 'cmletter000000000000000001' },
+    })
+  })
+
+  it('MAX и VK кнопок не умеют — уходит только текст', async () => {
+    mocks.max = maxConfig()
+    mocks.vk = vkConfig()
+    mocks.findLinksByUser.mockResolvedValue([{ channel: 'vk', chatRef: '2', username: null, linkedAt: new Date() }])
+    mocks.vkSend.mockResolvedValue({ ok: true })
+    expect(await service.sendToUser('u1', message)).toEqual({ sent: true, channel: 'vk' })
+    expect(mocks.vkSend).toHaveBeenCalledWith('2', message.text)
+
+    mocks.findLinksByUser.mockResolvedValue([{ channel: 'max', chatRef: '1', username: null, linkedAt: new Date() }])
+    mocks.maxSend.mockResolvedValue({ ok: true })
+    await service.sendToUser('u1', message)
+    expect(mocks.maxSend).toHaveBeenCalledWith('1', message.text)
+  })
+
+  it('сводка уходит с кнопками этапов: sendToUser получает текст и actions', async () => {
+    mocks.telegramEnabled = true
+    mocks.listDigestRecipients.mockResolvedValueOnce([{ user: manager }]).mockResolvedValueOnce([])
+    const actions = [[{ kind: 'accept', text: '✓ Принял: этап 3 · СПбГУТ', target: { type: 'stage', id: 'cmstage0000000000000000001' } }]]
+    mocks.digestFor.mockResolvedValue({ text: 'Просрочен этап 3', isEmpty: false, actions })
+    mocks.findLinksByUser.mockResolvedValue([{ channel: 'telegram', chatRef: '777', username: null, linkedAt: new Date() }])
+    mocks.telegramSend.mockResolvedValue({ ok: true })
+
+    expect((await service.sendDigests({ dryRun: false })).sent).toBe(1)
+    const options = mocks.telegramSend.mock.calls[0]![2] as { replyMarkup: { inline_keyboard: Array<Array<{ text: string }>> } }
+    expect(options.replyMarkup.inline_keyboard[0]![0]!.text).toBe('✓ Принял: этап 3 · СПбГУТ')
   })
 })
 

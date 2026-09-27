@@ -243,7 +243,9 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Без входа: подлинность — заголовок X-Telegram-Bot-Api-Secret-Token, равный ' +
       'TELEGRAM_WEBHOOK_SECRET; без него или с другим — 403. Команды: /start <токен> — привязать ' +
-      'чат, /today — сводка, /stop — отвязать, прочее — справка. Отвечает 200 сразу ' +
+      'чат, /today — сводка, /stop — отвязать, прочее — справка. Нажатие кнопки (callback_query, ' +
+      'решение 200): «Принял, беру в работу» — подпись callback_data сверяется с чатом и пользователем, ' +
+      'права как у API, отметка в журнал, ответ answerCallbackQuery и правка сообщения. Отвечает 200 сразу ' +
       '({ accepted }), команду выполняет после ответа; нераспознанное тело — тоже 200 (решение 102).',
     body: telegramUpdateSchema,
     permission: 'ANY',

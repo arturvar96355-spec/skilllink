@@ -118,6 +118,44 @@ describe('вебхук Telegram через маршрут', () => {
   })
 })
 
+describe('нажатие кнопки через маршрут (решение 200)', () => {
+  function press(updateId: number, data: string): Promise<Response> {
+    return webhook.POST(
+      new Request('http://localhost/api/telegram/webhook', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'old-secret' },
+        body: JSON.stringify({
+          update_id: updateId,
+          callback_query: {
+            id: 'cb-1',
+            from: { id: 42, is_bot: false, first_name: 'Иван' },
+            message: { message_id: 5, date: 0, chat: { id: 42, type: 'private' }, text: 'Сводка' },
+            chat_instance: '1',
+            data,
+          },
+        }),
+      }),
+      {} as never,
+    )
+  }
+
+  it('callback_query принимается и выполняется после ответа; повтор update_id — не второй раз', async () => {
+    const data = 'as' + 'A'.repeat(20) + 'cmstage0000000000000000001'
+    const first = await press(30, data)
+    expect(first.status).toBe(200)
+    expect(await first.json()).toEqual({ data: { accepted: true } })
+    expect((await press(30, data)).status).toBe(200)
+    expect(mocks.after).toHaveBeenCalledTimes(1)
+  })
+
+  it('callback_data длиннее 64 байт — не наше: 200 accepted=false, ничего не выполняется', async () => {
+    const response = await press(31, 'x'.repeat(65))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { accepted: false } })
+    expect(mocks.after).not.toHaveBeenCalled()
+  })
+})
+
 describe('смена секрета вебхука через маршрут', () => {
   it('старый секрет — 403, новый — 200; секрета нет ни в ответе, ни в журнале', async () => {
     const response = await rotate.POST(new Request('http://localhost/api/admin/telegram/rotate-webhook-secret', { method: 'POST' }), {} as never)

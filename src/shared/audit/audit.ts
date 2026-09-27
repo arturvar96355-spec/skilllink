@@ -42,3 +42,53 @@ export async function writeAudit(entry: AuditEntry, client: Client = prisma): Pr
     log.error('[AUDIT] не удалось записать действие', { action: entry.action, err: error })
   }
 }
+
+export interface AuditOnceResult {
+  /** true — запись сделана сейчас; false — такая же уже была в окне. */
+  created: boolean
+  /** Когда записано: сейчас или время уже существующей записи. */
+  at: Date
+}
+
+/**
+ * Записать действие один раз (решение 200, «Принял, беру в работу»): если этот же
+ * пользователь уже записал это же действие над этим же объектом не раньше `since`,
+ * новая запись не создаётся и возвращается время прежней. Проверка и вставка —
+ * под рекомендательной блокировкой транзакции на ключ «действие + объект + автор»:
+ * два одновременных нажатия не запишут две строки.
+ *
+ * В отличие от `writeAudit`, сбой базы НЕ проглатывается: здесь запись в журнал —
+ * и есть сама операция, и вызывающий должен знать, удалась ли она.
+ */
+export async function recordAuditOnce(
+  entry: AuditEntry & { userId: string },
+  since: Date,
+): Promise<AuditOnceResult> {
+  return prisma.$transaction(async (tx) => {
+    const lockKey = `audit-once:${entry.action}:${entry.objectType}:${entry.objectId}:${entry.userId}`
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+    const existing = await tx.auditLog.findFirst({
+      where: {
+        action: entry.action,
+        objectType: entry.objectType,
+        objectId: entry.objectId,
+        userId: entry.userId,
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true },
+    })
+    if (existing) return { created: false, at: existing.createdAt }
+    const row = await tx.auditLog.create({
+      data: {
+        userId: entry.userId,
+        action: entry.action,
+        objectType: entry.objectType,
+        objectId: entry.objectId,
+        ...(entry.payload === undefined ? {} : { payload: entry.payload }),
+      },
+      select: { createdAt: true },
+    })
+    return { created: true, at: row.createdAt }
+  })
+}
