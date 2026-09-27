@@ -64,12 +64,23 @@ function gaussian(): number {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
 
+/**
+ * Куда идёт поток (решение 199), пиксели экрана: `source` — голова кометы
+ * (скопление вузов), `target` — точка на кромке формы входа, где поток
+ * «приходит». Нет — раскладка в одну колонку, сцена как раньше.
+ */
+export interface StreamAnchors {
+  source: [number, number]
+  target: [number, number]
+}
+
 export interface SceneOptions {
   width: number
   height: number
   pixelRatio: number
   reduced: boolean
   narrow: boolean
+  anchors?: StreamAnchors | null
 }
 
 /** Блок страницы, который собирают звёзды: прямоугольник на экране, пиксели. */
@@ -86,6 +97,8 @@ export interface ConstellationScene {
   /** Курсор, доли экрана от −0,5 до 0,5. */
   pointer(x: number, y: number): void
   resize(width: number, height: number): void
+  /** Форма входа сдвинулась (окно, первая раскладка) — поток идёт в новую точку. */
+  anchor(anchors: StreamAnchors, width: number, height: number): void
   /** Начать прыжок. */
   warp(now: number): void
   /** Страница открылась: звёзды из ядра летят к её блокам (решение 76). */
@@ -107,6 +120,8 @@ export function createConstellation(
 ): ConstellationScene | null {
   const { reduced, narrow } = options
   const scale = narrow ? 0.5 : 1
+  /** Поток идёт в форму входа: приёмник — плотный сгусток на её кромке. */
+  const streamed = Boolean(options.anchors) && !narrow
 
   let renderer: InstanceType<Three['WebGLRenderer']>
   try {
@@ -169,22 +184,54 @@ export function createConstellation(
       from: new THREE.Color(LIGHT),
       to: new THREE.Color(BRAND_VIOLET),
       core: LIGHT,
+      spread: 1,
+      count: 900,
     },
     {
       home: new THREE.Vector3(narrow ? 2.4 : 7.4, narrow ? -4.2 : -4.6, -0.6),
       from: new THREE.Color(BRAND_VIOLET),
       to: new THREE.Color(BRAND_PINK),
       core: BRAND_VIOLET,
+      // Приёмник на кромке формы — не второе облако, а сгусток, где поток копится.
+      spread: streamed ? 0.42 : 1,
+      count: streamed ? 380 : 900,
     },
   ]
 
+  /**
+   * Экран → мир на плоскости скопления: камера после подлёта стоит в z = 14,
+   * мир сдвинут на −1,5. Покачивание мира за курсором сдвигает точку на единицы
+   * пикселей — форма входа наклоняется за курсором так же.
+   */
+  const toWorld = (px: number, py: number, z: number, screenW: number, screenH: number) => {
+    const depth = 14 - (-1.5 + z)
+    const halfH = depth * Math.tan((55 / 2) * (Math.PI / 180))
+    const halfW = halfH * (screenW / screenH)
+    return new THREE.Vector3((px / screenW) * 2 * halfW - halfW, halfH - (py / screenH) * 2 * halfH, z)
+  }
+  /** Где скопления должны стоять; сами они подтягиваются к этим точкам плавно. */
+  const homeGoal = hubs.map((hub) => hub.home.clone())
+  const placeHubs = (anchors: StreamAnchors, screenW: number, screenH: number) => {
+    if (narrow) return
+    homeGoal[0]!.copy(toWorld(anchors.source[0], anchors.source[1], hubs[0]!.home.z, screenW, screenH))
+    homeGoal[1]!.copy(toWorld(anchors.target[0], anchors.target[1], hubs[1]!.home.z, screenW, screenH))
+  }
+  if (streamed && options.anchors) {
+    placeHubs(options.anchors, options.width, options.height)
+    hubs.forEach((hub, i) => hub.home.copy(homeGoal[i]!))
+  }
+
   // ── Скопления: у каждого своя группа — их можно свести вместе ──────────
-  const clusterSize = Math.round(900 * scale)
   const color = new THREE.Color()
   const geometries: Array<InstanceType<typeof THREE.BufferGeometry>> = []
   const clusterMaterial = pointsMaterial(0.11, { vertexColors: true })
   const coreMaterial = pointsMaterial(1.4, { vertexColors: true })
-  const clusters = hubs.map((hub) => {
+  /** Ядро приёмника — своё: оно вспыхивает, когда в него приходит импульс. */
+  const receiverMaterial = pointsMaterial(1.4, { vertexColors: true })
+  /** Мягкий ореол приёмника: свет, накопленный потоком (только в режиме потока). */
+  const haloMaterial = pointsMaterial(streamed ? 5.2 : 0.01, { color: BRAND_VIOLET })
+  const clusters = hubs.map((hub, hubIndex) => {
+    const clusterSize = Math.round(hub.count * scale)
     const group = new THREE.Group()
     group.position.copy(hub.home)
     world.add(group)
@@ -193,11 +240,11 @@ export function createConstellation(
     const colors = new Float32Array(clusterSize * 3)
     const anchors: Array<InstanceType<typeof THREE.Vector3>> = []
     for (let i = 0; i < clusterSize; i += 1) {
-      const x = gaussian() * 1.5
-      const y = gaussian() * 1.15
-      const z = gaussian() * 1.5
+      const x = gaussian() * 1.5 * hub.spread
+      const y = gaussian() * 1.15 * hub.spread
+      const z = gaussian() * 1.5 * hub.spread
       positions.set([x, y, z], i * 3)
-      const t = Math.min(1, Math.hypot(x, y, z) / 2.4)
+      const t = Math.min(1, Math.hypot(x, y, z) / (2.4 * hub.spread))
       color
         .copy(hub.from)
         .lerp(hub.to, t)
@@ -205,6 +252,11 @@ export function createConstellation(
       colors.set([color.r, color.g, color.b], i * 3)
       // Ядро скопления — концы связей.
       if (t < 0.35 && anchors.length < 120) anchors.push(new THREE.Vector3(x, y, z))
+    }
+    // Поток сходится в одну точку приёмника: пучок сужается к форме — видно, куда он идёт.
+    if (streamed && hubIndex === 1) {
+      anchors.length = 0
+      for (let i = 0; i < 40; i += 1) anchors.push(new THREE.Vector3(gaussian() * 0.08, gaussian() * 0.08, 0))
     }
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -215,7 +267,8 @@ export function createConstellation(
     const core = new THREE.BufferGeometry()
     core.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3))
     core.setAttribute('color', new THREE.BufferAttribute(new Float32Array(new THREE.Color(hub.core).toArray()), 3))
-    group.add(new THREE.Points(core, coreMaterial))
+    group.add(new THREE.Points(core, hubIndex === 1 ? receiverMaterial : coreMaterial))
+    if (hubIndex === 1 && streamed) group.add(new THREE.Points(core, haloMaterial))
     geometries.push(geometry, core)
     return { group, anchors, home: hub.home }
   })
@@ -400,37 +453,93 @@ export function createConstellation(
   world.add(new THREE.LineSegments(lineGeometry, lineMaterial))
   geometries.push(lineGeometry)
 
-  const pulsePositions = new Float32Array(links.length * 3)
+  /**
+   * Импульсы. В режиме потока их меньше, и у каждого короткий хвост: светлая
+   * голова впереди, хвост гаснет назад — направление читается без стрелок.
+   * Импульс разгоняется к форме и гаснет, входя в приёмник.
+   */
+  const pulseCount = streamed ? 12 : links.length
+  const pulsePositions = new Float32Array(pulseCount * 3)
   const pulseGeometry = new THREE.BufferGeometry()
   pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3))
   const pulseMaterial = pointsMaterial(0.22, { color: 0xd6ccff })
   world.add(new THREE.Points(pulseGeometry, pulseMaterial))
   geometries.push(pulseGeometry)
   const phases = links.map(() => Math.random())
-  const speeds = links.map(() => 0.12 + Math.random() * 0.18)
+  const speeds = links.map(() => (streamed ? 0.16 + Math.random() * 0.12 : 0.12 + Math.random() * 0.18))
+  const trailPositions = new Float32Array(streamed ? pulseCount * 6 : 0)
+  const trailColors = new Float32Array(streamed ? pulseCount * 6 : 0)
+  const trailGeometry = new THREE.BufferGeometry()
+  trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3))
+  trailGeometry.setAttribute('color', new THREE.BufferAttribute(trailColors, 3))
+  const trailMaterial = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  })
+  if (streamed) world.add(new THREE.LineSegments(trailGeometry, trailMaterial))
+  geometries.push(trailGeometry)
+  const pulseColor = new THREE.Color(0xd6ccff)
+  /** Сколько света пришло в приёмник за последние мгновения: 0 — тихо, 1 — вспышка. */
+  let arrival = 0
 
   /** Связи и импульсы — по текущему положению скоплений: при слиянии они сжимаются. */
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
   const updateLinks = (time: number) => {
+    arrival = 0
     links.forEach(([fromAnchor, toAnchor], i) => {
       a.copy(fromAnchor).multiplyScalar(left.group.scale.x).add(left.group.position)
       b.copy(toAnchor).multiplyScalar(right.group.scale.x).add(right.group.position)
       linePositions.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6)
-      const t = (phases[i]! + time * speeds[i]!) % 1
-      pulsePositions.set([a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t], i * 3)
+      if (i >= pulseCount) return
+      const cycle = (phases[i]! + time * speeds[i]!) % 1
+      if (!streamed) {
+        pulsePositions.set([a.x + (b.x - a.x) * cycle, a.y + (b.y - a.y) * cycle, a.z + (b.z - a.z) * cycle], i * 3)
+        return
+      }
+      // Разгон к форме: медленно из скопления, быстрее к приёмнику.
+      const head = Math.pow(cycle, 1.35)
+      const tail = Math.pow(Math.max(0, cycle - 0.085), 1.35)
+      // Входя в приёмник, импульс гаснет — его свет «остаётся» в сгустке.
+      const fade = 1 - clamp01((cycle - 0.9) / 0.1)
+      pulsePositions.set([a.x + (b.x - a.x) * head, a.y + (b.y - a.y) * head, a.z + (b.z - a.z) * head], i * 3)
+      trailPositions.set(
+        [
+          a.x + (b.x - a.x) * head,
+          a.y + (b.y - a.y) * head,
+          a.z + (b.z - a.z) * head,
+          a.x + (b.x - a.x) * tail,
+          a.y + (b.y - a.y) * tail,
+          a.z + (b.z - a.z) * tail,
+        ],
+        i * 6,
+      )
+      trailColors.set([pulseColor.r * fade, pulseColor.g * fade, pulseColor.b * fade, 0, 0, 0], i * 6)
+      // Только что пришедший импульс (цикл начался заново) подсвечивает приёмник.
+      arrival += Math.exp(-cycle * 9) + (cycle > 0.9 ? (cycle - 0.9) * 4 : 0)
     })
+    arrival = Math.min(1, arrival * 0.6)
     lineGeometry.attributes.position!.needsUpdate = true
     pulseGeometry.attributes.position!.needsUpdate = true
+    if (streamed) {
+      trailGeometry.attributes.position!.needsUpdate = true
+      trailGeometry.attributes.color!.needsUpdate = true
+    }
   }
 
   /** `value` — всё небо; `knot` — скопления, связи и импульсы (растворяются в ядре). */
   const setOpacity = (value: number, knot = value) => {
     clusterMaterial.opacity = knot
     coreMaterial.opacity = knot
+    receiverMaterial.opacity = knot
+    haloMaterial.opacity = knot * (0.14 + 0.12 * arrival)
     fieldMaterial.opacity = value
     lineMaterial.opacity = knot * 0.16
     pulseMaterial.opacity = knot
+    trailMaterial.opacity = knot * 0.9
   }
 
   let pointerX = 0
@@ -447,6 +556,10 @@ export function createConstellation(
       pointerX = x
       pointerY = y
     },
+    anchor(anchors, screenW, screenH) {
+      if (!streamed) return
+      placeHubs(anchors, screenW, screenH)
+    },
     resize(nextWidth, nextHeight) {
       width = nextWidth
       height = nextHeight
@@ -458,10 +571,10 @@ export function createConstellation(
     warp(now) {
       if (warpSince !== null) return
       warpSince = now
-      // В прыжке звёзды летят — плотность пикселей 1 незаметна глазу,
-      // а заливки крупных светящихся точек на видеокарте втрое меньше.
-      renderer.setPixelRatio(1)
-      renderer.setSize(width, height, false)
+      // Плотность пикселей в прыжке больше не снижается (решение 199): пересоздание
+      // буфера холста в момент щелчка ждало видеокарту (131 мс в трассе), а звёзды
+      // на экране Retina на время прыжка становились мыльными. Точки давно
+      // не раздуваются, заливка и так мала.
     },
     assemble(now, targets, screenW, screenH) {
       if (warpSince === null || assembleAt !== null || targets.length === 0) return
@@ -483,6 +596,8 @@ export function createConstellation(
     frame(now) {
       const time = (now - start) / 1000
       const intro = 1 - Math.pow(1 - Math.min(1, time / 1.8), 3)
+      // Форма сдвинулась (окно, первая раскладка) — скопления подтягиваются без скачка.
+      hubs.forEach((hub, i) => hub.home.lerp(homeGoal[i]!, 0.08))
 
       const t = warpSince === null ? 0 : now - warpSince
 
@@ -503,6 +618,7 @@ export function createConstellation(
       clusterMaterial.size = 0.11
       fieldMaterial.size = 0.11 * (1 + 0.5 * merge) * (1 + 1.2 * burst)
       coreMaterial.size = 1.4 * (1 + 1.2 * merge)
+      receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
       const sway = 1 - merge
       world.rotation.y += ((pointerX * 0.35 + Math.sin(time * 0.15) * 0.12) * sway - world.rotation.y) * 0.06
@@ -522,7 +638,16 @@ export function createConstellation(
     },
     dispose() {
       geometries.forEach((geometry) => geometry.dispose())
-      ;[clusterMaterial, coreMaterial, fieldMaterial, lineMaterial, pulseMaterial].forEach((material) =>
+      ;[
+        clusterMaterial,
+        coreMaterial,
+        receiverMaterial,
+        haloMaterial,
+        fieldMaterial,
+        lineMaterial,
+        pulseMaterial,
+        trailMaterial,
+      ].forEach((material) =>
         material.dispose(),
       )
       dot.dispose()

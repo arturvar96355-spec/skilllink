@@ -4,6 +4,7 @@ import {
   type AssemblyTarget,
   type ConstellationScene,
   type SceneOptions,
+  type StreamAnchors,
 } from './constellation-scene'
 
 /**
@@ -15,6 +16,7 @@ export type WorkerMessage =
   | ({ type: 'init'; canvas: OffscreenCanvas } & SceneOptions)
   | { type: 'pointer'; x: number; y: number }
   | { type: 'resize'; width: number; height: number }
+  | { type: 'anchor'; anchors: StreamAnchors; width: number; height: number }
   | { type: 'visibility'; hidden: boolean }
   | { type: 'warp' }
   | { type: 'release' }
@@ -88,6 +90,9 @@ worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       break
     case 'resize':
       scene?.resize(message.width, message.height)
+      break
+    case 'anchor':
+      scene?.anchor(message.anchors, message.width, message.height)
       break
     case 'visibility':
       hidden = message.hidden
