@@ -23,6 +23,7 @@ import {
   availableMembers,
   averageLoad,
   daysSince,
+  isMeetingAhead,
   isStale,
   loadLevel,
   memberLoad,
@@ -152,6 +153,7 @@ function buildMembers(
   facts: Facts,
   universities: ReadonlyMap<string, string | null>,
   now: Date,
+  week: { from: Date; to: Date },
 ): TeamMemberDto[] {
   const coopsByUser = groupBy(facts.cooperations, (row) => row.responsibleId)
   const completedByUser = groupBy(facts.completed, (row) => row.responsibleId)
@@ -174,7 +176,8 @@ function buildMembers(
     )
     const completed = completedByUser.get(user.id) ?? []
     const overdue = facts.overdue.get(user.id) ?? 0
-    const meetingCount = meetings.get(user.id)?.length ?? 0
+    const userMeetings = meetings.get(user.id) ?? []
+    const meetingsAhead = userMeetings.filter((row) => isMeetingAhead(row.date, now, week)).length
     const last = lastByUser.get(user.id) ?? null
     const days = daysSince(last?.createdAt ?? null, now)
     const nearest = nearestByUser.get(user.id)
@@ -189,7 +192,8 @@ function buildMembers(
       universities: unis.names,
       nearestDeadline: nearest ? toStageRef(nearest, now) : null,
       overdueStages: overdue,
-      meetingsThisWeek: meetingCount,
+      meetingsThisWeek: userMeetings.length,
+      meetingsAhead,
       openLetterTasks: facts.letters.get(user.id) ?? 0,
       onTime: {
         closedOnTime: completed.filter(isClosedOnTime).length,
@@ -199,7 +203,7 @@ function buildMembers(
       lastAction: last ? toAction(last, universities) : null,
       daysSinceLastAction: days,
       isStale: isStale(days, TEAM_STALE_DAYS),
-      load: memberLoad({ cooperations: coops.length, meetings: meetingCount, overdue }),
+      load: memberLoad({ cooperations: coops.length, meetings: meetingsAhead, overdue }),
     }
   })
 }
@@ -211,7 +215,7 @@ export async function teamOverview(user: CurrentUser, now: Date = new Date()): P
   const ids = users.map((item) => item.id)
   const facts = await collectFacts(ids, now, week, true)
   const universities = await repo.findActionUniversities(actionObjectIds(facts.lastActions))
-  const members = buildMembers(users, facts, universities, now)
+  const members = buildMembers(users, facts, universities, now, week)
 
   const inTeam = new Set(ids)
   const average = averageLoad(members.map((member) => member.load))
@@ -265,7 +269,7 @@ function toCooperation(row: Awaited<ReturnType<typeof repo.findMemberCooperation
   }
 }
 
-function toMeeting(row: MeetingRow, userId: string): TeamMeetingDto {
+function toMeeting(row: MeetingRow, userId: string, now: Date, week: { from: Date; to: Date }): TeamMeetingDto {
   const university = row.university ?? row.cooperation?.university ?? null
   return {
     id: row.id,
@@ -275,6 +279,7 @@ function toMeeting(row: MeetingRow, userId: string): TeamMeetingDto {
     universityShortName: university ? (university.shortName ?? university.name) : null,
     cooperationId: row.cooperationId,
     role: row.responsibleId === userId ? 'RESPONSIBLE' : 'PARTICIPANT',
+    isAhead: isMeetingAhead(row.date, now, week),
   }
 }
 
@@ -296,14 +301,14 @@ export async function teamMemberDetail(
     repo.findRecentActions(found.id, TEAM_RECENT_ACTIONS),
   ])
   const universities = await repo.findActionUniversities(actionObjectIds([...facts.lastActions, ...recent]))
-  const [member] = buildMembers([found], facts, universities, now)
+  const [member] = buildMembers([found], facts, universities, now, week)
 
   return {
     member: member!,
     cooperations: cooperations.map((row) => toCooperation(row, now)),
     overdueStages: overdueStages.map((stage) => toStageRef(stage, now)),
     weekStages: weekStages.map((stage) => toStageRef(stage, now)),
-    weekMeetings: facts.meetings.map((row) => toMeeting(row, found.id)),
+    weekMeetings: facts.meetings.map((row) => toMeeting(row, found.id, now, week)),
     recentActions: recent.map((row) => toAction(row, universities)),
     week: { from: week.from.toISOString(), to: week.to.toISOString() },
     loadRule: LOAD_RULE,

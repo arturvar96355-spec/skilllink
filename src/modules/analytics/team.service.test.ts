@@ -98,9 +98,10 @@ function respond(model: string, method: string, args: Record<string, unknown>): 
       }))
     case 'meeting.findMany':
       if (where.id) return []
-      return ids.map((id) => ({
-        id: `m-${id}`,
-        date: future(1),
+      // У каждого две встречи недели: впереди (пятница) и уже прошедшая (среда).
+      return ids.flatMap((id) => [future(1), future(-1)].map((date, index) => ({
+        id: `m-${id}-${index}`,
+        date,
         topic: 'Встреча',
         format: 'ONLINE',
         responsibleId: id,
@@ -108,7 +109,7 @@ function respond(model: string, method: string, args: Record<string, unknown>): 
         participants: [{ userId: id }],
         university: null,
         cooperation: null,
-      }))
+      })))
     case 'inboundLetterTask.groupBy':
       return ids.map((id) => ({ responsibleId: id, _count: { _all: 2 } }))
     case 'auditLog.groupBy':
@@ -258,9 +259,12 @@ describe('та же база подсчёта, что у главной и ли�
 })
 
 describe('строка сотрудника', () => {
-  it('нагрузка = связки + встречи + 3 × просрочки; ближайший срок и письма на месте', async () => {
+  it('нагрузка = связки + встречи впереди + 3 × просрочки; ближайший срок и письма на месте', async () => {
     const result = await teamOverview(user('HEAD'), NOW)
     const member = result.members[1]!
+    // Две встречи недели, одна уже прошла — в нагрузку идёт только предстоящая.
+    expect(member.meetingsThisWeek).toBe(2)
+    expect(member.meetingsAhead).toBe(1)
     expect(member.load).toEqual({ points: 3 + 1 + 3 * 1, level: 'NORMAL', cooperations: 3, meetings: 1, overdue: 1 })
     expect(member.nearestDeadline).toMatchObject({ stageNumber: 6, universityShortName: 'В0', daysOverdue: null })
     expect(member.openLetterTasks).toBe(2)
@@ -295,7 +299,8 @@ describe('боковая панель сотрудника', () => {
     const detail = await teamMemberDetail(user('HEAD'), 'u0', NOW)
     expect(detail.member.load).toEqual(overview.members[0]!.load)
     expect(detail.member.overdueStages).toBe(overview.members[0]!.overdueStages)
-    expect(detail.weekMeetings[0]).toMatchObject({ role: 'RESPONSIBLE', topic: 'Встреча' })
+    expect(detail.weekMeetings[0]).toMatchObject({ role: 'RESPONSIBLE', topic: 'Встреча', isAhead: true })
+    expect(detail.weekMeetings[1]).toMatchObject({ isAhead: false })
     for (const action of detail.recentActions) {
       expect(Object.keys(action).sort()).toEqual(['action', 'at', 'label', 'objectLabel', 'universityShortName'])
     }

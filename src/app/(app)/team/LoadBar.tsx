@@ -52,7 +52,7 @@ export function LoadLegend({ load, rule }: { load: TeamLoadDto; rule: TeamLoadRu
       </li>
       <li>
         <i className={[styles.key, styles.keyMeetings].join(' ')} aria-hidden="true" />
-        {meetingsText(load.meetings)} за неделю
+        {meetingsText(load.meetings)} впереди на неделе
       </li>
       <li>
         <i className={[styles.key, styles.keyOverdue].join(' ')} aria-hidden="true" />

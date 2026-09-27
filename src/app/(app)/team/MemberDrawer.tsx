@@ -89,6 +89,9 @@ export function MemberDrawer({
   const now = Date.now()
 
   const member = data?.member
+  // В нагрузку идут только встречи впереди — их и показываем; прошедшие — одной строкой числом.
+  const ahead = data?.weekMeetings.filter((meeting) => meeting.isAhead) ?? []
+  const pastCount = (data?.weekMeetings.length ?? 0) - ahead.length
   const title = member?.fullName ?? 'Сотрудник'
   const description = member ? (member.position ?? USER_ROLE_LABELS[member.role]) : undefined
 
@@ -162,11 +165,11 @@ export function MemberDrawer({
               )}
             </Section>
 
-            <Section title="Встречи на неделе" count={data.weekMeetings.length}>
-              {data.weekMeetings.length > 0 ? (
+            <Section title="Встречи впереди на неделе" count={ahead.length}>
+              {ahead.length > 0 ? (
                 <>
                   <ul className={styles.meetList}>
-                    {data.weekMeetings.slice(0, MEETINGS_SHOWN).map((meeting) => (
+                    {ahead.slice(0, MEETINGS_SHOWN).map((meeting) => (
                       <li key={meeting.id} className={styles.meetItem}>
                         <span className={styles.stageWhen}>{formatDateTime(meeting.date)}</span>
                         <span className={styles.meetTopic}>{meeting.topic}</span>
@@ -178,14 +181,19 @@ export function MemberDrawer({
                       </li>
                     ))}
                   </ul>
-                  {data.weekMeetings.length > MEETINGS_SHOWN && (
+                  {ahead.length > MEETINGS_SHOWN && (
                     <p className={styles.more}>
-                      Ещё {data.weekMeetings.length - MEETINGS_SHOWN} — в его календаре и в карточках связок.
+                      Ещё {ahead.length - MEETINGS_SHOWN} — в его календаре и в карточках связок.
                     </p>
                   )}
                 </>
               ) : (
-                <p className={styles.muted}>Встреч на этой неделе нет.</p>
+                <p className={styles.muted}>До конца недели встреч больше нет.</p>
+              )}
+              {pastCount > 0 && (
+                <p className={styles.more}>
+                  Прошедших встреч на этой неделе: {pastCount}. В нагрузку они не входят.
+                </p>
               )}
             </Section>
 

@@ -67,7 +67,7 @@ export const overdueText = (value: number) => `${value} ${pluralize(value, ['п�
 /** Подпись полосы нагрузки — для чтения с экрана и подсказки: из чего сложились баллы. */
 export function loadFormula(load: TeamLoadDto, rule: TeamLoadRuleDto): string {
   return (
-    `${points(load.points)}: ${cooperationsText(load.cooperations)} + ${meetingsText(load.meetings)} + ` +
+    `${points(load.points)}: ${cooperationsText(load.cooperations)} + ${meetingsText(load.meetings)} впереди на неделе + ` +
     `${rule.overdueWeight} × ${overdueText(load.overdue)}. Норма до ${rule.normMax}, выше ${rule.highMax} — перегрузка.`
   )
 }

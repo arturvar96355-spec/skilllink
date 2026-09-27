@@ -31,6 +31,7 @@ export interface TeamLoadDto {
   points: number
   level: TeamLoadLevel
   cooperations: number
+  /** Встречи впереди на неделе (`meetingsAhead`), а не все встречи недели. */
   meetings: number
   overdue: number
 }
@@ -86,6 +87,11 @@ export interface TeamMemberDto {
   overdueStages: number
   /** Встречи на этой московской неделе: ответственный или участник. */
   meetingsThisWeek: number
+  /**
+   * Из них ещё впереди: с текущего момента до конца московской недели. Только они идут
+   * в нагрузку (`load.meetings`) — прошедшая встреча уже не работа (решение 203).
+   */
+  meetingsAhead: number
   /** Открытые задания по письмам вузов на нём. */
   openLetterTasks: number
   /** Его этапы, закрытые в срок: `percent: null` — закрытых со сроком ещё нет. */
@@ -160,6 +166,8 @@ export interface TeamMeetingDto {
   cooperationId: string | null
   /** Сотрудник ведёт встречу или приглашён участником. */
   role: 'RESPONSIBLE' | 'PARTICIPANT'
+  /** Ещё впереди — идёт в нагрузку; `false` — уже прошла на этой неделе. */
+  isAhead: boolean
 }
 
 export interface TeamMemberDetailDto {

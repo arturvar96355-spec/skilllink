@@ -10,6 +10,7 @@ import {
   memberLoad,
   moscowWeek,
   topUniversities,
+  isMeetingAhead,
 } from './team.rules'
 
 /** Правило нагрузки экрана «Команда» (решение 203): баллы, пороги, неделя, «без движения». */
@@ -123,5 +124,25 @@ describe('вузы сотрудника', () => {
       { universityId: 'u4', label: 'СФУ' },
     ]
     expect(topUniversities(rows, 3)).toEqual({ total: 4, names: ['ПГУТИ', 'ВГУ', 'ННГУ'] })
+  })
+})
+
+describe('встречи в нагрузке — только впереди', () => {
+  // Четверг 24.09 12:00 МСК; неделя — пн 21.09 00:00 МСК … пн 28.09 00:00 МСК.
+  const now = new Date('2026-09-24T09:00:00.000Z')
+  const week = moscowWeek(now)
+
+  it('прошедшая на этой неделе встреча — уже не нагрузка', () => {
+    expect(isMeetingAhead(new Date('2026-09-22T07:00:00.000Z'), now, week)).toBe(false)
+    expect(isMeetingAhead(new Date('2026-09-24T08:59:59.000Z'), now, week)).toBe(false)
+  })
+
+  it('встреча с этого момента до конца недели — нагрузка', () => {
+    expect(isMeetingAhead(now, now, week)).toBe(true)
+    expect(isMeetingAhead(new Date('2026-09-27T20:59:00.000Z'), now, week)).toBe(true) // вс 23:59 МСК
+  })
+
+  it('следующая неделя — ещё не нагрузка этой недели', () => {
+    expect(isMeetingAhead(new Date('2026-09-27T21:00:00.000Z'), now, week)).toBe(false) // пн 00:00 МСК
   })
 })

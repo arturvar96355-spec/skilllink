@@ -2239,11 +2239,13 @@ no-store`** (в файле ФИО, телефоны и почты слушате
   совпадает с `stagesOnTimePercent` главной, `members[].onTime` — с `GET /api/me/stats` сотрудника;
 - «встречи на неделе» — московская календарная неделя (`week.from` — понедельник 00:00 МСК,
   `week.to` — следующий понедельник, не включая); встреча считается, если сотрудник её
-  ведёт или приглашён участником (как в личном календаре);
+  ведёт или приглашён участником (как в личном календаре). `meetingsThisWeek` — все встречи
+  недели, `meetingsAhead` — из них ещё впереди (с момента запроса до `week.to`);
 - «письма» — открытые задания по письмам вузов (`InboundLetterTask`, `OPEN`) на сотруднике.
 
-**Нагрузка:** `points` = связки в работе + встречи недели + `overdueWeight` × просроченные
-этапы. До `normMax` — `NORMAL`, до `highMax` — `HIGH`, выше — `OVERLOADED`. Пороги —
+**Нагрузка:** `points` = связки в работе + встречи впереди на неделе (`meetingsAhead`:
+с момента запроса до конца московской недели; прошедшие — уже не нагрузка) +
+`overdueWeight` × просроченные этапы; `load.meetings` = `meetingsAhead`. До `normMax` — `NORMAL`, до `highMax` — `HIGH`, выше — `OVERLOADED`. Пороги —
 `shared/config/team.config.ts` (TEMP), приходят в `loadRule`. Кто связки не ведёт —
 `load: null` (не «норма 0»).
 
@@ -2274,7 +2276,7 @@ no-store`** (в файле ФИО, телефоны и почты слушате
           "deadline": "2026-09-29T09:00:00.000Z", "cooperationId": "…",
           "universityName": "…", "universityShortName": "ИРНИТУ", "programName": "…", "daysOverdue": null
         },
-        "overdueStages": 3, "meetingsThisWeek": 9, "openLetterTasks": 2,
+        "overdueStages": 3, "meetingsThisWeek": 12, "meetingsAhead": 9, "openLetterTasks": 2,
         "onTime": { "closedOnTime": 560, "closedWithDeadline": 630, "percent": 88.9 },
         "lastAction": { "action": "stage.status.change", "label": "Изменён статус этапа",
                         "objectLabel": "Этап связки", "universityShortName": "ННГУ",
@@ -2326,7 +2328,7 @@ curl -s -b cookies.txt http://localhost:3000/api/team
     "weekStages": [ { "stageId": "…", "stageNumber": 3, "…": "…", "daysOverdue": null } ],
     "weekMeetings": [
       { "id": "…", "date": "…", "topic": "…", "format": "ONLINE", "universityShortName": "ВГУ",
-        "cooperationId": "…", "role": "RESPONSIBLE" }
+        "cooperationId": "…", "role": "RESPONSIBLE", "isAhead": true }
     ],
     "recentActions": [ { "action": "…", "label": "…", "objectLabel": "…", "universityShortName": null, "at": "…" } ],
     "week": { "from": "…", "to": "…" }, "loadRule": { "…": "…" }, "staleDays": 7,
@@ -2337,7 +2339,8 @@ curl -s -b cookies.txt http://localhost:3000/api/team
 
 `cooperations` — связки в работе, где он ответственный за связку; `overdueStages` у связки —
 как в её карточке (по всем этапам связки). `weekStages` — его незакрытые этапы со сроком
-на этой неделе. `recentActions` — последние 10 записей журнала, те же безопасные поля.
+на этой неделе. `weekMeetings` — все встречи недели; `isAhead: true` — ещё впереди и входит
+в нагрузку, `false` — уже прошла. `recentActions` — последние 10 записей журнала, те же безопасные поля.
 «Передать связку» — существующий `PATCH /api/cooperations/:id` с `responsibleId`
 (право `ASSIGN_RESPONSIBLE`): меняется ответственный за связку, ответственные за этапы — нет.
 

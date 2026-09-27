@@ -9,7 +9,7 @@ import { daysBetween, moscowDayStart, moscowIsoDate } from '@/shared/utils/date'
 
 export const LOAD_RULE: TeamLoadRuleDto = { ...TEAM_LOAD }
 
-/** Баллы нагрузки: связки в работе + встречи на неделе + вес × просроченные этапы. */
+/** Баллы нагрузки: связки в работе + встречи впереди на неделе + вес × просроченные этапы. */
 export function loadPoints(
   input: { cooperations: number; meetings: number; overdue: number },
   rule: TeamLoadRuleDto = LOAD_RULE,
@@ -73,6 +73,14 @@ export function moscowWeek(now: Date): { from: Date; to: Date } {
   const weekday = new Date(`${moscowIsoDate(now)}T00:00:00.000Z`).getUTCDay()
   const sinceMonday = (weekday + 6) % 7
   return { from: moscowDayStart(now, -sinceMonday), to: moscowDayStart(now, 7 - sinceMonday) }
+}
+
+/**
+ * Встреча идёт в нагрузку, только пока она впереди: с `now` (включительно) до конца
+ * московской недели. Прошедшая встреча недели — уже сделанная работа, не нагрузка.
+ */
+export function isMeetingAhead(date: Date, now: Date, week: { from: Date; to: Date }): boolean {
+  return date.getTime() >= now.getTime() && date.getTime() < week.to.getTime()
 }
 
 /** Дней с последнего действия по московским суткам; `null` — действий не было. */

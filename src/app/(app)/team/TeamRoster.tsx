@@ -67,6 +67,17 @@ function Overdue({ value }: { value: number }) {
   return value > 0 ? <span className={styles.signal}>{value}</span> : <span className={styles.zero}>0</span>
 }
 
+/** Встречи впереди — они идут в нагрузку; прошедшие на неделе — мелко под числом. */
+function MeetingsAhead({ member }: { member: TeamMemberDto }) {
+  const past = member.meetingsThisWeek - member.meetingsAhead
+  return (
+    <>
+      {member.meetingsAhead > 0 ? member.meetingsAhead : <span className={styles.zero}>0</span>}
+      {past > 0 && <span className={styles.numNote}>прошло {past}</span>}
+    </>
+  )
+}
+
 function Nearest({ member }: { member: TeamMemberDto }) {
   const next = member.nearestDeadline
   if (!next) return <span className={styles.muted}>Сроков впереди нет</span>
@@ -137,7 +148,7 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
           <Overdue value={member.overdueStages} />
         </td>
         <td className={styles.num}>
-          {member.meetingsThisWeek > 0 ? member.meetingsThisWeek : <span className={styles.zero}>0</span>}
+          <MeetingsAhead member={member} />
         </td>
         <td className={styles.num}>
           {member.openLetterTasks > 0 ? member.openLetterTasks : <span className={styles.zero}>0</span>}
@@ -181,9 +192,9 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
         <colgroup>
           <col style={{ width: '27%' }} />
           <col style={{ width: '14%' }} />
-          <col style={{ width: '20%' }} />
+          <col style={{ width: '18%' }} />
           <col style={{ width: '9%' }} />
-          <col style={{ width: '8%' }} />
+          <col style={{ width: '10%' }} />
           <col style={{ width: '7%' }} />
           <col style={{ width: '15%' }} />
         </colgroup>
@@ -195,8 +206,12 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
             <th scope="col" className={styles.num} title="Текущие начатые этапы после срока">
               Просрочено
             </th>
-            <th scope="col" className={styles.num} title={`Встречи на неделе ${weekText}`}>
-              Встречи
+            <th
+              scope="col"
+              className={styles.num}
+              title={`Встречи впереди — с этого момента до конца недели ${weekText}; прошедшие в нагрузку не идут`}
+            >
+              Встречи впереди
             </th>
             <th scope="col" className={styles.num} title="Открытые задания по письмам вузов">
               Письма
@@ -263,9 +278,9 @@ export function TeamList({ members, rule, currentUserId, selectedId, now, onOpen
                 </dd>
               </div>
               <div>
-                <dt>Встречи · письма</dt>
+                <dt>Встречи впереди · письма</dt>
                 <dd>
-                  {member.meetingsThisWeek} · {member.openLetterTasks}
+                  {member.meetingsAhead} · {member.openLetterTasks}
                 </dd>
               </div>
             </dl>
@@ -273,9 +288,9 @@ export function TeamList({ members, rule, currentUserId, selectedId, now, onOpen
         ) : (
           <p className={styles.blockQuiet}>
             <span>Связки не ведёт</span>
-            {member.meetingsThisWeek > 0 && (
+            {member.meetingsAhead > 0 && (
               <span>
-                {member.meetingsThisWeek} {pluralize(member.meetingsThisWeek, ['встреча', 'встречи', 'встреч'])}
+                {member.meetingsAhead} {pluralize(member.meetingsAhead, ['встреча', 'встречи', 'встреч'])} впереди
               </span>
             )}
             {member.overdueStages > 0 && <span className={styles.signal}>просрочено {member.overdueStages}</span>}

@@ -324,6 +324,15 @@
   color: var(--text-primary);
 }
 
+/* «прошло 51» под числом встреч впереди: прошедшие видны, но в нагрузку не идут. */
+.numNote {
+  display: block;
+  font-size: var(--text-caption-size);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
 .groupRow th {
   padding: var(--space-5) var(--space-3) var(--space-2);
   text-align: left;
