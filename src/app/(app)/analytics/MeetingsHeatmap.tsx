@@ -80,6 +80,7 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
                     key={`${label}-${hour}`}
                     className={styles.cell}
                     style={cellStyle(value, data.max)}
+                    role="img"
                     aria-label={`${label}, ${hour}:00 — ${value} ${pluralize(value, ['встреча', 'встречи', 'встреч'])}`}
                   >
                     {value > 0 ? value : ''}
@@ -89,7 +90,7 @@ function HeatmapGrid({ data }: { data: MeetingsHeatmapDto }) {
               <span className={styles.total}>
                 <span className={styles.totalValue}>{totals[dayIndex] ?? 0}</span>
                 <span className={styles.totalShare}>
-                  {data.total > 0 ? `${Math.round(((totals[dayIndex] ?? 0) / data.total) * 100)} %` : ''}
+                  {data.total > 0 ? `${Math.round(((totals[dayIndex] ?? 0) / data.total) * 100)} %` : ''}
                 </span>
               </span>
             </Fragment>

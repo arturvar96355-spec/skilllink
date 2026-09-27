@@ -57,17 +57,17 @@ describe('вкладка «Воронка» (решение 215)', () => {
       dropped('ATTRACTION', 2, 'CANCELLED', null),
     ])
     expect(text).toBe(
-      'Больше всего связок выбывает на фазе «Оформление»: 2 из 3; самый узкий переход — «Внедрение» → «Эксплуатация»: дальше прошли 17 из 38 (45 %).',
+      'Больше всего связок выбывает на фазе «Оформление»: 2 из 3; самый узкий переход — «Внедрение» → «Эксплуатация»: дальше прошли 17 из 38 (45 %).',
     )
   })
 
   it('полосы: число «из всех» на полосе, переход над ней, узкий — красным', () => {
     const rows = funnelRows(STEPS, new Map([['ATTRACTION', 19], [DONE, 6]]), new Map([['ATTRACTION', 5]]))
-    expect(rows[0]!.valueText).toBe('77 из 77 · 100 %')
+    expect(rows[0]!.valueText).toBe('77 из 77 · 100 %')
     expect(rows[0]!.note).toBe('сейчас здесь 19 · выбыли 5')
     expect(rows[0]!.between).toBeUndefined()
-    expect(rows[3]!.between).toEqual({ text: '45 % перешли дальше — самый узкий переход', tone: 'danger' })
-    expect(rows[4]!.between?.text).toBe('35 % прошли весь цикл')
+    expect(rows[3]!.between).toEqual({ text: '45 % перешли дальше — самый узкий переход', tone: 'danger' })
+    expect(rows[4]!.between?.text).toBe('35 % прошли весь цикл')
     expect(rows[4]!.note).toBe('все этапы пройдены у 6')
     expect(rows.map((row) => row.shade)).toEqual([0, 1, 2, 3, 4])
   })

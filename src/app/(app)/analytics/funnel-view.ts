@@ -20,7 +20,7 @@ import { formatNumber, pluralize } from '@/ui/lib/format'
 /** Последняя фаза — «Контроль»: этап 14 закрывает система, когда пройдены все остальные. */
 const FINAL_PHASE: StagePhase = 'CONTROL'
 
-/** Доля целым процентом: «66 %». */
+/** Доля целым процентом: «66 %». */
 export function percent(part: number, whole: number): number | null {
   return whole > 0 ? Math.round((part / whole) * 100) : null
 }
@@ -115,7 +115,7 @@ export function funnelConclusion(steps: readonly FunnelStep[], dropped: readonly
   }
   if (narrow) {
     parts.push(
-      `самый узкий переход — «${narrow.from}» → «${narrow.to}»: дальше прошли ${formatNumber(narrow.passed)} из ${formatNumber(narrow.of)} (${narrow.share} %)`,
+      `самый узкий переход — «${narrow.from}» → «${narrow.to}»: дальше прошли ${formatNumber(narrow.passed)} из ${formatNumber(narrow.of)} (${narrow.share} %)`,
     )
   }
   if (parts.length === 0) return 'Связок в воронке пока нет.'
@@ -151,7 +151,7 @@ export function funnelRows(
       key: step.key,
       label: step.label,
       value: step.value,
-      valueText: `${formatNumber(step.value)} из ${formatNumber(total)} · ${percent(step.value, total) ?? 0} %`,
+      valueText: `${formatNumber(step.value)} из ${formatNumber(total)} · ${percent(step.value, total) ?? 0} %`,
       shade: Math.min(index, 4),
       note: notes.join(' · '),
       between:
@@ -160,9 +160,9 @@ export function funnelRows(
           : share === null
             ? { text: 'до прошлой фазы никто не дошёл', tone: 'muted' }
             : isFinal
-              ? { text: `${share} % прошли весь цикл`, tone: 'default' }
+              ? { text: `${share} % прошли весь цикл`, tone: 'default' }
               : {
-                  text: `${share} % перешли дальше${isNarrow ? ' — самый узкий переход' : ''}`,
+                  text: `${share} % перешли дальше${isNarrow ? ' — самый узкий переход' : ''}`,
                   tone: isNarrow ? 'danger' : 'default',
                 },
     }

@@ -38,5 +38,5 @@ export function heatmapConclusion(cells: readonly (readonly number[])[], total: 
   })
   const share = Math.round((days[day]! / total) * 100)
   const best = hours[hour]!
-  return `Чаще всего встречаются ${DAY_PHRASE[day] ?? ''}: ${formatNumber(days[day]!)} из ${formatNumber(total)} ${pluralize(total, ['встречи', 'встреч', 'встреч'])} (${share} %); самый загруженный час — ${hour}:00, ${formatNumber(best)} ${pluralize(best, ['встреча', 'встречи', 'встреч'])} за все дни.`
+  return `Чаще всего встречаются ${DAY_PHRASE[day] ?? ''}: ${formatNumber(days[day]!)} из ${formatNumber(total)} ${pluralize(total, ['встречи', 'встреч', 'встреч'])} (${share} %); самый загруженный час — ${hour}:00, ${formatNumber(best)} ${pluralize(best, ['встреча', 'встречи', 'встреч'])} за все дни.`
 }
