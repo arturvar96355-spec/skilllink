@@ -103,6 +103,7 @@
   color: var(--text-secondary);
   opacity: 0;
   pointer-events: none;
+  touch-action: manipulation;
   transform: translateY(-50%) scale(0.9);
   transition:
     opacity var(--motion-surface) var(--ease-out),
