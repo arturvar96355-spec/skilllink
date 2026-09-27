@@ -28,6 +28,7 @@ import {
   GLOBAL_SCOPE_ID,
   credibleInterval90,
   indexStats,
+  ruleOutcomes,
   ruleProbability,
   type RecommendationScopes,
   type StatsIndex,
@@ -195,7 +196,11 @@ function weightOf(
 export async function ruleStats(user: CurrentUser): Promise<RuleStatsListDto> {
   assertCan(user, 'ANALYTICS')
   const now = new Date()
-  const [rows, isMock] = await Promise.all([statsRepo.loadRuleStats(), statsRepo.hasMockData()])
+  const [rows, isMock, counts] = await Promise.all([
+    statsRepo.loadRuleStats(),
+    statsRepo.hasMockData(),
+    statsRepo.countByRuleAndStatus(),
+  ])
   const index = indexStats(rows)
   const universityLabels = await statsRepo.universityNames(
     rows.filter((row) => row.scopeType === 'university').map((row) => row.scopeId),
@@ -224,7 +229,14 @@ export async function ruleStats(user: CurrentUser): Promise<RuleStatsListDto> {
           now,
         ),
       )
-    return { ruleKey, ruleLabel: ruleLabel(ruleKey), enabled: isRuleEnabled(ruleKey), ...global, scopes }
+    return {
+      ruleKey,
+      ruleLabel: ruleLabel(ruleKey),
+      enabled: isRuleEnabled(ruleKey),
+      outcomes: ruleOutcomes(counts, ruleKey),
+      ...global,
+      scopes,
+    }
   })
 
   return {

@@ -188,10 +188,27 @@ export interface RuleWeightDto {
   updatedAt: string | null
 }
 
+/**
+ * Что стало с задачами правила (решение 218) — по самим задачам «Списка задач», та же
+ * база подсчёта, что у списка: `total` = `open` + `taken` + `dismissed`.
+ */
+export interface RuleOutcomesDto {
+  /** Сколько задач правило создало за всё время (открытые, в работе, закрытые, отклонённые). */
+  total: number
+  /** Ещё новые — никто не взял и не отклонил. */
+  open: number
+  /** Взяли в работу: «В работе», «Принята» и «Закрыта». */
+  taken: number
+  /** Отклонили. */
+  dismissed: number
+}
+
 export interface RuleStatsDto extends RuleWeightDto {
   ruleKey: string
   ruleLabel: string
   enabled: boolean
+  /** Сколько задач создало правило и что с ними стало (решение 218). */
+  outcomes: RuleOutcomesDto
   /** Уровни вузов и менеджеров с данными. */
   scopes: RuleWeightDto[]
 }

@@ -50,6 +50,8 @@ export const ROUTES = {
   vendors: '/vendors',
   /** Импорт каталогов, вендоров и заказов из файла (ТЗ, актуализация через xls/xlsx). */
   import: '/import',
+  /** «Четыре глаза»: запросы на согласование опасных операций (решение 218). */
+  approvals: '/approvals',
 } as const
 
 /**
@@ -106,6 +108,14 @@ export function assignmentHref(id: string): string {
   return `${ROUTES.profile}?assignment=${encodeURIComponent(id)}#my-assignments`
 }
 
+/**
+ * Запрос на согласование (решение 218): экран сам выбирает вкладку — ждёт моего
+ * решения, мой или уже в истории — и раскрывает строку.
+ */
+export function approvalHref(id: string): string {
+  return `${ROUTES.approvals}?open=${encodeURIComponent(id)}`
+}
+
 /** Результат глобального поиска ведёт на страницу своего объекта. */
 export function searchItemHref(type: SearchEntityType, id: string): string {
   switch (type) {
@@ -142,6 +152,8 @@ export function notificationHref(target: NotificationTargetDto): string {
       return assignmentHref(target.id)
     case 'letter':
       return letterHref(target.id)
+    case 'approval':
+      return approvalHref(target.id)
   }
 }
 

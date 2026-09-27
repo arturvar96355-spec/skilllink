@@ -30,6 +30,8 @@ import {
 } from '@/ui'
 import styles from './admin.module.css'
 import { SHARED_DEMO_ACCOUNT_REFUSAL, isSharedDemoAccount } from '@/shared/config/auth.config'
+import { ApprovalRequired } from '../approvals/ApprovalRequired'
+import { approvalRequiredAction } from '../approvals/approvals-view'
 
 /**
  * Окна вкладки «Пользователи»: заведение, изменение с блокировкой и выдачей
@@ -181,6 +183,9 @@ export function CreateUserModal({
   }
 
   const general = formError(error, ['email', 'fullName', 'position', 'role', 'universityId'])
+  // Сразу администратором при «четырёх глазах» не заводят (решение 133): это следующий
+  // шаг, а не ошибка — текст сервера спокойной плашкой, без красного.
+  const twoSteps = approvalRequiredAction(error?.details) !== null
 
   return (
     <Modal
@@ -254,7 +259,15 @@ export function CreateUserModal({
           error={detailFor(error, 'universityId')}
         />
       )}
-      {general && <Problem text={general} />}
+      {general &&
+        (twoSteps ? (
+          <div className={styles.notice} role="status">
+            <Icon name="lock" size={16} />
+            <p>{general}</p>
+          </div>
+        ) : (
+          <Problem text={general} />
+        ))}
     </Modal>
   )
 }
@@ -343,7 +356,10 @@ export function UserModal({
   }
 
   const error = save.error ?? reset.error
-  const general = formError(error, ['fullName', 'position', 'role', 'universityId'])
+  // «Четыре глаза» (решение 218): 403 с признаком approvalRequired — не ошибка, а следующий
+  // шаг. Вместо сухого текста — «Нужно второе подтверждение» с кнопкой отправки запроса.
+  const approvalAction = approvalRequiredAction(save.error?.details)
+  const general = approvalAction ? null : formError(error, ['fullName', 'position', 'role', 'universityId'])
 
   return (
     <Modal
@@ -426,6 +442,17 @@ export function UserModal({
       )}
 
       {general && <Problem text={general} />}
+      {approvalAction && (
+        <ApprovalRequired
+          action={approvalAction}
+          userId={user.id}
+          userName={user.fullName}
+          onDone={() => {
+            onChanged()
+            onClose()
+          }}
+        />
+      )}
 
       <section className={styles.access} aria-label="Доступ">
         <span className={styles.accessTitle}>Доступ</span>

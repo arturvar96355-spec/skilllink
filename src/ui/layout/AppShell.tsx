@@ -1,9 +1,9 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { REAUTH_PARAM } from '@/shared/auth/reauth'
-import type { CurrentUserDto } from '@/shared/contracts'
+import type { ApprovalListMetaDto, CurrentUserDto } from '@/shared/contracts'
 import { Button } from '../primitives/Button'
 import { Skeleton } from '../primitives/Skeleton'
 import { ErrorState, SectionUnavailable } from '../data/States'
@@ -13,7 +13,8 @@ import { CurrentUserProvider } from './CurrentUser'
 import { Footer } from './Footer'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
-import { isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
+import { APPROVALS_CHANGED_EVENT, approvalsCount } from './approvals-badge'
+import { canSeeApprovals, isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
 import { arrivalAfterNavigation, markAssembled, takeArrival } from './arrival'
 import { useNavigationMotion } from './navigation-motion'
 import { LiveBackground } from './LiveBackground'
@@ -67,7 +68,28 @@ export function AppShell({ children }: { children: ReactNode }) {
   const motion = useNavigationMotion(pathname)
   useMagneticButtons()
   const me = useResource<CurrentUserDto>('/api/me')
-  const groups = useMemo(() => (me.data ? navigationFor(me.data) : []), [me.data])
+  // Число у «Согласований» (решение 218): ждут моего решения и мои согласованные,
+  // которые осталось выполнить. Эксперту — нет: решать он не может.
+  const approvals = useResource<unknown[]>(
+    me.data && canSeeApprovals(me.data) && !me.data.isReviewer ? '/api/admin/approvals?scope=awaiting&pageSize=1' : null,
+  )
+  const reloadApprovals = approvals.reload
+  // Перечитываем при смене раздела и после решения на экране «Согласований».
+  const approvalsPath = useRef(pathname)
+  useEffect(() => {
+    if (approvalsPath.current === pathname) return
+    approvalsPath.current = pathname
+    reloadApprovals()
+  }, [pathname, reloadApprovals])
+  useEffect(() => {
+    window.addEventListener(APPROVALS_CHANGED_EVENT, reloadApprovals)
+    return () => window.removeEventListener(APPROVALS_CHANGED_EVENT, reloadApprovals)
+  }, [reloadApprovals])
+  const approvalsBadge = approvalsCount(approvals.meta as ApprovalListMetaDto | null)
+  const groups = useMemo(
+    () => (me.data ? navigationFor(me.data, { approvals: approvalsBadge }) : []),
+    [me.data, approvalsBadge],
+  )
   const service = useMemo(() => (me.data ? serviceLinksFor(me.data) : []), [me.data])
 
   if (me.isLoading || (!me.data && !me.error)) {

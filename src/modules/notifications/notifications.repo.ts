@@ -11,6 +11,7 @@ import type {
   DocumentChangeSource,
   FeedSources,
   LetterFeedSource,
+  ApprovalFeedSource,
   RecommendationSource,
   ResponsibleAssignedSource,
   StageChangeSource,
@@ -574,4 +575,65 @@ export async function loadNewLetters(userId: string, since: Date): Promise<Lette
     // Приняли, но имя не известно (сотрудник удалён из справочника) — всё равно «принято».
     acceptedByName: firstOther.has(letter.id) ? firstOther.get(letter.id) ?? 'сотрудник' : null,
   }))
+}
+
+/**
+ * Запросы «четырёх глаз» для ленты администратора (решение 218): чужие ждущие и не
+ * истёкшие — «нужно ваше согласование»; свои с решением за окно ленты — согласовано
+ * (осталось выполнить) или отклонено. Над кем операция — ФИО по `payload.userId`.
+ */
+export async function loadApprovals(userId: string, since: Date, now: Date): Promise<ApprovalFeedSource[]> {
+  const rows = await prisma.approval.findMany({
+    where: {
+      OR: [
+        { status: 'REQUESTED', expiresAt: { gt: now }, requestedById: { not: userId } },
+        { requestedById: userId, status: { in: ['APPROVED', 'REJECTED'] }, decidedAt: { gte: since } },
+      ],
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: 20,
+    select: {
+      id: true,
+      action: true,
+      status: true,
+      payload: true,
+      requestedById: true,
+      expiresAt: true,
+      createdAt: true,
+      decidedAt: true,
+      requestedBy: { select: { fullName: true } },
+      approvedBy: { select: { fullName: true } },
+      rejectedBy: { select: { fullName: true } },
+    },
+  })
+  if (rows.length === 0) return []
+  const targetIds = [
+    ...new Set(
+      rows
+        .map((row) => (row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>).userId : null))
+        .filter((id): id is string => typeof id === 'string'),
+    ),
+  ]
+  const targets = new Map(
+    (await prisma.user.findMany({ where: { id: { in: targetIds } }, select: { id: true, fullName: true } })).map(
+      (user) => [user.id, user.fullName],
+    ),
+  )
+  return rows
+    // Согласованный, но уже истёкший — выполнить его нельзя, звать «выполните» незачем.
+    .filter((row) => !(row.status === 'APPROVED' && row.expiresAt <= now))
+    .map((row) => {
+      const targetId = row.payload && typeof row.payload === 'object' ? (row.payload as Record<string, unknown>).userId : null
+      return {
+        id: row.id,
+        action: row.action as ApprovalFeedSource['action'],
+        status: row.status,
+        mine: row.requestedById === userId,
+        targetName: typeof targetId === 'string' ? (targets.get(targetId) ?? null) : null,
+        requesterName: row.requestedBy.fullName,
+        deciderName: row.approvedBy?.fullName ?? row.rejectedBy?.fullName ?? null,
+        createdAt: row.createdAt,
+        decidedAt: row.decidedAt,
+      }
+    })
 }
