@@ -97,6 +97,15 @@ export const BOT_REPLIES = {
   unavailable: 'Сводка сейчас недоступна. Попробуйте позже или откройте SkillLink.',
 } as const
 
+/**
+ * Ответ на привязку — с ролью учётной записи (решение 210): один Telegram-аккаунт
+ * привязывается к одной учётке, и проверяющий должен видеть, к какой именно, —
+ * на стенде чат оказался у admin@, а уведомления ждали для manager@.
+ */
+export function linkedReply(account: string): string {
+  return `${BOT_REPLIES.linked}\nУчётная запись: ${account}.`
+}
+
 // ─────────────────────────────── Сводка ─────────────────────────────────────
 
 /** Источники сводки — те же, что у пульса (решение 120). */
@@ -166,7 +175,21 @@ function stageActions(stage: NonNullable<PulseItem['stageRef']>, url: string | n
  */
 export function buildDigest(
   sources: DigestSources,
-  options: { now: Date; baseUrl: string | null },
+  options: {
+    now: Date
+    baseUrl: string | null
+    /**
+     * Чья это сводка — роль словами («Администратор»), решение 210: на стенде один
+     * Telegram-аккаунт проверяющего был привязан к admin@, а сводку он считал
+     * сводкой manager@. Роль, а не ФИО: в мессенджер ПД не уходят (решение 205).
+     */
+    account?: string
+    /**
+     * `portfolio` — своих горящих этапов нет, и этапы — по всему портфелю, как на
+     * главной (решение 210; только руководителю и администратору, `digestFor`).
+     */
+    scope?: 'own' | 'portfolio'
+  },
 ): Digest {
   const { now, baseUrl } = options
   const pulse = buildPulse(sources, now)
@@ -189,6 +212,10 @@ export function buildDigest(
     `SkillLink · что горит на ${today} · проверено ` +
       countWithNoun(pulse.checkedRules, ['правило', 'правила', 'правил']),
   ]
+  if (options.account) lines.push(`Учётная запись: ${options.account}`)
+  if (options.scope === 'portfolio') {
+    lines.push('Ваших горящих этапов нет — ниже этапы всего портфеля, как в «Требует внимания» на главной.')
+  }
   if (pulse.isCalm) lines.push('', 'Внимания ничего не требует.')
   for (const section of PULSE_SECTIONS) {
     const sectionKinds = kinds.filter((kind) => PULSE_GROUPS[kind].section === section.key)
@@ -205,6 +232,9 @@ export function buildDigest(
     }
   }
   if (home) lines.push('', `Открыть SkillLink: ${home}`)
+  // Этапов в сводке нет (только «Система заметила» или рекомендации) — хотя бы одна
+  // кнопка, чтобы из сводки был переход в систему (решение 210, S8).
+  if (actions.length === 0 && home) actions.push([{ kind: 'open', text: ACTION_TEXTS.openHome, url: home }])
 
   return { text: lines.join('\n'), isEmpty: false, counts, actions }
 }

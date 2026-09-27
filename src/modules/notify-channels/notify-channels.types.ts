@@ -58,6 +58,8 @@ export const ACTION_TEXTS = {
   openCooperation: 'Открыть связку',
   openStage: 'Открыть этап',
   openUniversity: 'Открыть вуз',
+  // Сводка без этапов (решение 210): переход на главную.
+  openHome: 'Открыть SkillLink',
   // Поручение сотруднику (решение 207).
   openAssignment: 'Открыть поручение',
 } as const
