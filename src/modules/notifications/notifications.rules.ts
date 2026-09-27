@@ -1,4 +1,5 @@
 import { DEADLINE_WARNING_DAYS } from '@/shared/config/analytics.config'
+import { NOTIFICATION_FRESH_SHARE } from '@/shared/config/notifications.config'
 import type { DocumentStatus, RecommendationPriority, StageStatus } from '@/shared/contracts/enums'
 import type {
   NotificationDto,
@@ -387,16 +388,27 @@ export function buildFeed(
   // все просрочки, а остальное место — по времени. Порядок внутри ленты — от новых
   // к старым, как у остальной ленты.
   // Просроченное поручение (решение 207) — такое же состояние «ждёт действия».
+  //
+  // Но и просрочки не должны вытеснять новое целиком (решение 210, S4): у менеджера
+  // демо-стенда 20 просрочек, лимит колокольчика — 20, и «Вы назначены ответственным
+  // за этап» в показанную часть не попадало вовсе — значок +1, а строки нет. Поэтому
+  // под непрочитанные события (не просрочки) держится четверть мест — сначала они,
+  // потом просрочки, остаток — по времени.
   const isOverdueItem = (item: NotificationDto) => item.kind === 'stage.overdue' || item.kind === 'assignment.overdue'
+  const freshIds = withUnread
+    .filter((item) => item.isUnread && !isOverdueItem(item))
+    .slice(0, Math.ceil(limit * NOTIFICATION_FRESH_SHARE))
+    .map((item) => item.id)
   const overdueIds = withUnread
     .filter(isOverdueItem)
-    .slice(0, limit)
+    .slice(0, limit - freshIds.length)
     .map((item) => item.id)
+  const taken = new Set([...freshIds, ...overdueIds])
   const restIds = withUnread
-    .filter((item) => !isOverdueItem(item))
-    .slice(0, limit - overdueIds.length)
+    .filter((item) => !isOverdueItem(item) && !taken.has(item.id))
+    .slice(0, limit - taken.size)
     .map((item) => item.id)
-  const shown = new Set([...overdueIds, ...restIds])
+  const shown = new Set([...taken, ...restIds])
 
   // Счётчик — по всей ленте, а не по показанной части: значок на колокольчике
   // не должен врать из-за того, что выпадающий список короче.

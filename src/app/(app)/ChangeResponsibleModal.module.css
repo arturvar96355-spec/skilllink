@@ -31,6 +31,14 @@
   color: var(--text-primary);
 }
 
+.delivery {
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
 .consequence {
   font-size: var(--text-body-sm-size);
   line-height: var(--text-body-sm-line);
