@@ -2,6 +2,11 @@
 # Восстановление копии из Yandex Object Storage в НОВУЮ базу — для проверки (решение 114).
 # Рабочую базу не трогает: восстановить в неё скрипт откажется.
 #
+# Архив загруженных файлов той же ночи (решение 216), если он есть в бакете, тоже
+# скачивается, сверяется, расшифровывается и читается целиком; без CHECK_ONLY он
+# остаётся в ~/backups/restored-uploads-ГГГГ-ММ-ДД.tar.gz — как вернуть файлы в том,
+# скрипт печатает в конце (docs/DEPLOY.md, «Восстановить»). В рабочий том сам не пишет.
+#
 #   bash ~/skilllink/app/scripts/deploy/restore-offsite.sh [ДАТА] [НОВАЯ_БАЗА]
 #
 #   restore-offsite.sh                         # самая свежая копия → база restored_ГГГГММДД
@@ -76,6 +81,27 @@ else
   warn "контрольной суммы в бакете нет — сверяю только расшифровкой"
 fi
 
+# Архив файлов той же ночи: скачать, сверить, расшифровать, прочитать целиком.
+# Печатает путь к расшифрованному архиву; архива в бакете нет — пустая строка.
+fetch_uploads() {
+  local files_object="skilllink-uploads-$copy_date.tar.gz.enc" out=$1 expected count
+  if ! aws_run s3 cp "s3://$S3_BUCKET/$S3_PREFIX$files_object" - > "$WORK/files.enc" 2> "$WORK/files.err"; then
+    warn "архива файлов $files_object в бакете нет или не скачался: $(head -c 200 "$WORK/files.err" | tr "\n" " ")"
+    return 0
+  fi
+  if aws_run s3 cp "s3://$S3_BUCKET/$S3_PREFIX$files_object.sha256" - > "$WORK/files.sha256" 2> /dev/null; then
+    expected=$(awk '{ print $1 }' "$WORK/files.sha256")
+    [ "$expected" = "$(sha256_of "$WORK/files.enc")" ] ||
+      fail "контрольная сумма архива файлов не совпала: испорчен при передаче или в хранилище"
+  else
+    warn "контрольной суммы архива файлов в бакете нет — сверяю только расшифровкой"
+  fi
+  decrypt_file "$WORK/files.enc" "$out" 2> "$WORK/enc.err" ||
+    fail "архив файлов не расшифровывается: BACKUP_ENCRYPTION_PASSPHRASE не тот, которым его шифровали"
+  count=$(check_archive "$out" "$WORK/tar.err")
+  say "архив файлов $files_object цел: $(human_size "$(size_of "$out")"), файлов: $count"
+}
+
 # ── 3. Расшифровать и проверить ─────────────────────────────────────────────
 decrypt_file "$WORK/copy.enc" "$WORK/copy.dump" 2> "$WORK/enc.err" ||
   fail "копия не расшифровывается: BACKUP_ENCRYPTION_PASSPHRASE не тот, которым её шифровали"
@@ -83,6 +109,7 @@ tables=$(check_dump "$WORK/copy.dump" "$WORK/pg.err")
 say "копия $object цела: $(human_size "$(size_of "$WORK/copy.dump")"), таблиц с данными: $tables"
 
 if [ "${CHECK_ONLY:-}" = 1 ]; then
+  fetch_uploads "$WORK/files.tar.gz"
   say "проверка копии без восстановления: $object цела, таблиц с данными $tables" >> "${OFFSITE_LOG:-$BACKUP_DIR/offsite.log}"
   say "ГОТОВО: копия скачивается, расшифровывается и читается целиком (CHECK_ONLY=1, база не создавалась)"
   exit 0
@@ -119,3 +146,15 @@ else
 fi
 echo "   В базе персональные данные. Проверили — удалите её:"
 echo "   $drop"
+
+# ── 6. Архив файлов той же ночи ─────────────────────────────────────────────
+files_out="$BACKUP_DIR/restored-uploads-$copy_date.tar.gz"
+fetch_uploads "$WORK/files.tar.gz"
+if [ -f "$WORK/files.tar.gz" ]; then
+  mv -f "$WORK/files.tar.gz" "$files_out"
+  say "архив файлов расшифрован: $files_out — рабочий том не тронут"
+  echo "   Вернуть файлы в том (только когда восстанавливаете стенд целиком, docs/DEPLOY.md):"
+  echo "   docker run --rm -i --network none -v ${COMPOSE_PROJECT:-skilllink}_skilllink-uploads:/dst \\"
+  echo "     --entrypoint tar postgres:16-alpine -xzf - -C /dst < $files_out"
+  echo "   Не нужен — удалите: rm $files_out (в нём сканы документов, персональные данные)"
+fi
