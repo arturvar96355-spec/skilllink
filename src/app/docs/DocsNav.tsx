@@ -199,7 +199,9 @@ export function DocsNav({ toc, variant }: { toc: readonly DocsTocGroup[]; varian
     const list = listRef.current
     const item = activeId ? list?.querySelector<HTMLElement>(`[data-toc-id="${CSS.escape(activeId)}"]`) : null
     if (!list || !item || list.scrollHeight <= list.clientHeight) return
-    const top = item.offsetTop - list.offsetTop
+    // Положение пункта внутри прокручиваемого списка — по координатам: offsetTop
+    // считается от ближайшего позиционированного предка (списка группы), а не от оглавления.
+    const top = item.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop
     if (top < list.scrollTop + 40 || top > list.scrollTop + list.clientHeight - 80) {
       list.scrollTop = Math.max(0, top - list.clientHeight / 3)
     }
