@@ -4535,19 +4535,30 @@ API работает и при выключенном требовании).
 | --- | --- | --- |
 | `action` | `user.grant_admin` \| `user.block_admin` | операция; подписи — `APPROVAL_ACTION_LABELS` |
 | `payload` | `{ "userId": "…" }` | только идентификаторы; лишние поля — 422 |
+| `reason` | строка до 500 знаков, необязательно | зачем операция — увидит согласующий (решение 218); хранится в журнале у `approval.requested` |
 
 Цель проверяется сразу: пользователя нет — `404`; уже администратор (`grant_admin`) или
 не действующий администратор (`block_admin`) — `409`. Запрос живёт 24 часа.
 
-`GET /api/admin/approvals?status=&page=&pageSize=` — список, новые сверху; истёкшие
-показываются как `EXPIRED`.
+`GET /api/admin/approvals?scope=&status=&page=&pageSize=` — список, новые сверху; истёкшие
+показываются как `EXPIRED`. `scope` (решение 218) — вкладка экрана «Согласования»:
+`awaiting` — ждут решения текущего администратора (чужие, ждущие, не истёкшие), `mine` — его
+запросы, `history` — все, по которым есть решение или вышел срок. Читать может и эксперт
+с ролью администратора (решение 147) — `canApprove` у него всегда `false`.
 
 ```json
 { "id": "…", "action": "user.grant_admin", "payload": { "userId": "…" },
   "status": "REQUESTED", "requestedBy": { "id": "…", "fullName": "…", "role": "ADMIN" },
   "approvedBy": null, "rejectedBy": null, "createdAt": "…", "decidedAt": null,
-  "expiresAt": "…", "consumedAt": null, "canApprove": true }
+  "expiresAt": "…", "consumedAt": null, "canApprove": true,
+  "target": { "id": "…", "fullName": "…", "role": "MANAGER", "isActive": true },
+  "reason": "Замещает администратора на время отпуска", "rejectReason": null }
 ```
+
+`meta` — страница и счётчики экрана при любом фильтре (решение 218): `awaiting` — ждут
+решения текущего администратора, `readyToRun` — его согласованные запросы, которые осталось
+выполнить, `required` — включено ли `APPROVALS_REQUIRED`, `ttlHours` — срок запроса. Пункт
+меню «Согласования» берёт счётчик запросом `?scope=awaiting&pageSize=1`.
 
 `status`: `REQUESTED` → `APPROVED` | `REJECTED` | `EXPIRED`; `APPROVED` → `CONSUMED` (операция
 выполнена) | `REJECTED` | `EXPIRED`. Подписи — `APPROVAL_STATUS_LABELS`. `canApprove` — текущий
@@ -4555,7 +4566,9 @@ API работает и при выключенном требовании).
 
 ### POST /api/admin/approvals/:id/approve, POST /api/admin/approvals/:id/reject
 
-Право: `ADMIN`, тело не нужно, ответ `200` `ApprovalDto`. Одобряет **только другой**
+Право: `ADMIN`, ответ `200` `ApprovalDto`. У `approve` тела нет; у `reject` тело
+необязательно — `{ "reason": "…" }`, почему отклонено, до 500 знаков (решение 218), увидит
+запросивший. Одобряет **только другой**
 администратор — свой запрос `409`; не ждущий или истёкший — `409`. Отклонить может любой
 администратор, в том числе автор (отозвать свой): ждущий или одобренный, но не использованный.
 Использование — `PATCH /api/users/:id` с `approvalId` автором запроса: атомарно, один раз,
