@@ -456,19 +456,23 @@ export interface ProductReach {
 }
 
 /**
- * По всему портфелю: лучшая пара каждой программы. Руководителю нужно «к какой
- * программе с чем идти», а не двадцать строк одной программы. С `productId` —
- * наоборот: все программы, которым рекомендуется этот продукт («куда его нести»).
- * `reach` — сводка по продуктам за тот же проход.
+ * По всему портфелю — «куда нести каждый продукт». Без `productId` — у каждого
+ * продукта его самые сильные программы (не больше `perProduct`), вместе по баллу:
+ * лучшая пара каждой программы на демо-данных почти везде одна и та же (ключевой
+ * навык продукта — самый востребованный), и список из двадцати одинаковых строк
+ * руководителю ничего не говорит. С `productId` — все программы, которым
+ * рекомендуется этот продукт. У строки — `bestForProgram`: это ещё и лучший
+ * продукт для самой программы. `reach` — сводка по продуктам за тот же проход.
  */
 export function recommendForPortfolio(
   programs: readonly MatchProgram[],
   products: readonly MatchProduct[],
   context: MatchContext,
   productId?: string,
+  perProduct: number = PRODUCT_MATCH.portfolioPerProduct,
 ): { items: ProductRecommendationDto[]; programsWithout: number; reach: ProductReach[] } {
-  const items: ProductRecommendationDto[] = []
   let programsWithout = 0
+  const byProduct = new Map<string, ProductRecommendationDto[]>()
   const reach = new Map<string, ProductReach & { scoreSum: number }>(
     products.map((product) => [
       product.id,
@@ -478,16 +482,20 @@ export function recommendForPortfolio(
   for (const program of programs) {
     const match = recommendForProgram(program, products, context).items
     const [first] = match
-    if (first) reach.get(first.product.id)!.bestFor += 1
+    if (!first) programsWithout += 1
+    else reach.get(first.product.id)!.bestFor += 1
     for (const item of match) {
       const entry = reach.get(item.product.id)!
       entry.recommendedFor += 1
       entry.scoreSum += item.score
+      const list = byProduct.get(item.product.id) ?? []
+      list.push({ ...item, bestForProgram: item === first })
+      byProduct.set(item.product.id, list)
     }
-    const chosen = productId ? match.find((item) => item.product.id === productId) : first
-    if (chosen) items.push(chosen)
-    else programsWithout += 1
   }
+  const items = productId
+    ? [...(byProduct.get(productId) ?? [])]
+    : [...byProduct.values()].flatMap((list) => [...list].sort(compareRecommendations).slice(0, perProduct))
   return {
     items: items.sort(compareRecommendations),
     programsWithout,
@@ -503,29 +511,35 @@ export function recommendForPortfolio(
   }
 }
 
-/** Вывод одной фразой для общего списка: какой продукт чаще всего лучший. */
-export function portfolioSummary(
-  items: readonly ProductRecommendationDto[],
-  programsWithout: number,
-  productName?: string,
-): string {
-  if (productName) {
-    if (items.length === 0) return `«${productName}» не закрывает дефицитов ни одной действующей программы или уже подключён.`
+/**
+ * Вывод одной фразой для общего списка: какой продукт чаще всего лучший; с выбранным
+ * продуктом — скольким программам он рекомендуется и где сильнее всего.
+ */
+export function portfolioSummary(input: {
+  reach: readonly ProductReach[]
+  programsWithout: number
+  product?: { name: string; items: readonly ProductRecommendationDto[] }
+}): string {
+  const { product } = input
+  if (product) {
+    const [top] = product.items
+    if (!top) return `«${product.name}» не закрывает дефицитов ни одной действующей программы или уже подключён.`
     return (
-      `«${productName}» рекомендуется ${countWithNoun(items.length, ['программе', 'программам', 'программам'])}; ` +
-      `сильнее всего — «${items[0]!.program.name}» (${items[0]!.program.universityName}), балл ${items[0]!.score}.`
+      `«${product.name}» рекомендуется ${countWithNoun(product.items.length, ['программе', 'программам', 'программам'])}; ` +
+      `сильнее всего — «${top.program.name}» (${top.program.universityName}), балл ${top.score}.`
     )
   }
-  if (items.length === 0) return 'Подходящих пар нет: продукты не закрывают дефицитов программ или нет рыночных данных.'
-  const counts = new Map<string, number>()
-  for (const item of items) counts.set(item.product.name, (counts.get(item.product.name) ?? 0) + 1)
-  const [leader, leaderCount] = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ru'))[0]!
+  const withBest = input.reach.reduce((sum, row) => sum + row.bestFor, 0)
+  const [leader] = input.reach
+  if (!leader || withBest === 0) {
+    return 'Подходящих пар нет: продукты не закрывают дефицитов программ или нет рыночных данных.'
+  }
   const without =
-    programsWithout > 0
-      ? ` ${countWithNoun(programsWithout, ['программе', 'программам', 'программам'])} предложить нечего — их навыки уже закрыты или данных нет.`
+    input.programsWithout > 0
+      ? ` ${countWithNoun(input.programsWithout, ['программе', 'программам', 'программам'])} предложить нечего — их навыки уже закрыты или данных нет.`
       : ''
   return (
-    `Чаще всего лучший вариант — «${leader}»: для ${leaderCount} из ${countWithNoun(items.length, ['программы', 'программ', 'программ'])} с рекомендацией.` +
+    `Чаще всего лучший вариант — «${leader.productName}»: для ${leader.bestFor} из ${countWithNoun(withBest, ['программы', 'программ', 'программ'])} с рекомендацией.` +
     without
   )
 }

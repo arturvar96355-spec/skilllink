@@ -260,7 +260,7 @@ describe('рекомендации продуктов: крайние случа
     expect(items[0]!.program.id).toBe('p1')
   })
 
-  it('портфель: лучшая пара каждой программы и вывод одной фразой', () => {
+  it('портфель: самые сильные программы каждого продукта и вывод одной фразой', () => {
     const covered = program({
       id: 'p3',
       name: 'Облачные технологии',
@@ -269,10 +269,14 @@ describe('рекомендации продуктов: крайние случа
         { skillId: 'k8s', level: 'ADVANCED', category: 'Инфраструктура' },
       ].map((skill) => ({ ...skill, level: 'ADVANCED' as const })),
     })
-    const { items, programsWithout } = recommendForPortfolio([program(), covered], [CLOUD, DB, JAVA], context())
-    expect(items.map((item) => `${item.program.id}:${item.product.id}`)).toEqual(['p1:cloud'])
+    const { items, programsWithout, reach } = recommendForPortfolio([program(), covered], [CLOUD, DB, JAVA], context())
+    // У каждого продукта — его самые сильные программы; лучший для программы помечен.
+    expect(items.map((item) => `${item.program.id}:${item.product.id}:${item.bestForProgram}`)).toEqual([
+      'p1:cloud:true',
+      'p1:java:false',
+    ])
     expect(programsWithout).toBe(1)
-    expect(portfolioSummary(items, programsWithout)).toBe(
+    expect(portfolioSummary({ reach, programsWithout })).toBe(
       'Чаще всего лучший вариант — «Облачная платформа»: для 1 из 1 программы с рекомендацией. 1 программе предложить нечего — их навыки уже закрыты или данных нет.',
     )
   })
@@ -285,8 +289,16 @@ describe('рекомендации продуктов: крайние случа
       { productId: 'cloud', productName: 'Облачная платформа', bestFor: 2, recommendedFor: 2, averageScore: 47 },
       { productId: 'java', productName: 'Среда Java', bestFor: 0, recommendedFor: 2, averageScore: 23 },
     ])
-    expect(portfolioSummary(result.items, result.programsWithout, 'Среда Java')).toBe(
+    expect(portfolioSummary({ ...result, product: { name: 'Среда Java', items: result.items } })).toBe(
       '«Среда Java» рекомендуется 2 программам; сильнее всего — «Информатика» (МТУСИ), балл 23.',
     )
+  })
+})
+
+describe('рекомендации продуктов: портфель без повторов', () => {
+  it('без выбранного продукта — не больше заданного числа программ на продукт', () => {
+    const programs = ['a', 'b', 'c', 'd'].map((id) => program({ id, name: `Программа ${id}` }))
+    const { items } = recommendForPortfolio(programs, [CLOUD], context(), undefined, 2)
+    expect(items).toHaveLength(2)
   })
 })

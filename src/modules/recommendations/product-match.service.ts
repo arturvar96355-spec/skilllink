@@ -152,7 +152,7 @@ export async function forUniversity(
   return response(user, 'university', loaded, items, query.limit, { excluded: [], summary })
 }
 
-/** Общий список по портфелю: лучшая пара каждой программы, от сильной к слабой. */
+/** Общий список по портфелю: самые сильные программы каждого продукта, от сильной пары к слабой. */
 export async function forPortfolio(
   user: CurrentUser,
   query: PortfolioQuery,
@@ -169,7 +169,11 @@ export async function forPortfolio(
   return {
     ...response(user, 'portfolio', loaded, items, query.limit, {
       excluded: [],
-      summary: portfolioSummary(items, programsWithout, product?.name),
+      summary: portfolioSummary({
+        reach,
+        programsWithout,
+        ...(product ? { product: { name: product.name, items } } : {}),
+      }),
     }),
     reach,
     programCount: programs.length,

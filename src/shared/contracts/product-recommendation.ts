@@ -57,6 +57,8 @@ export interface ProductRecommendationDto {
   confidenceNote: string
   /** Данных мало — пометка на экране. */
   lowData: boolean
+  /** Только в общем списке: это ещё и лучший продукт для самой программы. */
+  bestForProgram?: boolean
 }
 
 /** Продукт, который программе не предлагается, и почему. */

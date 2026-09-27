@@ -355,4 +355,6 @@ export const PRODUCT_MATCH = {
   /** Сколько пар показывать в общем списке по портфелю по умолчанию и максимум. */
   portfolioLimit: 20,
   portfolioMaxLimit: 100,
+  /** В общем списке без выбранного продукта — сколько самых сильных программ у каждого продукта. */
+  portfolioPerProduct: 3, // TEMP
 } as const
