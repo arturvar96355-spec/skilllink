@@ -287,7 +287,10 @@ function Dashboard() {
     [feed.data],
   )
 
-  // Карта: вузы в своих городах, размер точки — число связок.
+  // Карта: вузы в своих городах, размер точки — число связок без отменённых
+  // (решение 197) — та же база, что у колонок «Связки по вузам» ниже: раньше
+  // точка считала и отменённые связки, а колонка — нет, и одна и та же пара
+  // «вуз — сколько связок» на одном экране называла два разных числа.
   const universities = useResource<UniversityListItemDto[]>(
     user.role === 'UNIVERSITY_REP' || isWork ? null : '/api/universities?withRating=false&pageSize=100&sort=name',
   )
@@ -301,8 +304,8 @@ function Dashboard() {
             key: row.id,
             label: row.shortName ?? row.name,
             ...at,
-            value: row.cooperationCount,
-            detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCount)} связок в работе`,
+            value: row.cooperationCountExcludingCancelled,
+            detail: `${row.city} · ${formatNumber(row.activeCooperationCount)} из ${formatNumber(row.cooperationCountExcludingCancelled)} связок в работе`,
             href: universityHref(row.id),
             active: row.activeCooperationCount > 0,
           },
@@ -993,13 +996,20 @@ function Dashboard() {
                   {/* Кольцо покрытия уже есть в бенто выше — здесь то, из чего складывается дефицит. */}
                   {showcase && gaps.data && gaps.data.length > 0 && (
                     <div className={styles.gapsBlock}>
-                      <span className={styles.gapsTitle}>Самые большие дефициты · спрос рынка из 100, бирюзой — покрыто</span>
+                      {/*
+                        Решение 197: число справа — сам дефицит (спрос минус покрытие
+                        программой), а не спрос рынка, — раньше подпись и число называли
+                        дефицитом спрос, из-за чего в списке выглядели «дефицитными»
+                        хорошо покрытые навыки с большим спросом.
+                      */}
+                      <span className={styles.gapsTitle}>Самые большие дефициты · число справа — дефицит из 100, бирюзой — покрыто</span>
                       <GapBars
                         rows={gaps.data.map((gap) => ({
                           key: gap.skillId,
                           name: gap.name,
                           demand: gap.demandNormalized ?? 0,
                           coverage: gap.coverage,
+                          gap: gap.gap,
                           isCritical: gap.isCritical,
                           explanation: gap.explanation,
                         }))}
