@@ -151,7 +151,10 @@ export function createConstellation(
   } catch {
     return null
   }
-  renderer.setPixelRatio(Math.min(options.pixelRatio, 1.5))
+  // До 2×: на Retina буфер 1,5× растягивался, и звёзды в воронке были мыльными.
+  // Сцена — только точки и тонкие линии, заливка на 2× всё ещё мала.
+  const pixelRatio = Math.min(options.pixelRatio, 2)
+  renderer.setPixelRatio(pixelRatio)
   // false — размер элемента задаёт CSS; у OffscreenCanvas стиля нет вовсе.
   renderer.setSize(options.width, options.height, false)
 
@@ -165,35 +168,48 @@ export function createConstellation(
   world.position.set(0, 0, -1.5)
   scene.add(world)
 
-  // Мягкая круглая точка: текстура рисуется один раз на холсте.
-  // В фоновом потоке документа нет — точка рисуется на OffscreenCanvas.
-  const dotCanvas =
-    typeof OffscreenCanvas !== 'undefined'
-      ? new OffscreenCanvas(64, 64)
-      : Object.assign(document.createElement('canvas'), {
-          width: 64,
-          height: 64,
-        })
-  const ctx = dotCanvas.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
-  if (ctx) {
-    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32)
-    gradient.addColorStop(0, 'rgba(255,255,255,1)')
-    gradient.addColorStop(0.35, 'rgba(255,255,255,0.55)')
-    gradient.addColorStop(1, 'rgba(255,255,255,0)')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, 64, 64)
+  /**
+   * Точка считается в шейдере, а не берётся из картинки: у звезды в 2–5 пикселей
+   * картинка 64×64 через мипмапы превращалась в мутный квадратик, и во вращении
+   * квадратики мерцали «лесенкой». Круг с мягким краем от расстояния до центра
+   * ровный при любом размере. Звезда не меньше MIN_POINT_PX пикселей экрана: меньшие
+   * при движении то пропадали, то вспыхивали; свет у дотянутой звезды снижается
+   * по площади, чтобы она не стала ярче, чем была.
+   */
+  const MIN_POINT_PX = 1.6 * pixelRatio
+  const roundPoints = (material: InstanceType<Three['PointsMaterial']>) => {
+    material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace('void main() {', 'varying float vPointFade;\nvoid main() {')
+        .replace(
+          '#include <fog_vertex>',
+          `vPointFade = clamp(gl_PointSize * gl_PointSize / (${MIN_POINT_PX.toFixed(2)} * ${MIN_POINT_PX.toFixed(2)}), 0.0, 1.0);
+          gl_PointSize = max(gl_PointSize, ${MIN_POINT_PX.toFixed(2)});
+          #include <fog_vertex>`,
+        )
+      shader.fragmentShader = shader.fragmentShader
+        .replace('void main() {', 'varying float vPointFade;\nvoid main() {')
+        .replace(
+          '#include <map_particle_fragment>',
+          `float pointDistance = length(gl_PointCoord - vec2(0.5)) * 2.0;
+          float pointCore = 1.0 - smoothstep(0.0, 0.45, pointDistance);
+          float pointHalo = 1.0 - smoothstep(0.2, 1.0, pointDistance);
+          diffuseColor.a *= (0.55 * pointHalo + 0.45 * pointCore) * vPointFade;`,
+        )
+    }
+    return material
   }
-  const dot = new THREE.CanvasTexture(dotCanvas)
   const pointsMaterial = (size: number, extra: Record<string, unknown> = {}) =>
-    new THREE.PointsMaterial({
-      size,
-      map: dot,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      ...extra,
-    })
+    roundPoints(
+      new THREE.PointsMaterial({
+        size,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        ...extra,
+      }),
+    )
 
   const hubs = [
     {
@@ -687,8 +703,10 @@ export function createConstellation(
       // заливка для видеокарты, конец прыжка от неё подтормаживал.
       clusterMaterial.size = 0.11
       fieldMaterial.size = 0.11 * (1 + 0.5 * merge) * (1 + 1.2 * burst)
-      coreMaterial.size = 1.4 * (1 + 1.2 * merge) * head
-      receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
+      // Ядра в воронке растут вдвое меньше прежнего: при сложении света с диском
+      // крупные ядра выгорали в белое пятно с грязным провалом посередине.
+      coreMaterial.size = 1.4 * (1 + 0.5 * merge) * head
+      receiverMaterial.size = 1.4 * (1 + 0.5 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
       // Концы потока привязаны к раскладке (голова у угла, приёмник под маршрутом) и
       // стоят далеко от центра: полное покачивание уводило их на 30–60 px — голову
@@ -723,7 +741,6 @@ export function createConstellation(
       ].forEach((material) =>
         material.dispose(),
       )
-      dot.dispose()
       renderer.dispose()
     },
   }
