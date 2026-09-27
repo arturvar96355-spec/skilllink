@@ -1529,9 +1529,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'post',
     path: '/api/recommendations/generate',
-    tag: 'Рекомендации',
-    summary: 'Пересобрать рекомендации по правилам',
+    tag: 'Список задач',
+    summary: 'Пересобрать список задач по правилам сейчас',
     description:
+      'Решение 212: в интерфейсе кнопки нет — список пересобирается сам при чтении списка и главной, ' +
+      'если с прошлой пересборки прошло больше RECOMMENDATION_AUTO_REFRESH_MINUTES (10 минут), ' +
+      'а задачи связки сверяются сразу при смене этапа. Метод оставлен для сценариев и интеграций. ' +
       'Не плодит дубликаты. Открытые, чья проблема ушла, закрывает; закрытые, чья проблема ' +
       'вернулась, открывает; отклонённые с основанием не трогает, пока идёт пауза после ' +
       'отклонения (решение 119, 30 дней). Пересчитывает балл открытых рекомендаций.',
@@ -1541,8 +1544,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations',
-    tag: 'Рекомендации',
-    summary: 'Список рекомендаций',
+    tag: 'Список задач',
+    summary: 'Список задач (рекомендации)',
     description:
       'sort=-score — по баллу (решение 119): польза правила по решениям сотрудников, ценность ' +
       'случая и приоритет; отложенные защитой от перегрузки — в конце. У каждой записи score, ' +
@@ -1555,7 +1558,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/why-not',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Почему по объекту нет рекомендации',
     description:
       'Решение 119. Прогоняет по программе, связке или навыку те же проверки, что правило при ' +
@@ -1568,7 +1571,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/rules/stats',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Вес каждого правила рекомендаций',
     description:
       'Решение 119. Вероятность, что рекомендация правила окажется полезной (среднее Beta по ' +
@@ -1580,7 +1583,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/{id}',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Карточка рекомендации',
     permission: 'ANALYTICS',
     errors: READ_ERRORS,
@@ -1588,7 +1591,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'patch',
     path: '/api/recommendations/{id}',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Принять, взять в работу, закрыть или отклонить рекомендацию',
     description:
       'Переходы — по RECOMMENDATION_TRANSITIONS (иначе INVALID_TRANSITION). Закрыть рекомендацию ' +
@@ -1601,7 +1604,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   {
     method: 'get',
     path: '/api/recommendations/experiment',
-    tag: 'Рекомендации',
+    tag: 'Список задач',
     summary: 'Работают ли рекомендации: контрольная группа и прирост',
     description:
       'Решение 126. По каждому правилу и в целом: nTreatment, nControl, convT, convC, абсолютный ' +

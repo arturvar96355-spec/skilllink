@@ -149,3 +149,11 @@ describe('версия в спецификации (решение 212)', () => 
     expect(document.info.version).toBe(pkg.version)
   })
 })
+
+describe('разделы спецификации подписаны (решение 212)', () => {
+  it('у каждого раздела есть описание одной фразой', async () => {
+    const { TAG_DESCRIPTIONS } = await import('./build')
+    const missing = [...new Set(ENDPOINTS.map((spec) => spec.tag))].filter((tag) => !TAG_DESCRIPTIONS[tag])
+    expect(missing, `нет описания раздела: ${missing.join(', ')}`).toEqual([])
+  })
+})

@@ -1,89 +1,36 @@
-import { buildOpenApiDocument } from '@/shared/openapi/build'
-import { exampleFromSchema } from '@/shared/openapi/example'
-import { PageHeader } from '@/ui'
-import { ApiDocsExplorer, type ApiOperation, type ApiParameter } from './ApiDocsExplorer'
+import { Button, HelpHint, PageHeader } from '@/ui'
+import { SwaggerView } from './SwaggerView'
 
 /**
- * `/api-docs` — интерактивная страница Swagger (ТЗ, п. 6; решение 146).
+ * `/api-docs` — Swagger UI по спецификации OpenAPI (ТЗ, п. 6; решение 212).
  *
- * В node_modules нет ни swagger-ui-dist, ни redoc, ни scalar (проверено —
- * ставить новый пакет нельзя, node_modules общий), поэтому это своя лёгкая
- * страница: серверный компонент собирает список операций прямо из
- * `buildOpenApiDocument()` (та же функция, что отдаёт `/api/openapi.json` —
- * список не может разойтись со спецификацией), клиентский — раскрывает
- * операцию и выполняет запрос.
+ * Решение 146 собрало здесь свою страницу: `swagger-ui-dist` тогда не было в
+ * зависимостях. Эксперт принял её за самоделку — теперь это настоящий
+ * Swagger UI на той же спецификации `/api/openapi.json`.
  *
- * Доступ: только вошедшим сотрудникам — страница внутри `(app)`, как и весь
- * остальной кабинет (решение 146: обоснование — «Выполнить» шлёт запрос под
- * настоящей сессией посетителя и её правами, то есть не даёт прав больше, чем
- * у него уже есть через обычный интерфейс или прямой вызов API; открывать
- * список операций анонимно незачем, раз `/api/openapi.json` для этого и так
- * не требует входа).
+ * Доступ — только вошедшим сотрудникам: страница внутри `(app)`, как и весь
+ * кабинет. «Try it out» шлёт запрос под сессией посетителя и её правами — не
+ * больше, чем даёт обычный интерфейс (решение 146). Сама спецификация
+ * открыта без входа: это описание интерфейса, а не данные.
  */
-export const dynamic = 'force-dynamic'
-
-type RawOperation = {
-  operationId?: string
-  tags?: string[]
-  summary?: string
-  description?: string
-  parameters?: Array<{ name: string; in: string; required?: boolean; description?: string }>
-  requestBody?: { required?: boolean; content?: { 'application/json'?: { schema?: Record<string, unknown> } } }
-  security?: unknown[]
-}
-
-function collectOperations(): ApiOperation[] {
-  const spec = buildOpenApiDocument(process.env.APP_BASE_URL ?? 'http://localhost:3000') as {
-    paths: Record<string, Record<string, RawOperation>>
-  }
-  const methods = ['get', 'post', 'patch', 'put', 'delete']
-  const operations: ApiOperation[] = []
-
-  for (const [path, byMethod] of Object.entries(spec.paths)) {
-    for (const [method, operation] of Object.entries(byMethod)) {
-      if (!methods.includes(method)) continue
-      const bodySchema = operation.requestBody?.content?.['application/json']?.schema ?? null
-      const parameters: ApiParameter[] = (operation.parameters ?? []).map((param) => ({
-        name: param.name,
-        in: param.in as ApiParameter['in'],
-        required: param.required === true,
-        description: param.description ?? '',
-      }))
-      operations.push({
-        id: operation.operationId ?? `${method}_${path}`,
-        method: method.toUpperCase(),
-        path,
-        tag: operation.tags?.[0] ?? 'Другое',
-        summary: operation.summary ?? '',
-        description: operation.description ?? '',
-        parameters,
-        bodyRequired: operation.requestBody?.required === true,
-        bodyExample: bodySchema ? exampleFromSchema(bodySchema) : null,
-        // security: [] — операция помечена публичной (build.ts); иначе действует
-        // общая схема (cookie сессии), в списке операций это не показывается отдельно.
-        isPublic: Array.isArray(operation.security) && operation.security.length === 0,
-      })
-    }
-  }
-
-  return operations.sort((a, b) => a.tag.localeCompare(b.tag, 'ru') || a.path.localeCompare(b.path))
-}
+const SPEC_URL = '/api/openapi.json'
 
 export default function ApiDocsPage() {
-  const operations = collectOperations()
   return (
     <>
       <PageHeader
-        title="Контракт API — Swagger"
-        description={
-          'Операции из спецификации OpenAPI (та же, что отдаёт /api/openapi.json), сгруппированные по разделам. ' +
-          'У каждой — описание, параметры, схема тела и форма «Выполнить»: запрос уходит под вашей текущей ' +
-          'сессией и её правами — «Выполнить» не даёт больше, чем обычный интерфейс. Поле Bearer-токена — ' +
-          'заготовка для интеграций: сейчас API проверяет только cookie сессии, заголовок уходит в запрос, ' +
-          'но пока ничем не заменяет вход.'
+        title="Swagger: описание API"
+        description="Описание всех методов API в формате OpenAPI 3; можно выполнить запрос прямо отсюда."
+        meta={
+          <HelpHint text="Раскройте метод, нажмите «Try it out», затем «Execute»: запрос уйдёт от вашего имени, с правами вашей роли. Изменяющие методы меняют данные по-настоящему." />
+        }
+        actions={
+          <Button variant="secondary" icon="download" href={SPEC_URL} external newTab>
+            openapi.json
+          </Button>
         }
       />
-      <ApiDocsExplorer operations={operations} />
+      <SwaggerView specUrl={SPEC_URL} />
     </>
   )
 }
