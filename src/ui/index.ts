@@ -186,4 +186,4 @@ export { Ticker, type TickerItem } from './data/Ticker'
 export { Radar, type RadarAxis, type RadarSeries } from './data/Radar'
 
 // «?» со ссылкой в документацию (решение 214) — отдельной строкой, чтобы не спорить с правками строки Tooltip.
-export { HelpHint } from './primitives/HelpHint'
+export { HelpHint, type HelpHintProps } from './primitives/HelpHint'

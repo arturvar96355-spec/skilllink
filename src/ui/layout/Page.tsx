@@ -2,8 +2,7 @@
 
 import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
-import type { HelpRef } from '@/shared/help/tools'
-import { HelpHint } from '../primitives/HelpHint'
+import { HelpHint, type HelpHintProps } from '../primitives/HelpHint'
 import { Icon } from '../primitives/Icon'
 import { ScrollArea } from '../primitives/ScrollArea'
 import { InfoHint } from '../primitives/Tooltip'
@@ -61,7 +60,7 @@ export interface PageHeaderProps {
    * «?» у заголовка страницы — что это за экран и ссылка на его раздел
    * документации (решение 217). Стоит сразу за заголовком, перед `meta`.
    */
-  help?: HelpRef
+  help?: HelpHintProps
   actions?: ReactNode
   /**
    * `display` — крупный заголовок с засечками для страниц объекта (вуз,
@@ -138,7 +137,7 @@ export type SectionProps = SectionBaseProps &
         hint?: string
         help?: never
       }
-    | { hint?: never; help?: HelpRef }
+    | { hint?: never; help?: HelpHintProps }
   )
 
 export function Section({ title, description, hint, help, action, children }: SectionProps) {
@@ -178,14 +177,25 @@ export function Toolbar({
   children,
   actions,
   note,
+  help,
 }: {
   children: ReactNode
   actions?: ReactNode
   note?: ReactNode
+  /**
+   * «?» в конце ряда фильтров (решение 217): что делают фильтры и «Сбросить
+   * фильтры». Кнопки сброса нет, пока фильтр не задан, — значок есть всегда.
+   */
+  help?: HelpHintProps
 }) {
   return (
     <div className={styles.toolbar}>
       {children}
+      {help && (
+        <span className={styles.toolbarHelp}>
+          <HelpHint {...help} />
+        </span>
+      )}
       {actions && <div className={styles.toolbarActions}>{actions}</div>}
       {note && <p className={styles.toolbarNote}>{note}</p>}
     </div>

@@ -95,6 +95,7 @@ export function CreateCooperationModal({ onClose }: { onClose: (created: boolean
       isOpen
       onClose={() => onClose(false)}
       title="Создать связку"
+      help={{ topic: 'cooperations', section: 'create' }}
       description="Вуз, его программа и, если он уже выбран, IT-продукт. Этапы работы система заведёт сама."
       closeOnBackdrop={false}
       footer={

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import type { HelpRef } from '@/shared/help/tools'
-import { HelpHint } from '../primitives/HelpHint'
+import { HelpHint, type HelpHintProps } from '../primitives/HelpHint'
 import { IconButton } from '../primitives/IconButton'
 import { useEscape } from '../hooks/dom'
 import { useFocusTrap } from '../hooks/focus-trap'
@@ -15,7 +14,7 @@ export interface ModalProps {
   title: string
   description?: string
   /** «?» у заголовка окна — что делает действие и ссылка в документацию (решение 217). */
-  help?: HelpRef
+  help?: HelpHintProps
   /** Для опасных действий закрытие щелчком по фону отключается (раздел 9.4 компонентов). */
   closeOnBackdrop?: boolean
   wide?: boolean

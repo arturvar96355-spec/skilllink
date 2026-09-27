@@ -25,6 +25,7 @@ import {
   DocumentStatusBadge,
   EmptyState,
   ErrorState,
+  HelpHint,
   Icon,
   MockBadge,
   Modal,
@@ -257,6 +258,7 @@ function CooperationContent() {
     <>
       <PageHeader
         title={`${data.universityName} — ${data.programName}`}
+        help={{ topic: 'cooperation-card' }}
         breadcrumbs={[
           { label: 'Связки', href: '/cooperations' },
           { label: data.universityName, href: universityHref(data.universityId) },
@@ -275,14 +277,17 @@ function CooperationContent() {
         }
         actions={
           user.permissions.canWrite ? (
-            <Button
-              icon="document"
-              variant="secondary"
-              onClick={onGeneratePackage}
-              isLoading={generatePackage.isPending}
-            >
-              Собрать пакет документов
-            </Button>
+            <>
+              <Button
+                icon="document"
+                variant="secondary"
+                onClick={onGeneratePackage}
+                isLoading={generatePackage.isPending}
+              >
+                Собрать пакет документов
+              </Button>
+              <HelpHint topic="documents" section="package" />
+            </>
           ) : undefined
         }
       />
@@ -315,7 +320,10 @@ function CooperationContent() {
         <Card>
           <div className={styles.facts}>
             <span className={styles.fact}>
-              <span className={styles.factLabel}>Ответственный</span>
+              <span className={[styles.factLabel, styles.factLabelHelp].join(' ')}>
+                Ответственный
+                <HelpHint topic="cooperation-card" section="owner" />
+              </span>
               <span className={[styles.factValue, styles.responsibleValue].join(' ')}>
                 {data.responsible.fullName}
                 {user.permissions.canAssignResponsible && (
@@ -378,6 +386,7 @@ function CooperationContent() {
 
       <Section
         title="Лицензия и передача ПО"
+        help={{ topic: 'cooperation-card', section: 'license' }}
         description="Реквизиты договора и статус передачи продукта вузу — колонки «Каталога по ТЗ». Вендор и ПО показаны по выбранному продукту связки."
         action={
           user.permissions.canWrite ? (
@@ -442,6 +451,7 @@ function CooperationContent() {
 
       <Section
         title="Ход работы"
+        help={{ topic: 'cooperation-card', section: 'progress' }}
         description="Четырнадцатый этап система закрывает сама, когда закрыты остальные. Этапы 6, 7 и 11 — контрольные точки: их не начать, пока не закрыты предыдущие, а следующие за ними — пока точка не завершена."
       >
         <StageRibbon
@@ -489,6 +499,7 @@ function CooperationContent() {
               Скачать пакет
             </DownloadButton>
           )}
+          {(documents.data ?? []).length > 0 && <HelpHint topic="documents" section="archive" />}
           {user.permissions.canWrite && (
             <Button icon="plus" variant="secondary" onClick={() => setIsDocumentOpen(true)}>
               Добавить документ
@@ -532,11 +543,14 @@ function CooperationContent() {
         />
       )}
 
-      {tab === 'meetings' && user.permissions.canWrite && (
+      {tab === 'meetings' && (
         <div className={styles.tabActions}>
-          <Button icon="plus" variant="secondary" onClick={() => setIsMeetingOpen(true)}>
-            Записать встречу
-          </Button>
+          {user.permissions.canWrite && (
+            <Button icon="plus" variant="secondary" onClick={() => setIsMeetingOpen(true)}>
+              Записать встречу
+            </Button>
+          )}
+          <HelpHint topic="meetings" />
         </div>
       )}
 
@@ -612,6 +626,7 @@ function CooperationContent() {
       {changingResponsible && (
         <ChangeResponsibleModal
           title="Сменить ответственного связки"
+          help={{ topic: 'cooperation-card', section: 'owner' }}
           description="У связки всегда есть ответственный — снять его нельзя, только назначить другого."
           consequence="Новый ответственный увидит назначение в уведомлениях и получит сообщение в подключённый мессенджер, смена попадёт в журнал действий. Ответственные за отдельные этапы не меняются."
           endpoint={`/api/cooperations/${params.id}`}
@@ -628,6 +643,7 @@ function CooperationContent() {
         <div className={styles.stages}>
           <Section
             title="Прогноз"
+            help={{ topic: 'forecast' }}
             description="Насколько вероятно, что связка дойдёт до следующей важной точки — подписанного договора или начала занятий."
           >
             <CooperationForecast cooperationId={params.id} />
@@ -635,6 +651,7 @@ function CooperationContent() {
 
           <Section
             title="Что мешает"
+            help={{ topic: 'cooperation-card', section: 'blockers' }}
             description="Препятствия, которые система уже нашла: незакрытые контрольные точки, пункты чек-листа, статус связки."
           >
             <Card>
@@ -644,6 +661,7 @@ function CooperationContent() {
 
           <Section
             title="История сотрудничества"
+            help={{ topic: 'ai-assistant', section: 'history' }}
             description="Короткая сводка вместо ручного пересказа карточки. Составляется по нажатию — обращение к модели не бесплатно."
           >
             <Card>
@@ -654,6 +672,7 @@ function CooperationContent() {
           {user.permissions.canWrite && (
             <Section
               title="Предложить план"
+              help={{ topic: 'ai-assistant', section: 'plan' }}
               description="Проект встречи по препятствиям или новый срок текущего этапа. Ничего не сохраняется, пока план не подтверждён."
             >
               <Card>
@@ -674,6 +693,7 @@ function CooperationContent() {
         <AiAssistCard
           key={params.id}
           title="Сводка"
+          help={{ topic: 'ai-assistant', section: 'summary' }}
           description="Где связка сейчас, что мешает и что сделать дальше — по этапам и открытым задачам. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
           actionLabel="Составить сводку"
           endpoint={`/api/cooperations/${params.id}/ai-summary`}
@@ -746,6 +766,7 @@ function CooperationContent() {
           isOpen
           onClose={() => setPackageResult(null)}
           title="Пакет документов собран"
+          help={{ topic: 'documents', section: 'package' }}
           description="Тексты собраны из шаблонов с подстановкой реквизитов связки."
           wide
           footer={

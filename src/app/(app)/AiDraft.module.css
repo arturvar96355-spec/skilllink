@@ -34,7 +34,7 @@
   color: var(--text-primary);
 }
 
-.title svg {
+.title > svg {
   color: var(--text-accent);
 }
 

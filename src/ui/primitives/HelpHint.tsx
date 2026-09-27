@@ -21,7 +21,14 @@ const HOVER_CLOSE_MS = 220
  * конкретной кнопки или блока, его подраздел (`tools.ts`, решение 217).
  * Неизвестный раздел и подраздел чужого раздела — ошибка типов.
  */
-export type HelpHintProps = HelpRef
+export type HelpHintProps = HelpRef & {
+  /**
+   * Как читать числа и пометки именно этого экрана — строка, которая раньше
+   * стояла отдельным `InfoHint` рядом (решение 217): два «?» у одного заголовка
+   * не ставим, пояснение переезжает в окошко документации.
+   */
+  note?: string
+}
 
 /**
  * «?» рядом с инструментом со ссылкой в документацию (решение 214).
@@ -207,6 +214,7 @@ export function HelpHint(props: HelpHintProps) {
               {entry.title}
             </span>
             <span className={styles.text}>{entry.short}</span>
+            {props.note && <span className={styles.text}>{props.note}</span>}
             <span className={styles.text}>{entry.how}</span>
             <Link href={entry.href} className={styles.more} onClick={() => close(false)}>
               Подробнее в документации

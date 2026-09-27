@@ -436,6 +436,7 @@ function Dashboard() {
       <PageHeader
         scramble
         title={`${greeting()}, ${firstName}`}
+        help={{ topic: 'dashboard' }}
         description={
           data
             ? `Сегодня ${activeBreakdown(data.cooperationCounts)} · ${formatNumber(data.problemStageTotal)} ${pluralize(data.problemStageTotal, ['этап требует', 'этапа требуют', 'этапов требуют'])} внимания`
@@ -477,7 +478,7 @@ function Dashboard() {
           {showcase && (
             <>
               <div className={styles.reveal} data-assemble="center" style={{ '--delay': '380ms' } as CSSProperties}>
-                <Section title="Здоровье портфеля" description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение.">
+                <Section title="Здоровье портфеля" help={{ topic: 'dashboard', section: 'health' }} description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение.">
                   <div className={styles.health}>
                     <HealthPie
                       title="Этапы в срок"
@@ -526,6 +527,7 @@ function Dashboard() {
                 <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="left" style={{ '--delay': '440ms' } as CSSProperties}>
                   <Section
                     title="Где сейчас связки"
+                    help={{ topic: 'dashboard', section: 'phases' }}
                     description={`Фаза текущего этапа у каждой связки. В центре — все, кроме отменённых: ${compositionParts(data.cooperationCounts)}. Наведите на сектор или подпись.`}
                     action={
                       <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
@@ -541,6 +543,7 @@ function Dashboard() {
                 <div className={`${styles.reveal} ${styles.bentoCell}`} data-assemble="right" style={{ '--delay': '500ms' } as CSSProperties}>
                   <Section
                     title="Вузы на карте"
+                    help={{ topic: 'dashboard', section: 'map' }}
                     description="Размер точки — число связок. Щелчок — страница вуза."
                     action={
                       <div className={styles.sectionActions}>
@@ -577,6 +580,7 @@ function Dashboard() {
             <div id="attention" className={styles.reveal} data-assemble="left" style={{ '--delay': isWork ? '160ms' : '410ms' } as CSSProperties}>
               <Section
                 title="Требует внимания"
+                help={{ topic: 'dashboard', section: 'attention' }}
                 description={attentionSummary(data.problemStageTotal, data.problemGroups)}
                 action={
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
@@ -621,6 +625,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="right" style={{ '--delay': isWork ? '220ms' : '480ms' } as CSSProperties}>
               <Section
                 title="Приоритетные действия"
+                help={{ topic: 'dashboard', section: 'priority' }}
                 description={actionsSummary(data.priorityActions)}
                 action={
                   <Button href="/recommendations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
@@ -657,6 +662,7 @@ function Dashboard() {
             <div className={styles.reveal} data-assemble="center" style={{ '--delay': '520ms' } as CSSProperties}>
               <Section
                 title="Связки по вузам"
+                help={{ topic: 'dashboard', section: 'by-university' }}
                 description="Пара столбиков у вуза: сколько связок идёт по плану и сколько требует внимания. Щелчок — страница вуза."
                 action={
                   <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
@@ -675,6 +681,7 @@ function Dashboard() {
           <div className={styles.reveal} data-assemble="center" style={{ '--delay': '540ms' } as CSSProperties}>
             <Section
               title="Воронка связок"
+              help={{ topic: 'dashboard', section: 'funnel' }}
               description="Сколько связок вуз — программа — продукт дошло до каждой фазы работы; процент — доля от всех связок в воронке. Отменённые не входят."
               action={
                 <div className={styles.sectionActions}>
@@ -711,6 +718,7 @@ function Dashboard() {
             <div className={`${styles.reveal} ${styles.columnFill}`} data-assemble="left" style={{ '--delay': '620ms' } as CSSProperties}>
               <Section
                 title="Связки в работе"
+                help={{ topic: 'dashboard', section: 'in-work' }}
                 description="Вуз — программа — IT-продукт. Справа — текущий этап из 14, полоса — пройденные этапы."
                 action={
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
@@ -798,6 +806,7 @@ function Dashboard() {
             <div className={`${styles.reveal} ${styles.columnFill}`} data-assemble="right" style={{ '--delay': '700ms' } as CSSProperties}>
               <Section
                 title="Ключевые программы"
+                help={{ topic: 'dashboard', section: 'top-programs' }}
                 description="Верх рейтинга. Балл от 0 до 100 — по заявкам, обучающимся и группам в сравнении с другими программами, а не оценка качества."
                 action={
                   <Button href="/analytics" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
@@ -944,7 +953,7 @@ function Dashboard() {
                 иллюстрация (самые востребованные рынком в целом, не для конкретной
                 программы). Заголовок и подпись под схемой говорят это прямо.
               */}
-              <Section title="Сеть SkillLink (схема)" description="Вузы → программы → продукты — настоящие связки. Навыки на пути — самые востребованные рынком, показаны схематично.">
+              <Section title="Сеть SkillLink (схема)" help={{ topic: 'dashboard', section: 'network' }} description="Вузы → программы → продукты — настоящие связки. Навыки на пути — самые востребованные рынком, показаны схематично.">
                 <Finale cooperations={funnelSource.data ?? []} skills={(gaps.data ?? []).map((gap) => gap.name)} />
               </Section>
             </div>

@@ -334,6 +334,7 @@ function RecommendationsContent() {
 
       <AiAssistCard
         title="Что сделать сегодня"
+        help={{ topic: 'ai-assistant', section: 'today' }}
         description="Ваши дела по открытым задачам этого списка и проблемным этапам ваших связок — в порядке, который задают правила. Текст пишет ИИ-помощник, если он подключён, иначе — шаблон."
         actionLabel="Что сделать сегодня"
         endpoint="/api/ai/today"

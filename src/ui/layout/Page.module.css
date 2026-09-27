@@ -159,6 +159,15 @@
   min-width: 150px;
 }
 
+/* «?» фильтров — по середине поля (38 px), а не по нижнему краю ряда. */
+.toolbarHelp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 var(--space-1);
+}
+
 .toolbarActions {
   display: flex;
   align-items: center;
