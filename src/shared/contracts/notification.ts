@@ -24,6 +24,13 @@ export const NOTIFICATION_KINDS = [
    * а не отдельная таблица (тот же приём, что у остальной ленты).
    */
   'university.responsible-changed',
+  /**
+   * Назначили (или сняли) ответственным за связку или за этап (решение 205).
+   * Источник — журнал действий: `cooperation.responsible.set`, `stage.responsible.set`.
+   * Новому ответственному то же событие уходит и в подключённый мессенджер.
+   */
+  'cooperation.responsible-changed',
+  'stage.responsible-changed',
 ] as const
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 

@@ -54,6 +54,10 @@ export type MessageAction =
 export const ACTION_TEXTS = {
   accept: '✓ Принял, беру в работу',
   openLetter: 'Открыть письмо',
+  // Уведомление о назначении ответственным (решение 205).
+  openCooperation: 'Открыть связку',
+  openStage: 'Открыть этап',
+  openUniversity: 'Открыть вуз',
 } as const
 
 /** Сообщение канала: текст и, если есть, строки кнопок. */

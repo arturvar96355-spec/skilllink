@@ -20,6 +20,7 @@ import type {
 import type { ConsentForm, ConsentStatus, ContactLegalBasis } from '@/shared/contracts/enums'
 import type { UniversityRatingDto } from '@/shared/contracts/rating'
 import * as analyticsService from '@/modules/analytics/analytics.service'
+import { notifyResponsibleAssigned } from '@/modules/notifications/notifications.service'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import * as repo from './universities.repo'
 import {
@@ -441,15 +442,27 @@ export async function setResponsible(
 
   if (input.responsibleId) await assertStaffResponsible(input.responsibleId)
 
-  const row = await repo.update(id, {
-    responsible: input.responsibleId ? { connect: { id: input.responsibleId } } : { disconnect: true },
-  })
+  // Смена пишется, только если ответственный всё ещё прежний (решение 205): иначе два
+  // одинаковых запроса подряд прислали бы новому ответственному два уведомления.
+  const changed = await repo.setResponsibleIfUnchanged(id, existing.responsibleId, input.responsibleId)
+  if (!changed) {
+    throw conflict('Ответственного за вуз уже сменил другой пользователь. Обновите страницу и повторите действие.')
+  }
+  const row = await repo.findById(id, universityScope(user))
+  if (!row) throw notFound('Вуз не найден')
   await writeAudit({
     userId: user.id,
     action: 'university.responsible.set',
     objectType: 'University',
     objectId: id,
     payload: { responsibleId: input.responsibleId, previousResponsibleId: existing.responsibleId },
+  })
+  notifyResponsibleAssigned({
+    scope: 'university',
+    objectId: id,
+    actorId: user.id,
+    responsibleId: input.responsibleId,
+    previousResponsibleId: existing.responsibleId,
   })
 
   const cooperationCountsByUniversity = await repo.countCooperationsByUniversity([row.id])

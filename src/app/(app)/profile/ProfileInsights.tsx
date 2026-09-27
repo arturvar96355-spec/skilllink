@@ -10,7 +10,13 @@ import styles from './ProfileSignals.module.css'
  * «Система заметила» (решение 120) на вебе — раньше текст был только
  * в сводке Telegram-бота. Без модели: отклонения рядов по шаблонам,
  * каждое число в тексте есть в `facts`.
+ *
+ * Расчёт идёт по всей истории связок и на стенде бывает небыстрым. Раньше на это
+ * время блок был одной серой плашкой без слов — эксперт принял её за пустой блок
+ * (проверка продукт-менеджера 27.09, решение 205). Теперь загрузка — строки в форме
+ * будущих пунктов и подпись, что идёт проверка; пусто — прямым текстом.
  */
+const LOADING_ROWS = 3
 export function ProfileInsights() {
   const insights = useResource<InsightDto[]>('/api/analytics/insights')
   const rows = insights.data ?? []
@@ -24,11 +30,29 @@ export function ProfileInsights() {
       </div>
 
       {insights.isLoading ? (
-        <Skeleton width="100%" height="80px" />
+        <div className={styles.loading}>
+          <p className={styles.loadingText} role="status">
+            Система сверяет встречи, движение этапов и сроки с обычным ходом дел…
+          </p>
+          <ul className={styles.list} aria-hidden="true">
+            {Array.from({ length: LOADING_ROWS }, (_, index) => (
+              <li key={index} className={styles.item}>
+                <span className={[styles.dot, styles.dotPending].join(' ')} />
+                <span className={styles.itemText}>
+                  <Skeleton width={index === 1 ? '38%' : '52%'} height="14px" />
+                  <Skeleton width={index === 2 ? '64%' : '86%'} height="12px" />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : insights.error ? (
         <ErrorState error={insights.error} onRetry={insights.reload} />
       ) : rows.length === 0 ? (
-        <EmptyState title="Отклонений нет" description="За последнее время система не заметила ничего необычного." />
+        <EmptyState
+          title="Система пока ничего необычного не заметила"
+          description="Встречи, движение этапов и сроки идут как обычно. Отклонения появятся здесь, как только система их увидит."
+        />
       ) : (
         <ul className={styles.list}>
           {rows.slice(0, 5).map((item) => {

@@ -35,6 +35,8 @@ const KIND_ICONS: Record<NotificationDto['kind'], IconName> = {
   'document.changed': 'document',
   recommendation: 'recommendation',
   'university.responsible-changed': 'university',
+  'cooperation.responsible-changed': 'user',
+  'stage.responsible-changed': 'user',
 }
 
 /**

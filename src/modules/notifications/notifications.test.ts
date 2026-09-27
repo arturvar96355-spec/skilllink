@@ -323,6 +323,7 @@ describe('назначение ответственного за вуз (ТЗ, �
       sources({
         responsibleAssignments: [
           {
+            scope: 'university',
             auditLogId: 'log-1',
             universityId: 'uni-1',
             universityName: 'СПбГУТ',
@@ -330,6 +331,7 @@ describe('назначение ответственного за вуз (ТЗ, �
             changedAt: now,
           },
           {
+            scope: 'university',
             auditLogId: 'log-2',
             universityId: 'uni-2',
             universityName: 'ИТМО',
@@ -346,5 +348,51 @@ describe('назначение ответственного за вуз (ТЗ, �
     expect(assigned?.title).toContain('назначены ответственным')
     expect(assigned?.target).toEqual({ type: 'university', id: 'uni-1', cooperationId: null, stageId: null })
     expect(removed?.title).toContain('больше не ответственный')
+  })
+})
+
+describe('назначение ответственным за связку и этап (решение 205)', () => {
+  it('связка и этап — свои виды, заголовки и переход к связке и к этапу', () => {
+    const feed = buildFeed(
+      sources({
+        responsibleAssignments: [
+          {
+            scope: 'cooperation',
+            auditLogId: 'log-c',
+            cooperationId: 'coop-1',
+            universityName: 'СПбГУТ',
+            programName: 'Программная инженерия',
+            assigned: true,
+            changedAt: now,
+          },
+          {
+            scope: 'stage',
+            auditLogId: 'log-s',
+            cooperationId: 'coop-1',
+            stageId: 'stage-3',
+            stageNumber: 3,
+            stageTitle: 'Согласование программы',
+            universityName: 'СПбГУТ',
+            programName: 'Программная инженерия',
+            assigned: false,
+            changedAt: now,
+          },
+        ],
+      }),
+      { now, since: null, limit: 20 },
+    )
+    const cooperation = feed.items.find((item) => item.id === 'responsible:log-c')
+    const stage = feed.items.find((item) => item.id === 'responsible:log-s')
+    expect(cooperation).toMatchObject({
+      kind: 'cooperation.responsible-changed',
+      title: 'Вы назначены ответственным за связку',
+      description: 'СПбГУТ — Программная инженерия',
+      target: { type: 'cooperation', id: 'coop-1', cooperationId: 'coop-1', stageId: null },
+    })
+    expect(stage).toMatchObject({
+      kind: 'stage.responsible-changed',
+      title: 'Вы больше не ответственный за этап 3 «Согласование программы»',
+      target: { type: 'cooperation', id: 'coop-1', cooperationId: 'coop-1', stageId: 'stage-3' },
+    })
   })
 })
