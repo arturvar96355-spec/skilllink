@@ -275,6 +275,57 @@ describe('вебхук', () => {
     expect(sent[0]!.text).toContain('ничего не горит')
   })
 
+  it('/today со сводкой по этапам — под сообщением кнопки «Принял», подписанные для этого чата (решение 200)', async () => {
+    mocks.findActiveUserByChat.mockResolvedValue(manager)
+    mocks.findDigestStages.mockResolvedValue([
+      {
+        stageId: 'cmstage0000000000000000001',
+        stageNumber: 3,
+        stageTitle: 'Договор',
+        status: 'IN_PROGRESS',
+        deadline: new Date('2026-09-01T00:00:00Z'),
+        cooperationId: 'coop-1',
+        universityName: 'СПбГУТ',
+        programName: 'Программа',
+        siblings: [],
+      },
+    ])
+    const client = new TelegramClient(enabledConfig())
+    const send = vi.spyOn(client, 'sendMessage').mockResolvedValue({ ok: true })
+    await service.handleUpdate(update('/today'), { secret: SECRET, client, now: new Date('2026-09-28T09:00:00Z') })
+
+    const options = send.mock.calls[0]![2] as { replyMarkup: { inline_keyboard: Array<Array<{ callback_data?: string }>> } }
+    const data = options.replyMarkup.inline_keyboard[0]!.at(-1)!.callback_data!
+    const { verifyAcceptData } = await import('./telegram.actions')
+    expect(verifyAcceptData(SECRET, data, { chatId: '777', userId: manager.id }, Date.parse('2026-09-28T09:00:00Z'))).toEqual({
+      ok: true,
+      target: { type: 'stage', id: 'cmstage0000000000000000001' },
+    })
+  })
+
+  it('/today наблюдателю — кнопок «Принял» нет: отметка ему не разрешена (решение 200)', async () => {
+    const viewer: CurrentUser = { ...manager, role: 'VIEWER' }
+    mocks.findActiveUserByChat.mockResolvedValue(viewer)
+    mocks.findDigestStages.mockResolvedValue([
+      {
+        stageId: 'cmstage0000000000000000001',
+        stageNumber: 3,
+        stageTitle: 'Договор',
+        status: 'IN_PROGRESS',
+        deadline: new Date('2026-09-01T00:00:00Z'),
+        cooperationId: 'coop-1',
+        universityName: 'СПбГУТ',
+        programName: 'Программа',
+        siblings: [],
+      },
+    ])
+    const client = new TelegramClient(enabledConfig())
+    const send = vi.spyOn(client, 'sendMessage').mockResolvedValue({ ok: true })
+    await service.handleUpdate(update('/today'), { secret: SECRET, client, now: new Date('2026-09-28T09:00:00Z') })
+    expect(send.mock.calls[0]![1]).toContain('Этап 3')
+    expect(send.mock.calls[0]![2]).toEqual({})
+  })
+
   it('/stop отвязывает чат и пишет журнал', async () => {
     mocks.unlinkChat.mockResolvedValue(manager.id)
     const { client, sent } = recordingClient()

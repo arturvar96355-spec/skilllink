@@ -7,7 +7,8 @@ import {
   isUniversityVisible,
   universityScope,
 } from '@/shared/auth/permissions'
-import { writeAudit } from '@/shared/audit/audit'
+import { recordAuditOnce, writeAudit } from '@/shared/audit/audit'
+import { TELEGRAM_ACTIONS } from '@/shared/config/telegram.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
@@ -480,6 +481,59 @@ export async function markTasksBySignedDocuments(
   if (marked > 0) await syncRecommendations(cooperationId)
   if (marked > 0) return effect('marked', marked)
   return effect(refused ? 'locked' : 'nothing-to-mark')
+}
+
+export interface AcceptResult {
+  /** Когда принято: сейчас или при прежнем нажатии. */
+  acceptedAt: Date
+  /** Уже было принято этим же человеком — новой записи в журнале нет. */
+  alreadyAccepted: boolean
+  /**
+   * Подпись объекта для строки «✓ Принято в работу, чч:мм — …» (в сводке несколько
+   * этапов, строка говорит, какой из них): без ФИО и контактов.
+   */
+  label: string | null
+}
+
+/**
+ * «Принял, беру в работу» по этапу (решение 200) — кнопкой под сообщением бота.
+ *
+ * Права — те же, что у изменения этапа (`updateStage`): `WRITE` (эксперт, аналитик,
+ * наблюдатель и представитель вуза — 403), связка видна и не закрыта. Сам этап не
+ * меняется — ни статус, ни ответственный: это отметка человека «увидел, занимаюсь»,
+ * и она пишется в журнал действий (`stage.accept`, без новой таблицы). Повторное
+ * нажатие в пределах срока жизни кнопки — та же отметка, новой записи нет.
+ */
+export async function acceptStage(
+  user: CurrentUser,
+  stageId: string,
+  options: { source: 'telegram'; now?: Date },
+): Promise<AcceptResult> {
+  assertCan(user, 'WRITE')
+  const stage = await repo.findStageAcceptRef(stageId)
+  if (!stage) throw notFound('Этап не найден')
+  const cooperation = await loadVisibleCooperation(user, stage.cooperationId)
+  assertCooperationOpen(cooperation.status)
+  if (stage.status === 'COMPLETED' || stage.status === 'CANCELLED') {
+    throw conflict('Этап уже закрыт — принимать в работу нечего')
+  }
+
+  const now = options.now ?? new Date()
+  const { created, at } = await recordAuditOnce(
+    {
+      userId: user.id,
+      action: 'stage.accept',
+      objectType: 'WorkflowStage',
+      objectId: stage.id,
+      payload: { source: options.source, stageNumber: stage.stageNumber },
+    },
+    new Date(now.getTime() - TELEGRAM_ACTIONS.ttlMs),
+  )
+  return {
+    acceptedAt: at,
+    alreadyAccepted: !created,
+    label: `этап ${stage.stageNumber} «${stage.title}», ${stage.universityName}`,
+  }
 }
 
 /** Отметка пункта чек-листа. Обязательные пункты блокируют завершение этапа. */

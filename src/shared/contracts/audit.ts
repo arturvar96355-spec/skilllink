@@ -206,6 +206,15 @@ export const AUDIT_ACTIONS = [
   'inbound_letter.reply_draft.edit',
   /** Задание по письму отмечено выполненным (решение 183) — ответственный или ADMIN/HEAD. */
   'inbound_letter.task.done',
+  // ── Решение 200: кнопки в сообщениях бота ──
+  /**
+   * «Принял, беру в работу» по этапу — кнопкой под сообщением бота. Статус этапа
+   * не меняется, это отметка ответственного. payload: source ('telegram'), номер этапа.
+   * Одна запись на человека и этап в неделю: повторное нажатие новой не создаёт.
+   */
+  'stage.accept',
+  /** «Принял, беру в работу» по письму вуза — кнопкой под уведомлением. payload: source. */
+  'inbound_letter.accept',
 ] as const
 export type AuditActionCode = (typeof AUDIT_ACTIONS)[number]
 

@@ -2,7 +2,7 @@ import { getIntegrationsConfig } from '@/integrations/config'
 import { getMaxClient } from '@/integrations/max'
 import { maxUpdateSchema } from '../notify-channels.schema'
 import { extractStartCode, parseChannelCommand } from '../notify-channels.rules'
-import type { ChannelAdapter, ChannelSendResult, ParsedInbound } from '../notify-channels.types'
+import { toChannelMessage, type ChannelAdapter, type ChannelSendResult, type ParsedInbound } from '../notify-channels.types'
 
 /** Адрес диплинка MAX — по документации на момент написания (см. notify-channels.schema.ts). */
 function maxDeepLink(botUsername: string, code: string): string {
@@ -16,8 +16,9 @@ export const maxAdapter: ChannelAdapter = {
     return getMaxClient().enabled
   },
 
-  async send(chatRef, text): Promise<ChannelSendResult> {
-    const result = await getMaxClient().sendMessage(chatRef, text)
+  // Кнопок у канала пока нет (решение 200): уходит только текст, ссылки в нём уже есть.
+  async send(chatRef, message): Promise<ChannelSendResult> {
+    const result = await getMaxClient().sendMessage(chatRef, toChannelMessage(message).text)
     if (result.ok) return { ok: true }
     return { ok: false, reason: result.reason }
   },

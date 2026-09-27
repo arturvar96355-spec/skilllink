@@ -91,6 +91,34 @@ export async function findStageRef(
   return stage ? { id: stage.id, universityId: stage.cooperation.universityId } : null
 }
 
+/**
+ * Этап для «Принял, беру в работу» (решение 200): статус, номер и подпись — без
+ * чек-листа и истории, их кнопке не нужно.
+ */
+export async function findStageAcceptRef(id: string): Promise<{
+  id: string
+  cooperationId: string
+  stageNumber: number
+  title: string
+  status: StageStatus
+  universityName: string
+} | null> {
+  const stage = await prisma.workflowStage.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      cooperationId: true,
+      stageNumber: true,
+      title: true,
+      status: true,
+      cooperation: { select: { university: { select: { name: true, shortName: true } } } },
+    },
+  })
+  if (!stage) return null
+  const { cooperation, ...rest } = stage
+  return { ...rest, universityName: cooperation.university.shortName ?? cooperation.university.name }
+}
+
 export async function findStageWithCooperation(
   id: string,
 ): Promise<StageWithCooperationRow | null> {

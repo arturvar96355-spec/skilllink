@@ -189,6 +189,10 @@ services:
       VK_API_VERSION: ${VK_API_VERSION:-}
       VK_API_BASE: ${VK_API_BASE:-}
       AUTH_URL: ${DOCKER_AUTH_URL:-}
+      # Тот же секрет, что у приложения (решение 200): им подписаны кнопки «Принял»
+      # под сводкой, а проверяет нажатие приложение. Пусто — сводка уходит без этих
+      # кнопок (ссылки «Открыть» остаются), а не с кнопками, которые не сработают.
+      AUTH_SECRET: ${DOCKER_AUTH_SECRET:-}
     command: ['npx', 'prisma', 'migrate', 'deploy']
     restart: 'no'
 
