@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { TRAVEL_MS, type AssemblyTarget, type StreamAnchors } from './constellation-scene'
 import type { WorkerMessage, WorkerReply } from './constellation.worker'
+import { EDGE_MARGIN, placeHead } from './comet-head'
 import styles from './login.module.css'
 
 export { WARP_NAVIGATE_MS } from './constellation-scene'
@@ -71,13 +72,13 @@ const PANEL_SETTLED_MS = 1100
 
 /** Запас вокруг текста левой колонки, где поток уже гаснет (пучок шириной около 20 px). */
 const TEXT_PADDING = 20
-/** Голова кометы и конец потока не ближе этого к краям экрана. */
-const EDGE_MARGIN = 96
 
 /**
  * Куда идёт поток (решение 199). Поток — прямая, как линия между двумя точками
  * знака SkillLink. Голова кометы — выше и левее знака, у угла экрана, но не
- * в край. Конец — свободное место под маршрутом «Вуз — Программа — IT-продукт»:
+ * в край; в невысоком окне — всегда выше строки знака с зазором, если надо —
+ * ближе к верху окна и меньше (`placeHead`, решение 208). Конец — свободное
+ * место под маршрутом «Вуз — Программа — IT-продукт»:
  * по горизонтали на 55 % пути от правого края текста к форме (не ближе 90 px
  * к форме), по вертикали на 100 px ниже маршрута. Прямая из угла туда неизбежно
  * проходит через текстовую колонку: холст созвездия лежит под текстом, а на
@@ -104,11 +105,14 @@ function measureAnchors(): StreamAnchors | null {
   const columnRight = Math.max(...text.map((box) => box.right))
   const routeBottom = Math.max(...text.map((box) => box.bottom))
 
-  // Голова: левее начала знака и заметно выше него.
-  const source: [number, number] = [
-    Math.max(EDGE_MARGIN, Math.round((brand?.left ?? width * 0.06) + 48)),
-    Math.max(EDGE_MARGIN, Math.round((brand?.top ?? height * 0.3) - 150)),
-  ]
+  // Голова: над значком знака и заметно выше него — но никогда не на самом знаке.
+  const head = placeHead(
+    brand ?? { left: width * 0.06, right: width * 0.3, top: height * 0.3, bottom: height * 0.3 + 56 },
+    brandText,
+    width,
+    height,
+  )
+  const source: [number, number] = [head.x, head.y]
   // Конец: под маршрутом, между текстом и формой, не ближе 90 px к форме.
   const target: [number, number] = [
     Math.round(Math.min(columnRight + (form.left - columnRight) * 0.55, form.left - 90)),
@@ -142,7 +146,7 @@ function measureAnchors(): StreamAnchors | null {
     if (last && range[0] - last[1] < 0.08) last[1] = Math.max(last[1], range[1])
     else veil.push([...range])
   }
-  return { source, target, veil }
+  return { source, target, veil, headScale: head.scale }
 }
 
 type Channel = {
