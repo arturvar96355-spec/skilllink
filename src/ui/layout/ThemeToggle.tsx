@@ -34,6 +34,10 @@ export function ThemeToggle() {
           <circle className={styles.bite} cx="24" cy="2" r="6.5" fill="black" />
         </mask>
         <circle className={styles.core} cx="12" cy="12" r="5" mask={`url(#${mask})`} />
+        {/* Месяц тёмной темы — отдельной фигурой: толстый полумесяц со скруглёнными
+            кончиками и вырезом справа сверху (образец владельца 27.09). Круг с
+            «откушенной» маской давал тонкий серп с острыми концами. */}
+        <path className={styles.moon} d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
         <g className={styles.rays}>
           {Array.from({ length: 8 }, (_, index) => (
             <line
