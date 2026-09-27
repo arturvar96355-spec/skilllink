@@ -64,6 +64,28 @@ export type TelegramGetWebhookInfoResult =
   | { ok: true; info: TelegramWebhookInfo }
   | { ok: false; reason: 'disabled' | 'failed'; status: number | null }
 
+/**
+ * Кнопка inline-клавиатуры под сообщением (решение 200): ссылка или обратный вызов.
+ * `callback_data` — не длиннее 64 байт (предел Bot API), его собирает модуль `telegram`.
+ */
+export type TelegramInlineButton = { text: string; url: string } | { text: string; callback_data: string }
+
+export interface TelegramInlineKeyboard {
+  inline_keyboard: TelegramInlineButton[][]
+}
+
+/**
+ * Виды обновлений, которые бот просит у Telegram: сообщения и нажатия кнопок
+ * (решение 200). Передаётся и в `getUpdates`, и в `setWebhook` — иначе Telegram
+ * оставил бы прежний список (`["message"]` из docs/SETUP.md) и нажатия не приходили бы.
+ */
+export const TELEGRAM_ALLOWED_UPDATES = ['message', 'callback_query'] as const
+
+/** Итог разового вызова без повторов: ответ на нажатие, правка сообщения. */
+export type TelegramCallResult =
+  | { ok: true }
+  | { ok: false; reason: 'disabled' | 'failed'; status: number | null; description: string | null }
+
 /** Одно обновление `getUpdates` — тело не проверяется здесь, это делает `telegramUpdateSchema`. */
 export type TelegramRawUpdate = Record<string, unknown>
 
@@ -81,6 +103,11 @@ const MAX_RETRY_PAUSE_MS = 5000
 export const TELEGRAM_MAX_TEXT = 4096
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Текст длиннее предела Bot API обрезается с многоточием, а не отвергается Telegram. */
+function clipText(text: string): string {
+  return text.length > TELEGRAM_MAX_TEXT ? `${text.slice(0, TELEGRAM_MAX_TEXT - 1)}…` : text
+}
 
 function parseReply(body: string): BotApiReply {
   try {
@@ -132,15 +159,24 @@ export class TelegramClient {
     log.warn('[integration:telegram] sendMessage не удался', { attempt, attempts: ATTEMPTS, reason: this.redact(what) })
   }
 
-  async sendMessage(chatId: string, text: string): Promise<TelegramSendResult> {
+  /**
+   * `replyMarkup` — кнопки под сообщением (решение 200); без него тело запроса
+   * прежнее, без поля `reply_markup`.
+   */
+  async sendMessage(
+    chatId: string,
+    text: string,
+    options: { replyMarkup?: TelegramInlineKeyboard } = {},
+  ): Promise<TelegramSendResult> {
     const token = this.config.botToken
     if (!token) return { ok: false, reason: 'disabled', status: null }
 
     const body = JSON.stringify({
       chat_id: chatId,
-      text: text.length > TELEGRAM_MAX_TEXT ? `${text.slice(0, TELEGRAM_MAX_TEXT - 1)}…` : text,
+      text: clipText(text),
       // Ссылки на стенд — не повод для карточки предпросмотра под каждым сообщением.
       link_preview_options: { is_disabled: true },
+      ...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
     })
 
     let lastStatus: number | null = null
@@ -161,6 +197,12 @@ export class TelegramClient {
 
         this.log(attempt, `HTTP ${response.status}`)
         if (response.status === 403) return { ok: false, reason: 'blocked', status: 403 }
+        if (response.status === 400 && options.replyMarkup) {
+          // Telegram отверг кнопки (например, ссылку) — сообщение важнее кнопок:
+          // та же отправка без клавиатуры (решение 200).
+          log.warn('[integration:telegram] кнопки отвергнуты, сообщение уходит без них')
+          return this.sendMessage(chatId, text)
+        }
         if (!isRetryable(response.status)) return { ok: false, reason: 'failed', status: response.status }
 
         const retryAfter = Number(reply.parameters?.retry_after)
@@ -177,8 +219,8 @@ export class TelegramClient {
   /**
    * Назначить адрес вебхука и секрет заголовка (решение 133, смена секрета).
    * Секрет уходит только в теле запроса к Telegram; ни в журнал, ни в результат
-   * он не попадает. Остальные настройки вебхука (allowed_updates и др.) Telegram
-   * сохраняет прежними — их мы не передаём.
+   * он не попадает. `allowed_updates` передаётся явно (решение 200): без него Telegram
+   * оставил бы прежний список, и нажатия кнопок не доходили бы до вебхука.
    */
   async setWebhook(url: string, secretToken: string): Promise<TelegramSetWebhookResult> {
     const token = this.config.botToken
@@ -187,7 +229,7 @@ export class TelegramClient {
       const response = await this.transport({
         url: `${this.config.apiBase}/bot${token}/setWebhook`,
         headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify({ url, secret_token: secretToken }),
+        body: JSON.stringify({ url, secret_token: secretToken, allowed_updates: TELEGRAM_ALLOWED_UPDATES }),
         timeoutMs: this.config.timeoutMs,
         ca: null,
         connectAddress: this.config.apiIp,
@@ -303,6 +345,78 @@ export class TelegramClient {
   }
 
   /**
+   * Разовый вызов метода Bot API без повторов (решение 200): ответ на нажатие и правка
+   * сообщения нужны сейчас или никогда — повтор через секунду человек уже не увидит.
+   * Исключений наружу нет; в журнал — метод и код, без тела, чата и токена.
+   */
+  private async callOnce(method: string, payload: Record<string, unknown>): Promise<TelegramCallResult> {
+    const token = this.config.botToken
+    if (!token) return { ok: false, reason: 'disabled', status: null, description: null }
+    try {
+      const response = await this.transport({
+        url: `${this.config.apiBase}/bot${token}/${method}`,
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(payload),
+        timeoutMs: this.config.timeoutMs,
+        ca: null,
+        connectAddress: this.config.apiIp,
+      })
+      const reply = parseReply(response.body)
+      if (response.status === 200 && reply.ok === true) return { ok: true }
+      const description = typeof reply.description === 'string' ? this.redact(reply.description).slice(0, 200) : null
+      log.warn(`[integration:telegram] ${method} отклонён`, { status: response.status, description })
+      return { ok: false, reason: 'failed', status: response.status, description }
+    } catch (error) {
+      const reason = error instanceof Error ? this.redact(error.message) : 'неизвестная ошибка'
+      log.warn(`[integration:telegram] ${method} не выполнен`, { reason })
+      return { ok: false, reason: 'failed', status: null, description: null }
+    }
+  }
+
+  /**
+   * Ответ на нажатие кнопки (решение 200): короткий текст всплывает у человека
+   * над чатом, `showAlert` — окном с кнопкой «OK». Без ответа Telegram крутит
+   * у кнопки часики до таймаута.
+   */
+  async answerCallbackQuery(
+    callbackQueryId: string,
+    text: string,
+    options: { showAlert?: boolean } = {},
+  ): Promise<TelegramCallResult> {
+    return this.callOnce('answerCallbackQuery', {
+      callback_query_id: callbackQueryId,
+      // Предел Bot API — 200 символов.
+      text: text.length > 200 ? `${text.slice(0, 199)}…` : text,
+      ...(options.showAlert ? { show_alert: true } : {}),
+    })
+  }
+
+  /** Заменить текст и кнопки своего сообщения (решение 200). */
+  async editMessageText(
+    chatId: string,
+    messageId: number,
+    text: string,
+    replyMarkup: TelegramInlineKeyboard,
+  ): Promise<TelegramCallResult> {
+    return this.callOnce('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: clipText(text),
+      link_preview_options: { is_disabled: true },
+      reply_markup: replyMarkup,
+    })
+  }
+
+  /** Заменить только кнопки своего сообщения — когда текст недоступен или не помещается. */
+  async editMessageReplyMarkup(
+    chatId: string,
+    messageId: number,
+    replyMarkup: TelegramInlineKeyboard,
+  ): Promise<TelegramCallResult> {
+    return this.callOnce('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: replyMarkup })
+  }
+
+  /**
    * Long polling (решение 142): ждёт до `timeoutSec` секунд у Telegram, пока не
    * появится хотя бы одно обновление, начиная с `offset`. `signal` прерывает
    * ожидание досрочно — аккуратная остановка по SIGTERM не должна ждать до
@@ -319,7 +433,7 @@ export class TelegramClient {
         body: JSON.stringify({
           offset: options.offset,
           timeout: options.timeoutSec,
-          allowed_updates: ['message'],
+          allowed_updates: TELEGRAM_ALLOWED_UPDATES,
         }),
         timeoutMs: (options.timeoutSec + 10) * 1000,
         ca: null,

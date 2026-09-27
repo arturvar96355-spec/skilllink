@@ -1,7 +1,8 @@
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan } from '@/shared/auth/permissions'
-import { writeAudit } from '@/shared/audit/audit'
+import { recordAuditOnce, writeAudit } from '@/shared/audit/audit'
+import { TELEGRAM_ACTIONS } from '@/shared/config/telegram.config'
 import { log } from '@/shared/log/logger'
 import { toIso, toIsoRequired } from '@/shared/utils/date'
 import type { CurrentUser } from '@/shared/auth/current-user'
@@ -28,6 +29,9 @@ import { findRedactionContext } from '@/modules/ai-assist/ai-assist.repo'
 import { createRedactor, type Redact } from '@/modules/ai-assist/ai-assist.privacy'
 import { coolDown } from '@/modules/recommendations/recommendations.learning'
 import { sendToUser } from '@/modules/notify-channels/notify-channels.service'
+import { ACTION_TEXTS, type ChannelMessage, type MessageAction } from '@/modules/notify-channels/notify-channels.types'
+import { publicUrl } from '@/shared/config/public-url'
+import { letterHref } from '@/ui/lib/links'
 import * as repo from './inbound-letters.repo'
 import { parseEml } from './inbound-letters.eml'
 import { matchUniversityByDomain } from './inbound-letters.match'
@@ -66,17 +70,30 @@ function newLetterNoticeText(universityName: string | null, group: InboundLetter
 }
 
 /**
+ * Уведомление с кнопками (решение 200): «Открыть письмо» — если известен адрес стенда,
+ * и «Принял, беру в работу». Канал без кнопок отправит только текст.
+ */
+function newLetterNotice(letterId: string, universityName: string | null, group: InboundLetterGroup): ChannelMessage {
+  const url = publicUrl(letterHref(letterId))
+  const actions: MessageAction[] = [
+    ...(url ? [{ kind: 'open' as const, text: ACTION_TEXTS.openLetter, url }] : []),
+    { kind: 'accept', text: ACTION_TEXTS.accept, target: { type: 'letter', id: letterId } },
+  ]
+  return { text: newLetterNoticeText(universityName, group), actions: [actions] }
+}
+
+/**
  * ADMIN и HEAD — о каждом новом обращении (решение 183), через уже подключённый
  * ими канал (`sendToUser`, решение 144): ничего не подключено — тихо не уходит,
  * как и у сводки «что горит у меня». Только по загрузке письма — не по повторному
  * разбору (`POST …/:id/analyze` вызывает тот же `analyzeLetter`, но это не новое
  * письмо). Сбой отправки не должен ронять загрузку — best-effort, ошибка в журнал.
  */
-async function notifyNewLetter(universityName: string | null, group: InboundLetterGroup): Promise<void> {
+async function notifyNewLetter(letterId: string, universityName: string | null, group: InboundLetterGroup): Promise<void> {
   try {
     const recipients = await repo.listNoticeRecipientIds()
-    const text = newLetterNoticeText(universityName, group)
-    await Promise.all(recipients.map((userId) => sendToUser(userId, text)))
+    const message = newLetterNotice(letterId, universityName, group)
+    await Promise.all(recipients.map((userId) => sendToUser(userId, message)))
   } catch (error) {
     log.warn('[inbound-letters] уведомление о новом письме не отправлено', { err: error })
   }
@@ -281,7 +298,7 @@ export async function uploadEml(user: CurrentUser, file: UploadedFile): Promise<
   })
 
   const analyzed = await analyzeLetter(user, row.id)
-  await notifyNewLetter(analyzed.current.universityName, analyzed.current.group ?? 'OTHER')
+  await notifyNewLetter(row.id, analyzed.current.universityName, analyzed.current.group ?? 'OTHER')
   return analyzed
 }
 
@@ -372,6 +389,33 @@ export async function analyzeLetter(user: CurrentUser, id: string, now: Date = n
 
 function taskTitle(group: InboundLetterGroup): string {
   return `Письмо вуза: ${groupLabel(group)}`
+}
+
+/**
+ * «Принял, беру в работу» по письму вуза (решение 200) — кнопкой под уведомлением
+ * о новом письме. Права — как у разбора письма (`review`): `INBOUND_REVIEW`
+ * (ADMIN и HEAD; эксперту — 403). Письмо уже проверено или отклонено — принимать
+ * нечего (409). Письмо не меняется: отметка пишется в журнал (`inbound_letter.accept`),
+ * повторное нажатие в пределах срока жизни кнопки новой записи не создаёт.
+ */
+export async function acceptLetter(
+  user: CurrentUser,
+  id: string,
+  options: { source: 'telegram'; now?: Date },
+): Promise<{ acceptedAt: Date; alreadyAccepted: boolean; label: null }> {
+  assertCan(user, 'INBOUND_REVIEW')
+  const existing = await repo.findById(id)
+  if (!existing) throw notFound('Обращение не найдено')
+  if (!(INBOUND_LETTER_OPEN_STATUSES as readonly InboundLetterStatus[]).includes(existing.status)) {
+    throw conflict('Обращение уже проверено')
+  }
+  const now = options.now ?? new Date()
+  const { created, at } = await recordAuditOnce(
+    { userId: user.id, action: 'inbound_letter.accept', objectType: 'InboundLetter', objectId: id, payload: { source: options.source } },
+    new Date(now.getTime() - TELEGRAM_ACTIONS.ttlMs),
+  )
+  // Уведомление — об одном письме: строке «✓ Принято» подпись не нужна.
+  return { acceptedAt: at, alreadyAccepted: !created, label: null }
 }
 
 export async function review(user: CurrentUser, id: string, input: ReviewLetterInput): Promise<InboundLetterDto> {

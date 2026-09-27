@@ -65,6 +65,20 @@ describe('sendMessage', () => {
     expect(calls[0]!.connectAddress).toBeNull()
   })
 
+  it('с кнопками — reply_markup в теле; Telegram отверг кнопки (400) — то же сообщение без них (решение 200)', async () => {
+    const replyMarkup = { inline_keyboard: [[{ text: 'Открыть', url: 'https://x.test/a' }, { text: 'Принял', callback_data: 'as1' }]] }
+    const { transport, calls } = scripted([
+      { status: 400, body: '{"ok":false,"description":"Bad Request: BUTTON_URL_INVALID"}' },
+      { status: 200, body: '{"ok":true,"result":{}}' },
+    ])
+    const result = await new TelegramClient(config(), { transport, wait: noWait }).sendMessage('42', 'Привет', { replyMarkup })
+
+    expect(result).toEqual({ ok: true })
+    expect(calls).toHaveLength(2)
+    expect(JSON.parse(calls[0]!.body)).toMatchObject({ chat_id: '42', text: 'Привет', reply_markup: replyMarkup })
+    expect(JSON.parse(calls[1]!.body)).not.toHaveProperty('reply_markup')
+  })
+
   it('без токена ничего не отправляет', async () => {
     const { transport, calls } = scripted([{ status: 200, body: '{"ok":true}' }])
     const client = new TelegramClient(config({ botToken: null, enabled: false }), { transport, wait: noWait })
@@ -133,7 +147,12 @@ describe('sendMessage', () => {
     const ok = scripted([{ status: 200, body: '{"ok":true,"result":true}' }])
     expect(await new TelegramClient(config(), { transport: ok.transport, wait: noWait }).setWebhook('https://x.test/api/telegram/webhook', secret)).toEqual({ ok: true })
     expect(ok.calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/setWebhook`)
-    expect(JSON.parse(ok.calls[0]!.body)).toEqual({ url: 'https://x.test/api/telegram/webhook', secret_token: secret })
+    // allowed_updates — явно (решение 200): иначе Telegram оставил бы прежний список без нажатий кнопок.
+    expect(JSON.parse(ok.calls[0]!.body)).toEqual({
+      url: 'https://x.test/api/telegram/webhook',
+      secret_token: secret,
+      allowed_updates: ['message', 'callback_query'],
+    })
 
     const rejected = scripted([{ status: 400, body: `{"ok":false,"description":"Bad Request: bad webhook ${secret}"}` }])
     const result = await new TelegramClient(config(), { transport: rejected.transport, wait: noWait }).setWebhook('https://x', secret)
@@ -157,6 +176,49 @@ describe('sendMessage', () => {
     expect(calls[0]!.connectAddress).toBe('149.154.167.220')
     // Адрес в запросе — по имени: из него берутся SNI и Host.
     expect(calls[0]!.url.startsWith('https://api.telegram.org/')).toBe(true)
+  })
+})
+
+describe('ответ на нажатие и правка сообщения (решение 200)', () => {
+  it('answerCallbackQuery: id нажатия и короткий текст, show_alert только для отказов', async () => {
+    const { transport, calls } = scripted([{ status: 200, body: '{"ok":true,"result":true}' }])
+    const client = new TelegramClient(config(), { transport, wait: noWait })
+    expect(await client.answerCallbackQuery('cb-1', 'Принято', { showAlert: true })).toEqual({ ok: true })
+    expect(calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/answerCallbackQuery`)
+    expect(JSON.parse(calls[0]!.body)).toEqual({ callback_query_id: 'cb-1', text: 'Принято', show_alert: true })
+    await client.answerCallbackQuery('cb-2', 'x'.repeat(300))
+    const second = JSON.parse(calls[1]!.body) as { text: string; show_alert?: boolean }
+    expect(second.text).toHaveLength(200)
+    expect(second).not.toHaveProperty('show_alert')
+  })
+
+  it('editMessageText и editMessageReplyMarkup: чат, сообщение, текст и новые кнопки; без повторов', async () => {
+    const markup = { inline_keyboard: [[{ text: 'Открыть', url: 'https://x.test/a' }]] }
+    const { transport, calls } = scripted([
+      { status: 200, body: '{"ok":true,"result":{}}' },
+      { status: 400, body: '{"ok":false,"description":"Bad Request: message is not modified"}' },
+    ])
+    const client = new TelegramClient(config(), { transport, wait: noWait })
+    expect(await client.editMessageText('42', 7, 'Текст\n\n✓ Принято', markup)).toEqual({ ok: true })
+    expect(calls[0]!.url).toBe(`https://api.telegram.org/bot${TOKEN}/editMessageText`)
+    expect(JSON.parse(calls[0]!.body)).toEqual({
+      chat_id: '42',
+      message_id: 7,
+      text: 'Текст\n\n✓ Принято',
+      link_preview_options: { is_disabled: true },
+      reply_markup: markup,
+    })
+    expect(await client.editMessageReplyMarkup('42', 7, markup)).toMatchObject({ ok: false, reason: 'failed', status: 400 })
+    expect(JSON.parse(calls[1]!.body)).toEqual({ chat_id: '42', message_id: 7, reply_markup: markup })
+    expect(calls).toHaveLength(2)
+  })
+
+  it('без токена — disabled, сетевой сбой — failed без исключения и без токена в журнале', async () => {
+    const off = new TelegramClient(config({ botToken: null, enabled: false }), { transport: scripted([]).transport })
+    expect(await off.answerCallbackQuery('cb', 'x')).toMatchObject({ ok: false, reason: 'disabled' })
+    const { transport } = scripted([new Error(`connect ECONNREFUSED ${TOKEN}`)])
+    expect(await new TelegramClient(config(), { transport }).answerCallbackQuery('cb', 'x')).toMatchObject({ ok: false, reason: 'failed' })
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(TOKEN)
   })
 })
 
@@ -227,7 +289,8 @@ describe('getMe, deleteWebhook, getWebhookInfo, getUpdates (решение 142)'
     const { transport, calls } = scripted([{ status: 200, body }])
     const result = await new TelegramClient(config(), { transport, wait: noWait }).getUpdates({ offset: 5, timeoutSec: 25 })
     expect(result).toEqual({ ok: true, updates: [{ update_id: 5, message: { chat: { id: 1, type: 'private' } } }] })
-    expect(JSON.parse(calls[0]!.body)).toEqual({ offset: 5, timeout: 25, allowed_updates: ['message'] })
+    // Нажатия кнопок (решение 200) тоже просим — без них «Принял» в режиме опроса молчал бы.
+    expect(JSON.parse(calls[0]!.body)).toEqual({ offset: 5, timeout: 25, allowed_updates: ['message', 'callback_query'] })
     // Локальный таймаут — с запасом поверх long-poll timeout, иначе транспорт обрывал бы раньше Telegram.
     expect(calls[0]!.timeoutMs).toBe(35_000)
   })

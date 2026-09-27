@@ -501,18 +501,31 @@ curl -s --resolve api.telegram.org:443:149.154.167.220 \
   "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -d "url=https://<домен>/api/telegram/webhook" \
   -d "secret_token=${TELEGRAM_WEBHOOK_SECRET}" \
-  -d 'allowed_updates=["message"]' -d drop_pending_updates=true
+  -d 'allowed_updates=["message","callback_query"]' -d drop_pending_updates=true
 # Проверить: getWebhookInfo — url, pending_update_count, last_error_message
 curl -s --resolve api.telegram.org:443:149.154.167.220 \
   "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getWebhookInfo"
 ```
 
 Ответ `{"ok":true,…}`. Вебхук без заголовка `X-Telegram-Bot-Api-Secret-Token` с этим
-секретом отвечает 403 — так и задумано.
+секретом отвечает 403 — так и задумано. `callback_query` в `allowed_updates` нужен кнопке
+«Принял, беру в работу» (решение 200): вебхук, поставленный раньше с `["message"]`,
+нажатий не получает — переназначьте его этой командой или кнопкой «Сменить секрет
+вебхука» в админке (она передаёт новый список сама). В режиме опроса список передаётся
+с каждым запросом, делать ничего не нужно.
 
 **4. Проверить.** Войти менеджером → «Личный кабинет» → «Подключить» → в Telegram
 «Старт»: бот ответит «Готово: уведомления SkillLink подключены», блок в кабинете
 сам покажет «Подключено». `/today` — сводка, `/stop` — отключить.
+
+**Кнопки под сообщениями** (решение 200). Под сводкой — строка на этап: «↗ Этап N · вуз»
+открывает этап на стенде (нужен `AUTH_URL` или `APP_BASE_URL`), «✓ Принял, беру в работу»
+отмечает этап в журнале действий и дописывает в сообщение «✓ Принято в работу, чч:мм».
+Под уведомлением о новом письме вуза — «Открыть письмо» и «Принял». Права — как в
+системе: эксперту, аналитику и наблюдателю бот откажет. Кнопки «Принял» подписаны
+`AUTH_SECRET`: рассылке по cron нужен тот же секрет, что приложению (сервис `migrate`
+в `docker-compose.yml` получает `DOCKER_AUTH_SECRET`); без него сводка уходит только
+со ссылками. Шаги проверки на стенде — docs/TECHNICAL_DECISIONS.md, решение 200.
 
 **Рассылка по расписанию** — `npm run telegram:digest` (`-- --dry-run` — только напечатать);
 cron на сервере — docs/DEPLOY.md, «Сводка в Telegram по расписанию».

@@ -15,7 +15,7 @@ import { CHANNEL_WEBHOOK } from '@/shared/config/notify-channels.config'
 import * as repo from './notify-channels.repo'
 import { adapterFor, allAdapters, CHANNEL_IDS, CHANNEL_TITLES } from './notify-channels.registry'
 import { consumeLinkCode, createLinkCode } from './notify-channels.link-token'
-import type { ChannelId, ParsedInbound } from './notify-channels.types'
+import type { ChannelId, ChannelMessage, ParsedInbound } from './notify-channels.types'
 
 /**
  * Каналы уведомлений: Telegram, MAX, VK (решение 144).
@@ -238,7 +238,7 @@ export interface SendResult {
  * настроен, не привязан или доставка не удалась — по очереди пробует остальные
  * привязанные и настроенные каналы (порядок — `CHANNEL_IDS`, решение 144).
  */
-export async function sendToUser(userId: string, text: string): Promise<SendResult> {
+export async function sendToUser(userId: string, message: string | ChannelMessage): Promise<SendResult> {
   const [links, primary] = await Promise.all([repo.findLinksByUser(userId), repo.getPrimaryChannel(userId)])
   if (links.length === 0) return { sent: false, channel: null }
   const byChannel = new Map(links.map((link) => [link.channel, link]))
@@ -248,7 +248,10 @@ export async function sendToUser(userId: string, text: string): Promise<SendResu
     const link = byChannel.get(channel)
     const adapter = adapterFor(channel)
     if (!link || !adapter.configured()) continue
-    const result = await adapter.send(link.chatRef, text).catch(() => ({ ok: false as const, reason: 'failed' as const }))
+    // Кнопки рисует только канал, который их умеет (решение 200); адресат нужен подписи «Принял».
+    const result = await adapter
+      .send(link.chatRef, message, { recipientUserId: userId })
+      .catch(() => ({ ok: false as const, reason: 'failed' as const }))
     if (result.ok) return { sent: true, channel }
   }
   return { sent: false, channel: null }
@@ -340,7 +343,7 @@ export async function sendDigests(options: { dryRun: boolean; now?: Date; print?
         summary.sent += 1
         continue
       }
-      const result = await sendToUser(user.id, digest.text)
+      const result = await sendToUser(user.id, { text: digest.text, actions: digest.actions })
       if (result.sent) summary.sent += 1
       else summary.failed += 1
     }
