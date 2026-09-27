@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Button, Icon, PageHeader, formatDateTime, formatRelative } from '@/ui'
+import { Button, Icon, InfoHint, PageHeader, formatDateTime, formatRelative } from '@/ui'
 import styles from './status.module.css'
 
 /**
@@ -9,8 +9,10 @@ import styles from './status.module.css'
  *
  * Раньше «Состояние системы» в подвале открывало сырой JSON /api/health —
  * человек видел текст на чёрном фоне и думал, что сайт сломался. Теперь та же
- * проверка — страницей: работает ли система, подключена ли база, применена ли
- * схема и когда проверено.
+ * проверка — страницей: работает ли система, подключена ли база, обновлена ли
+ * её структура и когда проверено. Слова — для человека, а не для инженера
+ * (решение 211): «Структура базы: обновлена до текущей версии», а не «Схема
+ * данных: применена»; у каждой строки — «?» с пояснением.
  *
  * При сбое проверка отвечает кодом 503, но с тем же описанием в теле — поэтому
  * тело читается при любом коде: «не работает» — это результат, а не ошибка страницы.
@@ -36,10 +38,18 @@ const DATABASE_TEXT: Record<string, { ok: boolean | null; text: string }> = {
 }
 
 const SCHEMA_TEXT: Record<Health['schema'], { ok: boolean | null; text: string }> = {
-  ready: { ok: true, text: 'Применена' },
-  missing: { ok: false, text: 'Не применена' },
-  ahead: { ok: true, text: 'Применена (новее кода)' },
+  ready: { ok: true, text: 'Обновлена до текущей версии' },
+  missing: { ok: false, text: 'Не обновлена — не хватает таблиц' },
+  ahead: { ok: true, text: 'Новее этой версии программы' },
   unknown: { ok: null, text: 'Не проверялась' },
+}
+
+/** Пояснения «?» к строкам проверки — что это значит для пользователя. */
+const HINTS = {
+  server: 'Программа SkillLink запущена и отвечает на запросы — страницы открываются.',
+  database: 'Программа видит базу данных, где хранятся вузы, программы, связки и документы.',
+  schema: 'База содержит все таблицы, которые нужны этой версии программы. Если нет — часть страниц не откроется.',
+  time: 'Когда страница в последний раз спрашивала сервер. Пока она открыта, проверка повторяется сама раз в 30 секунд.',
 }
 
 export default function StatusPage() {
@@ -86,7 +96,7 @@ export default function StatusPage() {
       : load.state === 'unreachable'
         ? { tone: 'bad', title: 'Не работает', text: 'Сервер не ответил на проверку. Возможно, пропала сеть или сервер перезапускается.' }
         : working
-          ? { tone: 'good', title: 'Работает', text: 'Сервер отвечает, база подключена, схема данных применена.' }
+          ? { tone: 'good', title: 'Работает', text: 'Сервер отвечает, база данных подключена, её структура соответствует версии программы.' }
           : { tone: 'bad', title: 'Работает с ошибками', text: 'Сервер отвечает, но часть проверок не прошла — подробности ниже.' }
 
   const database = health ? (DATABASE_TEXT[health.database] ?? { ok: false, text: health.database }) : null
@@ -95,7 +105,10 @@ export default function StatusPage() {
 
   return (
     <>
-      <PageHeader title="Состояние системы" description="Та же проверка, что смотрит сервер выкладки, — словами." />
+      <PageHeader
+        title="Состояние системы"
+        description="Работает ли SkillLink прямо сейчас: сервер, база данных и её структура. Та же проверка, по которой сервер выкладки решает, запускать ли новую версию."
+      />
 
       <section className={[styles.verdict, styles[verdict.tone]].join(' ')} aria-live="polite">
         <span className={styles.beacon} aria-hidden>
@@ -111,11 +124,17 @@ export default function StatusPage() {
       </section>
 
       <dl className={styles.checks}>
-        <Check label="Сервер" ok={load.state === 'loading' ? null : load.state === 'ready'} text={load.state === 'ready' ? 'Отвечает' : load.state === 'loading' ? '…' : 'Не отвечает'} />
-        <Check label="База данных" ok={database?.ok ?? null} text={database?.text ?? '…'} />
-        <Check label="Схема данных" ok={schema?.ok ?? null} text={schema?.text ?? '…'} />
+        <Check
+          label="Сервер"
+          hint={HINTS.server}
+          ok={load.state === 'loading' ? null : load.state === 'ready'}
+          text={load.state === 'ready' ? 'Отвечает' : load.state === 'loading' ? '…' : 'Не отвечает'}
+        />
+        <Check label="База данных" hint={HINTS.database} ok={database?.ok ?? null} text={database?.text ?? '…'} />
+        <Check label="Структура базы" hint={HINTS.schema} ok={schema?.ok ?? null} text={schema?.text ?? '…'} />
         <Check
           label="Время проверки"
+          hint={HINTS.time}
           ok={null}
           text={checkedAt ? formatDateTime(checkedAt) : '…'}
           note={checkedAt ? formatRelative(checkedAt) : undefined}
@@ -127,10 +146,25 @@ export default function StatusPage() {
   )
 }
 
-function Check({ label, ok, text, note }: { label: string; ok: boolean | null; text: string; note?: string }) {
+function Check({
+  label,
+  hint,
+  ok,
+  text,
+  note,
+}: {
+  label: string
+  hint: string
+  ok: boolean | null
+  text: string
+  note?: string
+}) {
   return (
     <div className={[styles.check, ok === true ? styles.checkGood : ok === false ? styles.checkBad : ''].join(' ')}>
-      <dt className={styles.checkLabel}>{label}</dt>
+      <dt className={styles.checkLabel}>
+        {label}
+        <InfoHint text={hint} />
+      </dt>
       <dd className={styles.checkValue}>
         {ok !== null && <Icon name={ok ? 'check' : 'alert'} size={18} />}
         {text}

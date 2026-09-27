@@ -32,20 +32,25 @@ const brokenStorage: UiModeStorage = {
 }
 
 describe('режим интерфейса', () => {
-  it('по умолчанию — рабочий', () => {
-    expect(DEFAULT_UI_MODE).toBe('work')
-    expect(readUiMode(memoryStorage())).toBe('work')
-    expect(readUiMode(null)).toBe('work')
-    expect(readUiMode(undefined)).toBe('work')
+  it('по умолчанию — презентационный (решение 211)', () => {
+    expect(DEFAULT_UI_MODE).toBe('showcase')
+    expect(readUiMode(memoryStorage())).toBe('showcase')
+    expect(readUiMode(null)).toBe('showcase')
+    expect(readUiMode(undefined)).toBe('showcase')
+  })
+
+  it('выбор, сделанный под прежним ключом, не действует — умолчание у всех', () => {
+    expect(UI_MODE_KEY).not.toBe('skilllink.uiMode')
+    expect(readUiMode(memoryStorage({ 'skilllink.uiMode': 'work' }))).toBe('showcase')
   })
 
   it('неизвестное значение — режим по умолчанию', () => {
     expect(parseUiMode('showcase')).toBe('showcase')
     expect(parseUiMode('work')).toBe('work')
-    expect(parseUiMode('Showcase')).toBe('work')
-    expect(parseUiMode('')).toBe('work')
-    expect(parseUiMode(null)).toBe('work')
-    expect(readUiMode(memoryStorage({ [UI_MODE_KEY]: 'cards' }))).toBe('work')
+    expect(parseUiMode('Work')).toBe('showcase')
+    expect(parseUiMode('')).toBe('showcase')
+    expect(parseUiMode(null)).toBe('showcase')
+    expect(readUiMode(memoryStorage({ [UI_MODE_KEY]: 'cards' }))).toBe('showcase')
   })
 
   it('запомненный режим читается обратно', () => {
@@ -60,7 +65,7 @@ describe('режим интерфейса', () => {
 
   it('сбой хранилища не ломает страницу', () => {
     expect(() => readUiMode(brokenStorage)).not.toThrow()
-    expect(readUiMode(brokenStorage)).toBe('work')
+    expect(readUiMode(brokenStorage)).toBe('showcase')
     expect(() => writeUiMode(brokenStorage, 'showcase')).not.toThrow()
     expect(writeUiMode(brokenStorage, 'showcase')).toBe(false)
     expect(writeUiMode(null, 'showcase')).toBe(false)
@@ -76,13 +81,13 @@ describe('режим интерфейса', () => {
     }
 
     it('ставит на <html> тот же режим, что и readUiMode', () => {
-      expect(runBoot(memoryStorage())).toBe('work')
-      expect(runBoot(memoryStorage({ [UI_MODE_KEY]: 'showcase' }))).toBe('showcase')
-      expect(runBoot(memoryStorage({ [UI_MODE_KEY]: 'мусор' }))).toBe('work')
+      expect(runBoot(memoryStorage())).toBe('showcase')
+      expect(runBoot(memoryStorage({ [UI_MODE_KEY]: 'work' }))).toBe('work')
+      expect(runBoot(memoryStorage({ [UI_MODE_KEY]: 'мусор' }))).toBe('showcase')
     })
 
-    it('ставит рабочий режим, даже если хранилище недоступно', () => {
-      expect(runBoot(brokenStorage)).toBe('work')
+    it('ставит режим по умолчанию, даже если хранилище недоступно', () => {
+      expect(runBoot(brokenStorage)).toBe('showcase')
     })
   })
 })

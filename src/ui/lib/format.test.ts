@@ -14,6 +14,8 @@ import {
   formatRelative,
   formatScore,
   initials,
+  formatPeriod,
+  formatPoints,
   formatPersonShort,
   firstNameOf,
   pluralize,
@@ -269,5 +271,27 @@ describe('formatFileSize', () => {
   it('отрицательное или не число — «Нет данных», а не отрицательный размер', () => {
     expect(formatFileSize(-5)).toBe(NO_DATA)
     expect(formatFileSize(Number.NaN)).toBe(NO_DATA)
+  })
+})
+
+describe('formatPeriod (решение 211)', () => {
+  it('квартал — словами', () => {
+    expect(formatPeriod('2026-Q3')).toBe('3-й квартал 2026')
+    expect(formatPeriod('2025-Q1')).toBe('1-й квартал 2025')
+  })
+
+  it('другой вид периода — как есть, пусто — «Нет данных»', () => {
+    expect(formatPeriod('2026-09')).toBe('2026-09')
+    expect(formatPeriod(null)).toBe(NO_DATA)
+    expect(formatPeriod('')).toBe(NO_DATA)
+  })
+})
+
+describe('formatPoints (решение 211)', () => {
+  it('процентные пункты словом, без «п.п.»', () => {
+    expect(formatPoints(2.46)).toBe('2,5 пункта')
+    expect(formatPoints(1)).toBe('1 пункт')
+    expect(formatPoints(0)).toBe('0 пунктов')
+    expect(formatPoints(5)).toBe('5 пунктов')
   })
 })

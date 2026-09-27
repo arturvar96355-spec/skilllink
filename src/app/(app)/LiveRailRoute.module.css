@@ -243,20 +243,19 @@
 }
 
 /* Список связок этапа — над отметкой, внутри рамки блока (место считает StageList). */
+/*
+ * Панель этапа (решение 211) — в body, место считает скрипт по окну.
+ * Без прокрутки внутри: до двенадцати строк видны целиком, больше — десять
+ * и ссылка на реестр. Кегль — основной текст, а не подпись: панель читают.
+ */
 .pop {
-  --rise: 0px;
   position: absolute;
-  bottom: calc(var(--rise) + 10px);
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
   padding: var(--space-2);
   border: 1px solid var(--line-strong);
-  border-radius: var(--radius-card-sm);
+  border-radius: var(--radius-card);
   background: var(--surface-floating);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
@@ -266,37 +265,32 @@
 }
 
 .popHead {
-  position: sticky;
-  top: calc(-1 * var(--space-2));
-  z-index: 1;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-2);
-  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
-  padding: var(--space-1) var(--space-1) var(--space-2) var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1) var(--space-3) var(--space-3);
   border-bottom: 1px solid var(--line-subtle);
-  background: var(--surface-floating);
 }
 
 .popHeading {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
-  padding-top: 6px;
 }
 
 .popTitle {
-  font-size: var(--text-body-sm-size);
+  font-size: var(--text-body-size);
+  line-height: 1.35;
   font-weight: 650;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
 .popStage {
-  font-size: var(--text-caption-size);
-  color: var(--text-tertiary);
+  font-size: var(--text-body-sm-size);
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -308,7 +302,6 @@
 .popList {
   display: flex;
   flex-direction: column;
-  gap: 0;
   margin: var(--space-1) 0 0;
   padding: 0;
   list-style: none;
@@ -316,10 +309,9 @@
 
 .popLink {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 32px;
-  padding: var(--space-1) var(--space-2);
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-xs);
   color: inherit;
   text-decoration: none;
@@ -339,8 +331,9 @@
 /* Метка строки — тот же знак, что на маршруте: фиолетовая — в работе, красная — внимание. */
 .popMark {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
   border-radius: var(--radius-pill);
   background: var(--accent-violet);
 }
@@ -350,13 +343,17 @@
 }
 
 .popText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  font-size: var(--text-body-sm-size);
+}
+
+.popRoute {
+  font-size: var(--text-body-size);
   line-height: 1.4;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .popName {
@@ -368,11 +365,66 @@
   color: var(--text-secondary);
 }
 
-.popNote {
-  flex: none;
+.popMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
   font-size: var(--text-caption-size);
+  line-height: 1.45;
+  color: var(--text-tertiary);
+}
+
+.popDeadline[data-tone='danger'] {
   font-weight: 600;
   color: var(--text-danger-strong);
+}
+
+.popDeadline[data-tone='warning'] {
+  font-weight: 600;
+  color: var(--status-warning);
+}
+
+.popAll {
+  align-self: flex-start;
+  margin: var(--space-1) 0 var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-xs);
+  font-size: var(--text-body-sm-size);
+  font-weight: 600;
+  color: var(--text-accent);
+  text-decoration: none;
+}
+
+.popAll:hover {
+  background: var(--surface-hover);
+}
+
+.popAll:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
+/* Телефон: нижний лист во всю ширину; длинный список прокручивается в листе. */
+.popSheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 82dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) var(--space-2) calc(var(--space-4) + env(safe-area-inset-bottom));
+  border-width: 1px 0 0;
+  border-radius: var(--radius-floating) var(--radius-floating) 0 0;
+  z-index: var(--z-overlay);
+  animation: sheetIn var(--motion-fast) var(--ease-out) both;
+}
+
+.popSheet .popHead {
+  position: sticky;
+  top: calc(-1 * var(--space-2));
+  z-index: 1;
+  background: var(--surface-floating);
 }
 
 @keyframes draw {
@@ -412,8 +464,16 @@
   }
 }
 
+@keyframes sheetIn {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .pop {
+  .pop,
+  .popSheet {
     animation: none;
   }
 

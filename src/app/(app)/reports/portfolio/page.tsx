@@ -17,6 +17,7 @@ import {
   buildQuery,
   formatDateTime,
   formatNumber,
+  formatPeriod,
   formatPercent,
   formatScore,
   useCurrentUser,
@@ -154,7 +155,7 @@ export default function ManagerReportPage() {
         description="Состояние сотрудничества с вузами — документ A4 для печати и отправки. «Сохранить в PDF» открывает окно печати браузера: выберите в нём «Сохранить как PDF» (на iPhone — «Поделиться» → «Сохранить в Файлы»)."
         actions={
           isReady ? (
-            <Button variant="primary" icon="download" onClick={() => window.print()} title={PDF_HINT}>
+            <Button variant="primary" icon="download" still onClick={() => window.print()} title={PDF_HINT}>
               Сохранить в PDF
             </Button>
           ) : undefined
@@ -342,7 +343,7 @@ function ReportSheet({
                     <span className={styles.itemTitle}>{program.programName}</span>
                     <span className={styles.detail}>
                       {program.universityShortName ?? program.universityName}
-                      {program.basis === 'estimate' && ' · оценка'}
+                      {program.basis === 'estimate' && ' · оценочные данные'}
                     </span>
                   </span>
                   <span className={styles.score}>{program.score === null ? NO_DATA : formatScore(program.score)}</span>
@@ -357,7 +358,7 @@ function ReportSheet({
             <h3 id="report-skills" className={styles.blockTitle}>
               Навыки
             </h3>
-            <p className={styles.note}>спрос рынка за {skills.period}</p>
+            <p className={styles.note}>спрос рынка за {formatPeriod(skills.period)}</p>
           </div>
           <dl className={styles.facts}>
             <div className={styles.fact}>
