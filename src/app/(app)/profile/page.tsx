@@ -20,7 +20,7 @@ import {
   MockBadge,
   NO_DATA,
   PageHeader,
-  Pie3D,
+  Donut,
   Skeleton,
   StageBar,
   Tooltip,
@@ -271,17 +271,24 @@ export default function ProfilePage() {
             </div>
 
             <figure className={styles.onTime}>
-              <Pie3D
+              <Donut
                 slices={
                   data.stagesOnTimePercent === null
                     ? []
                     : [
-                        { key: 'ontime', label: 'В срок', value: Math.round(data.stagesOnTimePercent * 10) / 10, tone: 'success' },
+                        {
+                          key: 'ontime',
+                          label: 'В срок',
+                          value: Math.round(data.stagesOnTimePercent * 10) / 10,
+                          tone: 'success',
+                          texture: 'solid',
+                        },
                         {
                           key: 'late',
                           label: 'С опозданием',
                           value: Math.round((100 - data.stagesOnTimePercent) * 10) / 10,
                           tone: 'danger',
+                          texture: 'diagonal',
                         },
                       ]
                 }
@@ -294,7 +301,6 @@ export default function ProfilePage() {
                 }
                 valueSuffix="%"
                 size={220}
-                thickness={0.6}
               />
               <figcaption className={styles.onTimeCaption}>
                 <strong>Этапы в срок</strong>
