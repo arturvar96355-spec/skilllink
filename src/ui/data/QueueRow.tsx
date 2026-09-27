@@ -15,7 +15,7 @@ import styles from './QueueRow.module.css'
  *
  * Узкий блок (телефон, ≤ 480 px ширины самой очереди): заголовок — до двух
  * строк, мета переносится, значение встаёт над действием, действие сжимается
- * до значка 40 × 40 — подпись остаётся для чтения с экрана.
+ * до значка 44 × 44 — подпись остаётся для чтения с экрана.
  */
 export function Queue({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={[styles.queue, className ?? ''].filter(Boolean).join(' ')}>{children}</div>
