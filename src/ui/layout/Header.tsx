@@ -157,6 +157,11 @@ function MoreMenu({ items, active, pathname }: { items: NavItem[]; active: boole
               {item.label}
             </Link>
           ))}
+          {/* Документация без входа (решение 214) — последним пунктом, не разделом меню. */}
+          <Link href={ROUTES.docs} role="menuitem" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
+            <Icon name="help" size={16} />
+            Документация
+          </Link>
         </div>
       )}
     </div>

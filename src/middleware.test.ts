@@ -32,6 +32,16 @@ describe('middleware', () => {
     expect(redirectTarget(middleware(request('/privacy', true)))).toBeNull()
   })
 
+  it('документация открыта без сессии и с сессией (решение 214)', () => {
+    expect(redirectTarget(middleware(request('/docs', false)))).toBeNull()
+    expect(redirectTarget(middleware(request('/docs', true)))).toBeNull()
+    expect(redirectTarget(middleware(request('/docs/anything', false)))).toBeNull()
+  })
+
+  it('похожий на документацию адрес не открывается', () => {
+    expect(redirectTarget(middleware(request('/docs-admin', false)))).toContain('/login')
+  })
+
   it('манифест со значками браузер получает без входа', () => {
     expect(redirectTarget(middleware(request('/manifest.webmanifest', false)))).toBeNull()
   })

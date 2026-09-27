@@ -29,6 +29,16 @@ export function useCurrentUser(): CurrentUserDto {
   return user
 }
 
+/**
+ * Пользователь, если страница внутри каркаса приложения, иначе `null`.
+ * Для общих частей публичной документации (`/docs`) и справки (`/help`):
+ * одна и та же ссылка «Где найти» внутри системы учитывает права роли,
+ * а на странице без входа просто ведёт на экран (решение 214).
+ */
+export function useOptionalCurrentUser(): CurrentUserDto | null {
+  return useContext(CurrentUserContext)
+}
+
 /** Представитель вуза: у него другой состав разделов и свой кабинет. */
 export function isUniversityRep(user: CurrentUserDto): boolean {
   return user.role === 'UNIVERSITY_REP'

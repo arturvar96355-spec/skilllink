@@ -378,8 +378,15 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           ссылка на репозиторий заметна на стенде; полный адрес — в подсказке).
         */}
         <p className={styles.panelFoot}>
-          <Link href={ROUTES.privacy} className={styles.privacyLink}>
-            Политика обработки персональных данных
+          {/* «Персональные данные» — как в подвале системы: с «Документацией» (решение 214)
+              подвал панели остаётся одной строкой; полное название — в подсказке. */}
+          <Link href={ROUTES.privacy} className={styles.privacyLink} title="Политика обработки персональных данных">
+            Персональные данные
+          </Link>
+          <span className={styles.panelFootSep} aria-hidden="true" />
+          {/* Документация открыта без входа (решение 214). */}
+          <Link href={ROUTES.docs} className={styles.privacyLink}>
+            Документация
           </Link>
           <span className={styles.panelFootSep} aria-hidden="true" />
           <a
