@@ -66,13 +66,24 @@ function gaussian(): number {
 
 /**
  * Куда идёт поток (решение 199), пиксели экрана: `source` — голова кометы
- * (скопление вузов), `target` — точка на кромке формы входа, где поток
- * «приходит». Нет — раскладка в одну колонку, сцена как раньше.
+ * (скопление вузов), `target` — свободное место под маршрутом связки, между
+ * текстом и формой, где поток заканчивается мягким скоплением. Поток — прямая,
+ * как линия между двумя точками знака SkillLink. `veil` — участки пути (доли
+ * [от, до]), где прямая идёт под текстом левой колонки: там поток мягко гаснет,
+ * текст всегда поверх и читается. Нет — раскладка в одну колонку, сцена как раньше.
  */
 export interface StreamAnchors {
   source: [number, number]
   target: [number, number]
+  veil?: Array<[number, number]>
 }
+
+/** Участков в связи потока: яркость меняется вдоль прямой (гаснет под текстом). */
+const STREAM_STEPS = 24
+/** Яркость потока под текстом: едва угадывается, текст читается как на пустом фоне. */
+const VEIL_FLOOR = 0.12
+/** Мягкий край затухания, доля пути. */
+const VEIL_EDGE = 0.06
 
 export interface SceneOptions {
   width: number
@@ -97,7 +108,7 @@ export interface ConstellationScene {
   /** Курсор, доли экрана от −0,5 до 0,5. */
   pointer(x: number, y: number): void
   resize(width: number, height: number): void
-  /** Форма входа сдвинулась (окно, первая раскладка) — поток идёт в новую точку. */
+  /** Раскладка входа сдвинулась (окно, первая раскладка) — поток идёт в новую точку. */
   anchor(anchors: StreamAnchors, width: number, height: number): void
   /** Начать прыжок. */
   warp(now: number): void
@@ -120,7 +131,7 @@ export function createConstellation(
 ): ConstellationScene | null {
   const { reduced, narrow } = options
   const scale = narrow ? 0.5 : 1
-  /** Поток идёт в форму входа: приёмник — плотный сгусток на её кромке. */
+  /** Поток привязан к раскладке входа: приёмник — плотный сгусток в конце потока. */
   const streamed = Boolean(options.anchors) && !narrow
 
   let renderer: InstanceType<Three['WebGLRenderer']>
@@ -192,7 +203,7 @@ export function createConstellation(
       from: new THREE.Color(BRAND_VIOLET),
       to: new THREE.Color(BRAND_PINK),
       core: BRAND_VIOLET,
-      // Приёмник на кромке формы — не второе облако, а сгусток, где поток копится.
+      // Приёмник в конце потока — не второе облако, а сгусток, где поток копится.
       spread: streamed ? 0.42 : 1,
       count: streamed ? 380 : 900,
     },
@@ -211,10 +222,13 @@ export function createConstellation(
   }
   /** Где скопления должны стоять; сами они подтягиваются к этим точкам плавно. */
   const homeGoal = hubs.map((hub) => hub.home.clone())
+  /** Где поток идёт под текстом (участки пути в долях). */
+  let veil: Array<[number, number]> = []
   const placeHubs = (anchors: StreamAnchors, screenW: number, screenH: number) => {
     if (narrow) return
     homeGoal[0]!.copy(toWorld(anchors.source[0], anchors.source[1], hubs[0]!.home.z, screenW, screenH))
     homeGoal[1]!.copy(toWorld(anchors.target[0], anchors.target[1], hubs[1]!.home.z, screenW, screenH))
+    veil = anchors.veil ?? []
   }
   if (streamed && options.anchors) {
     placeHubs(options.anchors, options.width, options.height)
@@ -253,7 +267,7 @@ export function createConstellation(
       // Ядро скопления — концы связей.
       if (t < 0.35 && anchors.length < 120) anchors.push(new THREE.Vector3(x, y, z))
     }
-    // Поток сходится в одну точку приёмника: пучок сужается к форме — видно, куда он идёт.
+    // Поток сходится в одну точку приёмника: пучок сужается к ней — видно, куда он идёт.
     if (streamed && hubIndex === 1) {
       anchors.length = 0
       for (let i = 0; i < 40; i += 1) anchors.push(new THREE.Vector3(gaussian() * 0.08, gaussian() * 0.08, 0))
@@ -435,11 +449,36 @@ export function createConstellation(
     const b = right.anchors[Math.floor(Math.random() * right.anchors.length)]
     if (a && b) links.push([a, b])
   }
-  const linePositions = new Float32Array(links.length * 6)
-  const lineColors = new Float32Array(links.length * 6)
+  /**
+   * В режиме потока связь — та же прямая, но из STREAM_STEPS отрезков: цвет идёт
+   * от фиолетового к розовому, а над текстом яркость мягко падает (`veil`);
+   * иначе — один отрезок, как раньше.
+   */
+  const steps = streamed ? STREAM_STEPS : 1
+  const linePositions = new Float32Array(links.length * steps * 6)
+  const lineColors = new Float32Array(links.length * steps * 6)
   const violet = new THREE.Color(BRAND_VIOLET)
   const pink = new THREE.Color(BRAND_PINK)
-  links.forEach((_, i) => lineColors.set([...violet.toArray(), ...pink.toArray()], i * 6))
+  const mixed = new THREE.Color()
+  const smooth = (t: number) => t * t * (3 - 2 * t)
+  /** Яркость потока в доле пути `t`: 1 на открытом месте, VEIL_FLOOR под текстом. */
+  const visibility = (t: number, merge: number) => {
+    let inside = 0
+    for (const [from, to] of veil)
+      inside = Math.max(inside, Math.min(smooth(clamp01((t - from) / VEIL_EDGE)), smooth(clamp01((to - t) / VEIL_EDGE))))
+    // В прыжке текст уже гаснет — поток снова виден целиком, пока сходится в ядро.
+    return 1 - (1 - VEIL_FLOOR) * inside * (1 - merge)
+  }
+  const paintLinks = (merge: number) => {
+    for (let k = 0; k < steps; k += 1) {
+      const v0 = visibility(k / steps, merge)
+      const v1 = visibility((k + 1) / steps, merge)
+      const from = mixed.copy(violet).lerp(pink, k / steps).multiplyScalar(v0).toArray()
+      const to = mixed.copy(violet).lerp(pink, (k + 1) / steps).multiplyScalar(v1).toArray()
+      links.forEach((_, i) => lineColors.set([...from, ...to], (i * steps + k) * 6))
+    }
+  }
+  paintLinks(0)
   const lineGeometry = new THREE.BufferGeometry()
   lineGeometry.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
   lineGeometry.setAttribute('color', new THREE.BufferAttribute(lineColors, 3))
@@ -456,13 +495,16 @@ export function createConstellation(
   /**
    * Импульсы. В режиме потока их меньше, и у каждого короткий хвост: светлая
    * голова впереди, хвост гаснет назад — направление читается без стрелок.
-   * Импульс разгоняется к форме и гаснет, входя в приёмник.
+   * Импульс разгоняется к приёмнику и гаснет, входя в него.
    */
   const pulseCount = streamed ? 12 : links.length
   const pulsePositions = new Float32Array(pulseCount * 3)
   const pulseGeometry = new THREE.BufferGeometry()
   pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3))
-  const pulseMaterial = pointsMaterial(0.22, { color: 0xd6ccff })
+  // Цвет у каждого импульса свой: под текстом импульс гаснет вместе с потоком.
+  const pulseColors = new Float32Array(pulseCount * 3)
+  pulseGeometry.setAttribute('color', new THREE.BufferAttribute(pulseColors, 3))
+  const pulseMaterial = pointsMaterial(0.22, { vertexColors: true })
   world.add(new THREE.Points(pulseGeometry, pulseMaterial))
   geometries.push(pulseGeometry)
   const phases = links.map(() => Math.random())
@@ -482,42 +524,51 @@ export function createConstellation(
   if (streamed) world.add(new THREE.LineSegments(trailGeometry, trailMaterial))
   geometries.push(trailGeometry)
   const pulseColor = new THREE.Color(0xd6ccff)
+  for (let i = 0; i < pulseCount; i += 1) pulseColors.set([pulseColor.r, pulseColor.g, pulseColor.b], i * 3)
   /** Сколько света пришло в приёмник за последние мгновения: 0 — тихо, 1 — вспышка. */
   let arrival = 0
 
   /** Связи и импульсы — по текущему положению скоплений: при слиянии они сжимаются. */
   const a = new THREE.Vector3()
   const b = new THREE.Vector3()
-  const updateLinks = (time: number) => {
+  const p0 = new THREE.Vector3()
+  const p1 = new THREE.Vector3()
+  /** Точка прямой a → b в доле `t`. */
+  const along = (t: number, out: InstanceType<typeof THREE.Vector3>) => out.lerpVectors(a, b, t)
+  let paintedMerge = 0
+  const updateLinks = (time: number, merge = 0) => {
     arrival = 0
+    if (streamed && merge !== paintedMerge) {
+      paintedMerge = merge
+      paintLinks(merge)
+      lineGeometry.attributes.color!.needsUpdate = true
+    }
     links.forEach(([fromAnchor, toAnchor], i) => {
       a.copy(fromAnchor).multiplyScalar(left.group.scale.x).add(left.group.position)
       b.copy(toAnchor).multiplyScalar(right.group.scale.x).add(right.group.position)
-      linePositions.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6)
+      for (let k = 0; k < steps; k += 1) {
+        along(k / steps, p0)
+        along((k + 1) / steps, p1)
+        linePositions.set([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z], (i * steps + k) * 6)
+      }
       if (i >= pulseCount) return
       const cycle = (phases[i]! + time * speeds[i]!) % 1
       if (!streamed) {
         pulsePositions.set([a.x + (b.x - a.x) * cycle, a.y + (b.y - a.y) * cycle, a.z + (b.z - a.z) * cycle], i * 3)
         return
       }
-      // Разгон к форме: медленно из скопления, быстрее к приёмнику.
+      // Разгон: медленно из скопления, быстрее к приёмнику.
       const head = Math.pow(cycle, 1.35)
       const tail = Math.pow(Math.max(0, cycle - 0.085), 1.35)
       // Входя в приёмник, импульс гаснет — его свет «остаётся» в сгустке.
       const fade = 1 - clamp01((cycle - 0.9) / 0.1)
-      pulsePositions.set([a.x + (b.x - a.x) * head, a.y + (b.y - a.y) * head, a.z + (b.z - a.z) * head], i * 3)
-      trailPositions.set(
-        [
-          a.x + (b.x - a.x) * head,
-          a.y + (b.y - a.y) * head,
-          a.z + (b.z - a.z) * head,
-          a.x + (b.x - a.x) * tail,
-          a.y + (b.y - a.y) * tail,
-          a.z + (b.z - a.z) * tail,
-        ],
-        i * 6,
-      )
-      trailColors.set([pulseColor.r * fade, pulseColor.g * fade, pulseColor.b * fade, 0, 0, 0], i * 6)
+      along(head, p0)
+      along(tail, p1)
+      pulsePositions.set([p0.x, p0.y, p0.z], i * 3)
+      trailPositions.set([p0.x, p0.y, p0.z, p1.x, p1.y, p1.z], i * 6)
+      const seen = fade * visibility(head, merge)
+      pulseColors.set([pulseColor.r * seen, pulseColor.g * seen, pulseColor.b * seen], i * 3)
+      trailColors.set([pulseColor.r * seen, pulseColor.g * seen, pulseColor.b * seen, 0, 0, 0], i * 6)
       // Только что пришедший импульс (цикл начался заново) подсвечивает приёмник.
       arrival += Math.exp(-cycle * 9) + (cycle > 0.9 ? (cycle - 0.9) * 4 : 0)
     })
@@ -525,6 +576,7 @@ export function createConstellation(
     lineGeometry.attributes.position!.needsUpdate = true
     pulseGeometry.attributes.position!.needsUpdate = true
     if (streamed) {
+      pulseGeometry.attributes.color!.needsUpdate = true
       trailGeometry.attributes.position!.needsUpdate = true
       trailGeometry.attributes.color!.needsUpdate = true
     }
@@ -559,6 +611,8 @@ export function createConstellation(
     anchor(anchors, screenW, screenH) {
       if (!streamed) return
       placeHubs(anchors, screenW, screenH)
+      paintLinks(paintedMerge)
+      lineGeometry.attributes.color!.needsUpdate = true
     },
     resize(nextWidth, nextHeight) {
       width = nextWidth
@@ -620,7 +674,10 @@ export function createConstellation(
       coreMaterial.size = 1.4 * (1 + 1.2 * merge)
       receiverMaterial.size = 1.4 * (1 + 1.2 * merge) * (streamed ? 0.8 + 0.35 * arrival : 1)
       // Покачивание гасится к прыжку: в центр смотрим прямо.
-      const sway = 1 - merge
+      // Концы потока привязаны к раскладке (голова у угла, приёмник под маршрутом) и
+      // стоят далеко от центра: полное покачивание уводило их на 30–60 px — голову
+      // к краю экрана, а приёмник — к тексту или форме. В режиме потока сцена качается втрое тише.
+      const sway = (1 - merge) * (streamed ? 0.35 : 1)
       world.rotation.y += ((pointerX * 0.35 + Math.sin(time * 0.15) * 0.12) * sway - world.rotation.y) * 0.06
       world.rotation.x += ((pointerY * 0.22 + Math.cos(time * 0.12) * 0.05) * sway - world.rotation.x) * 0.06
       world.rotation.z = merge * 0.9
@@ -632,7 +689,7 @@ export function createConstellation(
 
       const done =
         warpSince !== null && (assembleAt !== null ? t >= assemblyEnd : releaseAt !== null && t >= releaseAt + BURST_MS)
-      updateLinks(time)
+      updateLinks(time, merge)
       renderer.render(scene, camera)
       return done
     },
