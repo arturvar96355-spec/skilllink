@@ -114,6 +114,7 @@ import { dismissDuplicateSchema, duplicatesQuerySchema } from '@/modules/data-qu
 import { mergeUniversitiesSchema } from '@/modules/universities/merge.schema'
 import { timelineQuerySchema } from '@/modules/universities/timeline.schema'
 import { similarProgramsQuerySchema } from '@/modules/programs/similar.service'
+import { cardQuerySchema, portfolioQuerySchema } from '@/modules/recommendations/product-match.service'
 import { meetingsHeatmapQuerySchema } from '@/modules/analytics/meetings-heatmap.service'
 import {
   stageListQuerySchema,
@@ -1399,6 +1400,62 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     query: similarProgramsQuerySchema,
     errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
   },
+  // ── Рекомендации продуктов (решение 223) ─────────────────────────────────
+  {
+    method: 'get',
+    path: '/api/programs/{id}/product-recommendations',
+    tag: 'Программы',
+    summary: 'Что предложить вузу: IT-продукты, которые закрывают дефициты программы',
+    description:
+      'Балл 0–100 = средний дефицит по навыкам продукта (спрос рынка − покрытие программой) с весом ' +
+      'значимости навыка в продукте (ключевой 1, смежный 0,6, дополнительный 0,3), вне профиля направления — ' +
+      'вполовину; поправки −15 (продукт уже есть у вуза по другой программе) и −40 (связка отменена за полгода). ' +
+      'Подключённый продукт не предлагается — он в excluded с причиной. Причины, уверенность по полноте данных, ' +
+      'actions — что может текущий пользователь (эксперт: письмо — да, связка — нет). Без обучения и ИИ.',
+    permission: 'ANALYTICS',
+    query: cardQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/universities/{id}/product-recommendations',
+    tag: 'Университеты',
+    summary: 'Что предложить вузу: продукты по всем его действующим программам',
+    description:
+      'Тот же балл, что у программы. Каждый продукт — один раз, на лучшей для него программе вуза ' +
+      '(program в строке). Вуз без действующих программ — пустой список и пояснение в summary.',
+    permission: 'ANALYTICS',
+    query: cardQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'get',
+    path: '/api/analytics/product-recommendations',
+    tag: 'Аналитика',
+    summary: 'Рекомендации продуктов по всему портфелю: лучшая пара каждой программы',
+    description:
+      'items — лучшая пара «программа × продукт» каждой действующей программы, от сильной к слабой; ' +
+      'reach — для скольких программ каждый продукт лучший и скольким рекомендуется. productId — все ' +
+      'программы, которым рекомендуется этот продукт; universityId — только программы вуза.',
+    permission: 'ANALYTICS',
+    query: portfolioQuerySchema,
+    errors: [...READ_ERRORS, 'VALIDATION_ERROR'],
+  },
+  {
+    method: 'post',
+    path: '/api/programs/{id}/product-recommendations/{productId}/letter',
+    tag: 'ИИ-помощник',
+    summary: 'Черновик письма вузу с предложением IT-продукта',
+    description:
+      'Кому (основной контакт вуза — маской), зачем (дефицитные навыки с цифрами спроса), что даёт продукт, ' +
+      'предложение встречи. Письмо не отправляется и не сохраняется. Без модели — шаблон на тех же фактах. ' +
+      'Роли ADMIN, MANAGER, HEAD и эксперт (только текст). Продукт, который программе не рекомендуется, — 409 с причиной. ' +
+      'rewriteTarget { type: product-offer-letter } — для кнопок переделки POST /api/ai/rewrite.',
+    permission: 'ANALYTICS',
+    pathParams: { id: 'Программа', productId: 'IT-продукт' },
+    returnsOk: true,
+    errors: [...READ_ERRORS, 'CONFLICT'],
+  },
   {
     method: 'get',
     path: '/api/analytics/meetings-heatmap',
@@ -1677,7 +1734,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'ИИ-помощник',
     summary: 'Переделать черновик письма: короче, мягче, настойчивее, официальнее, проще, подробнее',
     description:
-      '`target.type`: `recommendation-letter` (письмо вузу по рекомендации, право WRITE) или ' +
+      '`target.type`: `recommendation-letter` (письмо вузу по рекомендации, право WRITE), ' +
+      '`product-offer-letter` (предложение продукта, id — `<программа>:<продукт>`, решение 223) или ' +
       '`inbound-letter-reply` (ответ на письмо вуза, право INBOUND_REVIEW). Текст — с правками ' +
       'сотрудника; перед отправкой в модель он маскируется так же, как факты исходного черновика, ' +
       'к системному промпту добавляется инструкция администратора (не отменяет базовых правил). ' +

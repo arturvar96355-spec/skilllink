@@ -9,6 +9,8 @@ import {
   type AiRewriteDto,
   type AiRewriteStatusDto,
   type AiRewriteStyle,
+  parseProductOfferTargetId,
+  productOfferTargetId,
 } from '@/shared/contracts/ai-assist'
 import type { CooperationDto } from '@/shared/contracts/cooperation'
 import {
@@ -26,12 +28,17 @@ import { createRedactor, type Redact } from './ai-assist.privacy'
 import { log } from '@/shared/log/logger'
 import {
   buildLetterPrompt,
+  buildProductOfferPrompt,
   buildRewritePrompt,
   buildSummaryPrompt,
   buildTodayPrompt,
   type AiPrompt,
 } from './ai-assist.prompts'
 import { loadLetterInstruction } from './ai-assist.letter-instruction'
+import { maskPersonName, productOfferFacts } from './product-offer.letter'
+import * as productMatchService from '@/modules/recommendations/product-match.service'
+import type { ProductOfferLetterDto } from '@/shared/contracts/product-recommendation'
+import { notFound } from '@/shared/http/errors'
 import {
   cleanModelText,
   letterFacts,
@@ -266,7 +273,7 @@ export function rewriteStatus(user: CurrentUser, provider: LlmProvider = getLlmP
 }
 
 export interface RewriteDraftInput {
-  kind: 'recommendation-letter' | 'inbound-letter-reply'
+  kind: 'recommendation-letter' | 'inbound-letter-reply' | 'product-offer-letter'
   text: string
   style: AiRewriteStyle
 }
@@ -286,7 +293,7 @@ export async function rewriteDraft(
   input: RewriteDraftInput,
   options: {
     redact: Redact
-    subject: { objectType: 'Recommendation' | 'InboundLetter'; objectId: string }
+    subject: { objectType: 'Recommendation' | 'InboundLetter' | 'EducationalProgram'; objectId: string }
     provider?: LlmProvider
     now?: Date
   },
@@ -353,6 +360,88 @@ export async function rewriteRecommendationLetter(
     user,
     { kind: 'recommendation-letter', text: input.text, style: input.style },
     { redact, subject: { objectType: 'Recommendation', objectId: recommendationId } },
+  )
+}
+
+// ─────────────── Письмо с предложением продукта (решение 223) ────────────────
+
+/**
+ * Всё, что нужно письму-предложению: пара «программа × продукт» с баллом и причинами,
+ * навыки продукта, идущая связка вуза и маскировка с названиями этой пары. Общее
+ * у черновика и его переделки — как у письма по задаче (решение 213).
+ */
+async function productOfferContext(user: CurrentUser, programId: string, productId: string) {
+  productMatchService.assertCanDraftOfferLetter(user)
+  const { recommendation, period, isMock } = await productMatchService.pairFor(user, programId, productId)
+  const [productSkills, open] = await Promise.all([
+    repo.findProductSkillNames(productId),
+    productMatchService.openCooperationsOf(recommendation.program.universityId),
+  ])
+  const existing = open.find((row) => row.productId !== productId && row.productName !== null) ?? null
+  const redact = await redactorFor(
+    [recommendation.program.universityId],
+    [
+      recommendation.program.universityName,
+      recommendation.program.name,
+      recommendation.product.name,
+      ...productSkills,
+      ...(existing ? [existing.programName, existing.productName ?? ''] : []),
+    ],
+  )
+  const facts = productOfferFacts({
+    recommendation,
+    productSkills,
+    period,
+    existing: existing ? { programName: existing.programName, productName: existing.productName! } : null,
+  })
+  return { recommendation, facts, redact, isMock }
+}
+
+/**
+ * Черновик письма вузу с предложением продукта. Письмо не отправляется и не
+ * сохраняется: эксперт (решение 147) его видит — это чтение; роль — та, что пишет
+ * вузам (`canDraftOfferLetter`).
+ */
+export async function draftProductOfferLetter(
+  user: CurrentUser,
+  programId: string,
+  productId: string,
+): Promise<ProductOfferLetterDto> {
+  const { recommendation, facts, redact, isMock } = await productOfferContext(user, programId, productId)
+  const [instruction, contact] = await Promise.all([
+    loadLetterInstruction(),
+    productMatchService.findPrimaryContact(recommendation.program.universityId),
+  ])
+  const outcome = await compose(buildProductOfferPrompt(facts, redact, instruction), user.id, { redact })
+  await audit(user, outcome, 'EducationalProgram', programId)
+
+  return {
+    ...outcome.draft,
+    rewriteTarget: { type: 'product-offer-letter', id: productOfferTargetId(programId, productId) },
+    universityName: recommendation.program.universityName,
+    programName: recommendation.program.name,
+    productName: recommendation.product.name,
+    recipient: {
+      maskedName: contact ? maskPersonName(contact.fullName) : null,
+      position: contact?.position ?? null,
+    },
+    isMock,
+  }
+}
+
+/** Переделка письма-предложения кнопками: права и маскировка — как у самого черновика. */
+export async function rewriteProductOfferLetter(
+  user: CurrentUser,
+  targetId: string,
+  input: { text: string; style: AiRewriteStyle },
+): Promise<AiRewriteDto> {
+  const pair = parseProductOfferTargetId(targetId)
+  if (!pair) throw notFound('Письмо не найдено')
+  const { redact } = await productOfferContext(user, pair.programId, pair.productId)
+  return rewriteDraft(
+    user,
+    { kind: 'product-offer-letter', text: input.text, style: input.style },
+    { redact, subject: { objectType: 'EducationalProgram', objectId: pair.programId } },
   )
 }
 

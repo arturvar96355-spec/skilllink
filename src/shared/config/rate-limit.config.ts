@@ -75,6 +75,8 @@ export const RATE_LIMIT_HEAVY_PATTERNS: readonly RegExp[] = [
   /^\/api\/recommendations\/generate$/,
   /^\/api\/data-sources\/sync$/,
   /\/ai-(?:summary|letter)$/,
+  // Черновик письма-предложения продукта (решение 223): обращение к модели, как у ai-letter.
+  /^\/api\/programs\/[^/]+\/product-recommendations\/[^/]+\/letter$/,
   /\/(?:dsar|personal-data)(?:\/|$)/,
   /** Переобучение модели прогноза (решение 135): читает всю историю связок. */
   /^\/api\/analytics\/forecast\/train$/,

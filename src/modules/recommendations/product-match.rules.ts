@@ -147,11 +147,16 @@ export function relevanceWeight(relevance: ProductSkillRelevance): number {
   return PRODUCT_MATCH.relevanceWeight[relevance]
 }
 
+/** Единица замера — вакансии: в схеме по умолчанию `vacancies`, в демо-данных — «вакансий». */
+export function isVacancyUnit(unit: string): boolean {
+  return /^(vacancies|вакансия|вакансии|вакансий)$/i.test(unit.trim())
+}
+
 /** «1 240 вакансий» — сырой замер с единицей. */
 function demandAmount(value: number, unit: string): string {
   const number = new Intl.NumberFormat('ru-RU').format(Math.round(value))
-  if (unit === 'vacancies') return `${number} ${plural(Math.round(value), ['вакансия', 'вакансии', 'вакансий'])}`
-  return `${number} (${unit})`
+  if (isVacancyUnit(unit)) return `${number} ${plural(Math.round(value), ['вакансия', 'вакансии', 'вакансий'])}`
+  return `${number} ${unit}`
 }
 
 const LEVEL_WORDS: Record<SkillLevel, string> = {
@@ -439,27 +444,78 @@ export function recommendForUniversity(
   return { items: [...best.values()].sort(compareRecommendations), excluded }
 }
 
+export interface ProductReach {
+  productId: string
+  productName: string
+  /** Для скольких программ продукт — лучший вариант. */
+  bestFor: number
+  /** Скольким программам продукт вообще рекомендуется (балл не ниже порога). */
+  recommendedFor: number
+  /** Средний балл по программам, которым рекомендуется; null — никому. */
+  averageScore: number | null
+}
+
 /**
  * По всему портфелю: лучшая пара каждой программы. Руководителю нужно «к какой
- * программе с чем идти», а не двадцать строк одной программы.
+ * программе с чем идти», а не двадцать строк одной программы. С `productId` —
+ * наоборот: все программы, которым рекомендуется этот продукт («куда его нести»).
+ * `reach` — сводка по продуктам за тот же проход.
  */
 export function recommendForPortfolio(
   programs: readonly MatchProgram[],
   products: readonly MatchProduct[],
   context: MatchContext,
-): { items: ProductRecommendationDto[]; programsWithout: number } {
+  productId?: string,
+): { items: ProductRecommendationDto[]; programsWithout: number; reach: ProductReach[] } {
   const items: ProductRecommendationDto[] = []
   let programsWithout = 0
+  const reach = new Map<string, ProductReach & { scoreSum: number }>(
+    products.map((product) => [
+      product.id,
+      { productId: product.id, productName: product.name, bestFor: 0, recommendedFor: 0, averageScore: null, scoreSum: 0 },
+    ]),
+  )
   for (const program of programs) {
-    const [first] = recommendForProgram(program, products, context).items
-    if (first) items.push(first)
+    const match = recommendForProgram(program, products, context).items
+    const [first] = match
+    if (first) reach.get(first.product.id)!.bestFor += 1
+    for (const item of match) {
+      const entry = reach.get(item.product.id)!
+      entry.recommendedFor += 1
+      entry.scoreSum += item.score
+    }
+    const chosen = productId ? match.find((item) => item.product.id === productId) : first
+    if (chosen) items.push(chosen)
     else programsWithout += 1
   }
-  return { items: items.sort(compareRecommendations), programsWithout }
+  return {
+    items: items.sort(compareRecommendations),
+    programsWithout,
+    reach: [...reach.values()]
+      .map(({ scoreSum, ...entry }) => ({
+        ...entry,
+        averageScore: entry.recommendedFor > 0 ? Math.round(scoreSum / entry.recommendedFor) : null,
+      }))
+      .sort(
+        (a, b) =>
+          b.bestFor - a.bestFor || b.recommendedFor - a.recommendedFor || a.productName.localeCompare(b.productName, 'ru'),
+      ),
+  }
 }
 
 /** Вывод одной фразой для общего списка: какой продукт чаще всего лучший. */
-export function portfolioSummary(items: readonly ProductRecommendationDto[], programsWithout: number): string {
+export function portfolioSummary(
+  items: readonly ProductRecommendationDto[],
+  programsWithout: number,
+  productName?: string,
+): string {
+  if (productName) {
+    if (items.length === 0) return `«${productName}» не закрывает дефицитов ни одной действующей программы или уже подключён.`
+    return (
+      `«${productName}» рекомендуется ${countWithNoun(items.length, ['программе', 'программам', 'программам'])}; ` +
+      `сильнее всего — «${items[0]!.program.name}» (${items[0]!.program.universityName}), балл ${items[0]!.score}.`
+    )
+  }
   if (items.length === 0) return 'Подходящих пар нет: продукты не закрывают дефицитов программ или нет рыночных данных.'
   const counts = new Map<string, number>()
   for (const item of items) counts.set(item.product.name, (counts.get(item.product.name) ?? 0) + 1)

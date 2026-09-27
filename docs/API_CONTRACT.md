@@ -105,7 +105,7 @@
 | --- | --- | --- | --- |
 | чтение | 300 | пользователю, без входа — адресу | `GET` |
 | запись | 60 | пользователю, без входа — адресу | `POST`, `PATCH`, `PUT`, `DELETE` |
-| тяжёлые | 10 | пользователю, без входа — адресу | `/api/export`, `/api/import`, `…/documents/generate`, `/api/recommendations/generate`, `/api/data-sources/sync`, `…/ai-summary`, `…/ai-letter`, `…/story`, `…/proposals*`, выдача данных по запросу субъекта |
+| тяжёлые | 10 | пользователю, без входа — адресу | `/api/export`, `/api/import`, `…/documents/generate`, `/api/recommendations/generate`, `/api/data-sources/sync`, `…/ai-summary`, `…/ai-letter`, `…/product-recommendations/:productId/letter`, `…/story`, `…/proposals*`, выдача данных по запросу субъекта |
 | вход | 30 | адресу клиента | `GET /api/login-challenge`, `POST /api/auth/*` |
 | лента календаря | 60 | токену ленты | `GET /api/calendar/:feed` |
 
@@ -2890,7 +2890,8 @@ curl -s -X POST http://localhost:3000/api/recommendations/<id>/ai-letter
 
 **POST** — переделать текст сотрудника (с его правками) по заданию кнопки. Права — у письма,
 которое переделывается: `recommendation-letter` — `WRITE` (как `POST /api/recommendations/:id/ai-letter`),
-чужая или несуществующая рекомендация — 404; `inbound-letter-reply` — `INBOUND_REVIEW`
+чужая или несуществующая рекомендация — 404; `product-offer-letter` — как у черновика предложения
+продукта (решение 223), `id` — `<программа>:<продукт>`; `inbound-letter-reply` — `INBOUND_REVIEW`
 (как `POST /api/inbound-letters/:id/reply-draft`), письмо `NEW` или `DISMISSED` — `CONFLICT` 409.
 
 ```bash
@@ -2901,8 +2902,8 @@ curl -s -X POST http://localhost:3000/api/ai/rewrite \
 
 | Поле | Что это |
 | --- | --- |
-| `target.type` | `recommendation-letter` или `inbound-letter-reply` |
-| `target.id` | рекомендация или письмо вуза |
+| `target.type` | `recommendation-letter`, `product-offer-letter` или `inbound-letter-reply` |
+| `target.id` | рекомендация, пара `<программа>:<продукт>` или письмо вуза |
 | `text` | текущий текст черновика, 1–4000 знаков |
 | `style` | `shorter`, `softer`, `firmer`, `formal`, `simpler`, `longer` |
 
@@ -5138,6 +5139,78 @@ receivedAt? }`. `receivedAt` — когда оператор получил за
 
 Программы без общих навыков не попадают в `items`, каким бы ни был бонус. Программы
 нет — `404`.
+
+### GET /api/programs/:id/product-recommendations
+
+### GET /api/universities/:id/product-recommendations
+
+### GET /api/analytics/product-recommendations
+
+Рекомендации продуктов (решение 223): какой IT-продукт ИТ-Школы предложить какой программе вуза,
+почему и насколько уверенно. Контентная рекомендация по навыкам без обучения и без ИИ, считается
+на лету. Право `ANALYTICS`: представителю вуза — 403, эксперту — чтение.
+
+Балл пары «программа × продукт» 0–100: для каждого навыка продукта дефицит программы = спрос рынка
+(нормирован по навыкам последнего периода) − покрытие программой (нет — 0, базовый — 34, средний — 67,
+продвинутый — 100), не меньше нуля; балл — средний дефицит по навыкам продукта с весом значимости
+навыка в продукте (ключевой 1, смежный 0,6, дополнительный 0,3), навык вне профиля направления
+(решение 98) — вполовину. Поправки: −15 — продукт уже в связке с другой программой вуза; −40 — связка
+программы с этим продуктом отменена за последние 180 дней. Продукт, уже подключённый к программе
+(связка идёт или завершена), не предлагается; ниже 10 баллов — тоже. Предлагаются только
+действующие продукты с навыками. Коэффициенты — `PRODUCT_MATCH` в `analytics.config.ts` (TEMP).
+
+- **программа** — `limit` 1–10 (по умолчанию 3); `excluded` — продукты, которые не предлагаются, с причиной;
+- **вуз** — по всем действующим программам, каждый продукт один раз, на лучшей для него программе;
+- **портфель** — `limit` 1–100 (по умолчанию 20): лучшая пара каждой действующей программы;
+  `productId` — все программы, которым рекомендуется этот продукт; `universityId` — только его программы;
+  `reach` — для скольких программ продукт лучший (`bestFor`), скольким рекомендуется, средний балл.
+
+```bash
+curl -s -b 'skilllink_user=<id>' http://localhost:3000/api/programs/<id>/product-recommendations
+```
+
+```json
+{ "data": {
+    "scope": "program", "period": "2026-Q3", "isMock": true, "total": 9,
+    "summary": "Лучший вариант — «Облачная платформа РТК»: закроет 4 дефицитных навыка, балл 55 из 100.",
+    "items": [ {
+      "program": { "id": "…", "name": "Программная инженерия", "universityId": "…", "universityName": "…" },
+      "product": { "id": "…", "name": "Облачная платформа РТК", "category": "…" },
+      "score": 55, "baseScore": 55, "adjustments": [],
+      "closes": [ { "skillId": "…", "name": "Kubernetes", "demand": 85, "coverage": 0, "level": null, "gap": 85,
+                    "relevance": "RELATED", "outOfProfile": false, "demandValue": 9400, "demandUnit": "вакансий" } ],
+      "productSkillCount": 4, "productSkillsWithDemand": 4,
+      "reasons": [ "Закроет 4 дефицитных навыка: Kubernetes (спрос 85, в программе нет), …" ],
+      "confidence": "HIGH", "confidenceNote": "Данных достаточно: …", "lowData": false } ],
+    "excluded": [ { "productId": "…", "productName": "Конвейер сборки и поставки", "programId": "…",
+                    "reason": "Продукт уже подключён к программе — связка идёт" } ],
+    "productsWithoutSkills": [ "RT.DataLake" ],
+    "method": "Балл 0–100 — насколько продукт закрывает дефициты программы. …",
+    "actions": { "canDraftLetter": true, "canCreateCooperation": true } } }
+```
+
+`actions` решает сервер: «Создать связку» — право `WRITE` без флага эксперта; «Черновик письма» —
+роли ADMIN, MANAGER, HEAD, в том числе эксперту (письмо — только текст, в базе не остаётся).
+Нет рыночных данных — пустой `items` и `summary` «Нет рыночных данных о спросе…». Программы или
+вуза нет — 404, `productId` без действующего продукта с навыками — 404.
+
+### POST /api/programs/:id/product-recommendations/:productId/letter
+
+Черновик письма вузу с предложением продукта (решение 223): тема, зачем (дефицитные навыки программы
+с цифрами спроса за период), что даёт продукт, связка, которая уже идёт с вузом, предложение встречи.
+Тот же конвейер, что у `POST /api/recommendations/:id/ai-letter`: маскировка ПДн, инструкция
+администратора, лимит, кэш, журнал `ai.draft` (объект — программа), без модели — шаблон на тех же фактах.
+Письмо не отправляется и не сохраняется. Роли ADMIN, MANAGER, HEAD (и эксперт); остальным — 403.
+Продукт, который программе не рекомендуется, — 409 с причиной («уже подключён…»).
+
+```bash
+curl -s -X POST -b 'skilllink_user=<id>' http://localhost:3000/api/programs/<id>/product-recommendations/<productId>/letter
+```
+
+Ответ — `AiDraftDto` (`text`, `source`, `fallbackReason`, `facts`, `rewriteTarget: { "type":
+"product-offer-letter", "id": "<программа>:<продукт>" }`) и ещё `universityName`, `programName`,
+`productName`, `isMock` и `recipient: { "maskedName": "В****** И. П.", "position": "Заместитель декана" }` —
+основной контакт вуза маской: в факты письма и в модель его имя и должность не уходят.
 
 ### GET /api/analytics/meetings-heatmap
 

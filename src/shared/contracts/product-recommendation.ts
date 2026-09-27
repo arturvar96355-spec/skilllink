@@ -1,3 +1,4 @@
+import type { AiDraftDto } from './ai-assist'
 import type { ConfidenceLevel, ProductSkillRelevance, SkillLevel } from './enums'
 
 /**
@@ -75,6 +76,17 @@ export interface ProductOfferRecipientDto {
   position: string | null
 }
 
+/** Сводка по продукту в общем списке: куда его нести. */
+export interface ProductReachDto {
+  productId: string
+  productName: string
+  /** Для скольких программ продукт — лучший вариант. */
+  bestFor: number
+  /** Скольким программам рекомендуется вообще. */
+  recommendedFor: number
+  averageScore: number | null
+}
+
 export interface ProductRecommendationsDto {
   scope: ProductRecommendationScope
   /** Период рыночных данных; null — данных нет, рекомендовать не на чем. */
@@ -84,6 +96,10 @@ export interface ProductRecommendationsDto {
   /** Сколько подходящих пар нашлось всего — до обрезания по лимиту. */
   total: number
   excluded: ProductMatchExcludedDto[]
+  /** Только в общем списке: сводка по продуктам — для скольких программ каждый лучший. */
+  reach?: ProductReachDto[]
+  /** Сколько действующих программ рассмотрено (общий список). */
+  programCount?: number
   /** Действующие продукты без навыков: сравнить их с программой не по чему. */
   productsWithoutSkills: string[]
   /** Вывод одной фразой под заголовком. */
@@ -92,4 +108,18 @@ export interface ProductRecommendationsDto {
   method: string
   /** Что может текущий пользователь: решает сервер, эксперт — только читает. */
   actions: { canDraftLetter: boolean; canCreateCooperation: boolean }
+}
+
+/**
+ * Ответ `POST /api/programs/:id/product-recommendations/:productId/letter` — черновик
+ * письма вузу (решение 223). Сам текст — как у любого черновика помощника: ИИ или шаблон,
+ * источник подписан. Кому — маской: имя сотрудник подставит сам.
+ */
+export interface ProductOfferLetterDto extends AiDraftDto {
+  universityName: string
+  programName: string
+  productName: string
+  recipient: ProductOfferRecipientDto
+  /** Спрос в письме — демонстрационный набор: отправлять вузу такие цифры нельзя. */
+  isMock: boolean
 }

@@ -201,3 +201,13 @@ export async function findLetterInstruction(
   if (!row || row.value === null) return null
   return { value: row.value, updatedAt: row.rotatedAt, updatedByName: row.rotatedBy?.fullName ?? null }
 }
+
+/** Названия навыков продукта — «что даёт продукт» в письме-предложении (решение 223). */
+export async function findProductSkillNames(productId: string): Promise<string[]> {
+  const rows = await prisma.productSkill.findMany({
+    where: { productId },
+    select: { skill: { select: { name: true } } },
+    orderBy: [{ relevance: 'asc' }, { skill: { name: 'asc' } }],
+  })
+  return rows.map((row) => row.skill.name)
+}

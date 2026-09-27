@@ -276,4 +276,17 @@ describe('рекомендации продуктов: крайние случа
       'Чаще всего лучший вариант — «Облачная платформа»: для 1 из 1 программы с рекомендацией. 1 программе предложить нечего — их навыки уже закрыты или данных нет.',
     )
   })
+
+  it('портфель по одному продукту: все программы, которым он рекомендуется, и сводка по продуктам', () => {
+    const second = program({ id: 'p2', name: 'Информатика', universityId: 'u2', universityName: 'МТУСИ' })
+    const result = recommendForPortfolio([program(), second], [CLOUD, JAVA], context(), 'java')
+    expect(result.items.map((item) => `${item.program.id}:${item.product.id}`)).toEqual(['p2:java', 'p1:java'])
+    expect(result.reach).toEqual([
+      { productId: 'cloud', productName: 'Облачная платформа', bestFor: 2, recommendedFor: 2, averageScore: 47 },
+      { productId: 'java', productName: 'Среда Java', bestFor: 0, recommendedFor: 2, averageScore: 23 },
+    ])
+    expect(portfolioSummary(result.items, result.programsWithout, 'Среда Java')).toBe(
+      '«Среда Java» рекомендуется 2 программам; сильнее всего — «Информатика» (МТУСИ), балл 23.',
+    )
+  })
 })
