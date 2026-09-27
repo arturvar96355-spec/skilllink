@@ -1,6 +1,7 @@
 import { prisma } from '@/shared/db/prisma'
 import type { Prisma } from '@/generated/prisma/client'
 import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { ACTIVE_COOPERATION_STATUSES } from '@/shared/contracts/enums'
 import { OPEN_COOPERATION_STATUSES } from '@/modules/cooperation/cooperation.rules'
 import { resolveTargetLabels, targetKey } from '@/modules/recommendations/recommendations.repo'
 import { isLockedByControlPoint } from '@/modules/workflow/workflow.rules'
@@ -272,11 +273,12 @@ export async function loadAssignmentContext(scope: AssignmentScope, id: string):
           id: true,
           name: true,
           shortName: true,
-          _count: { select: { cooperations: { where: { status: { in: [...OPEN_COOPERATION_STATUSES] } } } } },
+          // «В работе» — как «Активные связи» в шапке главной: черновики и действующие, без паузы.
+          _count: { select: { cooperations: { where: { status: { in: [...ACTIVE_COOPERATION_STATUSES] } } } } },
         },
       })
       return row
-        ? { scope, universityId: row.id, universityName: nameOf(row), openCooperations: row._count.cooperations }
+        ? { scope, universityId: row.id, universityName: nameOf(row), activeCooperations: row._count.cooperations }
         : null
     }
   }

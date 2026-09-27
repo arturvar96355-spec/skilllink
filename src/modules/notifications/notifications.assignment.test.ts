@@ -139,7 +139,7 @@ describe('текст и кнопки', () => {
 
   it('вуз: название и сколько связок в работе; только «Открыть вуз»', () => {
     const message = buildAssignmentNotice(
-      { scope: 'university', universityId: 'uni-1', universityName: 'СПбГУТ', openCooperations: 3 },
+      { scope: 'university', universityId: 'uni-1', universityName: 'СПбГУТ', activeCooperations: 3 },
       { now: NOW, baseUrl: BASE },
     )
     expect(message.text).toBe('Вас назначили ответственным за вуз: СПбГУТ.\nВ работе 3 связки.')

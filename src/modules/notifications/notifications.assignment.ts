@@ -72,7 +72,7 @@ export type AssignmentContext =
       scope: 'university'
       universityId: string
       universityName: string
-      openCooperations: number
+      activeCooperations: number
     }
 
 function deadlineText(stage: AssignmentStageRef, now: Date): string {
@@ -157,8 +157,8 @@ export function buildAssignmentNotice(
     }
     case 'university': {
       const inWork =
-        context.openCooperations > 0
-          ? `В работе ${countWithNoun(context.openCooperations, ['связка', 'связки', 'связок'])}.`
+        context.activeCooperations > 0
+          ? `В работе ${countWithNoun(context.activeCooperations, ['связка', 'связки', 'связок'])}.`
           : 'Связок в работе пока нет.'
       return {
         text: `Вас назначили ответственным за вуз: ${context.universityName}.\n${inWork}`,
