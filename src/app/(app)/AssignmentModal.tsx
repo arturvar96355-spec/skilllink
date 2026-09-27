@@ -114,6 +114,7 @@ export function AssignmentModal({
       isOpen
       onClose={() => onClose(null)}
       title="Новое поручение"
+      help={{ topic: 'assignments', section: 'give' }}
       description="Появится у сотрудника в «Моих поручениях» со статусом «Новое»."
       closeOnBackdrop={false}
       footer={
