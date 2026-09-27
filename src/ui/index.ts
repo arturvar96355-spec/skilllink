@@ -178,6 +178,7 @@ export {
 export { StageBar } from './data/StageBar'
 export { ScoreBar, ScoreLegend, type ScorePart } from './data/ScoreBar'
 export { GapBars, type GapRow } from './data/GapBars'
+export { MeasureBars, type MeasureBarRow, type MeasureTone } from './data/MeasureBars'
 export { ResetFilters, hasActiveFilters, useResetUrl } from './data/ResetFilters'
 export { OPEN_RECOMMENDATION_STATUSES, CLOSED_RECOMMENDATION_STATUSES } from './lib/recommendation-scope'
 export { RussiaMap, type MapPoint } from './data/RussiaMap'

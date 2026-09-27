@@ -42,7 +42,7 @@ import {
   STAGE_PROGRESS_HINT,
   ProgramStatusBadge,
   ROUTES,
-  Radar,
+  MeasureBars,
   Section,
   StageStatusBadge,
   TableSkeleton,
@@ -72,6 +72,7 @@ import { AddProgramSkillModal } from '../AddProgramSkillModal'
 import { EditProgramModal } from '../EditProgramModal'
 import { WhyNoRecommendation } from '../../RuleChecks'
 import { SimilarPrograms } from './SimilarPrograms'
+import { coverageConclusion, coverageRows } from './coverage-bars'
 import styles from './program.module.css'
 
 /**
@@ -118,19 +119,6 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  * востребованные из них), и остальное — самые востребованные непокрытые.
  * Одни непокрытые схлопнули бы заливку покрытия в точку.
  */
-function radarAxes(rows: SkillGapDto[]) {
-  const byDemand = [...rows].sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
-  const covered = byDemand.filter((row) => row.coverage > 0).slice(0, 4)
-  // Дефициты вне профиля (решение 98) на радар не выносятся: он подчёркивал бы,
-  // что магистратуре ИИ «не хватает» Java.
-  const rest = byDemand
-    .filter((row) => !covered.includes(row) && !row.outOfProfile)
-    .slice(0, 8 - covered.length)
-  return [...covered, ...rest]
-    .sort((a, b) => (b.demandNormalized ?? 0) - (a.demandNormalized ?? 0))
-    .map((row) => ({ key: row.skillId, label: row.name, values: [row.demandNormalized, row.coverage] }))
-}
-
 export default function ProgramPage() {
   const params = useParams<{ id: string }>()
   const id = params.id
@@ -766,22 +754,22 @@ export default function ProgramPage() {
         </div>
       )}
       {activeTab === 'gaps' && gapRows.length >= 3 && (
-        // Радар: где пунктир спроса выходит за покрытие — там дефицит (решение 79).
-        <Card>
-          <Section
-            title="Спрос против покрытия"
-            description="Навыки, которые программа уже даёт, и самые востребованные из тех, что она не даёт. Пунктир — спрос рынка, заливка — покрытие программой."
-          >
-            <Radar
-              label="Спрос рынка и покрытие программой по навыкам"
-              axes={radarAxes(gapRows)}
-              series={[
-                { label: 'Спрос рынка', tone: 'cyan', dashed: true },
-                { label: 'Покрытие программой', tone: 'violet' },
-              ]}
+        // Было радаром (решение 79); по единому языку диаграмм — полосы с отметкой спроса (решение 215).
+        <Section
+          title="Спрос против покрытия"
+          description={coverageConclusion(gapRows)}
+          hint="Навыки, которые программа уже даёт, и самые востребованные из тех, что она не даёт. Полоса — покрытие навыка программой по шкале 0–100 (нет — 0, базовый — 34, средний — 67, продвинутый — 100). Отметка — спрос рынка на ту же шкалу. Отметка правее конца полосы — дефицит: жёлтым — навык есть, но уровень ниже спроса; красным — востребованного навыка в программе нет."
+        >
+          <Card>
+            <MeasureBars
+              rows={coverageRows(gapRows)}
+              max={100}
+              label="Покрытие навыков программой и спрос рынка"
+              markerLabel="спрос рынка"
+              valueWidth="6rem"
             />
-          </Section>
-        </Card>
+          </Card>
+        </Section>
       )}
       {activeTab === 'gaps' && (
         <Card padding="none">

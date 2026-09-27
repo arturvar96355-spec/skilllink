@@ -22,6 +22,8 @@ const timelineSelect = {
   closedAt: true,
   updatedAt: true,
   isMock: true,
+  /** Причина паузы или отмены — у выбывших связок в воронке (решение 215). */
+  notes: true,
   university: { select: { id: true, name: true, shortName: true, region: true, city: true } },
   program: { select: { id: true, name: true, level: true } },
   product: { select: { id: true, name: true } },
@@ -47,6 +49,20 @@ export async function findTimelineRows(scope: Scope): Promise<TimelineRow[]> {
     where: { ...scope, status: { not: 'DRAFT' } },
     select: timelineSelect,
     orderBy: { id: 'asc' },
+  })
+}
+
+/**
+ * Записи журнала о правке связок — откуда берётся дата паузы или отмены у выбывших
+ * из воронки (решение 215). Отдельного поля «приостановлена» у связки нет: дату даёт
+ * последняя правка, в которой менялся статус. Только чтение.
+ */
+export async function findCooperationUpdates(ids: readonly string[]) {
+  if (ids.length === 0) return []
+  return prisma.auditLog.findMany({
+    where: { action: 'cooperation.update', objectType: 'Cooperation', objectId: { in: [...ids] } },
+    select: { objectId: true, payload: true, createdAt: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
   })
 }
 

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { Icon } from '../primitives/Icon'
 import { ScrollArea } from '../primitives/ScrollArea'
+import { InfoHint } from '../primitives/Tooltip'
 import { landMorph } from '../lib/morph'
 import { ScrambleText } from './ScrambleText'
 import styles from './Page.module.css'
@@ -109,17 +110,30 @@ export function PageHeader({
 export interface SectionProps {
   title?: string
   description?: string
+  /**
+   * Как считается — значок «?» у заголовка (решение 215). Под заголовком остаётся
+   * вывод одной фразой, методика уходит в подсказку.
+   */
+  hint?: string
   action?: ReactNode
   children: ReactNode
 }
 
-export function Section({ title, description, action, children }: SectionProps) {
+export function Section({ title, description, hint, action, children }: SectionProps) {
   return (
     <section className={styles.section}>
       {(title || action) && (
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitleBlock}>
-            {title && <h2 className={styles.sectionTitle}>{title}</h2>}
+            {title &&
+              (hint ? (
+                <div className={styles.sectionTitleRow}>
+                  <h2 className={styles.sectionTitle}>{title}</h2>
+                  <InfoHint text={hint} />
+                </div>
+              ) : (
+                <h2 className={styles.sectionTitle}>{title}</h2>
+              ))}
             {description && <p className={styles.sectionDescription}>{description}</p>}
           </div>
           {action}
