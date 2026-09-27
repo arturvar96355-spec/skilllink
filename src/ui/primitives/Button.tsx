@@ -43,6 +43,8 @@ export interface ButtonProps
    * для выгрузки файла это означает пустой экран вместо сохранения.
    */
   external?: boolean
+  /** Только с `external`: открыть в новой вкладке — файл документа (решение 212). */
+  newTab?: boolean
   /**
    * Внутренняя ссылка: `false` — не прокручивать страницу наверх после перехода.
    * Нужна, когда ссылка открывает панель поверх той же страницы (`?recommendation=…`).
@@ -60,6 +62,7 @@ export function Button({
   still = false,
   href,
   external = false,
+  newTab = false,
   scroll,
   className,
   children,
@@ -102,7 +105,14 @@ export function Button({
   if (href !== undefined && !disabled) {
     if (external) {
       return (
-        <a href={href} className={classes} rel="noreferrer" title={title} aria-label={ariaLabel}>
+        <a
+          href={href}
+          className={classes}
+          rel="noreferrer"
+          target={newTab ? '_blank' : undefined}
+          title={title}
+          aria-label={ariaLabel}
+        >
           {content}
         </a>
       )

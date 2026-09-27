@@ -2,7 +2,7 @@ import { conflict, notFound } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
 import { assertCan, universityScope } from '@/shared/auth/permissions'
 import { writeAudit } from '@/shared/audit/audit'
-import { RECOMMENDATION_LEARNING } from '@/shared/config/analytics.config'
+import { RECOMMENDATION_AUTO_REFRESH_MINUTES, RECOMMENDATION_LEARNING } from '@/shared/config/analytics.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import type { PageMeta } from '@/shared/contracts/common'
 import type {
@@ -37,6 +37,7 @@ import { isRuleEnabled } from './recommendations.explain'
 import { parseReasons } from './recommendations.reasons'
 import { DAY_MS } from './recommendations.learning'
 import { rescoreOpen } from './recommendations.learning.service'
+import { createAutoRefresh } from './recommendations.refresh'
 import type {
   RecommendationListQuery,
   UpdateRecommendationInput,
@@ -121,6 +122,7 @@ export async function list(
 ): Promise<{ data: RecommendationDto[]; meta: PageMeta }> {
   // Представитель вуза рекомендаций не видит: это внутренняя аналитика ИТ-Школы.
   assertCan(user, 'ANALYTICS')
+  await ensureFresh()
   const { rows, total } = await repo.findMany(query, universityScope(user))
   return {
     data: await toRecommendationDtos(rows),
@@ -149,7 +151,22 @@ function missingMetricsDraft(program: ProgramForRules): RecommendationDraft | nu
  */
 export async function generate(user: CurrentUser): Promise<RecommendationGenerationResultDto> {
   assertCan(user, 'ANALYTICS_WORK')
+  return runGeneration(user.id)
+}
 
+/**
+ * Список задач обновляется сам (решение 212): перед чтением списка и главной,
+ * если последняя пересборка старше `RECOMMENDATION_AUTO_REFRESH_MINUTES`.
+ * Автор такой пересборки в журнале — система (`userId: null`).
+ */
+export const ensureFresh = createAutoRefresh({
+  lastRunAt: () => repo.lastGenerationAt(),
+  run: () => runGeneration(null),
+  maxAgeMs: RECOMMENDATION_AUTO_REFRESH_MINUTES * 60_000,
+  onError: (error) => log.error('[RECOMMENDATIONS] автоматическая пересборка не удалась', { err: error }),
+})
+
+async function runGeneration(userId: string | null): Promise<RecommendationGenerationResultDto> {
   const now = new Date()
   // Порог застоя по истории этапов (решение 120): правило берёт его из памяти.
   await ensureStageDurations(now)
@@ -212,11 +229,11 @@ export async function generate(user: CurrentUser): Promise<RecommendationGenerat
   await learningStep('пересчёт балла', () => rescoreOpen(now))
 
   await writeAudit({
-    userId: user.id,
+    userId,
     action: 'recommendation.generate',
     objectType: 'Recommendation',
     objectId: 'batch',
-    payload: { created, updated, closed: closed.length, total: drafts.length },
+    payload: { created, updated, closed: closed.length, total: drafts.length, automatic: userId === null },
   })
 
   return {

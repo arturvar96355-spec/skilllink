@@ -450,7 +450,9 @@
 /* Действие вкладки — над её содержимым, справа: как «Выгрузить» у реестров. */
 .tabActions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: var(--space-2);
 }
 
 

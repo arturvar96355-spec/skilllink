@@ -95,6 +95,8 @@ export interface QualityEntityReportDto {
   title: string
   /** Записей в расчёте (без архивных). */
   total: number
+  /** Записей хотя бы с одним замечанием — каждая один раз, сколько бы проверок ни нарушала (решение 212). */
+  recordsToFix: number
   /** 0..100; null — записей нет, оценивать нечего. */
   score: number | null
   weight: number
@@ -104,6 +106,8 @@ export interface QualityEntityReportDto {
 export interface QualityReportDto {
   /** Итоговая оценка 0..100; null — справочник пуст. */
   score: number | null
+  /** Записей, которые требуют правки, по всем справочникам — без повторов (решение 212). */
+  recordsToFix: number
   entities: QualityEntityReportDto[]
   /** Кандидатов в дубли (пар выше порога, без отмеченных «не дубль») по сущностям. */
   duplicates: Record<DuplicateEntityType, number>

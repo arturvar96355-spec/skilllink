@@ -708,7 +708,7 @@ export default function ProgramPage() {
 
           {user.permissions.canSeeAnalytics && (
             <Section
-              title="Рекомендации по программе"
+              title="Задачи по программе"
               description="Какие правила система проверяет по этой программе и что им сейчас мешает сработать."
             >
               <Card>

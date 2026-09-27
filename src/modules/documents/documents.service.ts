@@ -32,6 +32,15 @@ import { toIso, toIsoRequired } from '@/shared/utils/date'
 import { PROGRAM_LEVEL_FULL_LABELS } from '@/shared/contracts/labels'
 import { assertCooperationOpen } from '@/modules/cooperation/cooperation.rules'
 import * as repo from './documents.repo'
+import * as attachmentsRepo from '@/modules/attachments/attachments.repo'
+import { readAttachmentFile } from '@/shared/files/attachment-storage'
+import { writeZip, type ZipEntry } from '@/shared/files/zip'
+import {
+  documentFileName,
+  packageFileName,
+  packageFolderName,
+  renderDocumentFile,
+} from './document-file'
 import { lockCooperation } from '@/modules/workflow/workflow.repo'
 import { markTasksBySignedDocuments } from '@/modules/workflow/workflow.service'
 import { SIGNING_STAGE_NUMBER } from '@/shared/config/workflow.config'
@@ -130,6 +139,72 @@ export async function getById(user: CurrentUser, id: string): Promise<DocumentDt
   const row = await repo.findById(id, universityScope(user))
   if (!row) throw notFound('Документ не найден')
   return toDetail(row, user)
+}
+
+// ───────────── Файл документа и пакет связки: чтение в любом статусе ─────────────
+
+export interface DownloadableFile {
+  name: string
+  mime: string
+  bytes: Buffer
+}
+
+/**
+ * Файл документа (решение 212, п. 2): открывается и скачивается в любом статусе —
+ * черновик, подписан, в архиве, связка завершена. Закрытие запрещает только
+ * правку (`assertDocumentEditable`), чтение — никогда. Право — `READ`, как у
+ * карточки; представителю вуза — только свой вуз.
+ */
+export async function documentFile(user: CurrentUser, id: string): Promise<DownloadableFile> {
+  assertCan(user, 'READ')
+  const row = await repo.findById(id, universityScope(user))
+  if (!row) throw notFound('Документ не найден')
+  const attachments = await attachmentsRepo.findStoredByOwners('DOCUMENT', [row.id])
+  const html = renderDocumentFile(toDetail(row, user), attachments)
+  return { name: documentFileName(row), mime: 'text/html; charset=utf-8', bytes: Buffer.from(html, 'utf8') }
+}
+
+/**
+ * Пакет документов связки одним архивом (решение 212, п. 2): каждый документ —
+ * своя папка с файлом документа и всеми приложенными файлами. Все статусы,
+ * включая подписанные и архивные; статус связки не проверяется — пакет
+ * завершённой связки скачивается так же, как идущей.
+ */
+export async function documentPackage(user: CurrentUser, cooperationId: string): Promise<DownloadableFile> {
+  assertCan(user, 'READ')
+  const scope = universityScope(user)
+  const cooperation = await repo.findCooperationForPackage(cooperationId, scope)
+  if (!cooperation) throw notFound('Связка не найдена')
+  const rows = await repo.findCooperationDocuments(cooperationId, scope)
+  if (rows.length === 0) throw notFound('По связке ещё нет документов — скачивать нечего')
+
+  const attachments = await attachmentsRepo.findStoredByOwners(
+    'DOCUMENT',
+    rows.map((row) => row.id),
+  )
+  const entries: ZipEntry[] = []
+  for (const [index, row] of rows.entries()) {
+    const folder = packageFolderName(index, row)
+    const own = attachments.filter((file) => file.ownerId === row.id)
+    entries.push({
+      name: `${folder}/${documentFileName(row)}`,
+      data: Buffer.from(renderDocumentFile(toDetail(row, user), own), 'utf8'),
+    })
+    const used = new Set<string>()
+    for (const file of own) {
+      let name = file.originalName.replace(/[\\/]/g, '_')
+      // Два файла с одним именем в одной папке архива перезаписали бы друг друга.
+      if (used.has(name)) name = `${file.id}-${name}`
+      used.add(name)
+      entries.push({ name: `${folder}/${name}`, data: await readAttachmentFile(file.storageKey) })
+    }
+  }
+
+  return {
+    name: packageFileName(cooperation.university.shortName ?? cooperation.university.name, cooperation.program.name),
+    mime: 'application/zip',
+    bytes: writeZip(entries),
+  }
 }
 
 export async function create(

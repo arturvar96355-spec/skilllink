@@ -123,6 +123,27 @@ const nextConfig: NextConfig = {
         source: '/api/me/data-export',
         headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
+      /**
+       * Файл документа и пакет связки (решение 212): договоры с ФИО — не в кэш.
+       * Файл документа — HTML без скриптов, открывается прямо в браузере; политика
+       * запрещает в нём всё, кроме встроенных стилей, — даже если в тексте
+       * документа окажется разметка, она экранирована, а исполнить её нечем.
+       */
+      {
+        source: '/api/documents/:id/file',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store' },
+          {
+            key: 'Content-Security-Policy',
+            value:
+              "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+          },
+        ],
+      },
+      {
+        source: '/api/cooperations/:id/documents/package',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
       /** Задача проверки «не робот» у каждого запроса своя — хранить её нечего и незачем. */
       {
         source: '/api/login-challenge',
