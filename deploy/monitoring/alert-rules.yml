@@ -72,7 +72,7 @@ groups:
         annotations:
           summary: 'Ночная копия старше 26 часов или отметка не читается'
           first_step: >
-            cat ~/backups/last.json и ~/backups/errors.log на сервере —
+            cat ~/backups/last.json и tail ~/backups/backup.log на сервере —
             ночной cron (03:15 МСК) отработал или нет.
 
   - name: skilllink-security

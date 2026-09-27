@@ -14,7 +14,11 @@
 #   4. проверяет: в ключевых таблицах есть строки, а последняя запись журнала
 #      действий не старше копии больше чем на DRILL_MAX_STALE_DAYS суток (7) —
 #      иначе копия снимается со старой или пустой базы;
-#   5. всё удаляет.
+#   5. читает целиком самый свежий архив загруженных файлов
+#      ~/backups/skilllink-uploads-*.tar.gz (`tar -tzf`, gzip сверяет свою контрольную
+#      сумму) и сверяет его .sha256 — архива нет или он не читается — учения провалены
+#      (решение 216); файлы в том не распаковываются, рабочий том не трогается;
+#   6. всё удаляет.
 #
 # Итог — одной строкой в ~/skilllink/drills.log и в Telegram (alert.sh):
 #   RTO — фактическое время восстановления: от запуска пустого сервера до проверенной
@@ -135,12 +139,33 @@ tables_total=$(docker exec "$tag" psql -U drill -d drill -Atc \
   "select count(*) from information_schema.tables where table_schema = 'public'")
 t_done=$(now_ms)
 
+# ── 5. Архив загруженных файлов ─────────────────────────────────────────────
+# Читается на этой машине, во время восстановления базы (RTO) не входит.
+uploads=${DRILL_UPLOADS:-$(latest_uploads)}
+[ -n "$uploads" ] && [ -f "$uploads" ] ||
+  failed "нет архива файлов: в $BACKUP_DIR ни одного skilllink-uploads-*.tar.gz — загруженные файлы не копируются"
+uploads_name=$(basename "$uploads")
+if [ -f "$uploads.sha256" ]; then
+  [ "$(sha256_of "$uploads")" = "$(cut -d' ' -f1 < "$uploads.sha256")" ] ||
+    failed "$uploads_name не совпадает с $uploads_name.sha256 — архив испорчен"
+fi
+err=$(mktemp)
+if ! tar -tzf "$uploads" > "$err.list" 2> "$err"; then
+  msg=$(head -c 300 "$err" | tr '\n' ' ')
+  rm -f "$err" "$err.list"
+  failed "$uploads_name не читается: $msg"
+fi
+files_count=$(grep -v '/$' "$err.list" | grep -c . || true)
+rm -f "$err" "$err.list"
+files_age=$(human_duration "$(age_seconds "$uploads")")
+
 rto_ms=$((t_done - t0))
-line=$(printf 'RTO=%s (сервер %s, восстановление %s, проверка %s) RPO=%s копия=%s %s таблиц=%s%s, журнал: последняя запись за %s до копии' \
+line=$(printf 'RTO=%s (сервер %s, восстановление %s, проверка %s) RPO=%s копия=%s %s таблиц=%s%s, журнал: последняя запись за %s до копии; файлы=%s %s, %s шт., возраст %s' \
   "$(awk -v m="$rto_ms" 'BEGIN { printf "%.1f с", m / 1000 }')" \
   "$(awk -v m="$((t_server - t0))" 'BEGIN { printf "%.1f с", m / 1000 }')" \
   "$(awk -v m="$((t_restored - t_server))" 'BEGIN { printf "%.1f с", m / 1000 }')" \
   "$(awk -v m="$((t_done - t_restored))" 'BEGIN { printf "%.1f с", m / 1000 }')" \
   "$(human_duration "$rpo_s")" "$name" "$(human_size "$size")" "$tables_total" "$counts" \
-  "$(human_duration "$stale_s")")
+  "$(human_duration "$stale_s")" \
+  "$uploads_name" "$(human_size "$(size_of "$uploads")")" "$files_count" "$files_age")
 result OK "$line"
