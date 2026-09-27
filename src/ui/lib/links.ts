@@ -138,6 +138,8 @@ export function notificationHref(target: NotificationTargetDto): string {
       return universityHref(target.id)
     case 'assignment':
       return assignmentHref(target.id)
+    case 'letter':
+      return letterHref(target.id)
   }
 }
 

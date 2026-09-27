@@ -14,7 +14,8 @@ import {
   isAssignmentOverdue,
   todayIso,
 } from '@/modules/assignments/assignments.rules'
-import type { AssignmentPriority, AssignmentStatus } from '@/shared/contracts/enums'
+import type { AssignmentPriority, AssignmentStatus, InboundLetterGroup } from '@/shared/contracts/enums'
+import { INBOUND_LETTER_GROUP_LABELS } from '@/shared/contracts/labels'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -113,6 +114,20 @@ export interface AssignmentFeedSource {
   createdAt: Date
 }
 
+/** Письмо вуза, которое ещё не проверено (решение 213): только тем, кто разбирает письма. */
+export interface LetterFeedSource {
+  id: string
+  /** Группа обращения по разбору; null — письмо ещё не разобрано. */
+  group: InboundLetterGroup | null
+  /** Название вуза; null — разбор вуз не нашёл. */
+  universityName: string | null
+  /** Когда письмо пришло в систему. */
+  createdAt: Date
+  acceptedByMe: boolean
+  /** Кто принял первым из других; null — никто. */
+  acceptedByName: string | null
+}
+
 export interface FeedSources {
   deadlines: StageDeadlineSource[]
   stageChanges: StageChangeSource[]
@@ -121,6 +136,32 @@ export interface FeedSources {
   responsibleAssignments: ResponsibleAssignedSource[]
   /** Открытые поручения пользователю (решение 207); у представителя вуза их нет. */
   assignments: AssignmentFeedSource[]
+  /** Непроверенные письма вузов (решение 213) — только тем, кто их разбирает. */
+  letters?: LetterFeedSource[]
+}
+
+/**
+ * «Новое письмо вуза» (решение 213): без ФИО, почты и текста письма — только вуз
+ * и группа, как в сообщении Telegram (решение 183). Принятое кем-то письмо
+ * остаётся в ленте, но уже не торопит: «к сведению», а не «скоро понадобится».
+ */
+function letterItem(source: LetterFeedSource): Omit<NotificationDto, 'isUnread'> {
+  const accepted = source.acceptedByMe || source.acceptedByName !== null
+  return {
+    id: `letter-new:${source.id}`,
+    kind: 'letter.new',
+    severity: accepted ? 'info' : 'warning',
+    title: `Новое письмо вуза${source.group ? `: ${INBOUND_LETTER_GROUP_LABELS[source.group].toLowerCase()}` : ''}`,
+    description: source.universityName ?? 'Вуз не определён',
+    occurredAt: source.createdAt.toISOString(),
+    target: { type: 'letter', id: source.id, cooperationId: null, stageId: null },
+    accept: {
+      type: 'letter',
+      id: source.id,
+      acceptedByMe: source.acceptedByMe,
+      acceptedByName: source.acceptedByMe ? null : source.acceptedByName,
+    },
+  }
 }
 
 /** Длиннее — обрезаем с многоточием: заголовок пункта ленты в одну-две строки. */
@@ -370,6 +411,10 @@ export function buildFeed(
 
   for (const assignment of sources.assignments) {
     items.push(...assignmentItems(assignment, now))
+  }
+
+  for (const letter of sources.letters ?? []) {
+    items.push(letterItem(letter))
   }
 
   // Новые сверху; при равном времени — порядок по id, чтобы лента не «прыгала»

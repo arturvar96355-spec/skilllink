@@ -39,6 +39,13 @@ export const NOTIFICATION_KINDS = [
   'assignment.new',
   'assignment.due-soon',
   'assignment.overdue',
+  /**
+   * Новое письмо вуза ждёт разбора (решение 213) — тем, кто разбирает письма
+   * (ADMIN, HEAD). То же событие, что уходит им в Telegram (решение 183), и с той же
+   * кнопкой «Принять в работу» (`accept`). Источник — сами письма в статусах
+   * «Новое» и «Разобрано»: проверенное письмо из ленты уходит.
+   */
+  'letter.new',
 ] as const
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number]
 
@@ -51,10 +58,23 @@ export type NotificationSeverity = 'critical' | 'warning' | 'info'
  * сразу к нужному этапу связки.
  */
 export interface NotificationTargetDto {
-  type: 'cooperation' | 'document' | 'recommendation' | 'university' | 'assignment'
+  type: 'cooperation' | 'document' | 'recommendation' | 'university' | 'assignment' | 'letter'
   id: string
   cooperationId: string | null
   stageId: string | null
+}
+
+/**
+ * Кнопка «Принять в работу» у пункта ленты (решение 213) — то же, что «✓ Принял»
+ * в Telegram: `POST /api/inbound-letters/:id/accept`.
+ */
+export interface NotificationAcceptDto {
+  type: 'letter'
+  id: string
+  /** Этот пользователь уже принял — вместо кнопки строка «Вы приняли в работу». */
+  acceptedByMe: boolean
+  /** Кто уже принял (первый по времени), если не этот пользователь; null — никто. */
+  acceptedByName: string | null
 }
 
 export interface NotificationDto {
@@ -70,6 +90,8 @@ export interface NotificationDto {
   /** Новее переданного `since`. Без `since` непрочитанным считается всё. */
   isUnread: boolean
   target: NotificationTargetDto
+  /** Есть только у пунктов, которые можно принять в работу прямо из ленты. */
+  accept?: NotificationAcceptDto
 }
 
 export interface NotificationFeedDto {

@@ -17,8 +17,10 @@ import {
   EmptyState,
   ErrorState,
   InboundLetterStatusBadge,
+  Icon,
   Input,
   DownloadButton,
+  Tooltip,
   ListTitle,
   NO_DATA,
   PageHeader,
@@ -208,9 +210,10 @@ function LettersView() {
       <PageHeader
         title="Письма вузов"
         description={
+          // Одна строка — что это за раздел (решение 213); подробности — в подсказках кнопок и «?».
           user.permissions.canReviewLetters
-            ? 'Письма вузов как обращения: разбор системы, проверка сотрудником и задание ответственному. Живого почтового ящика нет — демо-письма и загрузка .eml (кнопка справа; пример письма — рядом).'
-            : 'Письма вузов как обращения: разбор системы, проверка сотрудником и задание ответственному. Живого почтового ящика нет — демо-письма и загрузка .eml. Загружать и разбирать письма могут администратор и руководитель.'
+            ? 'Входящие письма вузов: система определяет вуз и тему, вы проверяете разбор, ответственный получает задание.'
+            : 'Входящие письма вузов: система определяет вуз и тему, руководитель проверяет разбор, ответственный получает задание.'
         }
         actions={
           user.permissions.canReviewLetters ? (
@@ -232,6 +235,12 @@ function LettersView() {
 
       <Section>
         <Card className={styles.statsCard}>
+          <h2 className={styles.statsTitle}>
+            Как точно система определяет группу письма
+            <Tooltip text="Группа — тема обращения: договор, встреча, документы и другие. «Верно N из M» — сколько проверенных писем сотрудник подтвердил без исправлений. Полоса — та же точность, где свежие решения весят больше.">
+              <Icon name="help" size={16} className={styles.help} />
+            </Tooltip>
+          </h2>
           {stats.isLoading ? (
             <TableSkeleton rows={2} columns={6} />
           ) : stats.error ? (
@@ -378,6 +387,7 @@ function UploadLetterButton({ onUploaded }: { onUploaded: (id: string) => void }
         icon="attach"
         onClick={() => inputRef.current?.click()}
         isLoading={upload.isPending}
+        title="Живого почтового ящика нет: письма — демонстрационные или загруженные файлом .eml"
       >
         Загрузить письмо (.eml)
       </Button>
