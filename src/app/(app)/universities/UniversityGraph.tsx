@@ -50,9 +50,20 @@ const FILTERS: Array<{ key: Filter; label: string }> = [
 
 /** Размеры узлов и шаг строк — в пикселях раскладки. */
 const NODE_W = 232
-const NODE_H = 66
-const ROW = 88
+/**
+ * Высота узла — по его трём строкам (вид с биркой уровня, название, код):
+ * при 66 px они не помещались, название сжималось, и строка кода ложилась
+ * на него — текст выглядел зачёркнутым (решение 195).
+ */
+const NODE_H = 74
+const ROW = 92
 const PAD_Y = 20
+/**
+ * Коридор между программами и продуктами — под метку этапа («этап 10/14 100%»,
+ * ~110 px) с запасом. Раньше на узком экране колонки вставали через 60 px,
+ * метка ложилась на соседние узлы и текст сливался в кашу (решение 195).
+ */
+const CHIP_LANE = 168
 
 const TONE: Record<CooperationStatus, string> = {
   ACTIVE: styles.toneActive!,
@@ -144,7 +155,8 @@ export function UniversityGraph({
     )
     const rows = Math.max(programList.length, products.length, 1)
     const height = rows * ROW + PAD_Y * 2
-    const colX = [0, Math.max(NODE_W + 60, width / 2 - NODE_W / 2), Math.max(NODE_W * 2 + 120, width - NODE_W)]
+    const programX = Math.max(NODE_W + 60, width / 2 - NODE_W / 2)
+    const colX = [0, programX, Math.max(programX + NODE_W + CHIP_LANE, width - NODE_W)]
     const rowY = (index: number, count: number) =>
       PAD_Y + (height - PAD_Y * 2 - count * ROW) / 2 + index * ROW + (ROW - NODE_H) / 2
     const uniY = height / 2 - NODE_H / 2

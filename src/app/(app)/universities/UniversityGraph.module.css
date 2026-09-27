@@ -186,6 +186,13 @@ a.node:focus-visible {
   opacity: 0.45;
 }
 
+/* Строки узла не сжимаются: сжатое название уходило под строку кода. */
+.kind,
+.title,
+.sub {
+  flex: none;
+}
+
 .kind {
   display: flex;
   align-items: center;
