@@ -7,6 +7,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  /* Без отступа списка по умолчанию: пункты — вровень с заголовком блока. */
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .item {
@@ -36,8 +40,32 @@
   background: var(--status-danger);
 }
 
+/* Загрузка «Системы заметила»: подпись и строки в форме будущих пунктов (решение 205). */
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.loadingText {
+  margin: 0;
+  font-size: var(--text-caption-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-tertiary);
+}
+
+.dot.dotPending {
+  background: var(--line-strong);
+}
+
+.loading .itemText {
+  gap: 6px;
+  padding-block: 2px;
+}
+
 .itemText {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
