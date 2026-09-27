@@ -108,6 +108,13 @@ export interface UniversityListItemDto {
   programCount: number
   cooperationCount: number
   activeCooperationCount: number
+  /**
+   * Связки без отменённых (решение 197) — та же база, что у столбцов «Связки
+   * по вузам» и воронки на главной (`CooperationCountsDto.total`): все статусы,
+   * кроме CANCELLED. В отличие от `cooperationCount` (все связки, включая
+   * отменённые), эта база сравнима между картой и колонками главной.
+   */
+  cooperationCountExcludingCancelled: number
   isMock: boolean
   /**
    * Рейтинг вуза (пункт 7.2 ТЗ) — агрегат рейтингов его программ.

@@ -179,6 +179,10 @@ export function Ticker({ items, label }: { items: TickerItem[]; label: string })
         className={`${styles.item} ${styles[item.tone]}`}
         tabIndex={hidden ? -1 : undefined}
         aria-hidden={hidden || undefined}
+        // Ссылку браузер по умолчанию «берёт» как перетаскиваемый объект: зажал и
+        // повёл — начинается перенос ссылки, приходит pointercancel, и лента не
+        // тянется, а только останавливается (замечено владельцем 27.09).
+        draggable={false}
       >
         <span className={styles.dot} aria-hidden />
         {item.text}
@@ -198,6 +202,7 @@ export function Ticker({ items, label }: { items: TickerItem[]; label: string })
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onClickCapture={onClickCapture}
+      onDragStart={(event) => event.preventDefault()}
     >
       <div ref={trackRef} className={styles.track}>
         {track(false)}
