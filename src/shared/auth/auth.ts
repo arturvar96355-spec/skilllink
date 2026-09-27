@@ -261,6 +261,11 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
             clientId: process.env.KEYCLOAK_CLIENT_ID!,
             clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
             issuer: process.env.KEYCLOAK_ISSUER,
+            // Пароль спрашивается при каждом входе через кнопку, даже если сессия
+            // самого Keycloak ещё жива: выход из SkillLink не завершает её, и на
+            // общем компьютере следующий человек вошёл бы под чужой учётной записью
+            // одним нажатием (проверка продукт-менеджера 27.09, замечание S1).
+            authorization: { params: { scope: 'openid email profile', prompt: 'login' } },
           }),
         ]
       : []),
