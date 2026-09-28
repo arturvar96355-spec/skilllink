@@ -165,6 +165,30 @@
    * обычный акцент для наведения, отдельный тревожный — для проблемных карточек.
    */
   --hover-lift: -2px;
+  /* Токены, которые светлая тема переопределяет (спецификация «Light Theme»);
+     значения здесь — прежний вид тёмной темы. */
+  --button-secondary-border: rgb(var(--ink-rgb) / 0.1);
+  --button-secondary-border-hover: var(--line-strong);
+  --map-coast-opacity: 0.5;
+  --map-coast-glow: none;
+  --map-grid-opacity: 0.1;
+  --map-link-color: var(--accent-cyan);
+  --map-link-opacity: 0.32;
+  --map-link-width: 1;
+  --map-link-dash: 2 5;
+  --map-link-idle-glow: none;
+  --map-link-lit-color: var(--accent-cyan);
+  --map-link-glow: none;
+  --map-dot-hover-scale: 1;
+  --tag-shadow: 0 30px 60px rgba(0, 0, 0, 0.55), 0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  --tag-shadow-hover: var(--tag-shadow);
+  --tag-hover-lift: 0px;
+  --tag-logo-hover-scale: 1;
+  --overlay-backdrop: rgba(5, 5, 8, 0.62);
+  --floating-border: rgb(var(--ink-rgb) / 0.096);
+  --row-hover: var(--surface-2);
+  --glow-tint-near: transparent;
+  --glow-tint-far: transparent;
   --hover-lift-strong: -4px;
   --glow-hover: 0 8px 24px rgba(142, 108, 255, 0.14), 0 0 0 1px rgba(142, 108, 255, 0.28);
   --glow-hover-danger: 0 8px 24px rgba(240, 97, 111, 0.14), 0 0 0 1px rgba(240, 97, 111, 0.32);
@@ -337,89 +361,138 @@
  * держать контраст на белом; тени — мягкие фиолетовые, а не чёрные.
  */
 :root[data-theme='light'] {
-  --ink-rgb: 22 18 40;
+  /*
+   * Светлая тема (спецификация «Light Theme», 28.09): белая основа, внутри —
+   * световая система SkillLink. Фиолетовый — главный акцент, мятный — связи
+   * и «всё хорошо», свет за курсором — мягкий цветной, не пятно. Не инверсия
+   * тёмной темы: свои значения, контраст текста не ниже 4,5:1.
+   */
+  --ink-rgb: 30 22 64;
   color-scheme: light;
 
-  --canvas: #f5f4f9;
+  --canvas: #ffffff;
   --surface-1: #ffffff;
-  --surface-2: #f1eff7;
-  --surface-3: #e8e5f1;
+  --surface-2: #f7f6fc;
+  --surface-3: #efedf8;
   --surface-floating: rgba(255, 255, 255, 0.97);
-  --bg-sidebar: rgba(255, 255, 255, 0.94);
-  --bg-header: rgba(245, 244, 249, 0.8);
-  --bg-glow: rgba(124, 92, 240, 0.2);
-  --bg-glow-deep: rgba(124, 92, 240, 0.13);
-  --bg-haze-violet: rgba(124, 92, 240, 0.07);
-  --bg-haze-deep: rgba(92, 60, 200, 0.06);
-  --surface-card-muted: #faf9fd;
-  --surface-sunken: #efedf5;
-  --border-accent: rgba(108, 76, 230, 0.32);
+  --bg-sidebar: rgba(255, 255, 255, 0.92);
+  --bg-header: rgba(255, 255, 255, 0.82);
+  /* Свет за курсором: ближний — насыщенный фиолетовый, дальний, с задержкой, —
+     мятно-голубой. На белом слабее 0,3 он читался серым пятном. */
+  --bg-glow: rgba(109, 74, 255, 0.34);
+  --bg-glow-deep: rgba(22, 200, 190, 0.24);
+  --bg-haze-violet: rgba(109, 74, 255, 0.08);
+  --bg-haze-deep: rgba(22, 200, 190, 0.07);
+  --surface-card-muted: #fbfaff;
+  /*
+   * Подсветка поверх содержимого (слой .glowTint, смешивание multiply): на белом
+   * свет под карточками виден только в зазорах, а так он мягко окрашивает и сами
+   * карточки. Тёмный текст при умножении остаётся тёмным — читаемость прежняя.
+   */
+  --glow-tint-near: rgba(109, 74, 255, 0.15);
+  --glow-tint-far: rgba(22, 200, 190, 0.11);
+  --surface-sunken: #f3f2fa;
+  --border-accent: rgba(109, 74, 255, 0.34);
   --danger-surface: rgba(206, 43, 68, 0.08);
   --danger-border: rgba(206, 43, 68, 0.3);
-  --success-border: rgba(22, 128, 120, 0.3);
-  --success-surface: rgba(22, 128, 120, 0.1);
+  --success-border: rgba(8, 122, 92, 0.3);
+  --success-surface: rgba(16, 185, 140, 0.1);
 
-  --purple-900: #efedf5;
-  --purple-800: #f1eff7;
+  --purple-900: #f3f2fa;
+  --purple-800: #f7f6fc;
   --purple-700: #ffffff;
-  --purple-600: #e8e5f1;
-  --purple-500: #6c4ce6;
+  --purple-600: #efedf8;
+  --purple-500: #6d4aff;
 
-  --accent-violet: #6c4ce6;
-  --accent-pink: #c7307c;
+  --accent-violet: #6d4aff;
+  --accent-pink: #d8307f;
   --accent-orange: #c85a22;
-  --accent-cyan: #0e7a74;
+  /* Второй акцент — мятный: связи, вторая серия графиков, «на связи». */
+  --accent-cyan: #0ea77f;
 
-  --text-primary: #17141f;
-  --text-secondary: #474454;
-  --text-tertiary: #636070;
-  --text-disabled: #a6a3b3;
-  --text-accent: #5b3dd4;
-  --text-accent-soft: #6a4fe0;
-  --text-accent-pale: #4d31c4;
+  --text-primary: #16122a;
+  --text-secondary: #474159;
+  --text-tertiary: #625d74;
+  --text-disabled: #a7a3b8;
+  --text-accent: #5a36f0;
+  --text-accent-soft: #6d4aff;
+  --text-accent-pale: #4c2bd6;
   --text-danger-strong: #a81d33;
   --text-danger-soft: #a81d33;
   --text-warm: #a8491a;
-  --text-muted-cool: #474454;
-  --text-violet: #5b3dd4;
+  --text-muted-cool: #474159;
+  --text-violet: #5a36f0;
   --text-on-light: #111116;
   --logo-plate: #ffffff;
   --text-inverse: #ffffff;
 
-  --line-subtle: rgba(22, 18, 40, 0.09);
-  --line-strong: rgba(22, 18, 40, 0.16);
-  --line-faint: rgba(22, 18, 40, 0.045);
-  --border-active: rgba(108, 76, 230, 0.55);
-  --border-divider: rgba(22, 18, 40, 0.08);
+  --line-subtle: rgba(60, 40, 140, 0.09);
+  --line-strong: rgba(60, 40, 140, 0.17);
+  --line-faint: rgba(60, 40, 140, 0.045);
+  --border-active: rgba(109, 74, 255, 0.6);
+  --border-divider: rgba(60, 40, 140, 0.08);
 
-  --shadow-base: 0 1px 2px rgba(40, 28, 90, 0.06);
-  --shadow-floating: 0 20px 48px rgba(40, 28, 90, 0.14), 0 2px 8px rgba(40, 28, 90, 0.08);
-  --glow-hover: 0 8px 24px rgba(108, 76, 230, 0.14), 0 0 0 1px rgba(108, 76, 230, 0.26);
+  --shadow-base: 0 1px 2px rgba(60, 40, 140, 0.06), 0 2px 8px rgba(60, 40, 140, 0.04);
+  --shadow-floating: 0 20px 48px rgba(60, 40, 140, 0.14), 0 2px 8px rgba(60, 40, 140, 0.08);
+  /* Наведение карточки: фиолетовая кромка и мятный отсвет (уровень свечения 1). */
+  --glow-hover: 0 10px 28px rgba(109, 74, 255, 0.14), 0 0 22px rgba(14, 167, 127, 0.1),
+    0 0 0 1px rgba(109, 74, 255, 0.3);
   --glow-hover-danger: 0 8px 24px rgba(206, 43, 68, 0.12), 0 0 0 1px rgba(206, 43, 68, 0.3);
 
-  --status-success: #0e7a74;
+  --status-success: #087a5c;
   --status-warning: #8f5b0a;
   --status-danger: #ce2b44;
-  --status-neutral: #636070;
+  --status-neutral: #625d74;
 
   --glass-plate: rgba(255, 255, 255, 0.94);
-  --glass-tint: rgba(108, 76, 230, 0.03);
-  --glass-edge: rgba(40, 28, 90, 0.1);
-  --glass-edge-strong: rgba(40, 28, 90, 0.2);
-  --glass-field: rgba(40, 28, 90, 0.04);
-  --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 16px 32px rgba(40, 28, 90, 0.1),
-    0 2px 6px rgba(40, 28, 90, 0.06);
-  --glass-line: #6c4ce6;
-  --glass-search: rgba(255, 255, 255, 0.76);
+  --glass-tint: rgba(109, 74, 255, 0.03);
+  --glass-edge: rgba(60, 40, 140, 0.1);
+  --glass-edge-strong: rgba(60, 40, 140, 0.2);
+  --glass-field: rgba(60, 40, 140, 0.035);
+  --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 16px 32px rgba(60, 40, 140, 0.1),
+    0 2px 6px rgba(60, 40, 140, 0.06);
+  --glass-line: #6d4aff;
+  --glass-search: rgba(255, 255, 255, 0.72);
   --glass-glare: rgba(255, 255, 255, 0.5);
-  --glass-focus-ring: 0 0 0 3px rgba(108, 76, 230, 0.18);
-  --glass-glow: 0 0 12px rgba(108, 76, 230, 0.3), 0 0 24px rgba(108, 76, 230, 0.18);
+  --glass-focus-ring: 0 0 0 3px rgba(109, 74, 255, 0.2);
+  --glass-glow: 0 0 12px rgba(109, 74, 255, 0.3), 0 0 24px rgba(14, 167, 127, 0.14);
 
-  /* Кнопки: основная в светлой теме — тёмная (в тёмной — светлая). */
-  --button-primary-bg: #17141f;
+  /* Кнопки: основная — фиолетовая, вторичная — белая с фиолетовой кромкой. */
+  --button-primary-bg: #6d4aff;
   --button-primary-fg: #ffffff;
-  --button-primary-hover: #2c2838;
-  --button-accent-hover: #5b3dd4;
+  --button-primary-hover: #5a36f0;
+  --button-accent-hover: #5a36f0;
+  --button-secondary-border: rgba(109, 74, 255, 0.34);
+  --button-secondary-border-hover: rgba(109, 74, 255, 0.6);
+
+  /* Карта России: контур ярче и со свечением, связи — тёмная мята, активная — неон. */
+  --map-coast-opacity: 0.9;
+  --map-coast-glow: drop-shadow(0 0 3px rgba(109, 74, 255, 0.45));
+  --map-grid-opacity: 0.08;
+  --map-link-color: #0b8f6a;
+  --map-link-opacity: 0.85;
+  --map-link-width: 1.4;
+  --map-link-dash: 4 4;
+  --map-link-idle-glow: drop-shadow(0 0 2px rgba(16, 214, 156, 0.35));
+  --map-link-lit-color: #10c98f;
+  --map-link-glow: drop-shadow(0 0 3px rgba(16, 214, 156, 0.7));
+  --map-dot-hover-scale: 1.25;
+
+  /* Бирка вуза: мягкая фиолетовая тень вместо чёрной; на наведении — подъём,
+     фиолетовая кромка и мятный отсвет, логотип чуть крупнее. */
+  --tag-shadow: 0 24px 48px rgba(60, 40, 140, 0.16), 0 2px 8px rgba(60, 40, 140, 0.08),
+    0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  --tag-shadow-hover: 0 28px 56px rgba(109, 74, 255, 0.2), 0 0 28px rgba(14, 167, 127, 0.14),
+    0 0 0 1px rgba(109, 74, 255, 0.35), 0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  --tag-hover-lift: -3px;
+  --tag-logo-hover-scale: 1.05;
+
+  /* Окна, подсказки, таблицы (спецификация, пп. 15, 17, 18): затемнение под окном —
+     лёгкое нейтральное, не чёрное; у всплывающего — тонкая фиолетовая кромка;
+     строка под курсором — лёгкий фиолетовый оттенок. */
+  --overlay-backdrop: rgba(30, 22, 64, 0.28);
+  --floating-border: rgba(109, 74, 255, 0.22);
+  --row-hover: rgba(109, 74, 255, 0.055);
 }
 
 /*
@@ -460,6 +533,8 @@ html[data-mode='work'][data-work-theme] {
   --bg-glow-deep: transparent;
   --bg-haze-violet: transparent;
   --bg-haze-deep: transparent;
+  --glow-tint-near: transparent;
+  --glow-tint-far: transparent;
 
   --shadow-base: none;
   --glow-hover: 0 0 0 1px var(--line-strong);
