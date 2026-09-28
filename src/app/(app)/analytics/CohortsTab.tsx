@@ -77,7 +77,7 @@ export function CohortsTab() {
             ? cohortsConclusion(cohorts, horizon)
             : 'Связки по кварталу начала работы: какая доля каждой когорты подписала договор и за сколько кварталов.'
         }
-        help={{ topic: 'cohorts', note: COHORTS_NOTE }}
+        hint={COHORTS_NOTE}
         action={isMock ? <MockBadge /> : undefined}
       >
         <Card>
