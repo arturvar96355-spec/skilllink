@@ -243,12 +243,23 @@ async function presentOne(row: repo.LetterRow): Promise<InboundLetterDto> {
 
 // ────────────────────────────────── Доступ ───────────────────────────────────
 
+/**
+ * Менеджер видит письма только своих вузов (решение 170). Эксперт хакатона (флаг
+ * `isReviewer`) — проверяющий, а не сотрудник со своими вузами: у демо-менеджера
+ * эксперта их нет, и раздел был пуст (решение 232). Поэтому эксперт любой роли
+ * читает все письма, как руководитель; разбор, ответ, задание и «принять в работу»
+ * ему по-прежнему закрыты — `INBOUND_REVIEW` и `assertReviewerAllowed` (решение 225).
+ */
+function limitedToOwnUniversities(user: CurrentUser): boolean {
+  return user.role === 'MANAGER' && !user.isReviewer
+}
+
 function scopeFor(user: CurrentUser) {
-  return user.role === 'MANAGER' ? repo.managerScope(user.id) : {}
+  return limitedToOwnUniversities(user) ? repo.managerScope(user.id) : {}
 }
 
 async function assertVisible(user: CurrentUser, row: repo.LetterRow): Promise<void> {
-  if (user.role !== 'MANAGER') return
+  if (!limitedToOwnUniversities(user)) return
   const visible = await repo.isVisibleTo(row.id, user.id)
   if (!visible) throw notFound('Обращение не найдено')
 }

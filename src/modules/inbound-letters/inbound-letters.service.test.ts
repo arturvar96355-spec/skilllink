@@ -146,6 +146,35 @@ describe('права: чтение (решение 170)', () => {
     const dto = await service.getById(user('MANAGER'), 'letter-1')
     expect(dto.id).toBe('letter-1')
   })
+
+  // Решение 232: у демо-менеджера эксперта своих вузов нет — раньше раздел был пуст.
+  it('эксперт с ролью MANAGER видит все письма, как руководитель, — без managerScope', async () => {
+    mocks.findMany.mockResolvedValue({ rows: [letterRow()], total: 1 })
+    const result = await service.list(user('MANAGER', { isReviewer: true }), { page: 1, pageSize: 20 })
+    expect(mocks.managerScope).not.toHaveBeenCalled()
+    expect(mocks.findMany).toHaveBeenCalledWith(expect.anything(), {})
+    expect(result.data).toHaveLength(1)
+  })
+
+  it('эксперт с ролью MANAGER открывает письмо не своего вуза — без проверки ответственности', async () => {
+    mocks.findById.mockResolvedValue(letterRow())
+    mocks.isVisibleTo.mockResolvedValue(false)
+    const dto = await service.getById(user('MANAGER', { isReviewer: true }), 'letter-1')
+    expect(dto.id).toBe('letter-1')
+    expect(mocks.isVisibleTo).not.toHaveBeenCalled()
+  })
+
+  it('эксперт с ролью MANAGER ничего не меняет в письмах — FORBIDDEN', async () => {
+    const reviewer = user('MANAGER', { isReviewer: true })
+    mocks.findById.mockResolvedValue(letterRow({ status: 'NEW' }))
+    await expectRejectCode(service.analyzeLetter(reviewer, 'letter-1'), 'FORBIDDEN')
+    await expectRejectCode(service.review(reviewer, 'letter-1', { verdict: 'CORRECT' }), 'FORBIDDEN')
+    await expectRejectCode(service.dismissLetter(reviewer, 'letter-1', {}), 'FORBIDDEN')
+    await expectRejectCode(service.generateReplyDraft(reviewer, 'letter-1'), 'FORBIDDEN')
+    await expectRejectCode(service.updateReplyDraft(reviewer, 'letter-1', { text: 'Ответ' }), 'FORBIDDEN')
+    await expectRejectCode(service.acceptLetterFromWeb(reviewer, 'letter-1'), 'FORBIDDEN')
+    await expectRejectCode(service.completeTask(reviewer, 'letter-1'), 'FORBIDDEN')
+  })
 })
 
 describe('права: разбор и решения (решение 170)', () => {
