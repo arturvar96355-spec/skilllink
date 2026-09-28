@@ -184,6 +184,8 @@
   --tag-shadow-hover: var(--tag-shadow);
   --tag-hover-lift: 0px;
   --tag-logo-hover-scale: 1;
+  --glow-tint-near: transparent;
+  --glow-tint-far: transparent;
   --hover-lift-strong: -4px;
   --glow-hover: 0 8px 24px rgba(142, 108, 255, 0.14), 0 0 0 1px rgba(142, 108, 255, 0.28);
   --glow-hover-danger: 0 8px 24px rgba(240, 97, 111, 0.14), 0 0 0 1px rgba(240, 97, 111, 0.32);
@@ -378,14 +380,14 @@
   --bg-glow-deep: rgba(22, 200, 190, 0.3);
   --bg-haze-violet: rgba(109, 74, 255, 0.08);
   --bg-haze-deep: rgba(22, 200, 190, 0.07);
+  --surface-card-muted: #fbfaff;
   /*
-   * Карточки — матово-белые, не глухие: свет за курсором мягко окрашивает их
-   * изнутри, а не прячется за ними (виден был только в зазорах). Текст лежит
-   * на почти белом фоне — контраст прежний. Поля ввода, строки и всплывающее —
-   * своими непрозрачными поверхностями.
+   * Подсветка поверх содержимого (слой .glowTint, смешивание multiply): на белом
+   * свет под карточками виден только в зазорах, а так он мягко окрашивает и сами
+   * карточки. Тёмный текст при умножении остаётся тёмным — читаемость прежняя.
    */
-  --surface-card: rgba(255, 255, 255, 0.8);
-  --surface-card-muted: rgba(251, 250, 255, 0.82);
+  --glow-tint-near: rgba(109, 74, 255, 0.16);
+  --glow-tint-far: rgba(22, 200, 190, 0.12);
   --surface-sunken: #f3f2fa;
   --border-accent: rgba(109, 74, 255, 0.34);
   --danger-surface: rgba(206, 43, 68, 0.08);
@@ -521,6 +523,8 @@ html[data-mode='work'][data-work-theme] {
   --bg-glow-deep: transparent;
   --bg-haze-violet: transparent;
   --bg-haze-deep: transparent;
+  --glow-tint-near: transparent;
+  --glow-tint-far: transparent;
 
   --shadow-base: none;
   --glow-hover: 0 0 0 1px var(--line-strong);
