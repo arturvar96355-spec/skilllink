@@ -5,7 +5,7 @@ import { useRef, type CSSProperties } from 'react'
 import { useCalmMotion } from '../hooks/ui-mode'
 import { Icon } from '../primitives/Icon'
 import { measureShare } from './measure-bars'
-import { downloadMeasurePng, type ChartPngMeta } from '../lib/chart-png'
+import { downloadMeasurePng, withLightTheme, type ChartPngMeta } from '../lib/chart-png'
 import { ChartPngButton } from './ChartPngButton'
 import styles from './MeasureBars.module.css'
 
@@ -79,13 +79,19 @@ export function MeasureBars({
   const calm = useCalmMotion()
   const rootRef = useRef<HTMLElement | null>(null)
 
-  /** Картинка — по тем же строкам; цвет полосы — вычисленный с отрисованной (тема, режим, тон). */
+  /**
+   * Картинка — по тем же строкам; цвет полосы — вычисленный с отрисованной (режим, тон),
+   * всегда в светлой теме (решение 232): картинку вставляют в документы и печатают.
+   */
   function exportPng(meta: ChartPngMeta) {
     const fills = rootRef.current?.querySelectorAll<HTMLElement>('[data-row-index]') ?? []
-    const colorOf = new Map<number, string>()
-    fills.forEach((element) => {
-      const fill = element.querySelector<HTMLElement>('[data-fill]')
-      if (fill) colorOf.set(Number(element.dataset.rowIndex), getComputedStyle(fill).backgroundColor)
+    const colorOf = withLightTheme(() => {
+      const colors = new Map<number, string>()
+      fills.forEach((element) => {
+        const fill = element.querySelector<HTMLElement>('[data-fill]')
+        if (fill) colors.set(Number(element.dataset.rowIndex), getComputedStyle(fill).backgroundColor)
+      })
+      return colors
     })
     return downloadMeasurePng(
       rows.map((row, index) => ({

@@ -7,6 +7,8 @@ import { CONTROL_POINT_STAGES, SIGNING_STAGE_NUMBER } from '@/shared/config/work
 import {
   MEETING_FORMAT_LABELS,
   RECOMMENDATION_SORT_MOST_IMPORTANT,
+  REVIEWER_ACTIONS_NOTE,
+  STAFF_ACTIONS_READ_ONLY_NOTE,
   type CooperationDto,
   type DocumentListItemDto,
   type DocumentPackageResultDto,
@@ -292,6 +294,14 @@ function CooperationContent() {
           ) : undefined
         }
       />
+
+      {/* Кнопок изменений нет — и это сказано словами (решение 232), а не только их отсутствием. */}
+      {!user.permissions.canWrite && (
+        <p className={styles.readOnlyNote}>
+          <Icon name="lock" size={16} />
+          <span>{user.isReviewer ? REVIEWER_ACTIONS_NOTE : STAFF_ACTIONS_READ_ONLY_NOTE}</span>
+        </p>
+      )}
 
       {/* Схема связки идёт во всю ширину: это единица учёта системы,
           и делить её на колонки с чем-то ещё нельзя. */}

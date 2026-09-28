@@ -35,6 +35,19 @@
   --bars-lit-rim: transparent;
 }
 
+/* Печать всегда светлая (решение 232): те же значения, что у светлой темы. */
+@media print {
+  .root {
+    --bars-base: color-mix(in oklab, var(--text-primary) 72%, var(--surface-3));
+    --bars-base-rim: transparent;
+    --bars-swatch-rim: transparent;
+    --bars-base-lit: var(--text-primary);
+    --bars-signal: var(--status-danger);
+    --bars-signal-lit: color-mix(in oklab, var(--status-danger) 86%, var(--text-primary));
+    --bars-lit-rim: transparent;
+  }
+}
+
 .svg {
   display: block;
   width: 100%;

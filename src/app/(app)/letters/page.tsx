@@ -62,7 +62,8 @@ type LettersUrlFilter = 'status' | 'group' | 'universityId' | 'q'
  * Реестр «Письма вузов» (решение 170/171).
  *
  * ADMIN, HEAD и MANAGER читают (право `INBOUND_READ` на сервере — MANAGER видит
- * только письма своих вузов, фильтрует сервер сам); загружать `.eml` и разбирать
+ * только письма своих вузов, фильтрует сервер сам; эксперт хакатона любой роли —
+ * все письма, решение 232); загружать `.eml` и разбирать
  * заново может только `INBOUND_REVIEW` (ADMIN, HEAD) — эксперту и менеджеру
  * кнопка загрузки не показывается вовсе (раздел 5 задачи).
  */
@@ -137,16 +138,8 @@ function LettersView() {
   }
 
   const columns: Column<InboundLetterListItemDto>[] = [
-    {
-      key: 'receivedAt',
-      title: 'Дата',
-      width: '124px',
-      sortField: 'receivedAt',
-      sortDescFirst: true,
-      render: (row: InboundLetterListItemDto) => (
-        <span className={styles.muted}>{formatDateTime(row.receivedAt)}</span>
-      ),
-    },
+    // Отправитель — первым (решение 232): лента рабочего режима растягивает первую
+    // колонку как название, а дата первой занимала полстроки, и имя обрезалось.
     {
       key: 'sender',
       title: 'Отправитель',
@@ -157,6 +150,16 @@ function LettersView() {
           tooltip={row.senderName ? `${row.senderName} · ${row.senderEmail}` : row.senderEmail}
           subline={[row.senderName ? row.senderEmail : null, row.bodyPreview]}
         />
+      ),
+    },
+    {
+      key: 'receivedAt',
+      title: 'Дата',
+      width: '124px',
+      sortField: 'receivedAt',
+      sortDescFirst: true,
+      render: (row: InboundLetterListItemDto) => (
+        <span className={styles.muted}>{formatDateTime(row.receivedAt)}</span>
       ),
     },
     {

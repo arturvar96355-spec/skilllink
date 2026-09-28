@@ -7,11 +7,15 @@
  *   подставлены вычисленные стили: иначе цвета из CSS-переменных и классов модулей
  *   в картинку не попадают.
  * - Полосы аналитики (MeasureBars) — HTML, поэтому рисуются заново по тем же данным;
- *   цвета берутся с отрисованных полос — совпадают с темой и режимом.
+ *   цвета берутся с отрисованных полос в светлой теме — совпадают с режимом и тоном.
  *
- * Фон — цвет холста текущей темы: у тёмной темы прозрачный фон дал бы чёрную картинку
- * в одних программах и белую в других. Ссылка на файл живёт 5 минут: iPhone Safari не
- * успевал сохранить файл, если её отзывали сразу (та же ошибка, что у выгрузки отчётов).
+ * Картинка всегда светлая, какой бы ни была тема экрана (решение 232): её вставляют
+ * в документы и печатают, тёмный фон там — тонер и чужой вид. На время снятия стилей
+ * у страницы на один синхронный шаг стоит светлая тема (`withLightTheme`) — между
+ * кадрами, поэтому на экране ничего не мигает. Фон — непрозрачный белый холст светлой
+ * темы: прозрачный дал бы чёрную картинку в одних программах и белую в других.
+ * Ссылка на файл живёт 5 минут: iPhone Safari не успевал сохранить файл, если её
+ * отзывали сразу (та же ошибка, что у выгрузки отчётов).
  */
 
 export interface ChartPngMeta {
@@ -19,6 +23,34 @@ export interface ChartPngMeta {
   title: string
   /** Фильтры, период, что показывает — вторая строка. */
   note?: string
+}
+
+/** Пока стоит, переходы цветов на странице выключены (globals.css): снимок берёт итоговый цвет, а не начало перехода. */
+export const PNG_CAPTURE_ATTRIBUTE = 'data-png-capture'
+
+/**
+ * Синхронно выполнить `read` так, будто на странице светлая тема, и вернуть тему назад
+ * (решение 232). Всё внутри — один шаг без ожиданий: браузер не успевает нарисовать
+ * кадр, и пользователь светлой вспышки не видит. Переходы на это время выключены —
+ * иначе `getComputedStyle` отдал бы цвет начала перехода, то есть тёмный. Тема
+ * возвращается ещё при выключенных переходах, с принудительным пересчётом стилей:
+ * иначе цвета «перетекли» бы из светлых обратно в тёмные у всех на глазах.
+ */
+export function withLightTheme<T>(read: () => T, root: HTMLElement = document.documentElement): T {
+  const previous = root.getAttribute('data-theme')
+  const switchTheme = previous !== 'light'
+  root.setAttribute(PNG_CAPTURE_ATTRIBUTE, '')
+  if (switchTheme) root.setAttribute('data-theme', 'light')
+  try {
+    return read()
+  } finally {
+    if (switchTheme) {
+      if (previous === null) root.removeAttribute('data-theme')
+      else root.setAttribute('data-theme', previous)
+      void root.getBoundingClientRect()
+    }
+    root.removeAttribute(PNG_CAPTURE_ATTRIBUTE)
+  }
 }
 
 const SCALE = 2
@@ -169,13 +201,17 @@ function inlineStyles(source: Element, clone: Element) {
   }
 }
 
-async function svgImage(svg: SVGSVGElement, width: number, height: number): Promise<HTMLImageElement> {
+/** Клон SVG с перенесёнными стилями — строкой; синхронно, пока стоит светлая тема. */
+function svgSource(svg: SVGSVGElement, width: number, height: number): string {
   const clone = svg.cloneNode(true) as SVGSVGElement
   inlineStyles(svg, clone)
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
   clone.setAttribute('width', String(width))
   clone.setAttribute('height', String(height))
-  const source = new XMLSerializer().serializeToString(clone)
+  return new XMLSerializer().serializeToString(clone)
+}
+
+async function loadImage(source: string): Promise<HTMLImageElement> {
   const image = new Image()
   await new Promise<void>((resolve, reject) => {
     image.onload = () => resolve()
@@ -201,6 +237,50 @@ function isShown(element: Element): boolean {
  * на экране, без библиотеки снимков страницы.
  */
 export async function downloadSvgPng(container: HTMLElement, meta: ChartPngMeta): Promise<string> {
+  const snapshot = withLightTheme(() => readSvgChart(container, meta))
+  const images = await Promise.all(
+    snapshot.svgs.map(async (svg) => ({ ...svg, image: await loadImage(svg.source) })),
+  )
+
+  const { canvas, ctx } = newCanvas(snapshot.width, snapshot.height, snapshot.colors)
+  drawHeader(ctx, meta, snapshot.colors, snapshot.width)
+
+  // Цветные метки легенды и точки — маленькие элементы с заливкой.
+  for (const dot of snapshot.dots) {
+    ctx.fillStyle = dot.fill
+    ctx.beginPath()
+    if (dot.round) ctx.arc(dot.x + dot.width / 2, dot.y + dot.height / 2, dot.width / 2, 0, Math.PI * 2)
+    else ctx.rect(dot.x, dot.y, dot.width, dot.height)
+    ctx.fill()
+  }
+
+  for (const { x, y, width, height, image } of images) ctx.drawImage(image, x, y, width, height)
+
+  // Подписи HTML — по словам: перенос строк на картинке тот же, что на экране.
+  ctx.textBaseline = 'middle'
+  for (const word of snapshot.words) {
+    ctx.font = word.font
+    ctx.fillStyle = word.color
+    ctx.fillText(word.text, word.x, word.y)
+  }
+  ctx.textBaseline = 'alphabetic'
+
+  const fileName = chartFileName(meta.title)
+  await save(canvas, fileName)
+  return fileName
+}
+
+interface SvgChartSnapshot {
+  colors: Palette
+  width: number
+  height: number
+  svgs: { source: string; x: number; y: number; width: number; height: number }[]
+  dots: { x: number; y: number; width: number; height: number; fill: string; round: boolean }[]
+  words: { text: string; x: number; y: number; font: string; color: string }[]
+}
+
+/** Всё, что берётся со страницы: размеры, стили, SVG и подписи — одним синхронным шагом. */
+function readSvgChart(container: HTMLElement, meta: ChartPngMeta): SvgChartSnapshot {
   const area = container.getBoundingClientRect()
   const colors = palette()
   const top = headerHeight(meta)
@@ -209,43 +289,33 @@ export async function downloadSvgPng(container: HTMLElement, meta: ChartPngMeta)
   const offsetX = (width - area.width) / 2
   const at = (box: DOMRect) => ({ x: offsetX + box.left - area.left, y: top + box.top - area.top })
 
-  const svgs = [...container.querySelectorAll('svg')].filter(
-    (svg): svg is SVGSVGElement => svg instanceof SVGSVGElement && !svg.parentElement?.closest('svg') && isShown(svg),
-  )
-  const images = await Promise.all(
-    svgs.map(async (svg) => {
+  const svgs = [...container.querySelectorAll('svg')]
+    .filter(
+      (svg): svg is SVGSVGElement => svg instanceof SVGSVGElement && !svg.parentElement?.closest('svg') && isShown(svg),
+    )
+    .map((svg) => {
       const box = svg.getBoundingClientRect()
-      return { box, image: await svgImage(svg, box.width, box.height) }
-    }),
-  )
+      return { source: svgSource(svg, box.width, box.height), ...at(box), width: box.width, height: box.height }
+    })
 
-  const { canvas, ctx } = newCanvas(width, height, colors)
-  drawHeader(ctx, meta, colors, width)
-
-  // Цветные метки легенды и точки — маленькие элементы с заливкой.
+  const dots: SvgChartSnapshot['dots'] = []
   container.querySelectorAll<HTMLElement>('*').forEach((element) => {
     if (element.closest('svg') || !isShown(element)) return
     const box = element.getBoundingClientRect()
     if (box.width > 18 || box.height > 18) return
-    const fill = getComputedStyle(element).backgroundColor
+    const style = getComputedStyle(element)
+    const fill = style.backgroundColor
     if (!fill || fill === 'rgba(0, 0, 0, 0)' || fill === 'transparent') return
-    const { x, y } = at(box)
-    ctx.fillStyle = fill
-    ctx.beginPath()
-    if (parseFloat(getComputedStyle(element).borderTopLeftRadius) >= box.width / 2 - 0.5) {
-      ctx.arc(x + box.width / 2, y + box.height / 2, box.width / 2, 0, Math.PI * 2)
-    } else {
-      ctx.rect(x, y, box.width, box.height)
-    }
-    ctx.fill()
+    dots.push({
+      ...at(box),
+      width: box.width,
+      height: box.height,
+      fill,
+      round: parseFloat(style.borderTopLeftRadius) >= box.width / 2 - 0.5,
+    })
   })
 
-  for (const { box, image } of images) {
-    const { x, y } = at(box)
-    ctx.drawImage(image, x, y, box.width, box.height)
-  }
-
-  // Подписи HTML — по словам: перенос строк на картинке тот же, что на экране.
+  const words: SvgChartSnapshot['words'] = []
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
   const range = document.createRange()
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -253,24 +323,18 @@ export async function downloadSvgPng(container: HTMLElement, meta: ChartPngMeta)
     const text = node.textContent ?? ''
     if (!parent || parent.closest('svg') || !text.trim() || !isShown(parent)) continue
     const style = getComputedStyle(parent)
-    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
-    ctx.fillStyle = style.color
-    ctx.textBaseline = 'middle'
-    const words = [...text.matchAll(/\S+/g)]
-    for (const word of words) {
+    const font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    for (const word of text.matchAll(/\S+/g)) {
       range.setStart(node, word.index ?? 0)
       range.setEnd(node, (word.index ?? 0) + word[0].length)
       const box = range.getBoundingClientRect()
       if (box.width === 0) continue
       const { x, y } = at(box)
-      ctx.fillText(word[0], x, y + box.height / 2)
+      words.push({ text: word[0], x, y: y + box.height / 2, font, color: style.color })
     }
   }
-  ctx.textBaseline = 'alphabetic'
 
-  const fileName = chartFileName(meta.title)
-  await save(canvas, fileName)
-  return fileName
+  return { colors, width, height, svgs, dots, words }
 }
 
 // ── Полосы MeasureBars ────────────────────────────────────────────────────────
@@ -293,7 +357,7 @@ const BAR_W = 360
 const VALUE_W = 130
 
 export async function downloadMeasurePng(rows: MeasurePngRow[], meta: ChartPngMeta): Promise<string> {
-  const colors = palette()
+  const colors = withLightTheme(palette)
   const hasNotes = rows.some((row) => row.note)
   const width = PAD + LABEL_W + BAR_W + 12 + VALUE_W + (hasNotes ? 220 : 0) + PAD
   const betweenCount = rows.filter((row) => row.between).length

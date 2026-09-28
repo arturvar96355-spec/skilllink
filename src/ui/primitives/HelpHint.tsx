@@ -28,6 +28,12 @@ export type HelpHintProps = HelpRef & {
    * не ставим, пояснение переезжает в окошко документации.
    */
   note?: string
+  /**
+   * Вместо «как пользоваться» — тому, кто этим пользоваться не может (решение 232):
+   * эксперту хакатона «отметьте пункт флажком» у неактивного флажка читалось как
+   * ошибка. Строка объясняет, почему действие недоступно и где его увидеть.
+   */
+  readOnly?: string
 }
 
 /**
@@ -215,7 +221,7 @@ export function HelpHint(props: HelpHintProps) {
             </span>
             <span className={styles.text}>{entry.short}</span>
             {props.note && <span className={styles.text}>{props.note}</span>}
-            <span className={styles.text}>{entry.how}</span>
+            <span className={styles.text}>{props.readOnly ?? entry.how}</span>
             <Link href={entry.href} className={styles.more} onClick={() => close(false)}>
               Подробнее в документации
               <Icon name="arrowRight" size={16} />
