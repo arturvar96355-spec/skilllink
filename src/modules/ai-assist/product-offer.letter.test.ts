@@ -61,6 +61,8 @@ describe('письмо вузу с предложением продукта', (
     expect(prompt.template).not.toContain('olga@spbgut.ru')
     expect(prompt.accepts('Тема: …\n\nУважаемые коллеги!\n\nС уважением,\nИТ-Школа РТК')).toBe(true)
     expect(prompt.accepts('Тема: …')).toBe(false)
+    // Шаблон письма проходит проверку ответа модели (решение 226, B8).
+    expect(prompt.problems!(prompt.template)).toEqual([])
   })
 
   it('переделка письма-предложения — тот же конвейер, что у писем по задаче', () => {

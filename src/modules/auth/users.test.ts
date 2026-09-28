@@ -361,6 +361,24 @@ describe('смена своего пароля', () => {
     },
   )
 
+  // Решение 225 (сплошной проход по изменяющим маршрутам после находки Codex 1):
+  // учётная запись эксперта общая для всего жюри и в SHARED_DEMO_ACCOUNTS не входила.
+  // Смена пароля поднимает sessionVersion — один эксперт разлогинил бы остальных.
+  it.each<UserRole>(['ADMIN', 'HEAD', 'MANAGER', 'UNIVERSITY_REP'])(
+    'эксперт с ролью %s — FORBIDDEN, пароль, версия сессий и журнал не меняются',
+    async (role) => {
+      await expect(
+        service.changeOwnPassword(
+          { ...as(role), isReviewer: true },
+          { currentPassword: CURRENT, newPassword: 'новый-пароль-2026' },
+          'a5',
+        ),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      expect(mocks.user.update).not.toHaveBeenCalled()
+      expect(mocks.writeAudit).not.toHaveBeenCalled()
+    },
+  )
+
   it('неверный текущий пароль — 422 по полю currentPassword', async () => {
     await expect(
       service.changeOwnPassword(as('MANAGER'), { currentPassword: 'не-тот', newPassword: 'новый-пароль-2026' }, 'a2'),
