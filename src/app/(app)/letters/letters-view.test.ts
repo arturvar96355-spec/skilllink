@@ -88,6 +88,12 @@ describe('analyzedByNote', () => {
       'нет ключа доступа',
     )
   })
+
+  it('письмо с персональными данными в модель не ушло — сказано прямо, без «уберите их» (решение 226)', () => {
+    const note = analyzedByNote({ analyzedBy: 'RULES', fallbackReason: 'personal-data' })
+    expect(note).toBe('Разобрано правилами: в письме остались персональные данные, в модель оно не отправлялось')
+    expect(note).not.toMatch(/уберите/)
+  })
 })
 
 describe('highlightQuotes', () => {

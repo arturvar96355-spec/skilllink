@@ -5629,10 +5629,13 @@ async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
   )
 
   type Step = { key: string; reached: number; dropped: Array<{ href: string }>; droppedCount: number }
-  const funnel = await call<{ total: number; steps: Step[]; groups: Array<{ total: number }> }>(
-    'GET',
-    '/api/analytics/funnel?milestones=true&groupBy=region',
-  )
+  const funnel = await call<{
+    total: number
+    steps: Step[]
+    groups: Array<{ total: number }>
+    droppedByStatus: { PAUSED: number; CANCELLED: number }
+    droppedByPhase: Record<string, number>
+  }>('GET', '/api/analytics/funnel?milestones=true&groupBy=region')
   const steps = funnel.body.data?.steps ?? []
   check(
     'воронка по вехам: 6 шагов, дошедшие не растут, отвалившиеся со ссылкой, разрез сходится с итогом',
@@ -5643,6 +5646,19 @@ async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
       steps.every((item) => item.dropped.every((row) => row.href.startsWith('/cooperations/'))) &&
       (funnel.body.data?.groups ?? []).reduce((sum, group) => sum + group.total, 0) === funnel.body.data!.total,
     `статус ${funnel.status}, шагов ${steps.length}`,
+  )
+  // Сводка выбывших — по всем, а не по превью `dropped` (решение 227): части сходятся с итогом.
+  const droppedTotal = steps.reduce((sum, item) => sum + item.droppedCount, 0)
+  const byStatus = funnel.body.data?.droppedByStatus
+  const byPhase = Object.values(funnel.body.data?.droppedByPhase ?? {})
+  check(
+    'воронка: сводка выбывших по статусу и фазе сходится с суммой droppedCount',
+    funnel.status === 200 &&
+      byStatus !== undefined &&
+      byStatus.PAUSED + byStatus.CANCELLED === droppedTotal &&
+      byPhase.length === 5 &&
+      byPhase.reduce((sum, count) => sum + count, 0) === droppedTotal,
+    `выбывших ${droppedTotal}, по статусу ${byStatus ? byStatus.PAUSED + byStatus.CANCELLED : '—'}`,
   )
 
   const cohorts = await call<{ milestone: { fromStage: number }; cohorts: Array<{ size: number; cells: Array<{ share: number | null }> }> }>(

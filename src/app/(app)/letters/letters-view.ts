@@ -61,6 +61,10 @@ export function analyzedByNote(
 ): string {
   if (analysis.analyzedBy === null) return 'Ещё не разобрано'
   if (analysis.analyzedBy === 'MODEL') return 'Разобрано моделью'
+  // Письмо вуза сотрудник не правит: «уберите их» здесь не к месту — только честно, почему не модель (решение 226).
+  if (analysis.fallbackReason === 'personal-data') {
+    return 'Разобрано правилами: в письме остались персональные данные, в модель оно не отправлялось'
+  }
   const reason = analysis.fallbackReason ? AI_FALLBACK_REASON_LABELS[analysis.fallbackReason] : null
   return reason ? `Разобрано правилами — модель недоступна: ${reason}` : 'Разобрано правилами'
 }

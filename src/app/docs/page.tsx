@@ -30,11 +30,17 @@ export default function DocsPage() {
   return (
     <div className={styles.screen}>
       <header className={styles.topBar}>
-        <Link href="/docs" className={styles.brand} aria-label="Документация SkillLink — в начало">
-          <Logo size={24} />
-          <span className={styles.brandName}>SkillLink</span>
-          <span className={styles.brandSection}>Документация</span>
-        </Link>
+        {/* Знак ведёт в систему (находка Артура S11): вошедшего — на главную, остальных
+            сервер отправит на вход. «Документация» рядом — в начало документации. */}
+        <span className={styles.brandRow}>
+          <Link href={ROUTES.dashboard} className={styles.brand} aria-label="SkillLink — в систему">
+            <Logo size={24} />
+            <span className={styles.brandName}>SkillLink</span>
+          </Link>
+          <Link href="/docs" className={`${styles.brand} ${styles.brandSection}`}>
+            Документация
+          </Link>
+        </span>
         <span className={styles.topSpacer} />
         <ThemeToggle />
         <Button href={ROUTES.login} variant="secondary" size="sm" className={styles.topLogin}>
