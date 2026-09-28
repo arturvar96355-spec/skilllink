@@ -5,9 +5,8 @@
 ## Источники истины
 
 - `docs/tz/skilllink-team-tz.md` — ТЗ продукта SkillLink v1.0: что должна уметь система.
-- `docs/tz/tech-lead-tz.md` — ТЗ на техническую реализацию: роль, порядок работы, документы, приоритеты.
 - `docs/concept.md` — концепция, уже отправленная заказчику. Её обещания не нарушать без явного флага.
-- Раздел «Принятые решения» ниже главнее всех трёх: там уже разобраны противоречия между ними.
+- Раздел «Принятые решения» ниже главнее обоих: там уже разобраны противоречия между ними.
   Нашёл новое противоречие — не выбирай сам, опиши варианты и спроси.
 
 ## Роль и команда
@@ -26,7 +25,7 @@
 ## Стек
 
 Целевой стек из концепции: Next.js 15 (App Router) + TypeScript strict, PostgreSQL, Prisma, Zod,
-Vitest, Docker. Развёртывание — Yandex Cloud.
+Vitest, Docker. Стенд — в Yandex Cloud, выкладка не привязана к провайдеру (docs/DEPLOY.md).
 
 Если в репозитории уже есть фронт на другом фреймворке — не переписывай его. Зафиксируй в
 PROJECT_AUDIT.md и предложи варианты интеграции до изменения кода.
@@ -57,8 +56,8 @@ ML-модели и LLM в бизнес-логике; новые зависимо
     scripts/smoke.ts               сквозной сценарий из ТЗ
     docs/                          обязательная документация
 
-Модули: universities, programs, skills, products, cooperation, workflow, documents, meetings,
-analytics, recommendations, data-sources, auth.
+Актуальный список модулей и их состояние — [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+раздел «Модули»: список рос вместе с ТЗ и решениями, здесь не дублируется.
 
 Поток вызовов строго route → service → repo. Фронт импортирует только из shared/contracts,
 никогда не типы Prisma. Логика не дублируется между модулями.
@@ -123,18 +122,13 @@ analytics, recommendations, data-sources, auth.
     FutureRtk. Активная выбирается через `MARKET_DATA_PROVIDER` в env.
 13. **Интеграции** по умолчанию выключены через env. Сбой интеграции не ломает основную систему.
     Наличие конкретных API РТК не утверждать.
-14. **Документы** в MVP — метаданные и ссылка (fileReference). Загрузка файлов — P2.
+14. **Документы.** Метаданные и ссылка (fileReference); загрузка и хранение файлов сделаны
+    (решение 145, модель `Attachment`, том `skilllink-uploads`, резервная копия — решение 216).
 
 ## Расхождения стартового каркаса с ТЗ
 
-Текущий код — каркас, написан до получения ТЗ. Привести к ТЗ, сверив с аудитом:
-
-- `Program` → `EducationalProgram`; `parallelStreams` → `groupCount`; добавить level, duration, status
-- `ProgramSkill.coverage` → level, importance, source, confidence
-- `Vacancy` и `VacancySkill` → `MarketDemand`
-- `/api/analytics/market-demand`, `/api/analytics/skill-gap` → `/api/skills/demand`, `/api/skills/gaps`
-- `src/lib/*` → `src/modules/*` и `src/shared/*`; `rules.ts` → `shared/config/analytics.config.ts`
-- в формат ошибки добавить `code`
+Каркаса не было, проект написан с нуля сразу по ТЗ (решение 2). Раздел исторический —
+подробности и что это ограничило см. `docs/TECHNICAL_DECISIONS.md`, решение 2.
 
 ## Данные
 
@@ -150,7 +144,10 @@ analytics, recommendations, data-sources, auth.
   mock-данные, dashboard, основной демо-сценарий.
 - **P1:** skill gap, рекомендации, фильтры и сортировка, аналитика, история изменений, роли,
   интеграционный слой, документы и встречи, кабинет представителя вуза.
-- **P2:** уведомления, RLS, загрузка файлов, импорт и экспорт, расширенные интеграции.
+- **Сделано с тех пор:** загрузка файлов (решение 145), уведомления — Telegram и VK,
+  MAX готов в коде (решения 102, 144), импорт и экспорт реестров.
+- **P2:** политики доступа на уровне строк (RLS) в PostgreSQL — единственное, что правда
+  не сделано, см. [docs/SECURITY_LIMITATIONS.md](docs/SECURITY_LIMITATIONS.md).
 
 P1 не начинать, пока P0 не проходит сквозной сценарий.
 
