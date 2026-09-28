@@ -50,10 +50,118 @@
   border-radius: 22px;
 }
 
+/* Крупный аватар страницы сотрудника (решение 230). */
+.xxl {
+  width: 112px;
+  height: 112px;
+  font-size: 32px;
+  border-radius: 30px;
+}
+
 /* Аббревиатура сущности — компактная и спокойная (07, раздел 29): без неоновой
    рамки и свечения, узнаётся по буквам, а не по обводке. */
 .entity {
   background: var(--surface-2);
   border-color: transparent;
   color: var(--text-secondary);
+}
+
+/*
+ * Сгенерированный портрет сотрудника (решение 230): набросок тёмными чернилами на
+ * светлой бумаге (`--ink`, `--paper`) — как фотография, он одинаков в светлой и
+ * тёмной теме; перекрашивать лицо вслед за темой нельзя: в тёмной получался негатив
+ * (тёмное лицо, белые волосы). От темы зависит только подложка — приглушённый
+ * акцент на цвете поверхности; в рабочем режиме розовый, оранжевый и мятный сведены
+ * к нейтральной метке, и подложка становится спокойной серой.
+ * Толщина линии задана в единицах рисунка и подобрана под размер: на экране
+ * она выходит около 1,2–2 пикселей и не расплывается в мелком аватаре.
+ */
+.portrait {
+  --avatar-tone: var(--accent-violet);
+  --avatar-line: 1.6;
+  --avatar-skin: color-mix(in srgb, var(--paper) 93%, var(--avatar-tone));
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  background: color-mix(in srgb, var(--avatar-tone) 20%, var(--surface-2));
+  border-color: color-mix(in srgb, var(--avatar-tone) 34%, transparent);
+  color: var(--ink);
+}
+
+.portrait[data-tone='cyan'] {
+  --avatar-tone: var(--accent-cyan);
+}
+
+.portrait[data-tone='pink'] {
+  --avatar-tone: var(--accent-pink);
+}
+
+.portrait[data-tone='orange'] {
+  --avatar-tone: var(--accent-orange);
+}
+
+.portrait.xs {
+  --avatar-line: 2.3;
+}
+
+.portrait.sm {
+  --avatar-line: 1.9;
+}
+
+.portrait.md {
+  --avatar-line: 1.8;
+}
+
+.portrait.xl {
+  --avatar-line: 1.45;
+}
+
+.portrait.xxl {
+  --avatar-line: 1.2;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.skin {
+  fill: var(--avatar-skin);
+  stroke: currentColor;
+  stroke-width: var(--avatar-line);
+}
+
+.cloth {
+  fill: color-mix(in srgb, var(--avatar-tone) 55%, var(--paper));
+  stroke: currentColor;
+  stroke-width: var(--avatar-line);
+}
+
+.hair {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: var(--avatar-line);
+}
+
+.soft {
+  fill: color-mix(in srgb, var(--ink) 36%, transparent);
+}
+
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--avatar-line);
+}
+
+.dot {
+  fill: currentColor;
+}
+
+.lineOnHair {
+  fill: none;
+  stroke: var(--avatar-skin);
+  stroke-width: var(--avatar-line);
 }
