@@ -424,7 +424,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Любая роль, только для себя. Новый пароль — не короче 10 символов, не длиннее 72 байт, ' +
       'не совпадает с текущим и с почтой. Неверный текущий пароль — 422; проверка идёт ' +
-      'под тем же ограничением перебора, что и вход: после пяти неудач — 403 на 15 минут.',
+      'под тем же ограничением перебора, что и вход: после пяти неудач — 403 на 15 минут. ' +
+      'Учётной записи эксперта хакатона — 403: она общая для всего жюри (решение 225).',
     body: changePasswordSchema,
     permission: 'ANY',
     returnsOk: true,
@@ -1540,14 +1541,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Изменить поручение или его статус',
     description:
       'Автор меняет всё; исполнитель — только status (NEW, IN_PROGRESS, DONE, из «Сделано» — обратно ' +
-      'в работу). doneAt ставится и снимается сервером. Каждое изменение — в журнал действий ' +
+      'в работу). Переходы статуса (решение 225): NEW → IN_PROGRESS → DONE → IN_PROGRESS, тот же ' +
+      'статус — без изменений; остальные (NEW → DONE, IN_PROGRESS → NEW, DONE → NEW) — 409 ' +
+      'INVALID_TRANSITION, запись не меняется. doneAt ставится и снимается сервером только на ' +
+      'разрешённых переходах. Каждое изменение — в журнал действий ' +
       '(assignment.update, assignment.status). Смена исполнителя — уведомление новому.',
     permission: 'READ',
     accessNote:
       'Автор (ADMIN или HEAD) — любые поля; исполнитель — только статус; остальным — 403, а чужое ' +
       'поручение для того, кто видит только свои, — 404. Эксперт хакатона — 403.',
     body: updateAssignmentSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'INVALID_TRANSITION'],
   },
 
   // ── Прогноз связок (решение 135) ─────────────────────────────────────────
@@ -2142,12 +2146,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Решение 145 (ТЗ п.7): колонки дословно — «Наименование вуза, ИТ-направление, ' +
       'ИТ-продукт, Статус работы с вузом, Ответственный», в этом порядке. Формат — csv ' +
       '(по умолчанию), xlsx или json (вложением, схема generatedAt/filters/columns/rows). ' +
-      'Право — READ, представителю вуза — только свой вуз. Фильтры (решение 172, ТЗ — ' +
+      'Право — ANALYTICS (решение 225): представителю вуза — 403 на любом формате. Фильтры (решение 172, ТЗ — ' +
       '«с фильтрами по периоду, вузу, ИТ-направлению, ИТ-продукту и ответственному»): ' +
       'dateFrom/dateTo (дата или ISO 8601, по активности связки в периоде), universityId, ' +
       'programId, productId, responsibleId, status — все необязательны, попадают в filters ' +
       'json-файла и в шапку/имя csv и xlsx.',
-    permission: 'READ',
+    permission: 'ANALYTICS',
     query: reportQuerySchema,
     errors: COMMON_ERRORS,
   },
@@ -2160,8 +2164,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Решение 145 (ТЗ п.8): колонки дословно — «Название вуза, Вендор, ПО, Номер договора, ' +
       'Подписание лицензии, Срок действия лицензии (год), Статус по передаче, ФИО менеджера, ' +
       'Ответственные от вуза, Комментарий», в этом порядке. Форматы и фильтры (решение 172) — ' +
-      'как у /api/reports/tz.',
-    permission: 'READ',
+      'как у /api/reports/tz. Право — ANALYTICS (решение 225): представителю вуза — 403.',
+    permission: 'ANALYTICS',
     query: reportQuerySchema,
     errors: COMMON_ERRORS,
   },
@@ -2676,7 +2680,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     description:
       'Тело не нужно. Право шире, чем INBOUND_REVIEW: ответственный за задание (по связке или ' +
       'по вузу) может отметить его сам, даже если он MANAGER и разбор писем ему недоступен; ' +
-      'ADMIN и HEAD — любое (решение 183). Письмо без задания — NOT_FOUND; задание уже DONE — CONFLICT.',
+      'ADMIN и HEAD — любое (решение 183). Эксперту хакатона — 403 при любой роли (решение 225). ' +
+      'Письмо без задания — NOT_FOUND; задание уже DONE — CONFLICT.',
     permission: 'INBOUND_READ',
     errors: [...READ_ERRORS, 'CONFLICT'],
   },

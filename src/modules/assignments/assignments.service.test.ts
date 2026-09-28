@@ -169,11 +169,13 @@ describe('уведомление новому исполнителю', () => {
 
 describe('кто меняет поручение', () => {
   it('исполнитель меняет статус одной кнопкой; «Сделано» ставит дату выполнения, в журнал — assignment.status', async () => {
+    // «Сделано» — из «В работе»: NEW → DONE напрямую запрещено (решение 225).
+    repo.findById.mockResolvedValue(row({ status: 'IN_PROGRESS' }))
     const dto = await service.update(manager, 'a1', { status: 'DONE' }, NOW)
     expect(repo.update).toHaveBeenCalledWith('a1', { status: 'DONE', doneAt: NOW })
     expect(dto).toMatchObject({ status: 'DONE', dueState: 'done', canEdit: false, canChangeStatus: true })
     expect(audit.writeAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'assignment.status', payload: { from: 'NEW', to: 'DONE' } }),
+      expect.objectContaining({ action: 'assignment.status', payload: { from: 'IN_PROGRESS', to: 'DONE' } }),
     )
   })
 
@@ -224,6 +226,62 @@ describe('кто меняет поручение', () => {
     await expectRejectCode(service.update(head, 'a1', { dueDate: '2026-09-20' }, NOW), 'VALIDATION_ERROR')
     repo.findById.mockResolvedValue(row({ dueAt: new Date('2026-09-20T00:00:00.000Z') }))
     await expect(service.update(head, 'a1', { dueDate: '2026-09-20', priority: 'HIGH' }, NOW)).resolves.toBeDefined()
+  })
+})
+
+/**
+ * Переходы статуса (решение 225, находка Codex 14): прямым PATCH раньше проходили
+ * NEW → DONE и DONE → NEW, хотя интерфейс ведёт NEW → IN_PROGRESS → DONE → IN_PROGRESS
+ * (`nextStatusAction`). Повтор того же статуса — не переход: 200 без изменений
+ * (двойной клик «Сделано» не должен давать ошибку).
+ */
+describe('переходы статуса поручения', () => {
+  const PREVIOUS_DONE_AT = new Date('2026-09-25T10:00:00.000Z')
+
+  const ALLOWED = [
+    { from: 'NEW', to: 'IN_PROGRESS', doneAt: null },
+    { from: 'IN_PROGRESS', to: 'DONE', doneAt: NOW },
+    { from: 'DONE', to: 'IN_PROGRESS', doneAt: null },
+    { from: 'NEW', to: 'NEW', doneAt: null },
+    { from: 'IN_PROGRESS', to: 'IN_PROGRESS', doneAt: null },
+    { from: 'DONE', to: 'DONE', doneAt: PREVIOUS_DONE_AT },
+  ] as const
+
+  const FORBIDDEN = [
+    { from: 'NEW', to: 'DONE' },
+    { from: 'IN_PROGRESS', to: 'NEW' },
+    { from: 'DONE', to: 'NEW' },
+  ] as const
+
+  it.each(ALLOWED)('$from → $to — разрешён, doneAt = $doneAt', async ({ from, to, doneAt }) => {
+    repo.findById.mockResolvedValue(row({ status: from, doneAt: from === 'DONE' ? PREVIOUS_DONE_AT : null }))
+    for (const actor of [manager, head]) {
+      repo.update.mockClear()
+      const dto = await service.update(actor, 'a1', { status: to }, NOW)
+      expect(repo.update).toHaveBeenCalledWith('a1', { status: to, doneAt })
+      expect(dto.status).toBe(to)
+    }
+  })
+
+  it.each(FORBIDDEN)('$from → $to — 409 INVALID_TRANSITION, запись, doneAt и журнал не меняются', async ({ from, to }) => {
+    repo.findById.mockResolvedValue(row({ status: from, doneAt: from === 'DONE' ? PREVIOUS_DONE_AT : null }))
+    for (const actor of [manager, head]) {
+      const error = await service.update(actor, 'a1', { status: to }, NOW).catch((caught: unknown) => caught)
+      expect(error).toMatchObject({ code: 'INVALID_TRANSITION', status: 409 })
+      expect((error as Error).message).toMatch(/^Поручение нельзя перевести из «/)
+    }
+    expect(repo.update).not.toHaveBeenCalled()
+    expect(audit.writeAudit).not.toHaveBeenCalled()
+    expect(channels.sendToUser).not.toHaveBeenCalled()
+  })
+
+  it('все девять пар покрыты', () => {
+    expect(ALLOWED.length + FORBIDDEN.length).toBe(9)
+  })
+
+  it('автор с правкой текста и запрещённым статусом — 409, текст тоже не записан', async () => {
+    await expectRejectCode(service.update(head, 'a1', { text: 'Другое', status: 'DONE' }, NOW), 'INVALID_TRANSITION')
+    expect(repo.update).not.toHaveBeenCalled()
   })
 })
 
