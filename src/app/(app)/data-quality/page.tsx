@@ -228,7 +228,10 @@ function QualityIndex({ report }: { report: QualityReportDto }) {
         </span>
         {report.score !== null && (
           <span className={styles.indexOf}>
-            из 100{verdict && ` — ${QUALITY_LEVEL_LABELS[verdict].toLowerCase()}`}, {deviationText(report.score, true)}
+            {/* Индекс — вторично, без «из 100» (решение 228): шкала 0–100 — в «?» у заголовка,
+                главное на экране — строка «что править» выше. */}
+            {verdict ? `— ${QUALITY_LEVEL_LABELS[verdict].toLowerCase()}, ` : '— '}
+            {deviationText(report.score, true)}
           </span>
         )}
       </p>

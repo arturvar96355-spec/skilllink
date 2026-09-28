@@ -71,7 +71,8 @@
 
 /* Число — фиолетовым: это основное значение; тревогу несут полосы и слова, не цвет индекса. */
 .indexNumber {
-  font-size: var(--text-kpi-lg-size);
+  /* Вторично (решение 228): крупнее текста, но не главный показатель экрана. */
+  font-size: var(--text-kpi-sm-size);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
