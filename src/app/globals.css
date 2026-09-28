@@ -184,6 +184,9 @@
   --tag-shadow-hover: var(--tag-shadow);
   --tag-hover-lift: 0px;
   --tag-logo-hover-scale: 1;
+  --overlay-backdrop: rgba(5, 5, 8, 0.62);
+  --floating-border: rgb(var(--ink-rgb) / 0.096);
+  --row-hover: var(--surface-2);
   --glow-tint-near: transparent;
   --glow-tint-far: transparent;
   --hover-lift-strong: -4px;
@@ -483,6 +486,13 @@
     0 0 0 1px rgba(109, 74, 255, 0.35), 0 2px 0 rgba(255, 255, 255, 0.6) inset;
   --tag-hover-lift: -3px;
   --tag-logo-hover-scale: 1.05;
+
+  /* Окна, подсказки, таблицы (спецификация, пп. 15, 17, 18): затемнение под окном —
+     лёгкое нейтральное, не чёрное; у всплывающего — тонкая фиолетовая кромка;
+     строка под курсором — лёгкий фиолетовый оттенок. */
+  --overlay-backdrop: rgba(30, 22, 64, 0.28);
+  --floating-border: rgba(109, 74, 255, 0.22);
+  --row-hover: rgba(109, 74, 255, 0.055);
 }
 
 /*
