@@ -2010,6 +2010,8 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
     ],
     "groups": [ { "key": "Москва", "label": "Москва", "total": 2,
                   "steps": [ { "key": "start", "reached": 2, "conversionFromStart": 1 } ] } ],
+    "droppedByStatus": { "PAUSED": 1, "CANCELLED": 0 },
+    "droppedByPhase": { "ATTRACTION": 0, "FORMALIZATION": 0, "IMPLEMENTATION": 1, "OPERATION": 0, "CONTROL": 0 },
     "isMock": true
   }
 }
@@ -2024,6 +2026,12 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 `medianDaysFromPrevious` — медиана дней от предыдущего шага среди дошедших.
 Ключи вех: `start`, `meeting-done`, `signed`, `implemented`, `classes-done`, `done`;
 этапов — `stage-1` … `stage-14`.
+`droppedByStatus` и `droppedByPhase` (решение 227) — сводка выбывших по **всем**, а не по превью
+`dropped`: по статусу (`PAUSED`, `CANCELLED`) и по фазе этапа, где выбыли (как `phase` в строке;
+все пять фаз, без выбывших — 0). Обе суммы равны сумме `droppedCount` по шагам.
+«Дошла до шага» — пройдены этапы до него: завершены, а этап 5 «при необходимости» может быть
+отменён. Отменённый обязательный этап не пройден (решение 227): отменённое подписание —
+не `signed`, отменённые занятия (этап 11) — не `classes-done`.
 
 #### GET /api/analytics/cohorts
 

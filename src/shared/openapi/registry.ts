@@ -1272,7 +1272,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Решение 120. Для каждого шага: дошли, конверсия от предыдущего и от начала, медиана дней ' +
       'перехода, в работе, отвалившиеся (отменены или на паузе) со ссылками, этапом, датой и причиной ' +
       '(решение 215). milestones=true — ' +
-      'шесть вех вместо 14 этапов; groupBy — разрез.',
+      'шесть вех вместо 14 этапов; groupBy — разрез. droppedByStatus и droppedByPhase — сводка ' +
+      'выбывших по всем, а не по превью dropped (до 20 на шаг) (решение 227).',
     permission: 'ANALYTICS',
     query: funnelQuerySchema,
     errors: [...COMMON_ERRORS, 'VALIDATION_ERROR'],

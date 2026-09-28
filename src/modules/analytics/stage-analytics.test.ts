@@ -365,6 +365,29 @@ describe('воронка и когорты', () => {
     ])
   })
 
+  it('сводка выбывших — по всем, а не по превью из 20 (решение 227)', () => {
+    // 25 выбывших на этапе 2 (15 отменены, 10 на паузе) и 3 на паузе на этапе 4.
+    const many: FunnelSubject[] = [
+      ...Array.from({ length: 15 }, (_, index) =>
+        subject(`x${index}`, [[1, 1], [2, 5, 'CANCELLED']], 'CANCELLED', { closedAt: at(30), updatedAt: at(30) }),
+      ),
+      ...Array.from({ length: 10 }, (_, index) => subject(`p${index}`, [[1, 1]], 'PAUSED', { updatedAt: at(30) })),
+      ...Array.from({ length: 3 }, (_, index) => subject(`q${index}`, [[1, 1], [2, 2], [3, 3]], 'PAUSED', { updatedAt: at(30) })),
+    ]
+    const funnel = buildFunnel(many, STAGE_STEPS)
+    const stage2 = funnel.steps.find((step) => step.key === 'stage-2')!
+    expect(stage2.droppedCount).toBe(25)
+    expect(stage2.dropped).toHaveLength(20)
+    expect(funnel.droppedByStatus).toEqual({ PAUSED: 13, CANCELLED: 15 })
+    expect(funnel.droppedByPhase).toEqual({ ATTRACTION: 25, FORMALIZATION: 3, IMPLEMENTATION: 0, OPERATION: 0, CONTROL: 0 })
+    // Суммы сходятся с суммой droppedCount — в разрезе этапов и вех одинаково.
+    const total = funnel.steps.reduce((sum, step) => sum + step.droppedCount, 0)
+    expect(total).toBe(28)
+    const milestones = buildFunnel(many, MILESTONE_STEPS)
+    expect(milestones.droppedByStatus).toEqual(funnel.droppedByStatus)
+    expect(milestones.droppedByPhase).toEqual(funnel.droppedByPhase)
+  })
+
   describe('веха — только явное завершение этапа (решение 227)', () => {
     /** Этапы 1–(stage − 1) завершены, этап `stage` — в статусе `last`; этап 5 отменён как ненужный. */
     const upTo = (stage: number, last: StageStatus): Array<[number, number, StageStatus?]> => [
