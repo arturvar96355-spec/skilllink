@@ -77,6 +77,7 @@ import { UniversityGraph } from '../UniversityGraph'
 import { ContactsCard } from './ContactsCard'
 import { MergeWithDuplicate } from './MergeWithDuplicate'
 import { UniversityAssistant } from './UniversityAssistant'
+import { ProductOffers } from '../../ProductOffers'
 import styles from './university.module.css'
 
 type TabKey =
@@ -600,6 +601,16 @@ export default function UniversityPage() {
             universityName={data.name}
             universityCode={data.shortName ?? data.name}
           />
+        </Section>
+      )}
+
+      {tab === 'overview' && user.permissions.canSeeAnalytics && (
+        <Section
+          title="Что предложить вузу"
+          help={{ topic: 'product-recommendations', section: 'card' }}
+          description="IT-продукты, которые закрывают дефициты навыков программ вуза: каждый — на той программе, где он нужнее."
+        >
+          <ProductOffers endpoint={`/api/universities/${data.id}/product-recommendations`} scope="university" />
         </Section>
       )}
 

@@ -41,16 +41,33 @@ import {
  * Сразу после создания у связки появляются все четырнадцать этапов — поэтому
  * переходим прямо в её карточку.
  */
-export function CreateCooperationModal({ onClose }: { onClose: (created: boolean) => void }) {
+export interface CreateCooperationInitial {
+  universityId: string
+  programId: string
+  productId: string
+  goal?: string
+}
+
+/**
+ * `initial` — связка из рекомендации продуктов (решение 223): вуз, программа, продукт
+ * и цель уже выбраны, остаётся ответственный. Всё можно поменять перед «Создать».
+ */
+export function CreateCooperationModal({
+  onClose,
+  initial,
+}: {
+  onClose: (created: boolean) => void
+  initial?: CreateCooperationInitial
+}) {
   const router = useRouter()
   const toast = useToast()
 
-  const [universityId, setUniversityId] = useState('')
-  const [programId, setProgramId] = useState('')
-  const [productId, setProductId] = useState('')
+  const [universityId, setUniversityId] = useState(initial?.universityId ?? '')
+  const [programId, setProgramId] = useState(initial?.programId ?? '')
+  const [productId, setProductId] = useState(initial?.productId ?? '')
   const [responsibleId, setResponsibleId] = useState('')
   const [status, setStatus] = useState<string>('DRAFT')
-  const [goal, setGoal] = useState('')
+  const [goal, setGoal] = useState(initial?.goal ?? '')
   const [targetDate, setTargetDate] = useState('')
   const [classesStartAt, setClassesStartAt] = useState('')
 
