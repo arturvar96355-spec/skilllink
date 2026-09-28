@@ -135,6 +135,8 @@ function respond(model: string, method: string, args: Record<string, unknown>): 
         createdAt: past(1),
       }))
     }
+    case 'user.findFirst':
+      return ids.includes(where.id as string) ? { email: `${where.id as string}@example.invalid` } : null
     case 'university.findMany':
     case 'document.findMany':
       return []
@@ -158,11 +160,11 @@ vi.mock('@/shared/db/prisma', () => {
   return { prisma: new Proxy({}, { get: (_target, name: string) => model(name) }) }
 })
 
-const { teamOverview, teamMemberDetail } = await import('./team.service')
+const { teamOverview, teamMemberDetail, teamMemberProfile } = await import('./team.service')
 const analyticsRepo = await import('./analytics.repo')
 
-function user(role: UserRole, isReviewer = false): CurrentUser {
-  return { id: 'viewer', email: 'x@example.invalid', fullName: 'Смотрящий', role, universityId: null, isReviewer }
+function user(role: UserRole, isReviewer = false, id = 'viewer'): CurrentUser {
+  return { id, email: 'x@example.invalid', fullName: 'Смотрящий', role, universityId: null, isReviewer }
 }
 
 beforeEach(() => {
@@ -319,5 +321,58 @@ describe('боковая панель сотрудника', () => {
     for (const action of detail.recentActions) {
       expect(Object.keys(action).sort()).toEqual(['action', 'at', 'label', 'objectLabel', 'universityShortName'])
     }
+  })
+})
+
+describe('страница сотрудника (решение 230)', () => {
+  it.each<UserRole>(['ADMIN', 'HEAD'])('%s открывает любого сотрудника', async (role) => {
+    const profile = await teamMemberProfile(user(role), 'u1', NOW)
+    expect(profile.member.id).toBe('u1')
+    expect(profile.isSelf).toBe(false)
+  })
+
+  it.each<UserRole>(['MANAGER', 'ADMIN', 'HEAD', 'VIEWER'])('эксперт с ролью %s читает любого', async (role) => {
+    await expect(teamMemberProfile(user(role, true), 'u1', NOW)).resolves.toMatchObject({ member: { id: 'u1' } })
+  })
+
+  it.each<UserRole>(['MANAGER', 'ANALYST', 'VIEWER'])('%s открывает свою страницу', async (role) => {
+    const profile = await teamMemberProfile(user(role, false, 'u1'), 'u1', NOW)
+    expect(profile.isSelf).toBe(true)
+    // Своя почта видна всегда — даже аналитику и наблюдателю, которым справочник её не показывает.
+    expect(profile.contacts.email).toBe('u1@example.invalid')
+  })
+
+  it.each<UserRole>(['MANAGER', 'ANALYST', 'VIEWER'])('%s на чужой странице — 403 до любого запроса к базе', async (role) => {
+    await expect(teamMemberProfile(user(role, false, 'u1'), 'u2', NOW)).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(state.calls).toEqual([])
+  })
+
+  it('представитель вуза — 403 даже на «своей» странице и даже эксперт', async () => {
+    await expect(teamMemberProfile(user('UNIVERSITY_REP', false, 'u1'), 'u1', NOW)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    await expect(teamMemberProfile(user('UNIVERSITY_REP', true), 'u1', NOW)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    expect(state.calls).toEqual([])
+  })
+
+  it('не из команды — 404, как у панели', async () => {
+    await expect(teamMemberProfile(user('HEAD'), 'nobody', NOW)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(teamMemberProfile(user('MANAGER', false, 'nobody'), 'nobody', NOW)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
+
+  it('почта — правилом справочника: руководителю видна, эксперту-наблюдателю — нет', async () => {
+    expect((await teamMemberProfile(user('HEAD'), 'u1', NOW)).contacts.email).toBe('u1@example.invalid')
+    expect((await teamMemberProfile(user('VIEWER', true), 'u1', NOW)).contacts.email).toBeNull()
+  })
+
+  it('числа — те же, что в панели: одна сборка', async () => {
+    const detail = await teamMemberDetail(user('HEAD'), 'u0', NOW)
+    const profile = await teamMemberProfile(user('HEAD'), 'u0', NOW)
+    const { contacts: _contacts, isSelf: _isSelf, ...rest } = profile
+    expect(rest).toEqual(detail)
   })
 })
