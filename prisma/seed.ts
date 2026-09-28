@@ -23,7 +23,7 @@ import { merge as mergeUniversities, undo as undoUniversityMerge } from '@/modul
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
-import { cleanVendorData, seedSchoolCourses, seedVendors } from './seed-vendors'
+import { cleanVendorData, seedSchoolCourses, seedVendorProductSkills, seedVendors } from './seed-vendors'
 import { seedAssignments } from './seed-assignments'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
@@ -2505,6 +2505,8 @@ async function main(): Promise<void> {
     baseUniversityId: universityId,
     mockSource,
   })
+  // Решение 223: навыки продуктов вендоров — после расширенного набора, он заводит часть навыков.
+  console.log(`  навыков у продуктов вендоров (решение 223): ${await seedVendorProductSkills(prisma)}`)
 
   await seedRecommendations(cooperations, users.manager)
   const resolved = await insertResolvedRecommendations(prisma, extended, {
