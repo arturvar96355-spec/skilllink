@@ -13,8 +13,9 @@ export const CONTACT_REVEAL = {
  * а полное значение — через раскрытие с причиной и записью в журнал.
  *
  * По умолчанию выключен: карточка, выгрузка и сценарий показа работают как
- * в решении 106, а экрана раскрытия во фронте ещё нет. Включается
- * `CONTACT_REVEAL_REQUIRED=true` — когда фронт покажет кнопку «Показать».
+ * в решении 106. С решения 181 у фронта есть кнопка «Показать» (`ContactsCard.tsx`,
+ * окно с причиной, `POST /api/contacts/:id/reveal`) — включается
+ * `CONTACT_REVEAL_REQUIRED=true`, когда строгий режим понадобится.
  */
 export function contactRevealRequired(): boolean {
   const raw = process.env.CONTACT_REVEAL_REQUIRED?.trim().toLowerCase()
