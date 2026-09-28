@@ -537,6 +537,7 @@ function GapsTab({
       {!gaps.isLoading && !gaps.error && rows.length > 0 && gapChart.rows.length > 0 && (
         <Card>
           <MeasureBars
+            download={{ title: 'Дефициты навыков', note: `Навыки с дефицитом, крупнейшие сверху · период: ${period || 'последний доступный'}` }}
             rows={gapChart.rows}
             max={100}
             label="Где дефицит: навыки с дефицитом, крупнейшие сверху"
@@ -754,6 +755,7 @@ function DemandTab() {
       {!demand.isLoading && !demand.error && demandChart.rows.length > 0 && (
         <Card>
           <MeasureBars
+            download={{ title: 'Спрос рынка на навыки', note: `Самые востребованные навыки и медиана спроса · период: ${period || 'последний доступный'}` }}
             rows={demandChart.rows}
             max={demandChart.max}
             label="Самые востребованные навыки и медиана спроса"

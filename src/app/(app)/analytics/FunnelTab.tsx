@@ -144,6 +144,7 @@ export function FunnelTab() {
           ) : (
             <>
               <MeasureBars
+                download={{ title: 'Воронка связок', note: 'Сколько связок дошло до каждой фазы и какая доля перешла дальше' }}
                 rows={funnelRows(steps, currentByPhase(list), droppedByPhase(dropped))}
                 max={steps[0]?.value ?? 0}
                 label="Воронка связок по фазам: сколько дошло и какая доля перешла дальше"

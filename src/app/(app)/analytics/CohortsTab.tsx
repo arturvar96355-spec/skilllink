@@ -102,6 +102,7 @@ export function CohortsTab() {
                 />
               </div>
               <MeasureBars
+                download={{ title: 'Когорты: подписание договора', note: `Доля когорты, подписавшей договор к концу ${horizon + 1}-го квартала работы` }}
                 rows={comparisonRows(cohorts, horizon)}
                 max={100}
                 label={`Доля когорты, подписавшей договор к концу ${horizon + 1}-го квартала работы`}
