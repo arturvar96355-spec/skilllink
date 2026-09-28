@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { TRAVEL_MS, type AssemblyTarget, type StreamAnchors } from './constellation-scene'
+import { TRAVEL_MS, clampSceneSize, type AssemblyTarget, type StreamAnchors } from './constellation-scene'
 import type { WorkerMessage, WorkerReply } from './constellation.worker'
 import { EDGE_MARGIN, placeHead } from './comet-head'
 import styles from './login.module.css'
@@ -192,8 +192,8 @@ export function Constellation() {
     host.appendChild(canvas)
 
     const options = {
-      width: window.innerWidth,
-      height: window.innerHeight,
+      width: clampSceneSize(window.innerWidth),
+      height: clampSceneSize(window.innerHeight),
       pixelRatio: window.devicePixelRatio,
       reduced,
       narrow: window.innerWidth < 720,
