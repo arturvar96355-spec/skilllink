@@ -127,6 +127,8 @@ describe('остаточная проверка: что остановит от�
     ['паспорт 4514 123456', ['document']],
     ['СНИЛС 112-233-445 95', ['document']],
     ['ИНН 500100732259', ['document']],
+    ['карта 2200 1234 5678 9010', ['document']],
+    ['полис ОМС 7700123456789012', ['document']],
   ] as const)('%s → %j', (text, kinds) => {
     expect(findPersonalData(text)).toEqual(kinds)
   })

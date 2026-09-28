@@ -427,6 +427,8 @@ const STREET_WITH_NUMBER = new RegExp(
   `${NOT_LETTER_BEFORE}${eitherCase(['ул', 'улиц[аеуы]', 'пр-кт', 'пр-т', 'пр', 'просп', 'проспект[аеу]?', 'пер', 'переул(?:ок|ка|ке)'])}\\.?\\s+(?:[А-ЯЁ]\\.\\s?){0,2}${CAPITALIZED}(?:\\s+${CAPITALIZED})?,?\\s+(?:${eitherCase(['д\\.?', 'дом'])}\\s*)?\\d{1,4}(?![\\d.:])`,
 )
 const INN = /(?<![А-Яа-яЁё])ИНН\s*[:№]?\s*\d{10}(?:\d{2})?(?!\d)/
+/** 16 цифр — номер карты или полиса ОМС: длиннее телефона, маска их не узнаёт, но отправлять нельзя. */
+const CARD_OR_POLICY = /(?<!\d)\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}(?!\d)/g
 
 function hasPhone(text: string): boolean {
   for (const [candidate] of text.matchAll(PHONE_CANDIDATE)) {
@@ -468,6 +470,7 @@ export function findPersonalData(text: string, keep: readonly string[] = []): Pe
   // Номер документа — не телефон, хоть в нём и те же 10–12 цифр: у признака одно имя.
   const withoutDocuments = scan
     .replace(new RegExp(INN.source, 'g'), '\uE000')
+    .replace(CARD_OR_POLICY, '\uE000')
     .replace(PASSPORT_CANDIDATE, '\uE000')
     .replace(SNILS_CANDIDATE, '\uE000')
   if (hasPhone(withoutDocuments)) found.push('phone')
