@@ -335,10 +335,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                     <span>{checklistReadOnly}</span>
                   </p>
                 )}
-                <div
-                  className={styles.tasks}
-                  aria-describedby={checklistReadOnly ? `checklist-read-only-${stage.id}` : undefined}
-                >
+                <div className={styles.tasks}>
                   {stage.tasks.map((task) => (
                     <div
                       key={task.id}
@@ -359,6 +356,8 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                           </span>
                         }
                         checked={task.isDone}
+                        // Неактивный флажок читается вслух вместе с причиной (решение 232).
+                        aria-describedby={checklistReadOnly ? `checklist-read-only-${stage.id}` : undefined}
                         disabled={
                           !canWrite ||
                           isCancelled ||
