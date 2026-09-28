@@ -15,10 +15,24 @@
     linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent 30%),
     var(--tag-paper);
   color: var(--text-on-light);
-  box-shadow:
-    0 30px 60px rgba(0, 0, 0, 0.55),
-    0 2px 0 rgba(255, 255, 255, 0.6) inset;
+  box-shadow: var(--tag-shadow);
   overflow: hidden;
+  transition:
+    transform var(--motion-control) var(--ease-out),
+    box-shadow var(--motion-control) var(--ease-out);
+}
+
+/* Наведение (светлая тема — спецификация «Light Theme», п. 9): подъём и подсветка
+   токенами; в тёмной теме токены равны покою — вид прежний. */
+/* В карусели указатель ловит кнопка слота, а не сама бирка, — поэтому наведение
+   берётся у родителя. */
+:hover > .tag {
+  transform: translateY(var(--tag-hover-lift));
+  box-shadow: var(--tag-shadow-hover);
+}
+
+:hover > .tag .logo {
+  transform: scale(var(--tag-logo-hover-scale));
 }
 
 /* Отверстие под петлю, как у багажной бирки. */
@@ -209,6 +223,7 @@
   max-height: 100%;
   object-fit: contain;
   pointer-events: none;
+  transition: transform var(--motion-control) var(--ease-out);
 }
 
 .stats {
@@ -238,3 +253,15 @@
   opacity: 0.6;
 }
 
+
+@media (prefers-reduced-motion: reduce) {
+  .tag,
+  .logo {
+    transition: none;
+  }
+
+  :hover > .tag,
+  :hover > .tag .logo {
+    transform: none;
+  }
+}
