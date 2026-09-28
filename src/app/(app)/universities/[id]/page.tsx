@@ -281,7 +281,7 @@ export default function UniversityPage() {
   const tabs: TabItem[] = [
     { key: 'overview', label: 'Обзор' },
     { key: 'programs', label: 'Программы', count: data.programCount },
-    { key: 'cooperations', label: 'Сотрудничества', count: data.cooperationCount },
+    { key: 'cooperations', label: 'Связки', count: data.cooperationCount },
   ]
   if (user.permissions.canSeeAnalytics) tabs.push({ key: 'gaps', label: 'Дефициты' })
   tabs.push(
