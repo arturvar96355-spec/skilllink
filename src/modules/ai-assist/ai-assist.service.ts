@@ -115,7 +115,17 @@ export async function compose(
     // Модель могла дописать выдуманный телефон или адрес — ответ чистится так же, как вход.
     const text = options.redact(cleanModelText(completion.text))
     if (text === '') return template('empty')
-    if (!prompt.accepts(text)) return template('invalid')
+    // То, что маска ответа не заменила (решение 226), — не черновик: тот же признак на входе остановил бы запрос.
+    const answerLeaks = personalDataLeft(options.redact, text)
+    const problems = [
+      ...(answerLeaks.length > 0 ? ['personal-data'] : []),
+      ...(prompt.accepts(text) ? [] : (prompt.problems?.(text) ?? ['rejected'])),
+    ]
+    if (problems.length > 0) {
+      // Только коды нарушений: ни ответа модели, ни промпта.
+      log.warn('[AI] ответ модели не прошёл проверку, отдан шаблон', { kind: prompt.kind, problems: problems.join(',') })
+      return template('invalid')
+    }
 
     writeCache(key, { text, source, model: completion.model }, now.getTime())
     return {

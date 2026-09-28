@@ -241,6 +241,8 @@ describe('демо-письма вузов: маскировка не порти
         redact,
       )
       expect(personalDataLeft(redact, `${reply.system}\n${reply.user}`), letter.subject).toEqual([])
+      // Шаблон ответа проходит ту же проверку, что ответ модели (решение 226, B8).
+      expect(reply.problems!(reply.template), letter.subject).toEqual([])
       // Шаблон ответа — то, что сотрудник потом переделывает кнопками: он тоже не должен вызывать отказ.
       const rewrite = buildRewritePrompt({ kind: 'inbound-letter-reply', text: reply.template, style: 'softer' }, redact)
       expect(rewrite.masked, letter.subject).toBe(false)

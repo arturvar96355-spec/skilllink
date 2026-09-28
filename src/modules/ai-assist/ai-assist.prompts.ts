@@ -5,6 +5,7 @@ import {
 } from '@/shared/contracts/ai-assist'
 import { AI_LETTER_INSTRUCTION } from '@/shared/config/ai-assist.config'
 import { escapeRegExp, MASK_PLACEHOLDERS, redactDeep, type Redact } from './ai-assist.privacy'
+import { letterAnswerProblems, rewriteMaxWords, type LetterAnswerContext } from './ai-assist.letter-check'
 import {
   countNumberedItems,
   letterLines,
@@ -41,6 +42,20 @@ export interface AiPrompt {
   template: string
   /** Проверка ответа модели сверх непустоты. `false` — ответ не годится, нужен шаблон. */
   accepts: (text: string) => boolean
+  /** Почему ответ не годится — коды без текста, для журнала сервера (решение 226). */
+  problems?: (text: string) => string[]
+}
+
+/**
+ * Проверка ответа на письмо (решение 226, B8): подпись в конце, структура, длина,
+ * чужие ссылки, следы чужих инструкций. Общая у письма по задаче, предложения
+ * продукта, ответа на письмо вуза и переделки.
+ */
+export function letterAnswerCheck(
+  context: LetterAnswerContext,
+): Pick<AiPrompt, 'accepts' | 'problems'> {
+  const problems = (text: string) => letterAnswerProblems(text, context)
+  return { accepts: (text) => text.trim().length > 0 && problems(text).length === 0, problems }
 }
 
 /** Общие запреты: модель пересказывает, а не сочиняет. */
@@ -165,7 +180,7 @@ export function buildLetterPrompt(facts: LetterFacts, redact: Redact, instructio
     facts: lines,
     template: letterTemplate(safe),
     // Без подписи от ИТ-Школы это не письмо, а что-то другое.
-    accepts: (text) => anyText(text) && /ИТ[\s\-‑–]?Школ/i.test(text),
+    ...letterAnswerCheck({ input: factsBlock(lines), requireSignature: true }),
   }
 }
 
@@ -198,7 +213,7 @@ export function buildProductOfferPrompt(
     user: `Факты для письма:\n${factsBlock(lines)}\n\nСоставь письмо.`,
     facts: lines,
     template: productOfferTemplate(safe),
-    accepts: (text) => anyText(text) && /ИТ[\s\-‑–]?Школ/i.test(text),
+    ...letterAnswerCheck({ input: factsBlock(lines), requireSignature: true }),
   }
 }
 
@@ -279,6 +294,7 @@ export function buildRewritePrompt(
   const masked = normalizeSpaces(safe) !== normalizeSpaces(unfenced)
   const label = AI_REWRITE_STYLE_LABELS[input.style]
   const signed = /ИТ[\s\-‑–]?Школ/i.test(original)
+  const letter = letterAnswerCheck({ input: safe, requireSignature: signed, maxWords: rewriteMaxWords(safe) })
 
   return {
     kind: input.kind,
@@ -297,7 +313,10 @@ export function buildRewritePrompt(
     template: original,
     // Пустой ответ или письмо, потерявшее подпись ИТ-Школы, — не вариант письма.
     // Пометка маскировки, которой не было во входе, значит, модель что-то дописала сама.
-    accepts: (text) =>
-      anyText(text) && (!signed || /ИТ[\s\-‑–]?Школ/i.test(text)) && (MASK_MARKERS.test(safe) || !MASK_MARKERS.test(text)),
+    accepts: (text) => letter.accepts(text) && (MASK_MARKERS.test(safe) || !MASK_MARKERS.test(text)),
+    problems: (text) => [
+      ...letter.problems!(text),
+      ...(MASK_MARKERS.test(safe) || !MASK_MARKERS.test(text) ? [] : ['new-mask-marker']),
+    ],
   }
 }
