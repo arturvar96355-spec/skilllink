@@ -3,7 +3,7 @@
 Метрики сервера — `GET /api/metrics` (docs/API_CONTRACT.md), формат Prometheus 0.0.4.
 Список метрик и правила оповещений: `deploy/monitoring/alert-rules.yml`. Это не
 обязательная часть стенда — профиль `monitoring` **по умолчанию выключен**
-(docs/SECURITY_LIMITATIONS.md, docs/DEPLOY.md): боевая машина рассчитана на 2 ГБ
+(docs/SECURITY_LIMITATIONS.md, docs/DEPLOY.md): боевая машина рассчитана на 4 ГБ
 памяти, и Prometheus с Grafana съедят заметную её часть. Включает владелец осознанно.
 
 ## Что где
@@ -60,7 +60,7 @@ docker run --rm -v "$PWD/deploy/monitoring:/etc/prometheus" --entrypoint /bin/pr
 (Требует, чтобы `deploy/monitoring/metrics-token` уже существовал — шаг 1 выше;
 содержимое не важно, `check config` его не читает.)
 
-## На сервере (2 ГБ, профиль выключен по умолчанию)
+## На сервере (4 ГБ, профиль выключен по умолчанию)
 
 Если решите включить: добавьте `mem_limit` в `deploy/yandex-cloud/compose.cloud.yml`
 для `prometheus` и `grafana` (по образцу остальных сервисов) и следите за свободной
