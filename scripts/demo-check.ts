@@ -2,7 +2,7 @@
  * Сверка стенда со сценарием показа: те ли числа увидит жюри, что записаны
  * в сценарии показа и шпаргалке докладчика (у команды, вне репозитория).
  *
- *   SEED_DEMO_PASSWORD=... npm run demo:check -- https://skilllink.site
+ *   SEED_DEMO_PASSWORD=... SEED_EXPERT_PASSWORD=... npm run demo:check -- https://skilllink.site
  *   npm run demo:check -- http://localhost:3100          # запасной ноутбук
  *
  * Только чтение: входит менеджером и представителем вуза и делает GET-запросы.
@@ -22,6 +22,14 @@ import { RECOMMENDATION_SORT_MOST_IMPORTANT } from '../src/shared/contracts/reco
 
 const BASE_URL = (process.argv[2] ?? process.env.APP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 const PASSWORD = process.env.SEED_DEMO_PASSWORD?.trim() || 'skilllink'
+/**
+ * Пароль учётных записей экспертов — свой (решение 228, prisma/seed.ts). Локально без
+ * переменных — «skilllink-expert», как у сида. Стенд (задан SEED_DEMO_PASSWORD), а
+ * SEED_EXPERT_PASSWORD не передан — шаг 6 пропускается с пометкой, а не падает:
+ * известного пароля эксперта на стенде нет, угадывать его сверке незачем.
+ */
+const EXPERT_PASSWORD =
+  process.env.SEED_EXPERT_PASSWORD?.trim() || (process.env.SEED_DEMO_PASSWORD?.trim() ? null : 'skilllink-expert')
 
 const MANAGER_EMAIL = 'manager@skilllink.demo'
 const REP_EMAIL = 'rep@spbgu.example.invalid'
@@ -94,7 +102,7 @@ class Session {
     }
   }
 
-  async login(email: string): Promise<void> {
+  async login(email: string, password: string = PASSWORD): Promise<void> {
     const csrfResponse = await fetch(`${BASE_URL}/api/auth/csrf`, { headers: this.header() })
     this.remember(csrfResponse)
     const { csrfToken } = (await csrfResponse.json()) as { csrfToken: string }
@@ -102,7 +110,7 @@ class Session {
     const response = await fetch(`${BASE_URL}/api/auth/callback/credentials`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded', ...this.header() },
-      body: new URLSearchParams({ csrfToken, email, password: PASSWORD }).toString(),
+      body: new URLSearchParams({ csrfToken, email, password }).toString(),
       redirect: 'manual',
     })
     this.remember(response)
@@ -110,8 +118,8 @@ class Session {
     const me = await this.get<{ email: string }>('/api/me')
     if (me.status !== 200) {
       throw new Error(
-        `Не удалось войти как ${email} (ответ ${me.status}). Пароль стенда — в SEED_DEMO_PASSWORD, ` +
-          'у локального запуска он по умолчанию skilllink.',
+        `Не удалось войти как ${email} (ответ ${me.status}). Пароль стенда — в SEED_DEMO_PASSWORD ` +
+          '(у экспертов — SEED_EXPERT_PASSWORD), у локального запуска по умолчанию skilllink и skilllink-expert.',
       )
     }
   }
@@ -395,12 +403,16 @@ async function main(): Promise<void> {
 
   // ── Шаг 6. Учётная запись эксперта (решение 147) ──
   step('Шаг 6. Учётная запись эксперта — только чтение')
-  const expertAdmin = new Session()
-  await expertAdmin.login(EXPERT_ADMIN_EMAIL)
-  check('чтение доступно эксперту-администратору', (await expertAdmin.get('/api/universities')).status, 200)
-  const deleteAttempt = await expertAdmin.del('/api/skills/demo-check-does-not-exist')
-  check('разрушающий маршрут отдаёт 403 эксперту', deleteAttempt.status, 403)
-  check('причина отказа — учётная запись эксперта', deleteAttempt.code, 'FORBIDDEN')
+  if (EXPERT_PASSWORD === null) {
+    console.log(`  ${GREY}пропущено: у экспертов свой пароль (решение 228) — передайте SEED_EXPERT_PASSWORD${RESET}`)
+  } else {
+    const expertAdmin = new Session()
+    await expertAdmin.login(EXPERT_ADMIN_EMAIL, EXPERT_PASSWORD)
+    check('чтение доступно эксперту-администратору', (await expertAdmin.get('/api/universities')).status, 200)
+    const deleteAttempt = await expertAdmin.del('/api/skills/demo-check-does-not-exist')
+    check('разрушающий маршрут отдаёт 403 эксперту', deleteAttempt.status, 403)
+    check('причина отказа — учётная запись эксперта', deleteAttempt.code, 'FORBIDDEN')
+  }
 
   console.log()
   if (failed > 0) {

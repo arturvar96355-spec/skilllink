@@ -22,8 +22,11 @@ describe('ссылки между документами ведут на сущ�
       const broken: string[] = []
 
       for (const match of content.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
-        const target = (match[2] ?? '').split('#')[0]
-        if (!target || /^(https?:|mailto:)/.test(target)) continue
+        const raw = (match[2] ?? '').split('#')[0]
+        if (!raw || /^(https?:|mailto:)/.test(raw)) continue
+        // Имя с пробелами и кириллицей в ссылке кодируется (%20, %D1…) — так его
+        // открывает GitHub; на диске файл лежит под обычным именем.
+        const target = decodeURIComponent(raw)
 
         const resolved = normalize(join(dirname(join(process.cwd(), file)), target))
         if (!existsSync(resolved)) broken.push(`[${match[1]}](${target})`)
