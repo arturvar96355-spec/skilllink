@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { CooperationListItemDto, FunnelDroppedDto, StagePhase } from '@/shared/contracts'
+import type { CooperationListItemDto, FunnelDroppedDto, FunnelDto, StagePhase } from '@/shared/contracts'
 import type { FunnelStep } from '@/ui/data/Funnel'
 import {
   composition,
   currentByPhase,
   DONE,
+  droppedSummary,
+  droppedText,
   funnelConclusion,
   funnelRows,
   narrowest,
@@ -37,6 +39,17 @@ function dropped(phase: StagePhase, stageNumber: number, status: 'PAUSED' | 'CAN
   }
 }
 
+/** Серверные агрегаты выбывших (решение 227); фазы без выбывших — 0. */
+function aggregates(
+  byStatus: FunnelDto['droppedByStatus'],
+  byPhase: Partial<Record<StagePhase, number>>,
+): Pick<FunnelDto, 'droppedByStatus' | 'droppedByPhase'> {
+  return {
+    droppedByStatus: byStatus,
+    droppedByPhase: { ATTRACTION: 0, FORMALIZATION: 0, IMPLEMENTATION: 0, OPERATION: 0, CONTROL: 0, ...byPhase },
+  }
+}
+
 describe('вкладка «Воронка» (решение 215)', () => {
   it('переходы между соседними фазами — доля от прошлой фазы; «Контроль» не сравнивается', () => {
     const list = transitions(STEPS)
@@ -51,11 +64,10 @@ describe('вкладка «Воронка» (решение 215)', () => {
   })
 
   it('вывод одной фразой: где выбывают больше всего и самый узкий переход', () => {
-    const text = funnelConclusion(STEPS, [
-      dropped('FORMALIZATION', 4, 'PAUSED', null),
-      dropped('FORMALIZATION', 6, 'CANCELLED', null),
-      dropped('ATTRACTION', 2, 'CANCELLED', null),
-    ])
+    const text = funnelConclusion(
+      STEPS,
+      droppedSummary(aggregates({ PAUSED: 1, CANCELLED: 2 }, { FORMALIZATION: 2, ATTRACTION: 1 })),
+    )
     expect(text).toBe(
       'Больше всего связок выбывает на фазе «Оформление»: 2 из 3; самый узкий переход — «Внедрение» → «Эксплуатация»: дальше прошли 17 из 38 (45 %).',
     )
@@ -87,5 +99,31 @@ describe('вкладка «Воронка» (решение 215)', () => {
       dropped('FORMALIZATION', 4, 'CANCELLED', '2026-09-01T00:00:00Z', 'c'),
     ])
     expect(sorted.map((item) => item.title)).toEqual(['a', 'c', 'b'])
+  })
+
+  it('сводка выбывших — по серверным агрегатам, а не по превью списка (решение 227)', () => {
+    // 25 выбывших на одном шаге: сервер отдаёт превью из 20, агрегаты — по всем 25.
+    const preview = Array.from({ length: 20 }, (_, index) =>
+      dropped('ATTRACTION', 2, index < 15 ? 'CANCELLED' : 'PAUSED', null, `c${index}`),
+    )
+    const summary = droppedSummary(aggregates({ PAUSED: 10, CANCELLED: 15 }, { ATTRACTION: 25 }))
+    expect(preview).toHaveLength(20)
+    expect(summary).toMatchObject({ total: 25, paused: 10, cancelled: 15 })
+    expect(summary.byPhase.get('ATTRACTION')).toBe(25)
+    // Фаза без выбывших в карте не появляется — на полосе нет «выбыли 0».
+    expect(summary.byPhase.has('OPERATION')).toBe(false)
+    // Фраза под заголовком сходится с суммами: 10 + 15 = 25.
+    const text = droppedText(summary)
+    expect(text).toBe('25 связок выбыло: 10 на паузе, 15 отменены. По порядку воронки — где выбыли, когда и почему.')
+    const [total, paused, cancelled] = [...text.matchAll(/\d+/g)].map((match) => Number(match[0]))
+    expect(paused! + cancelled!).toBe(total)
+    expect(funnelConclusion(STEPS, summary)).toContain('«Привлечение»: 25 из 25')
+    expect(funnelRows(STEPS, new Map(), summary.byPhase)[0]!.note).toBe('сейчас здесь 0 · выбыли 25')
+  })
+
+  it('выбывших нет — фраза без нулей', () => {
+    expect(droppedText(droppedSummary(aggregates({ PAUSED: 0, CANCELLED: 0 }, {})))).toBe(
+      'Ни одна связка не приостановлена и не отменена.',
+    )
   })
 })

@@ -1,6 +1,6 @@
 import { SIGNING_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
-import type { CooperationStatus } from '@/shared/contracts/enums'
-import { TIMELINE_DONE, type StageTimeline } from './stage-timeline'
+import { STAGE_PHASES, type CooperationStatus, type StagePhase } from '@/shared/contracts/enums'
+import { TIMELINE_DONE, TIMELINE_LAST_STAGE, type StageTimeline } from './stage-timeline'
 
 /**
  * Воронка по этапам и когорты (решение 120). Чистый модуль над хронологиями
@@ -28,8 +28,10 @@ export const STAGE_STEPS: readonly FunnelStepDef[] = WORKFLOW_STAGES.map((stage)
 
 /**
  * Шесть вех вместо четырнадцати этапов (`milestones=true`). Границы — по фазам
- * конвейера и контрольным точкам: подписанный договор (закрыт этап 6) — главная
- * веха формализации, её же берут когорты.
+ * конвейера и контрольным точкам: подписанный договор (этап 6 завершён) — главная
+ * веха формализации, её же берут когорты. «Дошла до вехи» — пройдены все этапы до
+ * неё; отменённый обязательный этап пройденным не считается (решение 227), поэтому
+ * отменённое подписание — не «Договор подписан», отменённые занятия — не «Занятия проведены».
  */
 export const MILESTONE_STEPS: readonly FunnelStepDef[] = [
   { key: 'start', title: 'Начало работы', fromStage: 1 },
@@ -40,7 +42,7 @@ export const MILESTONE_STEPS: readonly FunnelStepDef[] = [
   { key: 'done', title: 'Все этапы закрыты', fromStage: TIMELINE_DONE },
 ]
 
-/** Ключевая веха когорт: договор подписан — этап 6 закрыт, текущий этап дальше 6. */
+/** Ключевая веха когорт: договор подписан — этап 6 завершён (не отменён), текущий этап дальше 6. */
 export const COHORT_MILESTONE: FunnelStepDef = MILESTONE_STEPS.find((step) => step.key === 'signed')!
 
 export interface FunnelSubject {
@@ -74,6 +76,12 @@ export interface FunnelStep {
   dropped: FunnelDropped[]
 }
 
+/** Выбывшие по статусу: связка выбывает, только когда она на паузе или отменена. */
+export interface DroppedByStatus {
+  PAUSED: number
+  CANCELLED: number
+}
+
 export interface FunnelGroup {
   key: string
   label: string
@@ -85,6 +93,27 @@ export interface Funnel {
   total: number
   steps: FunnelStep[]
   groups: FunnelGroup[]
+  /**
+   * Все выбывшие по статусу и по фазе, где выбыли (решение 227): считаются по полному
+   * списку, а `steps[].dropped` — превью до `droppedLimit` на шаг. Суммы сходятся
+   * с суммой `droppedCount`.
+   */
+  droppedByStatus: DroppedByStatus
+  droppedByPhase: Record<StagePhase, number>
+}
+
+const PHASE_BY_STAGE = new Map(WORKFLOW_STAGES.map((stage) => [stage.number, stage.phase]))
+
+/**
+ * Этап, где связка выбыла (решение 215): самый дальний достигнутый, 1–13 — этап 14
+ * закрывает система, выбыть на нём нельзя. Один расчёт для строки списка и для сводки.
+ */
+export function droppedStageNumber(timeline: Pick<StageTimeline, 'maxReached'>): number {
+  return Math.min(Math.max(timeline.maxReached, 1), TIMELINE_LAST_STAGE)
+}
+
+export function droppedPhase(timeline: Pick<StageTimeline, 'maxReached'>): StagePhase {
+  return PHASE_BY_STAGE.get(droppedStageNumber(timeline)) ?? 'ATTRACTION'
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -117,6 +146,8 @@ export function buildFunnel(
   const gaps: number[][] = steps.map(() => [])
   const inProgress = steps.map(() => 0)
   const dropped: FunnelDropped[][] = steps.map(() => [])
+  const droppedByStatus: DroppedByStatus = { PAUSED: 0, CANCELLED: 0 }
+  const droppedByPhase = Object.fromEntries(STAGE_PHASES.map((phase) => [phase, 0])) as Record<StagePhase, number>
 
   for (const subject of subjects) {
     const { timeline } = subject
@@ -135,6 +166,8 @@ export function buildFunnel(
     const finished = timeline.current >= TIMELINE_DONE || subject.status === 'COMPLETED'
     if (stopped && !finished) {
       dropped[last]!.push({ cooperationId: timeline.cooperationId, title: subject.title, status: subject.status })
+      droppedByStatus[subject.status as keyof DroppedByStatus] += 1
+      droppedByPhase[droppedPhase(timeline)] += 1
     } else if (!finished && currentStep >= 0) {
       inProgress[currentStep]! += 1
     }
@@ -186,7 +219,7 @@ export function buildFunnel(
     })
     .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label, 'ru'))
 
-  return { total, steps: result, groups }
+  return { total, steps: result, groups, droppedByStatus, droppedByPhase }
 }
 
 /** Запись журнала о правке связки: `payload` — `{ status }` (сид) или `{ fields: [...] }` (приложение). */

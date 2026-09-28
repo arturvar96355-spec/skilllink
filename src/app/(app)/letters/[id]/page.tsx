@@ -291,7 +291,8 @@ export default function LetterPage() {
 /**
  * Блок итога проверки: кто, когда, вердикт, задание; для исправленных — «было → стало».
  *
- * «Задание выполнено» (решение 183) — ответственный за задание либо ADMIN/HEAD; кнопка
+ * «Задание выполнено» (решение 183) — ответственный за задание либо ADMIN/HEAD, но не
+ * эксперт (решение 225: сервер отвечает ему 403 при любой роли); кнопка
  * прячется раньше отказа сервера так же, как остальные действия карточки, но право
  * проверяет только сервер (`inbound-letters.service.ts`, `completeTask`).
  */
@@ -366,6 +367,7 @@ function ReviewSummary({ card, user, onChanged }: { card: InboundLetterDto; user
             {INBOUND_LETTER_TASK_STATUS_LABELS[card.task.status]}
           </Badge>
           {card.task.status === 'OPEN' &&
+            !user.isReviewer &&
             (user.role === 'ADMIN' || user.role === 'HEAD' || user.id === card.task.responsibleId) && (
               <Button
                 className={styles.taskDoneButton}

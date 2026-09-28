@@ -13,7 +13,15 @@ import {
   stageObservation,
   type TimelineCooperationInput,
 } from './stage-timeline'
-import { buildCohorts, buildFunnel, MILESTONE_STEPS, STAGE_STEPS, statusChangedAt, type FunnelSubject } from './funnel'
+import {
+  buildCohorts,
+  buildFunnel,
+  COHORT_MILESTONE,
+  MILESTONE_STEPS,
+  STAGE_STEPS,
+  statusChangedAt,
+  type FunnelSubject,
+} from './funnel'
 import {
   ANOMALY_DAILY,
   ANOMALY_WEEKLY,
@@ -217,9 +225,23 @@ describe('хронология текущего этапа', () => {
     expect(timeline.maxReached).toBe(7)
   })
 
-  it('отменённый этап закрывает его, как завершённый', () => {
+  it('отменённый этап «при необходимости» (5) пройден, как завершённый', () => {
+    const timeline = buildStageTimeline(
+      cooperation([[1, 1], [2, 2], [3, 3], [4, 4], [5, 5, 'CANCELLED']]),
+      now,
+    )
+    expect(timeline.current).toBe(6)
+    expect(timeline.maxReached).toBe(6)
+  })
+
+  it('отменённый обязательный этап — остановка на нём, а не прохождение (решение 227)', () => {
+    // Раньше отмена закрывала этап, как завершение: текущий становился 2.
     const timeline = buildStageTimeline(cooperation([[1, 2, 'CANCELLED']]), now)
-    expect(timeline.current).toBe(2)
+    expect(timeline.current).toBe(1)
+    expect(timeline.maxReached).toBe(1)
+    expect(timeline.reachedAt.has(2)).toBe(false)
+    // Время на этапе не «вышло вперёд», а продолжается: цензура до конца наблюдения.
+    expect(stageObservation(timeline, 1)).toEqual({ days: 100, event: false })
   })
 
   it('закрытие без записи истории берётся из completedAt', () => {
@@ -341,6 +363,93 @@ describe('воронка и когорты', () => {
       ['Москва', 2],
       ['Санкт-Петербург', 2],
     ])
+  })
+
+  it('сводка выбывших — по всем, а не по превью из 20 (решение 227)', () => {
+    // 25 выбывших на этапе 2 (15 отменены, 10 на паузе) и 3 на паузе на этапе 4.
+    const many: FunnelSubject[] = [
+      ...Array.from({ length: 15 }, (_, index) =>
+        subject(`x${index}`, [[1, 1], [2, 5, 'CANCELLED']], 'CANCELLED', { closedAt: at(30), updatedAt: at(30) }),
+      ),
+      ...Array.from({ length: 10 }, (_, index) => subject(`p${index}`, [[1, 1]], 'PAUSED', { updatedAt: at(30) })),
+      ...Array.from({ length: 3 }, (_, index) => subject(`q${index}`, [[1, 1], [2, 2], [3, 3]], 'PAUSED', { updatedAt: at(30) })),
+    ]
+    const funnel = buildFunnel(many, STAGE_STEPS)
+    const stage2 = funnel.steps.find((step) => step.key === 'stage-2')!
+    expect(stage2.droppedCount).toBe(25)
+    expect(stage2.dropped).toHaveLength(20)
+    expect(funnel.droppedByStatus).toEqual({ PAUSED: 13, CANCELLED: 15 })
+    expect(funnel.droppedByPhase).toEqual({ ATTRACTION: 25, FORMALIZATION: 3, IMPLEMENTATION: 0, OPERATION: 0, CONTROL: 0 })
+    // Суммы сходятся с суммой droppedCount — в разрезе этапов и вех одинаково.
+    const total = funnel.steps.reduce((sum, step) => sum + step.droppedCount, 0)
+    expect(total).toBe(28)
+    const milestones = buildFunnel(many, MILESTONE_STEPS)
+    expect(milestones.droppedByStatus).toEqual(funnel.droppedByStatus)
+    expect(milestones.droppedByPhase).toEqual(funnel.droppedByPhase)
+  })
+
+  describe('веха — только явное завершение этапа (решение 227)', () => {
+    /** Этапы 1–(stage − 1) завершены, этап `stage` — в статусе `last`; этап 5 отменён как ненужный. */
+    const upTo = (stage: number, last: StageStatus): Array<[number, number, StageStatus?]> => [
+      ...Array.from({ length: stage - 1 }, (_, index) =>
+        index + 1 === 5 ? ([5, 5, 'CANCELLED'] as [number, number, StageStatus]) : ([index + 1, index + 1] as [number, number]),
+      ),
+      [stage, stage + 10, last],
+    ]
+    const closedAt = { closedAt: at(60), updatedAt: at(60) }
+    const step = (funnel: ReturnType<typeof buildFunnel>, key: string) => funnel.steps.find((item) => item.key === key)!
+
+    it('отменённый этап 6 не попадает в «Договор подписан», завершённый — попадает', () => {
+      const subjects = [
+        subject('cancelled-6', upTo(6, 'CANCELLED'), 'CANCELLED', closedAt),
+        subject('completed-6', upTo(6, 'COMPLETED')),
+      ]
+      const milestones = buildFunnel(subjects, MILESTONE_STEPS)
+      expect(step(milestones, 'signed').reached).toBe(1)
+      // Отменённая выбыла на «Контакт и встреча пройдены» — дальше не прошла.
+      expect(step(milestones, 'meeting-done').dropped.map((item) => item.cooperationId)).toEqual(['cancelled-6'])
+      expect(step(milestones, 'signed').dropped).toEqual([])
+      // По этапам: дошла до 6, но не до 7 — выбыла на этапе 6.
+      expect(subjects[0]!.timeline.maxReached).toBe(6)
+      const stages = buildFunnel(subjects, STAGE_STEPS)
+      expect(step(stages, 'stage-7').reached).toBe(1)
+      expect(step(stages, 'stage-6').dropped.map((item) => item.cooperationId)).toEqual(['cancelled-6'])
+    })
+
+    it('отмена подписания при продолжении работы — всё равно не «Договор подписан»', () => {
+      const closes: Array<[number, number, StageStatus?]> = [...upTo(6, 'CANCELLED'), [7, 20], [8, 21]]
+      const milestones = buildFunnel([subject('skip-6', closes)], MILESTONE_STEPS)
+      expect(step(milestones, 'signed').reached).toBe(0)
+      expect(step(milestones, 'meeting-done').inProgress).toBe(1)
+    })
+
+    it('когорты: отменённый этап 6 — не подписанный договор', () => {
+      const now = new Date('2026-09-25T00:00:00Z')
+      const timelines = [
+        buildStageTimeline(cooperation(upTo(6, 'CANCELLED'), { id: 'x', status: 'CANCELLED', ...closedAt }), now),
+        buildStageTimeline(cooperation(upTo(6, 'COMPLETED'), { id: 'y' }), now),
+      ]
+      const [cohort] = buildCohorts(timelines, COHORT_MILESTONE.fromStage, now)
+      expect(cohort!.size).toBe(2)
+      expect(cohort!.cells.at(-1)!.reached).toBe(1)
+    })
+
+    it('то же для этапа 11: отменённые занятия — не «Занятия проведены», завершённые — да', () => {
+      const subjects = [
+        subject('cancelled-11', upTo(11, 'CANCELLED'), 'CANCELLED', closedAt),
+        subject('completed-11', upTo(11, 'COMPLETED')),
+      ]
+      const milestones = buildFunnel(subjects, MILESTONE_STEPS)
+      expect(step(milestones, 'implemented').reached).toBe(2)
+      expect(step(milestones, 'classes-done').reached).toBe(1)
+      expect(step(milestones, 'implemented').dropped.map((item) => item.cooperationId)).toEqual(['cancelled-11'])
+    })
+
+    it('отменённая на этапе 13 — выбывшая, а не «Все этапы закрыты»', () => {
+      const funnel = buildFunnel([subject('cancelled-13', upTo(13, 'CANCELLED'), 'CANCELLED', closedAt)], MILESTONE_STEPS)
+      expect(step(funnel, 'done').reached).toBe(0)
+      expect(step(funnel, 'classes-done').droppedCount).toBe(1)
+    })
   })
 
   it('когорты: квартал старта, доля дошедших к концу квартала, будущих кварталов нет', () => {
