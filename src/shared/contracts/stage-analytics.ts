@@ -153,6 +153,16 @@ export interface FunnelDto {
   total: number
   steps: FunnelStepDto[]
   groups: FunnelGroupDto[]
+  /**
+   * Все выбывшие по статусу (решение 227) — по полному списку, а не по превью
+   * `steps[].dropped` (до 20 на шаг). PAUSED + CANCELLED = сумма `droppedCount`.
+   */
+  droppedByStatus: { PAUSED: number; CANCELLED: number }
+  /**
+   * Все выбывшие по фазе этапа, где выбыли (как `FunnelDroppedDto.phase`), — по полному
+   * списку; фаза без выбывших — 0. Сумма = сумма `droppedCount`.
+   */
+  droppedByPhase: Record<StagePhase, number>
   isMock: boolean
 }
 

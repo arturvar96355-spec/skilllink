@@ -27,7 +27,8 @@ import {
   composition,
   compositionText,
   currentByPhase,
-  droppedByPhase,
+  droppedSummary,
+  droppedText,
   funnelConclusion,
   funnelRows,
   sortDropped,
@@ -56,11 +57,11 @@ export function FunnelTab() {
     () => sortDropped((server.data?.steps ?? []).flatMap((step) => step.dropped)),
     [server.data],
   )
-  const droppedTotal = (server.data?.steps ?? []).reduce((sum, step) => sum + step.droppedCount, 0)
+  // Сводка — по всем выбывшим из агрегатов сервера; `dropped` — превью до 20 на шаг (решение 227).
+  const summary = useMemo(() => (server.data ? droppedSummary(server.data) : null), [server.data])
+  const droppedTotal = summary?.total ?? 0
   const counts = composition(list)
   const total = source.meta?.total ?? list.length
-  const cancelled = dropped.filter((item) => item.status === 'CANCELLED').length
-  const paused = dropped.filter((item) => item.status === 'PAUSED').length
   const isMock = Boolean(server.data?.isMock) || list.some((item) => item.isMock)
 
   const columns: Column<FunnelDroppedDto>[] = [
@@ -127,8 +128,8 @@ export function FunnelTab() {
       <Section
         title="Воронка связок"
         description={
-          source.data && server.data
-            ? funnelConclusion(steps, dropped)
+          source.data && summary
+            ? funnelConclusion(steps, summary)
             : 'Сколько связок дошло до каждой фазы и сколько перешло дальше.'
         }
         hint={FUNNEL_HINT}
@@ -144,7 +145,7 @@ export function FunnelTab() {
           ) : (
             <>
               <MeasureBars
-                rows={funnelRows(steps, currentByPhase(list), droppedByPhase(dropped))}
+                rows={funnelRows(steps, currentByPhase(list), summary?.byPhase ?? new Map())}
                 max={steps[0]?.value ?? 0}
                 label="Воронка связок по фазам: сколько дошло и какая доля перешла дальше"
                 valueWidth="8.5rem"
@@ -152,7 +153,7 @@ export function FunnelTab() {
               />
               <p className={styles.base}>
                 {formatNumber(list.length)} {pluralize(list.length, ['связка', 'связки', 'связок'])} в воронке — как на
-                главной: {compositionText(counts)}. Отменённые ({formatNumber(cancelled)}) в воронку не входят и
+                главной: {compositionText(counts)}. Отменённые ({formatNumber(summary?.cancelled ?? 0)}) в воронку не входят и
                 показаны ниже среди выбывших.
                 {total > list.length && ` Посчитано по ${formatNumber(list.length)} связкам из ${formatNumber(total)}.`}
               </p>
@@ -164,11 +165,7 @@ export function FunnelTab() {
       <Section
         title="Выбывшие связки"
         description={
-          server.data
-            ? dropped.length === 0
-              ? 'Ни одна связка не приостановлена и не отменена.'
-              : `${formatNumber(droppedTotal)} ${pluralize(droppedTotal, ['связка выбыла', 'связки выбыли', 'связок выбыло'])}: ${formatNumber(paused)} на паузе, ${formatNumber(cancelled)} ${pluralize(cancelled, ['отменена', 'отменены', 'отменены'])}. По порядку воронки — где выбыли, когда и почему.`
-            : 'Связки на паузе и отменённые: где, когда и почему.'
+          summary ? droppedText(summary) : 'Связки на паузе и отменённые: где, когда и почему.'
         }
         hint={DROPPED_HINT}
       >
