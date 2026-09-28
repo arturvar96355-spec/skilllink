@@ -165,6 +165,7 @@ export function ProductRecommendationsTab() {
         ) : (
           <Card>
             <MeasureBars
+              download={{ title: 'Какой продукт куда нести', note: 'Для скольких программ каждый продукт — лучший вариант' }}
               rows={chart}
               max={reachMax(reach)}
               label="Для скольких программ каждый продукт — лучший вариант"

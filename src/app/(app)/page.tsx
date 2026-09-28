@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { STAGE_PHASES, STAGE_PHASE_LABELS } from '@/shared/contracts'
@@ -25,6 +25,8 @@ import { attentionSummary } from './attention-queue'
 import { actionsSummary } from './priority-queue'
 import { cityCoordinates } from './city-coordinates'
 import { usePrintBlock } from './print-block'
+import { ChartPngButton } from '@/ui/data/ChartPngButton'
+import { downloadSvgPng } from '@/ui/lib/chart-png'
 import {
   Button,
   CardsSkeleton,
@@ -217,6 +219,12 @@ function Dashboard() {
   const universityMapPrint = usePrintBlock<HTMLDivElement>()
   const universityBarsPrint = usePrintBlock<HTMLDivElement>()
   const funnelPrint = usePrintBlock<HTMLDivElement>()
+  const healthRef = useRef<HTMLDivElement>(null)
+  /** Диаграмма блока — картинкой PNG (Ф6): тот же блок, что уходит в печать. */
+  const chartPng = (ref: { current: HTMLElement | null }, title: string, note?: string) => () => {
+    if (!ref.current) return Promise.reject(new Error('Диаграмма ещё не показана.'))
+    return downloadSvgPng(ref.current, { title, note })
+  }
 
   // Представителю вуза аналитика закрыта — у него свой кабинет.
   useEffect(() => {
@@ -478,8 +486,13 @@ function Dashboard() {
           {showcase && (
             <>
               <div className={styles.reveal} data-assemble="center" style={{ '--delay': '380ms' } as CSSProperties}>
-                <Section title="Здоровье портфеля" help={{ topic: 'dashboard', section: 'health' }} description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение.">
-                  <div className={styles.health}>
+                <Section
+                  title="Здоровье портфеля"
+                  help={{ topic: 'dashboard', section: 'health' }}
+                  description="Три доли, по которым видно, всё ли идёт по плану. Наведите на сектор — он выделится и покажет значение."
+                  action={<ChartPngButton title="Здоровье портфеля" onExport={chartPng(healthRef, 'Здоровье портфеля', 'Этапы в срок, связки без просрочек, покрытие навыков')} />}
+                >
+                  <div className={styles.health} ref={healthRef}>
                     <HealthPie
                       title="Этапы в срок"
                       short="в срок"
@@ -530,9 +543,12 @@ function Dashboard() {
                     help={{ topic: 'dashboard', section: 'phases' }}
                     description={`Фаза текущего этапа у каждой связки. В центре — все, кроме отменённых: ${compositionParts(data.cooperationCounts)}. Наведите на сектор или подпись.`}
                     action={
-                      <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
-                        Печать / PDF
-                      </Button>
+                      <div className={styles.sectionActions}>
+                        <ChartPngButton title="Где сейчас связки" onExport={chartPng(phasePiePrint.ref, 'Где сейчас связки', 'Фаза текущего этапа у каждой связки')} />
+                        <Button variant="secondary" size="sm" icon="download" onClick={phasePiePrint.print}>
+                          Печать / PDF
+                        </Button>
+                      </div>
                     }
                   >
                     <div className={styles.panel3d} ref={phasePiePrint.ref}>
@@ -550,6 +566,7 @@ function Dashboard() {
                         <Button href="/universities" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                           Все вузы
                         </Button>
+                        <ChartPngButton title="Вузы на карте" onExport={chartPng(universityMapPrint.ref, 'Вузы на карте', 'Размер точки — число связок')} />
                         <Button variant="secondary" size="sm" icon="download" onClick={universityMapPrint.print}>
                           Печать / PDF
                         </Button>
@@ -665,9 +682,12 @@ function Dashboard() {
                 help={{ topic: 'dashboard', section: 'by-university' }}
                 description="Пара столбиков у вуза: сколько связок идёт по плану и сколько требует внимания. Щелчок — страница вуза."
                 action={
-                  <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
-                    Печать / PDF
-                  </Button>
+                  <div className={styles.sectionActions}>
+                    <ChartPngButton title="Связки по вузам" onExport={chartPng(universityBarsPrint.ref, 'Связки по вузам', 'Идут по плану и требуют внимания — по вузам')} />
+                    <Button variant="secondary" size="sm" icon="download" onClick={universityBarsPrint.print}>
+                      Печать / PDF
+                    </Button>
+                  </div>
                 }
               >
                 <div className={styles.panel3d} ref={universityBarsPrint.ref}>
@@ -688,6 +708,7 @@ function Dashboard() {
                   <Button href="/cooperations" variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
                     Все связки
                   </Button>
+                  <ChartPngButton title="Воронка связок" onExport={chartPng(funnelPrint.ref, 'Воронка связок', 'Сколько связок дошло до каждой фазы работы')} />
                   <Button variant="secondary" size="sm" icon="download" onClick={funnelPrint.print}>
                     Печать / PDF
                   </Button>
