@@ -56,7 +56,6 @@ import {
   ListTitle,
 } from '@/ui'
 import { showAllState } from '@/ui/lib/show-all'
-import { CohortsTab } from './CohortsTab'
 import { FunnelTab } from './FunnelTab'
 import { demandConclusion, demandRows, gapRows, gapsConclusion, ratingConclusion } from './analytics-view'
 import { MeetingsHeatmap } from './MeetingsHeatmap'
@@ -74,13 +73,11 @@ const TABS: TabItem[] = [
   { key: 'funnel', label: 'Воронка' },
   // Где в процессе возникают проблемы (ТЗ дизайна 26–29.09, п. 4.2).
   { key: 'stages', label: 'Этапы' },
-  // Связки по кварталу начала: как быстро доходят до договора (решение 220).
-  { key: 'cohorts', label: 'Когорты' },
   // Тепловая карта встреч 7×24 (решение 178, п. 7).
   { key: 'meetings', label: 'Встречи' },
 ]
 
-type TabKey = 'rating' | 'skills' | 'demand' | 'products' | 'funnel' | 'stages' | 'cohorts' | 'meetings'
+type TabKey = 'rating' | 'skills' | 'demand' | 'products' | 'funnel' | 'stages' | 'meetings'
 
 function isTabKey(value: string | null): value is TabKey {
   return (
@@ -90,7 +87,6 @@ function isTabKey(value: string | null): value is TabKey {
     value === 'products' ||
     value === 'funnel' ||
     value === 'stages' ||
-    value === 'cohorts' ||
     value === 'meetings'
   )
 }
@@ -145,7 +141,7 @@ function AnalyticsView() {
       <PageHeader
         title="Аналитика"
         help={{ topic: 'analytics' }}
-        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, какой продукт куда предложить, где связки выбывают и застревают, как быстро когорты доходят до договора, когда встречаются с вузами."
+        description="Каждая вкладка отвечает на один вопрос: какие программы сильнее, чего не хватает в обучении, что просит рынок, какой продукт куда предложить, где связки выбывают и застревают, когда встречаются с вузами."
         actions={
           // Лист A4 для печати и PDF (решение 97): сводка всего раздела на одной странице.
           <Button href={ROUTES.managerReport} icon="document" variant="secondary">
@@ -167,7 +163,6 @@ function AnalyticsView() {
       {tab === 'products' && <ProductRecommendationsTab />}
       {tab === 'funnel' && <FunnelTab />}
       {tab === 'stages' && <StagesTab />}
-      {tab === 'cohorts' && <CohortsTab />}
       {tab === 'meetings' && <MeetingsHeatmap />}
     </>
   )
