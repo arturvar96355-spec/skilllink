@@ -24,6 +24,7 @@ import {
   useResource,
   type Column,
 } from '@/ui'
+import { showAllState } from '@/ui/lib/show-all'
 import { ProductOfferLetterModal } from '../ProductOffers'
 import { CONFIDENCE_WORDS, reachMax, reachRows } from '../product-offers-view'
 import styles from './analytics.module.css'
@@ -139,6 +140,7 @@ export function ProductRecommendationsTab() {
   if (!data) return null
 
   const chart = reachRows(reach)
+  const showAll = showAllState(data.items.length, data.total, limit, 100)
 
   return (
     <>
@@ -227,12 +229,17 @@ export function ProductRecommendationsTab() {
           </Card>
         )}
 
-        {!resource.error && data.total > data.items.length && (
+        {!resource.error && showAll && (
           <p className={styles.tail}>
-            Показаны {formatNumber(data.items.length)} из {formatNumber(data.total)}.{' '}
-            <Button variant="ghost" size="sm" onClick={() => setLimit(100)}>
-              Показать все
-            </Button>
+            {showAll.note}
+            {showAll.action && (
+              <>
+                {' '}
+                <Button variant="ghost" size="sm" onClick={() => setLimit(100)}>
+                  {showAll.action}
+                </Button>
+              </>
+            )}
           </p>
         )}
       </Section>
