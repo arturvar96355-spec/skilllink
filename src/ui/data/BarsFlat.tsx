@@ -62,6 +62,8 @@ const FLOOR = 218
 const TOP = 34
 /** Верх линии-указателя: над числами самого высокого столбика. */
 const CROSS_TOP = TOP - 22
+/** Зазор между концом указателя и верхушкой пары. */
+const CROSS_GAP = 8
 /** Запас снизу под наклонённые подписи на узком экране. */
 const TILT_ROOM = 44
 const PAD = 8
@@ -435,7 +437,12 @@ export function BarsFlat({
           )
         })}
 
-        {/* Указатель и маркеры Bklit — поверх пар; переезжают к соседнему вузу, а не мигают. */}
+        {/*
+          Указатель — тонкий пунктир над парой, до её верхушки, а не сплошная тёмная
+          линия сквозь столбики; кружков на верхушках нет: они садились на скругление
+          и читались «булавками» с выемкой. Пара и так выделена подсветкой и подсказкой.
+          Переезжает к соседнему вузу, а не мигает.
+        */}
         {grouped && spot && (
           <motion.g
             className={styles.cross}
@@ -446,24 +453,15 @@ export function BarsFlat({
           >
             <motion.line
               y1={CROSS_TOP}
-              y2={FLOOR}
               className={styles.crossLine}
               initial={false}
-              animate={{ x1: spot.center, x2: spot.center }}
+              animate={{
+                x1: spot.center,
+                x2: spot.center,
+                y2: Math.max(CROSS_TOP, Math.min(...spot.bars.map(({ top }) => top)) - CROSS_GAP),
+              }}
               transition={glide}
             />
-            {spot.bars.map(({ part, series, x, top }, partIndex) => (
-              <motion.circle
-                key={partIndex}
-                r={5}
-                className={styles.marker}
-                data-series={series}
-                data-zero={part.value === 0 ? '' : undefined}
-                initial={false}
-                animate={{ cx: x + barWidth / 2, cy: top }}
-                transition={glide}
-              />
-            ))}
           </motion.g>
         )}
       </svg>
