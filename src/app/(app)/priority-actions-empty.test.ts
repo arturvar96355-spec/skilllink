@@ -10,17 +10,17 @@ import { priorityActionsEmptyState } from './priority-actions-empty'
 describe('priorityActionsEmptyState', () => {
   it('открытых рекомендаций нет вообще — обычные заголовок и текст', () => {
     expect(priorityActionsEmptyState(0)).toEqual({
-      title: 'Рекомендаций нет',
+      title: 'Задач нет',
       description: 'Система ещё не собирала предложения или все они закрыты.',
     })
   })
 
   it('открыты только просрочки этапов (исключены из списка решением 180) — заголовок и текст указывают, где искать', () => {
-    // До исправления: список пуст → «Рекомендаций нет… всё закрыто», хотя
+    // До исправления: список пуст → «Задач нет… всё закрыто», хотя
     // открытые рекомендации есть — их просто показали в блоке
     // «Требует внимания» вместо этого.
     const state = priorityActionsEmptyState(3)
-    expect(state.title).not.toBe('Рекомендаций нет')
+    expect(state.title).not.toBe('Задач нет')
     expect(state.description).not.toMatch(/закрыт/)
     expect(state.description).toContain('Требует внимания')
     expect(state.description).toContain('«Списке задач»')
