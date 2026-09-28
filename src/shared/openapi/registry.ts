@@ -2143,12 +2143,12 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Решение 145 (ТЗ п.7): колонки дословно — «Наименование вуза, ИТ-направление, ' +
       'ИТ-продукт, Статус работы с вузом, Ответственный», в этом порядке. Формат — csv ' +
       '(по умолчанию), xlsx или json (вложением, схема generatedAt/filters/columns/rows). ' +
-      'Право — READ, представителю вуза — только свой вуз. Фильтры (решение 172, ТЗ — ' +
+      'Право — ANALYTICS (решение 225): представителю вуза — 403 на любом формате. Фильтры (решение 172, ТЗ — ' +
       '«с фильтрами по периоду, вузу, ИТ-направлению, ИТ-продукту и ответственному»): ' +
       'dateFrom/dateTo (дата или ISO 8601, по активности связки в периоде), universityId, ' +
       'programId, productId, responsibleId, status — все необязательны, попадают в filters ' +
       'json-файла и в шапку/имя csv и xlsx.',
-    permission: 'READ',
+    permission: 'ANALYTICS',
     query: reportQuerySchema,
     errors: COMMON_ERRORS,
   },
@@ -2161,8 +2161,8 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
       'Решение 145 (ТЗ п.8): колонки дословно — «Название вуза, Вендор, ПО, Номер договора, ' +
       'Подписание лицензии, Срок действия лицензии (год), Статус по передаче, ФИО менеджера, ' +
       'Ответственные от вуза, Комментарий», в этом порядке. Форматы и фильтры (решение 172) — ' +
-      'как у /api/reports/tz.',
-    permission: 'READ',
+      'как у /api/reports/tz. Право — ANALYTICS (решение 225): представителю вуза — 403.',
+    permission: 'ANALYTICS',
     query: reportQuerySchema,
     errors: COMMON_ERRORS,
   },
