@@ -129,6 +129,16 @@ export interface ConstellationScene {
   dispose(): void
 }
 
+/**
+ * Ширина/высота не бывают меньше 1px. `window.innerWidth`/`innerHeight` иногда ещё 0
+ * на первом кадре (скрытая вкладка, страница до полноценного layout) — без защиты
+ * аспект камеры и размах звёздного неба уходят в `0 / 0 = NaN`, и
+ * `THREE.BufferGeometry.computeBoundingSphere()` падает с «radius is NaN».
+ */
+export function clampSceneSize(value: number): number {
+  return Math.max(1, value)
+}
+
 /** null — WebGL недоступен. */
 export function createConstellation(
   THREE: Three,
@@ -136,6 +146,8 @@ export function createConstellation(
   options: SceneOptions,
 ): ConstellationScene | null {
   const { reduced, narrow } = options
+  options.width = clampSceneSize(options.width)
+  options.height = clampSceneSize(options.height)
   const scale = narrow ? 0.5 : 1
   /** Поток привязан к раскладке входа: приёмник — плотный сгусток в конце потока. */
   const streamed = Boolean(options.anchors) && !narrow
