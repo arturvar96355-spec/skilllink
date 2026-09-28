@@ -1,0 +1,36 @@
+/* Сотрудник в строке: аватар и ФИО (решение 230). */
+
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ссылка узнаётся по подчёркиванию при наведении, а не по цвету: акцент — сигнал. */
+.link {
+  border-radius: var(--radius-xs);
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .link:hover .name {
+    text-decoration: underline;
+    text-decoration-color: var(--border-hover);
+  }
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}

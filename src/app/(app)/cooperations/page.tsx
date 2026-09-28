@@ -10,6 +10,7 @@ import {
 } from '@/shared/contracts'
 import {
   Avatar,
+  StaffName,
   Button,
   Card,
   Checkbox,
@@ -245,7 +246,8 @@ function CooperationsView() {
             tooltip={`${row.universityName} — ${row.programName}`}
             subline={[
               row.productName ? `→ ${row.productName}` : 'продукт не выбран',
-              row.responsible.fullName,
+              // Строка реестра сама ссылка на связку: аватар есть, своей ссылки нет (решение 230).
+              <StaffName key="responsible" id={row.responsible.id} fullName={row.responsible.fullName} link={false} />,
             ]}
           />
         )

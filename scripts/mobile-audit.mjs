@@ -143,6 +143,14 @@ async function detailRoutes(request) {
   // Карточка документа — боковая панель реестра, открывается адресом.
   const document = await firstId(request, '/api/documents?pageSize=1')
   if (document) routes.push(`/documents?document=${document}`)
+  // Страница сотрудника (решение 230) — своя: её открывает любая роль сотрудника.
+  try {
+    const me = await request.get(`${BASE_URL}/api/me`)
+    const id = me.ok() ? (await me.json()).data?.id : null
+    if (id) routes.push(`/team/${id}`)
+  } catch {
+    // нет сессии — без страницы сотрудника
+  }
   return routes
 }
 
@@ -336,7 +344,8 @@ const SCENARIOS = [
   { name: 'список «Статус»', route: '/cooperations', open: [{ css: 'button[aria-haspopup="listbox"]' }] },
   { name: 'окно «Создать связку»', route: '/cooperations', open: [{ button: /^Создать связку/ }] },
   { name: 'окно «Добавить вуз»', route: '/universities', open: [{ button: /^Добавить вуз/ }] },
-  { name: 'панель сотрудника', route: '/team', open: [{ button: /^Открыть сотрудника/ }] },
+  // Имя сотрудника с решения 230 ведёт на его страницу; панель открывает щелчок по строке.
+  { name: 'панель сотрудника', route: '/team', open: [{ css: '[data-member-row]' }] },
   { name: 'окно поручения', route: '/team', open: [{ button: /^Дать поручение/ }] },
   { name: 'окно «Сменить статус» связки', route: 'coop', open: [{ button: /^Сменить статус/ }] },
   { name: 'окно ответственного связки', route: 'coop', open: [{ button: /ответственн/i }] },

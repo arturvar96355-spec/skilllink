@@ -38,6 +38,7 @@ import {
   RecommendationStatusBadge,
   Section,
   Skeleton,
+  StaffName,
   TableSkeleton,
   Tabs,
   TransferStatusBadge,
@@ -325,7 +326,8 @@ function CooperationContent() {
                 <HelpHint topic="cooperation-card" section="owner" />
               </span>
               <span className={[styles.factValue, styles.responsibleValue].join(' ')}>
-                {data.responsible.fullName}
+                {/* Аватар и имя ведут на страницу сотрудника, если туда пускают (решение 230). */}
+                <StaffName id={data.responsible.id} fullName={data.responsible.fullName} size="sm" />
                 {user.permissions.canAssignResponsible && (
                   <Button size="sm" variant="ghost" onClick={() => setChangingResponsible(true)}>
                     Сменить

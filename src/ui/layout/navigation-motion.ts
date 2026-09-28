@@ -76,7 +76,9 @@ function destinationOf(target: Element): Destination | null {
   if (target.closest('[data-nav-chrome]')) return null
   const control = target.closest('button, input, select, textarea, label, summary, [role="button"]')
   const anchor = target.closest<HTMLAnchorElement>('a[href]')
-  const row = target.closest<HTMLElement>('tbody tr')
+  // Строка с `data-row-panel` открывает свою боковую панель, а не первую ссылку в ней
+  // («Команда», решение 230: имя ведёт на страницу сотрудника, строка — в панель).
+  const row = target.closest<HTMLElement>('tbody tr:not([data-row-panel])')
   const card = row ?? anchor
   if (!card) return null
 
