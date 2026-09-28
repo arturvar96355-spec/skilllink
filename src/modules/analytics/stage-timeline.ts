@@ -1,5 +1,5 @@
 import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
-import { CONTROL_STAGE_NUMBER } from '@/shared/config/workflow.config'
+import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { durationDays, type SurvivalObservation } from './survival'
 
 /**
@@ -9,8 +9,14 @@ import { durationDays, type SurvivalObservation } from './survival'
  * Отдельной таблицы переходов нет и не нужно: каждая смена статуса этапа уже
  * пишется в `stage_history` с временем (решение 4), и заводить вторую запись того
  * же события — значит однажды получить две разные правды. Текущий этап — первый
- * по номеру незакрытый (не COMPLETED и не CANCELLED) среди 1–13 (решение 5); этап 14
- * вычисляемый и в хронологию не входит: «дошла до 14» значит «закрыты 1–13».
+ * по номеру не пройденный среди 1–13; этап 14 вычисляемый и в хронологию не входит:
+ * «дошла до 14» значит «пройдены 1–13».
+ *
+ * «Пройден» строже, чем «закрыт» в карточке связки (решение 5): пройден завершённый
+ * этап и отменённый этап «при необходимости» (этап 5, отмена — «не требуется»).
+ * Отменённый обязательный этап — остановка на нём, а не прохождение (решение 227):
+ * иначе связка, у которой отменено подписание, попадала бы в «Договор подписан»,
+ * а связка, отменённая на этапе k, — в «дошла до k + 1».
  *
  * Хронология проигрывает историю по времени: после каждой пачки записей с одним
  * временем пересчитывается текущий этап. Смена текущего этапа — переход.
@@ -62,17 +68,29 @@ export interface StageTimeline {
   enteredAt: Map<number, Date>
   /** Первый момент после входа, когда текущий этап ушёл дальше k. */
   exitedAt: Map<number, Date>
-  /** Самый дальний этап, до которого дошла связка (14 — закрыты все 1–13). */
+  /** Самый дальний этап, до которого дошла связка (14 — пройдены все 1–13). */
   maxReached: number
-  /** Текущий этап на конец наблюдения (14 — все закрыты). */
+  /** Текущий этап на конец наблюдения (14 — все пройдены). */
   current: number
 }
 
-const isClosed = (status: StageStatus): boolean => status === 'COMPLETED' || status === 'CANCELLED'
+/** Этапы «при необходимости»: их отменяют с комментарием «не требуется» — это пропуск. */
+const OPTIONAL_STAGES: ReadonlySet<number> = new Set(
+  WORKFLOW_STAGES.filter((stage) => stage.optional).map((stage) => stage.number),
+)
+
+/**
+ * Этап пройден: завершён — или отменён, если он «при необходимости» (решение 227).
+ * Вехи аналитики («Договор подписан» — этап 6, «Занятия проведены» — этап 11) —
+ * только явное завершение: оба этапа обязательные.
+ */
+export function isStagePassed(stageNumber: number, status: StageStatus): boolean {
+  return status === 'COMPLETED' || (status === 'CANCELLED' && OPTIONAL_STAGES.has(stageNumber))
+}
 
 function currentOf(statuses: ReadonlyMap<number, StageStatus>): number {
   for (let stage = 1; stage <= TIMELINE_LAST_STAGE; stage += 1) {
-    if (!isClosed(statuses.get(stage) ?? 'NOT_STARTED')) return stage
+    if (!isStagePassed(stage, statuses.get(stage) ?? 'NOT_STARTED')) return stage
   }
   return TIMELINE_DONE
 }

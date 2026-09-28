@@ -200,6 +200,33 @@ describe('getCooperationStory', () => {
     expect(draft.fallbackReason).toBe('empty')
   })
 
+  it('в причине блокировки дата рождения и адрес — в модель не уходит ничего (решение 226)', async () => {
+    mocks.getCooperation.mockResolvedValue(
+      cooperation({
+        currentStage: stage({
+          stageNumber: 4,
+          status: 'BLOCKED',
+          blockingReason: 'Ждём справку: Иванов Иван Иванович, дата рождения 01.02.1980, кв. 12',
+        }),
+        stages: [
+          stage({
+            stageNumber: 4,
+            status: 'BLOCKED',
+            blockingReason: 'Ждём справку: Иванов Иван Иванович, дата рождения 01.02.1980, кв. 12',
+          }),
+        ],
+      }),
+    )
+    const provider = readyProvider(() => ({ text: 'Связка стоит. Пройдено 3 из 13 этапов. Мешает справка.', model: 'm' }))
+    mocks.getLlmProvider.mockReturnValue(provider)
+    const draft = await getCooperationStory(MANAGER, 'coop-1')
+    expect(draft.source).toBe('template')
+    expect(draft.fallbackReason).toBe('personal-data')
+    expect(provider.generate).not.toHaveBeenCalled()
+    const request = mocks.writeAudit.mock.calls.find((call) => call[0].action === 'ai.request')![0]
+    expect(request.payload.outcome).toBe('personal-data')
+  })
+
   it('модель упала — отдан шаблон, запрос не считается ошибкой', async () => {
     mocks.getCooperation.mockResolvedValue(cooperation())
     mocks.getLlmProvider.mockReturnValue({

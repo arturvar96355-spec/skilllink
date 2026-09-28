@@ -26,6 +26,7 @@ import {
   buildCohorts,
   buildFunnel,
   COHORT_MILESTONE,
+  droppedStageNumber,
   MILESTONE_STEPS,
   STAGE_STEPS,
   statusChangedAt,
@@ -323,8 +324,7 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
   }
   const droppedDetails = (item: (typeof result.steps)[number]['dropped'][number]) => {
     const row = byId.get(item.cooperationId)
-    const reached = timelineById.get(item.cooperationId)?.maxReached ?? 1
-    const stageNumber = Math.min(Math.max(reached, 1), CONTROL_STAGE_NUMBER - 1)
+    const stageNumber = droppedStageNumber({ maxReached: timelineById.get(item.cooperationId)?.maxReached ?? 1 })
     const byStatus =
       item.status === 'CANCELLED' && row?.closedAt
         ? row.closedAt
@@ -357,6 +357,9 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
       conversionFromStart: step.conversionFromStart === null ? null : round4(step.conversionFromStart),
       dropped: step.dropped.map(droppedDetails),
     })),
+    // Сводка выбывших — по всем, а не по превью `dropped` (решение 227).
+    droppedByStatus: result.droppedByStatus,
+    droppedByPhase: result.droppedByPhase,
     groups: result.groups.map((group) => ({
       ...group,
       steps: group.steps.map((step) => ({

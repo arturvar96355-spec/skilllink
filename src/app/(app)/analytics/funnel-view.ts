@@ -3,6 +3,7 @@ import {
   STAGE_PHASE_LABELS,
   type CooperationListItemDto,
   type FunnelDroppedDto,
+  type FunnelDto,
   type StagePhase,
 } from '@/shared/contracts'
 import type { MeasureBarRow } from '@/ui/data/MeasureBars'
@@ -59,11 +60,39 @@ export function narrowest(list: readonly Transition[]): Transition | null {
   return best
 }
 
-/** Сколько выбывших на каждой фазе — по фазе этапа, дальше которого связка не ушла. */
-export function droppedByPhase(dropped: readonly FunnelDroppedDto[]): Map<StagePhase, number> {
-  const counts = new Map<StagePhase, number>()
-  for (const item of dropped) counts.set(item.phase, (counts.get(item.phase) ?? 0) + 1)
-  return counts
+/** Сводка выбывших: всего, на паузе, отменены и по фазам. */
+export interface DroppedSummary {
+  total: number
+  paused: number
+  cancelled: number
+  /** По фазе этапа, дальше которого связка не ушла. */
+  byPhase: Map<StagePhase, number>
+}
+
+/**
+ * Сводка выбывших — из серверных агрегатов по всем выбывшим (решение 227), а не
+ * по списку `steps[].dropped`: сервер отдаёт в нём не больше 20 на шаг, и счёт
+ * по нему расходился с итогом. Список — только превью для таблицы.
+ */
+export function droppedSummary(funnel: Pick<FunnelDto, 'droppedByStatus' | 'droppedByPhase'>): DroppedSummary {
+  const paused = funnel.droppedByStatus.PAUSED
+  const cancelled = funnel.droppedByStatus.CANCELLED
+  const byPhase = new Map<StagePhase, number>()
+  for (const phase of STAGE_PHASES) {
+    const count = funnel.droppedByPhase[phase] ?? 0
+    if (count > 0) byPhase.set(phase, count)
+  }
+  return { total: paused + cancelled, paused, cancelled, byPhase }
+}
+
+/** Фраза под заголовком «Выбывшие связки»: итог и из чего он состоит — одни и те же числа. */
+export function droppedText(summary: DroppedSummary): string {
+  if (summary.total === 0) return 'Ни одна связка не приостановлена и не отменена.'
+  return (
+    `${formatNumber(summary.total)} ${pluralize(summary.total, ['связка выбыла', 'связки выбыли', 'связок выбыло'])}: ` +
+    `${formatNumber(summary.paused)} на паузе, ${formatNumber(summary.cancelled)} ` +
+    `${pluralize(summary.cancelled, ['отменена', 'отменены', 'отменены'])}. По порядку воронки — где выбыли, когда и почему.`
+  )
 }
 
 /** Состав базы: «65 активных, 6 на паузе, 6 завершённых» — по тем же статусам, что на главной. */
@@ -99,9 +128,9 @@ export function compositionText(counts: { active: number; paused: number; comple
  * Узкий переход — не обязательно потеря: там же и связки, которые ещё в работе,
  * поэтому фраза говорит «дальше прошли», а не «потеряли».
  */
-export function funnelConclusion(steps: readonly FunnelStep[], dropped: readonly FunnelDroppedDto[]): string {
+export function funnelConclusion(steps: readonly FunnelStep[], dropped: DroppedSummary): string {
   const narrow = narrowest(transitions(steps))
-  const byPhase = droppedByPhase(dropped)
+  const byPhase = dropped.byPhase
   let worstPhase: StagePhase | null = null
   for (const phase of STAGE_PHASES) {
     if ((byPhase.get(phase) ?? 0) > (worstPhase ? byPhase.get(worstPhase) ?? 0 : 0)) worstPhase = phase
@@ -110,7 +139,7 @@ export function funnelConclusion(steps: readonly FunnelStep[], dropped: readonly
   if (worstPhase) {
     const count = byPhase.get(worstPhase) ?? 0
     parts.push(
-      `Больше всего связок выбывает на фазе «${STAGE_PHASE_LABELS[worstPhase]}»: ${formatNumber(count)} из ${formatNumber(dropped.length)}`,
+      `Больше всего связок выбывает на фазе «${STAGE_PHASE_LABELS[worstPhase]}»: ${formatNumber(count)} из ${formatNumber(dropped.total)}`,
     )
   }
   if (narrow) {
