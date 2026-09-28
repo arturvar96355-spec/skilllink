@@ -153,6 +153,14 @@ async function composeStory(
   if (!info.ready) return template('not-configured')
   const providerKind = info.kind
 
+  // Остаточная проверка (решение 226): маска истории заменяет людей и контакты, но не дату
+  // рождения, адрес или ФИО человека не из базы. Такой признак — запрос не уходит.
+  const leaks = masker.findPersonalData(`${prompt.system}\n${prompt.user}`)
+  if (leaks.length > 0) {
+    await logAiRequest(user, subject, providerKind, info.model, factsChars, 'personal-data')
+    return template('personal-data')
+  }
+
   const key = cacheKey(['story', providerKind, info.model ?? '', prompt.system, prompt.user])
   const cached = readCache(key, now.getTime())
   if (cached) {

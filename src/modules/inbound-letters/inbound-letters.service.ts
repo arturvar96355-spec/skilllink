@@ -1,6 +1,6 @@
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
 import { pageMeta } from '@/shared/http/pagination'
-import { assertCan } from '@/shared/auth/permissions'
+import { assertCan, assertReviewerAllowed } from '@/shared/auth/permissions'
 import { recordAuditOnce, writeAudit } from '@/shared/audit/audit'
 import { TELEGRAM_ACTIONS } from '@/shared/config/telegram.config'
 import { log } from '@/shared/log/logger'
@@ -585,17 +585,22 @@ export async function dismissLetter(user: CurrentUser, id: string, input: Dismis
  * Право — ответственный за задание либо ADMIN/HEAD: `INBOUND_READ` пропускает и
  * MANAGER (он читает письма своих вузов), но отметить чужое задание манагер
  * не может — только своё, если оно на нём.
+ *
+ * Эксперт (флаг `isReviewer`, решение 147) не отмечает ни своё, ни чужое задание
+ * при любой роли (решение 225): `INBOUND_READ` открыт ему для чтения, поэтому
+ * `assertCan` здесь его не останавливает — нужна явная проверка до записи.
  */
 export async function completeTask(user: CurrentUser, id: string, now: Date = new Date()): Promise<InboundLetterDto> {
   assertCan(user, 'INBOUND_READ')
+  assertReviewerAllowed(user)
   const existing = await repo.findById(id)
   if (!existing) throw notFound('Обращение не найдено')
   await assertVisible(user, existing)
   if (!existing.task) throw notFound('У письма нет задания')
   if (existing.task.status === 'DONE') throw conflict('Задание уже отмечено выполненным')
 
-  const isReviewer = user.role === 'ADMIN' || user.role === 'HEAD'
-  if (!isReviewer && existing.task.responsibleId !== user.id) {
+  const managesAllLetters = user.role === 'ADMIN' || user.role === 'HEAD'
+  if (!managesAllLetters && existing.task.responsibleId !== user.id) {
     throw forbidden('Отметить задание может только ответственный за него, ADMIN или HEAD')
   }
 
