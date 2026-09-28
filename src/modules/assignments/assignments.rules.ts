@@ -1,5 +1,7 @@
 import type { AssignmentDueState } from '@/shared/contracts/assignment'
 import type { AssignmentStatus } from '@/shared/contracts/enums'
+import { ASSIGNMENT_STATUS_LABELS } from '@/shared/contracts/labels'
+import { invalidTransition } from '@/shared/http/errors'
 import { moscowIsoDate } from '@/shared/utils/date'
 
 /**
@@ -65,6 +67,39 @@ export function daysOverdue(dueDate: string, status: AssignmentStatus, today: st
 /** Срок в прошлом не принимается: поручение «на вчера» было бы просрочено с рождения. Сегодня — можно. */
 export function isDueDateInPast(dueDate: string, today: string): boolean {
   return dueDate < today
+}
+
+/**
+ * Разрешённые переходы статуса поручения (решение 225, находка ревью Codex 14) — ровно те,
+ * что ведёт интерфейс одной кнопкой (`nextStatusAction` в `app/(app)/assignment-view.ts`):
+ * «Новое» → «В работе» → «Сделано» → «В работе». Прямым PATCH раньше проходили
+ * NEW → DONE и DONE → NEW — поручение «сделано», ни дня не побыв в работе, или
+ * выполненное снова «новое» с потерянной датой выполнения.
+ */
+export const ASSIGNMENT_TRANSITIONS: Readonly<Record<AssignmentStatus, readonly AssignmentStatus[]>> = {
+  NEW: ['IN_PROGRESS'],
+  IN_PROGRESS: ['DONE'],
+  DONE: ['IN_PROGRESS'],
+}
+
+/**
+ * Переход разрешён таблицей выше. Тот же статус — не переход, а повтор (двойной клик
+ * «Сделано», правка текста автором вместе с текущим статусом): разрешён и ничего не меняет,
+ * `doneAt` сохраняется (`nextDoneAt`).
+ */
+export function isAssignmentTransitionAllowed(from: AssignmentStatus, to: AssignmentStatus): boolean {
+  return from === to || ASSIGNMENT_TRANSITIONS[from].includes(to)
+}
+
+/** Недопустимый переход — `INVALID_TRANSITION` 409 до любой записи. */
+export function assertAssignmentTransition(from: AssignmentStatus, to: AssignmentStatus): void {
+  if (isAssignmentTransitionAllowed(from, to)) return
+  const allowed = ASSIGNMENT_TRANSITIONS[from].map((status) => `«${ASSIGNMENT_STATUS_LABELS[status]}»`).join(', ')
+  throw invalidTransition(
+    `Поручение нельзя перевести из «${ASSIGNMENT_STATUS_LABELS[from]}» в «${ASSIGNMENT_STATUS_LABELS[to]}». ` +
+      `Из «${ASSIGNMENT_STATUS_LABELS[from]}» можно только в ${allowed}.`,
+    { from, to },
+  )
 }
 
 /** Когда отмечено «Сделано»: ставится при переходе в DONE, снимается при возврате в работу. */

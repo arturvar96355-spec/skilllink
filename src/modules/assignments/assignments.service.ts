@@ -13,6 +13,7 @@ import * as repo from './assignments.repo'
 import type { AssignmentRow } from './assignments.repo'
 import {
   AUTHOR_ONLY_FIELDS,
+  assertAssignmentTransition,
   canChangeAssignmentStatus,
   canEditAssignment,
   daysOverdue,
@@ -197,6 +198,9 @@ export async function update(
   } else if (!canChangeAssignmentStatus(user, existing)) {
     throw forbidden('Статус меняют исполнитель и автор поручения')
   }
+  // После прав, до любой записи (решение 225): недостижимый в интерфейсе переход — 409,
+  // `doneAt` ставится и снимается только на разрешённых переходах.
+  if (input.status !== undefined) assertAssignmentTransition(existing.status, input.status)
 
   const existingDue = dueDateIso(existing.dueAt)
   if (input.dueDate !== undefined && input.dueDate !== existingDue) assertDueDate(input.dueDate, now)

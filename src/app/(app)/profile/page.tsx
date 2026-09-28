@@ -472,7 +472,8 @@ export default function ProfilePage() {
           <Row title="Режим интерфейса" help={{ topic: 'ui-modes' }} caption="Рабочий — сразу видно, что требует внимания; презентационный — весь визуал для показа.">
             <UiModeSwitch />
           </Row>
-          {isSharedDemoAccount(user.email) ? (
+          {/* Эксперт (решение 225) — тоже общая учётная запись: сервер отвечает 403. */}
+          {isSharedDemoAccount(user.email) || user.isReviewer ? (
             <Row
               title="Пароль"
               caption="Общая демо-учётная запись: под ней входят все проверяющие, поэтому пароль не меняется. Смену пароля можно проверить на своей учётной записи — её заводит администратор."

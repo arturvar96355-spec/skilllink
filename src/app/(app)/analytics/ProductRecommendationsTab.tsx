@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ProductRecommendationDto, ProductRecommendationsDto } from '@/shared/contracts'
 import {
   Button,
@@ -46,9 +46,25 @@ export function ProductRecommendationsTab() {
     `/api/analytics/product-recommendations${buildQuery({ limit, productId: productId || undefined })}`,
     { keepPreviousData: true },
   )
-  const data = resource.data
+  /**
+   * Последний успешный ответ и продукт, к которому он относится (ревью Codex 18).
+   * Пока идёт или упал запрос по новому продукту, на экране остаются прежние
+   * строки — и подписываются прежним продуктом, а не выбранным в поле: заголовок
+   * не должен обещать то, чего на экране нет. Ошибка нового запроса видна всегда.
+   */
+  const [shown, setShown] = useState<{ data: ProductRecommendationsDto; productId: string } | null>(null)
+  useEffect(() => {
+    if (resource.data && !resource.isLoading && !resource.isRefreshing && !resource.error) {
+      setShown({ data: resource.data, productId })
+    }
+    // productId — ключ того запроса, чей ответ пришёл: адрес строится из него.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resource.data, resource.isLoading, resource.isRefreshing, resource.error])
+  // До первого успешного ответа — сам ответ: подписывать пока нечего, а пустого кадра не будет.
+  const data = shown?.data ?? resource.data
+  const shownProductId = shown ? shown.productId : productId
   const reach = data?.reach ?? []
-  const productName = reach.find((row) => row.productId === productId)?.productName
+  const productName = reach.find((row) => row.productId === shownProductId)?.productName
 
   const columns: Column<ProductRecommendationDto>[] = [
     {
@@ -136,7 +152,7 @@ export function ProductRecommendationsTab() {
         description={
           data.programCount === undefined
             ? data.summary
-            : `${productId ? '' : `${data.summary} `}Рассмотрено ${formatNumber(data.programCount)} действующих программ, период спроса ${data.period ?? '—'}.`
+            : `${shownProductId ? '' : `${data.summary} `}Рассмотрено ${formatNumber(data.programCount)} действующих программ, период спроса ${data.period ?? '—'}.`
         }
         action={data.isMock ? <MockBadge title="Спрос рынка — демонстрационный набор: баллы учебные." /> : undefined}
       >
@@ -164,7 +180,7 @@ export function ProductRecommendationsTab() {
       <Section
         title={productName ? `Куда нести «${productName}»` : 'Где каждый продукт нужнее всего'}
         description={
-          productId
+          shownProductId
             ? data.summary
             : 'У каждого продукта — три программы, где он закрывает больше всего, от сильной рекомендации к слабой. Все программы продукта — в поле «Продукт». Название программы открывает её карточку: там причины, «Черновик письма» и «Создать связку».'
         }
@@ -191,22 +207,27 @@ export function ProductRecommendationsTab() {
           </ToolbarItem>
         </Toolbar>
 
-        <Card padding="none">
-          {data.items.length === 0 ? (
-            <EmptyState icon="product" title="Пар нет" description={data.summary} />
-          ) : (
-            <DataTable
-              rows={data.items}
-              columns={columns}
-              getRowKey={(row) => `${row.program.id}:${row.product.id}`}
-              isRefreshing={resource.isRefreshing}
-              caption="Рекомендации продуктов по программам"
-              narrow="stack"
-            />
-          )}
-        </Card>
+        {resource.error ? (
+          // Новый запрос упал — ошибкой, а не прежним списком под новым выбором.
+          <ErrorState error={resource.error} onRetry={resource.reload} />
+        ) : (
+          <Card padding="none">
+            {data.items.length === 0 ? (
+              <EmptyState icon="product" title="Пар нет" description={data.summary} />
+            ) : (
+              <DataTable
+                rows={data.items}
+                columns={columns}
+                getRowKey={(row) => `${row.program.id}:${row.product.id}`}
+                isRefreshing={resource.isRefreshing}
+                caption="Рекомендации продуктов по программам"
+                narrow="stack"
+              />
+            )}
+          </Card>
+        )}
 
-        {data.total > data.items.length && (
+        {!resource.error && data.total > data.items.length && (
           <p className={styles.tail}>
             Показаны {formatNumber(data.items.length)} из {formatNumber(data.total)}.{' '}
             <Button variant="ghost" size="sm" onClick={() => setLimit(100)}>

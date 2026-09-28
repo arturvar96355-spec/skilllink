@@ -37,7 +37,7 @@
   stroke: var(--accent-violet);
   stroke-width: 0.6;
   vector-effect: non-scaling-stroke;
-  opacity: 0.1;
+  opacity: var(--map-grid-opacity);
 }
 
 /* Контур: тонкая линия с узким свечением (фильтр в разметке). */
@@ -47,30 +47,34 @@
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
   stroke-linejoin: round;
-  opacity: 0.5;
+  opacity: var(--map-coast-opacity);
+  filter: var(--map-coast-glow);
 }
 
 /* Дуги-связи: волосяные и тихие; у наведённой — сплошная линия. */
 .linkLine {
   fill: none;
-  stroke: var(--accent-cyan);
-  stroke-width: 1;
+  stroke: var(--map-link-color);
+  stroke-width: var(--map-link-width);
   vector-effect: non-scaling-stroke;
-  stroke-dasharray: 2 5;
-  opacity: 0.32;
+  stroke-dasharray: var(--map-link-dash);
+  opacity: var(--map-link-opacity);
+  filter: var(--map-link-idle-glow);
   transition: opacity var(--motion-fast) var(--ease-out);
 }
 
 .linkLit .linkLine {
+  stroke: var(--map-link-lit-color);
   stroke-dasharray: none;
-  stroke-width: 1.4;
+  stroke-width: calc(var(--map-link-width) + 0.6);
   opacity: 0.85;
+  filter: var(--map-link-glow);
 }
 
 /* Импульс бежит по дуге; у каждой дуги — своя очередь, одновременно горит одна. */
 .linkPulse {
   fill: none;
-  stroke: var(--accent-cyan);
+  stroke: var(--map-link-lit-color);
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-dasharray: 0.06 1;
@@ -172,7 +176,11 @@
   stroke: var(--text-accent-pale);
   stroke-width: 1.25;
   vector-effect: non-scaling-stroke;
-  transition: fill var(--motion-fast) var(--ease-out);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    fill var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
 
 /* Кучка: второе кольцо — «здесь несколько», число вузов — внутри. */
@@ -208,6 +216,8 @@
 .point:hover .dot,
 .pointLit .dot {
   fill: var(--accent-pink);
+  /* В светлой теме узел под курсором чуть крупнее (спецификация «Light Theme», п. 5). */
+  transform: scale(var(--map-dot-hover-scale));
 }
 
 .point:hover .stack,
