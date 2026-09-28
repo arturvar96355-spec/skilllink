@@ -31192,7 +31192,7 @@
           "Поручения"
         ],
         "summary": "Изменить поручение или его статус",
-        "description": "Автор меняет всё; исполнитель — только status (NEW, IN_PROGRESS, DONE, из «Сделано» — обратно в работу). doneAt ставится и снимается сервером. Каждое изменение — в журнал действий (assignment.update, assignment.status). Смена исполнителя — уведомление новому.\n\nАвтор (ADMIN или HEAD) — любые поля; исполнитель — только статус; остальным — 403, а чужое поручение для того, кто видит только свои, — 404. Эксперт хакатона — 403.",
+        "description": "Автор меняет всё; исполнитель — только status (NEW, IN_PROGRESS, DONE, из «Сделано» — обратно в работу). Переходы статуса (решение 225): NEW → IN_PROGRESS → DONE → IN_PROGRESS, тот же статус — без изменений; остальные (NEW → DONE, IN_PROGRESS → NEW, DONE → NEW) — 409 INVALID_TRANSITION, запись не меняется. doneAt ставится и снимается сервером только на разрешённых переходах. Каждое изменение — в журнал действий (assignment.update, assignment.status). Смена исполнителя — уведомление новому.\n\nАвтор (ADMIN или HEAD) — любые поля; исполнитель — только статус; остальным — 403, а чужое поручение для того, кто видит только свои, — 404. Эксперт хакатона — 403.",
         "operationId": "patch_api_assignments__id_",
         "parameters": [
           {
@@ -31326,6 +31326,56 @@
           },
           "404": {
             "description": "NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "error"
+                  ],
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "VALIDATION_ERROR",
+                            "NOT_FOUND",
+                            "FORBIDDEN",
+                            "UNAUTHORIZED",
+                            "CONFLICT",
+                            "INVALID_TRANSITION",
+                            "INTEGRATION_ERROR",
+                            "RATE_LIMITED",
+                            "INTERNAL",
+                            "SERVICE_UNAVAILABLE"
+                          ]
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Текст на русском языке"
+                        },
+                        "details": {
+                          "description": "Для ошибок валидации — массив { field, message }"
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "description": "Только у INTERNAL (500): номер запроса, тот же, что в заголовке x-request-id (решение 133)"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "INVALID_TRANSITION",
             "content": {
               "application/json": {
                 "schema": {

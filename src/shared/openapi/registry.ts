@@ -1541,14 +1541,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     summary: 'Изменить поручение или его статус',
     description:
       'Автор меняет всё; исполнитель — только status (NEW, IN_PROGRESS, DONE, из «Сделано» — обратно ' +
-      'в работу). doneAt ставится и снимается сервером. Каждое изменение — в журнал действий ' +
+      'в работу). Переходы статуса (решение 225): NEW → IN_PROGRESS → DONE → IN_PROGRESS, тот же ' +
+      'статус — без изменений; остальные (NEW → DONE, IN_PROGRESS → NEW, DONE → NEW) — 409 ' +
+      'INVALID_TRANSITION, запись не меняется. doneAt ставится и снимается сервером только на ' +
+      'разрешённых переходах. Каждое изменение — в журнал действий ' +
       '(assignment.update, assignment.status). Смена исполнителя — уведомление новому.',
     permission: 'READ',
     accessNote:
       'Автор (ADMIN или HEAD) — любые поля; исполнитель — только статус; остальным — 403, а чужое ' +
       'поручение для того, кто видит только свои, — 404. Эксперт хакатона — 403.',
     body: updateAssignmentSchema,
-    errors: WRITE_ERRORS,
+    errors: [...WRITE_ERRORS, 'INVALID_TRANSITION'],
   },
 
   // ── Прогноз связок (решение 135) ─────────────────────────────────────────
