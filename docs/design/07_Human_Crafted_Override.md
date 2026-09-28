@@ -4,8 +4,8 @@
 > **СТАТУС ДОКУМЕНТА: HIGHEST PRIORITY / OVERRIDE**
 >
 > Этот файл создан для исправления визуальных и motion-проблем текущей реализации SkillLink.
-> Если правила этого файла конфликтуют с `01_Design_Interface.md`, `02_Page_Template.md`,
-> `04_Colors_and_Visual_Style.md`, `05_Components_and_States.md` или `06_Motion_and_Animations.md`,
+> Если правила этого файла конфликтуют с `01_Interface.md`, `02_Page_Template.md`,
+> `04_Colors.md`, `05_Components.md` или `06_Motion.md`,
 > **приоритет имеет этот файл**.
 >
 > Цель: уйти от эстетики «AI-generated SaaS template» и сделать интерфейс SkillLink

@@ -184,7 +184,7 @@ export function assertCan(user: CurrentUser, permission: Permission): void {
 
 /**
  * Почта и телефон контактных лиц вузов — только тем, кто ведёт с ними переписку:
- * ADMIN и MANAGER (право CONTACT_DETAILS, решение 106), как и почта в справочнике
+ * ADMIN, MANAGER и HEAD (право CONTACT_DETAILS, решение 106), как и почта в справочнике
  * пользователей (auth.service.ts). Аналитику и наблюдателю адреса и телефоны
  * не нужны — это персональные данные сверх цели (ст. 5 152-ФЗ, docs/PRIVACY.md).
  *

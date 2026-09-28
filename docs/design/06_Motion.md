@@ -12,15 +12,15 @@ The goal is not to animate every element. Motion should make the interface feel 
 
 Component states are defined in:
 
-- `05_Components_and_States.md`
+- `05_Components.md`
 
 Typography is defined in:
 
-- `03_Typography_and_Text.md`
+- `03_Typography.md`
 
 Visual style is defined in:
 
-- `04_Colors_and_Visual_Style.md`
+- `04_Colors.md`
 
 ---
 
@@ -362,7 +362,7 @@ The user must still be able to read and interact with content immediately.
 
 # 16. Interactive Cards
 
-Interactive cards follow the states defined in `05_Components_and_States.md`.
+Interactive cards follow the states defined in `05_Components.md`.
 
 ### Hover
 

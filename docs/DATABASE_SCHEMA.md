@@ -417,8 +417,9 @@ UNIQUE: (`cooperation_id`, `stage_number`). Индексы: `status`, `deadline`
 `documents` привязывается к связке, вузу или программе (все три FK
 необязательные), хранит `type`, `title`, `version`, `status`, `content`, `template_key`,
 `file_reference`, `author_id`,
-`responsible_id`, `issued_at`, `signed_at`. Файлы **не хранятся**: в MVP только метаданные и
-ссылка (решение 14).
+`responsible_id`, `issued_at`, `signed_at`. Файлы к документам и этапам **хранятся**
+(решение 145): модель `Attachment`, том Docker `skilllink-uploads` (локально `./.uploads`),
+резервная копия — отдельным архивом вместе с базой (решение 216).
 Индексы `documents`: `cooperation_id`, `university_id`, `program_id`, `status`, `author_id`,
 `responsible_id`.
 `document_history` хранит историю изменений документа. Индексы: `document_id`, `changed_at`,

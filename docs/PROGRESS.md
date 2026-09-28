@@ -1,8 +1,26 @@
 # PROGRESS.md — прогресс, риски, незавершённое
 
-Обновлено: 28.09.2026.
+Обновлено: 29.09.2026.
 
 ## Состояние
+
+- 29.09 — решение 231: ночная сверка документов с кодом перед защитой. Числа README
+  («Масштаб на 29.09») и `DATABASE_ANSWERS.md` (`FOR UPDATE`, `db:verify`) пересчитаны по
+  коду; права ИИ-помощника, `canSeeContactDetails` и `contactRevealRequired` в комментариях
+  дописаны под HEAD и решение 181; статусы Keycloak, PNG-выгрузки диаграмм (Ф6), экранов
+  DSAR и согласия (решение 181), мессенджеров (Telegram/VK подключены, MAX без токена
+  организации) и памяти сервера (4 ГБ) приведены к фактическому состоянию в
+  `SECURITY_LIMITATIONS.md`, `TZ_COMPLIANCE.md`, `PRIVACY.md`, `DECISIONS.md`, `DEPLOY.md`,
+  `SETUP.md`, `API_CONTRACT.md`, `DATABASE_SCHEMA.md`, `CLAUDE.md`; `schema.prisma` —
+  решение 124 → 134 у комментариев ИНН и слияния. Починена порча текста от неудачных
+  слияний в `PROGRESS.md` (повторы решения 139, блока «Редизайн v2», заголовка «Модули и
+  эндпоинты», строк про пути OpenAPI) и добавлена строка про shadcn/ui в таблицу
+  противоречий `PROJECT_AUDIT.md`. Довели переименование «Рекомендации» → «Список задач»
+  (решение 212) до конца: `SETUP.md`, тексты `PriorityQueue.tsx`, `priority-actions-empty.ts`;
+  заодно вкладка «Сотрудничества» → «Связки» (карточки вуза и программы, кабинет вуза,
+  поиск, справка). Пересобраны PDF сопроводительной документации и `docs/USER_GUIDE.md`.
+  Ветка догнана с `main` (решения 229, 230). Схема БД, API и логика не менялись. Подробности
+  — [TECHNICAL_DECISIONS.md, решение 231](TECHNICAL_DECISIONS.md).
 
 - 28.09 — решение 230: сгенерированные аватары сотрудников и страница сотрудника `/team/:id`. Аватар — свой детерминированный генератор SVG по идентификатору пользователя (без пакетов и внешних запросов): набросок чернилами по бумаге, подложка — приглушённый акцент темы; в «Команде», панели, карточке и реестре связок, поручениях и шапке; инициалы — запасной вариант. Страница: аватар, должность, рабочая почта, нагрузка тем же расчётом, просрочки, этапы и встречи недели, связки со сроками, поручения «Ему / От него», последние действия; «Дать поручение» и «Передать связку» — руководителю и администратору, эксперту — чтение; менеджер видит только свою. API только добавлен: `GET /api/team/:userId/profile`, фильтр `authorId` у `GET /api/assignments`. Схема БД не менялась. Подробности — [TECHNICAL_DECISIONS.md, решение 230](TECHNICAL_DECISIONS.md).
 
@@ -658,34 +676,6 @@ timed out`) процесс сам держит цикл `getUpdates`, той ж�
 `20260926170000_notify_channels`, `20260926200000_schema_review` и
 `20260926210000_expert_reviewer_flag`, решения 144, 143 и 147,
 167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
-
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (51 модель, 34 миграции — считая
-`20260926200000_schema_review`, решение 143, 167 маршрутов, 202 операции), `docs-counts.test.ts`
-
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (51 модель, 34 миграции — считая
-`20260926200000_schema_review`, решение 143, 167 маршрутов, 202 операции), `docs-counts.test.ts`
-расширен на модели и миграции; README —
-
-`20260926170000_notify_channels` и `20260926200000_schema_review`, решения 144 и 143,
-167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
-разделы «Проверить за 10 минут», «Как мы работали», «Что не вошло и почему», «Масштаб
-
-167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
-
-167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
-
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (51 модель, 34 миграции — считая
-`20260926200000_schema_review`, решение 143, 167 маршрутов, 202 операции), `docs-counts.test.ts`
-
-числа в README/PROGRESS/DATABASE_ANSWERS сверены с кодом (51 модель, 34 миграции — считая
-`20260926200000_schema_review`, решение 143, 167 маршрутов, 202 операции), `docs-counts.test.ts`
-расширен на модели и миграции; README —
-
-`20260926170000_notify_channels` и `20260926200000_schema_review`, решения 144 и 143,
-167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
-разделы «Проверить за 10 минут», «Как мы работали», «Что не вошло и почему», «Масштаб
-
-167 маршрутов, 202 операции), `docs-counts.test.ts` расширен на модели и миграции; README —
 разделы «Проверить за 10 минут», «Как мы работали», «Границы и план», «Масштаб
 на 29.09»; демо-сид «почти дублей» для качества данных — под флагом `SEED_DQ_CASES=1`,
 по умолчанию выключен (без экрана слияния во фронте это был мусор в реестре без способа
@@ -792,9 +782,7 @@ docs/OPERATIONS_TESTS.md. На сервере **не включено**: cron и
 **Редизайн v2 (26.09.2026, ветка `front/visual-v2`).** Этап 1 — один шрифт,
 диаграммы без залипания, без системных подсказок, вкладки на месте (решение 121).
 Этап 2 — шапка с разделами вместо бокового меню, живой логотип, стеклянный поиск,
-светлая тема с переключателем (решение 122). Этап 3 — карта России в неоновом стиле со связями от центра, блоки бенто одной высоты, тренд в обоих режимах (решение 123). Этапы 4–5 — логотипы в реестре вузов, единое наведение (подъём и свет, без залипания на тач-экране), три уровня длительности (решение 124). Этап 6 — финал главной: сеть «вузы → программы → навыки → IT-продукты» по настоящим связкам (решение 132).
-
-светлая тема с переключателем (решение 132). Этап 3 — карта России в неоновом стиле со связями от центра, блоки бенто одной высоты, тренд в обоих режимах (решение 123). Этапы 4–5 — логотипы в реестре вузов, единое наведение (подъём и свет, без залипания на тач-экране), три уровня длительности (решение 124). Этап 6 — финал главной: сеть «вузы → программы → навыки → IT-продукты» по настоящим связкам (решение 125).
+светлая тема с переключателем (решение 122). Этап 3 — карта России в неоновом стиле со связями от центра, блоки бенто одной высоты, тренд в обоих режимах (решение 123). Этапы 4–5 — логотипы в реестре вузов, единое наведение (подъём и свет, без залипания на тач-экране), три уровня длительности (решение 124). Этап 6 — финал главной: сеть «вузы → программы → навыки → IT-продукты» по настоящим связкам (решение 125).
 
 **Задачи фронта от 25.09 (вечер), ветка `front/visual-v2`.** «Состояние системы» — страница
 `/status` словами, «Контракт API» — документ в репозитории (решение 126). Бирки: боковая
@@ -1054,8 +1042,6 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 согласует сама команда (решение 143) — история согласований в docs/PROGRESS.md,
 «Требовало согласования с Тиграном (до решения 143)».
 
-### Модули и эндпоинты
-
 ### Модули и эндпоинты — 167 маршрутов, 202 операции
 
 | Модуль | Эндпоинты |
@@ -1069,14 +1055,9 @@ Transitions, чёрно-фиолетовый живой фон за курсор
 | products | `GET /api/products`; `GET /api/products/:id` |
 | cooperation | `GET`, `POST /api/cooperations`; `GET`, `PATCH /api/cooperations/:id`; `GET …/stages` |
 | workflow | `PATCH /api/workflow/stages/:id`; `GET …/history`; `PATCH /api/workflow/tasks/:id`; `GET /api/workflow/overdue`; `GET /api/workflow/blocked`; `GET`, `POST /api/workflow/stages/:id/files` — файлы этапа, решение 145 |
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
-
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов, решение 120 |
-| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/experiment` — контрольная группа и прирост (решение 136); `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
-
-| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights`; `GET /api/me/pulse` — аналитика этапов (решение 120) |
+| analytics | `GET /api/analytics/overview`; `GET /api/analytics/programs`; `GET /api/analytics/meetings-heatmap` — тепловая карта встреч (решение 134); `GET /api/analytics/stage-durations`, `stalled-preview`, `funnel`, `cohorts`, `insights` (решение 120); `GET /api/analytics/forecast/model`, `POST /api/analytics/forecast/train`, `GET /api/cooperations/:id/forecast` (решение 135); `GET /api/me/pulse` |
 | data-quality | `GET /api/data-quality/report` — оценка качества справочника; `GET /api/data-quality/duplicates`, `POST …/duplicates/dismiss` — поиск дублей и «не дубль» (решение 134) |
-| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
+| recommendations | `POST /api/recommendations/generate`; `GET /api/recommendations`; `GET`, `PATCH /api/recommendations/:id`; `GET /api/recommendations/experiment` — контрольная группа и прирост (решение 136); `GET /api/recommendations/why-not`, `GET /api/recommendations/rules/stats` (решение 119) |
 | documents | `GET`, `POST /api/documents`; `GET`, `PATCH /api/documents/:id`; `PATCH …/status`; `POST …/versions`; `GET /api/document-templates`; `POST /api/cooperations/:id/documents/generate`; `GET`, `POST /api/documents/:id/files` — файлы документа, решение 145 |
 | files | `GET`, `DELETE /api/files/:id` — скачивание и удаление файла к документу/этапу, решение 145 |
 | meetings | `GET`, `POST /api/meetings`; `GET`, `PATCH /api/meetings/:id` |
@@ -1215,8 +1196,8 @@ ADMIN и MANAGER, обезличивание контакта администр
 запасной GigaChat; по умолчанию выключен (`AI_ASSIST_PROVIDER=off`), и тот же текст
 пишет шаблон. Модель не решает, что рекомендовать, и не меняет данных; персональные
 данные в неё не уходят; сбой модели — шаблон, а не 500. Лимит 20 обращений в час
-на пользователя, кэш 10 минут, журнал `ai.draft`. Включение разрешено заказчиком 26.09.2026:
-нужен только ключ YandexGPT.
+на пользователя, кэш 10 минут, журнал `ai.draft`. Включение — решение команды (PM),
+26.09.2026 (решения 90, 139): нужен только ключ YandexGPT.
 
 ### Кабинет представителя вуза
 
@@ -1253,23 +1234,8 @@ NextAuth.js с сессиями на JWT, пароли хешами bcrypt. Ро
 
 ### Спецификация OpenAPI
 
-`docs/openapi.json` и `GET /api/openapi.json` собираются из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
-
-`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции. Собирается из тех же
+`docs/openapi.json` и `GET /api/openapi.json` — 166 путей, 202 операции (`npm run openapi`;
+путей меньше, чем файлов-маршрутов: один путь — несколько методов). Собирается из тех же
 Zod-схем, которыми API проверяет вход, поэтому не расходится с кодом. Полнота проверяется
 тестом: маршрут без описания роняет сборку. Закрывает обещание концепции об описании
 интеграционных интерфейсов по спецификации OpenAPI.

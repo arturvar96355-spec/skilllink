@@ -11,11 +11,11 @@ The goal is to prevent the implementation AI from redesigning the same component
 **Core rule:** a component is designed once and reused everywhere.
 
 Visual tokens come from:
-- `03_Typography_and_Text.md`
-- `04_Colors_and_Visual_Style.md`
+- `03_Typography.md`
+- `04_Colors.md`
 
 Animation timing and easing belong to:
-- `06_Motion_and_Animations.md`
+- `06_Motion.md`
 
 ---
 
@@ -631,7 +631,7 @@ Not every component needs every state visually, but relevant states must be expl
 
 This file defines **what states exist**.
 
-`06_Motion_and_Animations.md` defines:
+`06_Motion.md` defines:
 - duration;
 - easing;
 - transform;

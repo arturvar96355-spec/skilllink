@@ -288,7 +288,7 @@ services:
 
   # Метрики и оповещения (решение 137) — по решению владельца, не по умолчанию:
   #   docker compose --profile app --profile monitoring up -d
-  # На боевой машине (2 ГБ) не включён (docs/SECURITY_LIMITATIONS.md). Пароль
+  # На боевой машине (4 ГБ) не включён (docs/SECURITY_LIMITATIONS.md). Пароль
   # Grafana обязателен — без него объявится admin/admin на открытом порту.
   # Токен, которым Prometheus читает /api/metrics, — файл, не переменная
   # (deploy/monitoring/metrics-token, docs/DEPLOY.md, deploy/monitoring/README.md).
