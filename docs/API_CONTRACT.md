@@ -5567,7 +5567,8 @@ curl -s -X POST http://localhost:3000/api/inbound-letters/<id>/analyze
 
 Право шире, чем `INBOUND_REVIEW`: MANAGER, который назначен ответственным за это
 задание (`task.responsibleId === user.id`), отмечает его сам, хотя разбор писем ему
-недоступен; ADMIN и HEAD — любое задание. Тело не нужно. `task.status` → `DONE`.
+недоступен; ADMIN и HEAD — любое задание. Учётной записи эксперта (`isReviewer`) — `FORBIDDEN`
+при любой роли, до записи (решение 225). Тело не нужно. `task.status` → `DONE`.
 Задания нет (письмо без вуза/связки — ответственный не назначен и его некому отметить
 с чужого аккаунта) — `NOT_FOUND`; уже `DONE` — `CONFLICT`.
 
