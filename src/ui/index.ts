@@ -163,13 +163,11 @@ export { startMorph } from './lib/morph'
 export { TagCarousel, type TagCarouselProps } from './data/TagCarousel'
 export { Funnel, type FunnelStep } from './data/Funnel'
 export { FactSheet, type Fact } from './data/FactSheet'
-export { Ring } from './data/Ring'
-export { Pie3D, type Pie3DSlice, type Pie3DTone } from './data/Pie3D'
+export { type Pie3DTone } from './data/Pie3D'
 export { Donut, type DonutSlice, type DonutTexture, type DonutTone } from './data/Donut'
-export { Bars3D, type Bars3DGroup, type Bars3DPart } from './data/Bars3D'
+export { type Bars3DGroup, type Bars3DPart } from './data/Bars3D'
 export { BarsFlat, type BarsFlatVariant } from './data/BarsFlat'
 export { PeekProvider, usePeek, usePeekEnabled, CooperationPeek } from './data/Peek'
-export { DeadlineStrip, type DeadlineItem } from './data/DeadlineStrip'
 export { Queue, QueueGroup, QueueFoot, QueueFootLink, QueueRow, type QueueRowMeta, type QueueRowProps } from './data/QueueRow'
 export {
   overdueValue,
@@ -188,7 +186,6 @@ export { ResetFilters, hasActiveFilters, useResetUrl } from './data/ResetFilters
 export { OPEN_RECOMMENDATION_STATUSES, CLOSED_RECOMMENDATION_STATUSES } from './lib/recommendation-scope'
 export { RussiaMap, type MapPoint } from './data/RussiaMap'
 export { Ticker, type TickerItem } from './data/Ticker'
-export { Radar, type RadarAxis, type RadarSeries } from './data/Radar'
 
 // «?» со ссылкой в документацию (решение 214) — отдельной строкой, чтобы не спорить с правками строки Tooltip.
 export { HelpHint, type HelpHintProps } from './primitives/HelpHint'
