@@ -80,7 +80,9 @@ kcadm config credentials --server "$KC_URL" --realm master --user "$ADMIN_USER" 
 
 # Демо-пользователи реалма skilllink — тот же список email, что в
 # deploy/keycloak/skilllink-realm.json (и в prisma/seed.ts, кроме
-# former.employee@ и expert-*@ — см. комментарий в файле импорта).
+# former.employee@ и expert-*@ — см. комментарий в файле импорта). Эксперты
+# в Keycloak не заводятся: их отдельный пароль (SEED_EXPERT_PASSWORD, решение 228)
+# есть только в базе SkillLink.
 DEMO_EMAILS=(
   admin@skilllink.demo
   manager@skilllink.demo

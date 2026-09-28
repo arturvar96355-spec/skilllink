@@ -63,6 +63,8 @@ export function FunnelTab() {
   const counts = composition(list)
   const total = source.meta?.total ?? list.length
   const isMock = Boolean(server.data?.isMock) || list.some((item) => item.isMock)
+  /** Верхний блок строится из обоих ответов — ошибка любого из них. */
+  const funnelError = source.error ?? server.error
 
   const columns: Column<FunnelDroppedDto>[] = [
     {
@@ -138,13 +140,23 @@ export function FunnelTab() {
         <Card>
           {source.isLoading || server.isLoading ? (
             <CardsSkeleton count={1} />
-          ) : source.error ? (
-            <ErrorState error={source.error} onRetry={source.reload} />
+          ) : funnelError ? (
+            // Блок строится из обоих ответов: без `/api/analytics/funnel` выбывшие
+            // превращались в пустой список, и здесь выходило «Отменённые (0)» —
+            // ноль вместо ошибки (ревью Codex 17). Ошибку любого — ошибкой.
+            <ErrorState
+              error={funnelError}
+              onRetry={() => {
+                if (source.error) source.reload()
+                if (server.error) server.reload()
+              }}
+            />
           ) : list.length === 0 ? (
             <EmptyState icon="cooperation" title="Связок пока нет" description="Воронка появится, когда будет заведена первая связка." />
           ) : (
             <>
               <MeasureBars
+                download={{ title: 'Воронка связок', note: 'Сколько связок дошло до каждой фазы и какая доля перешла дальше' }}
                 rows={funnelRows(steps, currentByPhase(list), summary?.byPhase ?? new Map())}
                 max={steps[0]?.value ?? 0}
                 label="Воронка связок по фазам: сколько дошло и какая доля перешла дальше"

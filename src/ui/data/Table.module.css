@@ -106,7 +106,7 @@
  * светлеет в акцент; содержимое сдвигается на 4px. Так видно, что строка открывается.
  */
 .clickable:hover > td {
-  background: var(--surface-2);
+  background: var(--row-hover);
   transform: translateX(4px);
 }
 

@@ -96,13 +96,13 @@
 
 .secondary {
   background: transparent;
-  border-color: rgb(var(--ink-rgb) / 0.1);
+  border-color: var(--button-secondary-border);
   color: var(--text-primary);
 }
 
 .secondary:hover:not(:disabled) {
   background: rgb(var(--ink-rgb) / 0.04);
-  border-color: var(--line-strong);
+  border-color: var(--button-secondary-border-hover);
   transform: translateY(-1px);
 }
 

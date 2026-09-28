@@ -68,7 +68,7 @@ function ssoErrorMessage(error: string | null): string | null {
 export interface LoginFormProps {
   /** Показывать ли блок «Вход для экспертов хакатона» (решение 176). */
   expertQuickLoginEnabled: boolean
-  /** Показывать ли кнопку «Войти через Keycloak» (решение 188, переменные `KEYCLOAK_*`). */
+  /** Показывать ли кнопку «Для сотрудников РТК (единый вход)» — вход через Keycloak (решение 188, переменные `KEYCLOAK_*`). */
   keycloakEnabled: boolean
 }
 
@@ -255,6 +255,38 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           </p>
         </div>
 
+        {/*
+          Вход для экспертов хакатона (решение 176) — первым, над Keycloak (решение 228):
+          эксперт жюри не должен упираться в форму единого входа РТК, которой у него нет.
+        */}
+        {expertQuickLoginEnabled && (
+          <div className={styles.expertLogin}>
+            {/* Заголовок и пояснение — одной строкой; пояснение привязано к кнопкам для программ чтения. */}
+            <div className={styles.expertLoginHead}>
+              <p className={styles.expertLoginTitle}>Вход для экспертов хакатона</p>
+              <p id="expert-login-scope" className={styles.expertLoginScope}>
+                демо-доступ, только просмотр
+              </p>
+            </div>
+            <div className={styles.expertLoginButtons}>
+              {EXPERT_QUICK_LOGIN_ROLES.map((role) => (
+                <Button
+                  key={role.key}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isLoading={quickPending === role.key}
+                  disabled={busy && quickPending !== role.key}
+                  aria-describedby="expert-login-scope"
+                  onClick={() => onQuickLogin(role.key)}
+                >
+                  {role.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {keycloakEnabled && (
           <div className={styles.ssoLogin}>
             <Button
@@ -266,7 +298,7 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
               disabled={busy && !ssoPending}
               onClick={onKeycloakLogin}
             >
-              Войти через Keycloak (единый вход)
+              Для сотрудников РТК (единый вход)
             </Button>
             <p className={styles.ssoDivider}>или почтой и паролем</p>
           </div>
@@ -339,39 +371,14 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           </Button>
         </form>
 
-        {expertQuickLoginEnabled ? (
-          <div className={styles.expertLogin}>
-            {/* Заголовок и пояснение — одной строкой; пояснение привязано к кнопкам для программ чтения. */}
-            <div className={styles.expertLoginHead}>
-              <p className={styles.expertLoginTitle}>Вход для экспертов хакатона</p>
-              <p id="expert-login-scope" className={styles.expertLoginScope}>
-                только просмотр и выгрузки
-              </p>
-            </div>
-            <div className={styles.expertLoginButtons}>
-              {EXPERT_QUICK_LOGIN_ROLES.map((role) => (
-                <Button
-                  key={role.key}
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  isLoading={quickPending === role.key}
-                  disabled={busy && quickPending !== role.key}
-                  aria-describedby="expert-login-scope"
-                  onClick={() => onQuickLogin(role.key)}
-                >
-                  {role.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-        ) : (
+        {!expertQuickLoginEnabled && (
           // Кнопок нет (переменная EXPERT_QUICK_LOGIN выключена) — учётные записи
           // экспертов по-прежнему есть (решение 147), вход в них — обычной формой выше.
           <p className={styles.note}>
             Экспертам хакатона: учётные записи — в описании решения на платформе конкурса.
           </p>
         )}
+
 
         {/*
           Подвал панели — одной строкой: политика и открытый код (решение владельца —

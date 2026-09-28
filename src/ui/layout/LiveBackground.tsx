@@ -23,14 +23,22 @@ export function LiveBackground() {
   const calm = useCalmMotion()
   const nearRef = useRef<HTMLDivElement | null>(null)
   const farRef = useRef<HTMLDivElement | null>(null)
+  const tintNearRef = useRef<HTMLDivElement | null>(null)
+  const tintFarRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const near = nearRef.current
     const far = farRef.current
     if (!near || !far) return
 
+    // Подсветка поверх содержимого (светлая тема) идёт теми же точками, что свет под ним.
+    const tintNear = tintNearRef.current
+    const tintFar = tintFarRef.current
     const place = (element: HTMLElement, x: number, y: number) => {
-      element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+      const transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`
+      element.style.transform = transform
+      if (element === near && tintNear) tintNear.style.transform = transform
+      if (element === far && tintFar) tintFar.style.transform = transform
     }
 
     let targetX = window.innerWidth * 0.62
@@ -71,12 +79,19 @@ export function LiveBackground() {
   }, [calm])
 
   return (
-    <div className={styles.liveBackground} aria-hidden="true">
-      <div className={styles.haze} />
-      {/* Сетка точек — как холст у Altitude и Melius (решение 79); у краёв гаснет. */}
-      <div className={styles.dots} />
-      <div ref={farRef} className={styles.glowFar} />
-      <div ref={nearRef} className={styles.glowNear} />
-    </div>
+    <>
+      <div className={styles.liveBackground} aria-hidden="true">
+        <div className={styles.haze} />
+        {/* Сетка точек — как холст у Altitude и Melius (решение 79); у краёв гаснет. */}
+        <div className={styles.dots} />
+        <div ref={farRef} className={styles.glowFar} />
+        <div ref={nearRef} className={styles.glowNear} />
+      </div>
+      {/* Вне фона: у фона z-index −1 и свой контекст наложения — поверх содержимого оттуда не подняться. */}
+      <div className={styles.glowTint} aria-hidden="true">
+        <div ref={tintFarRef} className={styles.tintFar} />
+        <div ref={tintNearRef} className={styles.tintNear} />
+      </div>
+    </>
   )
 }

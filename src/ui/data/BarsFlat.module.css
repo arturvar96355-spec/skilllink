@@ -229,22 +229,10 @@
 }
 
 .crossLine {
-  stroke: color-mix(in oklab, var(--text-primary) 85%, transparent);
+  stroke: var(--line-strong);
   stroke-width: 1;
-  shape-rendering: crispEdges;
-}
-
-.marker {
-  stroke: var(--bars-field);
-  stroke-width: 3;
-}
-
-.marker[data-series='base'] {
-  fill: var(--bars-base-lit);
-}
-
-.marker[data-series='signal'] {
-  fill: var(--bars-signal-lit);
+  stroke-dasharray: 3 4;
+  stroke-linecap: round;
 }
 
 /*
