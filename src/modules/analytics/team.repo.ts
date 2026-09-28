@@ -37,6 +37,12 @@ export async function findTeamUsers(userId?: string) {
   })
 }
 
+/** Рабочая почта сотрудника команды — только для страницы сотрудника (решение 230). */
+export async function findTeamUserEmail(userId: string): Promise<string | null> {
+  const row = await prisma.user.findFirst({ where: { ...TEAM_USER_WHERE, id: userId }, select: { email: true } })
+  return row?.email ?? null
+}
+
 /**
  * Связки в работе — все, а не только команды: сумма по строкам плюс «вне команды»
  * обязана давать ровно «Активные связи» главной (`countCooperationsByStatus().active`).

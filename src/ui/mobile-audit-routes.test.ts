@@ -31,6 +31,10 @@ describe('прогон вёрстки на телефоне', () => {
     expect(script).toContain('/login')
   })
 
+  it('страница сотрудника (решение 230) проверяется — своя, по учётной записи прогона', () => {
+    expect(script).toContain('`/team/${id}`')
+  })
+
   it.each(pages)('%s есть в списке прогона', (route) => {
     expect(listed.has(route), `добавьте «${route}» в STATIC_ROUTES скрипта`).toBe(true)
   })

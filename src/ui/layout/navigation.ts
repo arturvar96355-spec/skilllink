@@ -240,9 +240,30 @@ const ALWAYS_ALLOWED_PATHS: ReadonlySet<string> = new Set([
   ROUTES.help,
 ])
 
+/**
+ * Можно ли открыть страницу сотрудника (решение 230) — то же правило, что у сервера
+ * (`canSeeStaffProfile`): «Команда» — любого, остальные сотрудники ИТ-Школы — себя.
+ * Имя и аватар сотрудника становятся ссылкой только тогда, когда по ней пустят.
+ */
+export function canOpenStaffProfile(user: CurrentUserDto, staffId: string): boolean {
+  if (user.role === 'UNIVERSITY_REP') return false
+  return user.permissions.canSeeTeam || user.id === staffId
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}
+
 /** Доступен ли пользователю раздел по адресу `pathname` — без учёта хвоста после `?`/`#`. */
 export function isSectionAllowed(user: CurrentUserDto, pathname: string): boolean {
   if (ALWAYS_ALLOWED_PATHS.has(pathname)) return true
+  // Своя страница сотрудника открыта и тем, кому «Команда» закрыта (менеджер, аналитик).
+  const staffId = pathname.startsWith(`${ROUTES.team}/`) ? pathname.slice(ROUTES.team.length + 1) : null
+  if (staffId && !staffId.includes('/')) return canOpenStaffProfile(user, safeDecode(staffId))
   const guard = SECTION_GUARDS.find(
     (item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`),
   )

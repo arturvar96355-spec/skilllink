@@ -2,7 +2,8 @@
 
 import type { MouseEvent } from 'react'
 import { USER_ROLE_LABELS, type TeamLoadRuleDto, type TeamMemberDto } from '@/shared/contracts'
-import { Avatar, ScrollArea, formatDayMonth, formatPersonShort, pluralize } from '@/ui'
+import Link from 'next/link'
+import { Avatar, ScrollArea, formatDayMonth, formatPersonShort, pluralize, staffHref } from '@/ui'
 import { LoadBadge, LoadBar } from './LoadBar'
 import { actionText, actionWhen, groupMembers } from './team-view'
 import styles from './team.module.css'
@@ -19,22 +20,27 @@ interface RosterProps {
 
 const stageNo = (value: number) => `${String(value).padStart(2, '0')}/14`
 
-function Person({ member, isYou, onOpen }: { member: TeamMemberDto; isYou: boolean; onOpen: (id: string) => void }) {
+/*
+ * Аватар и имя ведут на страницу сотрудника (решение 230); щелчок по остальной строке —
+ * по-прежнему боковая панель: быстро взглянуть, не уходя со списка.
+ */
+function Person({ member, isYou }: { member: TeamMemberDto; isYou: boolean }) {
+  const href = staffHref(member.id)
   return (
     <div className={styles.person}>
-      <Avatar name={member.fullName} size="sm" />
+      <Link href={href} className={styles.personAvatar} tabIndex={-1} aria-hidden="true">
+        <Avatar name={member.fullName} seed={member.id} size="sm" />
+      </Link>
       <div className={styles.personText}>
         <p className={styles.personLine}>
-          {/* Имя — настоящая кнопка: строка открывается и с клавиатуры (Tab, Enter). */}
-          <button
-            type="button"
+          <Link
+            href={href}
             className={styles.personName}
             data-member-open={member.id}
-            onClick={() => onOpen(member.id)}
-            aria-label={`Открыть сотрудника: ${member.fullName}`}
+            title={`Страница сотрудника: ${member.fullName}`}
           >
             {formatPersonShort(member.fullName)}
-          </button>
+          </Link>
           {isYou && <span className={styles.you}>вы</span>}
         </p>
         <p className={styles.personRole}>{member.position ?? USER_ROLE_LABELS[member.role]}</p>
@@ -105,7 +111,10 @@ function Nearest({ member }: { member: TeamMemberDto }) {
   )
 }
 
-/** Щелчок по любому месту строки открывает панель; кнопки и ссылки внутри работают сами. */
+/**
+ * Щелчок по любому месту строки открывает панель; кнопки и ссылки внутри работают сами
+ * (имя и аватар — переход на страницу сотрудника, решение 230).
+ */
 function rowClick(id: string, onOpen: (id: string) => void) {
   return (event: MouseEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest('button, a')) return
@@ -115,8 +124,9 @@ function rowClick(id: string, onOpen: (id: string) => void) {
 
 /**
  * Таблица команды (вариант A макета): две группы — «Ведут связки» по убыванию
- * нагрузки и «Не ведут связки». Строка открывает боковую панель: щелчок по строке,
- * Enter на имени. Слева у строки при наведении и фокусе — полоска «ты здесь».
+ * нагрузки и «Не ведут связки». Щелчок по строке открывает боковую панель, имя и
+ * аватар — страницу сотрудника (решение 230; на ней всё, что в панели, — с клавиатуры
+ * туда же). Слева у строки при наведении и фокусе — полоска «ты здесь».
  */
 export function TeamTable({ members, rule, weekText, currentUserId, selectedId, now, onOpen }: RosterProps) {
   const { owners, others } = groupMembers(members)
@@ -129,9 +139,11 @@ export function TeamTable({ members, rule, weekText, currentUserId, selectedId, 
         className={[styles.row, member.id === selectedId ? styles.rowSelected : ''].filter(Boolean).join(' ')}
         onClick={rowClick(member.id, onOpen)}
         aria-current={member.id === selectedId ? 'true' : undefined}
+        data-member-row
+        data-row-panel
       >
         <td className={styles.cellPerson}>
-          <Person member={member} isYou={member.id === currentUserId} onOpen={onOpen} />
+          <Person member={member} isYou={member.id === currentUserId} />
           <LastAction member={member} now={now} />
         </td>
         {load ? (
@@ -270,9 +282,10 @@ export function TeamList({ members, rule, currentUserId, selectedId, now, onOpen
         key={member.id}
         className={[styles.block, member.id === selectedId ? styles.rowSelected : ''].filter(Boolean).join(' ')}
         onClick={rowClick(member.id, onOpen)}
+        data-member-row
       >
         <div className={styles.blockHead}>
-          <Person member={member} isYou={member.id === currentUserId} onOpen={onOpen} />
+          <Person member={member} isYou={member.id === currentUserId} />
           {load && <LoadBadge level={load.level} />}
         </div>
         {load ? (

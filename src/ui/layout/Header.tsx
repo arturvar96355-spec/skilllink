@@ -16,7 +16,7 @@ import { useEscape, useOutsideClick } from '../hooks/dom'
 import { useCurrentUser } from './CurrentUser'
 import { isActiveItem, type NavGroup, type NavItem } from './navigation'
 import { countBadgeText } from './approvals-badge'
-import { ROUTES } from '../lib/links'
+import { ROUTES, staffHref } from '../lib/links'
 import { Logo } from './Logo'
 import { ThemeToggle } from './ThemeToggle'
 import iconButtonStyles from '../primitives/IconButton.module.css'
@@ -207,7 +207,7 @@ function ProfileMenu() {
         aria-label={`Профиль: ${user.fullName}`}
         onClick={() => setIsOpen((open) => !open)}
       >
-        <Avatar name={user.fullName} />
+        <Avatar name={user.fullName} seed={user.id} />
       </button>
       {isOpen && (
         <div className={[styles.dropdown, styles.dropdownRight].join(' ')} role="menu">
@@ -219,6 +219,18 @@ function ProfileMenu() {
             <Icon name="user" size={16} />
             Личный кабинет
           </Link>
+          {/* Своя страница сотрудника (решение 230): у сотрудника ИТ-Школы, не у эксперта и не у вуза. */}
+          {user.role !== 'UNIVERSITY_REP' && !user.isReviewer && (
+            <Link
+              href={staffHref(user.id)}
+              role="menuitem"
+              className={styles.dropdownItem}
+              onClick={() => setIsOpen(false)}
+            >
+              <Icon name="team" size={16} />
+              Моя страница сотрудника
+            </Link>
+          )}
           <Link href={ROUTES.myData} role="menuitem" className={styles.dropdownItem} onClick={() => setIsOpen(false)}>
             <Icon name="lock" size={16} />
             Мои данные

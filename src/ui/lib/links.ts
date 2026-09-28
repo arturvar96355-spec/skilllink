@@ -96,6 +96,14 @@ export function skillHref(id: string): string {
   return `${ROUTES.analytics}?tab=skills&skill=${id}`
 }
 
+/**
+ * Страница сотрудника (решение 230) — внутри «Команды»: та же вкладка навигации,
+ * те же права, путь вида `/team/<id>`, как у вуза и связки.
+ */
+export function staffHref(id: string): string {
+  return `${ROUTES.team}/${encodeURIComponent(id)}`
+}
+
 export function letterHref(id: string): string {
   return `${ROUTES.letters}/${id}`
 }

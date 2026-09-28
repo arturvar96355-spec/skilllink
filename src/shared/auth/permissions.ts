@@ -254,3 +254,20 @@ export function assertCanSeeTeam(user: CurrentUser): void {
     throw forbidden('Раздел «Команда» открыт руководителю и администратору')
   }
 }
+
+/**
+ * Страница сотрудника `/team/:id` (решение 230): кто видит «Команду», видит любого
+ * сотрудника; остальные сотрудники ИТ-Школы (менеджер, аналитик, наблюдатель) — только
+ * свою страницу: чужие дела коллеги им не показываются, как и сама «Команда».
+ * Представителю вуза — никогда: страница о сотрудниках ИТ-Школы, не о вузе.
+ */
+export function canSeeStaffProfile(user: CurrentUser, staffId: string): boolean {
+  if (user.role === 'UNIVERSITY_REP') return false
+  return canSeeTeam(user) || user.id === staffId
+}
+
+export function assertCanSeeStaffProfile(user: CurrentUser, staffId: string): void {
+  if (!canSeeStaffProfile(user, staffId)) {
+    throw forbidden('Страница сотрудника открыта руководителю и администратору; сотрудник видит свою')
+  }
+}

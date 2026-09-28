@@ -498,6 +498,20 @@
   transition: color var(--motion-micro) var(--ease-out);
 }
 
+.personAvatar {
+  flex: none;
+  display: inline-flex;
+  border-radius: var(--radius-icon);
+}
+
+@media (hover: hover) {
+  .personName:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--border-hover);
+    text-underline-offset: 3px;
+  }
+}
+
 .personName:focus-visible {
   outline: 2px solid var(--border-active);
   outline-offset: 2px;
@@ -867,6 +881,13 @@
 .panel {
   display: grid;
   gap: var(--space-6);
+}
+
+.panelIdentity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 .panelLoad {

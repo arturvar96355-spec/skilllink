@@ -193,3 +193,20 @@ export interface TeamMemberDetailDto {
   containsMockData: boolean
   generatedAt: string
 }
+
+/**
+ * Страница сотрудника `GET /api/team/:userId/profile` (решение 230): то же, что панель,
+ * тем же расчётом, плюс контакты. Кто видит «Команду» — любого сотрудника; остальные
+ * сотрудники ИТ-Школы — только себя.
+ */
+export interface TeamMemberProfileDto extends TeamMemberDetailDto {
+  contacts: {
+    /**
+     * Рабочая почта — тем же правилом, что в справочнике пользователей (ADMIN, HEAD,
+     * MANAGER) и всегда своя; остальным — `null`. Телефона у учётной записи нет.
+     */
+    email: string | null
+  }
+  /** Страница открыта самим сотрудником. */
+  isSelf: boolean
+}
