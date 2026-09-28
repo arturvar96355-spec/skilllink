@@ -793,6 +793,51 @@
   background: radial-gradient(circle, var(--bg-glow-deep) 0%, transparent 60%);
 }
 
+/*
+ * Подсветка поверх содержимого — только светлая тема (спецификация «Light Theme»,
+ * п. 3): те же два пятна, что под содержимым, но слабее и в смешивании multiply —
+ * на белых карточках свет виден как мягкий цветной отсвет, тёмный текст не
+ * светлеет. Ниже шапки, окон и всплывающего; указатель не ловит. В тёмной теме
+ * и в рабочем режиме цвета прозрачные, а слой не рисуется вовсе.
+ */
+.glowTint {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-header) - 10);
+  overflow: hidden;
+  contain: strict;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  display: none;
+}
+
+:global(html[data-theme='light']:not([data-mode='work'])) .glowTint {
+  display: block;
+}
+
+.tintNear,
+.tintFar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: var(--radius-pill);
+  will-change: transform;
+}
+
+.tintNear {
+  width: 720px;
+  height: 720px;
+  margin: -360px 0 0 -360px;
+  background: radial-gradient(circle, var(--glow-tint-near) 0%, transparent 64%);
+}
+
+.tintFar {
+  width: 1100px;
+  height: 1100px;
+  margin: -550px 0 0 -550px;
+  background: radial-gradient(circle, var(--glow-tint-far) 0%, transparent 60%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .haze {
     animation: none;

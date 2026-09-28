@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { activeQuickDue, assignmentTone, dueText, nextStatusAction, placeText, quickDueDate, splitByDone } from './assignment-view'
 import type { AssignmentDto } from '@/shared/contracts'
+import { ASSIGNMENT_TRANSITIONS } from '@/modules/assignments/assignments.rules'
 
 /** Поручения на экране (решение 207): быстрые сроки, подписи, тон, одна кнопка статуса. */
 
@@ -44,6 +45,12 @@ describe('строка поручения', () => {
     expect(nextStatusAction('NEW')).toEqual({ to: 'IN_PROGRESS', label: 'Взять в работу' })
     expect(nextStatusAction('IN_PROGRESS')).toEqual({ to: 'DONE', label: 'Сделано' })
     expect(nextStatusAction('DONE')).toEqual({ to: 'IN_PROGRESS', label: 'Вернуть в работу' })
+  })
+
+  it('кнопка ведёт ровно по серверной таблице переходов (решение 225): иначе сервер ответит 409', () => {
+    for (const status of Object.keys(ASSIGNMENT_TRANSITIONS) as Array<keyof typeof ASSIGNMENT_TRANSITIONS>) {
+      expect(ASSIGNMENT_TRANSITIONS[status]).toEqual([nextStatusAction(status).to])
+    }
   })
 
   it('место: вуз и программа связки, только вуз или ничего', () => {

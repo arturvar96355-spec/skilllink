@@ -297,3 +297,8 @@
 :global(html[data-mode='work'][data-work-theme='c']) .fill[data-shade='4'][data-tone='default'] {
   background: color-mix(in oklab, var(--calm-chart) 40%, var(--surface-1));
 }
+
+/* Кнопка «PNG» (Ф6) — справа в подвале диаграммы. */
+.download {
+  margin-left: auto;
+}

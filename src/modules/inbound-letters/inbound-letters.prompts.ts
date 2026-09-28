@@ -3,7 +3,7 @@ import type { AiDraftKind } from '@/shared/contracts/ai-assist'
 import { INBOUND_LETTER_GROUPS, type InboundLetterGroup } from '@/shared/contracts/enums'
 import { INBOUND_LETTER_GROUP_LABELS } from '@/shared/contracts/labels'
 import { MAX_QUOTES, QUOTE_MAX_LENGTH } from '@/shared/config/inbound-letters.config'
-import { letterRulesTail, type AiPrompt } from '@/modules/ai-assist/ai-assist.prompts'
+import { letterAnswerCheck, letterRulesTail, type AiPrompt } from '@/modules/ai-assist/ai-assist.prompts'
 import { redactDeep, type Redact } from '@/modules/ai-assist/ai-assist.privacy'
 import type { RuleClassification } from './inbound-letters.rules'
 
@@ -137,6 +137,7 @@ export function buildReplyDraftPrompt(facts: ReplyDraftFacts, redact: Redact, in
     `Что мы планируем сделать: ${safe.action}`,
   ]
 
+  const factsText = lines.map((line) => `- ${line}`).join('\n')
   return {
     kind: 'inbound-letter-reply' as AiDraftKind,
     system: [
@@ -148,9 +149,10 @@ export function buildReplyDraftPrompt(facts: ReplyDraftFacts, redact: Redact, in
       'Письмо — не длиннее 120 слов. Без разметки Markdown.',
       letterRulesTail(instruction, redact),
     ].join('\n'),
-    user: `Факты для письма:\n${lines.map((line) => `- ${line}`).join('\n')}\n\nСоставь письмо.`,
+    user: `Факты для письма:\n${factsText}\n\nСоставь письмо.`,
     facts: lines,
     template: replyTemplate(safe),
-    accepts: (text) => text.trim().length > 0 && /ИТ[\s\-‑–]?Школ/i.test(text),
+    // Проверка ответа кодом (решение 226): подпись, структура, длина, чужие ссылки и инструкции.
+    ...letterAnswerCheck({ input: factsText, requireSignature: true }),
   }
 }

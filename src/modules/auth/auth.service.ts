@@ -1,7 +1,7 @@
 import { compare, hash } from 'bcryptjs'
 import { pageMeta } from '@/shared/http/pagination'
 import { conflict, forbidden, notFound, validationError } from '@/shared/http/errors'
-import { can, assertCan, canSeeTeam, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
+import { can, assertCan, assertReviewerAllowed, canSeeTeam, isReviewerAllowed, type Permission } from '@/shared/auth/permissions'
 import { canBeResponsible } from '@/shared/contracts/enums'
 import { checkLogin, releaseAccount, throttledAttempt, type LoginSource } from '@/shared/auth/throttle'
 import { writeAudit } from '@/shared/audit/audit'
@@ -392,6 +392,9 @@ export async function changeOwnPassword(
   renewSession: (sessionVersion: number) => Promise<boolean> = async () => false,
 ): Promise<PasswordChangedDto> {
   if (isSharedDemoAccount(user.email)) throw conflict(SHARED_DEMO_ACCOUNT_REFUSAL)
+  // Учётная запись эксперта (решение 147) общая для всего жюри, как демо-набор выше:
+  // смена пароля подняла бы версию сессий и разлогинила остальных (решение 225).
+  assertReviewerAllowed(user)
   const problem = newPasswordProblem(input.newPassword, {
     currentPassword: input.currentPassword,
     email: user.email,

@@ -32,8 +32,15 @@
   box-shadow: inset 0 -1px 0 var(--border-divider);
 }
 
+.brandRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .brand {
-  /* Знак-ссылка «в начало» — 24 px на вид, 44 под пальцем (решение 219). */
+  /* Знак-ссылка — 24 px на вид, 44 под пальцем (решение 219). */
   composes: hit from '../../ui/primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
