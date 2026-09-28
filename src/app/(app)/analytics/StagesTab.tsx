@@ -260,6 +260,7 @@ export function StagesTab() {
           >
             <Card>
               <MeasureBars
+                download={{ title: 'Длительность этапов', note: 'Медиана длительности этапов и порог застоя' }}
                 rows={durationChart.rows}
                 max={durationChart.max}
                 label="Медиана длительности этапов и порог застоя"

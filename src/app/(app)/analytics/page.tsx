@@ -55,6 +55,7 @@ import {
   formatShare,
   ListTitle,
 } from '@/ui'
+import { showAllState } from '@/ui/lib/show-all'
 import { CohortsTab } from './CohortsTab'
 import { FunnelTab } from './FunnelTab'
 import { demandConclusion, demandRows, gapRows, gapsConclusion, ratingConclusion } from './analytics-view'
@@ -295,6 +296,7 @@ function RatingTab() {
     },
   ]
 
+  const showAll = showAllState(rows.length, total, limit, 200)
   return (
     <Section
       title="Рейтинг программ"
@@ -328,12 +330,17 @@ function RatingTab() {
         )}
       </Card>
 
-      {total > rows.length && (
+      {showAll && (
         <p className={styles.tail}>
-          Показаны {formatNumber(rows.length)} из {formatNumber(total)}.{' '}
-          <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
-            Показать все
-          </Button>
+          {showAll.note}
+          {showAll.action && (
+            <>
+              {' '}
+              <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
+                {showAll.action}
+              </Button>
+            </>
+          )}
         </p>
       )}
 
@@ -463,6 +470,7 @@ function GapsTab({
     },
   ]
 
+  const showAll = showAllState(rows.length, total, limit, 200)
   return (
     <Section
       title="Навыки и дефициты"
@@ -537,6 +545,7 @@ function GapsTab({
       {!gaps.isLoading && !gaps.error && rows.length > 0 && gapChart.rows.length > 0 && (
         <Card>
           <MeasureBars
+            download={{ title: 'Дефициты навыков', note: `Навыки с дефицитом, крупнейшие сверху · период: ${period || 'последний доступный'}` }}
             rows={gapChart.rows}
             max={100}
             label="Где дефицит: навыки с дефицитом, крупнейшие сверху"
@@ -577,12 +586,17 @@ function GapsTab({
         )}
       </Card>
 
-      {total > rows.length && (
+      {showAll && (
         <p className={styles.tail}>
-          Показаны {formatNumber(rows.length)} из {formatNumber(total)}.{' '}
-          <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
-            Показать все
-          </Button>
+          {showAll.note}
+          {showAll.action && (
+            <>
+              {' '}
+              <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
+                {showAll.action}
+              </Button>
+            </>
+          )}
         </p>
       )}
     </Section>
@@ -698,6 +712,7 @@ function DemandTab() {
     },
   ]
 
+  const showAll = showAllState(rows.length, total, limit, 200)
   return (
     <Section
       title="Спрос рынка"
@@ -754,6 +769,7 @@ function DemandTab() {
       {!demand.isLoading && !demand.error && demandChart.rows.length > 0 && (
         <Card>
           <MeasureBars
+            download={{ title: 'Спрос рынка на навыки', note: `Самые востребованные навыки и медиана спроса · период: ${period || 'последний доступный'}` }}
             rows={demandChart.rows}
             max={demandChart.max}
             label="Самые востребованные навыки и медиана спроса"
@@ -792,12 +808,17 @@ function DemandTab() {
         )}
       </Card>
 
-      {total > rows.length && (
+      {showAll && (
         <p className={styles.tail}>
-          Показаны {formatNumber(rows.length)} из {formatNumber(total)}.{' '}
-          <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
-            Показать все
-          </Button>
+          {showAll.note}
+          {showAll.action && (
+            <>
+              {' '}
+              <Button variant="ghost" size="sm" onClick={() => setLimit(200)}>
+                {showAll.action}
+              </Button>
+            </>
+          )}
         </p>
       )}
     </Section>

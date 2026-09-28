@@ -64,6 +64,9 @@ services:
   migrate:
     environment:
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:?задайте SEED_DEMO_PASSWORD в .env.cloud}
+      # Отдельный пароль учётных записей экспертов (решение 228): deploy.sh дописывает
+      # его в .env.cloud сам; без него заливка не стартует, а не берёт известный пароль.
+      SEED_EXPERT_PASSWORD: ${SEED_EXPERT_PASSWORD:?задайте SEED_EXPERT_PASSWORD в .env.cloud (scripts/deploy/deploy.sh заводит его сам)}
 
   # Единый вход через Keycloak (решение 188) — сервис описан в базовом
   # docker-compose.yml (профиль `keycloak`, выключен по умолчанию). Здесь —
