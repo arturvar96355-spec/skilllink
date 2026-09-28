@@ -173,6 +173,7 @@
 }
 
 .indexButton {
+  composes: hit from '../primitives/HitArea.module.css';
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);

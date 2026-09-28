@@ -190,3 +190,48 @@
 .drawer:focus {
   outline: none;
 }
+
+/*
+ * Телефон (решение 219).
+ *
+ * Окно — во всю ширину с узкими полями и по высоте видимой части экрана:
+ * `100vh` в Safari считает и место под адресной строкой, и нижние кнопки
+ * окна уходили под неё. `dvh` — видимая высота; где её нет, остаётся `vh`.
+ * Кнопки в подвале окна переносятся, а не выталкивают друг друга за край.
+ * Всплывающие сообщения — над нижней панелью разделов, а не на ней.
+ */
+@media (max-width: 767px) {
+  .backdropCenter {
+    padding: var(--space-3);
+  }
+
+  .modal {
+    max-height: calc(100vh - var(--space-6));
+    max-height: calc(100dvh - var(--space-6));
+  }
+
+  .head {
+    padding: var(--space-4);
+  }
+
+  .body {
+    padding: var(--space-4);
+  }
+
+  .footer {
+    flex-wrap: wrap;
+    padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+
+  .toasts {
+    right: var(--space-2);
+    left: var(--space-2);
+    width: auto;
+  }
+}
+
+@media (max-width: 720px) {
+  .toasts {
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+}

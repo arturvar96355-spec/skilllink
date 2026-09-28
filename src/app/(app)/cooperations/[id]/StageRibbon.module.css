@@ -375,6 +375,12 @@
   background: rgba(240, 97, 111, 0.3);
   border-color: var(--danger-border);
 }
+/* Под пальцем — не ниже 44 px (решение 219). */
+@media (pointer: coarse) {
+  .node {
+    min-height: var(--touch-target);
+  }
+}
 
 /*
  * Спокойный рабочий режим (src/ui/lib/work-theme.ts). Закрытый этап — нейтральный

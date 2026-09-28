@@ -299,3 +299,10 @@
 div.registry {
   background: transparent;
 }
+
+/* «К чему относится» в панели документа: ссылки идут столбиком — строка 44 px под пальцем (решение 219). */
+@media (pointer: coarse) {
+  .link {
+    min-height: var(--touch-target);
+  }
+}

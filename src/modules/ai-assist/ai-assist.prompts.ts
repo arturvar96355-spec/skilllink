@@ -265,12 +265,14 @@ export function buildRewritePrompt(
   instruction?: string | null,
 ): RewritePrompt {
   const original = input.text.replace(/\r\n?/g, '\n').trim()
-  const safe = original
+  // Ограды блока вырезаются: иначе текст мог бы «закрыть» блок черновика изнутри.
+  const unfenced = original.replace(/«{3,}|»{3,}/g, '')
+  const safe = unfenced
     .split('\n')
-    // Ограды блока вырезаются: иначе текст мог бы «закрыть» блок черновика изнутри.
-    .map((line) => (line.trim() === '' ? '' : redact(line.replace(/«{3,}|»{3,}/g, ''))))
+    .map((line) => (line.trim() === '' ? '' : redact(line)))
     .join('\n')
-  const masked = normalizeSpaces(safe) !== normalizeSpaces(original)
+  // Сравнение — с текстом без оград: вырезанная ограда — не скрытые персональные данные (решение 222).
+  const masked = normalizeSpaces(safe) !== normalizeSpaces(unfenced)
   const label = AI_REWRITE_STYLE_LABELS[input.style]
   const signed = /ИТ[\s\-‑–]?Школ/i.test(original)
 
