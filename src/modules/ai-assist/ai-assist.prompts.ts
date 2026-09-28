@@ -17,6 +17,11 @@ import {
   type SummaryFacts,
   type TodayItem,
 } from './ai-assist.rules'
+import {
+  productOfferLines,
+  productOfferTemplate,
+  type ProductOfferFacts,
+} from './product-offer.letter'
 
 /**
  * Промпты ИИ-помощника — по одной функции сборки на каждый вид черновика.
@@ -164,6 +169,39 @@ export function buildLetterPrompt(facts: LetterFacts, redact: Redact, instructio
   }
 }
 
+// ─────────────── Письмо с предложением продукта (решение 223) ────────────────
+
+/**
+ * Предложение IT-продукта вузу по рекомендации продуктов: зачем (каких навыков
+ * не хватает программе и насколько они нужны работодателям — цифрами из фактов),
+ * что даёт продукт и просьба о встрече. Базовые правила писем и инструкция
+ * администратора — те же, что у письма по задаче.
+ */
+export function buildProductOfferPrompt(
+  facts: ProductOfferFacts,
+  redact: Redact,
+  instruction?: string | null,
+): AiPrompt {
+  const safe = redactDeep(facts, redact)
+  const lines = productOfferLines(safe)
+  return {
+    kind: 'product-offer-letter',
+    system: [
+      COMMON_RULES,
+      'Составь вежливое деловое письмо от лица ИТ-Школы РТК представителю вуза с предложением IT-продукта.',
+      'Первая строка — «Тема: …». Обращение по умолчанию — «Уважаемые коллеги!». Подпись по умолчанию — «С уважением,» и на следующей строке «ИТ-Школа РТК».',
+      'Структура: зачем пишем — каких навыков не хватает программе и насколько их ищут работодатели (только числа из фактов); что даёт продукт; предложение встречи.',
+      'Не обещай результатов, трудоустройства, скидок и сроков внедрения — их нет в фактах. Дату встречи не называй.',
+      'Письмо — не длиннее 170 слов.',
+      letterRulesTail(instruction, redact),
+    ].join('\n'),
+    user: `Факты для письма:\n${factsBlock(lines)}\n\nСоставь письмо.`,
+    facts: lines,
+    template: productOfferTemplate(safe),
+    accepts: (text) => anyText(text) && /ИТ[\s\-‑–]?Школ/i.test(text),
+  }
+}
+
 // ─────────────────────────── «Что сделать сегодня» ───────────────────────────
 
 export function buildTodayPrompt(items: readonly TodayItem[], redact: Redact): AiPrompt {
@@ -222,7 +260,7 @@ function normalizeSpaces(text: string): string {
  * как есть: переделать без модели нечем, и честнее вернуть то, что было.
  */
 export function buildRewritePrompt(
-  input: { kind: 'recommendation-letter' | 'inbound-letter-reply'; text: string; style: AiRewriteStyle },
+  input: { kind: 'recommendation-letter' | 'inbound-letter-reply' | 'product-offer-letter'; text: string; style: AiRewriteStyle },
   redact: Redact,
   instruction?: string | null,
 ): RewritePrompt {

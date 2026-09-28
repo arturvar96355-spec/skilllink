@@ -19,6 +19,8 @@ export const AI_DRAFT_KINDS = [
   'today',
   'inbound-letter-analysis',
   'inbound-letter-reply',
+  // Письмо вузу с предложением IT-продукта по рекомендации продуктов (решение 223).
+  'product-offer-letter',
 ] as const
 export type AiDraftKind = (typeof AI_DRAFT_KINDS)[number]
 
@@ -103,14 +105,28 @@ export const AI_REWRITE_STYLE_HINTS: Record<AiRewriteStyle, string> = {
  * Какое письмо переделывается — от этого зависят права и то, чьи названия
  * не прячутся при маскировке:
  * - `recommendation-letter` — письмо вузу по рекомендации (право WRITE), `id` — рекомендация;
- * - `inbound-letter-reply` — ответ на письмо вуза (право INBOUND_REVIEW), `id` — письмо.
+ * - `inbound-letter-reply` — ответ на письмо вуза (право INBOUND_REVIEW), `id` — письмо;
+ * - `product-offer-letter` — предложение продукта вузу (решение 223), `id` —
+ *   `<программа>:<продукт>` (`productOfferTargetId`): письмо про пару, а не про запись.
  */
-export const AI_REWRITE_TARGET_TYPES = ['recommendation-letter', 'inbound-letter-reply'] as const
+export const AI_REWRITE_TARGET_TYPES = ['recommendation-letter', 'inbound-letter-reply', 'product-offer-letter'] as const
 export type AiRewriteTargetType = (typeof AI_REWRITE_TARGET_TYPES)[number]
 
 export interface AiRewriteTargetDto {
   type: AiRewriteTargetType
   id: string
+}
+
+/** `id` цели переделки письма-предложения: пара «программа × продукт» (решение 223). */
+export function productOfferTargetId(programId: string, productId: string): string {
+  return `${programId}:${productId}`
+}
+
+/** Обратно из `id` цели; null — не пара. */
+export function parseProductOfferTargetId(id: string): { programId: string; productId: string } | null {
+  const [programId, productId, ...rest] = id.split(':')
+  if (!programId || !productId || rest.length > 0) return null
+  return { programId, productId }
 }
 
 /** Ответ `POST /api/ai/rewrite`. Ответ всегда 200: не вышло — прежний текст и пояснение. */

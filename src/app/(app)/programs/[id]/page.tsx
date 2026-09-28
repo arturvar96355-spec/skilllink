@@ -72,6 +72,7 @@ import {
 import { AddProgramSkillModal } from '../AddProgramSkillModal'
 import { EditProgramModal } from '../EditProgramModal'
 import { WhyNoRecommendation } from '../../RuleChecks'
+import { ProductOffers } from '../../ProductOffers'
 import { SimilarPrograms } from './SimilarPrograms'
 import { coverageConclusion, coverageRows } from './coverage-bars'
 import styles from './program.module.css'
@@ -678,6 +679,16 @@ export default function ProgramPage() {
               ))}
             </div>
           </Section>
+
+          {user.permissions.canSeeAnalytics && (
+            <Section
+              title="Что предложить вузу"
+              help={{ topic: 'product-recommendations', section: 'card' }}
+              description="IT-продукты, которые закрывают дефициты навыков этой программы, — с причинами и черновиком письма."
+            >
+              <ProductOffers endpoint={`/api/programs/${data.id}/product-recommendations`} scope="program" />
+            </Section>
+          )}
 
           <Section title="Сведения">
             <Card>

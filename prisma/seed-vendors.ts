@@ -213,3 +213,83 @@ export async function seedSchoolCourses(prisma: PrismaClient, now: Date): Promis
   })
   return { courses: COURSES.length, orders: DEMO_ORDERS.length }
 }
+
+/**
+ * Навыки девяти продуктов вендоров (решение 223): без них продукт не с чем сравнивать
+ * в рекомендациях продуктов — его не было ни в одном предложении вузу. Навыки — из
+ * справочника, по назначению продукта; значимость — как у продуктов основного сида
+ * (ключевой, смежный, дополнительный). Для AKOLA, Яги, Web3Gate и Нейрошлюза назначение
+ * по названию угадывается хуже всего — это демо-допущение, уточняется у вендора.
+ *
+ * Вызывается после расширенного набора: часть навыков (Big Data, Виртуализация, LLM)
+ * заводит он, а не справочник основного сида.
+ */
+export const VENDOR_PRODUCT_SKILLS: Readonly<Record<string, ReadonlyArray<{ skill: string; relevance: 'CORE' | 'RELATED' | 'OPTIONAL' }>>> = {
+  'Базис Dynamix': [
+    { skill: 'Виртуализация', relevance: 'CORE' },
+    { skill: 'Облачные платформы', relevance: 'CORE' },
+    { skill: 'Linux', relevance: 'RELATED' },
+    { skill: 'Сетевые технологии', relevance: 'OPTIONAL' },
+  ],
+  'RT.DataLake': [
+    { skill: 'Big Data', relevance: 'CORE' },
+    { skill: 'Инженерия данных (ETL)', relevance: 'CORE' },
+    { skill: 'SQL', relevance: 'RELATED' },
+    { skill: 'Python', relevance: 'OPTIONAL' },
+  ],
+  'RT.Warehouse': [
+    { skill: 'SQL', relevance: 'CORE' },
+    { skill: 'PostgreSQL', relevance: 'CORE' },
+    { skill: 'Инженерия данных (ETL)', relevance: 'RELATED' },
+    { skill: 'Big Data', relevance: 'OPTIONAL' },
+  ],
+  'RT.DataVision': [
+    { skill: 'Бизнес-аналитика (BI)', relevance: 'CORE' },
+    { skill: 'Аналитика данных', relevance: 'CORE' },
+    { skill: 'SQL', relevance: 'RELATED' },
+  ],
+  'Аврора SDK': [
+    { skill: 'Разработка мобильных приложений', relevance: 'CORE' },
+    { skill: 'C++', relevance: 'CORE' },
+    { skill: 'Linux', relevance: 'RELATED' },
+  ],
+  Нейрошлюз: [
+    { skill: 'Генеративные модели (LLM)', relevance: 'CORE' },
+    { skill: 'Обработка естественного языка', relevance: 'RELATED' },
+    { skill: 'Python', relevance: 'RELATED' },
+    { skill: 'Информационная безопасность', relevance: 'OPTIONAL' },
+  ],
+  Web3Gate: [
+    { skill: 'Криптографическая защита информации', relevance: 'CORE' },
+    { skill: 'Микросервисы', relevance: 'RELATED' },
+    { skill: 'TypeScript', relevance: 'OPTIONAL' },
+  ],
+  AKOLA: [
+    { skill: 'Микросервисы', relevance: 'CORE' },
+    { skill: 'Системный анализ', relevance: 'RELATED' },
+    { skill: 'Java', relevance: 'OPTIONAL' },
+  ],
+  Яга: [
+    { skill: 'Мониторинг и логирование', relevance: 'CORE' },
+    { skill: 'Linux', relevance: 'RELATED' },
+    { skill: 'Ansible', relevance: 'OPTIONAL' },
+  ],
+}
+
+export async function seedVendorProductSkills(prisma: PrismaClient): Promise<number> {
+  const names = Object.keys(VENDOR_PRODUCT_SKILLS)
+  const [products, skills] = await Promise.all([
+    prisma.iTProduct.findMany({ where: { name: { in: names } }, select: { id: true, name: true } }),
+    prisma.skill.findMany({ select: { id: true, name: true } }),
+  ])
+  const skillByName = new Map(skills.map((skill) => [skill.name, skill.id]))
+  const data = products.flatMap((product) =>
+    (VENDOR_PRODUCT_SKILLS[product.name] ?? []).map((item) => {
+      const skillId = skillByName.get(item.skill)
+      if (!skillId) throw new Error(`Навык не найден: ${item.skill}`)
+      return { productId: product.id, skillId, relevance: item.relevance }
+    }),
+  )
+  const result = await prisma.productSkill.createMany({ data, skipDuplicates: true })
+  return result.count
+}

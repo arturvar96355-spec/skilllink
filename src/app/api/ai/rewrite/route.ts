@@ -10,7 +10,8 @@ import { aiRewriteSchema } from '@/modules/ai-assist/ai-assist.schema'
  * GET — можно ли сейчас переделывать: модель выключена или не настроена —
  * кнопки неактивны с пояснением. POST — переделать текст сотрудника (с его правками)
  * по заданию кнопки. Права и маскировка — у сервиса того письма, которое переделывается:
- * письмо вузу по рекомендации — WRITE, ответ на письмо вуза — INBOUND_REVIEW.
+ * письмо вузу по рекомендации — WRITE, предложение продукта (решение 223) — роль WRITE,
+ * эксперту тоже (только текст), ответ на письмо вуза — INBOUND_REVIEW.
  */
 export const dynamic = 'force-dynamic'
 
@@ -23,9 +24,12 @@ export const POST = handle(async (request) => {
   const user = await getCurrentUser()
   const input = await parseBody(request, aiRewriteSchema)
   const body = { text: input.text, style: input.style }
-  return ok(
-    input.target.type === 'recommendation-letter'
-      ? await aiService.rewriteRecommendationLetter(user, input.target.id, body)
-      : await lettersService.rewriteReplyDraft(user, input.target.id, body),
-  )
+  switch (input.target.type) {
+    case 'recommendation-letter':
+      return ok(await aiService.rewriteRecommendationLetter(user, input.target.id, body))
+    case 'product-offer-letter':
+      return ok(await aiService.rewriteProductOfferLetter(user, input.target.id, body))
+    case 'inbound-letter-reply':
+      return ok(await lettersService.rewriteReplyDraft(user, input.target.id, body))
+  }
 })

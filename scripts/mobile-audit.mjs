@@ -98,6 +98,7 @@ const STATIC_ROUTES = [
   '/analytics?tab=rating',
   '/analytics?tab=skills',
   '/analytics?tab=demand',
+  '/analytics?tab=products',
   '/analytics?tab=funnel',
   '/analytics?tab=stages',
   '/analytics?tab=cohorts',
