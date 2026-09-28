@@ -138,16 +138,8 @@ function LettersView() {
   }
 
   const columns: Column<InboundLetterListItemDto>[] = [
-    {
-      key: 'receivedAt',
-      title: 'Дата',
-      width: '124px',
-      sortField: 'receivedAt',
-      sortDescFirst: true,
-      render: (row: InboundLetterListItemDto) => (
-        <span className={styles.muted}>{formatDateTime(row.receivedAt)}</span>
-      ),
-    },
+    // Отправитель — первым (решение 232): лента рабочего режима растягивает первую
+    // колонку как название, а дата первой занимала полстроки, и имя обрезалось.
     {
       key: 'sender',
       title: 'Отправитель',
@@ -158,6 +150,16 @@ function LettersView() {
           tooltip={row.senderName ? `${row.senderName} · ${row.senderEmail}` : row.senderEmail}
           subline={[row.senderName ? row.senderEmail : null, row.bodyPreview]}
         />
+      ),
+    },
+    {
+      key: 'receivedAt',
+      title: 'Дата',
+      width: '124px',
+      sortField: 'receivedAt',
+      sortDescFirst: true,
+      render: (row: InboundLetterListItemDto) => (
+        <span className={styles.muted}>{formatDateTime(row.receivedAt)}</span>
       ),
     },
     {
