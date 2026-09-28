@@ -4,6 +4,7 @@ import { AI_TODAY_ITEMS } from '@/shared/config/ai-assist.config'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import {
   AI_FALLBACK_REASON_LABELS,
+  AI_PERSONAL_DATA_NOTICE,
   type AiDraftDto,
   type AiFallbackReason,
   type AiRewriteDto,
@@ -24,7 +25,7 @@ import * as recommendationsService from '@/modules/recommendations/recommendatio
 import { OPEN_RECOMMENDATION_STATUSES } from '@/modules/recommendations/recommendations.rules'
 import * as repo from './ai-assist.repo'
 import { cacheKey, readCache, takeGeneration, writeCache } from './ai-assist.limits'
-import { createRedactor, type Redact } from './ai-assist.privacy'
+import { createRedactor, personalDataLeft, type Redact } from './ai-assist.privacy'
 import { log } from '@/shared/log/logger'
 import {
   buildLetterPrompt,
@@ -86,6 +87,18 @@ export async function compose(
   if (!info.ready) return template('not-configured')
   const source = info.kind
 
+  // Остаточная проверка (решение 226): маска заменяет только то, что узнаёт уверенно.
+  // Остался признак персональных данных — запрос не уходит, человек видит почему.
+  const leaks = personalDataLeft(options.redact, `${prompt.system}\n${prompt.user}`)
+  if (leaks.length > 0) {
+    // Только виды признаков: ни текста, ни найденных значений.
+    log.warn('[AI] в тексте остались персональные данные, запрос в модель не отправлен', {
+      kind: prompt.kind,
+      leaks: leaks.join(','),
+    })
+    return template('personal-data')
+  }
+
   const key = cacheKey([source, info.model ?? '', prompt.system, prompt.user])
   const cached = readCache(key, now.getTime())
   if (cached) {
@@ -102,7 +115,17 @@ export async function compose(
     // Модель могла дописать выдуманный телефон или адрес — ответ чистится так же, как вход.
     const text = options.redact(cleanModelText(completion.text))
     if (text === '') return template('empty')
-    if (!prompt.accepts(text)) return template('invalid')
+    // То, что маска ответа не заменила (решение 226), — не черновик: тот же признак на входе остановил бы запрос.
+    const answerLeaks = personalDataLeft(options.redact, text)
+    const problems = [
+      ...(answerLeaks.length > 0 ? ['personal-data'] : []),
+      ...(prompt.accepts(text) ? [] : (prompt.problems?.(text) ?? ['rejected'])),
+    ]
+    if (problems.length > 0) {
+      // Только коды нарушений: ни ответа модели, ни промпта.
+      log.warn('[AI] ответ модели не прошёл проверку, отдан шаблон', { kind: prompt.kind, problems: problems.join(',') })
+      return template('invalid')
+    }
 
     writeCache(key, { text, source, model: completion.model }, now.getTime())
     return {
@@ -309,7 +332,9 @@ export async function rewriteDraft(
   const rewritten = draft.source !== 'template'
 
   const notice = !rewritten
-    ? `Текст не переделан: ${draft.fallbackReason ? AI_FALLBACK_REASON_LABELS[draft.fallbackReason] : 'модель не дала текста'}. Черновик остался прежним.`
+    ? draft.fallbackReason === 'personal-data'
+      ? AI_PERSONAL_DATA_NOTICE
+      : `Текст не переделан: ${draft.fallbackReason ? AI_FALLBACK_REASON_LABELS[draft.fallbackReason] : 'модель не дала текста'}. Черновик остался прежним.`
     : prompt.masked
       ? 'Перед отправкой в ИИ из текста скрыты персональные данные — в новом варианте на их месте пометки. Верните нужное вручную.'
       : null
