@@ -1,4 +1,4 @@
-import { assertCanSeeTeam } from '@/shared/auth/permissions'
+import { assertCanSeeStaffProfile, assertCanSeeTeam, can } from '@/shared/auth/permissions'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { notFound } from '@/shared/http/errors'
 import { canBeResponsible } from '@/shared/contracts/enums'
@@ -10,6 +10,7 @@ import type {
   TeamMeetingDto,
   TeamMemberDetailDto,
   TeamMemberDto,
+  TeamMemberProfileDto,
   TeamOverviewDto,
   TeamStageRefDto,
 } from '@/shared/contracts/team'
@@ -334,7 +335,11 @@ export async function teamMemberDetail(
   assertCanSeeTeam(user)
   const [found] = await repo.findTeamUsers(userId)
   if (!found) throw notFound('Сотрудник не найден в команде')
+  return memberDetail(found, now)
+}
 
+/** Панель и страница сотрудника — одна сборка: числа на них не могут разойтись. */
+async function memberDetail(found: TeamUser, now: Date): Promise<TeamMemberDetailDto> {
   const week = moscowWeek(now)
   const [facts, cooperations, overdueStages, weekStages, recent] = await Promise.all([
     collectFacts([found.id], now, week, false),
@@ -359,4 +364,31 @@ export async function teamMemberDetail(
     containsMockData: cooperations.some((row) => row.isMock),
     generatedAt: now.toISOString(),
   }
+}
+
+/**
+ * Страница сотрудника `/team/:id` (решение 230): всё, что в боковой панели «Команды»,
+ * тем же расчётом, плюс рабочая почта. Права — `assertCanSeeStaffProfile`: «Команда»
+ * видит любого, сотрудник — себя. Отказ — до любого запроса к базе.
+ *
+ * Почта — тем же правилом, что в справочнике пользователей (`canSeeUserEmails` в
+ * `auth.service`: право `WRITE` — ADMIN, HEAD, MANAGER), и всегда своя. Остальным —
+ * `null`, а не пустая строка. Сервис авторизации сюда не тянем: он везёт за собой
+ * хеширование паролей, а правило — одна строка над тем же `can`.
+ */
+export async function teamMemberProfile(
+  user: CurrentUser,
+  userId: string,
+  now: Date = new Date(),
+): Promise<TeamMemberProfileDto> {
+  assertCanSeeStaffProfile(user, userId)
+  const [found] = await repo.findTeamUsers(userId)
+  if (!found) throw notFound('Сотрудник не найден в команде')
+  const isSelf = user.id === found.id
+  const showEmail = isSelf || can(user, 'WRITE')
+  const [detail, email] = await Promise.all([
+    memberDetail(found, now),
+    showEmail ? repo.findTeamUserEmail(found.id) : Promise.resolve(null),
+  ])
+  return { ...detail, contacts: { email }, isSelf }
 }

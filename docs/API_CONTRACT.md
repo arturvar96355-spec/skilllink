@@ -2420,6 +2420,32 @@ curl -s -b cookies.txt http://localhost:3000/api/team
 curl -s -b cookies.txt http://localhost:3000/api/team/<userId>
 ```
 
+### GET /api/team/:userId/profile
+
+Страница сотрудника `/team/:id` (решение 230). Тот же ответ, что у `GET /api/team/:userId`,
+тем же расчётом — числа на странице и в панели «Команды» не расходятся, — плюс два поля:
+
+```json
+{
+  "data": {
+    "member": { "id": "…", "…": "…" },
+    "…": "…",
+    "contacts": { "email": "manager@skilllink.demo" },
+    "isSelf": false
+  }
+}
+```
+
+`contacts.email` — рабочая почта тем же правилом, что в справочнике пользователей
+(`WRITE`: ADMIN, HEAD, MANAGER) и всегда своя; остальным — `null`. Телефона у учётной записи нет.
+Права: «Команда» (ADMIN, HEAD, эксперт хакатона) — любой сотрудник; менеджер, аналитик,
+наблюдатель — только своя страница, чужая — `403`; представителю вуза — `403`. Отказ — до
+запроса к базе. Сотрудник вне команды — `404`, как у панели.
+
+```bash
+curl -s -b cookies.txt http://localhost:3000/api/team/<userId>/profile
+```
+
 ---
 
 ## 10. Рекомендации
@@ -5750,7 +5776,8 @@ universityFound, fallbackReason), `inbound_letter.review` (verdict, group, unive
 
 ### GET /api/assignments
 
-Параметры: `assigneeId`, `status` (можно несколько), `overdue=true`, `page`, `pageSize` (до 100).
+Параметры: `assigneeId`, `authorId` (кто поручил — «От него» на странице сотрудника, решение 230), `status` (можно несколько), `overdue=true`, `page`, `pageSize` (до 100).
+Сотруднику без права видеть чужие поручения `authorId` сужает только его собственные.
 Порядок — ближайший срок первым, при равном сроке важные выше.
 
 ```json

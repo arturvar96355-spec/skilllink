@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { CurrentUserDto, UserRole } from '@/shared/contracts'
 import { ROUTES } from '../lib/links'
-import { canReadLetters, isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
+import { canOpenStaffProfile, canReadLetters, isSectionAllowed, navigationFor, serviceLinksFor } from './navigation'
 import { API_CONTRACT_URL } from '../lib/links'
 
 /**
@@ -272,5 +272,35 @@ describe('«Согласования» (решение 218)', () => {
     expect(navigationFor(expertAdmin).flatMap((group) => group.items.map((item) => item.href))).toContain(ROUTES.approvals)
     expect(isSectionAllowed(expertAdmin, ROUTES.approvals)).toBe(true)
     expect(isSectionAllowed({ ...user('MANAGER'), isReviewer: true }, ROUTES.approvals)).toBe(false)
+  })
+})
+
+describe('страница сотрудника /team/:id (решение 230)', () => {
+  it.each<UserRole>(['ADMIN', 'HEAD'])('%s открывает любого сотрудника', (role) => {
+    expect(isSectionAllowed(user(role), `${ROUTES.team}/someone`)).toBe(true)
+    expect(canOpenStaffProfile(user(role), 'someone')).toBe(true)
+  })
+
+  it.each<UserRole>(['MANAGER', 'ANALYST', 'VIEWER'])('%s: своя — открыта, чужая — «Раздел недоступен»', (role) => {
+    expect(isSectionAllowed(user(role), `${ROUTES.team}/u1`)).toBe(true)
+    expect(isSectionAllowed(user(role), `${ROUTES.team}/someone`)).toBe(false)
+    expect(canOpenStaffProfile(user(role), 'someone')).toBe(false)
+    // Сама «Команда» ему по-прежнему закрыта.
+    expect(isSectionAllowed(user(role), ROUTES.team)).toBe(false)
+  })
+
+  it('эксперт любой роли сотрудника читает чужую страницу, как «Команду»', () => {
+    const base = user('MANAGER')
+    const expert = { ...base, isReviewer: true, permissions: { ...base.permissions, canSeeTeam: true } }
+    expect(isSectionAllowed(expert, `${ROUTES.team}/someone`)).toBe(true)
+  })
+
+  it('представителю вуза закрыта даже «своя» страница', () => {
+    expect(isSectionAllowed(user('UNIVERSITY_REP'), `${ROUTES.team}/u1`)).toBe(false)
+    expect(canOpenStaffProfile(user('UNIVERSITY_REP'), 'u1')).toBe(false)
+  })
+
+  it('кривой адрес не роняет охранника', () => {
+    expect(isSectionAllowed(user('MANAGER'), `${ROUTES.team}/%E0%A4%A`)).toBe(false)
   })
 })
