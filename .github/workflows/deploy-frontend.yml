@@ -35,6 +35,8 @@ jobs:
       # Пароль демо-входа — секретом: скрипт выкладки печатает его в конце,
       # а GitHub прячет значения секретов в журнале.
       SEED_DEMO_PASSWORD: ${{ secrets.SEED_DEMO_PASSWORD }}
+      # Пароль экспертов (решение 228) — для шага 6 сверки; нет секрета — шаг пропускается.
+      SEED_EXPERT_PASSWORD: ${{ secrets.SEED_EXPERT_PASSWORD }}
     steps:
       - uses: actions/checkout@v7
         with:
