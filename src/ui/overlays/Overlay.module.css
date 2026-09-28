@@ -5,7 +5,7 @@
   inset: 0;
   z-index: var(--z-overlay);
   display: flex;
-  background: rgba(5, 5, 8, 0.62);
+  background: var(--overlay-backdrop);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   animation: fadeIn var(--motion-overlay) var(--ease-out);
@@ -29,7 +29,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgb(var(--ink-rgb) / 0.096);
+  border: 1px solid var(--floating-border);
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-floating);
   animation: modalIn var(--motion-overlay) var(--ease-out);
@@ -47,7 +47,7 @@
   background: var(--surface-overlay);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-left: 1px solid rgb(var(--ink-rgb) / 0.096);
+  border-left: 1px solid var(--floating-border);
   border-radius: var(--radius-panel) 0 0 var(--radius-panel);
   box-shadow: var(--shadow-floating);
   animation: drawerIn var(--motion-overlay) var(--ease-out);
