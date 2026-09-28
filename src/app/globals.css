@@ -496,6 +496,125 @@
 }
 
 /*
+ * Печать всегда светлая (решение 232): «Печать / PDF» у диаграмм главной и отчёт
+ * руководителю в тёмной теме уходили на бумагу тёмным фоном — тонер и нечитаемые
+ * подписи. На печати действуют значения светлой темы, какой бы ни была тема экрана.
+ * Копия блока выше слово в слово — это держит тест design-tokens.test.ts; меняешь
+ * светлую тему — меняй и здесь. `:root:root` — та же сила, что у `[data-theme]`,
+ * поэтому спокойный вид рабочего режима (ниже) по-прежнему перекрывает цвета.
+ */
+@media print {
+  :root:root {
+    --ink-rgb: 30 22 64;
+    color-scheme: light;
+
+    --canvas: #ffffff;
+    --surface-1: #ffffff;
+    --surface-2: #f7f6fc;
+    --surface-3: #efedf8;
+    --surface-floating: rgba(255, 255, 255, 0.97);
+    --bg-sidebar: rgba(255, 255, 255, 0.92);
+    --bg-header: rgba(255, 255, 255, 0.82);
+    --bg-glow: rgba(109, 74, 255, 0.34);
+    --bg-glow-deep: rgba(22, 200, 190, 0.24);
+    --bg-haze-violet: rgba(109, 74, 255, 0.08);
+    --bg-haze-deep: rgba(22, 200, 190, 0.07);
+    --surface-card-muted: #fbfaff;
+    --glow-tint-near: rgba(109, 74, 255, 0.15);
+    --glow-tint-far: rgba(22, 200, 190, 0.11);
+    --surface-sunken: #f3f2fa;
+    --border-accent: rgba(109, 74, 255, 0.34);
+    --danger-surface: rgba(206, 43, 68, 0.08);
+    --danger-border: rgba(206, 43, 68, 0.3);
+    --success-border: rgba(8, 122, 92, 0.3);
+    --success-surface: rgba(16, 185, 140, 0.1);
+
+    --purple-900: #f3f2fa;
+    --purple-800: #f7f6fc;
+    --purple-700: #ffffff;
+    --purple-600: #efedf8;
+    --purple-500: #6d4aff;
+
+    --accent-violet: #6d4aff;
+    --accent-pink: #d8307f;
+    --accent-orange: #c85a22;
+    --accent-cyan: #0ea77f;
+
+    --text-primary: #16122a;
+    --text-secondary: #474159;
+    --text-tertiary: #625d74;
+    --text-disabled: #a7a3b8;
+    --text-accent: #5a36f0;
+    --text-accent-soft: #6d4aff;
+    --text-accent-pale: #4c2bd6;
+    --text-danger-strong: #a81d33;
+    --text-danger-soft: #a81d33;
+    --text-warm: #a8491a;
+    --text-muted-cool: #474159;
+    --text-violet: #5a36f0;
+    --text-on-light: #111116;
+    --logo-plate: #ffffff;
+    --text-inverse: #ffffff;
+
+    --line-subtle: rgba(60, 40, 140, 0.09);
+    --line-strong: rgba(60, 40, 140, 0.17);
+    --line-faint: rgba(60, 40, 140, 0.045);
+    --border-active: rgba(109, 74, 255, 0.6);
+    --border-divider: rgba(60, 40, 140, 0.08);
+
+    --shadow-base: 0 1px 2px rgba(60, 40, 140, 0.06), 0 2px 8px rgba(60, 40, 140, 0.04);
+    --shadow-floating: 0 20px 48px rgba(60, 40, 140, 0.14), 0 2px 8px rgba(60, 40, 140, 0.08);
+    --glow-hover: 0 10px 28px rgba(109, 74, 255, 0.14), 0 0 22px rgba(14, 167, 127, 0.1),
+      0 0 0 1px rgba(109, 74, 255, 0.3);
+    --glow-hover-danger: 0 8px 24px rgba(206, 43, 68, 0.12), 0 0 0 1px rgba(206, 43, 68, 0.3);
+
+    --status-success: #087a5c;
+    --status-warning: #8f5b0a;
+    --status-danger: #ce2b44;
+    --status-neutral: #625d74;
+
+    --glass-plate: rgba(255, 255, 255, 0.94);
+    --glass-tint: rgba(109, 74, 255, 0.03);
+    --glass-edge: rgba(60, 40, 140, 0.1);
+    --glass-edge-strong: rgba(60, 40, 140, 0.2);
+    --glass-field: rgba(60, 40, 140, 0.035);
+    --glass-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.9), 0 16px 32px rgba(60, 40, 140, 0.1),
+      0 2px 6px rgba(60, 40, 140, 0.06);
+    --glass-line: #6d4aff;
+    --glass-search: rgba(255, 255, 255, 0.72);
+    --glass-glare: rgba(255, 255, 255, 0.5);
+    --glass-focus-ring: 0 0 0 3px rgba(109, 74, 255, 0.2);
+    --glass-glow: 0 0 12px rgba(109, 74, 255, 0.3), 0 0 24px rgba(14, 167, 127, 0.14);
+    --button-primary-bg: #6d4aff;
+    --button-primary-fg: #ffffff;
+    --button-primary-hover: #5a36f0;
+    --button-accent-hover: #5a36f0;
+    --button-secondary-border: rgba(109, 74, 255, 0.34);
+    --button-secondary-border-hover: rgba(109, 74, 255, 0.6);
+    --map-coast-opacity: 0.9;
+    --map-coast-glow: drop-shadow(0 0 3px rgba(109, 74, 255, 0.45));
+    --map-grid-opacity: 0.08;
+    --map-link-color: #0b8f6a;
+    --map-link-opacity: 0.85;
+    --map-link-width: 1.4;
+    --map-link-dash: 4 4;
+    --map-link-idle-glow: drop-shadow(0 0 2px rgba(16, 214, 156, 0.35));
+    --map-link-lit-color: #10c98f;
+    --map-link-glow: drop-shadow(0 0 3px rgba(16, 214, 156, 0.7));
+    --map-dot-hover-scale: 1.25;
+    --tag-shadow: 0 24px 48px rgba(60, 40, 140, 0.16), 0 2px 8px rgba(60, 40, 140, 0.08),
+      0 2px 0 rgba(255, 255, 255, 0.6) inset;
+    --tag-shadow-hover: 0 28px 56px rgba(109, 74, 255, 0.2), 0 0 28px rgba(14, 167, 127, 0.14),
+      0 0 0 1px rgba(109, 74, 255, 0.35), 0 2px 0 rgba(255, 255, 255, 0.6) inset;
+    --tag-hover-lift: -3px;
+    --tag-logo-hover-scale: 1.05;
+    --overlay-backdrop: rgba(30, 22, 64, 0.28);
+    --floating-border: rgba(109, 74, 255, 0.22);
+    --row-hover: rgba(109, 74, 255, 0.055);
+  }
+}
+
+/*
  * Спокойный вид рабочего режима — варианты на выбор (src/ui/lib/work-theme.ts).
  * Замечание эксперта: рабочий режим «аляпится». Правило всех вариантов — цвет
  * только сигнал: красный — требует внимания, жёлтый — ниже цели, фиолетовый —
@@ -592,23 +711,26 @@ html[data-mode='work'][data-work-theme]:not([data-work-theme='a']) [data-badge][
  * только выбранное, текущий этап и основное действие; графики серые,
  * сигнал — красный и жёлтый. Тёмная тема и светлая — отдельными правилами.
  */
-html[data-mode='work'][data-work-theme='c']:not([data-theme='light']) {
-  --ink-rgb: 255 255 255;
-  --canvas: #0c0c0e;
-  --surface-1: #121214;
-  --surface-2: #19191c;
-  --surface-3: #202024;
-  --surface-floating: rgba(24, 24, 27, 0.97);
-  --surface-card-muted: #101012;
-  --surface-sunken: #0e0e10;
-  --bg-sidebar: rgba(13, 13, 15, 0.92);
-  --bg-header: rgba(12, 12, 14, 0.8);
-  --text-primary: #f2f2f3;
-  --text-secondary: #a7a7ad;
-  --text-tertiary: #86868d;
-  --text-disabled: #4a4a50;
-  --text-muted-cool: #a7a7ad;
-  --calm-chart: rgb(var(--ink-rgb) / 0.42);
+/* На печати графит тоже светлый (решение 232): тёмный холст — только на экране. */
+@media screen {
+  html[data-mode='work'][data-work-theme='c']:not([data-theme='light']) {
+    --ink-rgb: 255 255 255;
+    --canvas: #0c0c0e;
+    --surface-1: #121214;
+    --surface-2: #19191c;
+    --surface-3: #202024;
+    --surface-floating: rgba(24, 24, 27, 0.97);
+    --surface-card-muted: #101012;
+    --surface-sunken: #0e0e10;
+    --bg-sidebar: rgba(13, 13, 15, 0.92);
+    --bg-header: rgba(12, 12, 14, 0.8);
+    --text-primary: #f2f2f3;
+    --text-secondary: #a7a7ad;
+    --text-tertiary: #86868d;
+    --text-disabled: #4a4a50;
+    --text-muted-cool: #a7a7ad;
+    --calm-chart: rgb(var(--ink-rgb) / 0.42);
+  }
 }
 
 html[data-mode='work'][data-work-theme='c'][data-theme='light'] {
@@ -648,6 +770,17 @@ html[data-theme-switch='fade'] *::after {
     background-color var(--motion-surface) var(--ease-out),
     color var(--motion-surface) var(--ease-out),
     border-color var(--motion-surface) var(--ease-out) !important;
+}
+
+/*
+ * Снимок диаграммы в PNG (решение 232, src/ui/lib/chart-png.ts): на один синхронный шаг
+ * страница в светлой теме, и переходы цветов выключены — иначе снимок взял бы цвет
+ * начала перехода, то есть тёмный.
+ */
+html[data-png-capture] *,
+html[data-png-capture] *::before,
+html[data-png-capture] *::after {
+  transition: none !important;
 }
 
 *,

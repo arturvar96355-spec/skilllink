@@ -375,6 +375,27 @@
   color: var(--text-tertiary);
 }
 
+/*
+ * «Только просмотр» (решение 232): почему флажки неактивны и кнопок нет. Не отказ
+ * и не предупреждение — спокойная строка с замком, как у этапа, который закрывает
+ * система (.auto), но основным серым: её должны прочитать до попытки нажать.
+ */
+.readOnlyNote {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 72ch;
+  font-size: var(--text-body-sm-size);
+  line-height: var(--text-body-sm-line);
+  color: var(--text-secondary);
+}
+
+.readOnlyNote > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+}
+
 /* История этапа в боковой панели */
 .history {
   display: flex;

@@ -92,6 +92,50 @@ describe('переменные оформления', () => {
   })
 })
 
+/** Объявления блока `selector {` верхнего уровня или внутри `@media` — без комментариев, по порядку. */
+function declarationsOf(css: string, opening: string): string[] {
+  const start = css.indexOf(opening)
+  if (start < 0) return []
+  const end = css.indexOf('}', start)
+  return css
+    .slice(start + opening.length, end)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split(';')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+}
+
+/*
+ * Печать всегда светлая (решение 232): в `@media print` стоит копия светлой темы.
+ * Копия — потому что в CSS нельзя сказать «этот блок — и при [data-theme=light],
+ * и на печати». Тест держит её слово в слово: поменяли светлую тему — упадёт здесь.
+ */
+describe('печать в светлых цветах', () => {
+  const globals = readFileSync(join(ROOT, 'src/app/globals.css'), 'utf8')
+
+  it('на печати действуют те же значения, что у светлой темы', () => {
+    const light = declarationsOf(globals, ":root[data-theme='light'] {")
+    const print = declarationsOf(globals, '@media print {\n  :root:root {')
+    expect(light.length).toBeGreaterThan(50)
+    expect(print).toEqual(light)
+  })
+
+  it('тёмный графит рабочего режима — только на экране, не на печати', () => {
+    const graphite = globals.indexOf("html[data-mode='work'][data-work-theme='c']:not([data-theme='light'])")
+    const screen = globals.lastIndexOf('@media screen {', graphite)
+    expect(graphite).toBeGreaterThan(0)
+    expect(screen).toBeGreaterThan(0)
+    expect(globals.slice(screen, graphite).includes('}')).toBe(false)
+  })
+
+  it('столбики «Связки по вузам» на печати — в светлых цветах', () => {
+    const bars = readFileSync(join(ROOT, 'src/ui/data/BarsFlat.module.css'), 'utf8')
+    const light = declarationsOf(bars, ":global(:root[data-theme='light']) .root {")
+    expect(light.length).toBeGreaterThan(0)
+    expect(declarationsOf(bars, '@media print {\n  .root {')).toEqual(light)
+  })
+})
+
 /*
  * Единая шкала шрифтов и в самой дизайн-системе (бриф v2, 1.1): кегль числом
  * в компоненте — это второй, «почти такой же» размер. Исключения — инициалы
