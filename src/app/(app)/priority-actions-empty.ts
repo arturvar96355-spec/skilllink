@@ -19,7 +19,7 @@ export interface PriorityActionsEmptyState {
 export function priorityActionsEmptyState(openRecommendationsTotal: number): PriorityActionsEmptyState {
   if (openRecommendationsTotal === 0) {
     return {
-      title: 'Рекомендаций нет',
+      title: 'Задач нет',
       description: 'Система ещё не собирала предложения или все они закрыты.',
     }
   }
