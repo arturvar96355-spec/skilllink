@@ -35,6 +35,8 @@ export type AssignmentRow = Prisma.AssignmentGetPayload<{ select: typeof assignm
 
 export interface AssignmentFilter {
   assigneeId?: string
+  /** Кто поручил (решение 230). */
+  authorId?: string
   statuses?: readonly AssignmentStatus[]
   /** Только просроченные: открытые со сроком раньше этой даты (полночь UTC сегодняшней московской даты). */
   overdueBefore?: Date
@@ -46,6 +48,7 @@ function whereOf(filter: AssignmentFilter): Prisma.AssignmentWhereInput {
     : filter.statuses
   return {
     ...(filter.assigneeId ? { assigneeId: filter.assigneeId } : {}),
+    ...(filter.authorId ? { authorId: filter.authorId } : {}),
     ...(statuses ? { status: { in: [...statuses] } } : {}),
     ...(filter.overdueBefore ? { dueAt: { lt: filter.overdueBefore } } : {}),
   }

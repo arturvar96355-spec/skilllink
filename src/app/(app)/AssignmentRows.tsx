@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { ASSIGNMENT_STATUS_LABELS, type AssignmentDto, type AssignmentStatus } from '@/shared/contracts'
-import { Button, formatDayMonth, formatPersonShort } from '@/ui'
+import { Button, StaffName, formatDayMonth } from '@/ui'
 import { assignmentTone, dueText, nextStatusAction, placeText } from './assignment-view'
 import styles from './Assignments.module.css'
 
@@ -25,8 +25,12 @@ export function AssignmentRows({
   onStatus,
 }: {
   items: AssignmentDto[]
-  /** Что написать в мете: кто поручил (у себя) или кому (у руководителя — не нужно, панель уже про человека). */
-  show: 'author' | 'none'
+  /**
+   * Что написать в мете: кто поручил (у себя, «Ему» на странице сотрудника), кому
+   * («От него» на странице сотрудника) или ничего (панель «Команды» — уже про человека).
+   * Имя с аватаром ведёт на страницу сотрудника, если туда пускают (решение 230).
+   */
+  show: 'author' | 'assignee' | 'none'
   /** Поручение из ссылки уведомления — подсвечено и прокручено в видимую часть. */
   highlightId?: string | null
   /** Чей статус сейчас меняется — кнопка в ожидании. */
@@ -65,8 +69,15 @@ export function AssignmentRows({
                   {item.priority === 'HIGH' && <span className={styles.high}>важное</span>}
                   {place && <span className={styles.metaText}>{place}</span>}
                   {show === 'author' && (
-                    <span className={styles.metaTail} title={item.author.fullName}>
-                      поручил {formatPersonShort(item.author.fullName)}, {formatDayMonth(item.createdAt)}
+                    <span className={styles.metaTail}>
+                      поручил <StaffName id={item.author.id} fullName={item.author.fullName} short />,{' '}
+                      {formatDayMonth(item.createdAt)}
+                    </span>
+                  )}
+                  {show === 'assignee' && (
+                    <span className={styles.metaTail}>
+                      кому <StaffName id={item.assignee.id} fullName={item.assignee.fullName} short />,{' '}
+                      {formatDayMonth(item.createdAt)}
                     </span>
                   )}
                 </p>

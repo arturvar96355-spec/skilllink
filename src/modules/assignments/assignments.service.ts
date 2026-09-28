@@ -91,6 +91,7 @@ export async function list(
   const { rows, total } = await repo.findMany(
     {
       assigneeId,
+      authorId: query.authorId,
       statuses: query.status,
       overdueBefore: query.overdue ? dueDateValue(todayIso(now)) : undefined,
     },

@@ -174,7 +174,7 @@ PostgreSQL 16, Prisma 7: 51 модель и 34 миграции. Ключевы�
 
 ## 7. API
 
-- 166 маршрутов, 201 операция. Спецификация OpenAPI — `docs/openapi.json` и
+- 167 маршрутов, 202 операции. Спецификация OpenAPI — `docs/openapi.json` и
   https://skilllink.site/api/openapi.json (без входа); Swagger UI —
   https://skilllink.site/api-docs (после входа, «Try it out» работает с сессией).
 - Единый формат: `{ data }`, список — `{ data, meta }`, ошибка —

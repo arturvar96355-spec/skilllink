@@ -13,7 +13,7 @@ export { Badge, MockBadge, type BadgeTone } from './primitives/Badge'
 export { Card } from './primitives/Card'
 export { Progress } from './primitives/Progress'
 export { Skeleton, SkeletonLines } from './primitives/Skeleton'
-export { Avatar } from './primitives/Avatar'
+export { Avatar, type AvatarSize } from './primitives/Avatar'
 export { Tooltip, InfoHint } from './primitives/Tooltip'
 export { ScrollArea } from './primitives/ScrollArea'
 export { Field, Input, Textarea, Checkbox, Toggle } from './primitives/Form'
@@ -30,6 +30,7 @@ export { EmptyState, ErrorState, SectionUnavailable, CardsSkeleton, TableSkeleto
 export { DownloadButton } from './data/DownloadButton'
 export { DataTable, Pagination, CellText, type Column } from './data/Table'
 export { ListTitle } from './data/ListTitle'
+export { StaffName } from './data/StaffName'
 export { mockMarks, type MockMarks } from './data/origin'
 export { KpiCard, KpiRow, KpiStrip, MetricValue, MetricCell, type KpiStripItem } from './data/Metric'
 export {
@@ -53,6 +54,7 @@ export { AppShell } from './layout/AppShell'
 export { NAV_TRANSITION_ATTRIBUTE } from './layout/navigation-motion'
 export { notifyApprovalsChanged } from './layout/approvals-badge'
 export { useCurrentUser, isUniversityRep } from './layout/CurrentUser'
+export { canOpenStaffProfile } from './layout/navigation'
 export {
   PageHeader,
   Section,
@@ -143,6 +145,7 @@ export {
   universityHref,
   programHref,
   cooperationHref,
+  staffHref,
   documentHref,
   recommendationHref,
   productHref,

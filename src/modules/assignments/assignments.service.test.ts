@@ -308,6 +308,19 @@ describe('список', () => {
     await expectRejectCode(service.list(person('rep', 'UNIVERSITY_REP'), { page: 1, pageSize: 20 }, NOW), 'FORBIDDEN')
   })
 
+  it('authorId — «От него» (решение 230): руководителю как есть; сотруднику — только внутри своих', async () => {
+    await service.list(head, { page: 1, pageSize: 20, authorId: 'head2' }, NOW)
+    expect(repo.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ authorId: 'head2', assigneeId: undefined }),
+      expect.anything(),
+    )
+    await service.list(manager, { page: 1, pageSize: 20, authorId: 'head2' }, NOW)
+    expect(repo.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ authorId: 'head2', assigneeId: 'manager' }),
+      expect.anything(),
+    )
+  })
+
   it('overdue=true — срок раньше сегодняшней московской даты', async () => {
     await service.list(head, { page: 1, pageSize: 20, overdue: true }, NOW)
     expect(repo.findMany).toHaveBeenLastCalledWith(

@@ -1501,6 +1501,22 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     pathParams: { userId: 'Идентификатор сотрудника' },
     errors: [...COMMON_ERRORS, 'NOT_FOUND', 'VALIDATION_ERROR'],
   },
+  {
+    method: 'get',
+    path: '/api/team/{userId}/profile',
+    tag: 'Аналитика',
+    summary: 'Страница сотрудника',
+    description:
+      'То же, что панель сотрудника, тем же расчётом (строка, связки, просрочки, этапы и встречи недели, ' +
+      'последние действия), плюс contacts.email — рабочая почта тем же правилом, что в справочнике ' +
+      'пользователей (ADMIN, HEAD, MANAGER), и всегда своя; остальным null. isSelf — страница своя.',
+    permission: 'READ',
+    accessNote:
+      'ADMIN, HEAD и эксперт хакатона — любой сотрудник; менеджер, аналитик и наблюдатель — только своя ' +
+      'страница, чужая — 403; представителю вуза — 403.',
+    pathParams: { userId: 'Идентификатор сотрудника' },
+    errors: [...COMMON_ERRORS, 'NOT_FOUND', 'VALIDATION_ERROR'],
+  },
 
   // ── Поручения сотрудникам (решение 207) ──────────────────────────────────
   {
@@ -1509,7 +1525,7 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     tag: 'Поручения',
     summary: 'Поручения: мои или сотрудника',
     description:
-      'Фильтры assigneeId, status (можно несколько), overdue=true — только просроченные: не сделано ' +
+      'Фильтры assigneeId, authorId (кто поручил), status (можно несколько), overdue=true — только просроченные: не сделано ' +
       'и срок раньше сегодняшней московской даты. Сортировка — ближайший срок первым, при равном ' +
       'сроке важные выше. В строке — dueState (overdue, today, tomorrow, later, done), canEdit, canChangeStatus.',
     permission: 'READ',

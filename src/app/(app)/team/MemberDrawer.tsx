@@ -12,6 +12,7 @@ import {
   type TeamStageRefDto,
 } from '@/shared/contracts'
 import {
+  Avatar,
   Button,
   Drawer,
   ErrorState,
@@ -24,6 +25,7 @@ import {
   formatDayMonth,
   formatRelative,
   pluralize,
+  staffHref,
   useResource,
   type Resource,
   type HelpHintProps,
@@ -44,23 +46,26 @@ const MEETINGS_SHOWN = 6
 /** Сделанных поручений в панели — последние; вся история — в журнале. */
 const DONE_ASSIGNMENTS_SHOWN = 3
 
-function Section({
+export function Section({
   title,
   count,
   help,
+  heading: Heading = 'h3',
   children,
 }: {
   title: string
   count?: number
+  /** В панели заголовок блока — h3 (h2 — имя в шапке панели); на странице сотрудника — h2. */
+  heading?: 'h2' | 'h3'
   /** «?» у заголовка блока — что в нём можно сделать (решение 217). */
   help?: HelpHintProps
   children: ReactNode
 }) {
   const heading = (
-    <h3 className={styles.panelTitle}>
+    <Heading className={styles.panelTitle}>
       {title}
       {count !== undefined && <span className={styles.count}>{count}</span>}
-    </h3>
+    </Heading>
   )
   return (
     <section className={styles.panelSection}>
@@ -77,7 +82,7 @@ function Section({
   )
 }
 
-function StageItem({ stage, late }: { stage: TeamStageRefDto; late: boolean }) {
+export function StageItem({ stage, late }: { stage: TeamStageRefDto; late: boolean }) {
   return (
     <li className={styles.stageItem}>
       <span className={late ? styles.signal : styles.stageWhen}>
@@ -204,6 +209,13 @@ export function MemberDrawer({
           <ErrorState error={detail.error} onRetry={detail.reload} />
         ) : data && member ? (
           <div className={styles.panel}>
+            {/* Панель — быстрый взгляд; всё о человеке — на его странице (решение 230). */}
+            <div className={styles.panelIdentity}>
+              <Avatar name={member.fullName} seed={member.id} size="lg" />
+              <Button href={staffHref(member.id)} variant="secondary" size="sm" icon="arrowRight" iconPosition="right">
+                Открыть профиль
+              </Button>
+            </div>
             {member.load ? (
               <section className={styles.panelLoad}>
                 <div className={styles.panelLoadTop}>

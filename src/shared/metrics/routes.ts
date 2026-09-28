@@ -159,6 +159,7 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/skills/gaps',
   '/api/team',
   '/api/team/[userId]',
+  '/api/team/[userId]/profile',
   '/api/telegram/webhook',
   '/api/universities',
   '/api/universities/[id]',

@@ -57,6 +57,11 @@ export type UpdateAssignmentInput = z.infer<typeof updateAssignmentSchema>
 export const assignmentListQuerySchema = paginationSchema.extend({
   /** Чьи поручения. Сотрудник без права видеть чужие получает только свои. */
   assigneeId: id.optional(),
+  /**
+   * Кто поручил (решение 230): «От него» на странице сотрудника. Сотруднику без права
+   * видеть чужие поручения фильтр сужает только его собственные.
+   */
+  authorId: id.optional(),
   status: multi(z.enum(ASSIGNMENT_STATUSES)).optional(),
   /** Только просроченные: не сделано и срок раньше сегодняшней московской даты. */
   overdue: z
