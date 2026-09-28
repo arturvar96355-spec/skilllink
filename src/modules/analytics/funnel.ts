@@ -28,8 +28,10 @@ export const STAGE_STEPS: readonly FunnelStepDef[] = WORKFLOW_STAGES.map((stage)
 
 /**
  * Шесть вех вместо четырнадцати этапов (`milestones=true`). Границы — по фазам
- * конвейера и контрольным точкам: подписанный договор (закрыт этап 6) — главная
- * веха формализации, её же берут когорты.
+ * конвейера и контрольным точкам: подписанный договор (этап 6 завершён) — главная
+ * веха формализации, её же берут когорты. «Дошла до вехи» — пройдены все этапы до
+ * неё; отменённый обязательный этап пройденным не считается (решение 227), поэтому
+ * отменённое подписание — не «Договор подписан», отменённые занятия — не «Занятия проведены».
  */
 export const MILESTONE_STEPS: readonly FunnelStepDef[] = [
   { key: 'start', title: 'Начало работы', fromStage: 1 },
@@ -40,7 +42,7 @@ export const MILESTONE_STEPS: readonly FunnelStepDef[] = [
   { key: 'done', title: 'Все этапы закрыты', fromStage: TIMELINE_DONE },
 ]
 
-/** Ключевая веха когорт: договор подписан — этап 6 закрыт, текущий этап дальше 6. */
+/** Ключевая веха когорт: договор подписан — этап 6 завершён (не отменён), текущий этап дальше 6. */
 export const COHORT_MILESTONE: FunnelStepDef = MILESTONE_STEPS.find((step) => step.key === 'signed')!
 
 export interface FunnelSubject {
