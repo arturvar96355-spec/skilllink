@@ -265,7 +265,7 @@ export default function ProgramPage() {
   if (hasTabContent(cooperations)) {
     tabs.push({
       key: 'cooperations',
-      label: 'Сотрудничества',
+      label: 'Связки',
       count: cooperations.meta?.total ?? cooperationRows.length,
     })
   }
