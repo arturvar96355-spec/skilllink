@@ -1,5 +1,6 @@
 import {
   EMAIL,
+  findPersonalData,
   INITIALS_WITH_SURNAME,
   MAX_PHONE_DIGITS,
   MIN_PHONE_DIGITS,
@@ -7,6 +8,7 @@ import {
   SURNAME_WITH_INITIALS,
   namePartPattern,
   type KnownPeople,
+  type PersonalDataKind,
 } from './ai-assist.privacy'
 
 /**
@@ -74,6 +76,11 @@ export interface Masker {
   unknownLabels(text: string): string[]
   /** Сколько меток выдано — для журнала и проверок. */
   size(): number
+  /**
+   * Остаточная проверка перед отправкой (решение 226): признаки персональных данных,
+   * которые маска не заменила, — с теми же спрятанными официальными названиями.
+   */
+  findPersonalData(text: string): PersonalDataKind[]
 }
 
 /** Токены на время обработки: не буквы и не цифры, ни одно правило их не заденет. */
@@ -163,7 +170,13 @@ export function createMasker(people: KnownPeople, keep: readonly string[] = []):
       .filter((label) => !byLabel.has(label))
   }
 
-  return { mask, restore, unknownLabels, size: () => byLabel.size }
+  return {
+    mask,
+    restore,
+    unknownLabels,
+    size: () => byLabel.size,
+    findPersonalData: (text: string) => findPersonalData(text, protectedNames),
+  }
 }
 
 /** Есть ли в тексте почта или телефон — то, чего в ответе модели быть не может. */
