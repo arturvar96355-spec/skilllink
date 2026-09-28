@@ -2310,18 +2310,38 @@ async function seedGovernanceExamples(users: SeedUsers, universityRep: SeedUser)
 
 /** Итог заливки: число записей, id демо-пользователей и пароль (если он не задан через env). */
 /**
+ * Пароль учётных записей экспертов хакатона — отдельный от демо-пароля (решение 228).
+ *
+ * Раньше эксперты получали `SEED_DEMO_PASSWORD` — тот же пароль, что у `admin@` и
+ * `manager@` с правом записи: кто знал пароль эксперта, мог войти и администратором.
+ * Теперь у экспертов свой пароль из `SEED_EXPERT_PASSWORD`; без него — «skilllink-expert»
+ * (только локально: на стенде deploy.sh заводит случайный, а compose.cloud.yml без него
+ * не запускается). Значение по умолчанию намеренно другое, чем «skilllink».
+ */
+function expertPassword(): { custom: boolean; value: string } {
+  const custom = process.env.SEED_EXPERT_PASSWORD?.trim()
+  return custom ? { custom: true, value: custom } : { custom: false, value: 'skilllink-expert' }
+}
+
+/**
  * Учётные записи экспертов хакатона (решение 147, решение PM от 26.09.2026).
  *
  * `isReviewer: true` — сервер отклоняет любое разрушающее или изменяющее действие
  * независимо от роли (`shared/auth/permissions.ts`, `assertReviewerAllowed`),
  * поэтому `expert-admin@skilllink.demo` формально ADMIN, но прав ADMIN на деле
- * не использует. Тот же демо-пароль, что у остальных учётных записей (`SEED_DEMO_PASSWORD`).
+ * не использует. Пароль — свой (`SEED_EXPERT_PASSWORD`, решение 228), не демо-пароль
+ * сотрудников. Быстрый вход кнопкой (решение 176) пароля не спрашивает вовсе.
  * Представитель — вуз СПбГУТ, как у сценарного `rep@spbgu.example.invalid`.
  *
  * Отдельная функция в конце заливки — минимально трогает остальной seed.ts.
  */
-async function seedExpertAccounts(demoPasswordHash: string, universityId: IdOf): Promise<void> {
+async function seedExpertAccounts(universityId: IdOf): Promise<void> {
   console.log('Учётные записи экспертов (решение 147)...')
+  const password = expertPassword()
+  if (password.value === (process.env.SEED_DEMO_PASSWORD?.trim() || 'skilllink')) {
+    console.warn('  ВНИМАНИЕ: SEED_EXPERT_PASSWORD совпадает с паролем сотрудников — эксперт сможет войти и в admin@')
+  }
+  const expertPasswordHash = await hash(password.value, 10)
   const accounts: ReadonlyArray<{
     email: string
     fullName: string
@@ -2335,7 +2355,7 @@ async function seedExpertAccounts(demoPasswordHash: string, universityId: IdOf):
     await prisma.user.create({
       data: {
         email: account.email,
-        passwordHash: demoPasswordHash,
+        passwordHash: expertPasswordHash,
         fullName: account.fullName,
         position: 'Эксперт хакатона',
         role: account.role,
@@ -2344,7 +2364,12 @@ async function seedExpertAccounts(demoPasswordHash: string, universityId: IdOf):
       },
     })
   }
-  console.log(`  учётных записей: ${accounts.length}, is_reviewer = true (пароль — как у остальных демо-пользователей)`)
+  console.log(
+    `  учётных записей: ${accounts.length}, is_reviewer = true; ` +
+      (password.custom
+        ? 'пароль экспертов задан через SEED_EXPERT_PASSWORD — в журнал не выводится'
+        : `пароль экспертов: ${password.value}`),
+  )
 }
 
 /**
@@ -2434,8 +2459,8 @@ async function printSummary(users: SeedUsers, universityRep: SeedUser): Promise<
   )
   console.log(
     customPassword
-      ? '\nПароль всех демо-пользователей задан через SEED_DEMO_PASSWORD — в журнал не выводится.'
-      : `\nПароль всех демо-пользователей: ${DEMO_PASSWORD}`,
+      ? '\nПароль демо-пользователей (кроме экспертов) задан через SEED_DEMO_PASSWORD — в журнал не выводится.'
+      : `\nПароль демо-пользователей (кроме экспертов): ${DEMO_PASSWORD}`,
   )
   console.log('\nВсе записи помечены isMock = true и не являются подтверждённой статистикой.')
 }
@@ -2517,7 +2542,7 @@ async function main(): Promise<void> {
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
   await seedGovernanceExamples(users, universityRep)
-  await seedExpertAccounts(users.demoPasswordHash, universityId)
+  await seedExpertAccounts(universityId)
   // Вторая печать журнала — после всего: другой headSeq/rowCount, чем у первой.
   await auditSeal(prisma)
   await printSummary(users, universityRep)

@@ -127,6 +127,13 @@ if ! grep -q '^DOCKER_ORDERS_HMAC_KEY=' "\$ENV_FILE"; then
   umask 077
   echo "DOCKER_ORDERS_HMAC_KEY=\$(openssl rand -base64 32)" >> "\$ENV_FILE"
 fi
+# Пароль учётных записей экспертов (решение 228) — свой, не SEED_DEMO_PASSWORD
+# с правом записи. Дописывается и в уже созданный файл, один раз: смена пароля
+# ломает то, что уже передано экспертам. Действует после перезаливки демо-данных.
+if ! grep -q '^SEED_EXPERT_PASSWORD=' "\$ENV_FILE"; then
+  umask 077
+  echo "SEED_EXPERT_PASSWORD=\$(openssl rand -hex 8)" >> "\$ENV_FILE"
+fi
 # Адрес может меняться между развёртываниями — переписываем каждый раз.
 grep -v -E '^(SITE_ADDRESS|DOCKER_AUTH_URL)=' "\$ENV_FILE" > "\$ENV_FILE.tmp" || true
 {

@@ -62,7 +62,11 @@ SEED=1 scripts/deploy/deploy.sh skilllink@<адрес> <домен>
    ничего не переставляет.
 2. **Секреты** — при первом развёртывании создаются на сервере в `~/skilllink/.env.cloud`:
    пароль базы, секрет подписи сессий и пароль демо-пользователей. Каждый случайный,
-   в git не попадает. Дальше они переиспользуются.
+   в git не попадает. Дальше они переиспользуются. Отдельный пароль учётных записей
+   экспертов `SEED_EXPERT_PASSWORD` (решение 228) дописывается и в уже созданный файл,
+   один раз; действует после перезаливки демо-данных. Проверить, что оба пароля заданы
+   и различаются, не выводя их: `grep -c '^SEED_EXPERT_PASSWORD=.' ~/skilllink/.env.cloud`
+   (1) и `[ "$(grep '^SEED_DEMO_PASSWORD=' ~/skilllink/.env.cloud | cut -d= -f2)" != "$(grep '^SEED_EXPERT_PASSWORD=' ~/skilllink/.env.cloud | cut -d= -f2)" ] && echo разные`.
 3. **Код** — уходит через `git archive`: только то, что лежит в git, текущий коммит.
    Доступ к GitHub на сервере не нужен, `.env` и личные файлы не уезжают.
 4. **Запуск** — база, затем миграции, затем приложение и Caddy. Порядок важен:
@@ -134,8 +138,8 @@ scripts/deploy/reseed.sh skilllink@<адрес> <домен>
 ### Сверить стенд со сценарием показа
 
 ```bash
-SEED_DEMO_PASSWORD=<пароль стенда> npm run demo:check -- https://<домен>
-npm run demo:check -- http://localhost:3100      # запасной ноутбук, пароль skilllink
+SEED_DEMO_PASSWORD=<пароль стенда> SEED_EXPERT_PASSWORD=<пароль экспертов> npm run demo:check -- https://<домен>
+npm run demo:check -- http://localhost:3100      # запасной ноутбук, пароли skilllink и skilllink-expert
 ```
 
 Только чтение, запускать против живого стенда можно. Входит менеджером

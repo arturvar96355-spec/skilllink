@@ -78,6 +78,9 @@ echo "   залит заново: числа сценария держатся �
 # Пароль набора: из .env, если там задан свой, иначе — по умолчанию.
 PASSWORD=$(sed -n 's/^SEED_DEMO_PASSWORD="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' .env 2>/dev/null | head -1)
 PASSWORD=${PASSWORD:-skilllink}
+# У экспертов свой пароль (решение 228) — тоже из .env или по умолчанию, как у сида.
+EXPERT_PASSWORD=$(sed -n 's/^SEED_EXPERT_PASSWORD="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' .env 2>/dev/null | head -1)
+EXPERT_PASSWORD=${EXPERT_PASSWORD:-skilllink-expert}
 
 # Шрифт подключён через next/font/google и скачивается при сборке: без интернета
 # сборка не пройдёт. Поэтому первый запуск — заранее, с сетью, а в момент, когда
@@ -117,7 +120,7 @@ curl -fsS -o /dev/null --max-time 5 "http://localhost:$PORT/api/ready" ||
 echo "   работает (процесс $SERVER_PID)"
 
 step "Сверка со сценарием"
-SEED_DEMO_PASSWORD="$PASSWORD" npx tsx scripts/demo-check.ts "http://localhost:$PORT" || {
+SEED_DEMO_PASSWORD="$PASSWORD" SEED_EXPERT_PASSWORD="$EXPERT_PASSWORD" npx tsx scripts/demo-check.ts "http://localhost:$PORT" || {
   echo
   echo "Сервер оставлен работать: http://localhost:$PORT. Остановить: kill $SERVER_PID"
   fail "стенд на ноутбуке расходится со сценарием — смотрите строки FAIL выше"
