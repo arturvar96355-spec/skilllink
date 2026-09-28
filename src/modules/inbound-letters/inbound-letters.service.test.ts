@@ -610,6 +610,21 @@ describe('completeTask: «Задание выполнено» — ответст
     const dto = await service.completeTask(user('ADMIN'), 'letter-1')
     expect(dto.task?.status).toBe('DONE')
   })
+
+  // Решение 225 (ревью Codex, находка 1): раньше под кнопкой эксперта «Администратор»
+  // (или эксперта с ролью HEAD) задание закрывалось — права решала роль, флаг
+  // эксперта не проверялся. Статус задания и журнал действий не должны меняться.
+  it.each(['ADMIN', 'HEAD', 'MANAGER'] as const)('эксперт с ролью %s — FORBIDDEN, задание и журнал не меняются', async (role) => {
+    mocks.findById.mockResolvedValue(letterWithTask({ responsibleId: `u-${role}` }))
+    mocks.isVisibleTo.mockResolvedValue(true)
+    mocks.completeTask.mockResolvedValue(letterWithTask({ responsibleId: `u-${role}`, status: 'DONE' }))
+
+    await expectRejectCode(service.completeTask(user(role, { isReviewer: true }), 'letter-1'), 'FORBIDDEN')
+
+    expect(mocks.completeTask).not.toHaveBeenCalled()
+    expect(auditMocks.writeAudit).not.toHaveBeenCalled()
+    expect(auditMocks.recordAuditOnce).not.toHaveBeenCalled()
+  })
 })
 
 describe('acceptLetter: «Принял, беру в работу» кнопкой в Telegram (решение 200)', () => {
