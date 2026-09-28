@@ -97,7 +97,7 @@ export async function search(user: CurrentUser, query: SearchQuery): Promise<Sea
     ),
     group(
       'cooperation',
-      'Сотрудничества',
+      'Связки',
       c.meta.total,
       c.data.map((row) => ({
         type: 'cooperation',

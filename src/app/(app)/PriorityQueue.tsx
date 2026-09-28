@@ -101,7 +101,7 @@ export function PriorityQueue({
       toast.error(result.error.message)
       return
     }
-    toast.success('Рекомендация отклонена, основание сохранено')
+    toast.success('Задача отклонена, основание сохранено')
     setDismissing(null)
     setComment('')
     setChoice(null)
@@ -197,7 +197,7 @@ export function PriorityQueue({
                       >
                         <Textarea
                           label="Основание"
-                          hint="Обязательное поле: без него сервер отклонение не примет. Основание сохранится в карточке рекомендации."
+                          hint="Обязательное поле: без него сервер отклонение не примет. Основание сохранится в карточке задачи."
                           value={comment}
                           onChange={(event) => setComment(event.target.value)}
                           maxLength={1000}

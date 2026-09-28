@@ -394,7 +394,7 @@ function PortalScreen() {
         <>
           <KpiRow>
             <KpiCard label="Программы вуза" value={data.programs.length} />
-            <KpiCard label="Сотрудничества" value={data.cooperations.length} />
+            <KpiCard label="Связки" value={data.cooperations.length} />
             <KpiCard
               label="Материалы к подтверждению"
               value={data.pendingMaterials}
@@ -404,7 +404,7 @@ function PortalScreen() {
           </KpiRow>
 
           <Section
-            title="Сотрудничества"
+            title="Связки"
             help={{ topic: 'university-portal', section: 'cooperations' }}
             description="Ход работы по каждой программе: текущий этап и готовность."
           >
@@ -421,7 +421,7 @@ function PortalScreen() {
                   columns={cooperationColumns}
                   getRowKey={(row) => row.id}
                   isRefreshing={overview.isRefreshing}
-                  caption="Сотрудничества вуза"
+                  caption="Связки вуза"
                   narrow="stack"
                 />
               )}
