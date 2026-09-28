@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   CONFIRMATION_NOTE_MAX,
   CONFIRMATION_NOTE_MIN,
+  REVIEWER_ACTIONS_NOTE,
+  REVIEWER_CHECKLIST_NOTE,
+  STAFF_ACTIONS_READ_ONLY_NOTE,
+  STAFF_CHECKLIST_READ_ONLY_NOTE,
   STAGE_PHASE_LABELS,
   STAGE_STATUS_LABELS,
   type CooperationDto,
@@ -30,6 +34,7 @@ import {
   ApiRequestError,
   formatDate,
   formatDateTime,
+  useCurrentUser,
   useMutation,
   useResource,
   useToast,
@@ -63,6 +68,7 @@ export interface StageCardProps {
  */
 export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, signedDocuments }: StageCardProps) {
   const toast = useToast()
+  const user = useCurrentUser()
   const [isOpen, setIsOpen] = useState(isHighlighted)
   // Окна действий со сменой статуса — общие с главной (StageActionModal, решение 206).
   const [action, setAction] = useState<StageActionKind | null>(null)
@@ -202,6 +208,16 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
 
   const requiredLeft = stage.requiredTasksTotal - stage.requiredTasksDone
 
+  // Без права записи флажки неактивны, кнопок этапа нет — и это объясняется словами
+  // (решение 232): молча неактивный флажок на контрольной точке выглядел как ошибка.
+  // Эксперту — ещё и где увидеть отказ системы вживую.
+  const checklistReadOnly = canWrite
+    ? undefined
+    : user.isReviewer
+      ? REVIEWER_CHECKLIST_NOTE
+      : STAFF_CHECKLIST_READ_ONLY_NOTE
+  const actionsReadOnly = canWrite ? undefined : user.isReviewer ? REVIEWER_ACTIONS_NOTE : STAFF_ACTIONS_READ_ONLY_NOTE
+
   return (
     // Строка ленты этапов, а не отдельная карточка: четырнадцать одинаковых
     // скруглённых прямоугольников подряд — тот самый шаблон, от которого уходим (07, раздел 40).
@@ -311,9 +327,18 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
                     Чек-лист этапа
                     {requiredLeft > 0 && ` · не закрыто обязательных: ${requiredLeft}`}
                   </span>
-                  <HelpHint topic="stages" section="checklist" />
+                  <HelpHint topic="stages" section="checklist" readOnly={checklistReadOnly} />
                 </span>
-                <div className={styles.tasks}>
+                {checklistReadOnly && (
+                  <p className={styles.readOnlyNote} id={`checklist-read-only-${stage.id}`}>
+                    <Icon name="lock" size={16} />
+                    <span>{checklistReadOnly}</span>
+                  </p>
+                )}
+                <div
+                  className={styles.tasks}
+                  aria-describedby={checklistReadOnly ? `checklist-read-only-${stage.id}` : undefined}
+                >
                   {stage.tasks.map((task) => (
                     <div
                       key={task.id}
@@ -440,7 +465,7 @@ export function StageCard({ stage, canWrite, isHighlighted, onStageChanged, sign
               <Button variant="ghost" size="sm" icon="clock" onClick={() => setIsHistoryOpen(true)}>
                 История
               </Button>
-              <HelpHint topic="stages" section="actions" />
+              <HelpHint topic="stages" section="actions" readOnly={actionsReadOnly} />
             </div>
 
             {(stage.startedAt || stage.completedAt) && (
