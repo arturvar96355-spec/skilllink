@@ -4,7 +4,7 @@ import {
   type AiRewriteStyle,
 } from '@/shared/contracts/ai-assist'
 import { AI_LETTER_INSTRUCTION } from '@/shared/config/ai-assist.config'
-import { redactDeep, type Redact } from './ai-assist.privacy'
+import { escapeRegExp, MASK_PLACEHOLDERS, redactDeep, type Redact } from './ai-assist.privacy'
 import {
   countNumberedItems,
   letterLines,
@@ -236,8 +236,12 @@ export const REWRITE_TASKS: Record<AiRewriteStyle, string> = {
   longer: 'Раскрой подробнее то, что уже сказано: поясни просьбу и следующий шаг. Новых фактов, дат и чисел не добавляй.',
 }
 
-/** Пометки маскировки: если модель их сохранила, сотрудник видит, куда вернуть данные. */
-const MASK_MARKERS = /\[(?:адрес|телефон|паспорт|СНИЛС|ник) скрыт\]/
+/**
+ * Пометки маскировки: если модель их сохранила, сотрудник видит, куда вернуть данные.
+ * Список — из маскировки: новая пометка (дата рождения, почтовый адрес — решение 226)
+ * попадает сюда сама.
+ */
+const MASK_MARKERS = new RegExp(MASK_PLACEHOLDERS.map(escapeRegExp).join('|'))
 
 export interface RewritePrompt extends AiPrompt {
   /** Маскировка что-то вырезала из текста до отправки в модель. */
