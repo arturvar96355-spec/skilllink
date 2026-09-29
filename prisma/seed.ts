@@ -25,6 +25,7 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { CONTROL_POINT_STAGES, WORKFLOW_STAGES } from '../src/shared/config/workflow.config'
 import { cleanVendorData, linkSchoolProductsToVendors, seedSchoolCourses, seedVendorProductSkills, seedVendors } from './seed-vendors'
 import { seedAssignments } from './seed-assignments'
+import { seedProfileContent } from './seed-profiles'
 import { DEFAULT_STABLE_UNTIL, generateDemoData } from './demo/generate'
 import { insertExtendedDemo, insertResolvedRecommendations } from './demo/insert'
 import { validInn, validOgrn } from './demo/random'
@@ -2544,6 +2545,13 @@ async function main(): Promise<void> {
   // Решение 119: история решений по правилам — обучение видно на стенде сразу.
   await seedRecommendationStats(now)
   await seedGovernanceExamples(users, universityRep)
+  // Решение 236: у каждой демо-учётки в личном кабинете есть что показать — после
+  // расширенного набора (числа строк выгрузок) и до второй печати журнала.
+  const profiles = await seedProfileContent(prisma, {
+    now, daysAgo, stabilize, universityId,
+    head: head.id, admin: users.admin.id, admin2: users.admin2.id, analyst: users.analyst.id,
+  })
+  console.log(`  личные кабинеты (решение 236): поручений ${profiles.assignments}, записей журнала ${profiles.auditRows}`)
   await seedExpertAccounts(universityId)
   // Вторая печать журнала — после всего: другой headSeq/rowCount, чем у первой.
   await auditSeal(prisma)
