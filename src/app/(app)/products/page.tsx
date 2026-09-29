@@ -169,10 +169,13 @@ function ProductsView() {
     {
       key: 'status',
       title: 'Статус',
-      width: '150px',
+      // 190 px — чтобы самый длинный статус «Выводится из обращения» вставал
+      // целиком; если не встанет (узкая лента), бирка обрежется многоточием
+      // и покажет полный текст в подсказке.
+      width: '190px',
       sortField: 'status',
       render: (row) => (
-        <Badge tone={STATUS_TONES[row.status]} withDot>
+        <Badge tone={STATUS_TONES[row.status]} withDot title={PRODUCT_STATUS_LABELS[row.status]}>
           {PRODUCT_STATUS_LABELS[row.status]}
         </Badge>
       ),
