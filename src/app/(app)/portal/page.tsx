@@ -407,7 +407,6 @@ function PortalScreen() {
             <KpiCard
               label="Документы"
               value={data.documentsCount}
-              explanation="Документы вуза, его связок и программ: договоры, лицензии, акты."
               footer={
                 data.documentsCount > 0 ? (
                   // Число без списка проверить было нечем (полный проход эксперта 29.09):

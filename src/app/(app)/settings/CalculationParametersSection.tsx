@@ -12,7 +12,7 @@ import {
   apiGet,
   buildQuery,
   formatCount,
-  repoDocHref,
+  repoDocUrl,
   useMutation,
   useResource,
 } from '@/ui'
@@ -54,7 +54,7 @@ export function CalculationParametersSection() {
             Методика:{' '}
             <a
               className={settings.docLink}
-              href={repoDocHref(group.methodology.document, group.methodology.section)}
+              href={repoDocUrl(group.methodology.document, group.methodology.section)}
               target="_blank"
               rel="noreferrer"
             >

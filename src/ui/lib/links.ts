@@ -79,7 +79,7 @@ export function githubHeadingAnchor(heading: string): string {
  * Ссылка на раздел документа в открытом репозитории (решение 235): «Методика:
  * docs/… — «раздел»» в «Параметрах расчётов» выглядела как ссылка и никуда не вела.
  */
-export function repoDocHref(document: string, section?: string | null): string {
+export function repoDocUrl(document: string, section?: string | null): string {
   const base = `${OPEN_SOURCE_REPO_URL}/blob/main/${document}`
   return section ? `${base}#${githubHeadingAnchor(section)}` : base
 }

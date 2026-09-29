@@ -60,6 +60,17 @@
   transition: text-decoration-color var(--motion-micro) var(--ease-out);
 }
 
+/* Зона нажатия на телефоне — не меньше 44 px по высоте, текст ссылки при этом мелкий. */
+.kpiLink {
+  position: relative;
+}
+
+.kpiLink::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-4) * -1) calc(var(--space-1) * -1);
+}
+
 .kpiLink:hover {
   text-decoration-color: currentColor;
 }

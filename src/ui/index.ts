@@ -142,7 +142,7 @@ export {
   ROUTES,
   API_CONTRACT_URL,
   OPEN_SOURCE_REPO_URL,
-  repoDocHref,
+  repoDocUrl,
   universityHref,
   programHref,
   cooperationHref,
