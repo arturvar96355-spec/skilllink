@@ -296,11 +296,15 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
               fullWidth
               isLoading={ssoPending}
               disabled={busy && !ssoPending}
+              aria-describedby="sso-login-scope"
               onClick={onKeycloakLogin}
             >
               Войти через Keycloak
             </Button>
-            <p className={styles.expertLoginScope}>единый вход для сотрудников РТК</p>
+            {/* Для кого вход — привязано к кнопке, как пояснение у кнопок экспертов. */}
+            <p id="sso-login-scope" className={styles.ssoScope}>
+              единый вход для сотрудников РТК
+            </p>
             <p className={styles.ssoDivider}>или почтой и паролем</p>
           </div>
         )}
