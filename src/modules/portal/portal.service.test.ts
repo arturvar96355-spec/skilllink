@@ -59,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   task: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   workflowStage: { findUnique: vi.fn(), findMany: vi.fn() },
   educationalProgram: { findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn() },
+  document: { findMany: vi.fn(), count: vi.fn() },
   queryRaw: vi.fn(),
   writeAudit: vi.fn(),
   syncRecommendations: vi.fn(),
@@ -70,6 +71,7 @@ vi.mock('@/shared/db/prisma', () => {
     task: mocks.task,
     workflowStage: mocks.workflowStage,
     educationalProgram: mocks.educationalProgram,
+    document: mocks.document,
     $queryRaw: mocks.queryRaw,
   }
   return { prisma: { ...client, $transaction: (fn: (tx: typeof client) => unknown) => fn(client) } }
@@ -80,6 +82,7 @@ vi.mock('@/modules/recommendations/recommendations.service', () => ({
 }))
 
 const service = await import('./portal.service')
+const repo = await import('./portal.repo')
 
 const as = (role: UserRole, universityId: string | null = null): CurrentUser => ({
   id: `${role.toLowerCase()}-1`,
@@ -418,5 +421,72 @@ describe('updateProgramMetrics: показатели — только своег
       'FORBIDDEN',
     )
     expectNothingWritten()
+  })
+})
+
+describe('documents: документы вуза в кабинете (решение 235)', () => {
+  it('список и счётчик сводки — одна база: вуз напрямую, через связку или программу', async () => {
+    mocks.document.findMany.mockResolvedValue([])
+    mocks.document.count.mockResolvedValue(0)
+    await repo.findDocuments('uni-1')
+    await repo.countDocuments('uni-1')
+    const listWhere = mocks.document.findMany.mock.calls[0]![0].where
+    expect(listWhere).toEqual(mocks.document.count.mock.calls[0]![0].where)
+    expect(listWhere).toEqual({
+      OR: [{ universityId: 'uni-1' }, { cooperation: { universityId: 'uni-1' } }, { program: { universityId: 'uni-1' } }],
+    })
+  })
+
+  it('представитель видит документы только своего вуза — чужой universityId из запроса игнорируется', async () => {
+    mocks.document.findMany.mockResolvedValue([])
+    await service.documents(REP, 'uni-2')
+    expect(mocks.document.findMany.mock.calls[0]![0].where.OR[0]).toEqual({ universityId: 'uni-1' })
+  })
+
+  it('программа — через связку, иначе напрямую; без автора и текста шаблона', async () => {
+    mocks.document.findMany.mockResolvedValue([
+      {
+        id: 'doc-1',
+        title: 'Договор о сотрудничестве',
+        type: 'AGREEMENT',
+        version: '1',
+        status: 'SIGNED',
+        issuedAt: new Date('2026-05-10T00:00:00Z'),
+        signedAt: new Date('2026-05-16T00:00:00Z'),
+        updatedAt: new Date('2026-05-16T09:00:00Z'),
+        program: null,
+        cooperation: { program: { name: 'Программная инженерия' } },
+      },
+      {
+        id: 'doc-2',
+        title: 'Лицензия',
+        type: 'LICENSE',
+        version: '2',
+        status: 'DRAFT',
+        issuedAt: null,
+        signedAt: null,
+        updatedAt: new Date('2026-09-01T00:00:00Z'),
+        program: null,
+        cooperation: null,
+      },
+    ])
+    const rows = await service.documents(REP, undefined)
+    expect(rows.map((row) => row.programName)).toEqual(['Программная инженерия', null])
+    expect(rows[0]).toEqual({
+      id: 'doc-1',
+      title: 'Договор о сотрудничестве',
+      type: 'AGREEMENT',
+      version: '1',
+      status: 'SIGNED',
+      programName: 'Программная инженерия',
+      issuedAt: '2026-05-10T00:00:00.000Z',
+      signedAt: '2026-05-16T00:00:00.000Z',
+      updatedAt: '2026-05-16T09:00:00.000Z',
+    })
+  })
+
+  it('роль без доступа к кабинету — 403, до запроса в базу', async () => {
+    await expectRejectCode(service.documents(as('VIEWER'), 'uni-1'), 'FORBIDDEN')
+    expect(mocks.document.findMany).not.toHaveBeenCalled()
   })
 })

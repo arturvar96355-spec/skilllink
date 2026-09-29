@@ -133,6 +133,8 @@ export function PageHeader({
 }
 
 interface SectionBaseProps {
+  /** Якорь блока — чтобы на него могла вести ссылка с той же страницы (решение 235). */
+  id?: string
   title?: string
   description?: string
   action?: ReactNode
@@ -157,9 +159,9 @@ export type SectionProps = SectionBaseProps &
     | { hint?: never; help?: HelpHintProps }
   )
 
-export function Section({ title, description, hint, help, action, children }: SectionProps) {
+export function Section({ id, title, description, hint, help, action, children }: SectionProps) {
   return (
-    <section className={styles.section}>
+    <section id={id} className={styles.section}>
       {(title || action) && (
         <div className={styles.sectionHead}>
           <div className={styles.sectionTitleBlock}>

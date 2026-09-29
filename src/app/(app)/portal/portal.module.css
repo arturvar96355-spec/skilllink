@@ -48,6 +48,38 @@
 }
 
 /* Материалы — строки на одной поверхности, а не стопка одинаковых карточек. */
+/* Ссылка с числа «Документы» к блоку документов ниже (решение 235). */
+.kpiLink {
+  font-size: var(--text-caption-size);
+  font-weight: 600;
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  border-radius: var(--radius-control);
+  transition: text-decoration-color var(--motion-micro) var(--ease-out);
+}
+
+/* Зона нажатия на телефоне — не меньше 44 px по высоте, текст ссылки при этом мелкий. */
+.kpiLink {
+  position: relative;
+}
+
+.kpiLink::after {
+  content: '';
+  position: absolute;
+  inset: calc(var(--space-4) * -1) calc(var(--space-1) * -1);
+}
+
+.kpiLink:hover {
+  text-decoration-color: currentColor;
+}
+
+.kpiLink:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+}
+
 .list {
   display: flex;
   flex-direction: column;
