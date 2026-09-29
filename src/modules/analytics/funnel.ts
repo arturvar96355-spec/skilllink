@@ -3,7 +3,7 @@ import { STAGE_PHASES, type CooperationStatus, type StagePhase } from '@/shared/
 import { TIMELINE_DONE, TIMELINE_LAST_STAGE, type StageTimeline } from './stage-timeline'
 
 /**
- * Воронка по этапам и когорты (решение 120). Чистый модуль над хронологиями
+ * Воронка по этапам (решение 120). Чистый модуль над хронологиями
  * `stage-timeline.ts`.
  *
  * «Дошла до шага» — текущий этап связки хоть раз был не меньше первого этапа шага.
@@ -29,7 +29,7 @@ export const STAGE_STEPS: readonly FunnelStepDef[] = WORKFLOW_STAGES.map((stage)
 /**
  * Шесть вех вместо четырнадцати этапов (`milestones=true`). Границы — по фазам
  * конвейера и контрольным точкам: подписанный договор (этап 6 завершён) — главная
- * веха формализации, её же берут когорты. «Дошла до вехи» — пройдены все этапы до
+ * веха формализации. «Дошла до вехи» — пройдены все этапы до
  * неё; отменённый обязательный этап пройденным не считается (решение 227), поэтому
  * отменённое подписание — не «Договор подписан», отменённые занятия — не «Занятия проведены».
  */
@@ -42,8 +42,6 @@ export const MILESTONE_STEPS: readonly FunnelStepDef[] = [
   { key: 'done', title: 'Все этапы закрыты', fromStage: TIMELINE_DONE },
 ]
 
-/** Ключевая веха когорт: договор подписан — этап 6 завершён (не отменён), текущий этап дальше 6. */
-export const COHORT_MILESTONE: FunnelStepDef = MILESTONE_STEPS.find((step) => step.key === 'signed')!
 
 export interface FunnelSubject {
   timeline: StageTimeline
@@ -245,76 +243,4 @@ export function statusChangedAt(updates: readonly CooperationUpdateRecord[], sta
     }
   }
   return null
-}
-
-// ─────────────────────────────── Когорты ────────────────────────────────────
-
-/** Квартал по московскому времени: «2026-Q3» и его порядковый номер. */
-export function quarterOf(date: Date): { key: string; index: number } {
-  const moscow = new Date(date.getTime() + 3 * 60 * 60 * 1000)
-  const year = moscow.getUTCFullYear()
-  const quarter = Math.floor(moscow.getUTCMonth() / 3)
-  return { key: `${year}-Q${quarter + 1}`, index: year * 4 + quarter }
-}
-
-/** Начало квартала с порядковым номером `index` (московская полночь, в UTC). */
-export function quarterStart(index: number): Date {
-  const year = Math.floor(index / 4)
-  const month = (index % 4) * 3
-  return new Date(Date.UTC(year, month, 1) - 3 * 60 * 60 * 1000)
-}
-
-export interface CohortCell {
-  /** Кварталов с начала: 0 — квартал старта. */
-  offset: number
-  /** Дошли до вехи к концу этого квартала (накопительно). */
-  reached: number
-  /** reached / размер когорты. У текущего квартала (`complete: false`) — доля «пока». */
-  share: number | null
-  /** Квартал закончился — число окончательное. Текущий квартал отдаётся с долей «пока». */
-  complete: boolean
-}
-
-export interface Cohort {
-  cohort: string
-  size: number
-  cells: CohortCell[]
-}
-
-/**
- * Когорты «квартал старта × кварталы с начала»: доля связок когорты, дошедших до
- * вехи к концу каждого квартала. Отменённые до вехи остаются в знаменателе — иначе
- * когорта с отменами выглядела бы успешнее. Будущие кварталы не выдаются;
- * текущий — с `complete: false`.
- */
-export function buildCohorts(
-  timelines: readonly StageTimeline[],
-  milestoneStage: number,
-  now: Date,
-): Cohort[] {
-  const nowQuarter = quarterOf(now).index
-  const byCohort = new Map<number, { key: string; reachedAt: Array<Date | null> }>()
-  for (const timeline of timelines) {
-    const quarter = quarterOf(timeline.start)
-    const entry = byCohort.get(quarter.index) ?? { key: quarter.key, reachedAt: [] }
-    entry.reachedAt.push(timeline.reachedAt.get(milestoneStage) ?? null)
-    byCohort.set(quarter.index, entry)
-  }
-  return [...byCohort.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([index, entry]) => {
-      const cells: CohortCell[] = []
-      for (let offset = 0; index + offset <= nowQuarter; offset += 1) {
-        const boundary = quarterStart(index + offset + 1)
-        const complete = index + offset < nowQuarter
-        const reached = entry.reachedAt.filter((at) => at !== null && at < boundary).length
-        cells.push({
-          offset,
-          reached,
-          share: entry.reachedAt.length > 0 ? reached / entry.reachedAt.length : null,
-          complete,
-        })
-      }
-      return { cohort: entry.key, size: entry.reachedAt.length, cells }
-    })
 }

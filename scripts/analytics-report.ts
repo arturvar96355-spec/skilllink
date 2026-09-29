@@ -12,7 +12,7 @@ import 'dotenv/config'
 import { prisma } from '@/shared/db/prisma'
 import type { CurrentUser } from '@/shared/auth/current-user'
 import { STALLED_THRESHOLD } from '@/shared/config/analytics.config'
-import { cohorts, funnel, insights, stageDurations } from '@/modules/analytics/stage-analytics.service'
+import { funnel, insights, stageDurations } from '@/modules/analytics/stage-analytics.service'
 
 /** Отчёт читает всё, как аналитик: право ANALYTICS, без области вуза. */
 const REPORT_USER: CurrentUser = {
@@ -99,14 +99,6 @@ async function main(): Promise<number> {
         (step.droppedCount > 0 ? `  остановились: ${step.droppedCount}` : ''),
     )
   }
-
-  const cohortTable = await cohorts(REPORT_USER, now)
-  console.log(`\nКогорты: доля «${cohortTable.milestone.title}» к концу квартала с начала`)
-  for (const cohort of cohortTable.cohorts) {
-    const cells = cohort.cells.map((cell) => `${percent(cell.share)}${cell.complete ? '' : '*'}`).join('  ')
-    console.log(`  ${cohort.cohort} (${cohort.size}): ${cells}`)
-  }
-  console.log('  * квартал ещё идёт')
 
   const list = await insights(REPORT_USER, now)
   console.log(`\nСистема заметила (${list.length})`)

@@ -2,7 +2,7 @@ import type { CooperationStatus, StagePhase } from './enums'
 
 /**
  * Аналитика этапов на статистике (решение 120): длительность этапов по
- * Каплану–Мейеру, порог застоя, воронка, когорты, «Система заметила», пульс.
+ * Каплану–Мейеру, порог застоя, воронка, «Система заметила», пульс.
  * Формулы — docs/ANALYTICS_MODEL.md.
  */
 
@@ -163,25 +163,6 @@ export interface FunnelDto {
    * списку; фаза без выбывших — 0. Сумма = сумма `droppedCount`.
    */
   droppedByPhase: Record<StagePhase, number>
-  isMock: boolean
-}
-
-export interface CohortCellDto {
-  offset: number
-  reached: number
-  share: number | null
-  complete: boolean
-}
-
-export interface CohortDto {
-  cohort: string
-  size: number
-  cells: CohortCellDto[]
-}
-
-export interface CohortsDto {
-  milestone: { key: string; title: string; fromStage: number }
-  cohorts: CohortDto[]
   isMock: boolean
 }
 
