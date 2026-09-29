@@ -38,7 +38,6 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/admin/telegram/token',
   '/api/ai/rewrite',
   '/api/ai/today',
-  '/api/analytics/cohorts',
   '/api/analytics/forecast/model',
   '/api/analytics/forecast/train',
   '/api/analytics/funnel',

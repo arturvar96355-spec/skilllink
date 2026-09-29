@@ -5,7 +5,6 @@ import { STALLED_THRESHOLD } from '@/shared/config/analytics.config'
 import { CONTROL_STAGE_NUMBER, WORKFLOW_STAGES } from '@/shared/config/workflow.config'
 import { PROGRAM_LEVEL_LABELS } from '@/shared/contracts/labels'
 import type {
-  CohortsDto,
   FunnelDto,
   InsightDto,
   StageDurationDto,
@@ -23,9 +22,7 @@ import * as repo from './stage-analytics.repo'
 import { summarizeDurations, type DurationSummary } from './survival'
 import { buildStageTimeline, stageObservations, type StageTimeline } from './stage-timeline'
 import {
-  buildCohorts,
   buildFunnel,
-  COHORT_MILESTONE,
   droppedStageNumber,
   MILESTONE_STEPS,
   STAGE_STEPS,
@@ -46,7 +43,7 @@ import type { FunnelQuery, StalledPreviewQuery } from './stage-analytics.schema'
 
 /**
  * Аналитика этапов на статистике (решение 120): длительность этапов по
- * Каплану–Мейеру, порог застоя, воронка, когорты, «Система заметила».
+ * Каплану–Мейеру, порог застоя, воронка, «Система заметила».
  * Формулы — в чистых модулях `survival.ts`, `stage-timeline.ts`, `funnel.ts`,
  * `anomaly.ts`, `insights.ts`; здесь — права, загрузка и сборка ответа.
  */
@@ -366,20 +363,6 @@ export async function funnel(user: CurrentUser, query: FunnelQuery, now: Date = 
         ...step,
         conversionFromStart: step.conversionFromStart === null ? null : round4(step.conversionFromStart),
       })),
-    })),
-    isMock: rows.some((row) => row.isMock),
-  }
-}
-
-export async function cohorts(user: CurrentUser, now: Date = new Date()): Promise<CohortsDto> {
-  assertCan(user, 'ANALYTICS')
-  const rows = await repo.findTimelineRows(universityScope(user))
-  const timelines = rows.map((row) => toTimeline(row, now))
-  return {
-    milestone: { key: COHORT_MILESTONE.key, title: COHORT_MILESTONE.title, fromStage: COHORT_MILESTONE.fromStage },
-    cohorts: buildCohorts(timelines, COHORT_MILESTONE.fromStage, now).map((cohort) => ({
-      ...cohort,
-      cells: cohort.cells.map((cell) => ({ ...cell, share: cell.share === null ? null : round4(cell.share) })),
     })),
     isMock: rows.some((row) => row.isMock),
   }

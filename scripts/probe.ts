@@ -124,7 +124,6 @@ async function warmUp(): Promise<void> {
     '/api/analytics/stage-durations',
     '/api/analytics/stalled-preview?days=14',
     '/api/analytics/funnel',
-    '/api/analytics/cohorts',
     '/api/analytics/insights',
     '/api/me/pulse',
     '/api/universities?pageSize=1',
@@ -5559,7 +5558,7 @@ function printSummary(): void {
  * (решение 9: он не видит аналитику и чужие вузы — ни своих, ни чужих цифр здесь нет).
  */
 async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
-  step('Аналитика этапов: Каплан–Мейер, воронка, когорты, «Система заметила», пульс')
+  step('Аналитика этапов: Каплан–Мейер, воронка, «Система заметила», пульс')
   const { rep, managerId } = ctx
   actAs(managerId)
 
@@ -5661,20 +5660,6 @@ async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
     `выбывших ${droppedTotal}, по статусу ${byStatus ? byStatus.PAUSED + byStatus.CANCELLED : '—'}`,
   )
 
-  const cohorts = await call<{ milestone: { fromStage: number }; cohorts: Array<{ size: number; cells: Array<{ share: number | null }> }> }>(
-    'GET',
-    '/api/analytics/cohorts',
-  )
-  check(
-    'когорты: веха «договор подписан» (этап 7), доли в [0, 1]',
-    cohorts.status === 200 &&
-      cohorts.body.data?.milestone.fromStage === 7 &&
-      cohorts.body.data.cohorts.every((cohort) =>
-        cohort.cells.every((cell) => cell.share === null || (cell.share >= 0 && cell.share <= 1)),
-      ),
-    `статус ${cohorts.status}`,
-  )
-
   const insights = await call<Array<{ code: string; severity: string; title: string; detail: string; facts: object; link: string | null }>>(
     'GET',
     '/api/analytics/insights',
@@ -5712,7 +5697,6 @@ async function checkStageAnalytics(ctx: ProbeContext): Promise<void> {
       '/api/analytics/stage-durations',
       '/api/analytics/stalled-preview?days=14',
       '/api/analytics/funnel',
-      '/api/analytics/cohorts',
       '/api/analytics/insights',
       '/api/me/pulse',
     ]

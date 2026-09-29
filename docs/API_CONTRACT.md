@@ -2033,28 +2033,6 @@ curl -b "skilllink_user=<id>" http://localhost:3000/api/analytics/stage-duration
 отменён. Отменённый обязательный этап не пройден (решение 227): отменённое подписание —
 не `signed`, отменённые занятия (этап 11) — не `classes-done`.
 
-#### GET /api/analytics/cohorts
-
-Квартал старта × кварталы с начала → доля связок когорты с подписанным договором
-(закрыт этап 6) к концу квартала, накопительно.
-
-```json
-{
-  "data": {
-    "milestone": { "key": "signed", "title": "Договор подписан", "fromStage": 7 },
-    "cohorts": [
-      { "cohort": "2026-Q1", "size": 2,
-        "cells": [ { "offset": 0, "reached": 0, "share": 0, "complete": true },
-                   { "offset": 1, "reached": 2, "share": 1, "complete": true },
-                   { "offset": 2, "reached": 2, "share": 1, "complete": false } ] }
-    ],
-    "isMock": true
-  }
-}
-```
-
-`complete: false` — квартал ещё идёт, доля «пока». Будущих кварталов нет.
-
 #### GET /api/analytics/insights
 
 «Система заметила» — отклонения рядов (новые связки, закрытые этапы, встречи, отклонённые

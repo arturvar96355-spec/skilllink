@@ -1281,14 +1281,6 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
   },
   {
     method: 'get',
-    path: '/api/analytics/cohorts',
-    tag: 'Аналитика',
-    summary: 'Когорты: квартал старта × кварталы с начала → доля с подписанным договором',
-    permission: 'ANALYTICS',
-    errors: COMMON_ERRORS,
-  },
-  {
-    method: 'get',
     path: '/api/analytics/insights',
     tag: 'Аналитика',
     summary: '«Система заметила»: отклонения рядов и выводы по этапам',

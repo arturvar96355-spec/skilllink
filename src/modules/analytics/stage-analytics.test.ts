@@ -14,9 +14,7 @@ import {
   type TimelineCooperationInput,
 } from './stage-timeline'
 import {
-  buildCohorts,
   buildFunnel,
-  COHORT_MILESTONE,
   MILESTONE_STEPS,
   STAGE_STEPS,
   statusChangedAt,
@@ -285,7 +283,7 @@ describe('хронология текущего этапа', () => {
 
 // ─────────────────────────────── Воронка ────────────────────────────────────
 
-describe('воронка и когорты', () => {
+describe('воронка', () => {
   const now = at(200)
   const subject = (
     id: string,
@@ -423,17 +421,6 @@ describe('воронка и когорты', () => {
       expect(step(milestones, 'meeting-done').inProgress).toBe(1)
     })
 
-    it('когорты: отменённый этап 6 — не подписанный договор', () => {
-      const now = new Date('2026-09-25T00:00:00Z')
-      const timelines = [
-        buildStageTimeline(cooperation(upTo(6, 'CANCELLED'), { id: 'x', status: 'CANCELLED', ...closedAt }), now),
-        buildStageTimeline(cooperation(upTo(6, 'COMPLETED'), { id: 'y' }), now),
-      ]
-      const [cohort] = buildCohorts(timelines, COHORT_MILESTONE.fromStage, now)
-      expect(cohort!.size).toBe(2)
-      expect(cohort!.cells.at(-1)!.reached).toBe(1)
-    })
-
     it('то же для этапа 11: отменённые занятия — не «Занятия проведены», завершённые — да', () => {
       const subjects = [
         subject('cancelled-11', upTo(11, 'CANCELLED'), 'CANCELLED', closedAt),
@@ -452,28 +439,6 @@ describe('воронка и когорты', () => {
     })
   })
 
-  it('когорты: квартал старта, доля дошедших к концу квартала, будущих кварталов нет', () => {
-    const signed = (id: string, day: number, start: Date): FunnelSubject['timeline'] =>
-      buildStageTimeline(
-        cooperation(
-          Array.from({ length: 6 }, (_, index) => [index + 1, day] as [number, number]),
-          { id, startedAt: start, createdAt: start },
-        ),
-        new Date('2026-09-25T00:00:00Z'),
-      )
-    const start = new Date('2026-01-15T09:00:00Z')
-    const timelines = [
-      signed('x', 10, start), // договор в январе — Q1
-      signed('y', 120, start), // день 120 от 10.01 — май, Q2
-      buildStageTimeline(cooperation([], { id: 'z', startedAt: start, createdAt: start }), new Date('2026-09-25T00:00:00Z')),
-    ]
-    const [cohort] = buildCohorts(timelines, 7, new Date('2026-09-25T00:00:00Z'))
-    expect(cohort!.cohort).toBe('2026-Q1')
-    expect(cohort!.size).toBe(3)
-    expect(cohort!.cells.map((cell) => cell.reached)).toEqual([1, 2, 2])
-    expect(cohort!.cells.map((cell) => cell.complete)).toEqual([true, true, false])
-    expect(cohort!.cells[1]!.share).toBeCloseTo(2 / 3, 12)
-  })
 })
 
 // ─────────────────────────── Детектор отклонений ────────────────────────────
