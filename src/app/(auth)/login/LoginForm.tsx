@@ -68,7 +68,7 @@ function ssoErrorMessage(error: string | null): string | null {
 export interface LoginFormProps {
   /** Показывать ли блок «Вход для экспертов хакатона» (решение 176). */
   expertQuickLoginEnabled: boolean
-  /** Показывать ли кнопку «Для сотрудников РТК (единый вход)» — вход через Keycloak (решение 188, переменные `KEYCLOAK_*`). */
+  /** Показывать ли кнопку «Войти через Keycloak» — вход через Keycloak (решение 188, переменные `KEYCLOAK_*`). */
   keycloakEnabled: boolean
 }
 
@@ -298,8 +298,9 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
               disabled={busy && !ssoPending}
               onClick={onKeycloakLogin}
             >
-              Для сотрудников РТК (единый вход)
+              Войти через Keycloak
             </Button>
+            <p className={styles.expertLoginScope}>единый вход для сотрудников РТК</p>
             <p className={styles.ssoDivider}>или почтой и паролем</p>
           </div>
         )}
