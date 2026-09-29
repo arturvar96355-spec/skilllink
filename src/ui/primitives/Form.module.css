@@ -121,6 +121,59 @@
   pointer-events: none;
 }
 
+/* Пароль с «глазом»: кнопка справа внутри поля, текст под неё не заходит. */
+.revealWrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+
+.control.withReveal {
+  padding-right: 44px;
+}
+
+/* Свой «глаз» у Edge — прячем: второй рядом с нашим сбивает. */
+.control.withReveal::-ms-reveal,
+.control.withReveal::-ms-clear {
+  display: none;
+}
+
+.reveal {
+  position: absolute;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-icon);
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition:
+    color var(--motion-micro) var(--ease-out),
+    background var(--motion-micro) var(--ease-out);
+}
+
+.reveal:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+
+.reveal:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+.reveal:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Флажок и переключатель */
 .checkbox {
   display: inline-flex;

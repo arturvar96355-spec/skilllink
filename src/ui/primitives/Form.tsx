@@ -1,7 +1,7 @@
 'use client'
 
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import { Icon, type IconName } from './Icon'
 import styles from './Form.module.css'
 
@@ -73,16 +73,39 @@ const DATE_INPUT_TYPES = new Set(['date', 'datetime-local', 'month', 'week', 'ti
 export function Input({ label, hint, error, icon, hideLabel, id, className, lang, ...props }: InputProps) {
   const generatedId = useId()
   const inputId = id ?? generatedId
-  const control = (
+  // Поле пароля — с «глазом»: набранное можно показать и снова скрыть (вход, смена пароля).
+  const isPassword = props.type === 'password'
+  const [revealed, setRevealed] = useState(false)
+  const input = (
     <input
       id={inputId}
-      className={[styles.control, error ? styles.invalid : '', className ?? '']
+      className={[styles.control, error ? styles.invalid : '', isPassword ? styles.withReveal : '', className ?? '']
         .filter(Boolean)
         .join(' ')}
       aria-invalid={error ? true : undefined}
       lang={lang ?? (props.type && DATE_INPUT_TYPES.has(props.type) ? 'ru' : undefined)}
       {...props}
+      type={isPassword && revealed ? 'text' : props.type}
     />
+  )
+  const control = isPassword ? (
+    <span className={styles.revealWrap}>
+      {input}
+      <button
+        type="button"
+        className={styles.reveal}
+        onClick={() => setRevealed((value) => !value)}
+        aria-label={revealed ? 'Скрыть пароль' : 'Показать пароль'}
+        aria-pressed={revealed}
+        aria-controls={inputId}
+        title={revealed ? 'Скрыть пароль' : 'Показать пароль'}
+        disabled={props.disabled}
+      >
+        <Icon name={revealed ? 'eyeOff' : 'eye'} size={18} />
+      </button>
+    </span>
+  ) : (
+    input
   )
 
   return (
