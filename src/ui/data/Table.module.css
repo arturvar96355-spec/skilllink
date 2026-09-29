@@ -226,6 +226,24 @@
   color: var(--text-secondary);
 }
 
+/*
+ * Длинный статус («Выводится из обращения») в узкой колонке: бирка — inline-flex,
+ * и многоточие ячейки на её подпись не действовало — текст обрезался посреди
+ * слова без «…» (полный проход эксперта 29.09, P1 № 1). Бирка не шире ячейки,
+ * подпись обрезается многоточием, полный текст — в подсказке `title` у бирки.
+ */
+.td [data-badge] {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.td [data-badge] [data-badge-label] {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Тревога не приглушается: просрочка и блокировка — главный сигнал строки. */
 .td [data-badge][data-tone='danger'] [data-badge-label],
 .td [data-badge][data-tone='warning'] [data-badge-label] {

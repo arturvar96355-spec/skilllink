@@ -12,6 +12,11 @@ import { useEffect, useState, type RefObject } from 'react'
  * а элемент въезжает в экран без прокрутки — когда выше догружаются блоки.
  * Без этого график навсегда оставался пустым. Пусть лучше появится без повода,
  * чем не появится совсем.
+ *
+ * `threshold` — доля высоты окна, выше которой должен оказаться верх элемента:
+ * 0.9 — «зашёл на экран на десятую часть». Больше 1 — запуск заранее, пока
+ * элемент ещё ниже края экрана (решение 235: схема сети на главной рисуется
+ * пару секунд и при быстрой прокрутке успевала показаться пустой рамкой).
  */
 export function useReveal(ref: RefObject<Element | null>, threshold = 0.9): boolean {
   const [shown, setShown] = useState(false)
@@ -34,7 +39,8 @@ export function useReveal(ref: RefObject<Element | null>, threshold = 0.9): bool
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) setShown(true)
       },
-      { rootMargin: `0px 0px -${Math.round((1 - threshold) * 100)}% 0px` },
+      // Отрицательный отступ снизу — «глубже в экран», положительный — «заранее».
+      { rootMargin: `0px 0px ${Math.round((threshold - 1) * 100)}% 0px` },
     )
     observer.observe(element)
     const onScroll = () => {

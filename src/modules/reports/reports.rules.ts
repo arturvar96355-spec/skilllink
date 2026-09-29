@@ -44,6 +44,19 @@ export const CATALOG_REPORT_HEADERS = [
 
 export type ReportCellValue = string | number | null
 
+/** Колонки каталога с реквизитами лицензии и передачи: номер договора, подписание, срок, статус. */
+const CATALOG_LICENSE_COLUMNS = [3, 4, 5, 6] as const
+
+/**
+ * Каталог: строки без единого реквизита лицензии и передачи — в конец (решение 235).
+ * Первые строки отчёта (по алфавиту вуза) были сплошь «Нет данных», и отчёт казался
+ * пустым, хотя ниже данные есть. Порядок внутри обеих групп не меняется.
+ */
+export function catalogRowsFilledFirst(rows: ReportCellValue[][]): ReportCellValue[][] {
+  const isEmpty = (row: ReportCellValue[]) => CATALOG_LICENSE_COLUMNS.every((index) => row[index] === null)
+  return [...rows.filter((row) => !isEmpty(row)), ...rows.filter(isEmpty)]
+}
+
 export interface ReportPayload {
   columns: readonly string[]
   rows: readonly ReportCellValue[][]

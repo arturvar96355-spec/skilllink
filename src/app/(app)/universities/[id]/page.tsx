@@ -31,6 +31,7 @@ import {
   EmptyState,
   ErrorState,
   HelpHint,
+  InfoHint,
   hasActiveFilters,
   Icon,
   Modal,
@@ -530,7 +531,12 @@ export default function UniversityPage() {
           <div className={styles.facts}>
             <span className={styles.fact}>
               <span className={styles.factValue}>{formatNumber(data.programCount)}</span>
-              <span className={styles.factLabel}>Программ в системе</span>
+              {/* «24 направления» рядом с «2 программами» без пояснения читались как
+                  ошибка (полный проход эксперта 29.09): это разные базы — решение 235. */}
+              <span className={[styles.factLabel, styles.labelHelp].join(' ')}>
+                Программ в системе
+                <InfoHint text="Образовательные программы вуза, заведённые в SkillLink: по ним ведутся связки и считается рейтинг." />
+              </span>
             </span>
             <span className={styles.fact}>
               <span className={styles.factValue}>
@@ -542,7 +548,10 @@ export default function UniversityPage() {
               <span className={styles.factValue}>
                 {data.directionCount === null ? 'Нет данных' : formatNumber(data.directionCount)}
               </span>
-              <span className={styles.factLabel}>Направлений подготовки</span>
+              <span className={[styles.factLabel, styles.labelHelp].join(' ')}>
+                Направлений подготовки
+                <InfoHint text="Все направления подготовки вуза по его сведениям — справочное число. В SkillLink заведены не все: только те, по которым идёт или планируется работа с ИТ-Школой." />
+              </span>
             </span>
             <span className={styles.fact}>
               <span className={styles.factValue}>

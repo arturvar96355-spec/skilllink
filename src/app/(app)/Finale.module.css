@@ -57,7 +57,9 @@
 .stage[data-shown] .lineUni,
 .stage[data-shown] .lineProduct {
   animation: draw var(--motion-emphasis) var(--ease-out) forwards;
-  animation-delay: calc(200ms + var(--i, 0) * 90ms);
+  /* Очередь линий — не дольше ~1,1 с: при 25+ связках последняя начинала
+     рисоваться через 2,5 с, и схема долго выглядела недорисованной (решение 235). */
+  animation-delay: calc(200ms + min(var(--i, 0) * 90ms, 900ms));
 }
 
 @keyframes draw {
@@ -166,6 +168,29 @@
   stroke-width: 3px;
   stroke-linejoin: round;
   stroke-opacity: 0.9;
+}
+
+/*
+ * «Схема загружается…» — пока прорисовка не началась: пустая рамка с одними
+ * заголовками столбцов читалась как сломанный блок (решение 235). Посередине
+ * поля, над полосой навыков; с началом прорисовки гаснет. В спокойном режиме
+ * и при «уменьшить движение» схема видна сразу — подпись не нужна.
+ */
+.pending {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: var(--text-body-sm-size);
+  color: var(--text-tertiary);
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--ease-out);
+}
+
+.stage[data-shown] .pending,
+.stage[data-calm] .pending {
+  opacity: 0;
 }
 
 .caption {
@@ -333,6 +358,11 @@
     display: block;
   }
 
+  /* Телефонная схема — список, он виден сразу: подпись «загружается» не нужна. */
+  .pending {
+    display: none;
+  }
+
   .caption {
     text-align: left;
   }
@@ -354,6 +384,10 @@
   .lineUni,
   .lineProduct {
     stroke-dashoffset: 0;
+  }
+
+  .pending {
+    opacity: 0;
   }
 
   .node {

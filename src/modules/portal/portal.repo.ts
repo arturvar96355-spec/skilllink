@@ -105,10 +105,37 @@ export async function findMaterialTask(taskId: string, universityId: string) {
   })
 }
 
+/** Документы вуза: напрямую, через связку или программу. Одна база у счётчика и у списка. */
+function documentsOf(universityId: string): Prisma.DocumentWhereInput {
+  return { OR: [{ universityId }, { cooperation: { universityId } }, { program: { universityId } }] }
+}
+
 export async function countDocuments(universityId: string): Promise<number> {
-  return prisma.document.count({
-    where: {
-      OR: [{ universityId }, { cooperation: { universityId } }, { program: { universityId } }],
+  return prisma.document.count({ where: documentsOf(universityId) })
+}
+
+/**
+ * Список документов вуза для кабинета (решение 235). Потолок — на всякий случай:
+ * у вуза в демо единицы документов, счётчик в сводке считает все.
+ */
+export const PORTAL_DOCUMENTS_LIMIT = 200
+
+export async function findDocuments(universityId: string) {
+  return prisma.document.findMany({
+    where: documentsOf(universityId),
+    orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    take: PORTAL_DOCUMENTS_LIMIT,
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      version: true,
+      status: true,
+      issuedAt: true,
+      signedAt: true,
+      updatedAt: true,
+      program: { select: { name: true } },
+      cooperation: { select: { program: { select: { name: true } } } },
     },
   })
 }
