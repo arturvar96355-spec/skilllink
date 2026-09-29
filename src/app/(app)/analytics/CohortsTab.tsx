@@ -1,5 +1,8 @@
 'use client'
 
+// Вкладка «Когорты» скрыта решением 229: демо-данных мало для когорт. Код и API
+// `/api/analytics/cohorts` оставлены — вернуть вкладку можно одной строкой в `TABS` страницы аналитики.
+
 import { useMemo, useState, type CSSProperties } from 'react'
 import type { CohortDto, CohortsDto } from '@/shared/contracts'
 import {

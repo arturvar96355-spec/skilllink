@@ -384,7 +384,6 @@ function LoginFormInner({ expertQuickLoginEnabled, keycloakEnabled }: LoginFormP
           </p>
         )}
 
-
         {/*
           Подвал панели — одной строкой: политика и открытый код (решение владельца —
           ссылка на репозиторий заметна на стенде; полный адрес — в подсказке).

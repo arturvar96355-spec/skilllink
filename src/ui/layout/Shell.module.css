@@ -815,6 +815,13 @@
   display: block;
 }
 
+/* Подложка светлой темы не печатается и при Ctrl+P, а не только через кнопку «Печать / PDF». */
+@media print {
+  :global(html) .glowTint {
+    display: none;
+  }
+}
+
 .tintNear,
 .tintFar {
   position: absolute;

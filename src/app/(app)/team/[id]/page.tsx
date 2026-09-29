@@ -10,6 +10,7 @@ import {
   type TeamCooperationDto,
   type TeamMemberProfileDto,
 } from '@/shared/contracts'
+import { showAllState } from '@/ui/lib/show-all'
 import {
   Avatar,
   Button,
@@ -60,6 +61,8 @@ const stageNo = (value: number) => `${String(value).padStart(2, '0')}/14`
 const MESSENGER_LABELS = { telegram: 'Телеграм', max: 'MAX', vk: 'ВКонтакте' } as const
 
 /** Сделанных поручений на странице — последние; вся история — в журнале. */
+/** Поручений на страницу — сколько отдаёт сервер за один запрос; больше — подпись «первые N из M». */
+const ASSIGNMENTS_PAGE_SIZE = 100
 const DONE_ASSIGNMENTS_SHOWN = 5
 const MEETINGS_SHOWN = 8
 /**
@@ -76,11 +79,11 @@ export default function StaffProfilePage() {
   const user = useCurrentUser()
   const profile = useResource<TeamMemberProfileDto>(`/api/team/${encodeURIComponent(id)}/profile`)
   const toMember = useResource<AssignmentDto[]>(
-    `/api/assignments${buildQuery({ assigneeId: id, pageSize: 100 })}`,
+    `/api/assignments${buildQuery({ assigneeId: id, pageSize: ASSIGNMENTS_PAGE_SIZE })}`,
     { keepPreviousData: true },
   )
   const fromMember = useResource<AssignmentDto[]>(
-    `/api/assignments${buildQuery({ authorId: id, pageSize: 100 })}`,
+    `/api/assignments${buildQuery({ authorId: id, pageSize: ASSIGNMENTS_PAGE_SIZE })}`,
     { keepPreviousData: true },
   )
   const [side, setSide] = useState<AssignmentSide>('to')
@@ -512,6 +515,7 @@ function AssignmentList({
 }) {
   const items = resource.data ?? []
   const { open, done } = splitByDone(items)
+  const truncated = showAllState(items.length, resource.meta?.total ?? items.length, ASSIGNMENTS_PAGE_SIZE, ASSIGNMENTS_PAGE_SIZE)
   if (resource.isLoading && !resource.data) return <SkeletonLines count={3} />
   if (resource.error) return <ErrorState error={resource.error} onRetry={resource.reload} />
   if (items.length === 0) return <p className={teamStyles.muted}>{empty}</p>
@@ -530,6 +534,7 @@ function AssignmentList({
           <AssignmentRows items={done.slice(0, DONE_ASSIGNMENTS_SHOWN)} show={show} />
         </>
       )}
+      {truncated && <p className={teamStyles.more}>{truncated.note}</p>}
     </div>
   )
 }
