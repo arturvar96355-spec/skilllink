@@ -5,7 +5,7 @@ import type { CurrentUser } from '@/shared/auth/current-user'
 import * as repo from './reports.repo'
 import type { ReportFilterLabels } from './reports.repo'
 import type { ReportFilters } from './reports.schema'
-import { CATALOG_REPORT_HEADERS, TZ_REPORT_HEADERS, type ReportPayload } from './reports.rules'
+import { CATALOG_REPORT_HEADERS, TZ_REPORT_HEADERS, catalogRowsFilledFirst, type ReportPayload } from './reports.rules'
 
 /**
  * Отчёты «по ТЗ» (п.7) и «Каталог по ТЗ» (п.8) — решение 145; фильтры по периоду,
@@ -64,7 +64,7 @@ export async function buildCatalogReport(user: CurrentUser, filters: ReportFilte
     labels,
     payload: {
       columns: CATALOG_REPORT_HEADERS,
-      rows: rows.map((row) => [
+      rows: catalogRowsFilledFirst(rows.map((row) => [
         row.university.name,
         row.product?.vendor?.name ?? null,
         row.product?.name ?? null,
@@ -75,7 +75,7 @@ export async function buildCatalogReport(user: CurrentUser, filters: ReportFilte
         row.responsible.fullName,
         row.university.contacts.map((contact) => contact.fullName).join(', ') || null,
         row.comment,
-      ]),
+      ])),
     },
   }
 }
