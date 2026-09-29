@@ -5,6 +5,7 @@ import type {
   MetricTrendDto,
   SkillMatchSummaryDto,
   StageWithCooperationDto,
+  TopProgramDto,
 } from '@/shared/contracts'
 import { NO_DATA, formatDate, formatNumber, formatPeriod, formatPoints, pluralize } from '@/ui/lib/format'
 
@@ -215,4 +216,11 @@ export function sourceLine(overview: Pick<DashboardOverviewDto, 'skillMatch' | '
     'Данные — учёт SkillLink на момент формирования: связки, этапы и рекомендации; рейтинг программ — ' +
     `по заявкам, обучающимся и группам; спрос рынка на навыки — за ${formatPeriod(overview.skillMatch.period)}.`
   return overview.containsMockData ? `${base} Часть данных демонстрационная и не является подтверждённой статистикой.` : base
+}
+
+/** Происхождение балла у строки «Лучших программ»: подписана каждая строка, а не только оценочные. */
+export function programBasisNote(basis: TopProgramDto['basis']): string {
+  if (basis === 'actual') return ' · фактические данные'
+  if (basis === 'estimate') return ' · оценочные данные'
+  return ''
 }

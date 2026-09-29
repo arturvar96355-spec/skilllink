@@ -6,6 +6,7 @@ import {
   mergeProblemStages,
   metricValueText,
   problemDetail,
+  programBasisNote,
   problemReason,
   problemSummary,
   reportDocumentTitle,
@@ -167,5 +168,13 @@ describe('строка об источнике', () => {
 
   it('без демо-данных пометки нет', () => {
     expect(sourceLine({ skillMatch, containsMockData: false })).not.toContain('демонстрационн')
+  })
+})
+
+describe('programBasisNote', () => {
+  it('подписывает и фактические, и оценочные данные, у «нет данных» подписи нет', () => {
+    expect(programBasisNote('actual')).toBe(' · фактические данные')
+    expect(programBasisNote('estimate')).toBe(' · оценочные данные')
+    expect(programBasisNote('none')).toBe('')
   })
 })
