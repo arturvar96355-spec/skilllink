@@ -7,6 +7,7 @@
 | Что | Где |
 | --- | --- |
 | Работающая система (стенд) | https://skilllink.site |
+| Видео решения | https://disk.yandex.ru/d/R_BjrT2aZ8jOLw |
 | Документация по использованию, без входа | https://skilllink.site/docs |
 | Исходный код (лицензия MIT) | https://github.com/arturvar96355-spec/skilllink |
 | Соответствие ТЗ построчно | `docs/TZ_COMPLIANCE.md` в репозитории |
