@@ -25,7 +25,7 @@
 
 **Сроки.** Крупные изменения интерфейса — до вечера 28.09. 29.09 — только правки. После 23:59 29.09 стенд не трогаем (дисквалификация). Никаких установок, которые меняют сборку, в последние сутки.
 
-**Обе темы.** Каждый экран проверяется в светлой и тёмной теме. Солнце и месяц в переключателе темы не трогать. Нынешние 3D-кольца сохранены тегом `design/rings-3d-2026-09-26` — вернуть: `git checkout design/rings-3d-2026-09-26 -- src/ui/data/Pie3D.tsx src/ui/data/Pie3D.module.css src/ui/data/Bars3D.tsx src/ui/data/Bars3D.module.css src/ui/data/Ring.tsx src/ui/data/Ring.module.css`.
+**Обе темы.** Каждый экран проверяется в светлой и тёмной теме. Солнце и месяц в переключателе темы не трогать. 3D-кольца на 26.09 сохранены в коммите `1b8eb8d2` (в истории main) — вернуть: `git checkout 1b8eb8d2 -- src/ui/data/Pie3D.tsx src/ui/data/Pie3D.module.css src/ui/data/Bars3D.tsx src/ui/data/Bars3D.module.css src/ui/data/Ring.tsx src/ui/data/Ring.module.css`.
 
 **Разметку главной не менять без команды владельца** (блоки, их порядок и соседство).
 
