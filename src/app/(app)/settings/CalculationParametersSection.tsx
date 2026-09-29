@@ -6,11 +6,13 @@ import {
   Badge,
   Button,
   ErrorState,
+  Icon,
   Input,
   MockBadge,
   apiGet,
   buildQuery,
   formatCount,
+  repoDocHref,
   useMutation,
   useResource,
 } from '@/ui'
@@ -46,8 +48,19 @@ export function CalculationParametersSection() {
         <section key={group.id} className={settings.group}>
           <h3 className={settings.groupTitle}>{group.title}</h3>
           <p className={settings.muted}>{group.description}</p>
+          {/* Настоящая ссылка на раздел документа в открытом репозитории (решение 235):
+              подпись выглядела как ссылка, а ничего не открывала. */}
           <p className={settings.muted}>
-            Методика: {group.methodology.document} — «{group.methodology.section}»
+            Методика:{' '}
+            <a
+              className={settings.docLink}
+              href={repoDocHref(group.methodology.document, group.methodology.section)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {group.methodology.document} — «{group.methodology.section}»
+              <Icon name="external" size={16} />
+            </a>
           </p>
           {group.parameters.map((param) => (
             <Row key={param.configKey} title={param.label} caption={param.hint ?? undefined}>
