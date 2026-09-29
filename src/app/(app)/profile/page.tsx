@@ -10,6 +10,7 @@ import {
   type CurrentUserStatsDto,
   type IssuedCalendarFeedDto,
   type NotificationFeedDto,
+  type PortalOverviewDto,
   type RevokedCalendarFeedDto,
 } from '@/shared/contracts'
 import {
@@ -37,13 +38,11 @@ import {
   formatRelative,
   notificationHref,
   pluralize,
-  useCountUp,
   useCurrentUser,
   useMutation,
   useResource,
   useToast,
   type HelpHintProps,
-  type IconName,
 } from '@/ui'
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { isSharedDemoAccount } from '@/shared/config/auth.config'
@@ -53,6 +52,10 @@ import { ChannelsBlock } from './ChannelsBlock'
 import { ProfileInsights } from './ProfileInsights'
 import { ProfilePulse } from './ProfilePulse'
 import { MyAssignments } from './MyAssignments'
+import { RoleGuide } from './RoleGuide'
+import { StatTile } from './StatTile'
+import { UniversityBlock } from './UniversityBlock'
+import { mayLeadCooperations, roleGuide } from './profile-role'
 import styles from './profile.module.css'
 
 /**
@@ -71,6 +74,11 @@ import styles from './profile.module.css'
  *
  * Движение (вращение кольца аватара, полёт по орбите, счёт чисел) — только
  * в презентационном режиме; в рабочем всё стоит, структура та же.
+ *
+ * Решение 236: кабинет не пустой ни у одной роли. Кто не ведёт связки (аналитик,
+ * наблюдатель, эксперт, администратор и руководитель без своих связок), видит
+ * вместо нулей «Ваша работа» блок роли — разделы, куда идти, у эксперта — маршрут
+ * проверки. У представителя вуза — «Ваш вуз» по сводке раздела «Мой вуз».
  */
 
 const MY_COOPERATIONS_LIMIT = 6
@@ -87,11 +95,16 @@ function initials(fullName: string): string {
 
 export default function ProfilePage() {
   const user = useCurrentUser()
-  const stats = useResource<CurrentUserStatsDto>('/api/me/stats')
   const isRep = user.role === 'UNIVERSITY_REP'
+  // Своя работа по связкам бывает только у того, кого можно назначить ответственным
+  // (решение 236): аналитику, наблюдателю и эксперту нули не запрашиваются и не показываются.
+  const leads = mayLeadCooperations(user)
+  const stats = useResource<CurrentUserStatsDto>(leads ? '/api/me/stats' : null)
+  const portal = useResource<PortalOverviewDto>(isRep ? '/api/portal/overview' : null)
+  const guide = useMemo(() => roleGuide(user), [user])
   // Свои связки и лента событий — у сотрудников ИТ-Школы; у представителя вуза свой кабинет.
   const mine = useResource<CooperationListItemDto[]>(
-    isRep
+    !leads
       ? null
       : `/api/cooperations${buildQuery({
           responsibleId: user.id,
@@ -143,6 +156,28 @@ export default function ProfilePage() {
   const data = stats.data
   const cooperations = mine.data ?? []
   const firstName = firstNameOf(user.fullName)
+  /**
+   * Что стоит под шапкой: своя работа числами, блок роли или (пока грузится) скелетон.
+   * Нули «Ваша работа» у того, кто связок не ведёт и не вёл, заменяет блок роли.
+   */
+  const hasOwnWork =
+    cooperations.length > 0 ||
+    (data !== null &&
+      data !== undefined &&
+      (data.activeCooperations > 0 || data.overdueStages > 0 || data.stagesCompletedWithDeadline > 0))
+  const work: 'rep' | 'guide' | 'loading' | 'error' | 'stats' = isRep
+    ? 'rep'
+    : !leads
+      ? 'guide'
+      : stats.isLoading && !data
+        ? 'loading'
+        : stats.error
+          ? 'error'
+          : hasOwnWork || mine.error
+            ? 'stats'
+            : mine.isLoading
+              ? 'loading'
+              : 'guide'
 
   async function onSignOut() {
     setIsLeaving(true)
@@ -163,6 +198,29 @@ export default function ProfilePage() {
         : 'просрочек нет'
     return `У вас ${parts.join(' ')} · ${tail}`
   }, [data])
+
+  /** Сводка представителя вуза — по данным раздела «Мой вуз», той же базы подсчёта. */
+  const repSummary = useMemo(() => {
+    const overview = portal.data
+    if (!overview) return null
+    const coops = overview.cooperations.length
+    const programs = overview.programs.length
+    const head =
+      coops === 0
+        ? 'Связок с ИТ-Школой пока нет'
+        : `${formatNumber(coops)} ${pluralize(coops, ['связка', 'связки', 'связок'])} с ИТ-Школой`
+    const middle = `${formatNumber(programs)} ${pluralize(programs, ['программа', 'программы', 'программ'])} в SkillLink`
+    const tail =
+      overview.pendingMaterials > 0
+        ? `${formatNumber(overview.pendingMaterials)} ${pluralize(overview.pendingMaterials, [
+            'материал ждёт подтверждения',
+            'материала ждут подтверждения',
+            'материалов ждут подтверждения',
+          ])}`
+        : 'подтверждать материалы сейчас не нужно'
+    return `${head} · ${middle} · ${tail}`
+  }, [portal.data])
+  const heroSummary = work === 'rep' ? repSummary : work === 'guide' ? guide.summary : summary
 
   return (
     <>
@@ -212,126 +270,137 @@ export default function ProfilePage() {
               </span>
             )}
           </div>
-          {summary && <p className={styles.summary}>{summary}</p>}
+          {heroSummary && <p className={styles.summary}>{heroSummary}</p>}
         </div>
-      </section>
-
-      {/* Показатели: плитки с цветом по смыслу и доля этапов в срок — кольцом. */}
-      <section className={styles.block} aria-labelledby="profile-stats">
-        <div className={styles.blockHead}>
-          <div className={styles.blockTitleRow}>
-            <h2 id="profile-stats" className={styles.blockTitle}>
-              Ваша работа
-            </h2>
-            <HelpHint topic="profile" section="stats" />
-          </div>
-          <span className={styles.blockNote}>
-            По связкам и этапам, где ответственный — вы
-            {data && ` · обновлено ${formatRelative(data.generatedAt)}`}
-          </span>
-        </div>
-
-        {stats.isLoading ? (
-          <div className={styles.statsGrid}>
-            {Array.from({ length: 4 }, (_, index) => (
-              <div key={index} className={styles.tile}>
-                <Skeleton width="40%" />
-                <Skeleton width="60%" height="28px" />
-              </div>
-            ))}
-          </div>
-        ) : stats.error ? (
-          <ErrorState error={stats.error} onRetry={stats.reload} />
-        ) : data ? (
-          <div className={styles.statsLayout}>
-            <div className={styles.statsGrid}>
-              <StatTile
-                icon="cooperation"
-                tone="violet"
-                label="Активные связки"
-                value={data.activeCooperations}
-                hint="Связки в статусе «Черновик» или «В работе», где вы ответственный."
-                order={0}
-              />
-              <StatTile
-                icon="university"
-                tone="cyan"
-                label="Вузы в работе"
-                value={data.universitiesInWork}
-                hint="Сколько разных вузов среди ваших связок."
-                order={1}
-              />
-              <StatTile
-                icon="program"
-                tone="pink"
-                label="Программы под управлением"
-                value={data.programsManaged}
-                hint="Сколько разных образовательных программ среди ваших связок."
-                order={2}
-              />
-              <StatTile
-                icon={data.overdueStages > 0 ? 'alert' : 'check'}
-                tone={data.overdueStages > 0 ? 'danger' : 'success'}
-                label={data.overdueStages > 0 ? 'Просроченные этапы' : 'Просрочек нет'}
-                value={data.overdueStages}
-                hint="Ваши этапы, у которых срок прошёл, а этап не закрыт."
-                order={3}
-              />
-            </div>
-
-            <figure className={styles.onTime}>
-              <Donut
-                slices={
-                  data.stagesOnTimePercent === null
-                    ? []
-                    : [
-                        {
-                          key: 'ontime',
-                          label: 'В срок',
-                          value: Math.round(data.stagesOnTimePercent * 10) / 10,
-                          tone: 'violet',
-                          texture: 'solid',
-                        },
-                        {
-                          key: 'late',
-                          label: 'С опозданием',
-                          value: Math.round((100 - data.stagesOnTimePercent) * 10) / 10,
-                          tone: 'violet',
-                          texture: 'diagonal',
-                        },
-                      ]
-                }
-                label="Этапы в срок"
-                centerLabel="в срок"
-                centerValue={
-                  data.stagesOnTimePercent === null
-                    ? undefined
-                    : `${data.stagesOnTimePercent.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`
-                }
-                valueSuffix="%"
-                size={220}
-              />
-              <figcaption className={styles.onTimeCaption}>
-                <strong>Этапы в срок</strong>
-                {data.stagesCompletedWithDeadline > 0
-                  ? `По ${formatCount(data.stagesCompletedWithDeadline, [
-                      'завершённому этапу со сроком',
-                      'завершённым этапам со сроком',
-                      'завершённым этапам со сроком',
-                    ])}`
-                  : 'Завершённых этапов со сроком пока нет'}
-              </figcaption>
-            </figure>
-          </div>
-        ) : null}
       </section>
 
       {/*
+        Под шапкой — своя работа числами; у того, кто связки не ведёт, — блок роли,
+        у представителя вуза — его вуз (решение 236). Нулей без пояснения нет ни у кого.
+      */}
+      {work === 'rep' ? (
+        <UniversityBlock user={user} overview={portal} />
+      ) : work === 'guide' ? (
+        <RoleGuide guide={guide} id="profile-role" />
+      ) : (
+        <section className={styles.block} aria-labelledby="profile-stats">
+          <div className={styles.blockHead}>
+            <div className={styles.blockTitleRow}>
+              <h2 id="profile-stats" className={styles.blockTitle}>
+                Ваша работа
+              </h2>
+              <HelpHint topic="profile" section="stats" />
+            </div>
+            <span className={styles.blockNote}>
+              По связкам и этапам, где ответственный — вы
+              {data && ` · обновлено ${formatRelative(data.generatedAt)}`}
+            </span>
+          </div>
+
+          {work === 'loading' ? (
+            <div className={styles.statsGrid}>
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className={styles.tile}>
+                  <Skeleton width="40%" />
+                  <Skeleton width="60%" height="28px" />
+                </div>
+              ))}
+            </div>
+          ) : stats.error ? (
+            <ErrorState error={stats.error} onRetry={stats.reload} />
+          ) : data ? (
+            <div className={styles.statsLayout}>
+              <div className={styles.statsGrid}>
+                <StatTile
+                  icon="cooperation"
+                  tone="violet"
+                  label="Активные связки"
+                  value={data.activeCooperations}
+                  hint="Связки в статусе «Черновик» или «В работе», где вы ответственный."
+                  order={0}
+                />
+                <StatTile
+                  icon="university"
+                  tone="cyan"
+                  label="Вузы в работе"
+                  value={data.universitiesInWork}
+                  hint="Сколько разных вузов среди ваших связок."
+                  order={1}
+                />
+                <StatTile
+                  icon="program"
+                  tone="pink"
+                  label="Программы под управлением"
+                  value={data.programsManaged}
+                  hint="Сколько разных образовательных программ среди ваших связок."
+                  order={2}
+                />
+                <StatTile
+                  icon={data.overdueStages > 0 ? 'alert' : 'check'}
+                  tone={data.overdueStages > 0 ? 'danger' : 'success'}
+                  label={data.overdueStages > 0 ? 'Просроченные этапы' : 'Просрочек нет'}
+                  value={data.overdueStages}
+                  hint="Ваши этапы, у которых срок прошёл, а этап не закрыт."
+                  order={3}
+                />
+              </div>
+
+              <figure className={styles.onTime}>
+                <Donut
+                  slices={
+                    data.stagesOnTimePercent === null
+                      ? []
+                      : [
+                          {
+                            key: 'ontime',
+                            label: 'В срок',
+                            value: Math.round(data.stagesOnTimePercent * 10) / 10,
+                            tone: 'violet',
+                            texture: 'solid',
+                          },
+                          {
+                            key: 'late',
+                            label: 'С опозданием',
+                            value: Math.round((100 - data.stagesOnTimePercent) * 10) / 10,
+                            tone: 'violet',
+                            texture: 'diagonal',
+                          },
+                        ]
+                  }
+                  label="Этапы в срок"
+                  centerLabel="в срок"
+                  centerValue={
+                    data.stagesOnTimePercent === null
+                      ? undefined
+                      : `${data.stagesOnTimePercent.toLocaleString('ru-RU', { maximumFractionDigits: 1 })}%`
+                  }
+                  valueSuffix="%"
+                  size={220}
+                />
+                <figcaption className={styles.onTimeCaption}>
+                  <strong>Этапы в срок</strong>
+                  {data.stagesCompletedWithDeadline > 0
+                    ? `По ${formatCount(data.stagesCompletedWithDeadline, [
+                        'завершённому этапу со сроком',
+                        'завершённым этапам со сроком',
+                        'завершённым этапам со сроком',
+                      ])}`
+                    : 'Завершённых этапов со сроком пока нет'}
+                </figcaption>
+              </figure>
+            </div>
+          ) : null}
+        </section>
+      )}
+
+      {/*
         «Мои поручения» (решение 207): поручения руководителя сотруднику ИТ-Школы.
-        Представителю вуза их не дают — у него блока нет. Suspense — для
+        Представителю вуза их не дают — у него блока нет. Эксперту тоже (решение 236):
+        исполнителем он быть не может, и блок навсегда оставался бы «Поручений нет» —
+        все поручения он видит в «Команде», она в его маршруте проверки. Suspense — для
         useSearchParams (подсветка поручения по ссылке из колокольчика).
       */}
-      {!isRep && (
+      {!isRep && !user.isReviewer && (
         <Suspense fallback={null}>
           <MyAssignments />
         </Suspense>
@@ -351,74 +420,81 @@ export default function ProfilePage() {
       )}
 
       {!isRep && (
-        <div className={styles.columns}>
-          {/* Мои связки: сами связки с лентой этапов, а не только их число. */}
-          <section className={styles.block} aria-labelledby="profile-mine">
-            <div className={styles.blockHead}>
-              <div className={styles.blockTitleRow}>
-                <h2 id="profile-mine" className={styles.blockTitle}>
-                  Мои связки
-                </h2>
-                <HelpHint topic="profile" section="mine" />
+        <div className={[styles.columns, work === 'guide' ? styles.columnsSingle : ''].join(' ')}>
+          {/* Мои связки: сами связки с лентой этапов, а не только их число. У того, кто
+              связки не ведёт, вместо пустого «Связок нет» — блок роли выше (решение 236). */}
+          {work !== 'guide' && (
+            <section className={styles.block} aria-labelledby="profile-mine">
+              <div className={styles.blockHead}>
+                <div className={styles.blockTitleRow}>
+                  <h2 id="profile-mine" className={styles.blockTitle}>
+                    Мои связки
+                  </h2>
+                  <HelpHint topic="profile" section="mine" />
+                </div>
+                {cooperations.length > MY_COOPERATIONS_LIMIT && (
+                  <Link className={styles.more} href="/cooperations">
+                    Все {formatNumber(cooperations.length)}
+                    <Icon name="arrowRight" size={16} />
+                  </Link>
+                )}
               </div>
-              {cooperations.length > MY_COOPERATIONS_LIMIT && (
-                <Link className={styles.more} href="/cooperations">
-                  Все {formatNumber(cooperations.length)}
-                  <Icon name="arrowRight" size={16} />
-                </Link>
+              {mine.isLoading ? (
+                <div className={styles.mineGrid}>
+                  {Array.from({ length: 2 }, (_, index) => (
+                    <div key={index} className={styles.coop}>
+                      <Skeleton width="70%" />
+                      <Skeleton width="100%" height="6px" />
+                    </div>
+                  ))}
+                </div>
+              ) : mine.error ? (
+                <ErrorState error={mine.error} onRetry={mine.reload} />
+              ) : cooperations.length === 0 ? (
+                <EmptyState
+                  title="Связок нет"
+                  description="Вы не назначены ответственным ни в одной связке в работе."
+                />
+              ) : (
+                <ul className={styles.mineGrid}>
+                  {cooperations.slice(0, MY_COOPERATIONS_LIMIT).map((item, index) => {
+                    const state =
+                      item.progress.overdueStages > 0 ? 'overdue' : item.progress.blockedStages > 0 ? 'blocked' : 'ok'
+                    return (
+                      <li key={item.id} style={{ '--i': index } as CSSProperties} className={styles.coopItem}>
+                        <Link className={[styles.coop, styles[state]].join(' ')} href={cooperationHref(item.id)}>
+                          <span className={styles.coopUni}>{item.universityShortName ?? item.universityName}</span>
+                          <span className={styles.coopProgram}>{item.programName}</span>
+                          <span className={styles.coopProduct}>→ {item.productName ?? 'продукт не выбран'}</span>
+                          <StageBar
+                            done={item.progress.completedStages + item.progress.cancelledStages}
+                            current={item.currentStage?.stageNumber ?? null}
+                            total={item.progress.totalStages}
+                            state={state}
+                            delay={index * 90}
+                          />
+                          <span className={styles.coopFoot}>
+                            <span className={styles.coopStage}>
+                              {item.currentStage
+                                ? `${String(item.currentStage.stageNumber).padStart(2, '0')} / 14 · ${item.currentStage.title}`
+                                : 'Все этапы пройдены'}
+                            </span>
+                            <span className={[styles.coopState, styles[`${state}Text`]].join(' ')}>
+                              {state === 'overdue'
+                                ? `просрочено: ${item.progress.overdueStages}`
+                                : state === 'blocked'
+                                  ? 'блок'
+                                  : 'по плану'}
+                            </span>
+                          </span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
               )}
-            </div>
-            {mine.isLoading ? (
-              <div className={styles.mineGrid}>
-                {Array.from({ length: 2 }, (_, index) => (
-                  <div key={index} className={styles.coop}>
-                    <Skeleton width="70%" />
-                    <Skeleton width="100%" height="6px" />
-                  </div>
-                ))}
-              </div>
-            ) : mine.error ? (
-              <ErrorState error={mine.error} onRetry={mine.reload} />
-            ) : cooperations.length === 0 ? (
-              <EmptyState title="Связок нет" description="Вы не назначены ответственным ни в одной связке в работе." />
-            ) : (
-              <ul className={styles.mineGrid}>
-                {cooperations.slice(0, MY_COOPERATIONS_LIMIT).map((item, index) => {
-                  const state = item.progress.overdueStages > 0 ? 'overdue' : item.progress.blockedStages > 0 ? 'blocked' : 'ok'
-                  return (
-                    <li key={item.id} style={{ '--i': index } as CSSProperties} className={styles.coopItem}>
-                      <Link className={[styles.coop, styles[state]].join(' ')} href={cooperationHref(item.id)}>
-                        <span className={styles.coopUni}>{item.universityShortName ?? item.universityName}</span>
-                        <span className={styles.coopProgram}>{item.programName}</span>
-                        <span className={styles.coopProduct}>→ {item.productName ?? 'продукт не выбран'}</span>
-                        <StageBar
-                          done={item.progress.completedStages + item.progress.cancelledStages}
-                          current={item.currentStage?.stageNumber ?? null}
-                          total={item.progress.totalStages}
-                          state={state}
-                          delay={index * 90}
-                        />
-                        <span className={styles.coopFoot}>
-                          <span className={styles.coopStage}>
-                            {item.currentStage
-                              ? `${String(item.currentStage.stageNumber).padStart(2, '0')} / 14 · ${item.currentStage.title}`
-                              : 'Все этапы пройдены'}
-                          </span>
-                          <span className={[styles.coopState, styles[`${state}Text`]].join(' ')}>
-                            {state === 'overdue'
-                              ? `просрочено: ${item.progress.overdueStages}`
-                              : state === 'blocked'
-                                ? 'блок'
-                                : 'по плану'}
-                          </span>
-                        </span>
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-          </section>
+            </section>
+          )}
 
           {/* Последние события: что случилось, лентой на линии времени. */}
           <section className={styles.block} aria-labelledby="profile-feed">
@@ -542,33 +618,6 @@ export default function ProfilePage() {
       )}
       {issuedFeed && <CalendarFeedModal issued={issuedFeed} onClose={() => setIssuedFeed(null)} />}
     </>
-  )
-}
-
-function StatTile({
-  icon,
-  tone,
-  label,
-  value,
-  hint,
-  order,
-}: {
-  icon: IconName
-  tone: 'violet' | 'cyan' | 'pink' | 'danger' | 'success'
-  label: string
-  value: number | null
-  hint: string
-  order: number
-}) {
-  const counted = useCountUp(value, 900)
-  return (
-    <div className={[styles.tile, styles[tone]].join(' ')} style={{ '--i': order } as CSSProperties} title={hint}>
-      <span className={styles.tileIcon}>
-        <Icon name={icon} size={18} />
-      </span>
-      <span className={styles.tileValue}>{counted === null ? 'Нет данных' : formatNumber(Math.round(counted))}</span>
-      <span className={styles.tileLabel}>{label}</span>
-    </div>
   )
 }
 
