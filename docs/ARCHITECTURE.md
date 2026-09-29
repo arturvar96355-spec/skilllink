@@ -231,7 +231,7 @@ ExternalApi, FutureRtk), LMS, сайт, языковая модель ИИ-по�
    `KEYCLOAK_ISSUER`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_CLIENT_SECRET`. Не заданы —
    провайдера нет вовсе, как будто этой возможности никогда не было: это и есть
    откат, без единой правки кода. На экране `/login` тогда нет и кнопки
-   «Для сотрудников РТК (единый вход)» (`shared/auth/keycloak.ts`,
+   «Войти через Keycloak» (единый вход для сотрудников РТК) (`shared/auth/keycloak.ts`,
    `isKeycloakEnabled()`, `app/(auth)/login/LoginForm.tsx`).
 
 Права по-прежнему решает только база SkillLink, а не то, кто подтвердил личность:
