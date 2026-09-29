@@ -1,6 +1,6 @@
 import { z } from '@/shared/zod'
 
-/** Коды ошибок и соответствующие им HTTP-статусы. Контракт из CLAUDE.md. */
+/** Коды ошибок и соответствующие им HTTP-статусы. Контракт из CONTRIBUTING.md. */
 export const ERROR_STATUS = {
   VALIDATION_ERROR: 422,
   NOT_FOUND: 404,

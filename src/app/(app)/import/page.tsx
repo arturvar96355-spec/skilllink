@@ -48,7 +48,7 @@ type Dataset = 'universities' | 'programs'
  * Требуемые и необязательные колонки файла — дубль `UNIVERSITY_COLUMNS`
  * и `PROGRAM_COLUMNS` из `src/modules/import/import.schema.ts`: серверный
  * модуль на фронт не импортируется (правило «поток route → service → repo»,
- * CLAUDE.md), а колонки нужны здесь только текстом подсказки — так же, как
+ * CONTRIBUTING.md), а колонки нужны здесь только текстом подсказки — так же, как
  * `ALLOWED_TRANSITIONS` продублирован в `documents/page.tsx`.
  */
 const DATASET_COLUMNS: Record<Dataset, { required: string[]; optional: string[] }> = {

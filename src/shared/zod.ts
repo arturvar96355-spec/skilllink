@@ -3,7 +3,7 @@ import { ru } from 'zod/locales'
 import { PG_INT_MAX } from '@/shared/db/storable'
 
 /**
- * Тексты ошибок валидации на русском (требование контракта API в CLAUDE.md).
+ * Тексты ошибок валидации на русском (требование контракта API в CONTRIBUTING.md).
  * Вызывается один раз при загрузке модуля; импортируется всюду, где нужен z.
  */
 z.config(ru())

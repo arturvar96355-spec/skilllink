@@ -1,6 +1,6 @@
 /**
  * Общие типы ответов API: мета списка, коды ошибок, показатель с происхождением.
- * Формат зафиксирован в CLAUDE.md и docs/API_CONTRACT.md.
+ * Формат зафиксирован в CONTRIBUTING.md и docs/API_CONTRACT.md.
  */
 
 export interface PageMeta {
