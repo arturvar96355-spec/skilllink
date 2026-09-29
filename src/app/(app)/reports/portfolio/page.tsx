@@ -31,6 +31,7 @@ import {
   mergeProblemStages,
   metricValueText,
   problemDetail,
+  programBasisNote,
   problemReason,
   problemSummary,
   reportDocumentTitle,
@@ -348,7 +349,7 @@ function ReportSheet({
                     <span className={styles.itemTitle}>{program.programName}</span>
                     <span className={styles.detail}>
                       {program.universityShortName ?? program.universityName}
-                      {program.basis === 'estimate' && ' · оценочные данные'}
+                      {programBasisNote(program.basis)}
                     </span>
                   </span>
                   <span className={styles.score}>{program.score === null ? NO_DATA : formatScore(program.score)}</span>
