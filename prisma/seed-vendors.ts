@@ -293,3 +293,56 @@ export async function seedVendorProductSkills(prisma: PrismaClient): Promise<num
   const result = await prisma.productSkill.createMany({ data, skipDuplicates: true })
   return result.count
 }
+
+/**
+ * Вендоры продуктов ИТ-Школы, по которым идут связки (решение 235). До этого вендор был
+ * только у девяти продуктов из файла организаторов, а связок по ним нет: в «Вендорах»
+ * у всех пяти стояло «Связок: 0», а в карточке связки — «Вендор: Нет данных»
+ * (полный проход эксперта 29.09, P1 № 2). Сопоставление — демо-допущение по назначению
+ * продукта: продукты помечены isMock, настоящий вендор уточняется у ИТ-Школы.
+ */
+export const SCHOOL_PRODUCT_VENDORS: Readonly<Record<string, string>> = {
+  // Основной сид (seedProducts).
+  'Облачная платформа РТК': 'ПАО «Ростелеком»',
+  'Учебный стенд сетей передачи данных': 'ПАО «Ростелеком»',
+  'Система мониторинга безопасности': 'ООО «РТК ИТ Плюс»',
+  'Аналитическая платформа данных': 'ООО «ТДата»',
+  'Конвейер сборки и поставки': 'ООО «РТК ИТ»',
+  'Платформа виртуальных лабораторий': 'ООО «Базис»',
+  // Расширенный набор (prisma/demo/catalog.ts, EXTRA_PRODUCTS).
+  'Киберполигон для учебных соревнований': 'ООО «РТК ИТ Плюс»',
+  'Платформа машинного обучения': 'ООО «ТДата»',
+  'Учебный стенд отечественной СУБД': 'ООО «ТДата»',
+  'Платформа разработки мобильных приложений': 'ООО «РТК ИТ»',
+  'Сервис мониторинга инфраструктуры': 'ООО «Базис»',
+  'Платформа интернета вещей': 'ПАО «Ростелеком»',
+  'Среда командной разработки': 'ООО «РТК ИТ»',
+  'Платформа компьютерного зрения': 'ООО «ТДата»',
+}
+
+/** Названия вендоров демо-набора — для проверки сопоставления в тесте. */
+export const SEED_VENDOR_NAMES: readonly string[] = VENDORS.map((vendor) => vendor.name)
+
+/**
+ * Проставляет вендора продуктам ИТ-Школы. Вызывается после расширенного набора — часть
+ * продуктов заводит он. Не найден продукт или вендор — заливка падает: молча оставить
+ * «Связок: 0» хуже, чем узнать о расхождении сразу.
+ */
+export async function linkSchoolProductsToVendors(prisma: PrismaClient): Promise<number> {
+  const [vendors, products] = await Promise.all([
+    prisma.vendor.findMany({ select: { id: true, name: true } }),
+    prisma.iTProduct.findMany({ where: { name: { in: Object.keys(SCHOOL_PRODUCT_VENDORS) } }, select: { id: true, name: true } }),
+  ])
+  const vendorByName = new Map(vendors.map((vendor) => [vendor.name, vendor.id]))
+  const productByName = new Map(products.map((product) => [product.name, product.id]))
+  let linked = 0
+  for (const [productName, vendorName] of Object.entries(SCHOOL_PRODUCT_VENDORS)) {
+    const productId = productByName.get(productName)
+    const vendorId = vendorByName.get(vendorName)
+    if (!productId) throw new Error(`Продукт не найден: ${productName}`)
+    if (!vendorId) throw new Error(`Вендор не найден: ${vendorName}`)
+    await prisma.iTProduct.update({ where: { id: productId }, data: { vendorId } })
+    linked += 1
+  }
+  return linked
+}

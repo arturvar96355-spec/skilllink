@@ -63,6 +63,27 @@ export const API_CONTRACT_URL = 'https://github.com/arturvar96355-spec/skilllink
 /** Открытый код проекта — заметно на стенде (решение владельца, 27.09). */
 export const OPEN_SOURCE_REPO_URL = 'https://github.com/arturvar96355-spec/skilllink'
 
+/**
+ * Якорь заголовка документа на GitHub: строчные буквы, знаки препинания убраны,
+ * каждый пробел — дефис. «3. Дефицит навыка (skill gap)» → «3-дефицит-навыка-skill-gap».
+ */
+export function githubHeadingAnchor(heading: string): string {
+  return heading
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+    .replace(/\s/g, '-')
+}
+
+/**
+ * Ссылка на раздел документа в открытом репозитории (решение 235): «Методика:
+ * docs/… — «раздел»» в «Параметрах расчётов» выглядела как ссылка и никуда не вела.
+ */
+export function repoDocUrl(document: string, section?: string | null): string {
+  const base = `${OPEN_SOURCE_REPO_URL}/blob/main/${document}`
+  return section ? `${base}#${githubHeadingAnchor(section)}` : base
+}
+
 export function universityHref(id: string): string {
   return `${ROUTES.universities}/${id}`
 }

@@ -183,6 +183,34 @@
   color: var(--accent-primary);
 }
 
+/* Ссылка на раздел методики в тексте: подчёркнута — видно, что открывается (решение 235). */
+.docLink {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+  overflow-wrap: anywhere;
+  transition:
+    color var(--motion-micro) var(--ease-out),
+    text-decoration-color var(--motion-micro) var(--ease-out);
+}
+
+.docLink svg {
+  margin-left: var(--space-1);
+  vertical-align: -2px;
+}
+
+.docLink:hover {
+  color: var(--accent-primary);
+  text-decoration-color: currentColor;
+}
+
+.docLink:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
 /* Источник: строка и раскрытые под ней подробности (ТЗ фронту, задача 8). */
 .source {
   border-bottom: 1px solid var(--border-divider);

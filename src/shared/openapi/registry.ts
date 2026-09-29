@@ -2032,6 +2032,17 @@ export const ENDPOINTS: readonly EndpointSpec[] = [
     errors: READ_ERRORS,
   },
   {
+    method: 'get',
+    path: '/api/portal/documents',
+    tag: 'Кабинет вуза',
+    summary: 'Документы вуза',
+    description:
+      'Те же документы, что считает documentsCount сводки: привязанные к вузу напрямую, ' +
+      'через связку или программу. Без автора, ответственного и текста шаблона.',
+    permission: 'UNIVERSITY_PORTAL',
+    errors: READ_ERRORS,
+  },
+  {
     method: 'post',
     path: '/api/portal/materials/{taskId}/confirm',
     tag: 'Кабинет вуза',

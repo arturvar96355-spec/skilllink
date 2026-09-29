@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CATALOG_REPORT_HEADERS,
+  catalogRowsFilledFirst,
   TZ_REPORT_HEADERS,
   readReportXlsxRows,
   reportCsv,
@@ -185,5 +186,21 @@ describe('фильтры отчётов в файле (решение 172)', () 
         `attachment; filename="skilllink-tz-report-2026-09-27.${format}"; filename*=UTF-8''skilllink-tz-report-2026-09-27.${format}`,
       )
     }
+  })
+})
+
+describe('catalogRowsFilledFirst: строки без реквизитов — в конце (решение 235)', () => {
+  const row = (university: string, contract: string | null, transfer: string | null = null) => [
+    university, 'Вендор', 'ПО', contract, null, null, transfer, 'Менеджер', null, null,
+  ]
+
+  it('пустые по лицензии и передаче строки уходят вниз, порядок внутри групп сохраняется', () => {
+    const rows = [row('А', null), row('Б', '№ 1'), row('В', null), row('Г', null, 'Передано')]
+    expect(catalogRowsFilledFirst(rows).map((item) => item[0])).toEqual(['Б', 'Г', 'А', 'В'])
+  })
+
+  it('вендор и ПО сами по себе строку заполненной не делают', () => {
+    const rows = [row('А', null), row('Б', null)]
+    expect(catalogRowsFilledFirst(rows).map((item) => item[0])).toEqual(['А', 'Б'])
   })
 })

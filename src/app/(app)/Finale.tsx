@@ -71,6 +71,8 @@ const COLUMNS = [0.1, 0.37, 0.63, 0.9]
 const TITLES = ['Вузы', 'Программы', 'Навыки рынка', 'IT-продукты']
 /** Больше узлов в столбце подписи не держат. */
 const MAX_NODES = 7
+/** Схема начинает рисоваться, когда её верх выше 133 % высоты окна — то есть до появления на экране. */
+const REVEAL_AHEAD = 1.33
 /** Длиннее подпись узла обрезается: иначе соседние столбцы подписей наезжают друг на друга. */
 const LABEL_MAX_CHARS = 26
 
@@ -135,7 +137,9 @@ function throughSkills(a: Node, b: Node, skills: Node[]): { d: string; skill: No
 export function Finale({ cooperations, skills }: { cooperations: CooperationListItemDto[]; skills: string[] }) {
   const calm = useCalmMotion()
   const ref = useRef<HTMLDivElement>(null)
-  const shown = useReveal(ref)
+  // Запуск заранее — за треть экрана до края (решение 235): прорисовка идёт
+  // секунду-другую, и при быстрой прокрутке эксперт видел пустую рамку.
+  const shown = useReveal(ref, REVEAL_AHEAD)
   const [width, setWidth] = useState(1000)
 
   // Поле — в пикселях блока: подписи своего размера на любой ширине.
@@ -320,6 +324,11 @@ export function Finale({ cooperations, skills }: { cooperations: CooperationList
           </p>
         )}
       </div>
+
+      {/* До начала прорисовки — подпись вместо пустой рамки (решение 235). */}
+      <p className={styles.pending} aria-hidden>
+        Схема загружается…
+      </p>
 
       <p className={styles.caption}>
         Схема. Линии «вуз → программа → продукт» — настоящие связки из данных. Навыки на пути — самые

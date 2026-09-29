@@ -8,6 +8,7 @@ import type { CooperationStatus, StageStatus } from '@/shared/contracts/enums'
 import type {
   ApplicationDto,
   PortalCooperationDto,
+  PortalDocumentDto,
   PortalMaterialDto,
   PortalOverviewDto,
   PortalProgramDto,
@@ -189,6 +190,31 @@ export async function materials(
     stageStatus: row.stage.status,
     canConfirm: isConfirmable(row, locks),
     lockedReason: lockedReasonOf(row, locks),
+  }))
+}
+
+/**
+ * Документы вуза в кабинете (решение 235): раньше в сводке было только число
+ * «Документы», а посмотреть их представителю было негде — раздел «Документы»
+ * ему закрыт. Та же база, что у `documentsCount`, и та же проверка вуза, что
+ * у остальных запросов кабинета: чужой вуз — 404.
+ */
+export async function documents(
+  user: CurrentUser,
+  universityId: string | undefined,
+): Promise<PortalDocumentDto[]> {
+  const university = await resolveUniversity(user, universityId)
+  const rows = await repo.findDocuments(university.id)
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    type: row.type,
+    version: row.version,
+    status: row.status,
+    programName: row.cooperation?.program.name ?? row.program?.name ?? null,
+    issuedAt: toIso(row.issuedAt),
+    signedAt: toIso(row.signedAt),
+    updatedAt: toIsoRequired(row.updatedAt),
   }))
 }
 

@@ -120,6 +120,7 @@ export const API_ROUTE_TEMPLATES: readonly string[] = [
   '/api/notifications/seen',
   '/api/openapi.json',
   '/api/portal/applications',
+  '/api/portal/documents',
   '/api/portal/materials',
   '/api/portal/materials/[taskId]/confirm',
   '/api/portal/overview',
