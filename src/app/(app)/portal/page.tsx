@@ -4,9 +4,11 @@ import { Suspense, useState, type FormEvent } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   APPLICATION_STATUS_LABELS,
+  DOCUMENT_TYPE_LABELS,
   PROGRAM_LEVEL_LABELS,
   type ApplicationDto,
   type PortalCooperationDto,
+  type PortalDocumentDto,
   type PortalMaterialDto,
   type PortalOverviewDto,
   type PortalProgramDto,
@@ -18,6 +20,7 @@ import {
   CardsSkeleton,
   CooperationStatusBadge,
   DataTable,
+  DocumentStatusBadge,
   EmptyState,
   ErrorState,
   Icon,
@@ -108,6 +111,7 @@ function PortalScreen() {
 
   const overview = useResource<PortalOverviewDto>(`/api/portal/overview${scope}`)
   const materials = useResource<PortalMaterialDto[]>(`/api/portal/materials${scope}`)
+  const documents = useResource<PortalDocumentDto[]>(`/api/portal/documents${scope}`)
   const applications = useResource<ApplicationDto[]>(
     `/api/portal/applications${buildQuery({ universityId, page, pageSize: 10 })}`,
     { keepPreviousData: true },
@@ -400,7 +404,20 @@ function PortalScreen() {
               value={data.pendingMaterials}
               explanation="Переданные вузу материалы, получение которых вы ещё не подтвердили."
             />
-            <KpiCard label="Документы" value={data.documentsCount} />
+            <KpiCard
+              label="Документы"
+              value={data.documentsCount}
+              explanation="Документы вуза, его связок и программ: договоры, лицензии, акты."
+              footer={
+                data.documentsCount > 0 ? (
+                  // Число без списка проверить было нечем (полный проход эксперта 29.09):
+                  // ведёт к блоку «Документы» ниже на этой же странице.
+                  <a href="#portal-documents" className={styles.kpiLink}>
+                    К списку документов
+                  </a>
+                ) : undefined
+              }
+            />
           </KpiRow>
 
           <Section
@@ -520,6 +537,49 @@ function PortalScreen() {
               icon="document"
               title="Материалов нет"
               description="Вузу ещё ничего не передано: пункты этапа 7 появятся здесь, когда работа дойдёт до передачи материалов."
+            />
+          </Card>
+        )}
+      </Section>
+
+      <Section
+        id="portal-documents"
+        title="Документы"
+        help={{ topic: 'university-portal', section: 'documents' }}
+        description="Договоры, лицензии и акты по вузу, его связкам и программам — со статусом. Заводят и меняют их сотрудники ИТ-Школы."
+      >
+        {documents.isLoading ? (
+          <CardsSkeleton count={2} />
+        ) : documents.error ? (
+          <ErrorState error={documents.error} onRetry={documents.reload} />
+        ) : documents.data && documents.data.length > 0 ? (
+          <div className={styles.list}>
+            {documents.data.map((document) => (
+              <div key={document.id} className={styles.material}>
+                <div className={styles.cell}>
+                  <span className={styles.cellTitle}>{document.title}</span>
+                  <span className={styles.cellMeta}>
+                    {DOCUMENT_TYPE_LABELS[document.type]} · версия {document.version}
+                    {document.programName ? ` · ${document.programName}` : ''}
+                  </span>
+                </div>
+                <div className={styles.confirmed}>
+                  <DocumentStatusBadge status={document.status} />
+                  <span className={styles.cellMeta}>
+                    {document.signedAt
+                      ? `Подписан ${formatDate(document.signedAt)}`
+                      : `Обновлён ${formatDate(document.updatedAt)}`}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Card muted>
+            <EmptyState
+              icon="document"
+              title="Документов нет"
+              description="По вузу ещё не заведено ни одного документа: договор и лицензии появятся здесь, когда сотрудник ИТ-Школы их оформит."
             />
           </Card>
         )}

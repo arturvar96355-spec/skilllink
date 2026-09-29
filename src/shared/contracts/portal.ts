@@ -1,4 +1,12 @@
-import type { ApplicationStatus, CooperationStatus, DataOrigin, StageStatus, ProgramLevel } from './enums'
+import type {
+  ApplicationStatus,
+  CooperationStatus,
+  DataOrigin,
+  DocumentStatus,
+  DocumentType,
+  StageStatus,
+  ProgramLevel,
+} from './enums'
 
 /** Заявка на обучение. Персональных данных обучающихся не содержит. */
 export interface ApplicationDto {
@@ -61,6 +69,24 @@ export interface PortalCooperationDto {
   currentStageStatus: StageStatus | null
   progressPercent: number
   classesStartAt: string | null
+}
+
+/**
+ * Документ вуза в кабинете (решение 235): тот же набор, что считает `documentsCount`
+ * в сводке, — привязанные к вузу напрямую, через связку или программу. Только то,
+ * что вузу и так видно: без автора, ответственного и текста шаблона.
+ */
+export interface PortalDocumentDto {
+  id: string
+  title: string
+  type: DocumentType
+  version: string
+  status: DocumentStatus
+  /** Программа — через связку или напрямую; null — документ вуза целиком. */
+  programName: string | null
+  issuedAt: string | null
+  signedAt: string | null
+  updatedAt: string
 }
 
 /** Сводка кабинета представителя вуза. Аналитики и рейтингов здесь нет: вузу они не показываются. */
