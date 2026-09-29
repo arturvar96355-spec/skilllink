@@ -1210,7 +1210,7 @@ skilllink-caddy` нужен только если Caddyfile правили ру�
 выкладку.
 
 Приложение подхватывает три переменные `KEYCLOAK_*` и подключает провайдер — на
-`/login` появляется кнопка «Для сотрудников РТК (единый вход)». Маршрут `/auth/*`
+`/login` появляется кнопка «Войти через Keycloak» (единый вход для сотрудников РТК). Маршрут `/auth/*`
 на `keycloak:8080` (`deploy/yandex-cloud/Caddyfile`) уже в конфиге — этот шаг файл
 не меняет, поэтому автоматика выше просто напечатает «настройки не менялись».
 
@@ -1220,7 +1220,7 @@ skilllink-caddy` нужен только если Caddyfile правили ру�
 curl -s https://skilllink.site/auth/realms/skilllink/.well-known/openid-configuration | head -c 200
 ```
 
-Открыть `https://skilllink.site/login`, нажать «Для сотрудников РТК (единый вход)», войти
+Открыть `https://skilllink.site/login`, нажать «Войти через Keycloak» (единый вход для сотрудников РТК), войти
 `manager@skilllink.demo` (или другим демо-адресом из `prisma/seed.ts`) с паролем
 стенда (`SEED_DEMO_PASSWORD`) — попасть на главную под своей ролью, как при входе
 паролем. Неверный пароль в самом Keycloak — его собственный экран ошибки (Keycloak
