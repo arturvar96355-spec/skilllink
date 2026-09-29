@@ -1,7 +1,8 @@
 'use client'
 
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import { hideRevealedOnSubmit } from '../lib/password-reveal'
 import { Icon, type IconName } from './Icon'
 import styles from './Form.module.css'
 
@@ -76,6 +77,12 @@ export function Input({ label, hint, error, icon, hideLabel, id, className, lang
   // Поле пароля — с «глазом»: набранное можно показать и снова скрыть (вход, смена пароля).
   const isPassword = props.type === 'password'
   const [revealed, setRevealed] = useState(false)
+  // Отправили форму с показанным паролем — поле снова «скрыто» (ревью PR #261).
+  useEffect(() => {
+    if (!revealed) return
+    const field = () => document.getElementById(inputId) as HTMLInputElement | null
+    return hideRevealedOnSubmit(document, field, () => setRevealed(false))
+  }, [revealed, inputId])
   const input = (
     <input
       id={inputId}
